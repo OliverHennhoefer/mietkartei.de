@@ -1,0 +1,43 @@
+name: Dokumentation verbessern
+description: Melde fehlende, unklare oder veraltete Dokumentation.
+title: "[Dokumentation] "
+labels:
+  - dokumentation
+  - prüfung ausstehend
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Hinweise zu Verständlichkeit, Übersetzungen und Barrierefreiheit der Dokumentation sind willkommen.
+        Für die Zusammenarbeit gilt unser [Verhaltenskodex](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/CODE_OF_CONDUCT.md).
+  - type: checkboxes
+    id: vorab
+    attributes:
+      label: Vorab geprüft
+      options:
+        - label: Ich habe die vorhandenen Issues durchsucht und keinen passenden Hinweis gefunden.
+          required: true
+  - type: input
+    id: stelle
+    attributes:
+      label: Betroffene Stelle
+      description: Verlinke die Seite oder nenne die Datei und den Abschnitt. Bei fehlender Dokumentation benenne das Thema.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Was fehlt oder ist unklar?
+      description: Erkläre, welche Information du gesucht hast oder was missverständlich ist.
+    validations:
+      required: true
+  - type: textarea
+    id: vorschlag
+    attributes:
+      label: Verbesserungsvorschlag
+      description: Wenn du möchtest, schlage eine Ergänzung oder einen verständlicheren Wortlaut vor.
+  - type: textarea
+    id: hinweise
+    attributes:
+      label: Weitere Hinweise
+      description: Hier ist Platz für Beispiele, Verweise und Hinweise zur Barrierefreiheit.

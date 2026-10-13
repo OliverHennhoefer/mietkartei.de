@@ -1,0 +1,29 @@
+changelog:
+  exclude:
+    labels:
+      - ohne versionshinweis
+  categories:
+    - title: Inkompatible Änderungen
+      labels:
+        - inkompatibel
+    - title: Sicherheitskorrekturen
+      labels:
+        - sicherheit
+    - title: Neue Funktionen
+      labels:
+        - funktion
+    - title: Fehlerbehebungen
+      labels:
+        - fehler
+    - title: Dokumentation
+      labels:
+        - dokumentation
+    - title: Abhängigkeiten
+      labels:
+        - abhängigkeiten
+    - title: Wartung
+      labels:
+        - wartung
+    - title: Weitere Änderungen
+      labels:
+        - "*"

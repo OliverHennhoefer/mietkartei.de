@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Sicherheitslücke vertraulich melden
+    url: https://github.com/OliverHennhoefer/mietkartei.de/blob/main/SECURITY.md
+    about: Nutze den privaten Meldeweg statt eines öffentlichen Issues.
+  - name: Verstoß gegen den Verhaltenskodex melden
+    url: https://github.com/OliverHennhoefer/mietkartei.de/blob/main/CODE_OF_CONDUCT.md#einen-vorfall-melden
+    about: Erfahre, wie du einen Vorfall vertraulich melden kannst.

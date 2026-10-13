@@ -1,0 +1,48 @@
+name: Funktion vorschlagen
+description: Beschreibe ein Problem, eine mögliche Lösung und den erwarteten Nutzen.
+title: "[Funktion] "
+labels:
+  - funktion
+  - prüfung ausstehend
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Beschreibe zuerst das Problem, das du lösen möchtest. Ein Vorschlag darf offen sein und muss noch keinen fertigen Lösungsweg enthalten.
+        Für die Zusammenarbeit gilt unser [Verhaltenskodex](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/CODE_OF_CONDUCT.md).
+  - type: checkboxes
+    id: vorab
+    attributes:
+      label: Vorab geprüft
+      options:
+        - label: Ich habe die vorhandenen Issues durchsucht und keinen passenden Vorschlag gefunden.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Welches Problem möchtest du lösen?
+      description: Beschreibe eine konkrete Situation und für wen das Problem auftritt.
+    validations:
+      required: true
+  - type: textarea
+    id: ergebnis
+    attributes:
+      label: Gewünschtes Ergebnis
+      description: Was soll mit der Änderung möglich oder einfacher werden?
+    validations:
+      required: true
+  - type: textarea
+    id: loesung
+    attributes:
+      label: Möglicher Lösungsweg
+      description: Falls du bereits eine Idee hast, beschreibe sie hier.
+  - type: textarea
+    id: alternativen
+    attributes:
+      label: Bisherige Lösungen und Alternativen
+      description: Wie gehst du bisher damit um? Welche anderen Ansätze kommen infrage?
+  - type: textarea
+    id: hinweise
+    attributes:
+      label: Beispiele oder weitere Hinweise
+      description: Ergänze bei Bedarf Skizzen oder Verweise. Verwende fiktive Daten.

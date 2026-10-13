@@ -1,0 +1,42 @@
+name: Frage stellen
+description: Stelle eine Frage zur Nutzung, Einrichtung oder Mitarbeit.
+title: "[Frage] "
+labels:
+  - frage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Lies zunächst unsere [Hinweise zur Unterstützung](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/SUPPORT.md). Beschreibe deine Frage mit ausreichend Kontext und verwende fiktive Daten.
+        **Sicherheitslücken bitte vertraulich über unsere [Sicherheitsrichtlinie](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/SECURITY.md) melden.** Für die Zusammenarbeit gilt unser [Verhaltenskodex](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/CODE_OF_CONDUCT.md).
+  - type: checkboxes
+    id: vorab
+    attributes:
+      label: Vorab geprüft
+      options:
+        - label: Ich habe die Dokumentation und vorhandenen Issues nach einer Antwort durchsucht.
+          required: true
+  - type: textarea
+    id: frage
+    attributes:
+      label: Deine Frage
+      description: Was möchtest du wissen oder erreichen?
+    validations:
+      required: true
+  - type: textarea
+    id: versuche
+    attributes:
+      label: Bisherige Versuche und Kontext
+      description: Was hast du bereits gelesen oder ausprobiert? Ergänze die nötigen Hintergrundinformationen.
+    validations:
+      required: true
+  - type: input
+    id: projektstand
+    attributes:
+      label: Version, Tag oder Commit
+      description: Gib den verwendeten Stand an, falls er für die Frage relevant ist.
+  - type: textarea
+    id: hinweise
+    attributes:
+      label: Weitere Hinweise
+      description: Hier kannst du relevante Fehlermeldungen, Bildschirmfotos oder Verweise ergänzen. Entferne personenbezogene Angaben und Zugangsdaten.

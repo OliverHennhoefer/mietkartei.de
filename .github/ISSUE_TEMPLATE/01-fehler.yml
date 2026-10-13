@@ -1,0 +1,59 @@
+name: Fehler melden
+description: Melde einen Fehler mit nachvollziehbaren Schritten und dem erwarteten Ergebnis.
+title: "[Fehler] "
+labels:
+  - fehler
+  - prüfung ausstehend
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Beschreibe den Fehler so, dass andere ihn nachvollziehen können. Nutze fiktive Daten und entferne personenbezogene Angaben sowie Zugangsdaten aus Anhängen.
+        **Sicherheitslücken bitte vertraulich über unsere [Sicherheitsrichtlinie](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/SECURITY.md) melden.** Für die Zusammenarbeit gilt unser [Verhaltenskodex](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/CODE_OF_CONDUCT.md).
+  - type: checkboxes
+    id: vorab
+    attributes:
+      label: Vorab geprüft
+      options:
+        - label: Ich habe die vorhandenen Issues durchsucht und keine passende Meldung gefunden.
+          required: true
+  - type: textarea
+    id: beschreibung
+    attributes:
+      label: Was passiert?
+      description: Beschreibe das beobachtete Verhalten und seine Auswirkungen.
+    validations:
+      required: true
+  - type: textarea
+    id: schritte
+    attributes:
+      label: Schritte zum Nachstellen
+      description: Nenne die nötigen Voraussetzungen und Schritte. Verlinke bei Bedarf ein kleines Beispiel.
+      placeholder: |
+        1. Ausgangssituation herstellen
+        2. Aktion ausführen
+        3. Fehler beobachten
+    validations:
+      required: true
+  - type: textarea
+    id: erwartet
+    attributes:
+      label: Erwartetes Verhalten
+      description: Welches Ergebnis hättest du erwartet?
+    validations:
+      required: true
+  - type: input
+    id: projektstand
+    attributes:
+      label: Version, Tag oder Commit
+      description: Gib den verwendeten Stand an, soweit bekannt.
+  - type: input
+    id: umgebung
+    attributes:
+      label: Umgebung
+      description: Nenne relevante Angaben, etwa Betriebssystem, Browser oder Art der Einrichtung.
+  - type: textarea
+    id: belege
+    attributes:
+      label: Fehlermeldungen, Bildschirmfotos oder weitere Hinweise
+      description: Ergänze nur Informationen, die zum Verständnis beitragen. Du kannst Dateien hier anhängen.
