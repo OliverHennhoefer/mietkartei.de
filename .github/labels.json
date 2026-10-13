@@ -1,0 +1,72 @@
+[
+  {
+    "name": "fehler",
+    "color": "d73a4a",
+    "description": "Ein Fehler im bestehenden Verhalten."
+  },
+  {
+    "name": "funktion",
+    "color": "a2eeef",
+    "description": "Eine neue Funktion oder eine Verbesserung des Funktionsumfangs."
+  },
+  {
+    "name": "dokumentation",
+    "color": "0075ca",
+    "description": "Anleitungen, Erklärungen, Übersetzungen oder andere Dokumentation."
+  },
+  {
+    "name": "frage",
+    "color": "d876e3",
+    "description": "Eine Frage zur Nutzung, Einrichtung oder Mitarbeit."
+  },
+  {
+    "name": "prüfung ausstehend",
+    "color": "ededed",
+    "description": "Das Anliegen muss noch eingeordnet und geprüft werden."
+  },
+  {
+    "name": "wartung",
+    "color": "cfd3d7",
+    "description": "Technische Pflege, interne Verbesserungen oder Repository-Verwaltung."
+  },
+  {
+    "name": "abhängigkeiten",
+    "color": "0366d6",
+    "description": "Eine Änderung an verwendeten Abhängigkeiten."
+  },
+  {
+    "name": "sicherheit",
+    "color": "b60205",
+    "description": "Eine Sicherheitskorrektur nach vertraulicher Abstimmung."
+  },
+  {
+    "name": "inkompatibel",
+    "color": "b60205",
+    "description": "Eine Änderung erfordert Anpassungen bei der Nutzung oder Aktualisierung."
+  },
+  {
+    "name": "guter einstieg",
+    "color": "7057ff",
+    "description": "Ein überschaubarer Beitrag, der sich zum Einstieg eignet."
+  },
+  {
+    "name": "hilfe gesucht",
+    "color": "008672",
+    "description": "Für dieses Anliegen wird Unterstützung gesucht."
+  },
+  {
+    "name": "duplikat",
+    "color": "cfd3d7",
+    "description": "Das Anliegen ist bereits an anderer Stelle beschrieben."
+  },
+  {
+    "name": "nicht geplant",
+    "color": "ffffff",
+    "description": "Das Anliegen wird derzeit nicht weiterverfolgt."
+  },
+  {
+    "name": "ohne versionshinweis",
+    "color": "ededed",
+    "description": "Diese Änderung soll in automatisch generierten Versionshinweisen fehlen."
+  }
+]

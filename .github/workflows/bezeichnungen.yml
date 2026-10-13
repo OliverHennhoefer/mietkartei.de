@@ -1,0 +1,82 @@
+name: Bezeichnungen synchronisieren
+
+"on":
+  push:
+    branches:
+      - main
+    paths:
+      - .github/labels.json
+      - .github/workflows/bezeichnungen.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: bezeichnungen-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  synchronisieren:
+    name: Deutsche Bezeichnungen anlegen und aktualisieren
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Bezeichnungen aus der Konfiguration übernehmen
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { data: file } = await github.rest.repos.getContent({
+              ...context.repo,
+              path: '.github/labels.json',
+              ref: context.sha,
+            });
+            if (file.type !== 'file' || file.encoding !== 'base64') {
+              throw new Error('Die Bezeichnungskonfiguration konnte nicht gelesen werden.');
+            }
+            const labels = JSON.parse(Buffer.from(file.content, 'base64').toString('utf8'));
+            const names = new Set();
+            if (!Array.isArray(labels) || labels.length === 0) {
+              throw new Error('Die Bezeichnungskonfiguration muss eine gefüllte Liste sein.');
+            }
+            for (const label of labels) {
+              if (!label || typeof label.name !== 'string' || !label.name.trim()
+                  || typeof label.color !== 'string' || !/^[0-9a-f]{6}$/i.test(label.color)
+                  || typeof label.description !== 'string' || label.description.length > 100) {
+                throw new Error('Eine Bezeichnung hat einen ungültigen Namen, Farbwert oder Beschreibungstext.');
+              }
+              const key = label.name.toLowerCase();
+              if (names.has(key)) {
+                throw new Error('Die Bezeichnungskonfiguration enthält doppelte Namen.');
+              }
+              names.add(key);
+            }
+            const existing = await github.paginate(github.rest.issues.listLabelsForRepo, {
+              ...context.repo,
+              per_page: 100,
+            });
+            const byName = new Map(existing.map(label => [label.name.toLowerCase(), label]));
+            for (const label of labels) {
+              const current = byName.get(label.name.toLowerCase());
+              if (!current) {
+                await github.rest.issues.createLabel({
+                  ...context.repo,
+                  name: label.name,
+                  color: label.color,
+                  description: label.description,
+                });
+                core.info(`Bezeichnung angelegt: ${label.name}`);
+              } else if (current.name !== label.name
+                  || current.color.toLowerCase() !== label.color.toLowerCase()
+                  || (current.description ?? '') !== label.description) {
+                await github.rest.issues.updateLabel({
+                  ...context.repo,
+                  name: current.name,
+                  new_name: label.name,
+                  color: label.color,
+                  description: label.description,
+                });
+                core.info(`Bezeichnung aktualisiert: ${label.name}`);
+              }
+            }
