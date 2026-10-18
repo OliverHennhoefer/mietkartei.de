@@ -1,15 +1,15 @@
 # mietkartei.de
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-white.svg">
-  <img src="docs/assets/logo.svg" alt="mietkartei" width="200">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/brand/logo-white.svg">
+  <img src="assets/brand/logo.svg" alt="mietkartei" width="200">
 </picture>
 
 mietkartei.de entsteht als Open-Source-Hausverwaltung für Privatvermieter in Deutschland. Dieses Repository enthält derzeit die Projektlizenz, das Logo, die Grundlagen für die gemeinsame Entwicklung und einen ersten Dokumentationsentwurf. Eine Anleitung für Installation und Betrieb wird mit dem Anwendungscode ergänzt.
 
 ## Dokumentation
 
-Die Dokumentation unter [docs.mietkartei.de](https://docs.mietkartei.de/) beginnt mit einer [deutschen Baustellenseite](docs/index.md). Zensical erzeugt die Seite aus `docs/`. Die [Pflegeanleitung](.github/DOKUMENTATION.md) beschreibt die lokale Vorschau und den Build. Die verwendete Wortmarke liegt in [docs/assets](docs/assets/).
+Die Dokumentation unter [docs.mietkartei.de](https://docs.mietkartei.de/) beginnt mit einer [deutschen Baustellenseite](docs/index.md). Zensical erzeugt die Seite aus `docs/`. Die [Pflegeanleitung](.github/DOKUMENTATION.md) beschreibt die lokale Vorschau und den Build. Die gemeinsamen Logos und Gestaltungsvarianten liegen in [assets/brand](assets/brand/).
 
 ## Mitmachen
 

@@ -34,7 +34,14 @@ Verweise auf das zugehörige Issue, falls eines vorhanden ist. Erläutere das Pr
 
 ## Änderungen prüfen
 
-Das Repository enthält derzeit noch keinen Anwendungscode. Für Änderungen an der Dokumentationsseite richte die Umgebung gemäß der [Dokumentationsanleitung](.github/DOKUMENTATION.md) ein und führe im Stammverzeichnis `zensical build --clean --strict` aus. Der GitHub-Actions-Ablauf „Dokumentation“ meldet für jeden Pull Request die Prüfung „Dokumentation prüfen“ und baut die Seite bei relevanten Änderungen.
+Das Repository enthält derzeit noch keinen Anwendungscode. Für Änderungen an der Dokumentationsseite richte die Umgebung gemäß der [Dokumentationsanleitung](.github/DOKUMENTATION.md) ein und führe im Stammverzeichnis die folgenden Befehle aus:
+
+```sh
+python scripts/prepare_docs_assets.py
+zensical build --clean --strict
+```
+
+Der GitHub-Actions-Ablauf „Dokumentation“ meldet für jeden Pull Request die Prüfung „Dokumentation prüfen“ und baut die Seite bei relevanten Änderungen, einschließlich der gemeinsamen Markenressourcen.
 
 Prüfe außerdem passend zu deinem Beitrag:
 

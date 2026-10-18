@@ -39,7 +39,7 @@ Prüfe solche Änderungen vor dem Zusammenführen auf neue Berechtigungen und Au
 
 ## Dokumentation veröffentlichen
 
-Der Ablauf [dokumentation.yml](workflows/dokumentation.yml) meldet für jeden Pull Request die Prüfung „Dokumentation prüfen“. Er prüft geänderte Dateien auf fehlerhafte Leerzeichen und baut die Dokumentationsseite bei Änderungen in `docs/`, an `zensical.toml` oder an seiner eigenen Workflow-Datei. Solange noch keine Dokumentationsseite eingerichtet ist, entfällt der Build. Vorhandene Markdown-Seiten ohne Zensical-Konfiguration lassen die Prüfung fehlschlagen.
+Der Ablauf [dokumentation.yml](workflows/dokumentation.yml) meldet für jeden Pull Request die Prüfung „Dokumentation prüfen“. Er prüft geänderte Dateien auf fehlerhafte Leerzeichen und baut die Dokumentationsseite bei Änderungen in `docs/` oder `assets/brand/`, an `scripts/prepare_docs_assets.py`, an `zensical.toml` oder an seiner eigenen Workflow-Datei. Vor dem Build werden die ausgewählten Wortmarken aus den gemeinsamen Markenressourcen übernommen. Solange noch keine Dokumentationsseite eingerichtet ist, entfällt der Build. Vorhandene Markdown-Seiten ohne Zensical-Konfiguration lassen die Prüfung fehlschlagen.
 
 Nach relevanten Änderungen auf `main` veröffentlicht der Ablauf die Seite auf GitHub Pages. Dafür muss in den [Pages-Einstellungen](https://github.com/OliverHennhoefer/mietkartei.de/settings/pages) die Quelle „GitHub Actions“ gewählt sein. Ein manueller Start auf `main` ist ebenfalls möglich. Die [Dokumentationsanleitung](DOKUMENTATION.md) beschreibt Vorschau, Build und Domain.
 
