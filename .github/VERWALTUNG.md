@@ -15,7 +15,9 @@ GitHub verwendet die Issue- und Pull-Request-Vorlagen aus dem Standardzweig `mai
 | `CODEOWNERS` | Zuständigkeit für die Begutachtung |
 | `labels.json` | Deutsche Bezeichnungen und ihre Beschreibungen |
 | `workflows/bezeichnungen.yml` | Anlegen und Aktualisieren der Bezeichnungen |
-| `dependabot.yml` | Wöchentliche Aktualisierungsvorschläge für GitHub-Aktionen |
+| `workflows/dokumentation.yml` | Prüfen und Veröffentlichen der Dokumentation |
+| `DOKUMENTATION.md` | Vorschau, Build und Veröffentlichung der Dokumentation |
+| `dependabot.yml` | Wöchentliche Aktualisierungsvorschläge für Abhängigkeiten |
 | `release.yml` | Kategorien für automatisch generierte Versionshinweise |
 | `RELEASE_TEMPLATE.md` | Manuell verwendete Vorlage für eine Versionsbeschreibung |
 
@@ -31,9 +33,21 @@ Behalte Namen, die in den Issue-Formularen oder in `release.yml` verwendet werde
 
 ## GitHub-Aktionen aktuell halten
 
-[dependabot.yml](dependabot.yml) prüft GitHub-Aktionen montags um 07:00 Uhr in der Zeitzone Europe/Berlin auf neue Versionen und erstellt bei Bedarf Pull Requests. Die Vorschläge werden mit „abhängigkeiten“ und „wartung“ eingeordnet. Die unterstützten Optionen stehen in der [Dependabot-Dokumentation](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference).
+[dependabot.yml](dependabot.yml) prüft die dort aufgeführten Abhängigkeiten montags um 07:00 Uhr in der Zeitzone Europe/Berlin auf neue Versionen und erstellt bei Bedarf Pull Requests. Die Vorschläge werden mit „abhängigkeiten“ und „wartung“ eingeordnet. Die unterstützten Optionen stehen in der [Dependabot-Dokumentation](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference).
 
 Prüfe solche Änderungen vor dem Zusammenführen auf neue Berechtigungen und Auswirkungen auf den Ablauf. Halte verwendete Aktionen weiterhin auf konkrete Commit-IDs festgelegt.
+
+## Dokumentation veröffentlichen
+
+Der Ablauf [dokumentation.yml](workflows/dokumentation.yml) meldet für jeden Pull Request die Prüfung „Dokumentation prüfen“. Er prüft geänderte Dateien auf fehlerhafte Leerzeichen und baut die Dokumentationsseite bei Änderungen in `docs/` oder `assets/brand/`, an `scripts/prepare_docs_assets.py`, an `zensical.toml` oder an seiner eigenen Workflow-Datei. Vor dem Build werden die ausgewählten Wortmarken aus den gemeinsamen Markenressourcen übernommen. Solange noch keine Dokumentationsseite eingerichtet ist, entfällt der Build. Vorhandene Markdown-Seiten ohne Zensical-Konfiguration lassen die Prüfung fehlschlagen.
+
+Nach relevanten Änderungen auf `main` veröffentlicht der Ablauf die Seite auf GitHub Pages. Dafür muss in den [Pages-Einstellungen](https://github.com/OliverHennhoefer/mietkartei.de/settings/pages) die Quelle „GitHub Actions“ gewählt sein. Ein manueller Start auf `main` ist ebenfalls möglich. Die [Dokumentationsanleitung](DOKUMENTATION.md) beschreibt Vorschau, Build und Domain.
+
+## Standardzweig schützen
+
+Für `main` werden Pull Requests auch für Administratoren verlangt. Eine zusätzliche Freigabe ist beim aktuellen Einzelmaintainer nicht erforderlich. Vor dem Zusammenführen müssen die Prüfung „Dokumentation prüfen“ erfolgreich und alle Begutachtungsgespräche abgeschlossen sein. Direkte Pushes, Force-Pushes und das Löschen von `main` bleiben gesperrt.
+
+Die Pflichtprüfung läuft ohne Pfadfilter auf jedem Pull Request. Dadurch bleiben Beiträge ohne Dokumentationsänderungen nicht wegen einer fehlenden Statusmeldung blockiert. Weitere Anwendungstests werden mit dem Anwendungscode ergänzt.
 
 ## Eine Version veröffentlichen
 
