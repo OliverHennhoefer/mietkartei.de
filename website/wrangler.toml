@@ -1,0 +1,9 @@
+name = "mietkartei-startseite"
+compatibility_date = "2026-10-18"
+
+routes = [
+  { pattern = "mietkartei.de", custom_domain = true },
+]
+
+[assets]
+directory = "../dist/homepage"

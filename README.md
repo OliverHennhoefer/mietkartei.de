@@ -5,7 +5,11 @@
   <img src="assets/brand/logo.svg" alt="mietkartei" width="200">
 </picture>
 
-mietkartei.de entsteht als Open-Source-Hausverwaltung für Privatvermieter in Deutschland. Dieses Repository enthält derzeit die Projektlizenz, das Logo, die Grundlagen für die gemeinsame Entwicklung und einen ersten Dokumentationsentwurf. Eine Anleitung für Installation und Betrieb wird mit dem Anwendungscode ergänzt.
+mietkartei.de entsteht als Open-Source-Hausverwaltung für Privatvermieter in Deutschland. Dieses Repository enthält derzeit die Projektlizenz, das Logo, die öffentliche Startseite, die Grundlagen für die gemeinsame Entwicklung und einen ersten Dokumentationsentwurf. Eine Anleitung für Installation und Betrieb wird mit dem Anwendungscode ergänzt.
+
+## Startseite
+
+Die öffentliche [Startseite unter mietkartei.de](https://mietkartei.de/) informiert über den Projektstand. Der Quelltext liegt in [website/](website/); der Build übernimmt die gemeinsamen Markenressourcen aus `assets/brand/`. Die [Pflegeanleitung](.github/STARTSEITE.md) beschreibt Vorschau und Veröffentlichung auf Cloudflare.
 
 ## Dokumentation
 

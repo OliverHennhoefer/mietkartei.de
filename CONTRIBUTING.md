@@ -34,6 +34,8 @@ Verweise auf das zugehörige Issue, falls eines vorhanden ist. Erläutere das Pr
 
 ## Änderungen prüfen
 
+Für Änderungen an der öffentlichen Startseite führe `python3 scripts/build_homepage.py` aus und prüfe die Vorschau gemäß der [Startseitenanleitung](.github/STARTSEITE.md).
+
 Das Repository enthält derzeit noch keinen Anwendungscode. Für Änderungen an der Dokumentationsseite richte die Umgebung gemäß der [Dokumentationsanleitung](.github/DOKUMENTATION.md) ein und führe im Stammverzeichnis die folgenden Befehle aus:
 
 ```sh
