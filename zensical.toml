@@ -1,0 +1,50 @@
+[project]
+site_name = "mietkartei.de"
+site_description = "Die Dokumentation zu mietkartei.de ist in Arbeit."
+site_author = "Oliver Hennhoefer"
+copyright = 'Erstellt mit <a href="https://zensical.org/">Zensical</a>'
+site_url = "https://docs.mietkartei.de/"
+docs_dir = "docs"
+site_dir = "site"
+extra_css = ["assets/stylesheets/extra.css"]
+exclude_docs = "requirements.txt"
+nav = [
+  { "Dokumentation" = "index.md" },
+]
+
+[project.theme]
+language = "de"
+font = false
+logo = "assets/logo.svg"
+favicon = "assets/logo.svg"
+features = []
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "white"
+accent = "grey"
+toggle.icon = "lucide/moon"
+toggle.name = "Zur dunklen Darstellung wechseln"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "black"
+accent = "grey"
+toggle.icon = "lucide/sun"
+toggle.name = "Zur hellen Darstellung wechseln"
+
+[project.markdown_extensions]
+attr_list = {}
+md_in_html = {}
+
+[project.plugins.search]
+enabled = false
+
+[project.extra]
+generator = false
+
+[project.validation]
+invalid_links = true
+invalid_link_anchors = true

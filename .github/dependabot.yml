@@ -13,3 +13,16 @@ updates:
       - wartung
     commit-message:
       prefix: wartung
+  - package-ecosystem: pip
+    directory: "/docs"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 3
+    labels:
+      - abhängigkeiten
+      - wartung
+    commit-message:
+      prefix: wartung
