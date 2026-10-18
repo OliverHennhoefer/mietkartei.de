@@ -16,7 +16,7 @@ nav = [
 language = "de"
 font = false
 logo = "assets/brand/logo.svg"
-favicon = "assets/brand/logo.svg"
+favicon = "assets/brand/favicon.svg"
 features = []
 
 [[project.theme.palette]]

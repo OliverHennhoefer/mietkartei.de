@@ -33,12 +33,16 @@ body[data-md-color-scheme="slate"][data-md-color-primary] {
 }
 
 .md-header .md-logo img {
-  height: 1.65rem;
+  height: 1.1rem;
   width: auto;
 }
 
 .md-header .md-logo {
   display: block;
+}
+
+.md-header__title {
+  visibility: hidden;
 }
 
 .md-header__button[for="__drawer"] {
