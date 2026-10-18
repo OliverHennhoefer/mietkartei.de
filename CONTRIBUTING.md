@@ -34,14 +34,16 @@ Verweise auf das zugehörige Issue, falls eines vorhanden ist. Erläutere das Pr
 
 ## Änderungen prüfen
 
-Das Repository enthält derzeit noch keinen Anwendungscode und keine vorgegebenen Build- oder Testbefehle. Prüfe deshalb passend zu deinem Beitrag:
+Das Repository enthält derzeit noch keinen Anwendungscode. Für Änderungen an der Dokumentationsseite richte die Umgebung gemäß der [Dokumentationsanleitung](.github/DOKUMENTATION.md) ein und führe im Stammverzeichnis `zensical build --clean --strict` aus. Der GitHub-Actions-Ablauf „Dokumentation“ meldet für jeden Pull Request die Prüfung „Dokumentation prüfen“ und baut die Seite bei relevanten Änderungen.
+
+Prüfe außerdem passend zu deinem Beitrag:
 
 - Bei Dokumentation: Verständlichkeit, Schreibweise, Verweise und Darstellung.
 - Bei GitHub-Formularen: gültige YAML-Syntax, eindeutige Feldkennungen, Pflichtfelder und Verweise auf vorhandene Bezeichnungen.
 - Bei Grafiken: Darstellung, Lesbarkeit, Skalierung und Transparenz.
 - Bei Automatisierungen: Auslöser, Berechtigungen und das Verhalten bei wiederholter Ausführung.
 
-Sobald Anwendungscode und Prüfwerkzeuge hinzukommen, ergänzen wir hier die konkreten Befehle. Erkläre im Pull Request, welche Prüfung du durchgeführt hast und welche Einschränkungen bestehen.
+Sobald Anwendungscode und weitere Prüfwerkzeuge hinzukommen, ergänzen wir hier die konkreten Befehle. Erkläre im Pull Request, welche Prüfung du durchgeführt hast und welche Einschränkungen bestehen.
 
 ## Begutachtung
 
