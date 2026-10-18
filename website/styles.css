@@ -65,6 +65,17 @@ h1 { margin: 0; font-size: clamp(48px, 7.5vw, 96px); font-weight: 500; letter-sp
 .documentation:hover { color: var(--muted); }
 .documentation > span { font-size: 18px; font-weight: 400; }
 .footer { border-top: 1px solid var(--line); padding-top: 20px; font-size: 11px; line-height: 1.5; color: var(--muted); }
+.footer a { text-decoration: none; text-underline-offset: 3px; }
+.footer a:hover { color: var(--foreground); text-decoration: underline; }
+.legal { display: block; width: 100%; max-width: 680px; padding-block: 80px 96px; }
+.legal h1 { font-size: clamp(40px, 6vw, 64px); letter-spacing: -.045em; }
+.back-link { display: inline-block; margin-bottom: 32px; color: var(--muted); font-size: 13px; text-underline-offset: 4px; }
+.back-link:hover { color: var(--foreground); }
+.legal-intro { margin: 24px 0 0; color: var(--muted); font-size: 15px; line-height: 1.65; }
+.legal-section { margin-top: 36px; font-size: 15px; line-height: 1.8; overflow-wrap: anywhere; }
+.legal-section h2 { margin: 0 0 10px; font-size: 16px; font-weight: 500; letter-spacing: -.015em; }
+.legal-section h2 a { text-underline-offset: 3px; }
+.legal-section p, .legal-section address { margin: 0; color: var(--muted); font-style: normal; }
 a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 .skip-link { position: absolute; top: 12px; left: 16px; padding: 10px; background: var(--background); transform: translateY(-200%); }
 .skip-link:focus { transform: none; }
@@ -83,6 +94,7 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
   .page { padding: 28px 24px 20px; }
   .brand img { width: 138px; }
   main { padding-block: 76px 64px; gap: 36px; }
+  .legal { padding-block: 64px 72px; }
   .hero-illustration { max-width: 300px; }
   .eyebrow { font-size: 10px; letter-spacing: .09em; margin-bottom: 22px; }
   h1 { font-size: clamp(44px, 12vw, 68px); }

@@ -10,8 +10,10 @@ if OUTPUT.exists():
     rmtree(OUTPUT)
 OUTPUT.mkdir(parents=True)
 
-for filename in ("index.html", "styles.css", "robots.txt", "_headers"):
-    copyfile(ROOT / "website" / filename, OUTPUT / filename)
+for filename in ("index.html", "impressum/index.html", "styles.css", "robots.txt", "_headers"):
+    destination = OUTPUT / filename
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    copyfile(ROOT / "website" / filename, destination)
 
 illustration = OUTPUT / "assets" / "house-blueprint.svg"
 illustration.parent.mkdir(parents=True, exist_ok=True)

@@ -18,6 +18,7 @@ python3 -m http.server 8002 --bind 127.0.0.1 --directory dist/homepage
 | Pfad | Aufgabe |
 | --- | --- |
 | `website/index.html` | Öffentliche deutsche Startseite |
+| `website/impressum/index.html` | Impressum mit Platzhaltern für Anbieter- und Kontaktdaten |
 | `website/styles.css` | Darstellung, einschließlich heller und dunkler Farben |
 | `website/assets/house-blueprint.svg` | Dekorative Hauszeichnung für die Startseite |
 | `website/_headers` | HTTP-Antwortheader für Cloudflare |
@@ -27,6 +28,8 @@ python3 -m http.server 8002 --bind 127.0.0.1 --directory dist/homepage
 | `dist/homepage/` | Erzeugte Ausgabe; wird nicht eingecheckt |
 
 Der Build übernimmt nur die aufgeführten öffentlichen Dateien, die Hauszeichnung, die beiden Wortmarken, das Favicon sowie die Originalschrift mit ihrer OFL-Lizenz. Die Schrift und die Marken-SVGs werden in `assets/brand/` gepflegt. Seitenspezifische Illustrationen liegen in `website/assets/`.
+
+Das Impressum ist unter `/impressum/` erreichbar. Ersetze die Angaben in eckigen Klammern durch die tatsächlichen Anbieter- und Kontaktdaten und entferne nicht zutreffende optionale Angaben sowie den Entwurfshinweis, sobald der Inhalt vollständig ist.
 
 ## Veröffentlichung
 
