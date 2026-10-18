@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 560" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <title>Haus in architektonischer Perspektive</title>
+  <desc>Feine graue Konturen zeigen ein zweigeschossiges Haus mit Satteldach, Fenstern und Eingangstür.</desc>
+
+  <g stroke="#afb3ab" stroke-width="1.5">
+    <path d="M90 195 190 152 370 62 470 195V365L290 455 90 365Z"/>
+    <path d="m190 152 100 133 180-90M290 285V455"/>
+  </g>
+
+  <g stroke="#c3c6bf" stroke-width="1">
+    <path d="m176 185.7 28 12.6v28l-28-12.6ZM190 192v28"/>
+    <path d="m126 241.2 36 16.2v40l-36-16.2ZM144 249.3v40"/>
+    <path d="m218 282.6 36 16.2v40l-36-16.2ZM236 290.7v40"/>
+    <path d="m126 315.2 36 16.2v44l-36-16.2ZM144 323.3v44"/>
+
+    <path d="m206 349.2 42 18.9v68l-42-18.9ZM237 400l4 1.8"/>
+
+    <path d="m322.4 293.8 39.6-19.8v40l-39.6 19.8ZM342.2 283.9v40"/>
+    <path d="m401.6 254.2 39.6-19.8v40l-39.6 19.8ZM421.4 244.3v40"/>
+    <path d="m322.4 373.8 39.6-19.8v40l-39.6 19.8ZM342.2 363.9v40"/>
+    <path d="m401.6 334.2 39.6-19.8v40l-39.6 19.8ZM421.4 324.3v40"/>
+  </g>
+</svg>
