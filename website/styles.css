@@ -41,7 +41,7 @@ a { color: inherit; }
 }
 
 .brand { display: inline-flex; }
-.brand img { display: block; width: 166px; height: auto; }
+.brand img { display: block; width: 174px; height: auto; }
 
 main {
   flex: 1;
@@ -92,7 +92,7 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 
 @media (max-width: 600px) {
   .page { padding: 28px 24px 20px; }
-  .brand img { width: 138px; }
+  .brand img { width: 144px; }
   main { padding-block: 76px 64px; gap: 36px; }
   .legal { padding-block: 64px 72px; }
   .hero-illustration { max-width: 300px; }
