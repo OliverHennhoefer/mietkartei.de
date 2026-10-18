@@ -6,6 +6,8 @@ name: Dokumentation
       - main
     paths:
       - docs/**
+      - assets/brand/**
+      - scripts/prepare_docs_assets.py
       - zensical.toml
       - .github/workflows/dokumentation.yml
   pull_request:
@@ -52,7 +54,8 @@ jobs:
                   'git', 'diff', '--name-only', '--no-renames', '-z', base, 'HEAD',
               ]).decode().split('\0')
               relevant = any(
-                  path.startswith('docs/') or path in {
+                  path.startswith(('docs/', 'assets/brand/')) or path in {
+                      'scripts/prepare_docs_assets.py',
                       'zensical.toml', '.github/workflows/dokumentation.yml',
                   }
                   for path in paths
@@ -87,7 +90,9 @@ jobs:
 
       - name: Dokumentation einschließlich interner Verweise prüfen
         if: steps.aenderungen.outputs.bauen == 'true'
-        run: zensical build --clean --strict
+        run: |
+          python scripts/prepare_docs_assets.py
+          zensical build --clean --strict
 
       - name: Ausgabe für GitHub Pages bereitstellen
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.aenderungen.outputs.veroeffentlichen == 'true'

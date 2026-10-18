@@ -1,6 +1,7 @@
 /.venv/
 /site/
 /.cache/
+/docs/assets/brand/
 __pycache__/
 *.py[cod]
 .DS_Store
