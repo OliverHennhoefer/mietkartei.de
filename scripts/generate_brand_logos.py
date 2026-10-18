@@ -101,6 +101,5 @@ def write_highlight_svg(filename, foreground, inverse):
 if __name__ == "__main__":
     for filename, fill, colour in (("logo.svg", "#000", "Schwarze"), ("logo-white.svg", "#fff", "Weiße")):
         write_svg(filename, "mietkartei", fill, "mietkartei", f"{colour} einzeilige Wortmarke in Geist Medium mit originalen Schriftkonturen.")
-    write_svg("favicon.svg", "m", "#737373", "mietkartei", "Initiale m aus Geist Medium.", square=True)
     write_highlight_svg("geist-highlight.svg", "#000", "#fff")
     write_highlight_svg("geist-highlight-white.svg", "#fff", "#000")

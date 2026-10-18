@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-labelledby="title description">
+  <title id="title">mietkartei — Haus</title>
+  <desc id="description">Ein reduzierter weißer Hausumriss mit Satteldach und Tür auf schwarzem Grund.</desc>
+  <rect width="32" height="32" rx="4" fill="#000000"/>
+  <g stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 14 16 6 25 14V26H7Z"/>
+    <path d="M13 26V18H19V26"/>
+  </g>
+</svg>
