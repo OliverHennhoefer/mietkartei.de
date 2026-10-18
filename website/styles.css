@@ -45,13 +45,16 @@ a { color: inherit; }
 
 main {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 48px;
   padding-block: 96px 108px;
-  max-width: 780px;
 }
+
+.hero-copy { min-width: 0; }
+.hero-illustration { margin: 0; width: 100%; max-width: 500px; justify-self: end; }
+.hero-illustration img { display: block; width: 100%; height: auto; }
 
 .eyebrow { margin: 0 0 26px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 h1 { margin: 0; font-size: clamp(48px, 7.5vw, 96px); font-weight: 500; letter-spacing: -.055em; line-height: 1.03; }
@@ -68,14 +71,21 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 
 @media (prefers-color-scheme: dark) {
   :root { --background: #161616; --foreground: #f5f5f2; --muted: #a6a6a1; --line: #363633; --code-background: #30302e; }
+  .hero-illustration img { filter: invert(1); opacity: .85; }
+}
+
+@media (max-width: 900px) {
+  main { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+  .hero-illustration { max-width: 380px; justify-self: center; }
 }
 
 @media (max-width: 600px) {
   .page { padding: 28px 24px 20px; }
   .brand img { width: 138px; }
-  main { padding-block: 76px 88px; }
+  main { padding-block: 76px 64px; gap: 36px; }
+  .hero-illustration { max-width: 300px; }
   .eyebrow { font-size: 10px; letter-spacing: .09em; margin-bottom: 22px; }
-  h1 { font-size: clamp(48px, 12vw, 68px); }
+  h1 { font-size: clamp(44px, 12vw, 68px); }
   .intro { font-size: 17px; margin-top: 26px; }
   .progress { font-size: 13px; }
   .footer { align-items: flex-start; flex-direction: column; gap: 6px; }

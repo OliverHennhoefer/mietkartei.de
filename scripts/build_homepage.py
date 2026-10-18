@@ -13,6 +13,10 @@ OUTPUT.mkdir(parents=True)
 for filename in ("index.html", "styles.css", "robots.txt", "_headers"):
     copyfile(ROOT / "website" / filename, OUTPUT / filename)
 
+illustration = OUTPUT / "assets" / "house-blueprint.svg"
+illustration.parent.mkdir(parents=True, exist_ok=True)
+copyfile(ROOT / "website" / "assets" / "house-blueprint.svg", illustration)
+
 for filename in ("logo.svg", "logo-white.svg", "favicon.svg"):
     destination = OUTPUT / "assets" / "brand" / filename
     destination.parent.mkdir(parents=True, exist_ok=True)

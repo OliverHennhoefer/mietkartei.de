@@ -19,13 +19,14 @@ python3 -m http.server 8002 --bind 127.0.0.1 --directory dist/homepage
 | --- | --- |
 | `website/index.html` | Öffentliche deutsche Startseite |
 | `website/styles.css` | Darstellung, einschließlich heller und dunkler Farben |
+| `website/assets/house-blueprint.svg` | Dekorative Hauszeichnung für die Startseite |
 | `website/_headers` | HTTP-Antwortheader für Cloudflare |
 | `website/robots.txt` | Angaben für Suchmaschinen |
 | `website/wrangler.toml` | Cloudflare-Worker und benutzerdefinierte Domain |
 | `scripts/build_homepage.py` | Erzeugt die öffentliche Ausgabe mit gemeinsamen Ressourcen |
 | `dist/homepage/` | Erzeugte Ausgabe; wird nicht eingecheckt |
 
-Der Build übernimmt nur die aufgeführten öffentlichen Dateien, die beiden Wortmarken, das Favicon sowie die Originalschrift mit ihrer OFL-Lizenz. Die Schrift und die SVG-Exporte werden in `assets/brand/` gepflegt.
+Der Build übernimmt nur die aufgeführten öffentlichen Dateien, die Hauszeichnung, die beiden Wortmarken, das Favicon sowie die Originalschrift mit ihrer OFL-Lizenz. Die Schrift und die Marken-SVGs werden in `assets/brand/` gepflegt. Seitenspezifische Illustrationen liegen in `website/assets/`.
 
 ## Veröffentlichung
 
