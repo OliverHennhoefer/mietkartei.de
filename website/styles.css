@@ -71,7 +71,6 @@ h1 { margin: 0; font-size: clamp(48px, 7.5vw, 96px); font-weight: 500; letter-sp
 .legal h1 { font-size: clamp(40px, 6vw, 64px); letter-spacing: -.045em; }
 .back-link { display: inline-block; margin-bottom: 32px; color: var(--muted); font-size: 13px; text-underline-offset: 4px; }
 .back-link:hover { color: var(--foreground); }
-.legal-intro { margin: 24px 0 0; color: var(--muted); font-size: 15px; line-height: 1.65; }
 .legal-section { margin-top: 36px; font-size: 15px; line-height: 1.8; overflow-wrap: anywhere; }
 .legal-section h2 { margin: 0 0 10px; font-size: 16px; font-weight: 500; letter-spacing: -.015em; }
 .legal-section h2 a { text-underline-offset: 3px; }

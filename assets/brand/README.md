@@ -6,7 +6,7 @@ Hier liegen die gemeinsamen Originaldateien für Dokumentation, README und die k
 | --- | --- |
 | [logo.svg](logo.svg) | Schwarze Wortmarke für helle Hintergründe |
 | [logo-white.svg](logo-white.svg) | Weiße Wortmarke für dunkle Hintergründe |
-| [favicon.svg](favicon.svg) | Initiale „m“ für das Browser-Symbol |
+| [favicon.svg](favicon.svg) | Weißer Hausumriss auf schwarzem Grund als Browser-Symbol |
 | [fonts/geist/](fonts/geist/) | Originalschrift mit Quelle und SIL-OFL-Lizenz |
 | [variants/](variants/) | Gestaltungsvarianten und frühere Schriftvergleiche |
 
@@ -14,7 +14,9 @@ Die ausgewählte Wortmarke zeigt **mietkartei** in einer Zeile, gesetzt in **Gei
 
 Als Gestaltungsprobe verwendet die öffentliche Startseite derzeit [geist-highlight.svg](variants/geist-highlight.svg): „miet“ bleibt unverändert, „kartei“ steht weiß in einer schwarzen rechteckigen Fläche. [geist-highlight-white.svg](variants/geist-highlight-white.svg) kehrt die Farben für dunkle Hintergründe um. Beide Varianten verwenden ebenfalls die originalen Geist-Konturen und werden vom selben Skript erzeugt.
 
-Die Exporte lassen sich mit Python 3.12 aus der mitgelieferten Originalschrift neu erzeugen:
+Das ausgewählte Favicon zeigt einen weißen Hausumriss auf schwarzem Grund und ist auf 16 und 32 Pixel ausgelegt. Die SVG-Zeichnung wird direkt in `favicon.svg` bearbeitet. Die Entwürfe [Kartei](variants/favicon-card-index.svg) und [Haus](variants/favicon-house.svg) bleiben als Gestaltungsreferenz verfügbar.
+
+Die Wortmarken-Exporte lassen sich mit Python 3.12 aus der mitgelieferten Originalschrift neu erzeugen:
 
 ```sh
 python -m pip install -r scripts/requirements-brand.txt

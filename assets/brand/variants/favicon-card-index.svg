@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-labelledby="title description">
+  <title id="title">mietkartei — Kartei</title>
+  <desc id="description">Zwei versetzte Karteikarten mit einem Register als weißes Zeichen auf schwarzem Grund.</desc>
+  <rect width="32" height="32" rx="4" fill="#000000"/>
+  <g stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 7H26V23H9Z"/>
+    <path d="M6 13H12V10H19V13H23V26H6Z" fill="#000000"/>
+    <path d="M11 20H18"/>
+  </g>
+</svg>
