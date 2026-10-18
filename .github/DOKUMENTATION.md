@@ -25,7 +25,7 @@ zensical build --clean --strict
 
 Warnungen, etwa ungültige interne Verweise, lassen den Build fehlschlagen. Die erzeugten Dateien in `site/` und `docs/assets/brand/` sowie die lokale Umgebung werden nicht eingecheckt. Prüfe außerdem die Darstellung auf kleinen Bildschirmen sowie in heller und dunkler Darstellung.
 
-Nach Änderungen an den Originalen in `assets/brand/` führst du `python scripts/prepare_docs_assets.py` erneut aus. Eine laufende Vorschau übernimmt die aktualisierten Kopien automatisch. Das Skript arbeitet mit der Python-Standardbibliothek und benötigt keine symbolischen Links.
+Nach Änderungen an den Originalen in `assets/brand/` führst du `python scripts/prepare_docs_assets.py` erneut aus. Es übernimmt die beiden Logos und das Favicon. Eine laufende Vorschau übernimmt die aktualisierten Kopien automatisch. Das Skript arbeitet mit der Python-Standardbibliothek und benötigt keine symbolischen Links.
 
 ## Dateien
 
@@ -41,7 +41,7 @@ Nach Änderungen an den Originalen in `assets/brand/` führst du `python scripts
 | `zensical.toml` | Sprache, Domain und Darstellung |
 | `.github/workflows/dokumentation.yml` | Pflichtprüfung und Veröffentlichung |
 
-Die Wortmarken verwenden die originalen Konturen von Helvetica Neue Medium. Die Seitenschrift verwendet lokal verfügbare Systemschriften. Die Suche bleibt für die einzelne Baustellenseite ausgeschaltet.
+Die einzeiligen Wortmarken verwenden die originalen Konturen von Geist Medium (500). Die [Markenressourcen](../assets/brand/README.md) enthalten die Originalschrift, die Lizenz und die Anleitung zum erneuten Export. Die Seitenschrift verwendet lokal verfügbare Systemschriften. Die Suche bleibt für die einzelne Baustellenseite ausgeschaltet.
 
 ## GitHub Pages und Domain
 
