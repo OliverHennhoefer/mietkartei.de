@@ -295,15 +295,25 @@ jobs:
         with:
           persist-credentials: false
 
-      # The runner joins the tailnet as tag:ci, which the tailnet policy only lets reach the
-      # server over Tailscale SSH as the user deploy. It leaves the tailnet when the job ends.
+      # The runner joins the tailnet as tag:mietkartei-ci, which the tailnet policy only lets
+      # reach port 22 of the server. It leaves the tailnet when the job ends.
       - name: Connect to Tailscale
         uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
+          tags: tag:mietkartei-ci
           ping: ${{ vars.VPS_HOST }}
+
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          install -m 600 /dev/null ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
 
       # Pins the commit's own image, so a later push that publishes first is not overwritten.
       - name: Update the container
@@ -311,7 +321,7 @@ jobs:
           VPS_HOST: ${{ vars.VPS_HOST }}
         run: |
           target="deploy@$VPS_HOST"
-          ssh_options=(-o StrictHostKeyChecking=accept-new -o BatchMode=yes)
+          ssh_options=(-o StrictHostKeyChecking=yes -o BatchMode=yes)
           scp "${ssh_options[@]}" app/compose.yml "$target:/opt/mietkartei/compose.yml"
           ssh "${ssh_options[@]}" "$target" \
             "cd /opt/mietkartei && export MIETKARTEI_TAG=sha-${GITHUB_SHA::7} && docker compose pull -q && docker compose up -d --wait"

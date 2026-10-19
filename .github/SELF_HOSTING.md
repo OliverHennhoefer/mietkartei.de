@@ -10,10 +10,10 @@ The app has a basic email and password login, but no password reset or protectio
 | --- | --- | --- |
 | Image build | GitHub Actions, job **Publish image** in [app.yml](workflows/app.yml), after every push to `main` with passing checks | Built-in `GITHUB_TOKEN`, nothing to set up |
 | Image | `ghcr.io/oliverhennhoefer/mietkartei`: `latest` and `sha-<first 7 characters of the commit>` from `main`; `1.2.3` and `1.2` from a published release `v1.2.3` | Public package: none |
-| Deployment | By hand from a laptop with SSH access to the server, or automatically after every push to `main` (optional, see [Automatic updates](#automatic-updates-over-tailscale)) | By hand: the laptop's existing SSH key. Automatic: a Tailscale OAuth client in the GitHub environment **vps** |
+| Deployment | By hand from a laptop with SSH access to the server, or automatically after every push to `main` (optional, see [Automatic updates](#automatic-updates-over-tailscale)) | By hand: the laptop's existing SSH key. Automatic: a Tailscale OAuth client and a deploy key in the GitHub environment **vps** |
 | Data | Docker volume `mietkartei-data` on the server | – |
 
-GitHub never receives an SSH key. The optional automatic updates reach the server only through Tailscale SSH, limited by the tailnet policy to one user on one machine. The server is never built on, so a small machine is enough.
+The optional automatic updates reach the server only through the tailnet, limited by its policy to port 22 of that machine, with an SSH key for a separate user `deploy`. The server is never built on, so a small machine is enough.
 
 ## One-time setup
 
@@ -54,51 +54,60 @@ Migrations run when the container starts. The app needs no secrets so far. Setti
 
 ## Automatic updates over Tailscale
 
-The job **Deploy to VPS** in [app.yml](workflows/app.yml) updates the server after every push to `main` that publishes a new image. The runner joins the tailnet with the tag `tag:ci`, copies `app/compose.yml` to `/opt/mietkartei/` and runs `docker compose pull` and `up -d --wait` there as the user `deploy`, pinned to the commit's image `sha-<commit>`. It leaves the tailnet when the job ends. The job stays off until the repository variable `VPS_HOST` exists.
+The job **Deploy to VPS** in [app.yml](workflows/app.yml) updates the server after every push to `main` that publishes a new image. The runner joins the tailnet with the tag `tag:mietkartei-ci`, which may only reach port 22 of the server. It connects with its own SSH key as the user `deploy`, copies `app/compose.yml` to `/opt/mietkartei/` and runs `docker compose pull` and `up -d --wait` there, pinned to the commit's image `sha-<commit>`. It leaves the tailnet when the job ends. The job stays off until the repository variable `VPS_HOST` exists.
 
 Anyone who can run workflows on `main` can then run Docker commands on the server, which is equivalent to root. Keep the environment **vps** restricted to `main`.
 
 ### 1. Prepare the server
 
+Create a deploy key on the laptop, without a passphrase, and keep the private part for step 4:
+
 ```sh
-sudo useradd --create-home --groups docker deploy
-sudo mkdir -p /opt/mietkartei && sudo chown deploy: /opt/mietkartei
-echo "MIETKARTEI_BIND=$(tailscale ip -4)" | sudo -u deploy tee /opt/mietkartei/.env
-sudo tailscale set --ssh
+ssh-keygen -t ed25519 -N "" -C mietkartei-deploy -f mietkartei-deploy
 ```
 
-`tailscale set --ssh` lets Tailscale answer SSH connections that arrive over the tailnet; the server's normal SSH daemon is unaffected. The compose file sets the project name `mietkartei`, so the job takes over the container and the volume `mietkartei-data` started from the laptop.
+On the server:
+
+```sh
+sudo useradd --create-home --groups docker deploy
+sudo install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
+sudo install -m 600 -o deploy -g deploy /dev/stdin /home/deploy/.ssh/authorized_keys < mietkartei-deploy.pub
+sudo install -d -o deploy -g deploy /opt/mietkartei
+echo "MIETKARTEI_BIND=$(tailscale ip -4)" | sudo -u deploy tee /opt/mietkartei/.env
+```
+
+Copy `mietkartei-deploy.pub` to the server first, for example with `scp`. The compose file sets the project name `mietkartei`, so the job takes over the container and the volume `mietkartei-data` started from the laptop.
 
 ### 2. Allow the runner in the tailnet policy
 
-In the Tailscale admin console, open **Access controls** and add a tag for the server and one for CI, a grant to the server's SSH port and an SSH rule for the user `deploy`. Then apply `tag:server` to the server under **Machines → … → Edit ACL tags**.
+In the Tailscale admin console, open **Access controls** and add a tag owner, a grant to port 22 of the server and, optionally, a test. Replace `100.x.y.z` with the server's Tailscale address and keep all existing entries.
 
 ```json
 "tagOwners": {
-  "tag:ci": ["autogroup:admin"],
-  "tag:server": ["autogroup:admin"]
+  "tag:mietkartei-ci": ["autogroup:admin"]
 },
 "grants": [
-  { "src": ["tag:ci"], "dst": ["tag:server"], "ip": ["tcp:22"] }
+  { "src": ["tag:mietkartei-ci"], "dst": ["100.x.y.z"], "ip": ["tcp:22"] }
 ],
-"ssh": [
-  { "action": "accept", "src": ["tag:ci"], "dst": ["tag:server"], "users": ["deploy"] }
+"tests": [
+  { "src": "tag:mietkartei-ci", "proto": "tcp", "accept": ["100.x.y.z:22"], "deny": ["100.x.y.z:443"] }
 ]
 ```
 
-Keep your existing rules; these entries are additions. Your own devices keep their access as long as the existing rules cover tagged machines.
-
 ### 3. Create the OAuth client
 
-Under **Settings → OAuth clients → Generate OAuth client**, choose the scope **Auth Keys: Write** with the tag `tag:ci`. Tailscale shows the secret only once.
+Under **Settings → OAuth clients → Generate OAuth client**, choose the scope **Auth Keys: Write** with the tag `tag:mietkartei-ci`. Tailscale shows the secret only once.
 
 ### 4. Configure GitHub
 
 1. **Settings → Environments → New environment** `vps`. Under **Deployment branches and tags**, allow only `main`.
-2. In **vps**, add the environment secrets `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET` from step 3.
-3. Under **Settings → Secrets and variables → Actions → Variables**, add the repository variable `VPS_HOST` with the server's MagicDNS name (for example `netcup`) or its Tailscale address.
+2. In **vps**, add these environment secrets:
+   - `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET` from step 3.
+   - `VPS_SSH_KEY`: the content of the private key file `mietkartei-deploy` from step 1. Delete the file from the laptop afterwards.
+   - `VPS_SSH_KNOWN_HOSTS`: the output of `ssh-keyscan -t ed25519 100.x.y.z`, run from a device in the tailnet.
+3. Under **Settings → Secrets and variables → Actions → Variables**, add the repository variable `VPS_HOST` with the server's Tailscale address `100.x.y.z`. This switches the job on, so do it last.
 
-The next push to `main` that changes the app runs the job. To try it right away, choose **Actions → App → Run workflow** on `main`.
+To try it right away, choose **Actions → App → Run workflow** on `main`.
 
 ## Backups
 
