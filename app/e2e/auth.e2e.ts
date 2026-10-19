@@ -36,10 +36,25 @@ test('signs in and out', async ({ page }) => {
 	await expect(page).toHaveURL(/\/anmelden$/);
 });
 
+// wrangler.jsonc opens registration for the hosted variant; self-hosted instances keep it closed.
+const openRegistration = process.env.DEPLOY_TARGET === 'cloudflare';
+
 test('closes registration after the first user on a self-hosted instance', async ({ page }) => {
+	test.skip(openRegistration, 'The hosted variant has open registration.');
 	await page.goto('/registrieren');
 	await expect(
 		page.getByText('Auf dieser Instanz können sich keine weiteren Personen registrieren.')
 	).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Konto anlegen' })).toHaveCount(0);
+});
+
+test('gives a later user an own, empty account on the hosted variant', async ({ page }) => {
+	test.skip(!openRegistration, 'Self-hosted instances have closed registration.');
+	await page.goto('/registrieren');
+	await page.getByLabel('E-Mail-Adresse').fill('zweite@example.org');
+	await page.getByLabel('Passwort').fill('noch-ein-sicheres-passwort');
+	await page.getByRole('button', { name: 'Konto anlegen' }).click();
+
+	await expect(page).toHaveURL(/\/objekte$/);
+	await expect(page.getByText('Du hast noch keine Objekte angelegt.')).toBeVisible();
 });
