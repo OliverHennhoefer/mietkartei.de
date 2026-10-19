@@ -51,17 +51,16 @@ Das Image wird im Stammverzeichnis des Repositorys gebaut, weil es die gemeinsam
 ```sh
 docker build -f app/Dockerfile -t mietkartei .
 docker run -d --name mietkartei -p 3000:3000 \
-  -e ORIGIN=http://localhost:3000 \
   -v mietkartei-daten:/data \
   mietkartei
 ```
 
 Die Anwendung ist dann unter <http://localhost:3000> erreichbar. Die Daten liegen im Volume `mietkartei-daten`. Zum Sichern hältst du den Container mit `docker stop mietkartei` an und kopierst den Inhalt von `/data`. Im laufenden Betrieb ist eine Dateikopie nicht zuverlässig, weil SQLite einen Teil der Änderungen in `mietkartei.db-wal` zwischenspeichert.
 
-| Variable        | Bedeutung                                                                                                                                                                    | Standard              |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| `ORIGIN`        | Öffentliche Adresse, unter der die Anwendung aufgerufen wird. Ohne Angabe nimmt SvelteKit `https` und den `Host`-Header an; Formulare über reines `http` schlagen dann fehl. | –                     |
-| `DATABASE_PATH` | Pfad der SQLite-Datei                                                                                                                                                        | `/data/mietkartei.db` |
-| `PORT`          | Port des Servers                                                                                                                                                             | `3000`                |
+| Variable        | Bedeutung                                                                                                                                                                                                                                                           | Standard              |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `ORIGIN`        | Öffentliche Adresse, unter der die Anwendung aufgerufen wird, etwa `https://mietkartei.example.de` hinter einem Reverse Proxy mit HTTPS. Ohne Angabe gilt `http` mit der aufgerufenen Adresse, zum Beispiel `http://localhost:3000` oder `http://192.168.1.5:3000`. | –                     |
+| `DATABASE_PATH` | Pfad der SQLite-Datei                                                                                                                                                                                                                                               | `/data/mietkartei.db` |
+| `PORT`          | Port des Servers                                                                                                                                                                                                                                                    | `3000`                |
 
 Ohne Docker startet `npm run build && npm start` denselben Server.

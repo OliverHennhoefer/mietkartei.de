@@ -1,23 +1,21 @@
 // Starts the node build (self-hosting). SvelteKit 3 derives the public origin from the request
-// headers and assumes https, so plain http access, e.g. on a home network, would fail its CSRF
-// check. ORIGIN lets the operator state the public URL at runtime instead.
+// headers and assumes https, which would fail its CSRF check for form posts to this plain http
+// server. So the origin is http plus the Host header by default, and ORIGIN states the public
+// URL when the app runs behind a reverse proxy, e.g. one that terminates https.
 import http from 'node:http';
 import process from 'node:process';
 
 const origin = process.env.ORIGIN ? new URL(process.env.ORIGIN) : undefined;
-if (origin) {
-	// Read by build/handler.js when it is imported, so set them first.
-	process.env.PROTOCOL_HEADER = 'x-mietkartei-protocol';
-	process.env.HOST_HEADER = 'x-mietkartei-host';
-}
+
+// Read by build/handler.js when it is imported, so set them first.
+process.env.PROTOCOL_HEADER = 'x-mietkartei-protocol';
+if (origin) process.env.HOST_HEADER = 'x-mietkartei-host';
 
 const { handler } = await import('./build/handler.js');
 
 const server = http.createServer((req, res) => {
-	if (origin) {
-		req.headers['x-mietkartei-protocol'] = origin.protocol.slice(0, -1);
-		req.headers['x-mietkartei-host'] = origin.host;
-	}
+	req.headers['x-mietkartei-protocol'] = origin ? origin.protocol.slice(0, -1) : 'http';
+	if (origin) req.headers['x-mietkartei-host'] = origin.host;
 	handler(req, res, () => {
 		res.statusCode = 404;
 		res.end('Not found');

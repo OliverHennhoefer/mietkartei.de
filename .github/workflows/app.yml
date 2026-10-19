@@ -127,7 +127,7 @@ jobs:
 
       - name: Start container and check health
         run: |
-          docker run -d --name mietkartei -p 3000:3000 -e ORIGIN=http://localhost:3000 mietkartei:ci
+          docker run -d --name mietkartei -p 3000:3000 mietkartei:ci
           for attempt in $(seq 1 30); do
             if curl -fsS http://localhost:3000/health; then
               echo

@@ -6,11 +6,7 @@ const target = process.env.DEPLOY_TARGET === 'cloudflare' ? 'cloudflare' : 'node
 const port = 4173;
 
 const commands = {
-	node: [
-		'rm -rf .e2e',
-		'npm run build',
-		`DATABASE_PATH=.e2e/node.db ORIGIN=http://localhost:${port} PORT=${port} node server.js`
-	],
+	node: ['rm -rf .e2e', 'npm run build', `DATABASE_PATH=.e2e/node.db PORT=${port} node server.js`],
 	cloudflare: [
 		'rm -rf .e2e',
 		'npm run build:cloudflare',
