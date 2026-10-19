@@ -46,7 +46,7 @@ Nach relevanten Änderungen auf `main` veröffentlicht der Ablauf Startseite und
 
 ## Standardzweig schützen
 
-Für `main` werden Pull Requests auch für Administratoren verlangt. Eine zusätzliche Freigabe ist beim aktuellen Einzelmaintainer nicht erforderlich. Vor dem Zusammenführen müssen die Prüfung „Dokumentation prüfen“ erfolgreich und alle Begutachtungsgespräche abgeschlossen sein. Direkte Pushes, Force-Pushes und das Löschen von `main` bleiben gesperrt.
+Für `main` werden Pull Requests auch für Administratoren verlangt. Eine zusätzliche Freigabe ist beim aktuellen Einzelmaintainer nicht erforderlich. Vor dem Zusammenführen müssen die Prüfung „Dokumentation prüfen“ mit dem aktuellen Stand von `main` erfolgreich und alle Begutachtungsgespräche abgeschlossen sein. Als Quelle der Pflichtprüfung ist GitHub Actions festgelegt. Direkte Pushes, Force-Pushes und das Löschen von `main` bleiben gesperrt.
 
 Die Pflichtprüfung läuft ohne Pfadfilter auf jedem Pull Request. Dadurch bleiben Beiträge ohne Dokumentationsänderungen nicht wegen einer fehlenden Statusmeldung blockiert. Weitere Anwendungstests werden mit dem Anwendungscode ergänzt.
 

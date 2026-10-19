@@ -15,15 +15,16 @@ Führe diese Schritte vor dem Merge der Umstellung aus. Änderungen am Repositor
 
 ### 1. Cloudflare-Zugang für GitHub anlegen
 
-1. Öffne in Cloudflare die API-Token-Verwaltung und erstelle ein Token mit der Vorlage **Edit Cloudflare Workers**. Beschränke es auf das verwendete Konto und die Zone **mietkartei.de**. Das Token muss Workers erstellen beziehungsweise veröffentlichen und die benutzerdefinierten Domains verwalten dürfen.
-2. Öffne im Repository **Settings → Secrets and variables → Actions → New repository secret**.
-3. Hinterlege `CLOUDFLARE_API_TOKEN` mit dem erzeugten Token und `CLOUDFLARE_ACCOUNT_ID` mit der Cloudflare-Konto-ID. Die Konto-ID steht in der Cloudflare-Kontoübersicht und in der Dashboard-URL.
+1. Öffne in Cloudflare die API-Token-Verwaltung und verwende **Edit Cloudflare Workers** als Ausgangspunkt. Für diese beiden statischen Workers genügen **Account → Workers Scripts → Edit**, **Account → Account Settings → Read**, **Zone → Workers Routes → Edit** und **Zone → Zone → Read**. Beschränke die Ressourcen auf das verwendete Konto und die Zone **mietkartei.de**. Zusätzliche Berechtigungen für KV, R2, Container oder Cloudflare Pages sind nicht erforderlich.
+2. Erstelle das Token ohne festgelegten Zeitraum. Cloudflare zeigt den generierten geheimen Wert nur einmal; der frei gewählte Tokenname ist kein Zugangsschlüssel.
+3. Öffne im Repository **Settings → Secrets and variables → Actions → New repository secret** und hinterlege `CLOUDFLARE_ACCOUNT_ID` mit der Cloudflare-Konto-ID. Die Konto-ID steht in der Cloudflare-Kontoübersicht und in der Dashboard-URL.
+4. Hinterlege den generierten Tokenwert anschließend wie in Schritt 2 beschrieben als Umgebungs-Secret `CLOUDFLARE_API_TOKEN` in beiden Produktionsumgebungen. Der Tokenwert gehört weder in den Quelltext noch in Protokolle oder Pull-Request-Beschreibungen.
 
 Die Werte gehören in GitHub Secrets. Die Anleitung von Cloudflare beschreibt [Token und GitHub Actions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/). Weitere Tokens, eine interaktive Anmeldung im Workflow oder zusätzliche GitHub-Token sind nicht erforderlich.
 
 ### 2. GitHub-Umgebungen einrichten
 
-Öffne **Settings → Environments** und richte **website-production** und **documentation** ein. Beschränke die erlaubten Bereitstellungszweige jeweils auf **main**. Die Secrets aus Schritt 1 gelten für beide Umgebungen; bei stattdessen verwendeten Umgebungs-Secrets müssen sie in beiden hinterlegt werden.
+Öffne **Settings → Environments** und richte **website-production** und **documentation** ein. Wähle bei **Deployment branches and tags** jeweils **Selected branches and tags** und erlaube ausschließlich den Branch **main**; Tags bleiben ausgeschlossen. Öffne in jeder Umgebung **Add environment secret** und hinterlege denselben generierten Tokenwert unter `CLOUDFLARE_API_TOKEN`. Die Konto-ID wird als Repository-Secret aus Schritt 1 übernommen. Dadurch steht der Deployment-Token nur Jobs zur Verfügung, die eine der geschützten Produktionsumgebungen verwenden.
 
 Die Umgebung **github-pages** wird von diesem Workflow nicht mehr verwendet. Ihre bisherigen Deployment-Einträge können erhalten bleiben. Sie muss nicht umbenannt werden. Die bestehende Pflichtprüfung **Dokumentation prüfen** bleibt unter demselben Namen erhalten und prüft bei relevanten Änderungen auch die Startseite.
 
@@ -54,7 +55,7 @@ Der Workflow [webseiten.yml](workflows/webseiten.yml) läuft für Pull Requests 
 | `assets/brand/**`, `.github/workflows/webseiten.yml` | Ja | Ja |
 | Andere Dateien | Nein | Nein |
 
-Auch gelöschte Dateien und beide Seiten einer Umbenennung werden berücksichtigt. Die Pflichtprüfung läuft für jeden Pull Request; Änderungen ohne Webseitenbezug benötigen keinen Build. Pull Requests veröffentlichen keine Dateien und erhalten keine Cloudflare-Secrets. Nach dem Merge werden die geprüften Ausgaben desselben Workflow-Laufs veröffentlicht. Die beiden Deployment-Jobs laufen unabhängig voneinander und verwenden pro Ziel eine gemeinsame Parallelitätsgruppe.
+Auch gelöschte Dateien und beide Seiten einer Umbenennung werden berücksichtigt. Die Pflichtprüfung läuft für jeden Pull Request; Änderungen ohne Webseitenbezug benötigen keinen Build. Pull Requests veröffentlichen keine Dateien und erhalten keine Cloudflare-Secrets. Nach dem Merge werden die geprüften Ausgaben desselben Workflow-Laufs veröffentlicht. Produktionsläufe desselben Branches werden vollständig nacheinander verarbeitet; bis zu 100 Läufe können warten, ohne einen vorher wartenden Lauf zu verdrängen. Innerhalb eines Laufs können die beiden Deployment-Jobs parallel arbeiten. Bei Pull Requests ersetzt ein neuer Lauf weiterhin die veraltete Prüfung.
 
 Für eine vollständige erneute Veröffentlichung wählst du **Actions → Webseiten → Run workflow → Branch: main**. Der manuelle Lauf baut und veröffentlicht beide Seiten. Auf anderen Zweigen prüft er lediglich die Builds.
 

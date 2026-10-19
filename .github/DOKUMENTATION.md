@@ -40,6 +40,7 @@ Nach Änderungen an den Originalen in `assets/brand/` führst du `python scripts
 | `docs/requirements.txt` | Festgelegte Zensical-Version |
 | `zensical.toml` | Sprache, Domain und Darstellung |
 | `docs/wrangler.toml` | Cloudflare-Worker für die Dokumentationsdomain |
+| `docs/_headers` | HTTP-Antwortheader für Cloudflare |
 | `.github/workflows/webseiten.yml` | Pflichtprüfung und Veröffentlichung beider Webseiten |
 
 Die einzeiligen Wortmarken verwenden die originalen Konturen von Geist Medium (500). Die [Markenressourcen](../assets/brand/README.md) enthalten die Originalschrift, die Lizenz und die Anleitung zum erneuten Export. Die Seitenschrift verwendet lokal verfügbare Systemschriften. Die Suche bleibt für die einzelne Baustellenseite ausgeschaltet.
