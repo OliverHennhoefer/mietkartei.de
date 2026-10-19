@@ -13,8 +13,8 @@ env:
   WRANGLER_VERSION: "4.151.1"
 
 concurrency:
-  group: webseiten-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: webseiten-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}
+  queue: max
 
 jobs:
   pruefen:
@@ -22,6 +22,9 @@ jobs:
     name: Dokumentation prüfen
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    concurrency:
+      group: webseiten-pruefung-${{ github.event.pull_request.number || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     outputs:
       dokumentation: ${{ steps.aenderungen.outputs.dokumentation }}
       startseite: ${{ steps.aenderungen.outputs.startseite }}
@@ -117,9 +120,6 @@ jobs:
     environment:
       name: website-production
       url: https://mietkartei.de
-    concurrency:
-      group: cloudflare-website-production
-      cancel-in-progress: false
     steps:
       - name: Repository herunterladen
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -149,9 +149,6 @@ jobs:
     environment:
       name: documentation
       url: https://docs.mietkartei.de
-    concurrency:
-      group: cloudflare-documentation
-      cancel-in-progress: false
     steps:
       - name: Repository herunterladen
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
