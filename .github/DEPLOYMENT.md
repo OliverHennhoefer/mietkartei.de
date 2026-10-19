@@ -1,13 +1,13 @@
 # Webseiten auf Cloudflare veröffentlichen
 
-Startseite und Dokumentation liegen im selben Repository und werden als zwei statische Cloudflare Workers veröffentlicht. Zensical erzeugt weiterhin die Dokumentation; GitHub Pages wird nach der Umstellung nicht mehr benötigt.
+Startseite und Dokumentation liegen im selben Repository und werden durch einen gemeinsamen Workflow in der GitHub-Umgebung **production** veröffentlicht. Die Seiten verwenden zwei statische Cloudflare Workers. Zensical erzeugt weiterhin die Dokumentation; GitHub Pages wird nicht mehr benötigt.
 
 | Adresse | Worker | GitHub-Umgebung | Konfiguration | Ausgabe |
 | --- | --- | --- | --- | --- |
-| `https://mietkartei.de/` | `mietkartei-de` | `website-production` | `website/wrangler.toml` | `dist/homepage/` |
-| `https://docs.mietkartei.de/` | `mietkartei-de-docs` | `documentation` | `docs/wrangler.toml` | `site/` |
+| `https://mietkartei.de/` | `mietkartei-de` | `production` | `website/wrangler.toml` | `dist/homepage/` |
+| `https://docs.mietkartei.de/` | `mietkartei-de-docs` | `production` | `docs/wrangler.toml` | `site/` |
 
-Beide Seiten sind öffentlich. Eine spätere Anwendung mit Anmeldung und Bezahlschranke erhält eine eigene Bereitstellung und eigene Zugangskontrollen.
+Beide Seiten sind öffentlich. Eine spätere Anwendung unter `app.mietkartei.de` kann denselben Workflow und dieselbe GitHub-Umgebung **production** verwenden. Anmeldung, Berechtigungsprüfungen und Laufzeit-Zugangsdaten werden in der Anwendung beziehungsweise ihrer Laufzeit eingerichtet.
 
 ## Einmalige Einrichtung
 
@@ -18,15 +18,17 @@ Führe diese Schritte vor dem Merge der Umstellung aus. Änderungen am Repositor
 1. Öffne in Cloudflare die API-Token-Verwaltung und verwende **Edit Cloudflare Workers** als Ausgangspunkt. Für diese beiden statischen Workers genügen **Account → Workers Scripts → Edit**, **Account → Account Settings → Read**, **Zone → Workers Routes → Edit** und **Zone → Zone → Read**. Beschränke die Ressourcen auf das verwendete Konto und die Zone **mietkartei.de**. Zusätzliche Berechtigungen für KV, R2, Container oder Cloudflare Pages sind nicht erforderlich.
 2. Erstelle das Token ohne festgelegten Zeitraum. Cloudflare zeigt den generierten geheimen Wert nur einmal; der frei gewählte Tokenname ist kein Zugangsschlüssel.
 3. Öffne im Repository **Settings → Secrets and variables → Actions → New repository secret** und hinterlege `CLOUDFLARE_ACCOUNT_ID` mit der Cloudflare-Konto-ID. Die Konto-ID steht in der Cloudflare-Kontoübersicht und in der Dashboard-URL.
-4. Hinterlege den generierten Tokenwert anschließend wie in Schritt 2 beschrieben als Umgebungs-Secret `CLOUDFLARE_API_TOKEN` in beiden Produktionsumgebungen. Der Tokenwert gehört weder in den Quelltext noch in Protokolle oder Pull-Request-Beschreibungen.
+4. Hinterlege den generierten Tokenwert anschließend wie in Schritt 2 beschrieben als Umgebungs-Secret `CLOUDFLARE_API_TOKEN` in **production**. Der Tokenwert gehört weder in den Quelltext noch in Protokolle oder Pull-Request-Beschreibungen.
 
 Die Werte gehören in GitHub Secrets. Die Anleitung von Cloudflare beschreibt [Token und GitHub Actions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/). Weitere Tokens, eine interaktive Anmeldung im Workflow oder zusätzliche GitHub-Token sind nicht erforderlich.
 
-### 2. GitHub-Umgebungen einrichten
+### 2. GitHub-Umgebung einrichten
 
-Öffne **Settings → Environments** und richte **website-production** und **documentation** ein. Wähle bei **Deployment branches and tags** jeweils **Selected branches and tags** und erlaube ausschließlich den Branch **main**; Tags bleiben ausgeschlossen. Öffne in jeder Umgebung **Add environment secret** und hinterlege denselben generierten Tokenwert unter `CLOUDFLARE_API_TOKEN`. Die Konto-ID wird als Repository-Secret aus Schritt 1 übernommen. Dadurch steht der Deployment-Token nur Jobs zur Verfügung, die eine der geschützten Produktionsumgebungen verwenden.
+Öffne **Settings → Environments** und richte **production** ein. Wähle bei **Deployment branches and tags** **Selected branches and tags** und erlaube ausschließlich den Branch **main**; Tags bleiben ausgeschlossen. Öffne **Add environment secret** und hinterlege den generierten Tokenwert unter `CLOUDFLARE_API_TOKEN`. Die Konto-ID wird als Repository-Secret aus Schritt 1 übernommen. Dadurch steht der Deployment-Token nur Jobs zur Verfügung, die die geschützte Umgebung **production** verwenden.
 
-Die Umgebung **github-pages** wird von diesem Workflow nicht mehr verwendet. Ihre bisherigen Deployment-Einträge können erhalten bleiben. Sie muss nicht umbenannt werden. Die bestehende Pflichtprüfung **Dokumentation prüfen** bleibt unter demselben Namen erhalten und prüft bei relevanten Änderungen auch die Startseite.
+Bei einer Umstellung von **website-production** und **documentation** muss **production** einschließlich Secret und Branch-Regel vor dem Merge eingerichtet sein. GitHub zeigt gespeicherte Secret-Werte nicht wieder an; verwende den ursprünglichen Tokenwert. Prüfe nach dem Merge, dass beide Deployment-Jobs in **production** erfolgreich sind. Anschließend können die bisherigen Umgebungen einschließlich **github-pages** entfernt werden. Beim Löschen einer Umgebung werden auch ihre Secrets und Schutzregeln gelöscht.
+
+Die bestehende Pflichtprüfung **Dokumentation prüfen** bleibt unter demselben Namen erhalten und prüft bei relevanten Änderungen auch die Startseite.
 
 ### 3. Automatische Cloudflare-Builds abschalten
 

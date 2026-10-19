@@ -36,7 +36,7 @@ Das Impressum ist unter `/impressum/` erreichbar. Ersetze die Angaben in eckigen
 
 Cloudflare liefert die Seite als statische Assets des Workers **mietkartei-de** aus. Die benutzerdefinierte Domain ist `mietkartei.de`. Die Dokumentation verwendet einen eigenen Cloudflare-Worker unter `docs.mietkartei.de`.
 
-Der gemeinsame GitHub-Actions-Workflow **Webseiten** veröffentlicht relevante Änderungen aus dem Produktionszweig `main` automatisch in der Umgebung **website-production**. Die [Deployment-Anleitung](DEPLOYMENT.md) beschreibt die Einrichtung und die Ablösung der bisherigen Cloudflare-Git-Integration.
+Der gemeinsame GitHub-Actions-Workflow **Webseiten** veröffentlicht relevante Änderungen aus dem Produktionszweig `main` automatisch in der gemeinsamen Umgebung **production**. Auch die Dokumentation verwendet diese Umgebung. Die [Deployment-Anleitung](DEPLOYMENT.md) beschreibt die Einrichtung und die Ablösung der bisherigen Cloudflare-Git-Integration.
 
 Für eine manuelle Veröffentlichung mit einem bereits angemeldeten Wrangler:
 

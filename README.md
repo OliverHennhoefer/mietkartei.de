@@ -15,7 +15,7 @@ Die öffentliche [Startseite unter mietkartei.de](https://mietkartei.de/) inform
 
 Die Dokumentation unter [docs.mietkartei.de](https://docs.mietkartei.de/) beginnt mit einer [deutschen Baustellenseite](docs/index.md). Zensical erzeugt die Seite aus `docs/`. Die [Pflegeanleitung](.github/DOKUMENTATION.md) beschreibt die lokale Vorschau und den Build. Die gemeinsamen Logos und Gestaltungsvarianten liegen in [assets/brand](assets/brand/).
 
-Startseite und Dokumentation werden über einen gemeinsamen GitHub-Actions-Workflow als getrennte Cloudflare Workers veröffentlicht. Die [Deployment-Anleitung](.github/DEPLOYMENT.md) beschreibt Einrichtung, Domains und automatische Veröffentlichungen nach relevanten Änderungen auf `main`.
+Startseite und Dokumentation werden über einen gemeinsamen GitHub-Actions-Workflow in der Umgebung `production` als getrennte Cloudflare Workers veröffentlicht. Die [Deployment-Anleitung](.github/DEPLOYMENT.md) beschreibt Einrichtung, Domains und automatische Veröffentlichungen nach relevanten Änderungen auf `main`.
 
 ## Mitmachen
 
