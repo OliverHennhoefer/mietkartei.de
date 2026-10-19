@@ -39,14 +39,16 @@ Nach Änderungen an den Originalen in `assets/brand/` führst du `python scripts
 | `scripts/prepare_docs_assets.py` | Übernahme der gemeinsamen Wortmarken vor Vorschau und Build |
 | `docs/requirements.txt` | Festgelegte Zensical-Version |
 | `zensical.toml` | Sprache, Domain und Darstellung |
-| `.github/workflows/dokumentation.yml` | Pflichtprüfung und Veröffentlichung |
+| `docs/wrangler.toml` | Cloudflare-Worker für die Dokumentationsdomain |
+| `docs/_headers` | HTTP-Antwortheader für Cloudflare |
+| `.github/workflows/webseiten.yml` | Pflichtprüfung und Veröffentlichung beider Webseiten |
 
 Die einzeiligen Wortmarken verwenden die originalen Konturen von Geist Medium (500). Die [Markenressourcen](../assets/brand/README.md) enthalten die Originalschrift, die Lizenz und die Anleitung zum erneuten Export. Die Seitenschrift verwendet lokal verfügbare Systemschriften. Die Suche bleibt für die einzelne Baustellenseite ausgeschaltet.
 
-## GitHub Pages und Domain
+## Cloudflare und Domain
 
-Wähle in den [Pages-Einstellungen](https://github.com/OliverHennhoefer/mietkartei.de/settings/pages) „GitHub Actions“ als Quelle und `docs.mietkartei.de` als benutzerdefinierte Domain. Aktiviere HTTPS, sobald das Zertifikat verfügbar ist.
+Der Worker **mietkartei-de-docs** veröffentlicht die Zensical-Ausgabe aus `site/` unter `https://docs.mietkartei.de/`. Die Sprache, Seitengestaltung und Zieladresse stehen weiterhin in `zensical.toml`. `docs/wrangler.toml` und `docs/requirements.txt` werden nicht in die öffentliche Ausgabe übernommen.
 
-Cloudflare verwaltet den DNS-Eintrag `CNAME docs → oliverhennhoefer.github.io`. Für die direkte Auslieferung durch GitHub Pages wird „DNS only“ verwendet. In `zensical.toml` steht `site_url = "https://docs.mietkartei.de/"`.
+Die [Deployment-Anleitung](DEPLOYMENT.md) beschreibt die einmalige Einrichtung der GitHub-Secrets, die Umstellung des bisherigen GitHub-Pages-CNAME auf eine Cloudflare Custom Domain und den gemeinsamen Workflow für Startseite und Dokumentation.
 
-Jeder Pull Request erhält die Pflichtprüfung „Dokumentation prüfen“. Der eigentliche Zensical-Build läuft bei relevanten Änderungen, sobald die Seite eingerichtet ist. Dazu zählen auch die gemeinsamen Markenressourcen und das Vorbereitungsskript. Nach erfolgreicher Prüfung auf `main` wird bei diesen Änderungen veröffentlicht. Ein manueller Start ist ebenfalls möglich; Veröffentlichungen sind auf `main` beschränkt und laufen nacheinander.
+Jeder Pull Request erhält die Pflichtprüfung **Dokumentation prüfen**. Der eigentliche Zensical-Build läuft bei relevanten Änderungen; dazu zählen auch die gemeinsamen Markenressourcen, das Vorbereitungsskript und die Workflow-Datei. Nach erfolgreicher Prüfung auf `main` wird die Dokumentation in der GitHub-Umgebung **documentation** veröffentlicht. Ein manueller Start des Workflows **Webseiten** ist ebenfalls möglich; Veröffentlichungen sind auf `main` beschränkt.

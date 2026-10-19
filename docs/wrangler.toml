@@ -1,0 +1,10 @@
+name = "mietkartei-de-docs"
+compatibility_date = "2026-10-19"
+workers_dev = true
+
+routes = [
+  { pattern = "docs.mietkartei.de", custom_domain = true },
+]
+
+[assets]
+directory = "../site"
