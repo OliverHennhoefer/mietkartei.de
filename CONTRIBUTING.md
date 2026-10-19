@@ -34,9 +34,20 @@ Verweise auf das zugehörige Issue, falls eines vorhanden ist. Erläutere das Pr
 
 ## Änderungen prüfen
 
+Für Änderungen an der Anwendung in `app/` führe dort die folgenden Befehle aus. Einrichtung, lokale Entwicklung und die End-to-End-Tests für beide Laufzeiten beschreibt [app/README.md](app/README.md).
+
+```sh
+npm run lint
+npm run check
+npm run test:unit -- --run
+npm run test:e2e
+```
+
+Der GitHub-Actions-Ablauf **App** führt diese Prüfungen für jeden Pull Request aus, der die Anwendung betrifft, testet sie auf Node.js und in der Cloudflare-Laufzeit und baut das Docker-Image. Änderst du das Datenbankschema, erzeuge mit `npm run db:generate` eine Migration und committe sie mit.
+
 Für Änderungen an der öffentlichen Startseite führe `python3 scripts/build_homepage.py` aus und prüfe die Vorschau gemäß der [Startseitenanleitung](.github/HOMEPAGE.md).
 
-Das Repository enthält derzeit noch keinen Anwendungscode. Für Änderungen an der Dokumentationsseite richte die Umgebung gemäß der [Dokumentationsanleitung](.github/DOCUMENTATION.md) ein und führe im Stammverzeichnis die folgenden Befehle aus:
+Für Änderungen an der Dokumentationsseite richte die Umgebung gemäß der [Dokumentationsanleitung](.github/DOCUMENTATION.md) ein und führe im Stammverzeichnis die folgenden Befehle aus:
 
 ```sh
 python scripts/prepare_docs_assets.py
@@ -52,7 +63,7 @@ Prüfe außerdem passend zu deinem Beitrag:
 - Bei Grafiken: Darstellung, Lesbarkeit, Skalierung und Transparenz.
 - Bei Automatisierungen: Auslöser, Berechtigungen und das Verhalten bei wiederholter Ausführung.
 
-Sobald Anwendungscode und weitere Prüfwerkzeuge hinzukommen, ergänzen wir hier die konkreten Befehle. Erkläre im Pull Request, welche Prüfung du durchgeführt hast und welche Einschränkungen bestehen.
+Erkläre im Pull Request, welche Prüfung du durchgeführt hast und welche Einschränkungen bestehen.
 
 ## Begutachtung
 
