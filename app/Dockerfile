@@ -2,7 +2,7 @@
 # Build from the repository root, because the app uses the shared brand assets:
 #   docker build -f app/Dockerfile -t mietkartei .
 
-FROM node:24-slim AS build
+FROM node:26-slim AS build
 WORKDIR /src/app
 COPY app/package.json app/package-lock.json ./
 # better-sqlite3 ships prebuilt binaries, but some npm versions still try to compile it with
@@ -12,7 +12,7 @@ COPY assets/brand /src/assets/brand
 COPY app ./
 RUN DEPLOY_TARGET=node npm run build && npm prune --omit=dev
 
-FROM node:24-slim
+FROM node:26-slim
 ENV NODE_ENV=production \
 	PORT=3000 \
 	DATABASE_PATH=/data/mietkartei.db
