@@ -41,7 +41,7 @@ Nach Änderungen an den Originalen in `assets/brand/` führst du `python scripts
 | `zensical.toml` | Sprache, Domain und Darstellung |
 | `docs/wrangler.toml` | Cloudflare-Worker für die Dokumentationsdomain |
 | `docs/_headers` | HTTP-Antwortheader für Cloudflare |
-| `.github/workflows/webseiten.yml` | Pflichtprüfung und Veröffentlichung beider Webseiten |
+| `.github/workflows/websites.yml` | Pflichtprüfung und Veröffentlichung beider Webseiten |
 
 Die einzeiligen Wortmarken verwenden die originalen Konturen von Geist Medium (500). Die [Markenressourcen](../assets/brand/README.md) enthalten die Originalschrift, die Lizenz und die Anleitung zum erneuten Export. Die Seitenschrift verwendet lokal verfügbare Systemschriften. Die Suche bleibt für die einzelne Baustellenseite ausgeschaltet.
 
@@ -51,4 +51,4 @@ Der Worker **mietkartei-de-docs** veröffentlicht die Zensical-Ausgabe aus `site
 
 Die [Deployment-Anleitung](DEPLOYMENT.md) beschreibt die einmalige Einrichtung der GitHub-Secrets, die Umstellung des bisherigen GitHub-Pages-CNAME auf eine Cloudflare Custom Domain und den gemeinsamen Workflow für Startseite und Dokumentation.
 
-Jeder Pull Request erhält die Pflichtprüfung **Dokumentation prüfen**. Der eigentliche Zensical-Build läuft bei relevanten Änderungen; dazu zählen auch die gemeinsamen Markenressourcen, das Vorbereitungsskript und die Workflow-Datei. Nach erfolgreicher Prüfung auf `main` wird die Dokumentation in der gemeinsamen GitHub-Umgebung **production** veröffentlicht. Auch die Startseite verwendet diese Umgebung. Ein manueller Start des Workflows **Webseiten** ist ebenfalls möglich; Veröffentlichungen sind auf `main` beschränkt.
+Jeder Pull Request erhält die Pflichtprüfung **Check websites**. Der eigentliche Zensical-Build läuft bei relevanten Änderungen; dazu zählen auch die gemeinsamen Markenressourcen, das Vorbereitungsskript und die Workflow-Datei. Nach erfolgreicher Prüfung auf `main` wird die Dokumentation in der gemeinsamen GitHub-Umgebung **production** veröffentlicht. Auch die Startseite verwendet diese Umgebung. Ein manueller Start des Workflows **Websites** ist ebenfalls möglich; Veröffentlichungen sind auf `main` beschränkt.

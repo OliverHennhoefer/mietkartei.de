@@ -28,7 +28,7 @@ Die Werte gehören in GitHub Secrets. Die Anleitung von Cloudflare beschreibt [T
 
 Bei einer Umstellung von **website-production** und **documentation** muss **production** einschließlich Secret und Branch-Regel vor dem Merge eingerichtet sein. GitHub zeigt gespeicherte Secret-Werte nicht wieder an; verwende den ursprünglichen Tokenwert. Prüfe nach dem Merge, dass beide Deployment-Jobs in **production** erfolgreich sind. Anschließend können die bisherigen Umgebungen einschließlich **github-pages** entfernt werden. Beim Löschen einer Umgebung werden auch ihre Secrets und Schutzregeln gelöscht.
 
-Die bestehende Pflichtprüfung **Dokumentation prüfen** bleibt unter demselben Namen erhalten und prüft bei relevanten Änderungen auch die Startseite.
+Die Pflichtprüfung **Check websites** prüft bei relevanten Änderungen Startseite und Dokumentation.
 
 ### 3. Automatische Cloudflare-Builds abschalten
 
@@ -48,18 +48,18 @@ Eine vorhandene CNAME verhindert die Registrierung einer Cloudflare Custom Domai
 
 ## Laufende Veröffentlichung
 
-Der Workflow [webseiten.yml](workflows/webseiten.yml) läuft für Pull Requests und nach einem Push auf `main`. Er ermittelt die geänderten Dateien und baut beziehungsweise veröffentlicht nur die betroffene Seite:
+Der Workflow [websites.yml](workflows/websites.yml) läuft für Pull Requests und nach einem Push auf `main`. Er ermittelt die geänderten Dateien und baut beziehungsweise veröffentlicht nur die betroffene Seite:
 
 | Änderung | Startseite | Dokumentation |
 | --- | --- | --- |
 | `website/**`, `scripts/build_homepage.py` | Ja | Nein |
 | `docs/**`, `zensical.toml`, `scripts/prepare_docs_assets.py` | Nein | Ja |
-| `assets/brand/**`, `.github/workflows/webseiten.yml` | Ja | Ja |
+| `assets/brand/**`, `.github/workflows/websites.yml` | Ja | Ja |
 | Andere Dateien | Nein | Nein |
 
 Auch gelöschte Dateien und beide Seiten einer Umbenennung werden berücksichtigt. Die Pflichtprüfung läuft für jeden Pull Request; Änderungen ohne Webseitenbezug benötigen keinen Build. Pull Requests veröffentlichen keine Dateien und erhalten keine Cloudflare-Secrets. Nach dem Merge werden die geprüften Ausgaben desselben Workflow-Laufs veröffentlicht. Produktionsläufe desselben Branches werden vollständig nacheinander verarbeitet; bis zu 100 Läufe können warten, ohne einen vorher wartenden Lauf zu verdrängen. Innerhalb eines Laufs können die beiden Deployment-Jobs parallel arbeiten. Bei Pull Requests ersetzt ein neuer Lauf weiterhin die veraltete Prüfung.
 
-Für eine vollständige erneute Veröffentlichung wählst du **Actions → Webseiten → Run workflow → Branch: main**. Der manuelle Lauf baut und veröffentlicht beide Seiten. Auf anderen Zweigen prüft er lediglich die Builds.
+Für eine vollständige erneute Veröffentlichung wählst du **Actions → Websites → Run workflow → Branch: main**. Der manuelle Lauf baut und veröffentlicht beide Seiten. Auf anderen Zweigen prüft er lediglich die Builds.
 
 ## Fehler und Rückkehr zum bisherigen Hosting
 

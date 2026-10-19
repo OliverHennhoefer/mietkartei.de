@@ -14,8 +14,8 @@ GitHub verwendet die Issue- und Pull-Request-Vorlagen aus dem Standardzweig `mai
 | `PULL_REQUEST_TEMPLATE.md` | Beschreibung, Prüfung und Hinweise zu einem Beitrag |
 | `CODEOWNERS` | Zuständigkeit für die Begutachtung |
 | `labels.json` | Deutsche Bezeichnungen und ihre Beschreibungen |
-| `workflows/bezeichnungen.yml` | Anlegen und Aktualisieren der Bezeichnungen |
-| `workflows/webseiten.yml` | Prüfen und Veröffentlichen von Startseite und Dokumentation |
+| `workflows/labels.yml` | Anlegen und Aktualisieren der Bezeichnungen |
+| `workflows/websites.yml` | Prüfen und Veröffentlichen von Startseite und Dokumentation |
 | `DOKUMENTATION.md` | Vorschau, Build und Veröffentlichung der Dokumentation |
 | `DEPLOYMENT.md` | Cloudflare-Zugang, Domains und Umstellung des Hostings |
 | `dependabot.yml` | Wöchentliche Aktualisierungsvorschläge für Abhängigkeiten |
@@ -26,7 +26,7 @@ Die Dateien [CONTRIBUTING.md](../CONTRIBUTING.md), [CODE_OF_CONDUCT.md](../CODE_
 
 ## Bezeichnungen verwalten
 
-Ändere Namen, Farben und Beschreibungen in [labels.json](labels.json). Der Arbeitsablauf „Bezeichnungen synchronisieren“ läuft bei einer Änderung dieser Konfiguration oder seines eigenen Ablaufs auf `main`. Er lässt sich auch im Bereich „Actions“ manuell starten. Für die Ausführung müssen GitHub Actions im Repository aktiviert sein.
+Ändere Namen, Farben und Beschreibungen in [labels.json](labels.json). Der Workflow „Sync labels“ ([labels.yml](workflows/labels.yml)) läuft bei einer Änderung dieser Konfiguration oder seines eigenen Ablaufs auf `main`. Er lässt sich auch im Bereich „Actions“ manuell starten. Für die Ausführung müssen GitHub Actions im Repository aktiviert sein.
 
 Der Ablauf legt fehlende Bezeichnungen an und aktualisiert abweichende Einträge. Andere Bezeichnungen werden nicht gelöscht. Er verwendet das von GitHub bereitgestellte Repository-Token und benötigt dafür Lesezugriff auf Inhalte und Schreibzugriff auf Issues. Die verwendete Aktion ist auf einen konkreten Commit festgelegt.
 
@@ -40,13 +40,13 @@ Prüfe solche Änderungen vor dem Zusammenführen auf neue Berechtigungen und Au
 
 ## Webseiten veröffentlichen
 
-Der Ablauf [webseiten.yml](workflows/webseiten.yml) meldet für jeden Pull Request weiterhin die Pflichtprüfung **Dokumentation prüfen**. Er prüft geänderte Dateien auf fehlerhafte Leerzeichen und baut die betroffenen Webseiten. Änderungen an den gemeinsamen Markenressourcen oder der Workflow-Datei betreffen beide Seiten. Vor dem Zensical-Build werden die ausgewählten Wortmarken aus den gemeinsamen Markenressourcen übernommen.
+Der Ablauf [websites.yml](workflows/websites.yml) meldet für jeden Pull Request die Pflichtprüfung **Check websites**. Er prüft geänderte Dateien auf fehlerhafte Leerzeichen und baut die betroffenen Webseiten. Änderungen an den gemeinsamen Markenressourcen oder der Workflow-Datei betreffen beide Seiten. Vor dem Zensical-Build werden die ausgewählten Wortmarken aus den gemeinsamen Markenressourcen übernommen.
 
 Nach relevanten Änderungen auf `main` veröffentlicht der Ablauf Startseite und Dokumentation als getrennte Cloudflare Workers in der gemeinsamen GitHub-Umgebung **production**. Sie bündelt den Deployment-Token und die Beschränkung auf `main`. Ein manueller Start auf `main` veröffentlicht beide Seiten. Die [Deployment-Anleitung](DEPLOYMENT.md) beschreibt Secrets, Domains und die Umstellung von GitHub Pages beziehungsweise Cloudflare Workers Builds. Die [Dokumentationsanleitung](DOKUMENTATION.md) beschreibt die lokale Vorschau und den Build mit Zensical.
 
 ## Standardzweig schützen
 
-Für `main` werden Pull Requests auch für Administratoren verlangt. Eine zusätzliche Freigabe ist beim aktuellen Einzelmaintainer nicht erforderlich. Vor dem Zusammenführen müssen die Prüfung „Dokumentation prüfen“ mit dem aktuellen Stand von `main` erfolgreich und alle Begutachtungsgespräche abgeschlossen sein. Als Quelle der Pflichtprüfung ist GitHub Actions festgelegt. Direkte Pushes, Force-Pushes und das Löschen von `main` bleiben gesperrt.
+Für `main` werden Pull Requests auch für Administratoren verlangt. Eine zusätzliche Freigabe ist beim aktuellen Einzelmaintainer nicht erforderlich. Vor dem Zusammenführen müssen die Prüfung „Check websites“ mit dem aktuellen Stand von `main` erfolgreich und alle Begutachtungsgespräche abgeschlossen sein. Als Quelle der Pflichtprüfung ist GitHub Actions festgelegt. Direkte Pushes, Force-Pushes und das Löschen von `main` bleiben gesperrt.
 
 Die Pflichtprüfung läuft ohne Pfadfilter auf jedem Pull Request. Dadurch bleiben Beiträge ohne Dokumentationsänderungen nicht wegen einer fehlenden Statusmeldung blockiert. Weitere Anwendungstests werden mit dem Anwendungscode ergänzt.
 

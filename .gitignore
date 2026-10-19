@@ -8,3 +8,9 @@ __pycache__/
 .DS_Store
 /PRD.md
 /TDD.md
+
+# Lokale Anweisungen und Einstellungen für KI-Agenten
+/AGENTS.md
+CLAUDE.local.md
+.claude/settings.local.json
+AGENTS.override.md

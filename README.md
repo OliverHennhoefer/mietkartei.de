@@ -44,4 +44,4 @@ Die GitHub-Vorlagen, Bezeichnungen und Hinweise zur Veröffentlichung von Versio
 
 ## Lizenz
 
-Der Lizenztext der GNU Affero General Public License, Version 3, steht in [LICENSE](LICENSE).
+Der Lizenztext der GNU Affero General Public License, Version 3, steht in [LICENSE](LICENSE). Beiträge bleiben unter dieser Lizenz; eine Contributor License Agreement gibt es nicht. Eine gehostete Variante von mietkartei.de verwendet den Code aus diesem Repository.

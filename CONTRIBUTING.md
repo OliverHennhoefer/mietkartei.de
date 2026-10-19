@@ -43,7 +43,7 @@ python scripts/prepare_docs_assets.py
 zensical build --clean --strict
 ```
 
-Der GitHub-Actions-Ablauf **Webseiten** meldet für jeden Pull Request die Pflichtprüfung **Dokumentation prüfen** und baut bei relevanten Änderungen die Dokumentation beziehungsweise die Startseite. Änderungen an den gemeinsamen Markenressourcen betreffen beide Seiten. Pull Requests veröffentlichen keine Dateien. Die [Deployment-Anleitung](.github/DEPLOYMENT.md) beschreibt die Veröffentlichung aus `main`.
+Der GitHub-Actions-Ablauf **Websites** meldet für jeden Pull Request die Pflichtprüfung **Check websites** und baut bei relevanten Änderungen die Dokumentation beziehungsweise die Startseite. Änderungen an den gemeinsamen Markenressourcen betreffen beide Seiten. Pull Requests veröffentlichen keine Dateien. Die [Deployment-Anleitung](.github/DEPLOYMENT.md) beschreibt die Veröffentlichung aus `main`.
 
 Prüfe außerdem passend zu deinem Beitrag:
 
@@ -61,3 +61,5 @@ Die Projektverantwortlichen prüfen Beiträge auf Nutzen, Verständlichkeit und 
 ## Rechte und Quellen
 
 Die Projektlizenz steht in [LICENSE](LICENSE). Stelle sicher, dass du die eingebrachten Inhalte beitragen darfst. Kennzeichne übernommene Inhalte und ergänze gegebenenfalls die zugehörigen Quellen und Lizenzhinweise.
+
+Beiträge stehen unter derselben Lizenz wie das Projekt, der GNU Affero General Public License, Version 3. Eine Übertragung von Rechten oder eine Contributor License Agreement verlangen wir nicht. Eine gehostete Variante von mietkartei.de verwendet den Code aus diesem Repository; für sie gelten dieselben Lizenzpflichten wie für alle anderen Betreiber.
