@@ -1,47 +1,65 @@
-# mietkartei.de
+<div align="center">
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/brand/logo-white.svg">
-  <img src="assets/brand/logo.svg" alt="mietkartei" width="200">
+  <img src="assets/brand/logo.svg" alt="mietkartei" width="280">
 </picture>
 
-mietkartei.de entsteht als Open-Source-Hausverwaltung für Privatvermieter in Deutschland. Dieses Repository enthält derzeit die Projektlizenz, das Logo, die öffentliche Startseite, die Grundlagen für die gemeinsame Entwicklung und einen ersten Dokumentationsentwurf. Eine Anleitung für Installation und Betrieb wird mit dem Anwendungscode ergänzt.
+**Vermieten. Mit Überblick.**
 
-## Startseite
+Open-Source-Hausverwaltung für Privatvermieter in Deutschland.
 
-Die öffentliche [Startseite unter mietkartei.de](https://mietkartei.de/) informiert über den Projektstand. Der Quelltext liegt in [website/](website/); der Build übernimmt die gemeinsamen Markenressourcen aus `assets/brand/`. Die [Pflegeanleitung](.github/HOMEPAGE.md) beschreibt Vorschau und Veröffentlichung auf Cloudflare.
+[Startseite](https://mietkartei.de) · [Dokumentation](https://docs.mietkartei.de) · [Mitmachen](CONTRIBUTING.md)
 
-## Dokumentation
+[![App](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/app.yml/badge.svg)](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/app.yml)
+[![Lizenz: AGPL-3.0](https://img.shields.io/badge/Lizenz-AGPL--3.0-111111)](LICENSE)
+![Status: im Aufbau](https://img.shields.io/badge/Status-im%20Aufbau-d97706)
 
-Die Dokumentation unter [docs.mietkartei.de](https://docs.mietkartei.de/) beginnt mit einer [deutschen Baustellenseite](docs/index.md). Zensical erzeugt die Seite aus `docs/`. Die [Pflegeanleitung](.github/DOCUMENTATION.md) beschreibt die lokale Vorschau und den Build. Die gemeinsamen Logos und Gestaltungsvarianten liegen in [assets/brand](assets/brand/).
+</div>
 
-Startseite und Dokumentation werden über einen gemeinsamen GitHub-Actions-Workflow in der Umgebung `production` als getrennte Cloudflare Workers veröffentlicht. Die [Deployment-Anleitung](.github/DEPLOYMENT.md) beschreibt Einrichtung, Domains und automatische Veröffentlichungen nach relevanten Änderungen auf `main`.
+> [!IMPORTANT]
+> **mietkartei ist im Aufbau.** Heute lassen sich Objekte und ihre Einheiten anlegen. Anmeldung, Mieter, Mietverträge und die Betriebskostenabrechnung folgen als Nächstes. Verwalte damit bitte noch keine echten Mieterdaten.
 
-## Mitmachen
+## Worum es geht
 
-Beiträge zu Code, Dokumentation, Gestaltung und Barrierefreiheit sind willkommen. Für den Einstieg findest du alle Hinweise in [CONTRIBUTING.md](CONTRIBUTING.md).
+Wer ein paar Wohnungen vermietet, jongliert oft mit Tabellen, Ordnern und Fristen im Kopf. mietkartei soll das an einem Ort zusammenführen:
 
-| Anliegen | Anlaufstelle |
-| --- | --- |
-| Fehler melden | [Fehlermeldung erstellen](https://github.com/OliverHennhoefer/mietkartei.de/issues/new?template=01-fehler.yml) |
-| Funktion vorschlagen | [Funktionswunsch erstellen](https://github.com/OliverHennhoefer/mietkartei.de/issues/new?template=02-funktionswunsch.yml) |
-| Dokumentation verbessern | [Dokumentationshinweis erstellen](https://github.com/OliverHennhoefer/mietkartei.de/issues/new?template=03-dokumentation.yml) |
-| Eine Frage stellen | [Hilfe und Unterstützung](SUPPORT.md) |
-| Eine Sicherheitslücke melden | [Vertraulicher Meldeweg](SECURITY.md) |
+- **Objekte, Einheiten und Mieter** mit Verträgen, Kaltmiete, Vorauszahlungen und Kaution
+- **Betriebskostenabrechnung** mit Umlageschlüsseln und Zählerständen
+- **Deine Daten bleiben bei dir:** selbst gehostet als ein Container mit einer einzigen Datenbankdatei, oder künftig als gehosteter Dienst
+- **Offen für alle:** derselbe Code unter AGPL-3.0, egal wer die Anwendung betreibt
 
-Für die Zusammenarbeit gilt unser [Verhaltenskodex](CODE_OF_CONDUCT.md). Issues und Versionshinweise verfassen wir auf Deutsch, Code, Commits und Pull Requests auf Englisch.
+## Ausprobieren
 
-## Repository herunterladen
+Mit Node.js 22 oder neuer:
 
 ```sh
 git clone https://github.com/OliverHennhoefer/mietkartei.de.git
-cd mietkartei.de
+cd mietkartei.de/app
+npm ci
+npm run dev
 ```
 
-## Projektverwaltung
+Danach läuft die Anwendung unter <http://localhost:5173>. Betrieb mit Docker oder auf Cloudflare sowie alle Prüfbefehle beschreibt [app/README.md](app/README.md).
 
-Die GitHub-Vorlagen, Bezeichnungen und Hinweise zur Veröffentlichung von Versionen sind in der [Verwaltungsanleitung](.github/MAINTENANCE.md) beschrieben.
+## Aufbau des Repositorys
+
+| Ordner | Inhalt |
+| --- | --- |
+| [`app/`](app/) | Die Anwendung: SvelteKit, Drizzle ORM und SQLite, lauffähig mit Node.js, Docker oder Cloudflare Workers |
+| [`website/`](website/) | Die Startseite [mietkartei.de](https://mietkartei.de) |
+| [`docs/`](docs/) | Die Dokumentation [docs.mietkartei.de](https://docs.mietkartei.de), gebaut mit Zensical |
+| [`assets/brand/`](assets/brand/) | Logo, Favicon und Schrift |
+| [`.github/`](.github/) | Workflows, Vorlagen sowie Anleitungen zu [Deployment](.github/DEPLOYMENT.md) und [Pflege](.github/MAINTENANCE.md) |
+
+## Mitmachen
+
+Beiträge zu Code, Dokumentation, Gestaltung und Barrierefreiheit sind willkommen. Den Einstieg findest du in [CONTRIBUTING.md](CONTRIBUTING.md); für die Zusammenarbeit gilt unser [Verhaltenskodex](CODE_OF_CONDUCT.md).
+
+[Fehler melden](https://github.com/OliverHennhoefer/mietkartei.de/issues/new?template=01-fehler.yml) · [Funktion vorschlagen](https://github.com/OliverHennhoefer/mietkartei.de/issues/new?template=02-funktionswunsch.yml) · [Frage stellen](SUPPORT.md) · [Sicherheitslücke melden](SECURITY.md)
+
+Issues und Dokumentation schreiben wir auf Deutsch, Code, Commits und Pull Requests auf Englisch.
 
 ## Lizenz
 
-Der Lizenztext der GNU Affero General Public License, Version 3, steht in [LICENSE](LICENSE). Beiträge bleiben unter dieser Lizenz; eine Contributor License Agreement gibt es nicht. Eine gehostete Variante von mietkartei.de verwendet den Code aus diesem Repository.
+[GNU Affero General Public License, Version 3](LICENSE). Beiträge stehen unter derselben Lizenz, eine Contributor License Agreement gibt es nicht. Eine gehostete Variante von mietkartei.de läuft mit genau dem Code aus diesem Repository.
