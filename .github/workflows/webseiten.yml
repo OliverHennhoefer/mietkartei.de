@@ -118,7 +118,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
-      name: website-production
+      name: production
       url: https://mietkartei.de
     steps:
       - name: Repository herunterladen
@@ -147,7 +147,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
-      name: documentation
+      name: production
       url: https://docs.mietkartei.de
     steps:
       - name: Repository herunterladen
