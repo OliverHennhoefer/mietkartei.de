@@ -117,3 +117,30 @@ export const leaseTenants = sqliteTable(
 		index('lease_tenants_tenant_id_idx').on(table.tenantId)
 	]
 );
+
+/** A person who signs in. Each user works in exactly one account. */
+export const users = sqliteTable(
+	'users',
+	{
+		id: id(),
+		accountId: accountId(),
+		/** Stored trimmed and in lower case; unique across all accounts. */
+		email: text('email').notNull().unique(),
+		passwordHash: text('password_hash').notNull(),
+		createdAt: createdAt()
+	},
+	(table) => [index('users_account_id_idx').on(table.accountId)]
+);
+
+/** A signed-in browser. The id is the SHA-256 hash of the cookie token, never the token itself. */
+export const sessions = sqliteTable(
+	'sessions',
+	{
+		id: text('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull()
+	},
+	(table) => [index('sessions_user_id_idx').on(table.userId)]
+);

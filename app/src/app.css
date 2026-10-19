@@ -141,3 +141,32 @@ button {
 .form-actions {
 	grid-column: 1 / -1;
 }
+
+.narrow {
+	max-width: 24rem;
+	margin: 0 auto;
+}
+
+.narrow form.card {
+	grid-template-columns: 1fr;
+	margin: 1rem 0;
+}
+
+nav {
+	display: flex;
+	align-items: center;
+	gap: 1.25rem;
+}
+
+nav form {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+}
+
+button.link {
+	background: none;
+	color: inherit;
+	padding: 0;
+	text-decoration: underline;
+}

@@ -17,7 +17,6 @@ const commands = {
 
 export default defineConfig({
 	testDir: 'e2e',
-	testMatch: '**/*.e2e.ts',
 	fullyParallel: false,
 	workers: 1,
 	reporter: process.env.CI ? 'github' : 'list',
@@ -27,6 +26,17 @@ export default defineConfig({
 			? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
 			: {}
 	},
+	projects: [
+		// Registers the first user of the fresh database; the other projects build on it.
+		{ name: 'setup', testMatch: 'setup.e2e.ts' },
+		{ name: 'signed out', testMatch: 'auth.e2e.ts', dependencies: ['setup'] },
+		{
+			name: 'signed in',
+			testMatch: 'properties.e2e.ts',
+			dependencies: ['setup'],
+			use: { storageState: '.e2e/owner.json' }
+		}
+	],
 	webServer: {
 		command: commands[target].join(' && '),
 		url: `http://localhost:${port}/health`,

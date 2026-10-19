@@ -1,5 +1,6 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
 // for information about these interfaces
+import type { SessionUser } from '#lib/server/auth.ts';
 import type { Database } from '#lib/server/db/index.ts';
 
 declare global {
@@ -10,7 +11,8 @@ declare global {
 		// interface Error {}
 		interface Locals {
 			db: Database;
-			accountId: string;
+			/** Set for signed-in requests; the hook redirects everything else to the sign-in page. */
+			user: SessionUser | undefined;
 		}
 		// interface PageData {}
 		// interface PageState {}

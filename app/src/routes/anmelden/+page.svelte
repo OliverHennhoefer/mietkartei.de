@@ -1,0 +1,40 @@
+<script lang="ts">
+	import { enhance } from '$app/forms';
+	import { resolve } from '$app/paths';
+	import type { PageProps } from './$types';
+
+	let { form }: PageProps = $props();
+</script>
+
+<svelte:head>
+	<title>Anmelden · mietkartei</title>
+</svelte:head>
+
+<div class="narrow">
+	<h1>Anmelden</h1>
+
+	<form method="POST" class="card" use:enhance>
+		{#if form?.invalid}
+			<p class="error" role="alert">E-Mail-Adresse oder Passwort stimmen nicht.</p>
+		{/if}
+		<label>
+			E-Mail-Adresse
+			<input
+				name="email"
+				type="email"
+				defaultValue={form?.email ?? ''}
+				autocomplete="username"
+				required
+			/>
+		</label>
+		<label>
+			Passwort
+			<input name="password" type="password" autocomplete="current-password" required />
+		</label>
+		<div class="form-actions">
+			<button type="submit">Anmelden</button>
+		</div>
+	</form>
+
+	<p class="muted">Noch kein Konto? <a href={resolve('/registrieren')}>Registrieren</a></p>
+</div>
