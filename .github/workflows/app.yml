@@ -197,11 +197,11 @@ jobs:
         run: |
           tags=(-t "$IMAGE:sha-${GITHUB_SHA::7}")
           if [ "$EVENT_NAME" = release ]; then
-            version="${GITHUB_REF_NAME#v}"
-            if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
               echo "::error::Release tag $GITHUB_REF_NAME is not of the form v1.2.3."
               exit 1
             fi
+            version="${GITHUB_REF_NAME#v}"
             tags+=(-t "$IMAGE:$version" -t "$IMAGE:${version%.*}")
           else
             tags+=(-t "$IMAGE:latest")
