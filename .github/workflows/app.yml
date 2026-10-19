@@ -28,7 +28,7 @@ defaults:
     working-directory: app
 
 env:
-  NODE_VERSION: "24"
+  NODE_VERSION: "26"
 
 jobs:
   check:
@@ -138,3 +138,38 @@ jobs:
           done
           docker logs mietkartei
           exit 1
+
+  publish:
+    name: Publish image
+    needs: [check, e2e, docker]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    defaults:
+      run:
+        working-directory: .
+    env:
+      IMAGE: ghcr.io/oliverhennhoefer/mietkartei
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build image
+        run: |
+          docker build -f app/Dockerfile \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            -t "$IMAGE:latest" -t "$IMAGE:sha-${GITHUB_SHA::7}" .
+
+      - name: Push to GitHub Container Registry
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push --all-tags "$IMAGE"
+          docker logout ghcr.io
