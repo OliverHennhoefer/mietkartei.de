@@ -9,7 +9,7 @@ The app has no login yet. Until it has one, it must only be reachable through a 
 | Part | Where | Credentials |
 | --- | --- | --- |
 | Image build | GitHub Actions, job **Publish image** in [app.yml](workflows/app.yml), after every push to `main` with passing checks | Built-in `GITHUB_TOKEN`, nothing to set up |
-| Image | `ghcr.io/oliverhennhoefer/mietkartei`, tags `latest` and `sha-<commit>` | Public package: none |
+| Image | `ghcr.io/oliverhennhoefer/mietkartei`, tags `latest` and `sha-<first 7 characters of the commit>` | Public package: none |
 | Deployment | Started by hand from a laptop with SSH access to the server | The laptop's existing SSH key; it never leaves the laptop |
 | Data | Docker volume `mietkartei-data` on the server | – |
 
@@ -21,7 +21,7 @@ GitHub never receives SSH access to the server. The server is never built on, so
 
 After the first successful **Publish image** run, open the repository on GitHub, then **Packages → mietkartei → Package settings → Change visibility → Public**. New packages start private. A public image needs no `docker login` on the server.
 
-To keep the image private instead, create a classic personal access token with only `read:packages` and run `docker login ghcr.io -u <github-user>` once on the server.
+To keep the image private instead, create a classic personal access token with only `read:packages` and run `docker login ghcr.io -u <github-user>` once on the laptop. Registry credentials are sent by the Docker client, so a login on the server does not help pulls started from the laptop.
 
 ### 2. Install Tailscale on the server and the laptop
 
@@ -48,7 +48,7 @@ docker --context mietkartei compose -f app/compose.yml pull
 docker --context mietkartei compose -f app/compose.yml up -d
 ```
 
-[compose.yml](../app/compose.yml) is read on the laptop and the container runs on the server. Without `MIETKARTEI_BIND` the port is bound to `127.0.0.1` on the server and is not reachable at all. The app is then available at `http://100.x.y.z:3000` from every device in the tailnet. To pin a version, set `MIETKARTEI_TAG=sha-<commit>`; to roll back, set it to an older tag and run `up -d` again.
+[compose.yml](../app/compose.yml) is read on the laptop and the container runs on the server. Without `MIETKARTEI_BIND` the port is bound to `127.0.0.1` on the server and is not reachable at all. The app is then available at `http://100.x.y.z:3000` from every device in the tailnet. To pin a version, set `MIETKARTEI_TAG=sha-<first 7 characters of the commit>`, for example `sha-c3fd874`; to roll back, set it to an older tag and run `up -d` again.
 
 Migrations run when the container starts. The app needs no secrets so far. Settings that come later belong in an `environment:` entry in the compose file, or, for secrets, in a file on the server with mode `600` passed as `env_file`; never in the repository.
 
