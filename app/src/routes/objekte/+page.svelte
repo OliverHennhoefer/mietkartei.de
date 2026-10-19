@@ -4,6 +4,7 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+	// Fields use defaultValue, not value, so that hydration keeps anything typed before it.
 </script>
 
 <svelte:head>
@@ -32,7 +33,7 @@
 		Bezeichnung
 		<input
 			name="name"
-			value={form?.values?.name ?? ''}
+			defaultValue={form?.values?.name ?? ''}
 			placeholder="z. B. Mehrfamilienhaus Lindenstraße"
 			aria-invalid={form?.errors?.name ? 'true' : undefined}
 			required
@@ -43,7 +44,7 @@
 		Straße und Hausnummer
 		<input
 			name="street"
-			value={form?.values?.street ?? ''}
+			defaultValue={form?.values?.street ?? ''}
 			autocomplete="street-address"
 			aria-invalid={form?.errors?.street ? 'true' : undefined}
 			required
@@ -54,7 +55,7 @@
 		Postleitzahl
 		<input
 			name="postalCode"
-			value={form?.values?.postalCode ?? ''}
+			defaultValue={form?.values?.postalCode ?? ''}
 			inputmode="numeric"
 			autocomplete="postal-code"
 			aria-invalid={form?.errors?.postalCode ? 'true' : undefined}
@@ -66,7 +67,7 @@
 		Ort
 		<input
 			name="city"
-			value={form?.values?.city ?? ''}
+			defaultValue={form?.values?.city ?? ''}
 			autocomplete="address-level2"
 			aria-invalid={form?.errors?.city ? 'true' : undefined}
 			required

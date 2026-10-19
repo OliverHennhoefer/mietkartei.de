@@ -5,7 +5,9 @@
 FROM node:24-slim AS build
 WORKDIR /src/app
 COPY app/package.json app/package-lock.json ./
-RUN npm ci
+# better-sqlite3 ships prebuilt binaries, but some npm versions still try to compile it with
+# node-gyp, which the slim image cannot. No other install script is needed for the node build.
+RUN npm ci --ignore-scripts
 COPY assets/brand /src/assets/brand
 COPY app ./
 RUN DEPLOY_TARGET=node npm run build && npm prune --omit=dev

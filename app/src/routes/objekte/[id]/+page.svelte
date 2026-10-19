@@ -42,7 +42,7 @@
 		Bezeichnung
 		<input
 			name="name"
-			value={values?.name ?? ''}
+			defaultValue={values?.name ?? ''}
 			placeholder="z. B. Wohnung 1. OG links"
 			aria-invalid={errors?.name ? 'true' : undefined}
 			required
@@ -64,7 +64,7 @@
 		Fläche in m² (optional)
 		<input
 			name="floorArea"
-			value={values?.floorArea ?? ''}
+			defaultValue={values?.floorArea ?? ''}
 			inputmode="decimal"
 			aria-invalid={errors?.floorArea ? 'true' : undefined}
 		/>

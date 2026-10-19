@@ -56,7 +56,7 @@ docker run -d --name mietkartei -p 3000:3000 \
   mietkartei
 ```
 
-Die Anwendung ist dann unter <http://localhost:3000> erreichbar. Die Daten liegen im Volume `mietkartei-daten`; zum Sichern genügt eine Kopie von `/data/mietkartei.db`.
+Die Anwendung ist dann unter <http://localhost:3000> erreichbar. Die Daten liegen im Volume `mietkartei-daten`. Zum Sichern hältst du den Container mit `docker stop mietkartei` an und kopierst den Inhalt von `/data`. Im laufenden Betrieb ist eine Dateikopie nicht zuverlässig, weil SQLite einen Teil der Änderungen in `mietkartei.db-wal` zwischenspeichert.
 
 | Variable        | Bedeutung                                                                                                                                                                    | Standard              |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
