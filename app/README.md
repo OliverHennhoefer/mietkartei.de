@@ -8,7 +8,11 @@ Die Webanwendung von mietkartei.de, gebaut mit SvelteKit, Drizzle ORM und SQLite
 Welcher Weg gebaut wird, bestimmt die Umgebungsvariable `DEPLOY_TARGET` (`node` oder `cloudflare`, Standard ist `node`).
 
 > [!IMPORTANT]
-> Die Anwendung hat noch keine Anmeldung. Alle Daten gehören zu einem Standardkonto, und jede Person, die die Adresse erreicht, kann sie sehen und ändern. Betreibe sie deshalb vorerst nur auf deinem eigenen Rechner oder in einem geschützten Heimnetz.
+> Die Anmeldung ist neu und noch einfach gehalten: Es gibt weder ein Zurücksetzen des Passworts noch einen Schutz gegen viele Anmeldeversuche. Betreibe die Anwendung deshalb vorerst nur auf deinem eigenen Rechner oder in einem geschützten Heimnetz.
+
+## Anmeldung
+
+Beim ersten Aufruf legst du ein Konto mit E-Mail-Adresse und Passwort an. Die erste Person übernimmt dabei alle Daten, die vorher schon eingegeben wurden. Danach ist die Registrierung geschlossen, außer `OPEN_REGISTRATION` ist auf `true` gesetzt; dann bekommt jede neue Person ein eigenes, leeres Konto. Das ist für die gehostete Variante gedacht.
 
 ## Entwickeln
 
@@ -57,10 +61,11 @@ docker run -d --name mietkartei -p 3000:3000 \
 
 Die Anwendung ist dann unter <http://localhost:3000> erreichbar. Die Daten liegen im Volume `mietkartei-daten`. Zum Sichern hältst du den Container mit `docker stop mietkartei` an und kopierst den Inhalt von `/data`. Im laufenden Betrieb ist eine Dateikopie nicht zuverlässig, weil SQLite einen Teil der Änderungen in `mietkartei.db-wal` zwischenspeichert.
 
-| Variable        | Bedeutung                                                                                                                                                                                                                                                           | Standard              |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| `ORIGIN`        | Öffentliche Adresse, unter der die Anwendung aufgerufen wird, etwa `https://mietkartei.example.de` hinter einem Reverse Proxy mit HTTPS. Ohne Angabe gilt `http` mit der aufgerufenen Adresse, zum Beispiel `http://localhost:3000` oder `http://192.168.1.5:3000`. | –                     |
-| `DATABASE_PATH` | Pfad der SQLite-Datei                                                                                                                                                                                                                                               | `/data/mietkartei.db` |
-| `PORT`          | Port des Servers                                                                                                                                                                                                                                                    | `3000`                |
+| Variable            | Bedeutung                                                                                                                                                                                                                                                           | Standard              |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `ORIGIN`            | Öffentliche Adresse, unter der die Anwendung aufgerufen wird, etwa `https://mietkartei.example.de` hinter einem Reverse Proxy mit HTTPS. Ohne Angabe gilt `http` mit der aufgerufenen Adresse, zum Beispiel `http://localhost:3000` oder `http://192.168.1.5:3000`. | –                     |
+| `DATABASE_PATH`     | Pfad der SQLite-Datei                                                                                                                                                                                                                                               | `/data/mietkartei.db` |
+| `OPEN_REGISTRATION` | `true` erlaubt allen, ein neues Konto anzulegen. Sonst kann sich nur die erste Person registrieren.                                                                                                                                                                 | –                     |
+| `PORT`              | Port des Servers                                                                                                                                                                                                                                                    | `3000`                |
 
 Ohne Docker startet `npm run build && npm start` denselben Server.

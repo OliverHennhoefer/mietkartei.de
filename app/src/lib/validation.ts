@@ -71,3 +71,32 @@ export function parseUnit(form: FormData): ParseResult<UnitInput> {
 	if (Object.keys(errors).length > 0 || !kind) return { ok: false, errors, values: input };
 	return { ok: true, data: { name: input.name, kind, floorArea } };
 }
+
+export type CredentialsInput = {
+	email: string;
+	password: string;
+};
+
+export const MIN_PASSWORD_LENGTH = 10;
+
+/** For registration. The sign-in form only checks that both fields are filled in. */
+export function parseCredentials(form: FormData): ParseResult<CredentialsInput> {
+	const email = text(form, 'email');
+	const password = form.get('password');
+	const errors: FieldErrors<CredentialsInput> = {};
+
+	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+		errors.email = 'Bitte gib eine gültige E-Mail-Adresse an.';
+	}
+	if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
+		errors.password = `Das Passwort braucht mindestens ${MIN_PASSWORD_LENGTH} Zeichen.`;
+	} else if (password.length > 200) {
+		errors.password = 'Das Passwort ist zu lang.';
+	}
+
+	// The password is never sent back to the form.
+	if (Object.keys(errors).length > 0 || typeof password !== 'string') {
+		return { ok: false, errors, values: { email } };
+	}
+	return { ok: true, data: { email, password } };
+}

@@ -18,7 +18,7 @@ Open-Source-Hausverwaltung für Privatvermieter in Deutschland.
 </div>
 
 > [!IMPORTANT]
-> **mietkartei ist im Aufbau.** Heute lassen sich Objekte und ihre Einheiten anlegen. Anmeldung, Mieter, Mietverträge und die Betriebskostenabrechnung folgen als Nächstes. Verwalte damit bitte noch keine echten Mieterdaten.
+> **mietkartei ist im Aufbau.** Heute kannst du dich anmelden und Objekte mit ihren Einheiten anlegen. Mieter, Mietverträge und die Betriebskostenabrechnung folgen als Nächstes. Verwalte damit bitte noch keine echten Mieterdaten.
 
 ## Worum es geht
 

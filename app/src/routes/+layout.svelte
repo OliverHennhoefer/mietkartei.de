@@ -6,7 +6,7 @@
 	import '../app.css';
 	import type { LayoutProps } from './$types';
 
-	let { children }: LayoutProps = $props();
+	let { data, children }: LayoutProps = $props();
 </script>
 
 <svelte:head>
@@ -16,9 +16,15 @@
 <header class="site-header">
 	<div class="container">
 		<a href={resolve('/objekte')} class="brand"><img src={logo} alt="mietkartei" height="20" /></a>
-		<nav aria-label="Hauptnavigation">
-			<a href={resolve('/objekte')}>Objekte</a>
-		</nav>
+		{#if data.email}
+			<nav aria-label="Hauptnavigation">
+				<a href={resolve('/objekte')}>Objekte</a>
+				<form method="POST" action={resolve('/abmelden')}>
+					<span class="muted">{data.email}</span>
+					<button type="submit" class="link">Abmelden</button>
+				</form>
+			</nav>
+		{/if}
 	</div>
 </header>
 

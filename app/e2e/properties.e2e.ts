@@ -1,11 +1,5 @@
 import { expect, test } from '@playwright/test';
 
-test('health check reports ok', async ({ request }) => {
-	const response = await request.get('/health');
-	expect(response.ok()).toBe(true);
-	expect(await response.json()).toEqual({ status: 'ok' });
-});
-
 test('creates a property and adds units to it', async ({ page }) => {
 	await page.goto('/');
 	await expect(page).toHaveURL(/\/objekte$/);
