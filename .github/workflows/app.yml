@@ -14,6 +14,8 @@ name: App
       - assets/brand/**
       - .dockerignore
       - .github/workflows/app.yml
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -139,10 +141,39 @@ jobs:
           docker logs mietkartei
           exit 1
 
+      # Self-hosters update by starting a new image on their existing volume, so a migration
+      # must not break a database created by the previously published image.
+      - name: Upgrade a database from the published image
+        run: |
+          wait_healthy() {
+            for attempt in $(seq 1 30); do
+              curl -fsS -o /dev/null "http://localhost:$1/health" && return 0
+              sleep 1
+            done
+            docker logs "$2"
+            return 1
+          }
+          docker volume create upgrade-data
+          docker run -d --name previous -p 3001:3000 -v upgrade-data:/data \
+            ghcr.io/oliverhennhoefer/mietkartei:latest
+          wait_healthy 3001 previous
+          curl -fsS -o /dev/null -H "Origin: http://localhost:3001" \
+            --data-urlencode "name=Upgrade-Testobjekt" --data-urlencode "street=Teststraße 1" \
+            --data-urlencode "postalCode=12345" --data-urlencode "city=Teststadt" \
+            "http://localhost:3001/objekte?/create"
+          docker stop previous
+          docker run -d --name current -p 3002:3000 -v upgrade-data:/data mietkartei:ci
+          wait_healthy 3002 current
+          if ! curl -fsS http://localhost:3002/objekte | grep -q "Upgrade-Testobjekt"; then
+            echo "::error::A property created with the published image is missing after the upgrade."
+            docker logs current
+            exit 1
+          fi
+
   publish:
     name: Publish image
     needs: [check, e2e, docker]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'release' || (github.event_name != 'pull_request' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -159,12 +190,26 @@ jobs:
         with:
           persist-credentials: false
 
+      # main publishes latest; a release v1.2.3 publishes 1.2.3 and 1.2 so self-hosters can pin.
       - name: Build image
+        env:
+          EVENT_NAME: ${{ github.event_name }}
         run: |
+          tags=(-t "$IMAGE:sha-${GITHUB_SHA::7}")
+          if [ "$EVENT_NAME" = release ]; then
+            version="${GITHUB_REF_NAME#v}"
+            if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Release tag $GITHUB_REF_NAME is not of the form v1.2.3."
+              exit 1
+            fi
+            tags+=(-t "$IMAGE:$version" -t "$IMAGE:${version%.*}")
+          else
+            tags+=(-t "$IMAGE:latest")
+          fi
           docker build -f app/Dockerfile \
             --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
             --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
-            -t "$IMAGE:latest" -t "$IMAGE:sha-${GITHUB_SHA::7}" .
+            "${tags[@]}" .
 
       - name: Push to GitHub Container Registry
         env:
