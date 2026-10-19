@@ -15,8 +15,9 @@ GitHub verwendet die Issue- und Pull-Request-Vorlagen aus dem Standardzweig `mai
 | `CODEOWNERS` | Zuständigkeit für die Begutachtung |
 | `labels.json` | Deutsche Bezeichnungen und ihre Beschreibungen |
 | `workflows/bezeichnungen.yml` | Anlegen und Aktualisieren der Bezeichnungen |
-| `workflows/dokumentation.yml` | Prüfen und Veröffentlichen der Dokumentation |
+| `workflows/webseiten.yml` | Prüfen und Veröffentlichen von Startseite und Dokumentation |
 | `DOKUMENTATION.md` | Vorschau, Build und Veröffentlichung der Dokumentation |
+| `DEPLOYMENT.md` | Cloudflare-Zugang, Domains und Umstellung des Hostings |
 | `dependabot.yml` | Wöchentliche Aktualisierungsvorschläge für Abhängigkeiten |
 | `release.yml` | Kategorien für automatisch generierte Versionshinweise |
 | `RELEASE_TEMPLATE.md` | Manuell verwendete Vorlage für eine Versionsbeschreibung |
@@ -37,11 +38,11 @@ Behalte Namen, die in den Issue-Formularen oder in `release.yml` verwendet werde
 
 Prüfe solche Änderungen vor dem Zusammenführen auf neue Berechtigungen und Auswirkungen auf den Ablauf. Halte verwendete Aktionen weiterhin auf konkrete Commit-IDs festgelegt.
 
-## Dokumentation veröffentlichen
+## Webseiten veröffentlichen
 
-Der Ablauf [dokumentation.yml](workflows/dokumentation.yml) meldet für jeden Pull Request die Prüfung „Dokumentation prüfen“. Er prüft geänderte Dateien auf fehlerhafte Leerzeichen und baut die Dokumentationsseite bei Änderungen in `docs/` oder `assets/brand/`, an `scripts/prepare_docs_assets.py`, an `zensical.toml` oder an seiner eigenen Workflow-Datei. Vor dem Build werden die ausgewählten Wortmarken aus den gemeinsamen Markenressourcen übernommen. Solange noch keine Dokumentationsseite eingerichtet ist, entfällt der Build. Vorhandene Markdown-Seiten ohne Zensical-Konfiguration lassen die Prüfung fehlschlagen.
+Der Ablauf [webseiten.yml](workflows/webseiten.yml) meldet für jeden Pull Request weiterhin die Pflichtprüfung **Dokumentation prüfen**. Er prüft geänderte Dateien auf fehlerhafte Leerzeichen und baut die betroffenen Webseiten. Änderungen an den gemeinsamen Markenressourcen oder der Workflow-Datei betreffen beide Seiten. Vor dem Zensical-Build werden die ausgewählten Wortmarken aus den gemeinsamen Markenressourcen übernommen.
 
-Nach relevanten Änderungen auf `main` veröffentlicht der Ablauf die Seite auf GitHub Pages. Dafür muss in den [Pages-Einstellungen](https://github.com/OliverHennhoefer/mietkartei.de/settings/pages) die Quelle „GitHub Actions“ gewählt sein. Ein manueller Start auf `main` ist ebenfalls möglich. Die [Dokumentationsanleitung](DOKUMENTATION.md) beschreibt Vorschau, Build und Domain.
+Nach relevanten Änderungen auf `main` veröffentlicht der Ablauf Startseite und Dokumentation als getrennte Cloudflare Workers in den GitHub-Umgebungen **website-production** und **documentation**. Ein manueller Start auf `main` veröffentlicht beide Seiten. Die [Deployment-Anleitung](DEPLOYMENT.md) beschreibt Secrets, Domains und die Umstellung von GitHub Pages beziehungsweise Cloudflare Workers Builds. Die [Dokumentationsanleitung](DOKUMENTATION.md) beschreibt die lokale Vorschau und den Build mit Zensical.
 
 ## Standardzweig schützen
 

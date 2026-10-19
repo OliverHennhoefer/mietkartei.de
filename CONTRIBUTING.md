@@ -43,7 +43,7 @@ python scripts/prepare_docs_assets.py
 zensical build --clean --strict
 ```
 
-Der GitHub-Actions-Ablauf „Dokumentation“ meldet für jeden Pull Request die Prüfung „Dokumentation prüfen“ und baut die Seite bei relevanten Änderungen, einschließlich der gemeinsamen Markenressourcen.
+Der GitHub-Actions-Ablauf **Webseiten** meldet für jeden Pull Request die Pflichtprüfung **Dokumentation prüfen** und baut bei relevanten Änderungen die Dokumentation beziehungsweise die Startseite. Änderungen an den gemeinsamen Markenressourcen betreffen beide Seiten. Pull Requests veröffentlichen keine Dateien. Die [Deployment-Anleitung](.github/DEPLOYMENT.md) beschreibt die Veröffentlichung aus `main`.
 
 Prüfe außerdem passend zu deinem Beitrag:
 
