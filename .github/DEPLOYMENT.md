@@ -1,68 +1,68 @@
-# Webseiten auf Cloudflare veröffentlichen
+# Deploying the websites to Cloudflare
 
-Startseite und Dokumentation liegen im selben Repository und werden durch einen gemeinsamen Workflow in der GitHub-Umgebung **production** veröffentlicht. Die Seiten verwenden zwei statische Cloudflare Workers. Zensical erzeugt weiterhin die Dokumentation; GitHub Pages wird nicht mehr benötigt.
+The homepage and the documentation live in the same repository and are deployed by a shared workflow in the GitHub environment **production**. Both sites are served by two static Cloudflare Workers. Zensical still builds the documentation; GitHub Pages is no longer needed.
 
-| Adresse | Worker | GitHub-Umgebung | Konfiguration | Ausgabe |
+| Address | Worker | GitHub environment | Configuration | Output |
 | --- | --- | --- | --- | --- |
 | `https://mietkartei.de/` | `mietkartei-de` | `production` | `website/wrangler.toml` | `dist/homepage/` |
 | `https://docs.mietkartei.de/` | `mietkartei-de-docs` | `production` | `docs/wrangler.toml` | `site/` |
 
-Beide Seiten sind öffentlich. Eine spätere Anwendung unter `app.mietkartei.de` kann denselben Workflow und dieselbe GitHub-Umgebung **production** verwenden. Anmeldung, Berechtigungsprüfungen und Laufzeit-Zugangsdaten werden in der Anwendung beziehungsweise ihrer Laufzeit eingerichtet.
+Both sites are public. A later application at `app.mietkartei.de` can use the same workflow and the same GitHub environment **production**. Sign-in, authorization checks and runtime credentials are set up in the application and its runtime.
 
-## Einmalige Einrichtung
+## One-time setup
 
-Führe diese Schritte vor dem Merge der Umstellung aus. Änderungen am Repository allein schalten die bisherigen Cloudflare- und GitHub-Einstellungen nicht um.
+Complete these steps before merging the migration. Repository changes alone do not switch the existing Cloudflare and GitHub settings.
 
-### 1. Cloudflare-Zugang für GitHub anlegen
+### 1. Create Cloudflare access for GitHub
 
-1. Öffne in Cloudflare die API-Token-Verwaltung und verwende **Edit Cloudflare Workers** als Ausgangspunkt. Für diese beiden statischen Workers genügen **Account → Workers Scripts → Edit**, **Account → Account Settings → Read**, **Zone → Workers Routes → Edit** und **Zone → Zone → Read**. Beschränke die Ressourcen auf das verwendete Konto und die Zone **mietkartei.de**. Zusätzliche Berechtigungen für KV, R2, Container oder Cloudflare Pages sind nicht erforderlich.
-2. Erstelle das Token ohne festgelegten Zeitraum. Cloudflare zeigt den generierten geheimen Wert nur einmal; der frei gewählte Tokenname ist kein Zugangsschlüssel.
-3. Öffne im Repository **Settings → Secrets and variables → Actions → New repository secret** und hinterlege `CLOUDFLARE_ACCOUNT_ID` mit der Cloudflare-Konto-ID. Die Konto-ID steht in der Cloudflare-Kontoübersicht und in der Dashboard-URL.
-4. Hinterlege den generierten Tokenwert anschließend wie in Schritt 2 beschrieben als Umgebungs-Secret `CLOUDFLARE_API_TOKEN` in **production**. Der Tokenwert gehört weder in den Quelltext noch in Protokolle oder Pull-Request-Beschreibungen.
+1. In Cloudflare, open the API token management and start from **Edit Cloudflare Workers**. For these two static Workers, **Account → Workers Scripts → Edit**, **Account → Account Settings → Read**, **Zone → Workers Routes → Edit** and **Zone → Zone → Read** are sufficient. Restrict the resources to the account in use and the zone **mietkartei.de**. Additional permissions for KV, R2, Containers or Cloudflare Pages are not required.
+2. Create the token without an expiry date. Cloudflare shows the generated secret value only once; the freely chosen token name is not a credential.
+3. In the repository, open **Settings → Secrets and variables → Actions → New repository secret** and store `CLOUDFLARE_ACCOUNT_ID` with the Cloudflare account ID. The account ID is shown in the Cloudflare account overview and in the dashboard URL.
+4. Then store the generated token value from step 2 as the environment secret `CLOUDFLARE_API_TOKEN` in **production**. The token value never belongs in source code, logs or pull request descriptions.
 
-Die Werte gehören in GitHub Secrets. Die Anleitung von Cloudflare beschreibt [Token und GitHub Actions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/). Weitere Tokens, eine interaktive Anmeldung im Workflow oder zusätzliche GitHub-Token sind nicht erforderlich.
+The values belong in GitHub Secrets. Cloudflare's guide describes [tokens and GitHub Actions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/). No further tokens, interactive sign-in in the workflow or additional GitHub tokens are required.
 
-### 2. GitHub-Umgebung einrichten
+### 2. Set up the GitHub environment
 
-Öffne **Settings → Environments** und richte **production** ein. Wähle bei **Deployment branches and tags** **Selected branches and tags** und erlaube ausschließlich den Branch **main**; Tags bleiben ausgeschlossen. Öffne **Add environment secret** und hinterlege den generierten Tokenwert unter `CLOUDFLARE_API_TOKEN`. Die Konto-ID wird als Repository-Secret aus Schritt 1 übernommen. Dadurch steht der Deployment-Token nur Jobs zur Verfügung, die die geschützte Umgebung **production** verwenden.
+Open **Settings → Environments** and set up **production**. Under **Deployment branches and tags**, choose **Selected branches and tags** and allow only the branch **main**; tags stay excluded. Open **Add environment secret** and store the generated token value as `CLOUDFLARE_API_TOKEN`. The account ID comes from the repository secret in step 1. This makes the deployment token available only to jobs that use the protected environment **production**.
 
-Bei einer Umstellung von **website-production** und **documentation** muss **production** einschließlich Secret und Branch-Regel vor dem Merge eingerichtet sein. GitHub zeigt gespeicherte Secret-Werte nicht wieder an; verwende den ursprünglichen Tokenwert. Prüfe nach dem Merge, dass beide Deployment-Jobs in **production** erfolgreich sind. Anschließend können die bisherigen Umgebungen einschließlich **github-pages** entfernt werden. Beim Löschen einer Umgebung werden auch ihre Secrets und Schutzregeln gelöscht.
+When migrating from **website-production** and **documentation**, **production** including its secret and branch rule must exist before the merge. GitHub does not show stored secret values again; use the original token value. After the merge, check that both deployment jobs in **production** succeed. The previous environments, including **github-pages**, can then be removed. Deleting an environment also deletes its secrets and protection rules.
 
-Die Pflichtprüfung **Check websites** prüft bei relevanten Änderungen Startseite und Dokumentation.
+The required check **Check websites** builds the homepage and the documentation when relevant files change.
 
-### 3. Automatische Cloudflare-Builds abschalten
+### 3. Turn off automatic Cloudflare builds
 
-Der vorhandene Startseiten-Worker muss **mietkartei-de** heißen; die Wrangler-Konfiguration verwendet diesen Namen. Öffne den Worker unter **Workers & Pages → Settings → Builds** und schalte die automatischen Produktions- und Vorschau-Builds der bisherigen Git-Integration ab beziehungsweise trenne die Build-Verbindung zum Repository. Der bestehende Worker und seine Domain bleiben bestehen.
+The existing homepage Worker must be named **mietkartei-de**; the Wrangler configuration uses this name. Open the Worker under **Workers & Pages → Settings → Builds** and turn off the automatic production and preview builds of the previous Git integration, or disconnect the build connection to the repository. The existing Worker and its domain stay in place.
 
-GitHub Actions übernimmt künftig die Builds und Deployments. Der zusätzliche Workflow zur Übernahme von Workers-Builds-Checks entfällt, da die Deployment-Jobs ihre GitHub-Umgebungen direkt verwenden. Für den neuen Dokumentations-Worker wird keine Cloudflare-Git-Integration benötigt.
+GitHub Actions now handles builds and deployments. The extra workflow that imported Workers Builds checks is no longer needed, because the deployment jobs use their GitHub environments directly. The new documentation Worker does not need a Cloudflare Git integration.
 
-### 4. Dokumentationsdomain umstellen und veröffentlichen
+### 4. Switch the documentation domain and deploy
 
-1. Stelle sicher, dass die Prüfung des Umstellungs-Pull-Requests erfolgreich ist und die beiden Secrets eingerichtet sind.
-2. Entferne in **Cloudflare → mietkartei.de → DNS → Records** ausschließlich den bisherigen Eintrag **CNAME docs → oliverhennhoefer.github.io**. Die Root-Domain bleibt unverändert.
-3. Merge den Pull Request in **main**. Unter **Actions → Webseiten** baut und veröffentlicht der erste Lauf beide Seiten. Wrangler aktualisiert **mietkartei-de**, erstellt **mietkartei-de-docs** und registriert `docs.mietkartei.de` als dessen Custom Domain.
-4. Prüfe unter **Workers & Pages → mietkartei-de-docs → Settings → Domains & Routes**, dass die Custom Domain vorhanden und das Zertifikat aktiv ist. Öffne anschließend `https://docs.mietkartei.de/` und kontrolliere die Startseite, Logos und Verweise. Die von Wrangler ausgegebene `workers.dev`-Adresse ermöglicht zusätzlich die direkte Prüfung des Dokumentations-Workers.
-5. Sobald die Dokumentation über Cloudflare einschließlich HTTPS funktioniert, entferne die benutzerdefinierte Domain in den GitHub-Pages-Einstellungen und veröffentliche die bisherige Pages-Seite nicht weiter. Die alte Umgebung **github-pages** kannst du anschließend bei Bedarf löschen.
+1. Make sure the check on the migration pull request has passed and both secrets are set up.
+2. In **Cloudflare → mietkartei.de → DNS → Records**, remove only the previous record **CNAME docs → oliverhennhoefer.github.io**. The root domain stays unchanged.
+3. Merge the pull request into **main**. Under **Actions → Websites**, the first run builds and deploys both sites. Wrangler updates **mietkartei-de**, creates **mietkartei-de-docs** and registers `docs.mietkartei.de` as its custom domain.
+4. Under **Workers & Pages → mietkartei-de-docs → Settings → Domains & Routes**, check that the custom domain exists and its certificate is active. Then open `https://docs.mietkartei.de/` and check the page, logos and links. The `workers.dev` address printed by Wrangler also lets you check the documentation Worker directly.
+5. Once the documentation works through Cloudflare including HTTPS, remove the custom domain in the GitHub Pages settings and stop publishing the previous Pages site. You can then delete the old **github-pages** environment if you like.
 
-Eine vorhandene CNAME verhindert die Registrierung einer Cloudflare Custom Domain. Cloudflare übernimmt danach DNS und Zertifikat; lege keinen neuen CNAME auf `workers.dev` an. Während der Umstellung kann die Dokumentationsdomain kurzzeitig nicht erreichbar sein. Einzelheiten stehen in der [Cloudflare-Anleitung für Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/).
+An existing CNAME prevents registering a Cloudflare custom domain. Cloudflare then takes over DNS and the certificate; do not create a new CNAME pointing to `workers.dev`. The documentation domain may be briefly unreachable during the switch. Details are in [Cloudflare's guide to custom domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/).
 
-## Laufende Veröffentlichung
+## Ongoing deployment
 
-Der Workflow [websites.yml](workflows/websites.yml) läuft für Pull Requests und nach einem Push auf `main`. Er ermittelt die geänderten Dateien und baut beziehungsweise veröffentlicht nur die betroffene Seite:
+The workflow [websites.yml](workflows/websites.yml) runs for pull requests and after a push to `main`. It detects the changed files and only builds or deploys the affected site:
 
-| Änderung | Startseite | Dokumentation |
+| Change | Homepage | Documentation |
 | --- | --- | --- |
-| `website/**`, `scripts/build_homepage.py` | Ja | Nein |
-| `docs/**`, `zensical.toml`, `scripts/prepare_docs_assets.py` | Nein | Ja |
-| `assets/brand/**`, `.github/workflows/websites.yml` | Ja | Ja |
-| Andere Dateien | Nein | Nein |
+| `website/**`, `scripts/build_homepage.py` | Yes | No |
+| `docs/**`, `zensical.toml`, `scripts/prepare_docs_assets.py` | No | Yes |
+| `assets/brand/**`, `.github/workflows/websites.yml` | Yes | Yes |
+| Other files | No | No |
 
-Auch gelöschte Dateien und beide Seiten einer Umbenennung werden berücksichtigt. Die Pflichtprüfung läuft für jeden Pull Request; Änderungen ohne Webseitenbezug benötigen keinen Build. Pull Requests veröffentlichen keine Dateien und erhalten keine Cloudflare-Secrets. Nach dem Merge werden die geprüften Ausgaben desselben Workflow-Laufs veröffentlicht. Produktionsläufe desselben Branches werden vollständig nacheinander verarbeitet; bis zu 100 Läufe können warten, ohne einen vorher wartenden Lauf zu verdrängen. Innerhalb eines Laufs können die beiden Deployment-Jobs parallel arbeiten. Bei Pull Requests ersetzt ein neuer Lauf weiterhin die veraltete Prüfung.
+Deleted files and both sides of a rename are taken into account. The required check runs for every pull request; changes unrelated to the websites need no build. Pull requests deploy nothing and receive no Cloudflare secrets. After the merge, the checked output of the same workflow run is deployed. Production runs on the same branch are processed one after another in full; up to 100 runs can wait without displacing a run that was already waiting. Within one run, the two deployment jobs can run in parallel. For pull requests, a new run still replaces an outdated check.
 
-Für eine vollständige erneute Veröffentlichung wählst du **Actions → Websites → Run workflow → Branch: main**. Der manuelle Lauf baut und veröffentlicht beide Seiten. Auf anderen Zweigen prüft er lediglich die Builds.
+For a full redeploy, choose **Actions → Websites → Run workflow → Branch: main**. The manual run builds and deploys both sites. On other branches it only checks the builds.
 
-## Fehler und Rückkehr zum bisherigen Hosting
+## Failures and rolling back to the previous hosting
 
-Fehlende Secrets oder unzureichende Token-Rechte lassen den jeweiligen Deployment-Job fehlschlagen. Ein Fehler bei einer Seite verhindert nicht die Veröffentlichung der anderen, sofern die gemeinsame Build-Prüfung erfolgreich war. Wiederhole den fehlgeschlagenen Job nach der Korrektur oder starte den Workflow auf `main` erneut.
+Missing secrets or insufficient token permissions make the respective deployment job fail. A failure on one site does not prevent deploying the other, as long as the shared build check passed. Re-run the failed job after fixing the cause, or start the workflow on `main` again.
 
-Wenn die Domain noch nicht auf Cloudflare zeigt, kontrolliere zuerst, ob der alte `docs`-CNAME entfernt und die Custom Domain registriert wurde. Für eine Rückkehr zu GitHub Pages entfernst du die Custom Domain vom Dokumentations-Worker und stellst den bisherigen CNAME mit **DNS only** sowie die GitHub-Pages-Domain wieder her. Der bisherige Pages-Stand bleibt bis zum erfolgreichen Wechsel verfügbar; für künftige Pages-Veröffentlichungen müsste auch der frühere Workflow wiederhergestellt werden.
+If the domain does not point to Cloudflare yet, first check that the old `docs` CNAME was removed and the custom domain was registered. To roll back to GitHub Pages, remove the custom domain from the documentation Worker and restore the previous CNAME with **DNS only** as well as the GitHub Pages domain. The previous Pages deployment stays available until the switch succeeds; future Pages deployments would also require restoring the earlier workflow.
