@@ -272,3 +272,46 @@ jobs:
           echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           docker push --all-tags "$IMAGE"
           docker logout ghcr.io
+
+  # Optional: redeploys the self-hosted reference server over Tailscale after every publish on
+  # main. Runs only once the repository variable VPS_HOST is set, see .github/SELF_HOSTING.md.
+  deploy_vps:
+    name: Deploy to VPS
+    needs: publish
+    if: github.repository == 'OliverHennhoefer/mietkartei.de' && github.event_name != 'pull_request' && github.event_name != 'release' && github.ref == 'refs/heads/main' && vars.VPS_HOST != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: vps-deploy
+      cancel-in-progress: false
+    environment:
+      name: vps
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The runner joins the tailnet as tag:ci, which the tailnet policy only lets reach the
+      # server over Tailscale SSH as the user deploy. It leaves the tailnet when the job ends.
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          ping: ${{ vars.VPS_HOST }}
+
+      # Pins the commit's own image, so a later push that publishes first is not overwritten.
+      - name: Update the container
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST }}
+        run: |
+          target="deploy@$VPS_HOST"
+          ssh_options=(-o StrictHostKeyChecking=accept-new -o BatchMode=yes)
+          scp "${ssh_options[@]}" app/compose.yml "$target:/opt/mietkartei/compose.yml"
+          ssh "${ssh_options[@]}" "$target" \
+            "cd /opt/mietkartei && export MIETKARTEI_TAG=sha-${GITHUB_SHA::7} && docker compose pull -q && docker compose up -d --wait"
