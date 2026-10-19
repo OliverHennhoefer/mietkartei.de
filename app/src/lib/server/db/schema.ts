@@ -1,5 +1,13 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, primaryKey, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import {
+	index,
+	integer,
+	primaryKey,
+	real,
+	sqliteTable,
+	text,
+	uniqueIndex
+} from 'drizzle-orm/sqlite-core';
 import { unitKinds } from '../../units';
 
 // Every record belongs to an account. The hosted variant serves many accounts from one database;
@@ -129,7 +137,13 @@ export const users = sqliteTable(
 		passwordHash: text('password_hash').notNull(),
 		createdAt: createdAt()
 	},
-	(table) => [index('users_account_id_idx').on(table.accountId)]
+	(table) => [
+		index('users_account_id_idx').on(table.accountId),
+		// Only one user can take over the data from before sign-in, even if two register at once.
+		uniqueIndex('users_default_account_unique')
+			.on(table.accountId)
+			.where(sql`${table.accountId} = 'default'`)
+	]
 );
 
 /** A signed-in browser. The id is the SHA-256 hash of the cookie token, never the token itself. */

@@ -74,7 +74,11 @@ export async function hasUsers(db: Database): Promise<boolean> {
 	return value > 0;
 }
 
-export type RegisterResult = { ok: true; userId: string } | { ok: false; reason: 'email-taken' };
+export type RegisterResult =
+	| { ok: true; userId: string }
+	| { ok: false; reason: 'email-taken' }
+	/** Someone else registered as the first user at the same moment. */
+	| { ok: false; reason: 'retry' };
 
 /**
  * The first user takes over the default account and with it any data entered before sign-in
@@ -106,11 +110,12 @@ export async function registerUser(
 			.returning({ id: users.id });
 		return { ok: true, userId: user.id };
 	} catch (error) {
-		// Two registrations with the same address raced; the other one won.
+		// Another registration won a race: either for the same address, or for the default account.
 		if (accountId !== DEFAULT_ACCOUNT_ID)
 			await db.delete(accounts).where(eq(accounts.id, accountId));
 		const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
 		if (taken) return { ok: false, reason: 'email-taken' };
+		if (first && (await hasUsers(db))) return { ok: false, reason: 'retry' };
 		throw error;
 	}
 }

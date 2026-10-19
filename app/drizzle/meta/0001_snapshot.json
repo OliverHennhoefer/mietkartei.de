@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f8d5ddbe-999d-4b1e-a346-c9231ea52735",
+  "id": "446319fd-a87f-4359-b609-48f7af5a9ac7",
   "prevId": "a0d173de-f605-42be-a24a-2d0d7debf68d",
   "tables": {
     "accounts": {
@@ -594,6 +594,14 @@
             "account_id"
           ],
           "isUnique": false
+        },
+        "users_default_account_unique": {
+          "name": "users_default_account_unique",
+          "columns": [
+            "account_id"
+          ],
+          "isUnique": true,
+          "where": "\"users\".\"account_id\" = 'default'"
         }
       },
       "foreignKeys": {

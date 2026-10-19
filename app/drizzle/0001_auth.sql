@@ -16,4 +16,5 @@ CREATE TABLE `users` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-breakpoint
-CREATE INDEX `users_account_id_idx` ON `users` (`account_id`);
+CREATE INDEX `users_account_id_idx` ON `users` (`account_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `users_default_account_unique` ON `users` (`account_id`) WHERE "users"."account_id" = 'default';

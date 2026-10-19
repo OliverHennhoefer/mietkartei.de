@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Database } from './db';
-import { accounts, properties, sessions } from './db/schema';
+import { accounts, properties, sessions, users } from './db/schema';
 import { createSqliteDatabase } from './db/sqlite';
 import { DEFAULT_ACCOUNT_ID, ensureDefaultAccount } from './accounts';
 import {
@@ -54,6 +54,17 @@ describe('registration', () => {
 			email: 'erste@example.org',
 			accountId: DEFAULT_ACCOUNT_ID
 		});
+	});
+
+	it('never gives the default account to a second user', async () => {
+		await registerUser(db, 'erste@example.org', password);
+		await expect(
+			db.insert(users).values({
+				accountId: DEFAULT_ACCOUNT_ID,
+				email: 'zweite@example.org',
+				passwordHash: await hashPassword(password)
+			})
+		).rejects.toThrow();
 	});
 
 	it('gives every later user a new account', async () => {

@@ -27,7 +27,10 @@ export const actions: Actions = {
 		const registered = await registerUser(db, result.data.email, result.data.password);
 		if (!registered.ok) {
 			const errors: FieldErrors<CredentialsInput> = {
-				email: 'Für diese E-Mail-Adresse gibt es schon ein Konto.'
+				email:
+					registered.reason === 'email-taken'
+						? 'Für diese E-Mail-Adresse gibt es schon ein Konto.'
+						: 'Gerade hat sich jemand anderes registriert. Bitte versuche es noch einmal.'
 			};
 			return fail(400, { errors, values: { email: result.data.email } });
 		}
