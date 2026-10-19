@@ -1,26 +1,26 @@
-## Problem und Ergebnis
+## Problem and result
 
-<!-- Welches Problem löst der Beitrag? Was verändert sich dadurch? Beschreibe das Ergebnis für Personen, die die Vorgeschichte nicht kennen. -->
+<!-- What problem does this change solve, and what changes as a result? Describe the result for readers who do not know the background. -->
 
-## Zugehörige Issues
+## Related issues
 
-<!-- Verlinke zugehörige Issues. Zum automatischen Schließen eines vollständig gelösten Issues verwendet GitHub „Closes #<Nummer>“. Ersetze „<Nummer>“ durch die zugehörige Issue-Nummer. -->
+<!-- Link related issues. To close a fully resolved issue automatically, GitHub uses "Closes #<number>". Replace "<number>" with the issue number. -->
 
-## Prüfung
+## Verification
 
-<!-- Beschreibe die durchgeführten Prüfungen und ihre Ergebnisse. Falls eine Prüfung nicht möglich oder nicht sinnvoll war, erläutere das kurz. -->
+<!-- Describe the checks you ran and their results. If a check was not possible or not useful, briefly explain why. -->
 
-## Darstellung
+## Screenshots
 
-<!-- Bei sichtbaren Änderungen: Ergänze Bildschirmfotos oder Beispiele mit fiktiven Daten. Entferne diesen Abschnitt, wenn er nicht zutrifft. -->
+<!-- For visible changes: add screenshots or examples with fictional data. Remove this section if it does not apply. -->
 
-## Auswirkungen und Hinweise
+## Impact and notes
 
-<!-- Nenne gegebenenfalls Einschränkungen, Inkompatibilitäten, erforderliche Aktualisierungsschritte oder offene Fragen. -->
+<!-- Mention limitations, incompatibilities, required upgrade steps or open questions, if any. -->
 
-## Vor dem Einreichen
+## Before submitting
 
-- [ ] Ich habe die Hinweise in [CONTRIBUTING.md](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/CONTRIBUTING.md) und den [Verhaltenskodex](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/CODE_OF_CONDUCT.md) gelesen.
-- [ ] Der Beitrag konzentriert sich auf das beschriebene Anliegen.
-- [ ] Ich habe die Änderung geprüft und das Ergebnis oben beschrieben.
-- [ ] Zugehörige Dokumentation ist bei Bedarf angepasst.
+- [ ] I have read [CONTRIBUTING.md](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/CONTRIBUTING.md) and the [code of conduct](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/CODE_OF_CONDUCT.md).
+- [ ] The change is limited to the described topic.
+- [ ] I verified the change and described the result above.
+- [ ] Related documentation is updated where needed.

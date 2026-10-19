@@ -1,4 +1,4 @@
-name: Bezeichnungen synchronisieren
+name: Sync labels
 
 "on":
   push:
@@ -6,7 +6,7 @@ name: Bezeichnungen synchronisieren
       - main
     paths:
       - .github/labels.json
-      - .github/workflows/bezeichnungen.yml
+      - .github/workflows/labels.yml
   workflow_dispatch:
 
 permissions:
@@ -14,16 +14,16 @@ permissions:
   issues: write
 
 concurrency:
-  group: bezeichnungen-${{ github.repository }}
+  group: labels-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
-  synchronisieren:
-    name: Deutsche Bezeichnungen anlegen und aktualisieren
+  sync:
+    name: Create and update labels
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Bezeichnungen aus der Konfiguration übernehmen
+      - name: Apply labels from configuration
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
@@ -33,22 +33,22 @@ jobs:
               ref: context.sha,
             });
             if (file.type !== 'file' || file.encoding !== 'base64') {
-              throw new Error('Die Bezeichnungskonfiguration konnte nicht gelesen werden.');
+              throw new Error('Could not read the label configuration.');
             }
             const labels = JSON.parse(Buffer.from(file.content, 'base64').toString('utf8'));
             const names = new Set();
             if (!Array.isArray(labels) || labels.length === 0) {
-              throw new Error('Die Bezeichnungskonfiguration muss eine gefüllte Liste sein.');
+              throw new Error('The label configuration must be a non-empty list.');
             }
             for (const label of labels) {
               if (!label || typeof label.name !== 'string' || !label.name.trim()
                   || typeof label.color !== 'string' || !/^[0-9a-f]{6}$/i.test(label.color)
                   || typeof label.description !== 'string' || label.description.length > 100) {
-                throw new Error('Eine Bezeichnung hat einen ungültigen Namen, Farbwert oder Beschreibungstext.');
+                throw new Error('A label has an invalid name, color or description.');
               }
               const key = label.name.toLowerCase();
               if (names.has(key)) {
-                throw new Error('Die Bezeichnungskonfiguration enthält doppelte Namen.');
+                throw new Error('The label configuration contains duplicate names.');
               }
               names.add(key);
             }
@@ -66,7 +66,7 @@ jobs:
                   color: label.color,
                   description: label.description,
                 });
-                core.info(`Bezeichnung angelegt: ${label.name}`);
+                core.info(`Created label: ${label.name}`);
               } else if (current.name !== label.name
                   || current.color.toLowerCase() !== label.color.toLowerCase()
                   || (current.description ?? '') !== label.description) {
@@ -77,6 +77,6 @@ jobs:
                   color: label.color,
                   description: label.description,
                 });
-                core.info(`Bezeichnung aktualisiert: ${label.name}`);
+                core.info(`Updated label: ${label.name}`);
               }
             }

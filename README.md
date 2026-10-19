@@ -9,11 +9,11 @@ mietkartei.de entsteht als Open-Source-Hausverwaltung für Privatvermieter in De
 
 ## Startseite
 
-Die öffentliche [Startseite unter mietkartei.de](https://mietkartei.de/) informiert über den Projektstand. Der Quelltext liegt in [website/](website/); der Build übernimmt die gemeinsamen Markenressourcen aus `assets/brand/`. Die [Pflegeanleitung](.github/STARTSEITE.md) beschreibt Vorschau und Veröffentlichung auf Cloudflare.
+Die öffentliche [Startseite unter mietkartei.de](https://mietkartei.de/) informiert über den Projektstand. Der Quelltext liegt in [website/](website/); der Build übernimmt die gemeinsamen Markenressourcen aus `assets/brand/`. Die [Pflegeanleitung](.github/HOMEPAGE.md) beschreibt Vorschau und Veröffentlichung auf Cloudflare.
 
 ## Dokumentation
 
-Die Dokumentation unter [docs.mietkartei.de](https://docs.mietkartei.de/) beginnt mit einer [deutschen Baustellenseite](docs/index.md). Zensical erzeugt die Seite aus `docs/`. Die [Pflegeanleitung](.github/DOKUMENTATION.md) beschreibt die lokale Vorschau und den Build. Die gemeinsamen Logos und Gestaltungsvarianten liegen in [assets/brand](assets/brand/).
+Die Dokumentation unter [docs.mietkartei.de](https://docs.mietkartei.de/) beginnt mit einer [deutschen Baustellenseite](docs/index.md). Zensical erzeugt die Seite aus `docs/`. Die [Pflegeanleitung](.github/DOCUMENTATION.md) beschreibt die lokale Vorschau und den Build. Die gemeinsamen Logos und Gestaltungsvarianten liegen in [assets/brand](assets/brand/).
 
 Startseite und Dokumentation werden über einen gemeinsamen GitHub-Actions-Workflow in der Umgebung `production` als getrennte Cloudflare Workers veröffentlicht. Die [Deployment-Anleitung](.github/DEPLOYMENT.md) beschreibt Einrichtung, Domains und automatische Veröffentlichungen nach relevanten Änderungen auf `main`.
 
@@ -29,7 +29,7 @@ Beiträge zu Code, Dokumentation, Gestaltung und Barrierefreiheit sind willkomme
 | Eine Frage stellen | [Hilfe und Unterstützung](SUPPORT.md) |
 | Eine Sicherheitslücke melden | [Vertraulicher Meldeweg](SECURITY.md) |
 
-Für die Zusammenarbeit gilt unser [Verhaltenskodex](CODE_OF_CONDUCT.md). Beschreibungen von Issues, Pull Requests und Versionshinweise verfassen wir auf Deutsch.
+Für die Zusammenarbeit gilt unser [Verhaltenskodex](CODE_OF_CONDUCT.md). Issues und Versionshinweise verfassen wir auf Deutsch, Code, Commits und Pull Requests auf Englisch.
 
 ## Repository herunterladen
 
@@ -40,8 +40,8 @@ cd mietkartei.de
 
 ## Projektverwaltung
 
-Die GitHub-Vorlagen, Bezeichnungen und Hinweise zur Veröffentlichung von Versionen sind in der [Verwaltungsanleitung](.github/VERWALTUNG.md) beschrieben.
+Die GitHub-Vorlagen, Bezeichnungen und Hinweise zur Veröffentlichung von Versionen sind in der [Verwaltungsanleitung](.github/MAINTENANCE.md) beschrieben.
 
 ## Lizenz
 
-Der Lizenztext der GNU Affero General Public License, Version 3, steht in [LICENSE](LICENSE).
+Der Lizenztext der GNU Affero General Public License, Version 3, steht in [LICENSE](LICENSE). Beiträge bleiben unter dieser Lizenz; eine Contributor License Agreement gibt es nicht. Eine gehostete Variante von mietkartei.de verwendet den Code aus diesem Repository.

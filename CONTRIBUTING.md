@@ -9,7 +9,7 @@ Du kannst mit Code, Fehlerberichten, Vorschlägen, Dokumentation, Gestaltung und
 - Besprich größere Änderungen zunächst in einem Issue. Beschreibe das Problem, das gewünschte Ergebnis und den vorgesehenen Umfang.
 - Melde Sicherheitslücken über den [vertraulichen Meldeweg](SECURITY.md).
 
-Deutsch ist die gemeinsame Sprache für Issues, Pull Requests und Dokumentation. Technische Bezeichner und etablierte Begriffe dürfen in ihrer üblichen Schreibweise bleiben.
+Issues, Diskussionen und Dokumentation schreiben wir auf Deutsch. Alles rund um den Code ist englisch: Bezeichner, Kommentare, Commit-Nachrichten, Pull Requests und Reviews. Details stehen unter [Sprachen und Fachbegriffe](#sprachen-und-fachbegriffe).
 
 ## Das passende Issue erstellen
 
@@ -34,16 +34,16 @@ Verweise auf das zugehörige Issue, falls eines vorhanden ist. Erläutere das Pr
 
 ## Änderungen prüfen
 
-Für Änderungen an der öffentlichen Startseite führe `python3 scripts/build_homepage.py` aus und prüfe die Vorschau gemäß der [Startseitenanleitung](.github/STARTSEITE.md).
+Für Änderungen an der öffentlichen Startseite führe `python3 scripts/build_homepage.py` aus und prüfe die Vorschau gemäß der [Startseitenanleitung](.github/HOMEPAGE.md).
 
-Das Repository enthält derzeit noch keinen Anwendungscode. Für Änderungen an der Dokumentationsseite richte die Umgebung gemäß der [Dokumentationsanleitung](.github/DOKUMENTATION.md) ein und führe im Stammverzeichnis die folgenden Befehle aus:
+Das Repository enthält derzeit noch keinen Anwendungscode. Für Änderungen an der Dokumentationsseite richte die Umgebung gemäß der [Dokumentationsanleitung](.github/DOCUMENTATION.md) ein und führe im Stammverzeichnis die folgenden Befehle aus:
 
 ```sh
 python scripts/prepare_docs_assets.py
 zensical build --clean --strict
 ```
 
-Der GitHub-Actions-Ablauf **Webseiten** meldet für jeden Pull Request die Pflichtprüfung **Dokumentation prüfen** und baut bei relevanten Änderungen die Dokumentation beziehungsweise die Startseite. Änderungen an den gemeinsamen Markenressourcen betreffen beide Seiten. Pull Requests veröffentlichen keine Dateien. Die [Deployment-Anleitung](.github/DEPLOYMENT.md) beschreibt die Veröffentlichung aus `main`.
+Der GitHub-Actions-Ablauf **Websites** meldet für jeden Pull Request die Pflichtprüfung **Check websites** und baut bei relevanten Änderungen die Dokumentation beziehungsweise die Startseite. Änderungen an den gemeinsamen Markenressourcen betreffen beide Seiten. Pull Requests veröffentlichen keine Dateien. Die [Deployment-Anleitung](.github/DEPLOYMENT.md) beschreibt die Veröffentlichung aus `main`.
 
 Prüfe außerdem passend zu deinem Beitrag:
 
@@ -58,6 +58,29 @@ Sobald Anwendungscode und weitere Prüfwerkzeuge hinzukommen, ergänzen wir hier
 
 Die Projektverantwortlichen prüfen Beiträge auf Nutzen, Verständlichkeit und Auswirkungen. Rückfragen und Änderungswünsche helfen dabei, den Beitrag gemeinsam fertigzustellen. Wenn du eine größere Überarbeitung vornimmst, aktualisiere auch die Beschreibung des Pull Requests.
 
+## Sprachen und Fachbegriffe
+
+Die Anwendung richtet sich an Vermieter in Deutschland, deshalb sind Oberfläche, Webseiten und Dokumentation deutsch. Code und alles, was zur Entwicklung gehört, ist englisch.
+
+Viele Begriffe des Mietrechts haben keine genaue englische Entsprechung. Verwende im Code deshalb die Bezeichnungen aus dieser Tabelle und ergänze sie, wenn ein neuer Fachbegriff hinzukommt:
+
+| Deutscher Begriff | Im Code | Bedeutung |
+| --- | --- | --- |
+| Vermieter | `landlord` | Person, die vermietet und die Anwendung nutzt |
+| Mieter | `tenant` | Vertragspartei eines Mietvertrags |
+| Objekt | `property` | Gebäude oder Grundstück mit einer oder mehreren Einheiten |
+| Einheit | `unit` | Wohnung, Gewerbeeinheit oder Stellplatz innerhalb eines Objekts |
+| Mietvertrag | `lease` | Vertrag über eine Einheit |
+| Kaltmiete | `baseRent` | Miete ohne Betriebskosten |
+| Betriebskosten | `operatingCosts` | Umlagefähige laufende Kosten nach § 556 BGB und Betriebskostenverordnung |
+| Betriebskostenvorauszahlung | `operatingCostPrepayment` | Monatliche Vorauszahlung auf die Betriebskosten |
+| Betriebskostenabrechnung | `operatingCostStatement` | Jährliche Abrechnung der Betriebskosten gegenüber den Vorauszahlungen, oft Nebenkostenabrechnung genannt |
+| Umlageschlüssel | `allocationKey` | Verteilung von Kosten, etwa nach Fläche, Personen oder Verbrauch |
+| Mietsicherheit (Kaution) | `securityDeposit` | Sicherheitsleistung des Mieters |
+| Zählerstand | `meterReading` | Ablesewert eines Zählers zu einem Stichtag |
+
 ## Rechte und Quellen
 
 Die Projektlizenz steht in [LICENSE](LICENSE). Stelle sicher, dass du die eingebrachten Inhalte beitragen darfst. Kennzeichne übernommene Inhalte und ergänze gegebenenfalls die zugehörigen Quellen und Lizenzhinweise.
+
+Beiträge stehen unter derselben Lizenz wie das Projekt, der GNU Affero General Public License, Version 3. Eine Übertragung von Rechten oder eine Contributor License Agreement verlangen wir nicht. Eine gehostete Variante von mietkartei.de verwendet den Code aus diesem Repository; für sie gelten dieselben Lizenzpflichten wie für alle anderen Betreiber.
