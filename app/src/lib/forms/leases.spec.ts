@@ -236,3 +236,130 @@ describe('depositWarning', () => {
 		).toBeUndefined();
 	});
 });
+
+// Appended by the tenants-leases feature.
+
+import { parseLeaseEdit, parseLeaseEnd, parseLeasePersons, parseOpeningBalance } from './leases';
+import type { LeaseInput } from '../server/leases';
+
+const current: LeaseInput = {
+	unitId: 'unit-1',
+	extraUnitIds: ['parking-1'],
+	tenantIds: ['tenant-1'],
+	startDate: '2025-01-01',
+	endDate: null,
+	kind: 'residential',
+	rentModel: 'fixed',
+	operatingCostModel: 'prepayment',
+	heatingCostModel: 'prepayment',
+	baseRent: 60000,
+	operatingCostPrepayment: 15000,
+	heatingCostPrepayment: 5000,
+	securityDeposit: 180000,
+	persons: 2,
+	rentDueDay: 3,
+	ledgerStart: null,
+	indexBaseMonth: null,
+	indexBaseValue: null,
+	terminatedAt: null,
+	terminatedBy: null,
+	notes: null
+};
+
+describe('parseLeaseEdit', () => {
+	it('takes the editable fields from the form and the rest from the lease', () => {
+		const result = parseLeaseEdit(
+			formDataOf({
+				unitId: 'hacked',
+				extraUnitIds: ['hacked'],
+				baseRent: '1',
+				persons: '9',
+				tenantIds: ['tenant-2'],
+				startDate: '2025-02-01',
+				endDate: '2026-12-31',
+				kind: 'commercial',
+				rentModel: 'fixed',
+				operatingCostModel: 'flat',
+				heatingCostModel: 'flat',
+				rentDueDay: '1',
+				ledgerStart: '2026-01-01',
+				notes: 'geändert'
+			}),
+			current
+		);
+		expect(result).toEqual({
+			ok: true,
+			data: {
+				...current,
+				tenantIds: ['tenant-2'],
+				startDate: '2025-02-01',
+				endDate: '2026-12-31',
+				kind: 'commercial',
+				operatingCostModel: 'flat',
+				heatingCostModel: 'flat',
+				rentDueDay: 1,
+				ledgerStart: '2026-01-01',
+				notes: 'geändert'
+			}
+		});
+	});
+
+	it('validates like the creation form', () => {
+		const result = parseLeaseEdit(formDataOf({ tenantIds: ['tenant-1'] }), current);
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.errors.startDate).toBe('Bitte gib ein Datum an.');
+	});
+});
+
+describe('parseOpeningBalance', () => {
+	it('accepts a signed amount and nothing at all', () => {
+		expect(parseOpeningBalance(formDataOf({ openingBalance: '-120,00' }))).toEqual({
+			ok: true,
+			data: { openingBalance: -12000 }
+		});
+		expect(parseOpeningBalance(formDataOf({}))).toEqual({
+			ok: true,
+			data: { openingBalance: null }
+		});
+		const bad = parseOpeningBalance(formDataOf({ openingBalance: 'viel' }));
+		expect(bad.ok).toBe(false);
+	});
+});
+
+describe('parseLeasePersons', () => {
+	it('parses a row and checks the range', () => {
+		expect(parseLeasePersons(formDataOf({ validFrom: '2026-03-01', persons: '3' }))).toEqual({
+			ok: true,
+			data: { validFrom: '2026-03-01', persons: 3, note: null }
+		});
+		const bad = parseLeasePersons(formDataOf({ persons: '21' }));
+		expect(bad.ok).toBe(false);
+		if (bad.ok) return;
+		expect(bad.errors).toEqual({
+			validFrom: 'Bitte gib ein Datum an.',
+			persons: 'Der Wert darf nicht über 20 liegen.'
+		});
+	});
+});
+
+describe('parseLeaseEnd', () => {
+	it('parses the notice and refuses an end before it', () => {
+		expect(
+			parseLeaseEnd(
+				formDataOf({ terminatedAt: '2026-03-02', terminatedBy: 'landlord', endDate: '2026-05-31' })
+			)
+		).toEqual({
+			ok: true,
+			data: { terminatedAt: '2026-03-02', terminatedBy: 'landlord', endDate: '2026-05-31' }
+		});
+		const bad = parseLeaseEnd(
+			formDataOf({ terminatedAt: '2026-03-02', terminatedBy: 'tenant', endDate: '2026-03-01' })
+		);
+		expect(bad.ok).toBe(false);
+		if (bad.ok) return;
+		expect(bad.errors).toEqual({
+			endDate: 'Das Vertragsende liegt vor dem Eingang der Kündigung.'
+		});
+	});
+});

@@ -376,3 +376,170 @@ export async function listUnitsWithProperty(db: Database, accountId: string) {
 		.where(eq(units.accountId, accountId))
 		.orderBy(asc(properties.name), asc(units.name));
 }
+
+// Appended by the tenants-leases feature: ending a lease, the persons history and the input of
+// an existing lease for the edit form.
+
+import { formatDate, type IsoDate } from '../dates';
+import { terminatedByLabels } from '../labels';
+
+/** The lease's columns as a LeaseInput, so the edit form can change some fields and keep the rest. */
+export function leaseInputOf(lease: LeaseSummary): LeaseInput {
+	return {
+		unitId: lease.unitId,
+		extraUnitIds: lease.extraUnits.map((unit) => unit.id),
+		tenantIds: lease.tenants.map((tenant) => tenant.id),
+		startDate: lease.startDate,
+		endDate: lease.endDate,
+		kind: lease.kind,
+		rentModel: lease.rentModel,
+		operatingCostModel: lease.operatingCostModel,
+		heatingCostModel: lease.heatingCostModel,
+		baseRent: lease.baseRent,
+		operatingCostPrepayment: lease.operatingCostPrepayment,
+		heatingCostPrepayment: lease.heatingCostPrepayment,
+		securityDeposit: lease.securityDeposit,
+		persons: lease.persons,
+		rentDueDay: lease.rentDueDay,
+		ledgerStart: lease.ledgerStart,
+		indexBaseMonth: lease.indexBaseMonth,
+		indexBaseValue: lease.indexBaseValue,
+		terminatedAt: lease.terminatedAt,
+		terminatedBy: lease.terminatedBy,
+		notes: lease.notes
+	};
+}
+
+export type LeaseEndInput = {
+	/** The day the notice was received. */
+	terminatedAt: IsoDate;
+	terminatedBy: TerminatedBy;
+	endDate: IsoDate;
+};
+
+/**
+ * Records the notice and the end date ("Vertrag beenden"). The caller syncs the rent charges
+ * through the ledger module afterwards, so months after the end disappear from the ledger.
+ */
+export async function endLease(
+	db: Database,
+	context: AuditContext,
+	leaseId: string,
+	input: LeaseEndInput
+): Promise<'ended' | 'missing' | 'before-start'> {
+	const existing = await getLease(db, context.accountId, leaseId);
+	if (!existing) return 'missing';
+	if (input.endDate < existing.startDate) return 'before-start';
+	await runBatch(db, [
+		db
+			.update(leases)
+			.set({
+				terminatedAt: input.terminatedAt,
+				terminatedBy: input.terminatedBy,
+				endDate: input.endDate
+			})
+			.where(and(eq(leases.accountId, context.accountId), eq(leases.id, leaseId))),
+		auditEntry(
+			db,
+			context,
+			'lease',
+			leaseId,
+			'update',
+			`Mietvertrag ${leaseLabel(existing)} zum ${formatDate(input.endDate)} beendet (Kündigung vom ${formatDate(input.terminatedAt)} ${terminatedByLabels[input.terminatedBy]})`
+		)
+	]);
+	return 'ended';
+}
+
+export type LeasePersonsRow = typeof leasePersons.$inferSelect;
+
+/** The persons history (Personenstand) of the lease, oldest first. */
+export async function listLeasePersons(
+	db: Database,
+	accountId: string,
+	leaseId: string
+): Promise<LeasePersonsRow[]> {
+	return db
+		.select()
+		.from(leasePersons)
+		.where(and(eq(leasePersons.accountId, accountId), eq(leasePersons.leaseId, leaseId)))
+		.orderBy(asc(leasePersons.validFrom));
+}
+
+export type LeasePersonsInput = { validFrom: IsoDate; persons: number; note: string | null };
+
+/**
+ * Adds a row "ab Datum" to the persons history. One row per date (unique index), and none
+ * before the lease starts; both are refused with a reason instead of a database error.
+ */
+export async function addLeasePersons(
+	db: Database,
+	context: AuditContext,
+	leaseId: string,
+	input: LeasePersonsInput
+): Promise<
+	{ ok: true; id: string } | { ok: false; reason: 'missing' | 'duplicate' | 'before-start' }
+> {
+	const { accountId } = context;
+	const existing = await getLease(db, accountId, leaseId);
+	if (!existing) return { ok: false, reason: 'missing' };
+	if (input.validFrom < existing.startDate) return { ok: false, reason: 'before-start' };
+	const rows = await listLeasePersons(db, accountId, leaseId);
+	if (rows.some((row) => row.validFrom === input.validFrom)) {
+		return { ok: false, reason: 'duplicate' };
+	}
+	const id = crypto.randomUUID();
+	await runBatch(db, [
+		db.insert(leasePersons).values({ id, accountId, leaseId, ...input }),
+		auditEntry(
+			db,
+			context,
+			'lease',
+			leaseId,
+			'update',
+			`Personenstand ab ${formatDate(input.validFrom)}: ${input.persons} ${input.persons === 1 ? 'Person' : 'Personen'}`
+		)
+	]);
+	return { ok: true, id };
+}
+
+/**
+ * Deletes a row of the persons history. The first row belongs to the lease itself (it carries
+ * the initial value and moves with the start date), so it stays.
+ */
+export async function deleteLeasePersons(
+	db: Database,
+	context: AuditContext,
+	leaseId: string,
+	rowId: string
+): Promise<'deleted' | 'initial' | 'missing'> {
+	const { accountId } = context;
+	const existing = await getLease(db, accountId, leaseId);
+	if (!existing) return 'missing';
+	const [row] = await db
+		.select()
+		.from(leasePersons)
+		.where(
+			and(
+				eq(leasePersons.accountId, accountId),
+				eq(leasePersons.leaseId, leaseId),
+				eq(leasePersons.id, rowId)
+			)
+		);
+	if (!row) return 'missing';
+	if (row.validFrom === existing.startDate) return 'initial';
+	await runBatch(db, [
+		db
+			.delete(leasePersons)
+			.where(and(eq(leasePersons.accountId, accountId), eq(leasePersons.id, rowId))),
+		auditEntry(
+			db,
+			context,
+			'lease',
+			leaseId,
+			'update',
+			`Personenstand ab ${formatDate(row.validFrom)} entfernt`
+		)
+	]);
+	return 'deleted';
+}
