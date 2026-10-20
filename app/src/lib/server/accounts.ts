@@ -1,4 +1,5 @@
 import { eq, inArray } from 'drizzle-orm';
+import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import {
@@ -165,4 +166,58 @@ export async function deleteAccount(
 		db.delete(accounts).where(eq(accounts.id, accountId))
 	]);
 	return documentCount;
+}
+
+/** The landlord sender block as edited under /einstellungen/profil; empty fields are null. */
+export type LandlordInput = {
+	landlordName: string | null;
+	street: string | null;
+	postalCode: string | null;
+	city: string | null;
+	iban: string | null;
+	bankName: string | null;
+};
+
+/** Sets the sender block of the account, which letters and statements print. */
+export async function updateLandlord(
+	db: Database,
+	context: AuditContext,
+	input: LandlordInput
+): Promise<void> {
+	await runBatch(db, [
+		db.update(accounts).set(input).where(eq(accounts.id, context.accountId)),
+		auditEntry(
+			db,
+			context,
+			'account',
+			context.accountId,
+			'update',
+			'Absender (Vermieter) für Briefe und Abrechnungen geändert'
+		)
+	]);
+}
+
+/** The sender block as stored, for the form under /einstellungen/profil (no fallbacks). */
+export async function getLandlord(db: Database, accountId: string): Promise<LandlordInput> {
+	const [account] = await db
+		.select({
+			landlordName: accounts.landlordName,
+			street: accounts.street,
+			postalCode: accounts.postalCode,
+			city: accounts.city,
+			iban: accounts.iban,
+			bankName: accounts.bankName
+		})
+		.from(accounts)
+		.where(eq(accounts.id, accountId));
+	return (
+		account ?? {
+			landlordName: null,
+			street: null,
+			postalCode: null,
+			city: null,
+			iban: null,
+			bankName: null
+		}
+	);
 }

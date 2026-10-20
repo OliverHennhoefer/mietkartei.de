@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import type { Database } from './db';
 import { auditLog, users, type AuditAction } from './db/schema';
 
@@ -61,4 +61,39 @@ export async function listAuditLog(db: Database, accountId: string, limit = 200)
 		.where(eq(auditLog.accountId, accountId))
 		.orderBy(desc(auditLog.at))
 		.limit(limit);
+}
+
+/** Like listAuditLog, narrowed to one entity (the filter on /einstellungen/protokoll). */
+export async function listAuditLogForEntity(
+	db: Database,
+	accountId: string,
+	entity: string,
+	limit = 200
+) {
+	return db
+		.select({
+			id: auditLog.id,
+			at: auditLog.at,
+			entity: auditLog.entity,
+			entityId: auditLog.entityId,
+			action: auditLog.action,
+			summary: auditLog.summary,
+			userEmail: users.email,
+			userName: users.name
+		})
+		.from(auditLog)
+		.leftJoin(users, eq(auditLog.userId, users.id))
+		.where(and(eq(auditLog.accountId, accountId), eq(auditLog.entity, entity)))
+		.orderBy(desc(auditLog.at))
+		.limit(limit);
+}
+
+/** The distinct entities the account's log holds, for the filter. */
+export async function listAuditEntities(db: Database, accountId: string): Promise<string[]> {
+	const rows = await db
+		.selectDistinct({ entity: auditLog.entity })
+		.from(auditLog)
+		.where(eq(auditLog.accountId, accountId))
+		.orderBy(asc(auditLog.entity));
+	return rows.map((row) => row.entity);
 }
