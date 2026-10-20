@@ -1,15 +1,24 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Database } from './db';
-import { accounts, properties, sessions, users } from './db/schema';
+import { accounts, auditLog, loginAttempts, properties, sessions, users } from './db/schema';
 import { createSqliteDatabase } from './db/sqlite';
 import { DEFAULT_ACCOUNT_ID, ensureDefaultAccount } from './accounts';
 import {
+	LOCKOUT_WINDOW,
 	authenticate,
+	changePassword,
+	clearFailedAttempts,
 	createSession,
 	deleteSession,
+	generateToken,
 	hashPassword,
+	hashToken,
+	isLockedOut,
+	recordFailedAttempt,
 	registerUser,
+	signIn,
+	updateProfile,
 	validateSession,
 	verifyPassword
 } from './auth';
@@ -36,7 +45,7 @@ describe('passwords', () => {
 });
 
 describe('registration', () => {
-	it('gives the first user the default account and its existing data', async () => {
+	it('gives the first user the data of the default account, in an account of its own', async () => {
 		await ensureDefaultAccount(db);
 		await db.insert(properties).values({
 			accountId: DEFAULT_ACCOUNT_ID,
@@ -50,10 +59,21 @@ describe('registration', () => {
 		expect(result.ok).toBe(true);
 		const session = await createSession(db, result.ok ? result.userId : '');
 		const validated = await validateSession(db, session.token);
-		expect(validated?.user).toMatchObject({
-			email: 'erste@example.org',
-			accountId: DEFAULT_ACCOUNT_ID
+		expect(validated?.user).toMatchObject({ email: 'erste@example.org' });
+		// The data moved with the user; the default account is gone, so a second user (an
+		// invited manager) can join the account despite the index on the default account.
+		const accountId = validated!.user.accountId;
+		expect(accountId).not.toBe(DEFAULT_ACCOUNT_ID);
+		const [property] = await db.select().from(properties);
+		expect(property).toMatchObject({ name: 'Altes Haus', accountId });
+		expect((await db.select().from(accounts)).map((row) => row.id)).toEqual([accountId]);
+		await db.insert(users).values({
+			accountId,
+			email: 'zweite@example.org',
+			passwordHash: await hashPassword(password),
+			role: 'manager'
 		});
+		expect(await db.select().from(users)).toHaveLength(2);
 	});
 
 	it('never gives the default account to a second user', async () => {
@@ -137,5 +157,221 @@ describe('sessions', () => {
 		await deleteSession(db, token);
 		expect(await validateSession(db, token)).toBeUndefined();
 		expect(await db.select().from(sessions).where(eq(sessions.id, token))).toHaveLength(0);
+	});
+});
+
+describe('lockout', () => {
+	const email = 'erste@example.org';
+
+	beforeEach(async () => {
+		await registerUser(db, email, password);
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('locks the address after five failures and refuses even the right password', async () => {
+		for (let attempt = 1; attempt <= 4; attempt++) {
+			expect(await signIn(db, email, 'falsch')).toEqual({ ok: false, reason: 'invalid' });
+		}
+		// The fifth failure is the one that locks.
+		expect(await signIn(db, email, 'falsch')).toEqual({ ok: false, reason: 'locked' });
+		expect(await signIn(db, email, password)).toEqual({ ok: false, reason: 'locked' });
+		expect(await isLockedOut(db, email)).toBe(true);
+		const [row] = await db.select().from(loginAttempts);
+		expect(row.failures).toBe(5);
+		expect(row.lockedUntil!.getTime() - Date.now()).toBeLessThanOrEqual(LOCKOUT_WINDOW);
+	});
+
+	it('counts unknown addresses too, ignoring case and spaces', async () => {
+		for (let attempt = 1; attempt <= 5; attempt++) {
+			await signIn(db, ' Niemand@Example.org', 'falsch');
+		}
+		expect(await isLockedOut(db, 'niemand@example.org')).toBe(true);
+		const rows = await db.select().from(loginAttempts);
+		expect(rows.map((row) => row.email)).toEqual(['niemand@example.org']);
+	});
+
+	it('clears the count on a successful sign-in', async () => {
+		await signIn(db, email, 'falsch');
+		await signIn(db, email, 'falsch');
+		const result = await signIn(db, email, password);
+		expect(result.ok).toBe(true);
+		expect(await db.select().from(loginAttempts)).toEqual([]);
+	});
+
+	it('starts a new series when the first failure is older than the window', async () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		const start = new Date('2026-03-01T10:00:00Z');
+		vi.setSystemTime(start);
+		for (let attempt = 1; attempt <= 4; attempt++) await signIn(db, email, 'falsch');
+		// 16 minutes later the four failures no longer count.
+		vi.setSystemTime(new Date(start.getTime() + 16 * 60 * 1000));
+		expect(await signIn(db, email, 'falsch')).toEqual({ ok: false, reason: 'invalid' });
+		const [row] = await db.select().from(loginAttempts);
+		expect(row.failures).toBe(1);
+		expect(row.lockedUntil).toBeNull();
+	});
+
+	it('opens the address again when the lock has run out', async () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		const start = new Date('2026-03-01T10:00:00Z');
+		vi.setSystemTime(start);
+		for (let attempt = 1; attempt <= 5; attempt++) await signIn(db, email, 'falsch');
+		expect(await isLockedOut(db, email)).toBe(true);
+		vi.setSystemTime(new Date(start.getTime() + 15 * 60 * 1000 + 1));
+		expect(await isLockedOut(db, email)).toBe(false);
+		expect(await signIn(db, email, password)).toMatchObject({ ok: true });
+	});
+
+	it('records and clears attempts directly, for the reset form', async () => {
+		const now = Date.parse('2026-03-01T10:00:00Z');
+		for (let attempt = 1; attempt <= 4; attempt++) {
+			expect(await recordFailedAttempt(db, email, now)).toEqual({
+				failures: attempt,
+				locked: false
+			});
+		}
+		expect(await recordFailedAttempt(db, email, now)).toEqual({ failures: 5, locked: true });
+		expect(await isLockedOut(db, email, now)).toBe(true);
+		await clearFailedAttempts(db, email);
+		expect(await isLockedOut(db, email, now)).toBe(false);
+	});
+});
+
+describe('tokens', () => {
+	it('generates distinct URL-safe tokens and hashes them to 64 hex characters', async () => {
+		const first = generateToken();
+		const second = generateToken();
+		expect(first).not.toBe(second);
+		expect(first).toMatch(/^[A-Za-z0-9_-]{43}$/);
+		expect(await hashToken(first)).toMatch(/^[0-9a-f]{64}$/);
+		expect(await hashToken(first)).toBe(await hashToken(first));
+		expect(await hashToken(first)).not.toBe(await hashToken(second));
+		// SHA-256 of "abc", as every reference lists it.
+		expect(await hashToken('abc')).toBe(
+			'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+		);
+	});
+});
+
+describe('changePassword', () => {
+	async function userWithSessions() {
+		const registered = await registerUser(db, 'erste@example.org', password);
+		if (!registered.ok) throw new Error('registration failed');
+		const [user] = await db.select().from(users).where(eq(users.id, registered.userId));
+		const context = { accountId: user.accountId, userId: user.id };
+		const current = await createSession(db, user.id);
+		const other = await createSession(db, user.id);
+		return { user, context, current, other };
+	}
+
+	it('sets the new password, keeps the current session, ends the others and logs without a user', async () => {
+		const { user, context, current, other } = await userWithSessions();
+		expect(
+			await changePassword(db, context, {
+				currentPassword: password,
+				password: 'ein-neues-passwort',
+				keepToken: current.token
+			})
+		).toEqual({ ok: true });
+		expect(await authenticate(db, user.email, 'ein-neues-passwort')).toBe(user.id);
+		expect(await authenticate(db, user.email, password)).toBeUndefined();
+		expect(await validateSession(db, current.token)).toBeDefined();
+		expect(await validateSession(db, other.token)).toBeUndefined();
+		const audit = await db.select().from(auditLog);
+		expect(audit).toHaveLength(1);
+		expect(audit[0]).toMatchObject({
+			accountId: user.accountId,
+			userId: null,
+			entity: 'user',
+			entityId: user.id,
+			action: 'update',
+			summary: 'Passwort geändert'
+		});
+		expect(audit[0].summary).not.toContain('@');
+	});
+
+	it('refuses a wrong current password and changes nothing', async () => {
+		const { user, context, current, other } = await userWithSessions();
+		expect(
+			await changePassword(db, context, {
+				currentPassword: 'falsch',
+				password: 'ein-neues-passwort',
+				keepToken: current.token
+			})
+		).toEqual({ ok: false, reason: 'wrong-password' });
+		expect(await authenticate(db, user.email, password)).toBe(user.id);
+		expect(await validateSession(db, other.token)).toBeDefined();
+		expect(await db.select().from(auditLog)).toEqual([]);
+	});
+
+	it('does not change a user of another account', async () => {
+		const { user, current } = await userWithSessions();
+		const foreign = { accountId: 'other-account', userId: user.id };
+		expect(
+			await changePassword(db, foreign, {
+				currentPassword: password,
+				password: 'ein-neues-passwort',
+				keepToken: current.token
+			})
+		).toEqual({ ok: false, reason: 'missing' });
+	});
+});
+
+describe('updateProfile', () => {
+	async function user(email: string) {
+		const registered = await registerUser(db, email, password);
+		if (!registered.ok) throw new Error('registration failed');
+		const [row] = await db.select().from(users).where(eq(users.id, registered.userId));
+		return { row, context: { accountId: row.accountId, userId: row.id } };
+	}
+
+	it('changes the name without a password', async () => {
+		const { row, context } = await user('erste@example.org');
+		expect(
+			await updateProfile(db, context, { name: 'Erika', email: row.email, currentPassword: '' })
+		).toEqual({ ok: true });
+		const [updated] = await db.select().from(users).where(eq(users.id, row.id));
+		expect(updated.name).toBe('Erika');
+		expect((await db.select().from(auditLog)).map((entry) => entry.summary)).toEqual([
+			'Name geändert'
+		]);
+	});
+
+	it('changes the address only with the right password, and logs it without the address', async () => {
+		const { row, context } = await user('erste@example.org');
+		expect(
+			await updateProfile(db, context, {
+				name: null,
+				email: 'Neu@Example.org',
+				currentPassword: 'falsch'
+			})
+		).toEqual({ ok: false, reason: 'wrong-password' });
+		expect(
+			await updateProfile(db, context, {
+				name: null,
+				email: 'Neu@Example.org',
+				currentPassword: password
+			})
+		).toEqual({ ok: true });
+		const [updated] = await db.select().from(users).where(eq(users.id, row.id));
+		expect(updated.email).toBe('neu@example.org');
+		const audit = await db.select().from(auditLog);
+		expect(audit.map((entry) => entry.summary)).toEqual(['E-Mail-Adresse geändert']);
+		expect(audit[0].summary).not.toContain('example.org');
+	});
+
+	it('refuses an address another user has', async () => {
+		await user('zweite@example.org');
+		const { context } = await user('erste@example.org');
+		expect(
+			await updateProfile(db, context, {
+				name: null,
+				email: 'ZWEITE@example.org',
+				currentPassword: password
+			})
+		).toEqual({ ok: false, reason: 'email-taken' });
 	});
 });

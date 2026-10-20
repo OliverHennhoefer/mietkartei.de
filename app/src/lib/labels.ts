@@ -123,3 +123,56 @@ export const userRoleLabels: Record<UserRole, string> = {
 	owner: 'Vermieter',
 	manager: 'Mitverwalter'
 };
+
+/** The verbs of the audit log (auditActions in schema.ts), for /einstellungen/protokoll. */
+export const auditActionLabels: Record<string, string> = {
+	create: 'Angelegt',
+	update: 'Geändert',
+	delete: 'Gelöscht',
+	approve: 'Freigegeben',
+	correct: 'Korrigiert',
+	import: 'Importiert',
+	invite: 'Eingeladen',
+	post: 'Gebucht',
+	assign: 'Zugeordnet',
+	undo: 'Rückgängig gemacht',
+	ignore: 'Ignoriert',
+	upload: 'Hochgeladen',
+	reset: 'Zurückgesetzt',
+	export: 'Exportiert'
+};
+
+/** The entities of the audit log, as the features name them, for /einstellungen/protokoll. */
+export const auditEntityLabels: Record<string, string> = {
+	account: 'Konto',
+	user: 'Zugang',
+	invitation: 'Einladung',
+	property: 'Objekt',
+	unit: 'Einheit',
+	tenant: 'Mieter',
+	lease: 'Mietvertrag',
+	rent_change: 'Mietänderung',
+	rentChange: 'Mietänderung',
+	lease_persons: 'Personenstand',
+	deposit: 'Kaution',
+	deposit_transaction: 'Kaution',
+	rent_charge: 'Sollstellung',
+	charge: 'Sollstellung',
+	payment: 'Zahlung',
+	bank_account: 'Bankverbindung',
+	bank_import: 'Bankimport',
+	bank_transaction: 'Umsatz',
+	matching_rule: 'Zuordnungsregel',
+	cost_category: 'Kostenart',
+	allocation_key: 'Umlageschlüssel',
+	billing_circle: 'Abrechnungskreis',
+	cost_item: 'Beleg',
+	meter: 'Zähler',
+	meter_reading: 'Zählerstand',
+	statement: 'Betriebskostenabrechnung',
+	co2_cost_split: 'CO₂-Kostenaufteilung',
+	document: 'Dokument',
+	task: 'Aufgabe',
+	consumer_price_index: 'Verbraucherpreisindex',
+	settings: 'Einstellungen'
+};
