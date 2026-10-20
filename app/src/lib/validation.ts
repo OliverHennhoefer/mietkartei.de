@@ -1,3 +1,6 @@
+import { FormParser } from './forms/fields';
+import { buildingUseLabels } from './labels';
+import type { BuildingUse } from './server/db/schema';
 import { unitKinds, type UnitKind } from './units';
 
 export type FieldErrors<T> = Partial<Record<keyof T, string>>;
@@ -10,66 +13,118 @@ export type PropertyInput = {
 	street: string;
 	postalCode: string;
 	city: string;
+	buildingUse: BuildingUse;
+	/** Persons a vacant unit counts with in the persons key, 0–10. */
+	vacancyPersons: number;
+	notes: string | null;
 };
 
 export type UnitInput = {
 	name: string;
 	kind: UnitKind;
 	floorArea: number | null;
+	floor: string | null;
+	rooms: number | null;
+	notes: string | null;
 };
+
+// validation.ts is also loaded in the browser, so the enum comes from the labels, not the schema.
+const buildingUses = Object.keys(buildingUseLabels) as BuildingUse[];
 
 function text(form: FormData, name: string): string {
 	const value = form.get(name);
 	return typeof value === 'string' ? value.trim() : '';
 }
 
-function values(form: FormData, names: string[]): Record<string, string> {
-	return Object.fromEntries(names.map((name) => [name, text(form, name)]));
-}
-
+/** The property form. A missing building use or vacancy count takes the defaults of a new property. */
 export function parseProperty(form: FormData): ParseResult<PropertyInput> {
-	const input = values(form, ['name', 'street', 'postalCode', 'city']);
-	const errors: FieldErrors<PropertyInput> = {};
+	const parser = new FormParser<PropertyInput>(form);
 
-	if (!input.name) errors.name = 'Bitte gib eine Bezeichnung an.';
-	else if (input.name.length > 100) errors.name = 'Die Bezeichnung ist zu lang.';
-	if (!input.street) errors.street = 'Bitte gib Straße und Hausnummer an.';
-	if (!/^\d{5}$/.test(input.postalCode)) errors.postalCode = 'Die Postleitzahl hat fünf Ziffern.';
-	if (!input.city) errors.city = 'Bitte gib den Ort an.';
+	const name = parser.raw('name');
+	if (!name) parser.fail('name', 'Bitte gib eine Bezeichnung an.');
+	else if (name.length > 100) parser.fail('name', 'Die Bezeichnung ist zu lang.');
+	const street = parser.raw('street');
+	if (!street) parser.fail('street', 'Bitte gib Straße und Hausnummer an.');
+	else if (street.length > 200) parser.fail('street', 'Höchstens 200 Zeichen.');
+	const postalCode = parser.raw('postalCode');
+	if (!/^\d{5}$/.test(postalCode)) {
+		parser.fail('postalCode', 'Die Postleitzahl hat fünf Ziffern.');
+	}
+	const city = parser.raw('city');
+	if (!city) parser.fail('city', 'Bitte gib den Ort an.');
+	else if (city.length > 100) parser.fail('city', 'Höchstens 100 Zeichen.');
 
-	if (Object.keys(errors).length > 0) return { ok: false, errors, values: input };
-	return {
-		ok: true,
-		data: {
-			name: input.name,
-			street: input.street,
-			postalCode: input.postalCode,
-			city: input.city
-		}
-	};
+	const buildingUse = parser.oneOf('buildingUse', buildingUses, { required: false });
+	const vacancyPersons = parser.number('vacancyPersons', {
+		required: false,
+		integer: true,
+		min: 0,
+		max: 10
+	});
+	const notes = parser.optionalText('notes', 2000);
+
+	return parser.result(() => ({
+		name,
+		street,
+		postalCode,
+		city,
+		buildingUse: buildingUse ?? 'residential',
+		vacancyPersons: vacancyPersons ?? 1,
+		notes
+	}));
 }
 
-export function parseUnit(form: FormData): ParseResult<UnitInput> {
-	const input = values(form, ['name', 'kind', 'floorArea']);
-	const errors: FieldErrors<UnitInput> = {};
-
-	if (!input.name) errors.name = 'Bitte gib eine Bezeichnung an.';
-	else if (input.name.length > 100) errors.name = 'Die Bezeichnung ist zu lang.';
-
-	const kind = unitKinds.find((candidate) => candidate === input.kind);
-	if (!kind) errors.kind = 'Bitte wähle eine Art aus.';
-
-	// Accept the German decimal comma, e.g. "72,5".
-	let floorArea: number | null = null;
-	if (input.floorArea) {
-		floorArea = Number(input.floorArea.replace(',', '.'));
-		if (!Number.isFinite(floorArea) || floorArea <= 0 || floorArea > 100_000) {
-			errors.floorArea = 'Bitte gib die Fläche als positive Zahl in m² an.';
-		}
+/** A positive decimal (German comma accepted), null when empty; `message` replaces the generic error. */
+function positiveNumber<T>(
+	parser: FormParser<T>,
+	name: keyof T & string,
+	max: number,
+	message: string
+): number | null {
+	const value = parser.number(name, { required: false, min: 0, max });
+	if (value === 0 || parser.errors[name]) {
+		delete parser.errors[name];
+		parser.fail(name, message);
+		return null;
 	}
+	return value;
+}
 
-	if (Object.keys(errors).length > 0 || !kind) return { ok: false, errors, values: input };
-	return { ok: true, data: { name: input.name, kind, floorArea } };
+/** The unit form. Floor area and rooms accept the German decimal comma ("72,5"). */
+export function parseUnit(form: FormData): ParseResult<UnitInput> {
+	const parser = new FormParser<UnitInput>(form);
+
+	const name = parser.raw('name');
+	if (!name) parser.fail('name', 'Bitte gib eine Bezeichnung an.');
+	else if (name.length > 100) parser.fail('name', 'Die Bezeichnung ist zu lang.');
+
+	const kindValue = parser.raw('kind');
+	const kind = unitKinds.find((candidate) => candidate === kindValue);
+	if (!kind) parser.fail('kind', 'Bitte wähle eine Art aus.');
+
+	const floorArea = positiveNumber(
+		parser,
+		'floorArea',
+		100_000,
+		'Bitte gib die Fläche als positive Zahl in m² an.'
+	);
+	const floor = parser.optionalText('floor', 50);
+	const rooms = positiveNumber(
+		parser,
+		'rooms',
+		100,
+		'Bitte gib die Zimmer als positive Zahl an, z. B. 2,5.'
+	);
+	const notes = parser.optionalText('notes', 2000);
+
+	return parser.result(() => ({
+		name,
+		kind: kind as UnitKind,
+		floorArea,
+		floor,
+		rooms,
+		notes
+	}));
 }
 
 export type CredentialsInput = {
