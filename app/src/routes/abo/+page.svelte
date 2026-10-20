@@ -1,0 +1,108 @@
+<script lang="ts">
+	import { enhance } from '$app/forms';
+	import Alert from '#lib/components/Alert.svelte';
+	import Badge from '#lib/components/Badge.svelte';
+	import PageHeader from '#lib/components/PageHeader.svelte';
+	import { formatDate } from '#lib/dates.ts';
+	import { subscriptionStatusLabels } from '#lib/labels.ts';
+	import type { PageProps } from './$types';
+
+	let { data, form }: PageProps = $props();
+
+	const tones = {
+		trialing: 'info',
+		active: 'success',
+		past_due: 'warning',
+		canceled: 'danger',
+		expired: 'danger'
+	} as const;
+</script>
+
+<PageHeader title="Abo" lead="Testphase, Abo und Zahlung über Stripe." />
+
+{#if !data.owner}
+	<p>Das Abo verwaltet der Vermieter des Kontos, nicht die Mitverwalter.</p>
+{:else}
+	{#if data.success}
+		<Alert tone="success">
+			<p>Danke! Sobald Stripe die Einrichtung bestätigt hat, erscheint dein Abo hier als aktiv.</p>
+		</Alert>
+	{/if}
+	{#if form?.message}
+		<Alert tone="danger"><p>{form.message}</p></Alert>
+	{/if}
+
+	<h2>Stand</h2>
+	<dl class="details">
+		<dt>Status</dt>
+		<dd>
+			<Badge tone={tones[data.state]}>
+				{data.state === 'expired' ? 'Testphase abgelaufen' : subscriptionStatusLabels[data.status]}
+			</Badge>
+		</dd>
+		{#if data.state === 'trialing' && data.status === 'none'}
+			<dt>Testphase bis</dt>
+			<dd>{formatDate(data.trialEnd)} (noch {data.trialDaysLeft} Tage)</dd>
+		{:else if data.state === 'expired'}
+			<dt>Testphase endete am</dt>
+			<dd>{formatDate(data.trialEnd)}</dd>
+		{/if}
+		{#if data.currentPeriodEnd && (data.state === 'active' || data.status === 'trialing')}
+			<dt>Bezahlt bis</dt>
+			<dd>{formatDate(data.currentPeriodEnd)}</dd>
+		{:else if data.currentPeriodEnd && data.state === 'canceled'}
+			<dt>Beendet am</dt>
+			<dd>{formatDate(data.currentPeriodEnd)}</dd>
+		{/if}
+		<dt>Preis</dt>
+		<dd>{data.price}, jederzeit kündbar</dd>
+	</dl>
+
+	{#if data.state === 'active'}
+		<p>Dein Abo ist aktiv. Zahlungsart, Rechnungen und Kündigung verwaltest du bei Stripe.</p>
+	{:else if data.state === 'trialing' && data.status === 'trialing'}
+		<p>Dein Abo läuft in der Testphase und wird danach monatlich abgerechnet.</p>
+	{:else if data.state === 'trialing'}
+		<p>
+			Du kannst mietkartei bis zum {formatDate(data.trialEnd)} kostenlos testen. Schließt du das Abo vorher
+			ab, läuft die Testphase weiter und die erste Zahlung folgt erst danach.
+		</p>
+	{:else if data.state === 'past_due'}
+		<p>
+			Die letzte Zahlung ist fehlgeschlagen. Stripe versucht es erneut; prüfe deine Zahlungsart,
+			damit dein Abo bestehen bleibt.
+		</p>
+	{:else if data.state === 'canceled'}
+		<p>
+			Dein Abo ist beendet.
+			{#if data.required}Du kannst deine Daten lesen und exportieren, aber nichts mehr ändern.{/if}
+			Mit einem neuen Abo geht es weiter.
+		</p>
+	{:else}
+		<p>
+			Deine Testphase ist abgelaufen.
+			{#if data.required}Du kannst deine Daten lesen und exportieren, aber nichts mehr ändern.{/if}
+			Mit einem Abo geht es weiter.
+		</p>
+	{/if}
+
+	<div class="toolbar">
+		{#if data.state === 'active' || data.state === 'past_due' || data.status === 'trialing'}
+			<form method="POST" action="?/portal" use:enhance>
+				<button type="submit">Abo verwalten</button>
+			</form>
+		{:else}
+			<form method="POST" action="?/checkout" use:enhance>
+				<button type="submit">Abo abschließen</button>
+			</form>
+			{#if data.hasSubscription}
+				<form method="POST" action="?/portal" use:enhance>
+					<button type="submit" class="secondary">Rechnungen bei Stripe</button>
+				</form>
+			{/if}
+		{/if}
+	</div>
+	<p class="muted small">
+		Die Zahlung läuft über Stripe; mietkartei speichert keine Zahlungsdaten.
+	</p>
+{/if}
