@@ -101,11 +101,18 @@ test('a file whose columns match nothing cannot be imported', async ({ page }) =
 	);
 	await expect(refusal).toBeVisible();
 
-	await page.getByRole('button', { name: 'Importieren' }).click();
+	// The refused commit re-renders the mapping form with the same refusal, so wait for its
+	// response before touching the selects: otherwise the re-render would discard the choices.
+	await Promise.all([
+		page.waitForResponse((response) => response.request().method() === 'POST'),
+		page.getByRole('button', { name: 'Importieren' }).click()
+	]);
 	await expect(refusal).toBeVisible();
 	await expect(page.getByRole('heading', { level: 2, name: 'Spalten zuordnen' })).toBeVisible();
 
-	// Mapping the columns by hand makes the rows importable.
+	// Mapping the columns by hand makes the rows importable. The preview is requested anew so the
+	// selects are the ones rendered after the refusal.
+	await preview(page, 'Mieter', 'import-falsch.csv');
 	await mapping(page, 'firstName').selectOption('0');
 	await mapping(page, 'lastName').selectOption('1');
 	await page.getByRole('button', { name: 'Vorschau aktualisieren' }).click();
