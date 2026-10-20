@@ -308,3 +308,166 @@ describe('listUnitsWithProperty', () => {
 		]);
 	});
 });
+
+// Appended by the tenants-leases feature.
+
+import { rentCharges } from './db/schema';
+import {
+	addLeasePersons,
+	deleteLeasePersons,
+	endLease,
+	leaseInputOf,
+	listLeasePersons
+} from './leases';
+import { ensureCharges } from './ledger';
+
+describe('leaseInputOf', () => {
+	it('turns a lease summary back into the input that created it', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const { unitId: parking } = await seedUnit(db, 'a', { name: 'Stellplatz' });
+		const tenantId = await seedTenant(db, 'a');
+		const input = leaseInput(unitId, {
+			tenantIds: [tenantId],
+			extraUnitIds: [parking],
+			ledgerStart: '2025-06-01',
+			notes: 'Hinweis'
+		});
+		const result = await createLease(db, contextA, input);
+		if (!result.ok) throw new Error('setup failed');
+		expect(leaseInputOf((await getLease(db, 'a', result.id))!)).toEqual(input);
+	});
+});
+
+describe('endLease', () => {
+	it('records the notice and the end date, logs it, and the ledger follows', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const result = await createLease(db, contextA, leaseInput(unitId));
+		if (!result.ok) throw new Error('setup failed');
+		await ensureCharges(db, 'a', [result.id], '2025-12');
+
+		expect(
+			await endLease(db, contextA, result.id, {
+				terminatedAt: '2025-03-02',
+				terminatedBy: 'tenant',
+				endDate: '2025-05-31'
+			})
+		).toBe('ended');
+		expect(await getLease(db, 'a', result.id)).toMatchObject({
+			terminatedAt: '2025-03-02',
+			terminatedBy: 'tenant',
+			endDate: '2025-05-31'
+		});
+		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'update'));
+		expect(audit.map((entry) => entry.summary)).toEqual([
+			'Mietvertrag EG links · Haus zum 31.05.2025 beendet (Kündigung vom 02.03.2025 durch Mieter)'
+		]);
+
+		// The months after the end disappear with the next sync.
+		await ensureCharges(db, 'a', [result.id], '2025-12');
+		const periods = (await db.select().from(rentCharges).where(eq(rentCharges.leaseId, result.id)))
+			.map((row) => row.period)
+			.sort();
+		expect(periods).toEqual(['2025-01', '2025-02', '2025-03', '2025-04', '2025-05']);
+	});
+
+	it('refuses an end before the start and a lease of another account', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const { unitId: foreignUnit } = await seedUnit(db, 'b');
+		const own = await createLease(db, contextA, leaseInput(unitId));
+		const foreign = await createLease(db, contextB, leaseInput(foreignUnit));
+		if (!own.ok || !foreign.ok) throw new Error('setup failed');
+		const input = {
+			terminatedAt: '2024-10-01',
+			terminatedBy: 'tenant' as const,
+			endDate: '2024-12-31'
+		};
+		expect(await endLease(db, contextA, own.id, input)).toBe('before-start');
+		expect(await endLease(db, contextA, foreign.id, { ...input, endDate: '2025-12-31' })).toBe(
+			'missing'
+		);
+		expect((await getLease(db, 'b', foreign.id))!.endDate).toBeNull();
+	});
+});
+
+describe('lease persons', () => {
+	it('adds rows after the start, refuses duplicates and dates before the start', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const result = await createLease(db, contextA, leaseInput(unitId));
+		if (!result.ok) throw new Error('setup failed');
+
+		const added = await addLeasePersons(db, contextA, result.id, {
+			validFrom: '2025-09-01',
+			persons: 3,
+			note: 'Kind geboren'
+		});
+		expect(added.ok).toBe(true);
+		expect(
+			await addLeasePersons(db, contextA, result.id, {
+				validFrom: '2025-09-01',
+				persons: 4,
+				note: null
+			})
+		).toEqual({ ok: false, reason: 'duplicate' });
+		expect(
+			await addLeasePersons(db, contextA, result.id, {
+				validFrom: '2025-01-01',
+				persons: 4,
+				note: null
+			})
+		).toEqual({ ok: false, reason: 'duplicate' });
+		expect(
+			await addLeasePersons(db, contextA, result.id, {
+				validFrom: '2024-12-31',
+				persons: 4,
+				note: null
+			})
+		).toEqual({ ok: false, reason: 'before-start' });
+
+		const rows = await listLeasePersons(db, 'a', result.id);
+		expect(rows.map((row) => [row.validFrom, row.persons, row.note])).toEqual([
+			['2025-01-01', 2, null],
+			['2025-09-01', 3, 'Kind geboren']
+		]);
+		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'update'));
+		expect(audit.map((entry) => entry.summary)).toEqual([
+			'Personenstand ab 01.09.2025: 3 Personen'
+		]);
+	});
+
+	it('deletes later rows but keeps the initial one', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const result = await createLease(db, contextA, leaseInput(unitId));
+		if (!result.ok) throw new Error('setup failed');
+		const added = await addLeasePersons(db, contextA, result.id, {
+			validFrom: '2025-09-01',
+			persons: 1,
+			note: null
+		});
+		if (!added.ok) throw new Error('setup failed');
+		const [initial] = await listLeasePersons(db, 'a', result.id);
+
+		expect(await deleteLeasePersons(db, contextA, result.id, initial.id)).toBe('initial');
+		expect(await deleteLeasePersons(db, contextA, result.id, added.id)).toBe('deleted');
+		expect(await deleteLeasePersons(db, contextA, result.id, added.id)).toBe('missing');
+		expect((await listLeasePersons(db, 'a', result.id)).map((row) => row.id)).toEqual([initial.id]);
+		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'update'));
+		expect(audit.at(-1)?.summary).toBe('Personenstand ab 01.09.2025 entfernt');
+	});
+
+	it('does not read or change the history of another account', async () => {
+		const { unitId: foreignUnit } = await seedUnit(db, 'b');
+		const foreign = await createLease(db, contextB, leaseInput(foreignUnit));
+		if (!foreign.ok) throw new Error('setup failed');
+		expect(await listLeasePersons(db, 'a', foreign.id)).toEqual([]);
+		expect(
+			await addLeasePersons(db, contextA, foreign.id, {
+				validFrom: '2025-09-01',
+				persons: 1,
+				note: null
+			})
+		).toEqual({ ok: false, reason: 'missing' });
+		const [row] = await listLeasePersons(db, 'b', foreign.id);
+		expect(await deleteLeasePersons(db, contextA, foreign.id, row.id)).toBe('missing');
+		expect(await listLeasePersons(db, 'b', foreign.id)).toHaveLength(1);
+	});
+});

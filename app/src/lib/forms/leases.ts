@@ -108,3 +108,64 @@ export function depositWarning(
 	if (input.securityDeposit <= 3 * input.baseRent) return undefined;
 	return 'Die Kaution übersteigt drei Nettokaltmieten (§ 551 BGB).';
 }
+
+// Appended by the tenants-leases feature: the smaller forms of the lease pages.
+
+import { formatCentsPlain } from '../money';
+import type { LeaseEndInput, LeasePersonsInput } from '../server/leases';
+
+/**
+ * The edit form changes everything but the units and the amounts (those have their own places:
+ * end the lease and start a new one, the Miethöhe tab). The current values of those fields are
+ * put into the form data, so parseLease checks the whole lease as on creation.
+ */
+export function parseLeaseEdit(form: FormData, current: LeaseInput): ParseResult<LeaseInput> {
+	const merged = new FormData();
+	for (const [name, value] of form) merged.append(name, value);
+	merged.set('unitId', current.unitId);
+	merged.delete('extraUnitIds');
+	for (const unitId of current.extraUnitIds) merged.append('extraUnitIds', unitId);
+	merged.set('baseRent', formatCentsPlain(current.baseRent));
+	merged.set('operatingCostPrepayment', formatCentsPlain(current.operatingCostPrepayment));
+	merged.set('heatingCostPrepayment', formatCentsPlain(current.heatingCostPrepayment));
+	merged.set('securityDeposit', formatCentsPlain(current.securityDeposit));
+	merged.set('persons', String(current.persons));
+	return parseLease(merged);
+}
+
+/** The opening balance of the ledger (Anfangssaldo), a signed amount; empty means none. */
+export function parseOpeningBalance(
+	form: FormData
+): ParseResult<{ openingBalance: number | null }> {
+	const parser = new FormParser<{ openingBalance: number | null }>(form);
+	const openingBalance = parser.money('openingBalance', {
+		required: false,
+		min: -100_000_000_00
+	});
+	return parser.result(() => ({ openingBalance }));
+}
+
+/** "Personen ab Datum" on the lease overview. */
+export function parseLeasePersons(form: FormData): ParseResult<LeasePersonsInput> {
+	const parser = new FormParser<LeasePersonsInput>(form);
+	const validFrom = parser.date('validFrom');
+	const persons = parser.number('persons', { integer: true, min: 0, max: 20 });
+	const note = parser.optionalText('note');
+	return parser.result(() => ({ validFrom: validFrom!, persons: persons!, note }));
+}
+
+/** "Vertrag beenden" on the lease overview. */
+export function parseLeaseEnd(form: FormData): ParseResult<LeaseEndInput> {
+	const parser = new FormParser<LeaseEndInput>(form);
+	const terminatedAt = parser.date('terminatedAt');
+	const terminatedBy = parser.oneOf('terminatedBy', terminatedByParties);
+	const endDate = parser.date('endDate');
+	if (terminatedAt && endDate && endDate < terminatedAt) {
+		parser.fail('endDate', 'Das Vertragsende liegt vor dem Eingang der Kündigung.');
+	}
+	return parser.result(() => ({
+		terminatedAt: terminatedAt!,
+		terminatedBy: terminatedBy!,
+		endDate: endDate!
+	}));
+}
