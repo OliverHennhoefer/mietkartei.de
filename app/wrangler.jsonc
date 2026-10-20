@@ -1,5 +1,5 @@
 // Configuration for the cloudflare target (DEPLOY_TARGET=cloudflare).
-// Nothing deploys from here yet; locally this runs the built app in workerd with a local D1.
+// Nothing deploys from here yet; locally this runs the built app in workerd with a local D1 and R2.
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "mietkartei-app",
@@ -18,6 +18,14 @@
 			// jurisdiction "eu" before the first deployment, and its id entered here.
 			"database_id": "00000000-0000-0000-0000-000000000000",
 			"migrations_dir": "drizzle"
+		}
+	],
+	"r2_buckets": [
+		{
+			// Uploaded documents. The hosted bucket must be created with jurisdiction "eu" before the
+			// first deployment; locally wrangler keeps it on disk.
+			"binding": "DOCUMENTS",
+			"bucket_name": "mietkartei-documents"
 		}
 	]
 }

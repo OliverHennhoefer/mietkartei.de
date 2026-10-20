@@ -1,0 +1,59 @@
+<script lang="ts">
+	import PageHeader from '#lib/components/PageHeader.svelte';
+	import type { PageProps } from './$types';
+
+	let { data }: PageProps = $props();
+
+	const entries = [
+		{ href: '/einstellungen/profil', label: 'Profil', text: 'Name, E-Mail-Adresse und Passwort.' },
+		{
+			href: '/einstellungen/mitverwalter',
+			label: 'Mitverwalter',
+			text: 'Weitere Personen einladen, die deinen Bestand mit verwalten.'
+		},
+		{
+			href: '/bank/konten',
+			label: 'Bankverbindungen',
+			text: 'Deine Konten, auf die Mieten eingehen.'
+		},
+		{
+			href: '/betriebskosten/kostenarten',
+			label: 'Kostenarten',
+			text: 'Welche Kosten du umlegst, nach § 2 Betriebskostenverordnung.'
+		},
+		{
+			href: '/betriebskosten/schluessel',
+			label: 'Umlageschlüssel',
+			text: 'Nach Fläche, Personen, Einheiten oder Verbrauch.'
+		},
+		{
+			href: '/einstellungen/vpi',
+			label: 'Verbraucherpreisindex',
+			text: 'Indexwerte für Indexmietverträge.'
+		},
+		{ href: '/einstellungen/export', label: 'Export', text: 'Alle Daten als Datei herunterladen.' },
+		{
+			href: '/einstellungen/protokoll',
+			label: 'Protokoll',
+			text: 'Wer wann was geändert hat.'
+		},
+		{ href: '/einstellungen/konto', label: 'Konto', text: 'Konto und alle Daten löschen.' }
+	];
+</script>
+
+<PageHeader title="Einstellungen" />
+
+<ul class="list" aria-label="Einstellungen">
+	{#each entries as entry (entry.href)}
+		<li class="card">
+			<a href={entry.href}><strong>{entry.label}</strong></a>
+			<span class="muted">{entry.text}</span>
+		</li>
+	{/each}
+	{#if data.billingEnabled}
+		<li class="card">
+			<a href="/abo"><strong>Abo</strong></a>
+			<span class="muted">Dein Abo der gehosteten Variante.</span>
+		</li>
+	{/if}
+</ul>

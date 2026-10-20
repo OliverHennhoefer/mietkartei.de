@@ -9,7 +9,7 @@ test('the first visitor registers and becomes the owner', async ({ page }) => {
 	await page.getByLabel('Passwort').fill(owner.password);
 	await page.getByRole('button', { name: 'Konto anlegen' }).click();
 
-	await expect(page).toHaveURL(/\/objekte$/);
+	await expect(page).toHaveURL(/\/$/);
 	await expect(page.getByRole('navigation')).toContainText(owner.email);
 	await page.context().storageState({ path: '.e2e/owner.json' });
 });

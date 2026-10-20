@@ -1,11 +1,27 @@
 import { redirect } from '@sveltejs/kit';
 import type { Handle } from '@sveltejs/kit/hooks';
+import { E2E } from '$app/env/private';
 import { SESSION_COOKIE, validateSession } from '#lib/server/auth.ts';
+import { enforceBilling } from '#lib/server/billing.ts';
 import { setSessionCookie } from '#lib/server/session.ts';
 import { getDatabase } from '#lib/server/db/index.ts';
 
 /** Paths that work without signing in. Everything else redirects to the sign-in page. */
-const publicPaths = new Set(['/anmelden', '/registrieren', '/health']);
+const publicPaths = new Set([
+	'/anmelden',
+	'/registrieren',
+	'/passwort-vergessen',
+	'/webhooks/stripe',
+	'/health'
+]);
+const publicPrefixes = ['/passwort-zuruecksetzen/', '/einladung/'];
+
+function isPublic(pathname: string): boolean {
+	if (publicPaths.has(pathname)) return true;
+	if (publicPrefixes.some((prefix) => pathname.startsWith(prefix))) return true;
+	// Test-only endpoints, e.g. the mail outbox. Only enabled by the end-to-end test server.
+	return E2E && pathname.startsWith('/__e2e/');
+}
 
 export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.db = await getDatabase();
@@ -22,6 +38,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	if (!event.locals.user && !publicPaths.has(event.url.pathname)) redirect(303, '/anmelden');
+	if (!event.locals.user && !isPublic(event.url.pathname)) redirect(303, '/anmelden');
+	if (event.locals.user) await enforceBilling(event);
 	return resolve(event);
 };

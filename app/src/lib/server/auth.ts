@@ -1,6 +1,6 @@
 import { count, eq } from 'drizzle-orm';
 import type { Database } from './db';
-import { accounts, sessions, users } from './db/schema';
+import { accounts, sessions, users, type UserRole } from './db/schema';
 import { DEFAULT_ACCOUNT_ID, ensureDefaultAccount } from './accounts';
 
 // Sign-in uses only WebCrypto, which Node and Workers both provide, so both targets behave the same.
@@ -151,7 +151,13 @@ export async function createSession(db: Database, userId: string) {
 	return { token, expiresAt };
 }
 
-export type SessionUser = { id: string; email: string; accountId: string };
+export type SessionUser = {
+	id: string;
+	email: string;
+	accountId: string;
+	name: string | null;
+	role: UserRole;
+};
 
 /**
  * Looks up the user of a session token. Expired sessions are deleted; sessions close to expiry
@@ -165,7 +171,13 @@ export async function validateSession(
 	const [row] = await db
 		.select({
 			expiresAt: sessions.expiresAt,
-			user: { id: users.id, email: users.email, accountId: users.accountId }
+			user: {
+				id: users.id,
+				email: users.email,
+				accountId: users.accountId,
+				name: users.name,
+				role: users.role
+			}
 		})
 		.from(sessions)
 		.innerJoin(users, eq(sessions.userId, users.id))

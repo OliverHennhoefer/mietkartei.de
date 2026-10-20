@@ -1,8 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test('creates a property and adds units to it', async ({ page }) => {
-	await page.goto('/');
-	await expect(page).toHaveURL(/\/objekte$/);
+	await page.goto('/objekte');
 	await expect(page.getByRole('heading', { level: 1, name: 'Objekte' })).toBeVisible();
 
 	await page.getByLabel('Bezeichnung').fill('Mehrfamilienhaus Lindenstraße');

@@ -28,7 +28,7 @@ test('signs in and out', async ({ page }) => {
 	await page.getByLabel('E-Mail-Adresse').fill(owner.email);
 	await page.getByLabel('Passwort').fill(owner.password);
 	await page.getByRole('button', { name: 'Anmelden' }).click();
-	await expect(page).toHaveURL(/\/objekte$/);
+	await expect(page).toHaveURL(/\/$/);
 
 	await page.getByRole('button', { name: 'Abmelden' }).click();
 	await expect(page).toHaveURL(/\/anmelden$/);

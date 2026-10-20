@@ -4,7 +4,7 @@ import type { Actions, PageServerLoad } from './$types';
 
 // Signing out changes state, so it only happens through the form in the header.
 export const load: PageServerLoad = () => {
-	redirect(303, '/objekte');
+	redirect(303, '/');
 };
 
 export const actions: Actions = {
