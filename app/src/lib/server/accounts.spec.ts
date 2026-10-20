@@ -1,0 +1,128 @@
+import { eq } from 'drizzle-orm';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { addressLines, deleteAccount, landlordAddress } from './accounts';
+import type { Database } from './db';
+import {
+	accounts,
+	auditLog,
+	costCategories,
+	leaseTenants,
+	leases,
+	payments,
+	properties,
+	rentCharges,
+	sessions,
+	tenants,
+	units,
+	users
+} from './db/schema';
+import { storeDocument } from './documents';
+import { createPayment, ensureCharges } from './ledger';
+import { createLease } from './leases';
+import { openFileStorage } from './storage/fs';
+import type { Storage } from './storage';
+import { contextA, contextB, leaseInput, seedTenant, seedUnit, testDatabase } from './testing';
+
+let db: Database;
+let root: string;
+let storage: Storage;
+
+beforeEach(async () => {
+	db = await testDatabase();
+	root = await mkdtemp(join(tmpdir(), 'mietkartei-accounts-'));
+	storage = openFileStorage(root);
+});
+
+afterEach(async () => {
+	await rm(root, { recursive: true, force: true });
+});
+
+describe('landlordAddress', () => {
+	it('falls back to the account name and reports an incomplete address', async () => {
+		const address = await landlordAddress(db, 'a');
+		expect(address).toMatchObject({ name: 'Konto A', street: null, complete: false });
+		expect(addressLines(address)).toEqual(['Konto A']);
+	});
+
+	it('uses the landlord fields when they are set', async () => {
+		await db
+			.update(accounts)
+			.set({
+				landlordName: 'Erika Vermieter',
+				street: 'Hauptstraße 1',
+				postalCode: '10115',
+				city: 'Berlin'
+			})
+			.where(eq(accounts.id, 'a'));
+		const address = await landlordAddress(db, 'a');
+		expect(address.complete).toBe(true);
+		expect(addressLines(address)).toEqual(['Erika Vermieter', 'Hauptstraße 1', '10115 Berlin']);
+	});
+});
+
+describe('deleteAccount', () => {
+	async function seedAccount(context: { accountId: string; userId: string }) {
+		const { unitId } = await seedUnit(db, context.accountId);
+		const tenantId = await seedTenant(db, context.accountId);
+		const created = await createLease(db, context, leaseInput(unitId, { tenantIds: [tenantId] }));
+		if (!created.ok) throw new Error(created.reason);
+		const lease = { id: created.id };
+		await ensureCharges(db, context.accountId, [lease.id], '2025-03');
+		await createPayment(db, context, {
+			leaseId: lease.id,
+			amount: 80000,
+			date: '2025-01-03',
+			source: 'manual',
+			note: null
+		});
+		await db.insert(costCategories).values({ accountId: context.accountId, name: 'Grundsteuer' });
+		await db.insert(sessions).values({
+			id: `session-${context.accountId}`,
+			userId: context.userId,
+			expiresAt: new Date('2030-01-01')
+		});
+		const stored = await storeDocument(
+			db,
+			context,
+			{
+				name: 'Mietvertrag.pdf',
+				mimeType: 'application/pdf',
+				bytes: new TextEncoder().encode('%PDF-1.4 test'),
+				links: { leaseId: lease.id }
+			},
+			{ storage }
+		);
+		expect(stored.ok).toBe(true);
+		return lease.id;
+	}
+
+	it('removes every row and file of the account and nothing of another account', async () => {
+		await seedAccount(contextA);
+		const leaseB = await seedAccount(contextB);
+
+		expect(await deleteAccount(db, 'a', { storage })).toBe(1);
+
+		expect(await db.select().from(accounts)).toEqual([expect.objectContaining({ id: 'b' })]);
+		expect(await db.select().from(users)).toEqual([expect.objectContaining({ id: 'user-b' })]);
+		expect(await db.select().from(sessions)).toEqual([
+			expect.objectContaining({ id: 'session-b' })
+		]);
+		for (const table of [properties, units, tenants, leases, rentCharges, payments, auditLog]) {
+			const rows = await db.select({ accountId: table.accountId }).from(table);
+			expect(rows.length).toBeGreaterThan(0);
+			expect(rows.every((row) => row.accountId === 'b')).toBe(true);
+		}
+		expect(await db.select().from(leaseTenants)).toEqual([
+			expect.objectContaining({ leaseId: leaseB })
+		]);
+		expect(await readdir(root)).toEqual(['b']);
+	});
+
+	it('reports a missing account', async () => {
+		expect(await deleteAccount(db, 'nobody', { storage })).toBeUndefined();
+		expect((await db.select().from(accounts)).length).toBe(2);
+	});
+});

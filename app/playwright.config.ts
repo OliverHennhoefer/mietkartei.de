@@ -35,10 +35,21 @@ export default defineConfig({
 		// Registers the first user of the fresh database; the other projects build on it.
 		{ name: 'setup', testMatch: 'setup.e2e.ts' },
 		{ name: 'signed out', testMatch: 'auth.e2e.ts', dependencies: ['setup'] },
+		// Every feature's tests, as the owner. They seed what they do not own through e2e/seed.ts.
 		{
 			name: 'signed in',
-			testMatch: /^(?!.*(setup|auth)\.e2e\.ts$).*\.e2e\.ts$/,
+			testMatch: /\.e2e\.ts$/,
+			testIgnore: ['setup.e2e.ts', 'auth.e2e.ts', 'manager.e2e.ts', 'konto.e2e.ts'],
 			dependencies: ['setup'],
+			use: { storageState: '.e2e/owner.json' }
+		},
+		// The manager role: manager.e2e.ts invites and signs in a manager itself (storage state of its own).
+		{ name: 'manager', testMatch: 'manager.e2e.ts', dependencies: ['signed in'] },
+		// Deleting the account ends the run, so it depends on everything else.
+		{
+			name: 'account',
+			testMatch: 'konto.e2e.ts',
+			dependencies: ['signed in', 'manager', 'signed out'],
 			use: { storageState: '.e2e/owner.json' }
 		}
 	],

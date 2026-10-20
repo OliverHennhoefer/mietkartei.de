@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, rm, rmdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, normalize } from 'node:path';
 import { Readable } from 'node:stream';
 import { DATABASE_PATH, DATA_DIR } from '$app/env/private';
@@ -44,6 +44,9 @@ export function openFileStorage(root = documentsDirectory()): Storage {
 			const file = path(key);
 			await rm(file, { force: true });
 			await rm(`${file}.type`, { force: true });
+			// The account's directory goes with its last file; a non-empty one stays.
+			const directory = dirname(file);
+			if (directory !== root) await rmdir(directory).catch(() => undefined);
 		}
 	};
 }

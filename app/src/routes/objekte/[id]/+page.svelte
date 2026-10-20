@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { resolve } from '$app/paths';
 	import { unitKindLabels, unitKinds } from '#lib/units.ts';
 	import type { PageProps } from './$types';
 
@@ -11,14 +10,7 @@
 	const values = $derived(form && 'values' in form ? form.values : undefined);
 </script>
 
-<svelte:head>
-	<title>{data.property.name} · mietkartei</title>
-</svelte:head>
-
-<p><a href={resolve('/objekte')}>← Alle Objekte</a></p>
-<h1>{data.property.name}</h1>
-<p class="muted">{data.property.street}, {data.property.postalCode} {data.property.city}</p>
-
+<!-- The heading, address and tab bar come from +layout.svelte; this page is the "Einheiten" tab. -->
 <h2>Einheiten</h2>
 {#if data.units.length === 0}
 	<p>Dieses Objekt hat noch keine Einheiten.</p>
