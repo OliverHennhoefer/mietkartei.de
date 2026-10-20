@@ -524,3 +524,43 @@ export async function listBalances(
 	});
 	return balances.sort((a, b) => b.balance - a.balance || a.leaseId.localeCompare(b.leaseId));
 }
+
+export type LedgerLineDetail =
+	| { kind: 'charge'; chargeKind: RentChargeKind }
+	| { kind: 'payment'; source: PaymentSource; bankTransactionId: string | null };
+
+/**
+ * What stands behind each ledger line, by line id: the kind of a charge, the source of a payment.
+ * The ledger page decides with it which lines may be deleted (manual adjustments and payments)
+ * and which ones belong to a bank transaction. Two selects, however many lines there are.
+ */
+export async function listLedgerLineDetails(
+	db: Database,
+	accountId: string,
+	leaseId: string
+): Promise<Record<string, LedgerLineDetail>> {
+	const [chargeRows, paymentRows] = await Promise.all([
+		db
+			.select({ id: rentCharges.id, kind: rentCharges.kind })
+			.from(rentCharges)
+			.where(and(eq(rentCharges.accountId, accountId), eq(rentCharges.leaseId, leaseId))),
+		db
+			.select({
+				id: payments.id,
+				source: payments.source,
+				bankTransactionId: payments.bankTransactionId
+			})
+			.from(payments)
+			.where(and(eq(payments.accountId, accountId), eq(payments.leaseId, leaseId)))
+	]);
+	const details: Record<string, LedgerLineDetail> = {};
+	for (const row of chargeRows) details[row.id] = { kind: 'charge', chargeKind: row.kind };
+	for (const row of paymentRows) {
+		details[row.id] = {
+			kind: 'payment',
+			source: row.source,
+			bankTransactionId: row.bankTransactionId
+		};
+	}
+	return details;
+}
