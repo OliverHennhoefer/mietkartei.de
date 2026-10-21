@@ -38,10 +38,17 @@
 			text: 'Indexwerte für Indexmietverträge.'
 		},
 		{
+			href: '/einstellungen/export',
+			label: 'Export',
+			text: 'Alle Daten als Datei herunterladen.',
+			ownerOnly: true
+		},
+		{
 			href: '/einstellungen/protokoll',
 			label: 'Protokoll',
 			text: 'Wer wann was geändert hat.'
-		}
+		},
+		{ href: '/einstellungen/konto', label: 'Konto', text: 'Konto und alle Daten löschen.' }
 	];
 	const entries = $derived(
 		data.role === 'owner' ? allEntries : allEntries.filter((entry) => !entry.ownerOnly)

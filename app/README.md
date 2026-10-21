@@ -14,9 +14,11 @@ Welcher Weg gebaut wird, bestimmt die Umgebungsvariable `DEPLOY_TARGET` (`node` 
 
 Beim ersten Aufruf legst du ein Konto mit E-Mail-Adresse und Passwort an. Die erste Person übernimmt dabei alle Daten, die vorher schon eingegeben wurden. Danach ist die Registrierung geschlossen. Ist `REGISTRATION_EMAILS` gesetzt, können sich stattdessen nur die dort genannten E-Mail-Adressen registrieren. Auch dann übernimmt die erste Person alle vorhandenen Daten, jede weitere bekommt ein eigenes, leeres Konto.
 
-Unter **Einstellungen → Mitverwalter** lädst du weitere Personen in dein Konto ein, auch wenn die Registrierung geschlossen ist. Sie bekommen eine E-Mail mit einem Link, der sieben Tage gilt. Mitverwalter bearbeiten alles außer Einladungen und Bankverbindungen; Vermieter ist nur, wer das Konto angelegt hat. Ein Konto verschickt höchstens 20 Einladungen am Tag.
+Unter **Einstellungen → Mitverwalter** lädst du weitere Personen in dein Konto ein, auch wenn die Registrierung geschlossen ist. Sie bekommen eine E-Mail mit einem Link, der sieben Tage gilt. Mitverwalter bearbeiten alles außer Einladungen und Bankverbindungen und dürfen weder exportieren noch das Konto löschen; Vermieter ist nur, wer das Konto angelegt hat. Ein Konto verschickt höchstens 20 Einladungen am Tag.
 
 Fünf falsche Passwörter in 15 Minuten sperren eine E-Mail-Adresse für 15 Minuten. Wer sein Passwort vergessen hat, fordert unter **Passwort vergessen?** einen Link an, der eine Stunde gilt; mehr als drei offene Links gibt es nicht. Eine neue E-Mail-Adresse gilt erst, wenn du den Link bestätigst, den mietkartei an sie schickt; die bisherige Adresse erfährt davon. Wie Mails verschickt werden, bestimmt `MAIL_TRANSPORT` (siehe unten); ohne Angabe stehen sie nur im Log des Servers. Unter **Einstellungen → Protokoll** siehst du, wer wann was geändert hat.
+
+Unter **Einstellungen → Export** lädst du alle Daten deines Kontos als ZIP-Datei herunter: `export.json` mit allen Einträgen (ohne Passwörter) und die hochgeladenen Dokumente im Ordner `documents/`. Unter **Einstellungen → Konto** löschst du dein Konto endgültig, nachdem du dein Passwort noch einmal eingegeben hast. Dabei gehen alle Daten, Dokumente und die Zugänge der Mitverwalter verloren.
 
 ## Entwickeln
 

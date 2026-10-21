@@ -58,7 +58,13 @@ export default defineConfig({
 		{
 			name: 'signed in',
 			testMatch: /\.e2e\.ts$/,
-			testIgnore: ['setup.e2e.ts', 'auth.e2e.ts', 'manager.e2e.ts', 'rate-limit.e2e.ts'],
+			testIgnore: [
+				'setup.e2e.ts',
+				'auth.e2e.ts',
+				'manager.e2e.ts',
+				'rate-limit.e2e.ts',
+				'konto.e2e.ts'
+			],
 			dependencies: ['setup'],
 			use: { storageState: '.e2e/owner.json', ...client('192.0.2.3') }
 		},
@@ -70,12 +76,19 @@ export default defineConfig({
 			use: { storageState: '.e2e/owner.json', ...client('192.0.2.4') }
 		},
 		// Exhausts the sign-in limit of its client address. It has an address of its own, and runs
-		// last all the same, so a failure cannot leave other tests refused.
+		// after the feature tests all the same, so a failure cannot leave other tests refused.
 		{
 			name: 'rate limit',
 			testMatch: 'rate-limit.e2e.ts',
 			dependencies: ['signed out', 'signed in', 'manager'],
 			use: client('192.0.2.5')
+		},
+		// Deleting the account ends the run, so it depends on everything else.
+		{
+			name: 'account',
+			testMatch: 'konto.e2e.ts',
+			dependencies: ['signed out', 'signed in', 'manager', 'rate limit'],
+			use: { storageState: '.e2e/owner.json', ...client('192.0.2.6') }
 		}
 	],
 	webServer: {

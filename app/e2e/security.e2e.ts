@@ -38,7 +38,9 @@ const pages = [
 	'/einstellungen/profil',
 	'/einstellungen/mitverwalter',
 	'/einstellungen/protokoll',
-	'/einstellungen/vpi'
+	'/einstellungen/vpi',
+	'/einstellungen/export',
+	'/einstellungen/konto'
 ];
 
 async function visit(page: Page, path: string) {
