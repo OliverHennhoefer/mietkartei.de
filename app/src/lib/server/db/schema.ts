@@ -506,6 +506,32 @@ export const matchingRules = sqliteTable(
 	(table) => [index('matching_rules_account_id_idx').on(table.accountId)]
 );
 
+// Documents
+
+/** An uploaded file, stored via the storage adapter under `<accountId>/<id>`. */
+export const documents = sqliteTable(
+	'documents',
+	{
+		id: id(),
+		accountId: accountId(),
+		name: text('name').notNull(),
+		mimeType: text('mime_type').notNull(),
+		size: integer('size').notNull(),
+		storageKey: text('storage_key').notNull(),
+		propertyId: text('property_id').references(() => properties.id, { onDelete: 'set null' }),
+		unitId: text('unit_id').references(() => units.id, { onDelete: 'set null' }),
+		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
+		tenantId: text('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+		uploadedBy: text('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('documents_account_id_idx').on(table.accountId),
+		index('documents_lease_id_idx').on(table.leaseId),
+		index('documents_property_id_idx').on(table.propertyId)
+	]
+);
+
 /** A person who signs in. Each user works in exactly one account. */
 export const users = sqliteTable(
 	'users',
@@ -544,7 +570,16 @@ export const sessions = sqliteTable(
  * without a schema change.
  */
 export type AuditAction =
-	'create' | 'update' | 'delete' | 'post' | 'approve' | 'import' | 'assign' | 'undo' | 'ignore';
+	| 'create'
+	| 'update'
+	| 'delete'
+	| 'post'
+	| 'approve'
+	| 'import'
+	| 'assign'
+	| 'undo'
+	| 'ignore'
+	| 'upload';
 
 /** Who changed what, as one German sentence per change. */
 export const auditLog = sqliteTable(

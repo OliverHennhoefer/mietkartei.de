@@ -218,6 +218,7 @@ test('answers unknown leases and leases of another account with 404', async ({ p
 		`/vertraege/${foreign.leaseId}/miethoehe`,
 		`/vertraege/${foreign.leaseId}/mietkonto`,
 		`/vertraege/${foreign.leaseId}/kaution`,
+		`/vertraege/${foreign.leaseId}/dokumente`,
 		`/mieter/${foreign.tenantId}`,
 		`/mieter/${foreign.tenantId}/bearbeiten`
 	]) {

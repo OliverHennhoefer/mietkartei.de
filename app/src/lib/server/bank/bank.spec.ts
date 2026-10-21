@@ -203,11 +203,13 @@ describe('import', () => {
 		});
 		// Both commits analyse the file before either writes, as two clicks on "Importieren" do.
 		slowAnalysis.on = true;
-		const [first, second] = await Promise.all([importSparkasse(), importSparkasse()]).finally(
+		const results = await Promise.all([importSparkasse(), importSparkasse()]).finally(
 			() => (slowAnalysis.on = false)
 		);
-		expect(first).toMatchObject({ imported: 3, duplicates: 0, assigned: 2 });
-		expect(second).toMatchObject({ imported: 0, duplicates: 3, assigned: 0 });
+		// Either commit may write first; the other finds every line already there.
+		const [winner, loser] = results.sort((a, b) => (b?.imported ?? 0) - (a?.imported ?? 0));
+		expect(winner).toMatchObject({ imported: 3, duplicates: 0, assigned: 2 });
+		expect(loser).toMatchObject({ imported: 0, duplicates: 3, assigned: 0 });
 		const paid = await db.select().from(payments).where(eq(payments.accountId, 'a'));
 		expect(paid.map((row) => row.amount)).toEqual([85000, 85000]);
 		expect(await db.select().from(bankTransactions)).toHaveLength(3);

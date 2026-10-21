@@ -75,6 +75,9 @@
 	</ul>
 {/if}
 
+<h2>Dokumente</h2>
+<p><a href="/dokumente?tenantId={data.tenant.id}">Dokumente dieses Mieters</a></p>
+
 <h2>Löschen</h2>
 <p class="muted small">
 	Ein Mieter, der auf einem Mietvertrag steht, bleibt erhalten; die Verträge sind die Historie.

@@ -54,7 +54,7 @@ Migrations run when the container starts. The app needs no secrets so far. Setti
 
 ## Backups
 
-All data is in `/data/mietkartei.db` inside the volume. A plain file copy of a running database is not reliable, so make a consistent snapshot with SQLite's `VACUUM INTO` and copy it off the server:
+All data is in `/data/mietkartei.db` inside the volume, uploaded documents are files in `/data/documents`. A plain file copy of a running database is not reliable, so make a consistent snapshot with SQLite's `VACUUM INTO` and copy it off the server:
 
 ```sh
 docker --context mietkartei exec mietkartei-app-1 node -e "
@@ -63,6 +63,7 @@ docker --context mietkartei exec mietkartei-app-1 node -e "
   require('better-sqlite3')('/data/mietkartei.db').exec(\"VACUUM INTO '/data/backup.db'\");
 "
 docker --context mietkartei cp mietkartei-app-1:/data/backup.db ./mietkartei-$(date +%F).db
+docker --context mietkartei cp mietkartei-app-1:/data/documents ./mietkartei-documents-$(date +%F)
 ```
 
-The compose file sets the project name `mietkartei`, so the container is called `mietkartei-app-1`. To restore, stop the container, copy the backup into the volume as `mietkartei.db`, remove `mietkartei.db-wal` and `mietkartei.db-shm` if present, and start it again.
+The compose file sets the project name `mietkartei`, so the container is called `mietkartei-app-1`. To restore, stop the container, copy the backup into the volume as `mietkartei.db` and the documents as `documents`, remove `mietkartei.db-wal` and `mietkartei.db-shm` if present, and start it again.
