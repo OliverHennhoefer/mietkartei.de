@@ -917,6 +917,9 @@ export const tasks = sqliteTable(
 	(table) => [index('tasks_account_id_idx').on(table.accountId)]
 );
 
+export const userRoles = ['owner', 'manager'] as const;
+export type UserRole = (typeof userRoles)[number];
+
 /** A person who signs in. Each user works in exactly one account. */
 export const users = sqliteTable(
 	'users',
@@ -926,6 +929,9 @@ export const users = sqliteTable(
 		/** Stored trimmed and in lower case; unique across all accounts. */
 		email: text('email').notNull().unique(),
 		passwordHash: text('password_hash').notNull(),
+		/** Owners manage invitations and bank accounts; managers edit everything else. */
+		role: text('role', { enum: userRoles }).notNull().default('owner'),
+		name: text('name'),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -952,6 +958,54 @@ export const sessions = sqliteTable(
 	(table) => [index('sessions_user_id_idx').on(table.userId)]
 );
 
+/** An invitation to join the account as a manager. Only the hash of the link token is stored. */
+export const invitations = sqliteTable(
+	'invitations',
+	{
+		id: id(),
+		accountId: accountId(),
+		email: text('email').notNull(),
+		role: text('role', { enum: userRoles }).notNull().default('manager'),
+		tokenHash: text('token_hash').notNull().unique(),
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+		invitedBy: text('invited_by').references(() => users.id, { onDelete: 'set null' }),
+		acceptedAt: integer('accepted_at', { mode: 'timestamp_ms' }),
+		createdAt: createdAt()
+	},
+	(table) => [index('invitations_account_id_idx').on(table.accountId)]
+);
+
+/** A password reset link. The id is the SHA-256 hash of the token; valid for one hour. */
+export const passwordResets = sqliteTable(
+	'password_resets',
+	{
+		id: text('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+		createdAt: createdAt()
+	},
+	(table) => [index('password_resets_user_id_idx').on(table.userId)]
+);
+
+/** Failed sign-ins per address; five within fifteen minutes lock the address for fifteen minutes. */
+export const loginAttempts = sqliteTable('login_attempts', {
+	email: text('email').primaryKey(),
+	failures: integer('failures').notNull().default(0),
+	firstFailureAt: integer('first_failure_at', { mode: 'timestamp_ms' }).notNull(),
+	lockedUntil: integer('locked_until', { mode: 'timestamp_ms' })
+});
+
+/** Mails stored instead of sent, when MAIL_TRANSPORT=outbox (end-to-end tests). */
+export const outbox = sqliteTable('outbox', {
+	id: id(),
+	to: text('to').notNull(),
+	subject: text('subject').notNull(),
+	text: text('text').notNull(),
+	createdAt: createdAt()
+});
+
 /**
  * The verbs used in audit_log.action. The column is plain text so a feature can add a verb
  * without a schema change.
@@ -967,7 +1021,9 @@ export type AuditAction =
 	| 'assign'
 	| 'undo'
 	| 'ignore'
-	| 'upload';
+	| 'upload'
+	| 'invite'
+	| 'reset';
 
 /** Who changed what, as one German sentence per change. */
 export const auditLog = sqliteTable(

@@ -134,6 +134,13 @@
       "when": 1792600956363,
       "tag": "0018_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1792603635021,
+      "tag": "0019_accounts_managers",
+      "breakpoints": true
     }
   ]
 }

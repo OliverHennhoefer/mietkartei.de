@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { validateSession, verifyPassword } from './auth';
 import type { Database } from './db';
 import {
 	consumerPriceIndex,
@@ -204,6 +205,60 @@ describe('seed rows', () => {
 		const result = await seed(db, { op: 'rows', table: 'tenants', rows: [row, row] });
 		expect(result.status).toBe(500);
 		expect((result.body as { message: string }).message).toMatch(/UNIQUE/);
+	});
+});
+
+describe('seed user', () => {
+	it('creates a user of the owner’s account whose password verifies', async () => {
+		const result = await seed(db, {
+			op: 'user',
+			email: ' Verwalter@Example.org ',
+			password: 'ein-sicheres-passwort',
+			role: 'manager',
+			name: 'Max Verwalter'
+		});
+		expect(result.status).toBe(200);
+		const { id } = result.body as { id: string };
+
+		const [user] = await db.select().from(users).where(eq(users.id, id));
+		expect(user).toMatchObject({
+			accountId: 'a',
+			email: 'verwalter@example.org',
+			role: 'manager',
+			name: 'Max Verwalter'
+		});
+		expect(await verifyPassword('ein-sicheres-passwort', user.passwordHash)).toBe(true);
+		expect(await verifyPassword('falsch', user.passwordHash)).toBe(false);
+	});
+
+	it('refuses a taken address and an unknown role', async () => {
+		expect(
+			await seed(db, { op: 'user', email: 'a@example.org', password: 'x', role: 'owner' })
+		).toMatchObject({ status: 400 });
+		expect(
+			await seed(db, { op: 'user', email: 'c@example.org', password: 'x', role: 'admin' })
+		).toMatchObject({ status: 400 });
+		expect(await db.select().from(users)).toHaveLength(2);
+	});
+});
+
+describe('seed session', () => {
+	it('signs a user of the owner’s account in and refuses other users', async () => {
+		const { id } = (
+			await seed(db, {
+				op: 'user',
+				email: 'verwalter@example.org',
+				password: 'ein-sicheres-passwort',
+				role: 'manager'
+			})
+		).body as { id: string };
+		const result = await seed(db, { op: 'session', userId: id });
+		expect(result.status).toBe(200);
+		const { token } = result.body as { token: string };
+		expect((await validateSession(db, token))?.user).toMatchObject({ id, role: 'manager' });
+
+		expect(await seed(db, { op: 'session', userId: 'user-b' })).toMatchObject({ status: 400 });
+		expect(await seed(db, { op: 'session' })).toMatchObject({ status: 400 });
 	});
 });
 

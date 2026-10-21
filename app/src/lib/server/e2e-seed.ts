@@ -1,11 +1,12 @@
-import { asc, eq, getTableColumns, getTableName, is, sql } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, getTableName, is, sql } from 'drizzle-orm';
 import { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { DEFAULT_ACCOUNT_ID, ensureDefaultAccount } from './accounts';
 import type { AuditContext } from './audit';
+import { createSession, hashPassword, normalizeEmail } from './auth';
 import type { Database } from './db';
 import { chunk, rowsPerStatement, runBatch } from './db/batch';
 import * as schema from './db/schema';
-import { accounts, properties, tenants, units, users } from './db/schema';
+import { accounts, properties, tenants, units, userRoles, users, type UserRole } from './db/schema';
 import { newLeaseStatements, type LeaseInput } from './leases';
 
 // Seeds data for the end-to-end tests, behind POST /api/e2e/seed (only when E2E is set). A feature's
@@ -28,6 +29,8 @@ export type SeedLeaseResult = {
 	tenantId: string;
 	leaseId: string;
 };
+
+export type SeedUser = { email: string; password: string; role: UserRole; name?: string | null };
 
 type Row = Record<string, unknown>;
 
@@ -208,10 +211,49 @@ async function clearTables(db: Database, accountId: string, body: Row): Promise<
 	return { status: 200, body: { cleared: body.tables } };
 }
 
+async function seedUser(db: Database, accountId: string, body: Row): Promise<SeedResult> {
+	if (typeof body.email !== 'string' || !body.email.trim()) {
+		return bad('Bitte gib eine E-Mail-Adresse an.');
+	}
+	if (typeof body.password !== 'string' || !body.password) return bad('Bitte gib ein Passwort an.');
+	const role = userRoles.find((candidate) => candidate === body.role);
+	if (!role) return bad('Die Rolle ist owner oder manager.');
+	if (body.name !== undefined && body.name !== null && typeof body.name !== 'string') {
+		return bad('Der Name ist ein Text.');
+	}
+	const email = normalizeEmail(body.email);
+	const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
+	if (taken) return bad(`Die E-Mail-Adresse ${email} ist schon vergeben.`);
+	const [user] = await db
+		.insert(users)
+		.values({
+			accountId,
+			email,
+			passwordHash: await hashPassword(body.password),
+			role,
+			name: body.name ?? null
+		})
+		.returning({ id: users.id });
+	return { status: 200, body: { id: user.id } };
+}
+
+/** A session of a user of the owner's account, as signing in creates it; returns the cookie token. */
+async function seedSession(db: Database, accountId: string, body: Row): Promise<SeedResult> {
+	if (typeof body.userId !== 'string') return bad('Bitte gib die Id des Zugangs an.');
+	const [user] = await db
+		.select({ id: users.id })
+		.from(users)
+		.where(and(eq(users.accountId, accountId), eq(users.id, body.userId)));
+	if (!user) return bad('Diesen Zugang gibt es im Konto nicht.');
+	const { token } = await createSession(db, user.id);
+	return { status: 200, body: { token } };
+}
+
 /**
  * Runs one seed operation, chosen by `body.op`: `lease` (property, unit, tenant and a lease with
  * its initial rent and persons), `foreignLease` (the same in a second account no e2e user belongs
- * to, for the 404 checks), `rows` (raw rows of any table) or `clear` (the owner's rows of the
+ * to, for the 404 checks), `rows` (raw rows of any table), `user` (a second user of the owner's
+ * account), `session` (a signed-in browser of such a user) or `clear` (the owner's rows of the
  * given tables). Returns the HTTP status and body for the route.
  */
 export async function seed(db: Database, body: unknown): Promise<SeedResult> {
@@ -234,10 +276,16 @@ export async function seed(db: Database, body: unknown): Promise<SeedResult> {
 				return await seedForeignLease(db);
 			case 'rows':
 				return await seedRows(db, context.accountId, body);
+			case 'user':
+				return await seedUser(db, context.accountId, body);
+			case 'session':
+				return await seedSession(db, context.accountId, body);
 			case 'clear':
 				return await clearTables(db, context.accountId, body);
 			default:
-				return bad('Unbekannte Operation; erlaubt sind lease, foreignLease, rows und clear.');
+				return bad(
+					'Unbekannte Operation; erlaubt sind lease, foreignLease, rows, user, session und clear.'
+				);
 		}
 	} catch (error) {
 		// A constraint violation or a wrong value type; the message tells the test what went wrong.
