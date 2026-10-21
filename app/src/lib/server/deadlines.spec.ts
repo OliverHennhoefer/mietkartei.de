@@ -336,6 +336,34 @@ describe('lease end, deposit return and final meter reading', () => {
 		expect(await list('deposit_return')).toEqual([]);
 	});
 
+	it('asks only for meters in place at the end, not ones removed before or installed after', async () => {
+		const { unitId, propertyId } = await lease('a', { endDate: '2025-12-31' });
+		const meter = (installedAt: string | null, removedAt: string | null) => ({
+			accountId: 'a',
+			propertyId,
+			unitId,
+			kind: 'cold_water' as const,
+			unit: 'm³',
+			installedAt,
+			removedAt
+		});
+		const [current] = await db
+			.insert(meters)
+			.values([
+				meter('2020-01-01', null),
+				// Exchanged during the lease, and its replacement put in after the tenant left.
+				meter(null, '2025-06-30'),
+				meter('2026-03-01', null)
+			])
+			.returning({ id: meters.id });
+		expect(await list('meter_reading')).toHaveLength(1);
+
+		await db
+			.insert(meterReadings)
+			.values({ accountId: 'a', meterId: current.id, readAt: '2025-12-31', value: 50 });
+		expect(await list('meter_reading')).toEqual([]);
+	});
+
 	it('has no settlement without a deposit and no reading without a meter in the unit', async () => {
 		const { propertyId } = await lease('a', { endDate: '2026-11-30', securityDeposit: 0 });
 		// A building meter is not read at a tenant change.
