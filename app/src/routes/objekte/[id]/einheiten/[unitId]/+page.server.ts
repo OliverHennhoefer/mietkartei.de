@@ -33,7 +33,7 @@ export const actions: Actions = {
 		if (outcome === 'in-use') {
 			return fail(400, {
 				deleteError:
-					'Die Einheit kann nicht gelöscht werden, solange ein Mietvertrag auf ihr liegt. Lösche oder beende zuerst den Mietvertrag.'
+					'Die Einheit kann nicht gelöscht werden, solange ein Mietvertrag auf ihr liegt, auch ein beendeter: Er bleibt mit Mietkonto und Kaution erhalten. Die Mietverträge der Einheit stehen oben; einen Mietvertrag ohne Zahlungen, Kautionsbewegungen und Abrechnungen kannst du auf seiner Seite löschen.'
 			});
 		}
 		redirect(303, `/objekte/${params.id}`);

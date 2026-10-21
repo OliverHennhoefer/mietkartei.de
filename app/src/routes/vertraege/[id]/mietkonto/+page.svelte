@@ -90,7 +90,13 @@
 						<td class="num"><Money cents={row.balance} /></td>
 						<td class="actions">
 							{#if row.fromBank}
-								<span class="muted small">Zuordnung unter <a href="/bank">Bank</a> aufheben</span>
+								<span class="muted small">
+									Zuordnung beim <a
+										href={row.bankTransactionId
+											? `/bank?umsatz=${row.bankTransactionId}`
+											: '/bank?status=matched'}>Umsatz</a
+									> aufheben
+								</span>
 							{:else if row.deletable && row.kind === 'payment'}
 								<ConfirmButton
 									action="?/deletePayment"

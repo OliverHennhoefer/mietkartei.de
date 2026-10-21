@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { strFromU8, unzipSync } from 'fflate';
 import { owner } from './owner';
 import { FAKE_SUBSCRIPTION_ID, requests, start, stop } from './stripe-fake';
+import { clearTables, seedRows } from './seed';
 
 // Project "account", runs last with the owner's storage state: the export, then the deletion
 // of the account, after which nothing else can run. The owner's subscription (sub_fake, started
@@ -95,8 +96,43 @@ test('fills a fresh account with demo data from the account page', async ({ page
 	await page.getByRole('button', { name: 'Konto anlegen' }).click();
 	await expect(page).not.toHaveURL(/\/registrieren$/);
 
+	// The first-run checklist shows instead of the tiles, each step linked to its create page.
 	await page.goto('/');
 	await expect(page.getByRole('heading', { name: 'Erste Schritte' })).toBeVisible();
+	await expect(page.getByRole('list', { name: 'Kennzahlen' })).toHaveCount(0);
+	const steps = page.locator('.first-run ol > li');
+	await expect(steps.getByRole('link')).toHaveText([
+		'Objekt anlegen',
+		'Einheit anlegen',
+		'Mieter anlegen',
+		'Mietvertrag mit Miete und Kaution anlegen',
+		'Bankverbindung für den Umsatzabgleich anlegen',
+		'Kostenarten und Umlageschlüssel prüfen'
+	]);
+	await expect(steps.nth(0).getByRole('link')).toHaveAttribute('href', '/objekte/neu');
+	await expect(steps.nth(5).getByRole('link')).toHaveAttribute(
+		'href',
+		'/betriebskosten/kostenarten'
+	);
+
+	// With a property but no lease and no bank account it stays, the property ticked off and the
+	// unit step pointing to the property's page with the unit form.
+	const {
+		ids: [propertyId]
+	} = await seedRows(page.request, 'properties', [
+		{ name: 'Erstes Haus', street: 'Anfangsweg 1', postalCode: '10115', city: 'Berlin' }
+	]);
+	await page.goto('/');
+	await expect(page.getByRole('heading', { name: 'Erste Schritte' })).toBeVisible();
+	await expect(page.getByRole('list', { name: 'Kennzahlen' })).toHaveCount(0);
+	await expect(steps.nth(0)).toContainText('erledigt');
+	await expect(steps.nth(1)).not.toContainText('erledigt');
+	await expect(steps.nth(1).getByRole('link')).toHaveAttribute('href', `/objekte/${propertyId}`);
+	// Demo data only goes into an account without any property.
+	await expect(page.getByRole('link', { name: 'Demodaten' })).toHaveCount(0);
+	await clearTables(page.request, ['properties']);
+
+	await page.goto('/');
 	await page.getByRole('link', { name: 'Demodaten' }).click();
 	await expect(page).toHaveURL(/\/einstellungen\/konto$/);
 	await page.getByRole('button', { name: 'Demodaten anlegen' }).click();

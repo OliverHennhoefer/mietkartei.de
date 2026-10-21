@@ -119,6 +119,15 @@
 	<Alert tone="danger"><p>{message}</p></Alert>
 {/if}
 
+{#if data.transactionId}
+	<Alert tone="info">
+		<p>
+			Es wird nur ein Umsatz angezeigt, der aus dem Mietkonto oder der Kaution verlinkt ist.
+			<a href="/bank?status=all">Alle Umsätze anzeigen</a>
+		</p>
+	</Alert>
+{/if}
+
 {#if data.bankAccounts.length === 0}
 	<EmptyState
 		title="Noch keine Bankverbindung"
@@ -127,7 +136,9 @@
 		<a href="/bank/konten">Bankverbindung anlegen</a>
 	</EmptyState>
 {:else if data.transactions.length === 0}
-	{#if data.status === 'unmatched'}
+	{#if data.transactionId}
+		<p>Diesen Umsatz gibt es nicht mehr.</p>
+	{:else if data.status === 'unmatched'}
 		<p>Alle Umsätze sind zugeordnet oder ignoriert.</p>
 	{:else}
 		<p>Keine Umsätze mit diesem Status.</p>

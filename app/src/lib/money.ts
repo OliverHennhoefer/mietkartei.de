@@ -87,8 +87,14 @@ export function distributeCents(total: number, weights: readonly number[]): numb
 	return parts.map((part) => part * sign);
 }
 
-/** `amount` × `numerator` ÷ `denominator`, rounded half up to a cent. */
+/**
+ * `amount` × `numerator` ÷ `denominator`, rounded half up to a cent; for a negative amount (a
+ * credit) the half goes away from zero too, so a prorated credit cancels its positive twin.
+ */
 export function proRata(amount: number, numerator: number, denominator: number): number {
 	if (denominator <= 0) return 0;
-	return Math.round((amount * numerator) / denominator);
+	const exact = (amount * numerator) / denominator;
+	const rounded = Math.round(Math.abs(exact));
+	// No -0: a rounded-away credit is plain 0.
+	return exact < 0 && rounded !== 0 ? -rounded : rounded;
 }

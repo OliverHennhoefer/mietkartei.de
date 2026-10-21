@@ -10,6 +10,9 @@
 	const errors = $derived(form && 'errors' in form ? form.errors : undefined);
 	const values = $derived(form && 'values' in form ? form.values : undefined);
 	const deleteError = $derived(form && 'deleteError' in form ? form.deleteError : undefined);
+	const blockingLeases = $derived(
+		form && 'blockingLeases' in form ? form.blockingLeases : undefined
+	);
 </script>
 
 <!-- The heading, address and tab bar come from +layout.svelte. -->
@@ -24,12 +27,21 @@
 
 <h2>Objekt löschen</h2>
 {#if deleteError}
-	<Alert tone="danger"><p>{deleteError}</p></Alert>
+	<Alert tone="danger">
+		<p>{deleteError}</p>
+		{#if blockingLeases && blockingLeases.length > 0}
+			<ul aria-label="Mietverträge auf dem Objekt">
+				{#each blockingLeases as lease (lease.id)}
+					<li><a href="/vertraege/{lease.id}">{lease.label}</a></li>
+				{/each}
+			</ul>
+		{/if}
+	</Alert>
 {/if}
 <p class="muted">
 	Löscht das Objekt mit allen Einheiten, Zählern, Umlageschlüsseln, Abrechnungskreisen, Belegen und
-	Betriebskostenabrechnungen. Ein Objekt, auf dessen Einheiten Mietverträge liegen, kann nicht
-	gelöscht werden.
+	Betriebskostenabrechnungen. Ein Objekt, auf dessen Einheiten Mietverträge liegen, auch beendete,
+	kann nicht gelöscht werden.
 </p>
 <ConfirmButton
 	action="?/delete"

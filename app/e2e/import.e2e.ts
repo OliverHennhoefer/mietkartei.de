@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
+import { monthOf, monthsInRange, today } from '../src/lib/dates';
+import { formatCents } from '../src/lib/money';
 
 // The CSV import: four files in the order a landlord migrates (properties and units, tenants,
 // leases, payments), each through mapping, preview and commit on /import. The fixtures carry
@@ -74,6 +76,40 @@ test('imports properties, tenants, leases and payments from CSV files in order',
 		await expect(previewRows(page)).toHaveCount(1);
 		await expect(previewRows(page).nth(0)).toContainText('ok');
 		await commit(page, '1 Zahlung angelegt');
+	});
+
+	await test.step('the imported lease books from its ledger start', async () => {
+		// The lease runs since 01.03.2024 but its Mietkonto starts 01.01.2026 with an opening
+		// balance of 150,00 € owed; from January 2026 on every month adds 650 € + 150 € + 50 €
+		// = 850 €, and the imported payment of 850 € on 05.01.2026 pays one of them. So the
+		// balance is 150 € + 850 € × (months from January 2026 up to now) − 850 €.
+		const months = monthsInRange('2026-01', monthOf(today())).length;
+		const balance = 15000 + 85000 * months - 85000;
+		await page.goto('/mietkonto');
+		await page
+			.getByRole('table', { name: 'Salden' })
+			.locator('tr', { hasText: 'Importmann' })
+			.getByRole('link', { name: 'Mietkonto' })
+			.click();
+		await expect(page).toHaveURL(/\/vertraege\/[\w-]+\/mietkonto$/);
+		await page.goto(`${page.url()}?from=2025-12&to=2026-01`);
+		await expect(page.locator('.balance strong')).toHaveText(
+			`Saldo: Rückstand ${formatCents(balance)}`
+		);
+		const rows = page.getByRole('table', { name: 'Buchungen' }).locator('tbody tr');
+		// Nothing before the ledger start: the opening balance, January's rent and the payment.
+		await expect(rows).toHaveCount(3);
+		await expect(rows.filter({ hasText: 'Dezember 2025' })).toHaveCount(0);
+		const opening = rows.filter({ hasText: 'Anfangssaldo' });
+		await expect(opening).toContainText('01.01.2026');
+		await expect(opening.locator('td').nth(2)).toHaveText(formatCents(15000));
+		await expect(rows.filter({ hasText: 'Miete Januar 2026' }).locator('td').nth(2)).toHaveText(
+			formatCents(85000)
+		);
+		const payment = rows.filter({ hasText: '05.01.2026' }).filter({ hasNotText: 'Januar 2026' });
+		await expect(payment.locator('td').nth(3)).toHaveText(formatCents(85000));
+		// After the three lines January is paid; the opening balance is what is left.
+		await expect(rows.nth(2).locator('td').nth(4)).toHaveText(formatCents(15000));
 	});
 
 	await test.step('a second import of the same units is skipped as duplicates', async () => {
