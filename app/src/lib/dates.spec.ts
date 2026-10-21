@@ -11,6 +11,7 @@ import {
 	lastOfMonth,
 	monthsInRange,
 	overlap,
+	parseGermanDate,
 	today
 } from './dates';
 
@@ -68,6 +69,17 @@ describe('formatting', () => {
 		expect(formatDate('2026-03-05')).toBe('05.03.2026');
 		expect(() => formatDate('05.03.2026')).toThrow();
 		expect(formatMonth('2026-03')).toBe('März 2026');
+	});
+});
+
+describe('German dates', () => {
+	it('parses German dates and leaves ISO dates alone', () => {
+		expect(parseGermanDate('31.12.2026')).toBe('2026-12-31');
+		expect(parseGermanDate('1.2.26')).toBe('2026-02-01');
+		expect(parseGermanDate(' 05.03.2026 ')).toBe('2026-03-05');
+		expect(parseGermanDate('2026-03-05')).toBe('2026-03-05');
+		expect(parseGermanDate('31.02.2026')).toBeUndefined();
+		expect(parseGermanDate('Buchungstag')).toBeUndefined();
 	});
 });
 
