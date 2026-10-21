@@ -4,19 +4,21 @@ import { defineConfig } from '@playwright/test';
 // database: DEPLOY_TARGET=node (default) or DEPLOY_TARGET=cloudflare (workerd with a local D1).
 const target = process.env.DEPLOY_TARGET === 'cloudflare' ? 'cloudflare' : 'node';
 const port = Number(process.env.E2E_PORT || 4173);
+// The Stripe fake of billing.e2e.ts; another port lets two checkouts run their suites side by side.
+const stripePort = Number(process.env.STRIPE_FAKE_PORT || 4299);
 
 // Mails go to the outbox table, where the tests read them through /__e2e/outbox.
 const commands = {
 	node: [
 		'rm -rf .e2e',
 		'npm run build',
-		`DATABASE_PATH=.e2e/node.db DATA_DIR=.e2e/documents MAIL_TRANSPORT=outbox E2E=true STRIPE_SECRET_KEY=sk_test_fake STRIPE_PRICE_ID=price_fake STRIPE_WEBHOOK_SECRET=whsec_fake STRIPE_API_BASE=http://localhost:4299 PORT=${port} node server.js`
+		`DATABASE_PATH=.e2e/node.db DATA_DIR=.e2e/documents MAIL_TRANSPORT=outbox E2E=true STRIPE_SECRET_KEY=sk_test_fake STRIPE_PRICE_ID=price_fake STRIPE_WEBHOOK_SECRET=whsec_fake STRIPE_API_BASE=http://localhost:${stripePort} PORT=${port} node server.js`
 	],
 	cloudflare: [
 		'rm -rf .e2e',
 		'npm run build:cloudflare',
 		'wrangler d1 migrations apply DB --local --persist-to .e2e/wrangler',
-		`wrangler dev --port ${port} --inspector-port 0 --persist-to .e2e/wrangler --var MAIL_TRANSPORT:outbox --var E2E:true --var STRIPE_SECRET_KEY:sk_test_fake --var STRIPE_PRICE_ID:price_fake --var STRIPE_WEBHOOK_SECRET:whsec_fake --var STRIPE_API_BASE:http://localhost:4299`
+		`wrangler dev --port ${port} --inspector-port 0 --persist-to .e2e/wrangler --var MAIL_TRANSPORT:outbox --var E2E:true --var STRIPE_SECRET_KEY:sk_test_fake --var STRIPE_PRICE_ID:price_fake --var STRIPE_WEBHOOK_SECRET:whsec_fake --var STRIPE_API_BASE:http://localhost:${stripePort}`
 	]
 };
 

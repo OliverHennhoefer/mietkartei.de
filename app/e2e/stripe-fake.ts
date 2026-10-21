@@ -2,12 +2,12 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 
 /**
  * A stand-in for the Stripe API, just enough for the billing pages: the app reaches it because
- * the Playwright web servers set STRIPE_API_BASE=http://localhost:4299. Checkout and portal
+ * the Playwright web servers set STRIPE_API_BASE=http://localhost:4299 (STRIPE_FAKE_PORT changes it). Checkout and portal
  * sessions answer with the URL the app passed in, so the browser lands back in the app.
  * Every request is recorded, so a test can check what the app sent.
  */
 
-export const STRIPE_FAKE_PORT = 4299;
+export const STRIPE_FAKE_PORT = Number(process.env.STRIPE_FAKE_PORT || 4299);
 export const FAKE_CUSTOMER_ID = 'cus_fake';
 export const FAKE_SUBSCRIPTION_ID = 'sub_fake';
 /** 2030-01-15T00:00:00Z, far enough ahead for every run. */
@@ -97,7 +97,7 @@ async function handle(request: IncomingMessage, response: ServerResponse): Promi
 	});
 }
 
-/** Starts the fake on port 4299; a second call while it runs does nothing. */
+/** Starts the fake on STRIPE_FAKE_PORT; a second call while it runs does nothing. */
 export async function start(): Promise<void> {
 	if (server) return;
 	requests.length = 0;
