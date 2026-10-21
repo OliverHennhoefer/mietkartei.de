@@ -1,15 +1,21 @@
 import { and, count, eq, gt, lte } from 'drizzle-orm';
-import { createUser, generateToken, hashPassword, hashToken, normalizeEmail } from './auth';
-import type { RegisterResult } from './auth';
+import {
+	generateToken,
+	hashToken,
+	normalizeEmail,
+	registerUser,
+	type RegisterResult
+} from './auth';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import { registrationRequests, users } from './db/schema';
 import type { Mail } from './mail';
 
-// Registration with a confirmed address (Registrierung bestätigen): the form stores a request
-// and mails a link to the address; the account exists only once the link is used, so nobody can
-// take an address they cannot read mail for. Only the SHA-256 of the token is stored, as the
-// row's id, and the password only as its hash.
+// Registration with a confirmed address (Registrierung bestätigen): the form takes only the
+// address and mails a link to it; the password is chosen on the page of the link, which creates
+// the account. So nobody can take an address they cannot read mail for, nor set the password of
+// an account that someone else creates by opening an unsolicited link. Only the SHA-256 of the
+// token is stored, as the row's id.
 
 const DAY = 24 * 60 * 60 * 1000;
 export const REGISTRATION_REQUEST_LIFETIME = DAY;
@@ -24,7 +30,6 @@ export const MAX_OPEN_REGISTRATION_REQUESTS = 3;
 export async function requestRegistration(
 	db: Database,
 	email: string,
-	password: string,
 	now = Date.now()
 ): Promise<{ token: string; email: string } | undefined> {
 	email = normalizeEmail(email);
@@ -43,7 +48,6 @@ export async function requestRegistration(
 		db.insert(registrationRequests).values({
 			id: await hashToken(token),
 			email,
-			passwordHash: await hashPassword(password),
 			expiresAt: new Date(now + REGISTRATION_REQUEST_LIFETIME),
 			createdAt: new Date(now)
 		})
@@ -56,13 +60,9 @@ export async function findRegistrationRequest(
 	db: Database,
 	token: string,
 	now = Date.now()
-): Promise<{ id: string; email: string; passwordHash: string } | undefined> {
+): Promise<{ id: string; email: string } | undefined> {
 	const [row] = await db
-		.select({
-			id: registrationRequests.id,
-			email: registrationRequests.email,
-			passwordHash: registrationRequests.passwordHash
-		})
+		.select({ id: registrationRequests.id, email: registrationRequests.email })
 		.from(registrationRequests)
 		.where(
 			and(
@@ -74,16 +74,17 @@ export async function findRegistrationRequest(
 }
 
 /**
- * Creates the account of a confirmed request with the password given in the form. Every request
- * for the address is deleted once a user has it, so no other link of it stays valid.
+ * Creates the account of a confirmed request with the password chosen on the link's page. Every
+ * request for the address is deleted once a user has it, so no other link of it stays valid.
  */
 export async function completeRegistration(
 	db: Database,
-	request: { email: string; passwordHash: string }
+	email: string,
+	password: string
 ): Promise<RegisterResult> {
-	const registered = await createUser(db, request.email, request.passwordHash);
+	const registered = await registerUser(db, email, password);
 	if (registered.ok || registered.reason === 'email-taken') {
-		await db.delete(registrationRequests).where(eq(registrationRequests.email, request.email));
+		await db.delete(registrationRequests).where(eq(registrationRequests.email, email));
 	}
 	return registered;
 }
@@ -96,7 +97,7 @@ export function registrationMail(to: string, link: string): Mail {
 		text:
 			'Hallo,\n\n' +
 			'mit dieser E-Mail-Adresse wurde ein Konto bei mietkartei beantragt. Mit diesem Link ' +
-			'bestätigst du die Adresse und legst das Konto an; er gilt einen Tag:\n\n' +
+			'bestätigst du die Adresse, wählst dein Passwort und legst das Konto an; er gilt einen Tag:\n\n' +
 			`${link}\n\n` +
 			'Wenn du das nicht warst, kannst du diese E-Mail ignorieren; dann wird kein Konto angelegt.\n'
 	};

@@ -56,8 +56,8 @@ test('refuses an address that is not listed on the hosted variant', async ({ pag
 	await page.goto('/registrieren');
 	await expect(page.getByText('mietkartei ist noch nicht öffentlich.')).toBeVisible();
 	await page.getByLabel('E-Mail-Adresse').fill('fremd@example.org');
-	await page.getByLabel('Passwort').fill('noch-ein-sicheres-passwort');
-	await page.getByRole('button', { name: 'Konto anlegen' }).click();
+	await expect(page.getByLabel('Passwort')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Link anfordern' }).click();
 
 	await expect(
 		page.getByText('Diese E-Mail-Adresse ist nicht für eine Registrierung freigeschaltet.')

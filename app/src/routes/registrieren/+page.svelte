@@ -29,7 +29,8 @@
 		{#if data.restricted}
 			<p>
 				mietkartei ist noch nicht öffentlich. Ein Konto anlegen können nur freigeschaltete
-				E-Mail-Adressen. Du bekommst einen Link, mit dem du die Adresse bestätigst.
+				E-Mail-Adressen. Du bekommst einen Link, mit dem du die Adresse bestätigst und dein Passwort
+				wählst.
 			</p>
 		{/if}
 		<form
@@ -54,19 +55,21 @@
 				/>
 				{#if form?.errors?.email}<span class="error">{form.errors.email}</span>{/if}
 			</label>
-			<label>
-				Passwort
-				<input
-					name="password"
-					type="password"
-					autocomplete="new-password"
-					minlength={MIN_PASSWORD_LENGTH}
-					aria-invalid={form?.errors?.password ? 'true' : undefined}
-					required
-				/>
-				<span class="muted">Mindestens {MIN_PASSWORD_LENGTH} Zeichen.</span>
-				{#if form?.errors?.password}<span class="error">{form.errors.password}</span>{/if}
-			</label>
+			{#if !data.restricted}
+				<label>
+					Passwort
+					<input
+						name="password"
+						type="password"
+						autocomplete="new-password"
+						minlength={MIN_PASSWORD_LENGTH}
+						aria-invalid={form?.errors?.password ? 'true' : undefined}
+						required
+					/>
+					<span class="muted">Mindestens {MIN_PASSWORD_LENGTH} Zeichen.</span>
+					{#if form?.errors?.password}<span class="error">{form.errors.password}</span>{/if}
+				</label>
+			{/if}
 			{#if data.turnstileSiteKey}
 				<div class="cf-turnstile" data-sitekey={data.turnstileSiteKey} data-language="de"></div>
 			{/if}
@@ -85,7 +88,7 @@
 				</p>
 			{/if}
 			<div class="form-actions">
-				<button type="submit">Konto anlegen</button>
+				<button type="submit">{data.restricted ? 'Link anfordern' : 'Konto anlegen'}</button>
 			</div>
 		</form>
 	{/if}

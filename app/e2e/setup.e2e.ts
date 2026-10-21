@@ -12,20 +12,23 @@ test('the first visitor registers and becomes the owner', async ({ page, request
 	await expect(page).toHaveURL(/\/registrieren$/);
 
 	await page.getByLabel('E-Mail-Adresse').fill(owner.email);
-	await page.getByLabel('Passwort').fill(owner.password);
-	await page.getByRole('button', { name: 'Konto anlegen' }).click();
-
-	// The hosted variant lists the owner in REGISTRATION_EMAILS, and a listed address registers
-	// through the link mailed to it.
 	if (process.env.DEPLOY_TARGET === 'cloudflare') {
+		// The hosted variant lists the owner in REGISTRATION_EMAILS. A listed address asks for a
+		// link here and chooses the password on the page the mail leads to.
+		await page.getByRole('button', { name: 'Link anfordern' }).click();
 		await expect(page.getByRole('status')).toContainText('E-Mail mit einem Link');
 		const link = await linkInMailTo(page.request, owner.email, '/registrieren/');
 		await page.goto(link);
-		await expect(page.getByText(`mit ${owner.email} ein Konto`)).toBeVisible();
+		await expect(page.getByText(`Konto mit ${owner.email}`)).toBeVisible();
+		await page.locator('input[name="password"]').fill(owner.password);
+		await page.locator('input[name="passwordConfirm"]').fill(owner.password);
 		await page.getByRole('button', { name: 'Konto anlegen' }).click();
 		await expect(page).toHaveURL(/\/$/);
 		// The link is used up (asked signed out: a signed-in visit is sent to the start page).
 		expect((await request.get(link)).status()).toBe(404);
+	} else {
+		await page.getByLabel('Passwort').fill(owner.password);
+		await page.getByRole('button', { name: 'Konto anlegen' }).click();
 	}
 
 	await expect(page).toHaveURL(/\/$/);
