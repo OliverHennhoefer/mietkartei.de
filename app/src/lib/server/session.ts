@@ -39,7 +39,7 @@ export function requireUser(locals: App.Locals): SessionUser {
 	return locals.user;
 }
 
-/** Owners only: invitations and bank accounts. */
+/** Owners only: invitations, bank accounts, the subscription, deleting the account. */
 export function requireOwner(locals: App.Locals): SessionUser {
 	const user = requireUser(locals);
 	if (user.role !== 'owner') error(403, 'Das dürfen nur Vermieter, keine Mitverwalter.');
