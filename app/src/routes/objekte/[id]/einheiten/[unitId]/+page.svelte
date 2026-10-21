@@ -92,8 +92,8 @@
 	<Alert tone="danger"><p>{form.deleteError}</p></Alert>
 {/if}
 <p class="muted">
-	Löscht die Einheit mit ihren Zählern. Eine Einheit, auf der ein Mietvertrag liegt, kann nicht
-	gelöscht werden.
+	Löscht die Einheit mit ihren Zählern. Eine Einheit, auf der ein Mietvertrag liegt, auch ein
+	beendeter, kann nicht gelöscht werden.
 </p>
 <ConfirmButton
 	action="?/delete"

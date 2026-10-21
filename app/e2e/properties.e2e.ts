@@ -158,28 +158,36 @@ test('opens a unit, shows its lease and edits the unit', async ({ page }) => {
 });
 
 test('refuses to delete a property or unit that has a lease', async ({ page }) => {
-	const { propertyId, unitId } = await seedLease(page.request);
+	const { propertyId, unitId, leaseId } = await seedLease(page.request);
 
 	await page.goto(`/objekte/${propertyId}/bearbeiten`);
+	// The URL check below needs the enhanced form; a click before hydration posts natively.
+	await page.waitForLoadState('networkidle');
 	acceptNextDialog(page);
 	await page.getByRole('button', { name: 'Objekt löschen' }).click();
 	await expect(page.getByRole('alert')).toContainText(
-		'Das Objekt kann nicht gelöscht werden, solange Mietverträge auf seinen Einheiten liegen.'
+		'Das Objekt kann nicht gelöscht werden, solange Mietverträge auf seinen Einheiten liegen, auch beendete'
 	);
+	// The refusal links the lease that blocks it.
+	await expect(
+		page.getByRole('list', { name: 'Mietverträge auf dem Objekt' }).getByRole('link')
+	).toHaveAttribute('href', new RegExp(`^/vertraege/${leaseId}$`));
 	await expect(page).toHaveURL(new RegExp(`/objekte/${propertyId}/bearbeiten$`));
 
 	await page.goto(`/objekte/${propertyId}/einheiten/${unitId}`);
 	acceptNextDialog(page);
 	await page.getByRole('button', { name: 'Einheit löschen' }).click();
 	await expect(page.getByRole('alert')).toContainText(
-		'Die Einheit kann nicht gelöscht werden, solange ein Mietvertrag auf ihr liegt.'
+		'Die Einheit kann nicht gelöscht werden, solange ein Mietvertrag auf ihr liegt, auch ein beendeter'
 	);
 	// Nothing was deleted.
 	await page.goto(`/objekte/${propertyId}`);
 	await expect(page.getByRole('list', { name: 'Einheiten' }).getByRole('listitem')).toHaveCount(1);
 });
 
-test('deletes a unit without a lease and then the empty property', async ({ page }) => {
+test('deletes a unit without a lease and refuses the property while an ended lease remains', async ({
+	page
+}) => {
 	const { propertyId } = await seedLease(page.request, {
 		lease: { startDate: '2024-01-01', endDate: '2024-12-31' }
 	});
@@ -199,11 +207,20 @@ test('deletes a unit without a lease and then the empty property', async ({ page
 	await expect(units.getByRole('listitem')).toHaveCount(1);
 	await expect(units).not.toContainText(unitName);
 
-	// The remaining unit has an ended lease, which still blocks deleting the property.
+	// The remaining unit has an ended lease, which still blocks deleting the property: ending a
+	// lease is no way out, so the refusal says so and names the lease.
 	await page.goto(`/objekte/${propertyId}/bearbeiten`);
 	acceptNextDialog(page);
 	await page.getByRole('button', { name: 'Objekt löschen' }).click();
-	await expect(page.getByRole('alert')).toBeVisible();
+	const refusal = page.getByRole('alert');
+	await expect(refusal).toContainText(
+		'Das Objekt kann nicht gelöscht werden, solange Mietverträge auf seinen Einheiten liegen, auch beendete: Sie bleiben mit Mietkonto und Kaution erhalten.'
+	);
+	await expect(refusal).toContainText(/Es liegt 1\sMietvertrag darauf/);
+	await expect(refusal).not.toContainText('oder beende');
+	await expect(
+		refusal.getByRole('list', { name: 'Mietverträge auf dem Objekt' }).getByRole('listitem')
+	).toHaveText([/seit 01\.01\.2024 bis 31\.12\.2024$/]);
 });
 
 test('deletes a property without leases', async ({ page }) => {
