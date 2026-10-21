@@ -71,6 +71,13 @@
       "when": 1792587777222,
       "tag": "0009_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792589255679,
+      "tag": "0010_operating_costs_setup",
+      "breakpoints": true
     }
   ]
 }

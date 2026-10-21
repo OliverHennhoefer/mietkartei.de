@@ -13,6 +13,16 @@
 			text: 'Deine Konten, auf die Mieten eingehen.'
 		},
 		{
+			href: '/betriebskosten/kostenarten',
+			label: 'Kostenarten',
+			text: 'Welche Kosten du umlegst, nach § 2 Betriebskostenverordnung.'
+		},
+		{
+			href: '/betriebskosten/schluessel',
+			label: 'Umlageschlüssel',
+			text: 'Nach Fläche, Personen, Einheiten oder Verbrauch.'
+		},
+		{
 			href: '/einstellungen/vpi',
 			label: 'Verbraucherpreisindex',
 			text: 'Indexwerte für Indexmietverträge.'
