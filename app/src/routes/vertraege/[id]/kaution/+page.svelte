@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
+	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
@@ -89,16 +90,25 @@
 						<td>{formatDate(movement.date)}</td>
 						<td>{depositTransactionKindLabels[movement.kind]}</td>
 						<td class="num"><Money cents={movement.amount} signed /></td>
-						<td>{movement.note ?? ''}</td>
+						<td>
+							{movement.note ?? ''}
+							{#if movement.bankTransactionId}<Badge tone="info">aus Umsatz</Badge>{/if}
+						</td>
 						<td class="actions">
-							<ConfirmButton
-								action="?/delete"
-								label="Löschen"
-								message="Diese Bewegung wirklich löschen?"
-								tone="secondary"
-							>
-								<input type="hidden" name="movementId" value={movement.id} />
-							</ConfirmButton>
+							{#if movement.bankTransactionId}
+								<span class="muted small">
+									Zuordnung beim <a href="/bank?umsatz={movement.bankTransactionId}">Umsatz</a> aufheben
+								</span>
+							{:else}
+								<ConfirmButton
+									action="?/delete"
+									label="Löschen"
+									message="Diese Bewegung wirklich löschen?"
+									tone="secondary"
+								>
+									<input type="hidden" name="movementId" value={movement.id} />
+								</ConfirmButton>
+							{/if}
 						</td>
 					</tr>
 				{/each}

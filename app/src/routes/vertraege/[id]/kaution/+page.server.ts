@@ -42,6 +42,12 @@ export const actions: Actions = {
 		if (typeof movementId !== 'string') return fail(400, { message: 'Ungültige Auswahl.' });
 		const outcome = await deleteDepositMovement(locals.db, context, params.id, movementId);
 		if (outcome === 'missing') return fail(404, { message: 'Diese Bewegung gibt es nicht.' });
+		if (outcome === 'from-bank') {
+			return fail(400, {
+				message:
+					'Diese Bewegung stammt aus einem Umsatz. Hebe die Zuordnung unter Bank auf, dann verschwindet sie hier.'
+			});
+		}
 		return { deleted: true };
 	}
 };

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
+	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
@@ -74,7 +75,12 @@
 				{#each data.rows as row (row.id)}
 					<tr>
 						<td>{formatDate(row.date)}</td>
-						<td>{row.label}</td>
+						<td>
+							{row.label}
+							{#if row.fromBank}
+								<Badge tone="info">Umsatz</Badge>
+							{/if}
+						</td>
 						<td class="num"
 							>{#if row.kind === 'charge'}<Money cents={row.amount} />{/if}</td
 						>
@@ -83,7 +89,15 @@
 						>
 						<td class="num"><Money cents={row.balance} /></td>
 						<td class="actions">
-							{#if row.deletable && row.kind === 'payment'}
+							{#if row.fromBank}
+								<span class="muted small">
+									Zuordnung beim <a
+										href={row.bankTransactionId
+											? `/bank?umsatz=${row.bankTransactionId}`
+											: '/bank?status=matched'}>Umsatz</a
+									> aufheben
+								</span>
+							{:else if row.deletable && row.kind === 'payment'}
 								<ConfirmButton
 									action="?/deletePayment"
 									label="Löschen"
