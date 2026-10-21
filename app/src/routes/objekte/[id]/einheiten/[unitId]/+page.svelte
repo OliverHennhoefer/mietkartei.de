@@ -13,7 +13,7 @@
 	const base = $derived(`/objekte/${data.property.id}/einheiten/${data.unit.id}`);
 </script>
 
-<!-- The heading and address come from +layout.svelte. -->
+<!-- The heading, address and tab bar come from +layout.svelte; this page lives under "Einheiten". -->
 <div class="toolbar">
 	<a class="button secondary" href="{base}/bearbeiten">Bearbeiten</a>
 	<a href="/objekte/{data.property.id}">Alle Einheiten</a>

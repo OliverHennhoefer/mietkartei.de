@@ -6,7 +6,7 @@
 	let { data, form }: PageProps = $props();
 </script>
 
-<!-- The heading and address come from +layout.svelte. -->
+<!-- The heading, address and tab bar come from +layout.svelte. -->
 <h2>Einheit {data.unit.name} bearbeiten</h2>
 <form method="POST" action="?/update" class="card" use:enhance>
 	<PortfolioUnitFields values={form?.values} errors={form?.errors} unit={data.unit} />

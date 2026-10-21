@@ -12,7 +12,7 @@
 	const values = $derived(form && 'values' in form ? form.values : undefined);
 </script>
 
-<!-- The heading and address come from +layout.svelte. -->
+<!-- The heading, address and tab bar come from +layout.svelte; this page is the "Einheiten" tab. -->
 <div class="toolbar">
 	<a class="button secondary" href="/objekte/{data.property.id}/bearbeiten">Bearbeiten</a>
 </div>
