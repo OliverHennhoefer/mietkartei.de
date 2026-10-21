@@ -3,6 +3,7 @@ import type {
 	BankTransactionStatus,
 	BuildingUse,
 	DepositTransactionKind,
+	Fuel,
 	HeatingCostModel,
 	LeaseKind,
 	MeterKind,
@@ -49,6 +50,14 @@ export const buildingUseLabels: Record<BuildingUse, string> = {
 	non_residential: 'Nichtwohngebäude'
 };
 
+export const fuelLabels: Record<Fuel, string> = {
+	gas: 'Erdgas',
+	oil: 'Heizöl',
+	lpg: 'Flüssiggas',
+	district_heating: 'Fernwärme',
+	other: 'Sonstiges'
+};
+
 export const rentChangeReasonLabels: Record<RentChangeReason, string> = {
 	initial: 'Vertragsbeginn',
 	manual: 'Änderung',
@@ -67,6 +76,7 @@ export const depositTransactionKindLabels: Record<DepositTransactionKind, string
 export const rentChargeKindLabels: Record<RentChargeKind, string> = {
 	rent: 'Miete',
 	statement_balance: 'Betriebskostenabrechnung',
+	co2_reimbursement: 'CO₂-Erstattung',
 	adjustment: 'Korrektur'
 };
 
