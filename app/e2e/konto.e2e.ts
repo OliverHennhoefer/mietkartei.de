@@ -11,6 +11,11 @@ import { seedLease } from './seed';
 // The document uploaded before the export; the deletion below checks its file is gone too.
 let exported: { accountId: string; documentId: string } | undefined;
 
+/** Where the node server keeps the exported document's file (DATA_DIR in playwright.config.ts). */
+function storedFile(): string {
+	return join('.e2e', 'documents', exported!.accountId, exported!.documentId);
+}
+
 test('downloads the export as a ZIP with export.json and the uploaded documents', async ({
 	page
 }) => {
@@ -90,6 +95,8 @@ test('downloads the export as a ZIP with export.json and the uploaded documents'
 		})
 	);
 	exported = { accountId: data.accountId, documentId: documentId! };
+	// On node the file is visible in DATA_DIR, so the deletion can prove it removes it.
+	if (process.env.DEPLOY_TARGET !== 'cloudflare') expect(existsSync(storedFile())).toBe(true);
 
 	await page.goto('/einstellungen/protokoll?entity=account');
 	await expect(page.getByRole('table', { name: 'Protokoll' })).toContainText(
@@ -127,10 +134,7 @@ test('deletes the account after the password is entered again', async ({ page, b
 	await page.goto('/objekte');
 	await expect(page).toHaveURL(/\/(anmelden|registrieren)$/);
 
-	// The uploaded file went with the account (on node it is visible in DATA_DIR).
+	// The uploaded file, there after the upload, went with the account.
 	expect(exported).toBeDefined();
-	if (process.env.DEPLOY_TARGET !== 'cloudflare') {
-		const file = join('.e2e', 'documents', exported!.accountId, exported!.documentId);
-		expect(existsSync(file)).toBe(false);
-	}
+	if (process.env.DEPLOY_TARGET !== 'cloudflare') expect(existsSync(storedFile())).toBe(false);
 });
