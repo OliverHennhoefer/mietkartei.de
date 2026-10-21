@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { addMonths, formatDate, today } from '../src/lib/dates';
-import { seedLease } from './seed';
+import { seedLease, seedRows } from './seed';
 
 // The deadlines come from a lease that ends next month (seeded); the tasks are driven through the
 // page. Names carry a random suffix, so the rows of this test are told apart from other tests'.
@@ -9,6 +9,7 @@ const suffix = crypto.randomUUID().slice(0, 6);
 const tenantName = `Fristmann-${suffix}`;
 const propertyName = `Fristenhaus ${suffix}`;
 const taskTitle = `Rauchmelder prüfen ${suffix}`;
+const taskPropertyName = `Aufgabenhaus ${suffix}`;
 
 function openTask(page: Page, title: string) {
 	return page.getByRole('list', { name: 'Offene Aufgaben' }).getByRole('listitem').filter({
@@ -59,11 +60,15 @@ test('shows the deadlines of a lease that ends next month', async ({ page }) => 
 });
 
 test('creates, completes, reopens, edits and deletes a task', async ({ page }) => {
+	// Its own property, so the test does not depend on the one above.
+	await seedRows(page.request, 'properties', [
+		{ name: taskPropertyName, street: 'Aufgabenweg 1', postalCode: '10115', city: 'Berlin' }
+	]);
 	await page.goto('/aufgaben');
 
 	await page.getByLabel('Aufgabe', { exact: true }).fill(taskTitle);
 	await page.getByLabel('Fällig am (optional)').fill('2026-12-15');
-	await page.getByLabel('Gehört zu (optional)').selectOption({ label: propertyName });
+	await page.getByLabel('Gehört zu (optional)').selectOption({ label: taskPropertyName });
 	await page.getByLabel('Notiz (optional)').fill('Alle Wohnungen.');
 	await page.getByRole('button', { name: 'Aufgabe anlegen' }).click();
 	await expect(page.getByRole('status')).toContainText(`„${taskTitle}“ wurde angelegt.`);
@@ -72,7 +77,7 @@ test('creates, completes, reopens, edits and deletes a task', async ({ page }) =
 	await expect(item).toHaveCount(1);
 	await expect(item).toContainText('bis 15.12.2026');
 	await expect(item).toContainText('Alle Wohnungen.');
-	await expect(item.getByRole('link', { name: propertyName })).toHaveAttribute(
+	await expect(item.getByRole('link', { name: taskPropertyName })).toHaveAttribute(
 		'href',
 		/^\/objekte\/[\w-]+$/
 	);
@@ -86,7 +91,8 @@ test('creates, completes, reopens, edits and deletes a task', async ({ page }) =
 		hasText: taskTitle
 	});
 	await expect(done).toHaveCount(1);
-	await expect(done).toContainText('erledigt am');
+	// The day it was ticked off, in Berlin.
+	await expect(done).toContainText(`erledigt am ${formatDate(today())}`);
 
 	await done.getByRole('button', { name: 'wieder öffnen' }).click();
 	await expect(openTask(page, taskTitle)).toHaveCount(1);
@@ -109,6 +115,8 @@ test('creates, completes, reopens, edits and deletes a task', async ({ page }) =
 
 test('shows validation errors next to the fields', async ({ page }) => {
 	await page.goto('/aufgaben');
+	// Hydration sets the note's textarea to its (empty) value; typing before it would be lost.
+	await page.waitForLoadState('networkidle');
 	await page.getByLabel('Notiz (optional)').fill('Ohne Titel');
 	await page.getByLabel('Aufgabe', { exact: true }).evaluate((input: HTMLInputElement) => {
 		input.removeAttribute('required');

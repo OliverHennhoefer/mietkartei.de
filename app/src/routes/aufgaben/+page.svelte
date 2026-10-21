@@ -4,7 +4,7 @@
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import TaskFields from '#lib/components/TaskFields.svelte';
-	import { formatDate } from '#lib/dates.ts';
+	import { dayOf, formatDate } from '#lib/dates.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -115,9 +115,7 @@
 					<div class="body">
 						<s>{task.title}</s>
 						<span class="muted">
-							{#if task.doneAt}· erledigt am {formatDate(
-									task.doneAt.toISOString().slice(0, 10)
-								)}{/if}
+							{#if task.doneAt}· erledigt am {formatDate(dayOf(task.doneAt))}{/if}
 							{#if task.property}· {task.property.name}{/if}
 							{#if task.lease}· {task.lease.label}{/if}
 						</span>

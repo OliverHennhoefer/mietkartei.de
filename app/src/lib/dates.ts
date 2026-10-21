@@ -40,10 +40,15 @@ export function fromUtc(date: Date): IsoDate {
 
 const berlinDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' });
 
+/** The calendar day of a timestamp in Germany, whatever time zone the server runs in. */
+export function dayOf(date: Date): IsoDate {
+	// sv-SE formats as YYYY-MM-DD.
+	return berlinDate.format(date);
+}
+
 /** The current date in Germany, whatever time zone the server runs in. */
 export function today(): IsoDate {
-	// sv-SE formats as YYYY-MM-DD.
-	return berlinDate.format(new Date());
+	return dayOf(new Date());
 }
 
 /** `31.12.2026` (also `31.12.26`, `1.2.2026`) → `2026-12-31`; undefined when not a date. */

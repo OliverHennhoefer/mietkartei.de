@@ -57,4 +57,14 @@ describe('proRata', () => {
 		expect(proRata(1, 1, 2)).toBe(1);
 		expect(proRata(100, 0, 0)).toBe(0);
 	});
+
+	it('rounds a negative half away from zero, so a credit cancels its positive twin', () => {
+		// −1,01 € × 1/2 = −50,5 ct → −51 ct, as +1,01 € gives +51 ct.
+		expect(proRata(-101, 1, 2)).toBe(-51);
+		expect(proRata(101, 1, 2)).toBe(51);
+		// −10,00 € × 15/31 = −483,87… ct → −484 ct.
+		expect(proRata(-10000, 15, 31)).toBe(-4839);
+		// −0,4 ct rounds to 0, not to −0.
+		expect(proRata(-1, 2, 5)).toBe(0);
+	});
 });
