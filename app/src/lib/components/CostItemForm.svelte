@@ -137,7 +137,12 @@
 	</label>
 	<label>
 		Lieferant (optional)
-		<input name="supplier" defaultValue={value('supplier', item?.supplier ?? '')} />
+		<input
+			name="supplier"
+			defaultValue={value('supplier', item?.supplier ?? '')}
+			aria-invalid={errors?.supplier ? 'true' : undefined}
+		/>
+		{#if errors?.supplier}<span class="error">{errors.supplier}</span>{/if}
 	</label>
 	<label>
 		Rechnungsdatum

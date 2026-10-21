@@ -38,9 +38,10 @@
 		amountsForm && 'amountErrors' in amountsForm
 			? (amountsForm.amountErrors as Record<string, string | undefined>)[`amount-${unitId}`]
 			: undefined;
+	// Only the units the form shows: rows of units that left the circle go with the next save.
 	const summary = $derived(
 		unitAmountsSummary(
-			data.unitAmounts.map((entry) => entry.amount),
+			data.units.flatMap((unit) => amountOf(unit.id) ?? []),
 			data.item.amount
 		)
 	);

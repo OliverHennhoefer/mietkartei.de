@@ -122,6 +122,8 @@ describe('meters', () => {
 
 	it('closes and deletes a meter with its readings', async () => {
 		const id = await create(contextA, propertyId);
+		expect(await removeMeter(db, contextA, id, '2023-12-31')).toBe('before-installation');
+		expect((await getMeter(db, 'a', id))!.removedAt).toBeNull();
 		expect(await removeMeter(db, contextA, id, '2025-12-31')).toBe('updated');
 		expect((await getMeter(db, 'a', id))!.removedAt).toBe('2025-12-31');
 
@@ -159,7 +161,9 @@ describe('meters', () => {
 			['2025-12-31', 2200, true],
 			['2025-01-01', 1000.5, false]
 		]);
-		expect(await deleteReading(db, contextA, first)).toBe('deleted');
+		const other = await create(contextA, propertyId, { serialNumber: 'WMZ-002' });
+		expect(await deleteReading(db, contextA, other, first)).toBe('missing');
+		expect(await deleteReading(db, contextA, id, first)).toBe('deleted');
 		expect(await listReadings(db, 'a', id)).toHaveLength(1);
 		const audit = await db.select().from(auditLog).where(eq(auditLog.entity, 'meter_reading'));
 		expect(audit.map((entry) => entry.summary)).toEqual([
@@ -195,7 +199,7 @@ describe('meters', () => {
 				note: null
 			})
 		).toEqual({ ok: false, reason: 'missing' });
-		expect(await deleteReading(db, contextA, foreignReading.id)).toBe('missing');
+		expect(await deleteReading(db, contextA, foreign, foreignReading.id)).toBe('missing');
 		expect(
 			await createMeter(db, contextA, foreignPlace.propertyId, input({ unitId: null }))
 		).toEqual({ ok: false, reason: 'unknown-property' });

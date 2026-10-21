@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { PropertyInput, UnitInput } from '../validation';
 import type { Database } from './db';
-import { auditLog, units } from './db/schema';
+import { auditLog, meters, units } from './db/schema';
 import {
 	addProperty,
 	addUnit,
@@ -121,13 +121,22 @@ describe('properties', () => {
 		expect(await auditSummaries('b')).toEqual([]);
 	});
 
-	it('deletes a property with its units', async () => {
+	it('deletes a property with its units and meters', async () => {
 		const { id } = await addProperty(db, contextA, propertyInput());
-		await addUnit(db, contextA, id, unitInput());
+		const unit = await addUnit(db, contextA, id, unitInput());
+		await db.insert(meters).values({
+			accountId: 'a',
+			propertyId: id,
+			unitId: unit!.id,
+			kind: 'cold_water',
+			serialNumber: '123',
+			unit: 'm³'
+		});
 
 		expect(await deleteProperty(db, contextA, id)).toBe('deleted');
 		expect(await getProperty(db, 'a', id)).toBeUndefined();
 		expect(await db.select().from(units).where(eq(units.propertyId, id))).toEqual([]);
+		expect(await db.select().from(meters).where(eq(meters.propertyId, id))).toEqual([]);
 		expect(await auditSummaries('a')).toContain('Objekt Haus gelöscht');
 	});
 

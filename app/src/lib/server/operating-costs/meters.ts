@@ -155,16 +155,20 @@ export async function createMeter(
 	return { ok: true, id };
 }
 
-/** Closes the meter on the given date ("Zähler ausbauen"); a new meter takes over from there. */
+/**
+ * Closes the meter on the given date ("Zähler ausbauen"); a new meter takes over from there. A
+ * date before the installation is refused: the meter would have no lifetime left.
+ */
 export async function removeMeter(
 	db: Database,
 	context: AuditContext,
 	meterId: string,
 	removedAt: string
-): Promise<'updated' | 'missing'> {
+): Promise<'updated' | 'missing' | 'before-installation'> {
 	const { accountId } = context;
 	const existing = await getMeter(db, accountId, meterId);
 	if (!existing) return 'missing';
+	if (existing.installedAt && removedAt < existing.installedAt) return 'before-installation';
 	await runBatch(db, [
 		db
 			.update(meters)
@@ -252,22 +256,27 @@ export async function createReading(
 	return { ok: true, id };
 }
 
+/** Deletes a reading of the given meter; a reading of another meter counts as missing. */
 export async function deleteReading(
 	db: Database,
 	context: AuditContext,
+	meterId: string,
 	readingId: string
 ): Promise<'deleted' | 'missing'> {
 	const { accountId } = context;
+	const ofMeter = and(
+		eq(meterReadings.accountId, accountId),
+		eq(meterReadings.meterId, meterId),
+		eq(meterReadings.id, readingId)
+	);
 	const [existing] = await db
 		.select({ reading: meterReadings, meter: meters })
 		.from(meterReadings)
 		.innerJoin(meters, eq(meters.id, meterReadings.meterId))
-		.where(and(eq(meterReadings.accountId, accountId), eq(meterReadings.id, readingId)));
+		.where(ofMeter);
 	if (!existing) return 'missing';
 	await runBatch(db, [
-		db
-			.delete(meterReadings)
-			.where(and(eq(meterReadings.accountId, accountId), eq(meterReadings.id, readingId))),
+		db.delete(meterReadings).where(ofMeter),
 		auditEntry(
 			db,
 			context,

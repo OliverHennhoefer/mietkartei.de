@@ -82,7 +82,7 @@
 	</p>
 {/if}
 
-{#each groups as group (group.label)}
+{#each groups as group (group.unitId ?? '')}
 	<h3>{group.label}</h3>
 	<div class="table-wrap">
 		<table class="table" aria-label="Zähler {group.label}">
@@ -210,7 +210,12 @@
 			</label>
 			<label>
 				Notiz (optional)
-				<input name="note" defaultValue={readingForm?.values.note ?? ''} />
+				<input
+					name="note"
+					defaultValue={readingForm?.values.note ?? ''}
+					aria-invalid={readingForm?.errors.note ? 'true' : undefined}
+				/>
+				{#if readingForm?.errors.note}<span class="error">{readingForm.errors.note}</span>{/if}
 			</label>
 			<label class="inline">
 				<input type="checkbox" name="estimated" checked={readingForm?.values.estimated === 'on'} />
@@ -290,7 +295,13 @@
 	</label>
 	<label>
 		Zählernummer (optional)
-		<input name="serialNumber" defaultValue={meterValue('serialNumber')} />
+		<input
+			name="serialNumber"
+			defaultValue={meterValue('serialNumber')}
+			aria-invalid={meterForm?.errors.serialNumber ? 'true' : undefined}
+		/>
+		{#if meterForm?.errors.serialNumber}<span class="error">{meterForm.errors.serialNumber}</span
+			>{/if}
 	</label>
 	<label>
 		Einheit der Messung
@@ -306,7 +317,13 @@
 	</label>
 	<label>
 		Standort (optional)
-		<input name="location" defaultValue={meterValue('location')} placeholder="z. B. Keller, Flur" />
+		<input
+			name="location"
+			defaultValue={meterValue('location')}
+			placeholder="z. B. Keller, Flur"
+			aria-invalid={meterForm?.errors.location ? 'true' : undefined}
+		/>
+		{#if meterForm?.errors.location}<span class="error">{meterForm.errors.location}</span>{/if}
 	</label>
 	<label>
 		Eingebaut am (optional)

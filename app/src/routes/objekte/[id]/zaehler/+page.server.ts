@@ -119,7 +119,21 @@ export const actions: Actions = {
 				values: result.values
 			});
 		}
-		await removeMeter(locals.db, auditContext(locals), meter.id, result.data.removedAt);
+		const removed = await removeMeter(
+			locals.db,
+			auditContext(locals),
+			meter.id,
+			result.data.removedAt
+		);
+		if (removed === 'missing') error(404, missingMeter);
+		if (removed === 'before-installation') {
+			return fail(400, {
+				form: 'removal' as const,
+				meterId: meter.id,
+				errors: { removedAt: 'Der Ausbau liegt vor dem Einbau.' },
+				values: formValues(form)
+			});
+		}
 		redirect(303, back(params.id, form));
 	},
 	deleteMeter: async ({ request, locals, params }) => {
@@ -134,7 +148,7 @@ export const actions: Actions = {
 		const readingId = idOf(form, 'readingId');
 		if (
 			!readingId ||
-			(await deleteReading(locals.db, auditContext(locals), readingId)) !== 'deleted'
+			(await deleteReading(locals.db, auditContext(locals), meter.id, readingId)) !== 'deleted'
 		) {
 			error(404, 'Diesen Zählerstand gibt es nicht.');
 		}
