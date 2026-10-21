@@ -1,4 +1,4 @@
-# Deploying the websites to Cloudflare
+# Deploying to Cloudflare
 
 The homepage and the documentation live in the same repository and are deployed by a shared workflow in the GitHub environment **production**. Both sites are served by two static Cloudflare Workers. Zensical still builds the documentation; GitHub Pages is no longer needed.
 
@@ -6,8 +6,9 @@ The homepage and the documentation live in the same repository and are deployed 
 | --- | --- | --- | --- | --- |
 | `https://mietkartei.de/` | `mietkartei-de` | `production` | `website/wrangler.toml` | `dist/homepage/` |
 | `https://docs.mietkartei.de/` | `mietkartei-de-docs` | `production` | `docs/wrangler.toml` | `site/` |
+| `https://app.mietkartei.de/` | `mietkartei-app` | `production` | `app/wrangler.jsonc` | `app/.svelte-kit/cloudflare/` |
 
-Both sites are public. A later application at `app.mietkartei.de` can use the same workflow and the same GitHub environment **production**. Sign-in, authorization checks and runtime credentials are set up in the application and its runtime.
+The two sites are static. The app is the SvelteKit application with a D1 database and is deployed by its own workflow, see [Deploying the app](#deploying-the-app).
 
 ## One-time setup
 
@@ -66,3 +67,18 @@ For a full redeploy, choose **Actions → Websites → Run workflow → Branch: 
 Missing secrets or insufficient token permissions make the respective deployment job fail. A failure on one site does not prevent deploying the other, as long as the shared build check passed. Re-run the failed job after fixing the cause, or start the workflow on `main` again.
 
 If the domain does not point to Cloudflare yet, first check that the old `docs` CNAME was removed and the custom domain was registered. To roll back to GitHub Pages, remove the custom domain from the documentation Worker and restore the previous CNAME with **DNS only** as well as the GitHub Pages domain. The previous Pages deployment stays available until the switch succeeds; future Pages deployments would also require restoring the earlier workflow.
+
+## Deploying the app
+
+The job **Deploy app** in [app.yml](workflows/app.yml) runs after every push to `main` that changes `app/**`, once lint, type check, unit tests and both end-to-end runs have passed. It builds the cloudflare target, applies new D1 migrations with `wrangler d1 migrations apply DB --remote` and then runs `wrangler deploy`. Migrations only add to the schema, so the previous version keeps working between the two steps. Pull requests and releases deploy nothing. For a redeploy without a change, choose **Actions → App → Run workflow → Branch: main**.
+
+The hosted app sets `OPEN_REGISTRATION=true` in `app/wrangler.jsonc`, so everyone who signs up gets an own, empty account.
+
+### One-time setup
+
+Complete these steps before merging the pull request that adds the job.
+
+1. **Create the database.** In Cloudflare, open **Storage & Databases → D1 → Create database**, name it `mietkartei` and choose the location **Jurisdiction: European Union**. Alternatively run `npx wrangler d1 create mietkartei --jurisdiction eu` in `app/`. Enter the database ID shown afterwards as `database_id` in `app/wrangler.jsonc`. The ID is not a secret.
+2. **Extend the token.** Edit the existing API token from step 1 above and add **Account → D1 → Edit**. The other permissions already cover the Worker and its custom domain.
+3. **Check the Workers plan.** Hashing a password takes roughly 30 to 60 ms of CPU time, more than the 10 ms per request of the Workers Free plan, so sign-in and registration need **Workers Paid** (USD 5 per month).
+4. **Merge and check.** After the merge, check under **Actions → App** that **Deploy app** succeeds. Wrangler creates the Worker `mietkartei-app` and registers `app.mietkartei.de` as its custom domain. Then open `https://app.mietkartei.de/` and register.
