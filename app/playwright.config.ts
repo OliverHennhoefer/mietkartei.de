@@ -39,9 +39,15 @@ export default defineConfig({
 		{
 			name: 'signed in',
 			testMatch: /\.e2e\.ts$/,
-			testIgnore: ['setup.e2e.ts', 'auth.e2e.ts'],
+			testIgnore: ['setup.e2e.ts', 'auth.e2e.ts', 'rate-limit.e2e.ts'],
 			dependencies: ['setup'],
 			use: { storageState: '.e2e/owner.json' }
+		},
+		// Exhausts the sign-in limit of the test client, so it runs last.
+		{
+			name: 'rate limit',
+			testMatch: 'rate-limit.e2e.ts',
+			dependencies: ['signed out', 'signed in']
 		}
 	],
 	webServer: {
