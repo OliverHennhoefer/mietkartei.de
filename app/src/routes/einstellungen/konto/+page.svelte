@@ -31,8 +31,12 @@
 			Dokumenten endgültig, auch die Zugänge aller Mitverwalter. Lade vorher den
 			<a href="/einstellungen/export">Export</a> herunter.
 		</p>
+		{#if data.subscriptionRuns}
+			<p>Dein Abo wird dabei sofort gekündigt; danach bucht Stripe nichts mehr ab.</p>
+		{/if}
 	</Alert>
 	<form method="POST" action="?/delete" class="card" use:enhance>
+		{#if form?.stripeError}<p class="error" role="alert">{form.stripeError}</p>{/if}
 		<label>
 			Passwort
 			<input

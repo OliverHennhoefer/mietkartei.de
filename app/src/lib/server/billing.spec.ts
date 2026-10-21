@@ -1,9 +1,11 @@
 import { eq } from 'drizzle-orm';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+	actionName,
 	applySubscriptionUpdate,
 	billingNotice,
 	billingState,
+	cancelSubscriptionOf,
 	enforceBilling,
 	mapSubscriptionStatus,
 	noticeFor,
@@ -132,6 +134,23 @@ describe('refusesWrite', () => {
 		expect(refusesWrite('expired', 'POST', '/webhooks/stripe', true)).toBe(false);
 	});
 
+	it('lets read-only accounts delete the account and secure their sign-in', () => {
+		expect(refusesWrite('expired', 'POST', '/einstellungen/konto', true, 'delete')).toBe(false);
+		expect(refusesWrite('canceled', 'POST', '/einstellungen/profil', true, 'password')).toBe(false);
+		expect(refusesWrite('canceled', 'POST', '/einstellungen/profil/', true, 'profile')).toBe(false);
+		// Everything else on those pages changes data and stays refused.
+		expect(refusesWrite('expired', 'POST', '/einstellungen/konto', true, 'demo')).toBe(true);
+		expect(refusesWrite('expired', 'POST', '/einstellungen/konto', true)).toBe(true);
+		expect(refusesWrite('canceled', 'POST', '/einstellungen/profil', true, 'landlord')).toBe(true);
+		expect(refusesWrite('expired', 'POST', '/objekte', true, 'delete')).toBe(true);
+	});
+
+	it('reads the action name the way SvelteKit does', () => {
+		expect(actionName(new URL('http://x/einstellungen/konto?/delete').searchParams)).toBe('delete');
+		expect(actionName(new URL('http://x/a?x=1&/password').searchParams)).toBe('password');
+		expect(actionName(new URL('http://x/a').searchParams)).toBe('default');
+	});
+
 	it('lets reads, trials, active and past-due accounts and unrequired billing through', () => {
 		expect(refusesWrite('expired', 'GET', '/objekte', true)).toBe(false);
 		expect(refusesWrite('trialing', 'POST', '/objekte', true)).toBe(false);
@@ -238,6 +257,71 @@ describe('with a database', () => {
 		expect((await row('a')).subscriptionStatus).toBe('none');
 	});
 
+	/** Answers every Stripe call with the next of `answers` and records the method and URL. */
+	function stripeAnswers(...answers: { status: number; body: unknown }[]) {
+		const calls: string[] = [];
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (url: string, init: RequestInit) => {
+				calls.push(`${init.method} ${url}`);
+				const next = answers.shift() ?? { status: 500, body: {} };
+				return new Response(JSON.stringify(next.body), { status: next.status });
+			})
+		);
+		return calls;
+	}
+
+	describe('cancelSubscriptionOf', () => {
+		afterEach(() => {
+			vi.unstubAllGlobals();
+		});
+
+		async function subscribe(status: 'active' | 'past_due' | 'trialing' | 'canceled') {
+			await db
+				.update(accounts)
+				.set({ stripeSubscriptionId: 'sub_a', subscriptionStatus: status })
+				.where(eq(accounts.id, 'a'));
+		}
+
+		it('cancels a running subscription at Stripe', async () => {
+			await subscribe('active');
+			const calls = stripeAnswers({ status: 200, body: { id: 'sub_a', status: 'canceled' } });
+			expect(await cancelSubscriptionOf(db, 'a')).toBe(true);
+			expect(calls).toEqual(['DELETE http://stripe.test/v1/subscriptions/sub_a']);
+		});
+
+		it('calls nobody without a running subscription', async () => {
+			const calls = stripeAnswers();
+			expect(await cancelSubscriptionOf(db, 'a')).toBe(true);
+			await subscribe('canceled');
+			expect(await cancelSubscriptionOf(db, 'a')).toBe(true);
+			// Account b never had one.
+			expect(await cancelSubscriptionOf(db, 'b')).toBe(true);
+			expect(calls).toEqual([]);
+		});
+
+		it('refuses while Stripe cannot cancel, unless the subscription is gone', async () => {
+			await subscribe('past_due');
+			// Stripe fails, and the subscription still runs: the account must stay.
+			stripeAnswers({ status: 500, body: {} }, { status: 200, body: { status: 'past_due' } });
+			expect(await cancelSubscriptionOf(db, 'a')).toBe(false);
+			// Canceled in the meantime: nothing bills the account any more.
+			stripeAnswers({ status: 400, body: {} }, { status: 200, body: { status: 'canceled' } });
+			expect(await cancelSubscriptionOf(db, 'a')).toBe(true);
+			// Unknown to Stripe.
+			stripeAnswers({ status: 404, body: {} });
+			expect(await cancelSubscriptionOf(db, 'a')).toBe(true);
+			// Stripe not reachable at all.
+			vi.stubGlobal(
+				'fetch',
+				vi.fn(async () => {
+					throw new TypeError('fetch failed');
+				})
+			);
+			expect(await cancelSubscriptionOf(db, 'a')).toBe(false);
+		});
+	});
+
 	it('records an event once', async () => {
 		await recordStripeEvent(db, 'evt_x', 'invoice.paid');
 		await recordStripeEvent(db, 'evt_x', 'invoice.paid');
@@ -277,6 +361,16 @@ describe('with a database', () => {
 		await expect(enforceBilling(requestEvent('POST', '/abo'))).resolves.toBeUndefined();
 		await expect(enforceBilling(requestEvent('POST', '/abmelden'))).resolves.toBeUndefined();
 		await expect(enforceBilling(requestEvent('POST', '/objekte', false))).resolves.toBeUndefined();
+		// Leaving and securing the sign-in work without paying; demo data does not.
+		await expect(
+			enforceBilling(requestEvent('POST', '/einstellungen/konto?/delete'))
+		).resolves.toBeUndefined();
+		await expect(
+			enforceBilling(requestEvent('POST', '/einstellungen/profil?/password'))
+		).resolves.toBeUndefined();
+		await expect(
+			enforceBilling(requestEvent('POST', '/einstellungen/konto?/demo'))
+		).rejects.toMatchObject({ status: 403 });
 		expect(await billingNotice(requestEvent('GET', '/').locals)).toEqual({
 			text: 'Deine Testphase ist abgelaufen. Du kannst nur noch lesen.',
 			href: '/abo',

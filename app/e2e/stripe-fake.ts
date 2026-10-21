@@ -4,7 +4,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
  * A stand-in for the Stripe API, just enough for the billing pages: the app reaches it because
  * the Playwright web servers set STRIPE_API_BASE=http://localhost:4299 (STRIPE_FAKE_PORT changes it). Checkout and portal
  * sessions answer with the URL the app passed in, so the browser lands back in the app.
- * Every request is recorded, so a test can check what the app sent.
+ * Every request is recorded, so a test can check what the app sent. The subscription is state
+ * a test changes before it posts a webhook, because the app reads it back from the API.
  */
 
 export const STRIPE_FAKE_PORT = Number(process.env.STRIPE_FAKE_PORT || 4299);
@@ -21,6 +22,9 @@ export type RecordedRequest = {
 };
 
 export const requests: RecordedRequest[] = [];
+
+/** The state of sub_fake as GET /v1/subscriptions/sub_fake answers it; start() resets it. */
+export const subscription = { status: 'active', current_period_end: FAKE_PERIOD_END };
 
 let server: Server | undefined;
 
@@ -74,14 +78,16 @@ async function handle(request: IncomingMessage, response: ServerResponse): Promi
 			url: params.get('return_url')
 		});
 	}
-	if (method === 'GET' && url.pathname === `/v1/subscriptions/${FAKE_SUBSCRIPTION_ID}`) {
-		return answer(response, 200, {
-			id: FAKE_SUBSCRIPTION_ID,
-			object: 'subscription',
-			status: 'active',
-			current_period_end: FAKE_PERIOD_END,
-			customer: FAKE_CUSTOMER_ID
-		});
+	if (url.pathname === `/v1/subscriptions/${FAKE_SUBSCRIPTION_ID}`) {
+		if (method === 'DELETE') subscription.status = 'canceled';
+		if (method === 'GET' || method === 'DELETE') {
+			return answer(response, 200, {
+				id: FAKE_SUBSCRIPTION_ID,
+				object: 'subscription',
+				customer: FAKE_CUSTOMER_ID,
+				...subscription
+			});
+		}
 	}
 	if (method === 'GET' && url.pathname === '/v1/prices/price_fake') {
 		return answer(response, 200, {
@@ -101,6 +107,7 @@ async function handle(request: IncomingMessage, response: ServerResponse): Promi
 export async function start(): Promise<void> {
 	if (server) return;
 	requests.length = 0;
+	Object.assign(subscription, { status: 'active', current_period_end: FAKE_PERIOD_END });
 	const instance = createServer((request, response) => {
 		handle(request, response).catch((cause) => {
 			answer(response, 500, { error: { message: String(cause) } });

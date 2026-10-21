@@ -3,7 +3,13 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { addressLines, deleteAccount, landlordAddress } from './accounts';
+import {
+	addressLines,
+	deleteAccount,
+	getLandlord,
+	landlordAddress,
+	updateLandlord
+} from './accounts';
 import type { Database } from './db';
 import {
 	accounts,
@@ -60,6 +66,54 @@ describe('landlordAddress', () => {
 		const address = await landlordAddress(db, 'a');
 		expect(address.complete).toBe(true);
 		expect(addressLines(address)).toEqual(['Erika Vermieter', 'Hauptstraße 1', '10115 Berlin']);
+	});
+});
+
+describe('updateLandlord and getLandlord', () => {
+	const empty = {
+		landlordName: null,
+		street: null,
+		postalCode: null,
+		city: null,
+		iban: null,
+		bankName: null
+	};
+	const block = {
+		landlordName: 'Erika Vermieter',
+		street: 'Hauptstraße 1',
+		postalCode: '10115',
+		city: 'Berlin',
+		iban: 'DE89370400440532013000',
+		bankName: 'Commerzbank'
+	};
+
+	it('stores the sender block of the own account with an audit entry', async () => {
+		expect(await getLandlord(db, 'a')).toEqual(empty);
+		await updateLandlord(db, contextA, block);
+		expect(await getLandlord(db, 'a')).toEqual(block);
+		const address = await landlordAddress(db, 'a');
+		expect(address.complete).toBe(true);
+		expect(address.iban).toBe('DE89370400440532013000');
+		const entries = await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'));
+		expect(entries).toHaveLength(1);
+		expect(entries[0]).toMatchObject({
+			userId: 'user-a',
+			entity: 'account',
+			entityId: 'a',
+			action: 'update',
+			summary: 'Absender (Vermieter) für Briefe und Abrechnungen geändert'
+		});
+	});
+
+	it('empties fields set to null and does not leak into another account', async () => {
+		await updateLandlord(db, contextB, block);
+		await updateLandlord(db, contextA, { ...block, street: 'Nebenweg 2' });
+		await updateLandlord(db, contextA, { ...block, iban: null, bankName: null });
+		expect(await getLandlord(db, 'a')).toEqual({ ...block, iban: null, bankName: null });
+		// Account b keeps its own block, and its log only its own line.
+		expect(await getLandlord(db, 'b')).toEqual(block);
+		expect(await db.select().from(auditLog).where(eq(auditLog.accountId, 'b'))).toHaveLength(1);
+		expect(await getLandlord(db, 'missing')).toEqual(empty);
 	});
 });
 

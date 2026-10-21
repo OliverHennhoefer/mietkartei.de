@@ -14,8 +14,11 @@ import {
 import type { RequestHandler } from './$types';
 
 // Stripe tells us about the subscription here. The only POST without a session: the signature
-// proves the sender, the stripe_events table makes a retried delivery a no-op. Every answer that
-// is not a signature problem is 200, so Stripe stops retrying.
+// proves the sender, the stripe_events table makes a retried delivery a no-op. Subscription
+// events are applied with the subscription as the API returns it now, never with the payload's
+// copy, so late or reordered deliveries cannot bring back an old status. Every answer that is
+// not a signature problem is 200, so Stripe stops retrying; only when the API cannot be reached
+// the request fails, and Stripe delivers the event again later.
 
 type StripeEvent = {
 	id: string;
@@ -30,6 +33,19 @@ function idOf(value: unknown): string | undefined {
 		return (value as { id: string }).id;
 	}
 	return undefined;
+}
+
+/** The subscription an event is about; undefined for events that change nothing. */
+function subscriptionNamedBy(type: string, object: Record<string, unknown>): string | undefined {
+	switch (type) {
+		case 'checkout.session.completed':
+			return object.mode === 'subscription' ? idOf(object.subscription) : undefined;
+		case 'customer.subscription.updated':
+		case 'customer.subscription.deleted':
+			return idOf(object.id);
+		default:
+			return undefined;
+	}
 }
 
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -58,52 +74,24 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (await stripeEventSeen(db, event.id)) return json({ received: true, duplicate: true });
 	const object = event.data?.object ?? {};
 
-	switch (event.type) {
-		case 'checkout.session.completed': {
-			const subscriptionId = idOf(object.subscription);
-			if (object.mode !== 'subscription' || !subscriptionId) {
-				await recordStripeEvent(db, event.id, event.type);
-				break;
-			}
-			const subscription = await getSubscription(subscriptionId);
-			const customerId = idOf(subscription.customer) ?? idOf(object.customer);
-			const applied =
-				customerId &&
-				(await applySubscriptionUpdate(db, event, {
-					customerId,
-					subscriptionId: subscription.id,
-					status: subscription.status,
-					currentPeriodEnd: subscriptionPeriodEnd(subscription)
-				}));
-			if (!applied) await recordStripeEvent(db, event.id, event.type);
-			break;
-		}
-		case 'customer.subscription.updated':
-		case 'customer.subscription.deleted': {
-			const customerId = idOf(object.customer);
-			const subscriptionId = idOf(object.id);
-			const applied =
-				customerId &&
-				subscriptionId &&
-				typeof object.status === 'string' &&
-				(await applySubscriptionUpdate(db, event, {
-					customerId,
-					subscriptionId,
-					status: object.status,
-					currentPeriodEnd: subscriptionPeriodEnd({
-						id: subscriptionId,
-						status: object.status,
-						customer: customerId,
-						current_period_end:
-							typeof object.current_period_end === 'number' ? object.current_period_end : undefined,
-						items: object.items as { data?: { current_period_end?: number }[] } | undefined
-					})
-				}));
-			if (!applied) await recordStripeEvent(db, event.id, event.type);
-			break;
-		}
-		default:
-			await recordStripeEvent(db, event.id, event.type);
+	// Stripe does not deliver events in order, and a retried delivery can be older than one
+	// already applied. So an event only names the subscription; its current state comes from the
+	// API, and applying it twice does no harm.
+	const subscriptionId = subscriptionNamedBy(event.type, object);
+	if (!subscriptionId) {
+		await recordStripeEvent(db, event.id, event.type);
+		return json({ received: true });
 	}
+	const subscription = await getSubscription(subscriptionId);
+	const customerId = idOf(subscription.customer) ?? idOf(object.customer);
+	const applied =
+		customerId &&
+		(await applySubscriptionUpdate(db, event, {
+			customerId,
+			subscriptionId: subscription.id,
+			status: subscription.status,
+			currentPeriodEnd: subscriptionPeriodEnd(subscription)
+		}));
+	if (!applied) await recordStripeEvent(db, event.id, event.type);
 	return json({ received: true });
 };

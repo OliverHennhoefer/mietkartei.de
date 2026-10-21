@@ -7,6 +7,7 @@ import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import { accounts, stripeEvents, type SubscriptionStatus } from './db/schema';
+import { cancelSubscription, getSubscription, StripeError } from './stripe';
 
 // Subscriptions through Stripe. The hosted variant configures the keys; self-hosting leaves them
 // unset, and then nothing about billing is shown. Every account starts with a 30-day trial; with
@@ -109,19 +110,42 @@ export function noticeFor(
 	}
 }
 
-/** Paths that still accept a POST while the account is read-only. */
+/** Paths that still accept every POST while the account is read-only. */
 const writablePaths = new Set(['/abo', '/abmelden', '/webhooks/stripe']);
 
-/** Whether a request has to be refused: a POST outside the billing pages of a read-only account. */
+/**
+ * Form actions that still work while the account is read-only: leaving the service (deleting the
+ * account) and securing the sign-in (name, email, password) must never depend on paying.
+ */
+const writableActions = new Map([
+	['/einstellungen/konto', new Set(['delete'])],
+	['/einstellungen/profil', new Set(['profile', 'password'])]
+]);
+
+/** The form action a POST goes to, the way SvelteKit reads it: `?/delete` → `delete`. */
+export function actionName(searchParams: URLSearchParams): string {
+	for (const key of searchParams.keys()) {
+		if (key.startsWith('/')) return key.slice(1);
+	}
+	return 'default';
+}
+
+/**
+ * Whether a request has to be refused: a POST of a read-only account outside the billing pages
+ * and the actions in `writableActions`.
+ */
 export function refusesWrite(
 	state: BillingState,
 	method: string,
 	pathname: string,
-	required: boolean
+	required: boolean,
+	action = 'default'
 ): boolean {
 	if (!required || !isReadOnly(state)) return false;
 	if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false;
-	return !writablePaths.has(pathname.replace(/\/$/, '') || '/');
+	const path = pathname.replace(/\/$/, '') || '/';
+	if (writablePaths.has(path)) return false;
+	return !writableActions.get(path)?.has(action);
 }
 
 export const READ_ONLY_MESSAGE = 'Dein Konto ist nur noch lesbar, bis ein Abo abgeschlossen ist.';
@@ -155,7 +179,8 @@ export async function enforceBilling(event: RequestEvent): Promise<void> {
 	const account = await getBillingAccount(event.locals.db, event.locals.user.accountId);
 	if (!account) return;
 	const state = billingState(account, new Date());
-	if (refusesWrite(state, method, event.url.pathname, true)) error(403, READ_ONLY_MESSAGE);
+	const action = actionName(event.url.searchParams);
+	if (refusesWrite(state, method, event.url.pathname, true, action)) error(403, READ_ONLY_MESSAGE);
 }
 
 /**
@@ -252,6 +277,39 @@ export async function applySubscriptionUpdate(
 		)
 	]);
 	return account.id;
+}
+
+/** Whether the account has a Stripe subscription that still bills it. */
+export function subscriptionRuns(
+	account:
+		{ stripeSubscriptionId: string | null; subscriptionStatus: SubscriptionStatus } | undefined
+): boolean {
+	return Boolean(account?.stripeSubscriptionId) && account?.subscriptionStatus !== 'canceled';
+}
+
+/**
+ * Ends the Stripe subscription of an account that is about to be deleted, so nobody keeps paying
+ * for an account that no longer exists. True when nothing bills the account any more (billing
+ * off, no subscription, already canceled, or canceled now); false when Stripe could not cancel
+ * it, and then the account must not be deleted.
+ */
+export async function cancelSubscriptionOf(db: Database, accountId: string): Promise<boolean> {
+	if (!billingEnabled()) return true;
+	const account = await getBillingAccount(db, accountId);
+	if (!account || !subscriptionRuns(account)) return true;
+	const subscriptionId = account.stripeSubscriptionId!;
+	try {
+		await cancelSubscription(subscriptionId);
+		return true;
+	} catch (cause) {
+		// Unknown to Stripe, or canceled in the meantime (Stripe refuses to cancel twice).
+		if (cause instanceof StripeError && cause.status === 404) return true;
+		try {
+			return mapSubscriptionStatus((await getSubscription(subscriptionId)).status) === 'canceled';
+		} catch {
+			return false;
+		}
+	}
 }
 
 /** Whether a webhook event was already processed. */

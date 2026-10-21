@@ -197,6 +197,8 @@ feature. When a feature is ported to main, its section is the checklist of what 
 - The export download is a GET at /einstellungen/export/download (a form action cannot stream); the page's button is a GET form.
 - After the last account is deleted the instance is empty, so /anmelden redirects to /registrieren; konto.e2e.ts proves the old credentials fail by posting the sign-in action with the use:enhance header and expecting a 400 failure.
 - Protokoll filter options are the distinct entities present in the account's log, labelled by auditEntityLabels (unknown entities shown raw).
+- The reset mail's link comes from `ORIGIN` when set, else from the request URL on Workers (the host Cloudflare routed) and on node only for a loopback host (localhost, 127.x, ::1): without ORIGIN the node server takes the client's Host header, which would let anyone send a victim a link to a foreign host. Other requests get "Passwort-Links per E-Mail sind hier noch nicht eingerichtet …" (503) before the address is looked up, so the answer reveals nothing about accounts; `server.js` warns at boot. Invitation mails keep `url.origin`, because only the signed-in owner sends them from their own browser.
+- `?return=` of `/mieter/neu` is resolved like a browser resolves a link (`returnPath` in `src/lib/return-path.ts`) and refused when it leaves the app (`//`, `/\`, tabs and line breaks, other schemes).
 
 ### Subscription (Stripe test mode)
 
@@ -206,6 +208,9 @@ feature. When a feature is ported to main, its section is the checklist of what 
 - A `subscriptionStatus` of `trialing` (Stripe trial inside a subscription) counts as trialing but shows no trial notice and offers "Abo verwalten".
 - Stripe statuses `incomplete` and `paused` keep the account's current status; the event is still recorded.
 - Webhook idempotency: the event row is inserted in the same batch as the account update; an event for an unknown customer is recorded without any change and answered 200.
+- Webhook ordering: `checkout.session.completed` and `customer.subscription.updated`/`deleted` only name the subscription; the app fetches it and applies Stripe's current status and period end, so a late or retried older event cannot bring back an old status. When Stripe does not answer the webhook fails (500) and Stripe delivers it again.
+- Deleting the account cancels a subscription that still runs (`stripeSubscriptionId` set, status not `canceled`) with `DELETE /v1/subscriptions/:id`; a 404, or a subscription Stripe already reports as canceled, counts as done. Otherwise the deletion is refused (502) with "Stripe antwortet gerade nicht, darum ist dein Abo noch nicht gekündigt und dein Konto nicht gelöscht. …" and the account stays. The konto page says the subscription ends with the account.
+- Read-only accounts (BILLING_REQUIRED) may still post `/einstellungen/konto?/delete` and `/einstellungen/profil?/profile` and `?/password`: leaving the service and securing the sign-in never depend on paying. Demo data and the sender block stay refused. The action name is read from the query as SvelteKit does (`actionName`).
 - The price text is read from Stripe (`/v1/prices/:id`) once per /abo load and falls back to "monatlich" when Stripe does not answer.
 - Stripe errors in the actions answer `fail(502)` with "Stripe antwortet gerade nicht. Bitte versuche es gleich noch einmal."
 - Managers get on /abo: "Das Abo verwaltet der Vermieter des Kontos, nicht die Mitverwalter."; the actions require the owner (403 via requireOwner).
@@ -286,13 +291,13 @@ feature. When a feature is ported to main, its section is the checklist of what 
 
 ### Accounts, managers, export, password reset
 
-- No e2e for revoking an invitation or removing a user (unit-tested in invitations.spec).
+- The e2e for a reset link sent to a host from the request runs on node only; on Workers the host is the one Cloudflare routed.
 - Export on Workers reads every document into memory (fine for ≤10 MB files, not for very large accounts); no streaming.
 - Lockout rows in login_attempts are never pruned.
 - The password reset mail and invitation mail are plain text only.
 
 ### Subscription (Stripe test mode)
 
-- No e2e of the manager view of /abo or of the Stripe-down (502) path.
+- No e2e of the Stripe-down (502) path of the /abo actions (the account deletion's is covered in konto.e2e.ts).
 - `invoice.*` events are only recorded; past_due is derived from customer.subscription.updated.
 - Real Stripe API not exercised; the fake answers a fixed subscription (sub_fake, active) and price (9,90 €).

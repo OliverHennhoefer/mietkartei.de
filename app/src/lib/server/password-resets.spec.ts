@@ -8,6 +8,7 @@ import {
 	findPasswordReset,
 	passwordResetMail,
 	requestPasswordReset,
+	resetLinkOrigin,
 	resetPassword
 } from './password-resets';
 import { testDatabase } from './testing';
@@ -129,5 +130,42 @@ describe('passwordResetMail', () => {
 		expect(mail.to).toBe('a@example.org');
 		expect(mail.subject).toContain('Passwort');
 		expect(mail.text).toContain('https://app.example/passwort-zuruecksetzen/t0k');
+	});
+});
+
+describe('resetLinkOrigin', () => {
+	const url = (href: string) => new URL(href);
+
+	it('takes ORIGIN when it is set, whatever host the request names', () => {
+		expect(
+			resetLinkOrigin(
+				url('http://evil.example/passwort-vergessen'),
+				'https://mk.example.de/',
+				'node'
+			)
+		).toBe('https://mk.example.de');
+		expect(
+			resetLinkOrigin(url('https://worker.example/x'), 'https://mk.example.de', 'cloudflare')
+		).toBe('https://mk.example.de');
+	});
+
+	it('trusts only loopback hosts on node without ORIGIN', () => {
+		expect(resetLinkOrigin(url('http://localhost:3000/x'), '', 'node')).toBe(
+			'http://localhost:3000'
+		);
+		expect(resetLinkOrigin(url('http://127.0.0.1:3000/x'), '', 'node')).toBe(
+			'http://127.0.0.1:3000'
+		);
+		expect(resetLinkOrigin(url('http://[::1]:3000/x'), '', 'node')).toBe('http://[::1]:3000');
+		// The Host header is the client's: a link to it could hand the token to a foreign site.
+		expect(resetLinkOrigin(url('http://evil.example/x'), '', 'node')).toBeUndefined();
+		expect(resetLinkOrigin(url('http://192.168.1.5:3000/x'), '', 'node')).toBeUndefined();
+		expect(resetLinkOrigin(url('http://localhost.evil.example/x'), '', 'node')).toBeUndefined();
+	});
+
+	it('trusts the routed host on Workers', () => {
+		expect(resetLinkOrigin(url('https://mk.example.de/x'), '', 'cloudflare')).toBe(
+			'https://mk.example.de'
+		);
 	});
 });

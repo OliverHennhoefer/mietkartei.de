@@ -177,7 +177,10 @@ source of truth; this section explains it.
   `stripeSubscriptionId` (both partial-unique), `subscriptionStatus`
   (`none` | `trialing` | `active` | `past_due` | `canceled`), `currentPeriodEnd`, `trialEndsAt`.
 - `stripe_events`: id (the Stripe event id), type, receivedAt. The webhook inserts with
-  `onConflictDoNothing` and skips processing when the row existed (retries are idempotent).
+  `onConflictDoNothing` and skips processing when the row existed (retries are idempotent). It
+  applies the subscription as `GET /v1/subscriptions/:id` returns it, never the event's payload,
+  because Stripe delivers out of order. Deleting the account cancels a running subscription
+  first (`DELETE /v1/subscriptions/:id`) and is refused while Stripe does not answer.
 - `users` + `role` (`owner` | `manager`), `name`.
 - `invitations`: id, accountId, email, role, tokenHash (unique), expiresAt, invitedBy, acceptedAt.
   `/einladung/<token>` registers the invitee into the inviting account regardless of
@@ -617,13 +620,14 @@ e2e/<feature>.e2e.ts, e2e/seed.ts               end-to-end tests and the seed he
 
 | Variable                                                        | Meaning                                                                                                              |
 | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_PATH`, `OPEN_REGISTRATION`, `ORIGIN`, `PORT`          | as on main                                                                                                           |
+| `DATABASE_PATH`, `OPEN_REGISTRATION`, `PORT`                    | as on main                                                                                                           |
+| `ORIGIN`                                                        | as on main; the reset mail's link; without it on node only requests to localhost get one                             |
 | `DATA_DIR`                                                      | node: directory for uploaded documents; default `documents/` next to the database file (Docker: `/data/documents`)   |
 | `BODY_SIZE_LIMIT`                                               | node: set by `server.js` to `12M` unless given, for uploads                                                          |
 | `MAIL_TRANSPORT`                                                | `console` (default: log the mail), `resend` (HTTP API), `outbox` (store in the `outbox` table; the e2e tests use it) |
 | `MAIL_API_KEY`, `MAIL_FROM`                                     | for `resend`                                                                                                         |
 | `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` | billing; all three unset = billing pages hidden; `STRIPE_API_BASE` points tests at a fake server                     |
-| `BILLING_REQUIRED`                                              | `true`: accounts without an active subscription after the 30-day trial can only read                                 |
+| `BILLING_REQUIRED`                                              | `true`: no active subscription after the 30-day trial = read only (but leave, change login)                          |
 | `E2E`                                                           | `true` enables `/__e2e/outbox` and `/__e2e/seed`; set by the Playwright web servers only                             |
 
 Every variable is declared in `src/env.ts` with a schema that defaults it, so an unset variable

@@ -29,6 +29,7 @@
 			kannst.
 		</p>
 		<form method="POST" class="card" use:enhance>
+			{#if form && 'unavailable' in form}<p class="error" role="alert">{form.unavailable}</p>{/if}
 			<label>
 				E-Mail-Adresse
 				<input
