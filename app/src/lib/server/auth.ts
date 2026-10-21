@@ -1,6 +1,8 @@
-import { count, eq } from 'drizzle-orm';
+import { and, count, eq, ne } from 'drizzle-orm';
+import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
-import { accounts, sessions, users } from './db/schema';
+import { runBatch } from './db/batch';
+import { accounts, emailChanges, loginAttempts, sessions, users, type UserRole } from './db/schema';
 import { DEFAULT_ACCOUNT_ID, ensureDefaultAccount } from './accounts';
 
 // Sign-in uses only WebCrypto, which Node and Workers both provide, so both targets behave the same.
@@ -119,7 +121,8 @@ export async function registerUser(
 			.returning({ id: users.id });
 		return { ok: true, userId: user.id };
 	} catch (error) {
-		// Another registration won a race: either for the same address, or for the default account.
+		// Another registration won a race: for the same address, or for the owner of the default
+		// account (users_account_owner_unique).
 		if (accountId !== DEFAULT_ACCOUNT_ID)
 			await db.delete(accounts).where(eq(accounts.id, accountId));
 		const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
@@ -160,7 +163,13 @@ export async function createSession(db: Database, userId: string) {
 	return { token, expiresAt };
 }
 
-export type SessionUser = { id: string; email: string; accountId: string };
+export type SessionUser = {
+	id: string;
+	email: string;
+	accountId: string;
+	name: string | null;
+	role: UserRole;
+};
 
 /**
  * Looks up the user of a session token. Expired sessions are deleted; sessions close to expiry
@@ -176,7 +185,13 @@ export async function validateSession(
 		.select({
 			expiresAt: sessions.expiresAt,
 			createdAt: sessions.createdAt,
-			user: { id: users.id, email: users.email, accountId: users.accountId }
+			user: {
+				id: users.id,
+				email: users.email,
+				accountId: users.accountId,
+				name: users.name,
+				role: users.role
+			}
 		})
 		.from(sessions)
 		.innerJoin(users, eq(sessions.userId, users.id))
@@ -199,4 +214,162 @@ export async function validateSession(
 
 export async function deleteSession(db: Database, token: string): Promise<void> {
 	await db.delete(sessions).where(eq(sessions.id, await sessionId(token)));
+}
+
+// Lockout (login_attempts): failed sign-ins are counted per address, whether or not the address
+// has an account, so the lock does not reveal which addresses exist. Reset requests are limited
+// on their own (password-resets.ts), so neither can lock the other.
+
+const MAX_FAILED_ATTEMPTS = 5;
+/** Failures are counted within this window; a lock lasts as long. */
+export const LOCKOUT_WINDOW = 15 * 60 * 1000;
+
+/** Whether the address is locked at `now`. */
+export async function isLockedOut(db: Database, email: string, now = Date.now()): Promise<boolean> {
+	const [row] = await db
+		.select({ lockedUntil: loginAttempts.lockedUntil })
+		.from(loginAttempts)
+		.where(eq(loginAttempts.email, normalizeEmail(email)));
+	return Boolean(row?.lockedUntil && row.lockedUntil.getTime() > now);
+}
+
+/**
+ * Counts one failure for the address. The count starts over when the first failure of the
+ * current series is older than the window; the fifth failure locks the address. Returns whether
+ * the address is locked now.
+ */
+export async function recordFailedAttempt(
+	db: Database,
+	email: string,
+	now = Date.now()
+): Promise<{ failures: number; locked: boolean }> {
+	email = normalizeEmail(email);
+	const [row] = await db.select().from(loginAttempts).where(eq(loginAttempts.email, email));
+	const inWindow = row && now - row.firstFailureAt.getTime() <= LOCKOUT_WINDOW;
+	const failures = inWindow ? row.failures + 1 : 1;
+	const firstFailureAt = inWindow ? row.firstFailureAt : new Date(now);
+	const stillLocked = row?.lockedUntil && row.lockedUntil.getTime() > now ? row.lockedUntil : null;
+	const lockedUntil =
+		failures >= MAX_FAILED_ATTEMPTS ? new Date(now + LOCKOUT_WINDOW) : stillLocked;
+	await db
+		.insert(loginAttempts)
+		.values({ email, failures, firstFailureAt, lockedUntil })
+		.onConflictDoUpdate({
+			target: loginAttempts.email,
+			set: { failures, firstFailureAt, lockedUntil }
+		});
+	return { failures, locked: lockedUntil !== null };
+}
+
+/** Forgets the failures of the address, after a successful sign-in or password reset. */
+export async function clearFailedAttempts(db: Database, email: string): Promise<void> {
+	await db.delete(loginAttempts).where(eq(loginAttempts.email, normalizeEmail(email)));
+}
+
+export type SignInResult =
+	{ ok: true; userId: string } | { ok: false; reason: 'invalid' | 'locked' };
+
+/**
+ * The sign-in form: `authenticate` with the lockout around it. A locked address is refused
+ * without checking the password; a wrong password counts; the right one clears the count.
+ */
+export async function signIn(db: Database, email: string, password: string): Promise<SignInResult> {
+	if (await isLockedOut(db, email)) return { ok: false, reason: 'locked' };
+	const userId = await authenticate(db, email, password);
+	if (userId) {
+		await clearFailedAttempts(db, email);
+		return { ok: true, userId };
+	}
+	const { locked } = await recordFailedAttempt(db, email);
+	return { ok: false, reason: locked ? 'locked' : 'invalid' };
+}
+
+// Link tokens (password resets, invitations): the token goes into the mail, its SHA-256 into
+// the database, so a copy of the database cannot be used to take over an account.
+
+/** A random token for a link, URL-safe. */
+export function generateToken(): string {
+	return toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
+}
+
+/** The SHA-256 of a token as lower-case hex, the form it is stored in. */
+export async function hashToken(token: string): Promise<string> {
+	const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(token)));
+	return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Checks the current password of a signed-in user before a change. Wrong ones count like failed
+ * sign-ins and a locked address is refused, so a stolen session cannot guess the password.
+ */
+export async function checkCurrentPassword(
+	db: Database,
+	user: { email: string; passwordHash: string },
+	password: string
+): Promise<'ok' | 'wrong-password' | 'locked'> {
+	if (await isLockedOut(db, user.email)) return 'locked';
+	if (await verifyPassword(password, user.passwordHash)) return 'ok';
+	const { locked } = await recordFailedAttempt(db, user.email);
+	return locked ? 'locked' : 'wrong-password';
+}
+
+/** The condition for the sessions of the user except the one of `keepToken`, to delete them. */
+export async function otherSessions(userId: string, keepToken: string | undefined) {
+	const keepId = keepToken ? await sessionId(keepToken) : undefined;
+	return keepId
+		? and(eq(sessions.userId, userId), ne(sessions.id, keepId))
+		: eq(sessions.userId, userId);
+}
+
+/**
+ * Changes the password after checking the current one, ends every other session of the user
+ * (the one in `keepToken` stays) and drops a pending address change, which the notice to the old
+ * address tells its owner to stop this way. The audit entry carries no user id and no address.
+ */
+export async function changePassword(
+	db: Database,
+	context: AuditContext,
+	input: { currentPassword: string; password: string; keepToken: string | undefined }
+): Promise<{ ok: true } | { ok: false; reason: 'wrong-password' | 'locked' | 'missing' }> {
+	if (!context.userId) return { ok: false, reason: 'missing' };
+	const [user] = await db
+		.select({ id: users.id, email: users.email, passwordHash: users.passwordHash })
+		.from(users)
+		.where(and(eq(users.id, context.userId), eq(users.accountId, context.accountId)));
+	if (!user) return { ok: false, reason: 'missing' };
+	const checked = await checkCurrentPassword(db, user, input.currentPassword);
+	if (checked !== 'ok') return { ok: false, reason: checked };
+	const passwordHash = await hashPassword(input.password);
+	await runBatch(db, [
+		db.update(users).set({ passwordHash }).where(eq(users.id, user.id)),
+		db.delete(sessions).where(await otherSessions(user.id, input.keepToken)),
+		db.delete(emailChanges).where(eq(emailChanges.userId, user.id)),
+		auditEntry(
+			db,
+			{ accountId: context.accountId, userId: null },
+			'user',
+			user.id,
+			'update',
+			'Passwort geändert'
+		)
+	]);
+	return { ok: true };
+}
+
+/** Sets the name of the signed-in user. A new address goes through requestEmailChange. */
+export async function updateName(
+	db: Database,
+	context: AuditContext,
+	name: string | null
+): Promise<void> {
+	if (!context.userId) return;
+	const [user] = await db
+		.select({ id: users.id })
+		.from(users)
+		.where(and(eq(users.id, context.userId), eq(users.accountId, context.accountId)));
+	if (!user) return;
+	await runBatch(db, [
+		db.update(users).set({ name }).where(eq(users.id, user.id)),
+		auditEntry(db, context, 'user', user.id, 'update', 'Name geändert')
+	]);
 }

@@ -12,7 +12,8 @@ import type {
 	RentChargeKind,
 	RentModel,
 	StatementStatus,
-	TerminatedBy
+	TerminatedBy,
+	UserRole
 } from './server/db/schema';
 
 // German labels for the enums in the schema, so every page uses the same words.
@@ -107,4 +108,51 @@ export const meterKindLabels: Record<MeterKind, string> = {
 export const statementStatusLabels: Record<StatementStatus, string> = {
 	draft: 'Entwurf',
 	approved: 'Freigegeben'
+};
+
+export const userRoleLabels: Record<UserRole, string> = {
+	owner: 'Vermieter',
+	manager: 'Mitverwalter'
+};
+
+/** The verbs of the audit log (AuditAction in schema.ts), for /einstellungen/protokoll. */
+export const auditActionLabels: Record<string, string> = {
+	create: 'Angelegt',
+	update: 'Geändert',
+	delete: 'Gelöscht',
+	approve: 'Freigegeben',
+	correct: 'Korrigiert',
+	import: 'Importiert',
+	invite: 'Eingeladen',
+	post: 'Gebucht',
+	assign: 'Zugeordnet',
+	undo: 'Rückgängig gemacht',
+	ignore: 'Ignoriert',
+	upload: 'Hochgeladen',
+	reset: 'Zurückgesetzt'
+};
+
+/** The entities of the audit log, as the features name them, for /einstellungen/protokoll. */
+export const auditEntityLabels: Record<string, string> = {
+	account: 'Konto',
+	user: 'Zugang',
+	invitation: 'Einladung',
+	property: 'Objekt',
+	unit: 'Einheit',
+	tenant: 'Mieter',
+	lease: 'Mietvertrag',
+	bankAccount: 'Bankverbindung',
+	bankImport: 'Bankimport',
+	bankTransaction: 'Umsatz',
+	matchingRule: 'Zuordnungsregel',
+	cost_category: 'Kostenart',
+	allocation_key: 'Umlageschlüssel',
+	billing_circle: 'Abrechnungskreis',
+	cost_item: 'Beleg',
+	meter: 'Zähler',
+	meter_reading: 'Zählerstand',
+	statement: 'Betriebskostenabrechnung',
+	document: 'Dokument',
+	task: 'Aufgabe',
+	vpi: 'Verbraucherpreisindex'
 };

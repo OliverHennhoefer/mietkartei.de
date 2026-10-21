@@ -5,21 +5,34 @@ import { defineConfig } from '@playwright/test';
 const target = process.env.DEPLOY_TARGET === 'cloudflare' ? 'cloudflare' : 'node';
 const port = Number(process.env.E2E_PORT || 4173);
 
-// E2E=true enables /api/e2e/seed, through which the tests create what they do not own. The
+// E2E=true enables /api/e2e/seed, through which the tests create what they do not own, and
+// /api/e2e/outbox, where they read the mails MAIL_TRANSPORT=outbox stores instead of sending. The
 // hosted variant lets only listed addresses register, so the owner of e2e/owner.ts is listed.
+// wrangler dev hands the app the host of the route in wrangler.jsonc unless --local-upstream
+// names another, and the links in mails must lead back to the test server.
+//
+// Sign-in, registration, reset and invitation posts are limited to 10 per client address and
+// minute. Every request of a test comes from localhost, and on a fast runner the whole suite fits
+// into one minute, so each project names a client address of its own in CF-Connecting-IP: the
+// header Workers take the address from, and on node through ADDRESS_HEADER, as behind a proxy.
 const commands = {
 	node: [
 		'rm -rf .e2e',
 		'npm run build',
-		`DATABASE_PATH=.e2e/node.db DATA_DIR=.e2e/documents E2E=true PORT=${port} node server.js`
+		`DATABASE_PATH=.e2e/node.db DATA_DIR=.e2e/documents MAIL_TRANSPORT=outbox E2E=true ADDRESS_HEADER=cf-connecting-ip PORT=${port} node server.js`
 	],
 	cloudflare: [
 		'rm -rf .e2e',
 		'npm run build:cloudflare',
 		'wrangler d1 migrations apply DB --local --persist-to .e2e/wrangler',
-		`wrangler dev --port ${port} --inspector-port 0 --persist-to .e2e/wrangler --var E2E:true --var REGISTRATION_EMAILS:vermieterin@example.org`
+		`wrangler dev --port ${port} --local-upstream localhost:${port} --inspector-port 0 --persist-to .e2e/wrangler --var MAIL_TRANSPORT:outbox --var E2E:true --var REGISTRATION_EMAILS:vermieterin@example.org`
 	]
 };
+
+/** Request headers of a project whose posts count against the limit of the given address. */
+function client(address: string) {
+	return { extraHTTPHeaders: { 'cf-connecting-ip': address } };
+}
 
 export default defineConfig({
 	testDir: 'e2e',
@@ -34,21 +47,35 @@ export default defineConfig({
 	},
 	projects: [
 		// Registers the first user of the fresh database; the other projects build on it.
-		{ name: 'setup', testMatch: 'setup.e2e.ts' },
-		{ name: 'signed out', testMatch: 'auth.e2e.ts', dependencies: ['setup'] },
+		{ name: 'setup', testMatch: 'setup.e2e.ts', use: client('192.0.2.1') },
+		{
+			name: 'signed out',
+			testMatch: 'auth.e2e.ts',
+			dependencies: ['setup'],
+			use: client('192.0.2.2')
+		},
 		// Every feature's tests, as the owner. They seed what they do not own through e2e/seed.ts.
 		{
 			name: 'signed in',
 			testMatch: /\.e2e\.ts$/,
-			testIgnore: ['setup.e2e.ts', 'auth.e2e.ts', 'rate-limit.e2e.ts'],
+			testIgnore: ['setup.e2e.ts', 'auth.e2e.ts', 'manager.e2e.ts', 'rate-limit.e2e.ts'],
 			dependencies: ['setup'],
-			use: { storageState: '.e2e/owner.json' }
+			use: { storageState: '.e2e/owner.json', ...client('192.0.2.3') }
 		},
-		// Exhausts the sign-in limit of the test client, so it runs last.
+		// The manager role: the owner invites a manager, who signs up in a browser of their own.
+		{
+			name: 'manager',
+			testMatch: 'manager.e2e.ts',
+			dependencies: ['signed in'],
+			use: { storageState: '.e2e/owner.json', ...client('192.0.2.4') }
+		},
+		// Exhausts the sign-in limit of its client address. It has an address of its own, and runs
+		// last all the same, so a failure cannot leave other tests refused.
 		{
 			name: 'rate limit',
 			testMatch: 'rate-limit.e2e.ts',
-			dependencies: ['signed out', 'signed in']
+			dependencies: ['signed out', 'signed in', 'manager'],
+			use: client('192.0.2.5')
 		}
 	],
 	webServer: {

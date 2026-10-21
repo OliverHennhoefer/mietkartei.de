@@ -6,8 +6,8 @@ const BASE_HEADERS: Record<string, string> = {
 	// frame-ancestors in the CSP does the same for current browsers.
 	'X-Frame-Options': 'DENY',
 	'X-Content-Type-Options': 'nosniff',
-	// Links to password reset and invitation pages will carry a token in the path, which must not
-	// reach other sites. Not no-referrer: browsers then send `Origin: null` with form posts, and
+	// Links to the password reset, invitation and address confirmation pages carry a token in the
+	// path, which must not reach other sites. Not no-referrer: browsers then send `Origin: null` with form posts, and
 	// SvelteKit's CSRF check refuses them.
 	'Referrer-Policy': 'same-origin',
 	'Permissions-Policy':

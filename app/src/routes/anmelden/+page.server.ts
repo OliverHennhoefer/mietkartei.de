@@ -1,5 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { authenticate, createSession, hasUsers } from '#lib/server/auth.ts';
+import { createSession, hasUsers, signIn } from '#lib/server/auth.ts';
 import { setSessionCookie } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -18,10 +18,19 @@ export const actions: Actions = {
 			return fail(400, { email: typeof email === 'string' ? email : '', invalid: true });
 		}
 
-		const userId = await authenticate(event.locals.db, email, password);
-		if (!userId) return fail(400, { email, invalid: true });
+		// No account has a longer address or password; refused before they are counted or hashed.
+		if (email.length > 254 || password.length > 200) {
+			return fail(400, { email: '', invalid: true });
+		}
 
-		const session = await createSession(event.locals.db, userId);
+		// Five wrong passwords within fifteen minutes lock the address for fifteen minutes.
+		const result = await signIn(event.locals.db, email, password);
+		if (!result.ok) {
+			if (result.reason === 'locked') return fail(429, { email, invalid: false, locked: true });
+			return fail(400, { email, invalid: true });
+		}
+
+		const session = await createSession(event.locals.db, result.userId);
 		setSessionCookie(event, session.token, session.expiresAt);
 		redirect(303, '/');
 	}

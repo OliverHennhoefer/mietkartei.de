@@ -1,6 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
 import { watchCspViolations } from './csp';
-import { seedLease, seedRows } from './seed';
+import { seedLease, seedRows, seedUser } from './seed';
+
+/** A link token and the SHA-256 the database keeps of it, for seeding invitations and resets. */
+async function linkToken() {
+	const token = crypto.randomUUID();
+	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+	const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0'));
+	return { token, hash: hash.join('') };
+}
 
 // Every page must work under the Content-Security-Policy from vite.config.ts: a style attribute
 // or an inline script without nonce would be blocked in the browser, not in the build. A new
@@ -28,6 +36,8 @@ const pages = [
 	'/dokumente',
 	'/einstellungen',
 	'/einstellungen/profil',
+	'/einstellungen/mitverwalter',
+	'/einstellungen/protokoll',
 	'/einstellungen/vpi'
 ];
 
@@ -89,6 +99,24 @@ test('no detail page violates the Content-Security-Policy', async ({ page }) => 
 	const {
 		ids: [taskId]
 	} = await seedRows(page.request, 'tasks', [{ title: `Aufgabe ${suffix}`, leaseId }]);
+	// The invitation, reset and address confirmation pages open from a mail; their links are
+	// seeded here.
+	const expiresAt = Date.now() + 60 * 60 * 1000;
+	const invitation = await linkToken();
+	await seedRows(page.request, 'invitations', [
+		{ email: `csp-${suffix}@example.org`, tokenHash: invitation.hash, expiresAt }
+	]);
+	const reset = await linkToken();
+	const { id: userId } = await seedUser(page.request, {
+		email: `csp-reset-${suffix}@example.org`,
+		password: 'ein-sicheres-passwort',
+		role: 'manager'
+	});
+	await seedRows(page.request, 'passwordResets', [{ id: reset.hash, userId, expiresAt }]);
+	const emailChange = await linkToken();
+	await seedRows(page.request, 'emailChanges', [
+		{ id: emailChange.hash, userId, email: `csp-neu-${suffix}@example.org`, expiresAt }
+	]);
 	const violations = watchCspViolations(page);
 	const property = `/objekte/${propertyId}`;
 	const lease = `/vertraege/${leaseId}`;
@@ -113,6 +141,9 @@ test('no detail page violates the Content-Security-Policy', async ({ page }) => 
 		`/betriebskosten/belege/${costItemId}`,
 		`/betriebskosten/abrechnungen/${statementId}`,
 		`/aufgaben/${taskId}`,
+		`/einladung/${invitation.token}`,
+		`/passwort-zuruecksetzen/${reset.token}`,
+		`/e-mail-bestaetigen/${emailChange.token}`,
 		await firstEntry(page, '/betriebskosten/kostenarten'),
 		await firstEntry(page, '/betriebskosten/schluessel')
 	];
@@ -124,11 +155,13 @@ test.describe('signed out', () => {
 	test.use({ storageState: { cookies: [], origins: [] } });
 
 	// Registration is closed by now; setup.e2e.ts checks the open registration form.
-	test('the sign-in and registration pages keep to the Content-Security-Policy', async ({
+	test('the sign-in, registration and reset pages keep to the Content-Security-Policy', async ({
 		page
 	}) => {
 		const violations = watchCspViolations(page);
-		for (const path of ['/anmelden', '/registrieren']) await visit(page, path);
+		for (const path of ['/anmelden', '/registrieren', '/passwort-vergessen']) {
+			await visit(page, path);
+		}
 		expect(violations).toEqual([]);
 	});
 });

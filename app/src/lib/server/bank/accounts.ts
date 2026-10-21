@@ -7,7 +7,7 @@ import { runBatch } from '../db/batch';
 import { bankAccounts, bankTransactions } from '../db/schema';
 import { assertQuota } from '../quotas';
 
-// Bankverbindungen: the landlord's accounts rent comes in on.
+// Bankverbindungen: the landlord's accounts rent comes in on. Owners only (the pages enforce it).
 
 export type BankAccount = typeof bankAccounts.$inferSelect;
 export type BankAccountSummary = BankAccount & { transactionCount: number };

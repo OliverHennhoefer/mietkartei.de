@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { linkInMailTo, readOutbox } from './outbox';
 import { owner } from './owner';
+import { seedRows, seedUser } from './seed';
 
 test('health check works without signing in', async ({ request }) => {
 	const response = await request.get('/health');
@@ -79,4 +81,90 @@ test('sends the security headers and a CSP with a nonce', async ({ request }) =>
 	expect(headers['x-frame-options']).toBe('DENY');
 	expect(headers['referrer-policy']).toBe('same-origin');
 	expect(headers['x-content-type-options']).toBe('nosniff');
+});
+
+test('resets the password through the link from the mail', async ({ page }) => {
+	// A user of its own: the reset ends every session of the user, and the signed-in projects
+	// keep using the owner's.
+	const user = {
+		email: `zuruecksetzen-${crypto.randomUUID().slice(0, 6)}@example.org`,
+		password: 'altes-passwort-123',
+		newPassword: 'neues-passwort-456'
+	};
+	await seedUser(page.request, { email: user.email, password: user.password, role: 'manager' });
+
+	await page.goto('/anmelden');
+	await page.getByRole('link', { name: 'Passwort vergessen?' }).click();
+	await expect(page).toHaveURL(/\/passwort-vergessen$/);
+	await page.getByLabel('E-Mail-Adresse').fill(user.email);
+	await page.getByRole('button', { name: 'Link anfordern' }).click();
+	await expect(page.getByRole('status')).toContainText('haben wir dir eine E-Mail');
+
+	const link = await linkInMailTo(page.request, user.email, '/passwort-zuruecksetzen/');
+	expect(new URL(link).origin).toBe(new URL(page.url()).origin);
+
+	await page.goto(link);
+	await expect(page.getByRole('heading', { level: 1, name: 'Neues Passwort' })).toBeVisible();
+	// The label of the password field carries the length hint, so the field goes by its name.
+	await page.locator('input[name="password"]').fill(user.newPassword);
+	await page.locator('input[name="passwordConfirm"]').fill(user.newPassword);
+	await page.getByRole('button', { name: 'Passwort setzen' }).click();
+	await expect(page).toHaveURL(/\/$/);
+	await expect(page.getByRole('navigation')).toContainText(user.email);
+
+	// The link is used up.
+	const response = await page.request.get(link);
+	expect(response.status()).toBe(404);
+
+	// The new password signs in (that the old one no longer does, the unit tests check).
+	await page.getByRole('button', { name: 'Abmelden' }).click();
+	await page.goto('/anmelden');
+	await page.getByLabel('E-Mail-Adresse').fill(user.email);
+	await page.getByLabel('Passwort').fill(user.newPassword);
+	await page.getByRole('button', { name: 'Anmelden' }).click();
+	await expect(page).toHaveURL(/\/$/);
+});
+
+test('sends no reset link to a host named by the request', async ({ page, baseURL }) => {
+	// On node without ORIGIN the Host header names the app. A request that claims another host
+	// (with a matching Origin, so the CSRF check passes) must not put that host into the mail.
+	// On Workers the host is the one Cloudflare routed, so the case does not arise there.
+	test.skip(hosted, 'node only');
+	const email = `fremd-${crypto.randomUUID().slice(0, 6)}@example.org`;
+	await seedUser(page.request, { email, password: 'irgendein-passwort', role: 'manager' });
+	const port = new URL(baseURL!).port;
+	const response = await page.request.post('/passwort-vergessen', {
+		form: { email },
+		headers: {
+			host: `evil.example:${port}`,
+			origin: `http://evil.example:${port}`,
+			'x-sveltekit-action': 'true'
+		}
+	});
+	expect(response.status()).toBe(503);
+	expect(JSON.stringify(await response.json())).toContain('ORIGIN');
+	expect((await readOutbox(page.request)).some((mail) => mail.to === email)).toBe(false);
+});
+
+test('locks an address after five wrong passwords', async ({ page }) => {
+	// Four failures are seeded, so the test spends one sign-in of the rate limit, not five.
+	const email = `gesperrt-${crypto.randomUUID().slice(0, 6)}@example.org`;
+	await seedRows(page.request, 'loginAttempts', [
+		{ email, failures: 4, firstFailureAt: Date.now() }
+	]);
+	await page.goto('/anmelden');
+	await page.getByLabel('E-Mail-Adresse').fill(email);
+	await page.getByLabel('Passwort').fill('falsches-passwort');
+	await page.getByRole('button', { name: 'Anmelden' }).click();
+	await expect(page.getByRole('alert')).toHaveText(
+		'Zu viele Fehlversuche. Bitte warte 15 Minuten.'
+	);
+});
+
+test('answers unknown reset and invitation links with 404', async ({ page }) => {
+	const reset = await page.goto('/passwort-zuruecksetzen/does-not-exist');
+	expect(reset?.status()).toBe(404);
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Nicht gefunden');
+	const invitation = await page.goto('/einladung/does-not-exist');
+	expect(invitation?.status()).toBe(404);
 });

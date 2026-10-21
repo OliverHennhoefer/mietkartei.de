@@ -12,6 +12,8 @@ import {
 	costCategories,
 	costItems,
 	depositTransactions,
+	emailChanges,
+	invitations,
 	leasePersons,
 	leases,
 	matchingRules,
@@ -67,7 +69,11 @@ export const QUOTAS = {
 	statementResults: { table: statementResults, max: 200_000, label: 'Abrechnungsergebnisse' },
 	/** One per lease and year. */
 	co2CostSplits: { table: co2CostSplits, max: 50_000, label: 'CO₂-Kostenaufteilungen' },
-	tasks: { table: tasks, max: 20_000, label: 'Aufgaben' }
+	tasks: { table: tasks, max: 20_000, label: 'Aufgaben' },
+	/** Accepted, expired and revoked invitations stay, so this also bounds the users of an account. */
+	invitations: { table: invitations, max: 500, label: 'Einladungen' },
+	/** Requests to change an email address; each user may make five a day. */
+	emailChanges: { table: emailChanges, max: 5_000, label: 'Änderungen der E-Mail-Adresse' }
 } satisfies Record<string, Quota>;
 
 export type QuotaKind = keyof typeof QUOTAS;

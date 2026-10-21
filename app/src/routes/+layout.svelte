@@ -68,7 +68,7 @@
 				</a>
 			</div>
 			<div class="nav-group">
-				<p class="nav-user muted">{data.email}</p>
+				<p class="nav-user muted">{data.name ?? data.email}</p>
 				<form method="POST" action={resolve('/abmelden')}>
 					<button type="submit" class="link">Abmelden</button>
 				</form>

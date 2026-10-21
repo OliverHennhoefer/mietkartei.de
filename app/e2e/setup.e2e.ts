@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { watchCspViolations } from './csp';
 import { owner } from './owner';
+import { clearTables, seedRows } from './seed';
 
 test('the first visitor registers and becomes the owner', async ({ page }) => {
 	// The only run of the open registration form, so it is also checked against the CSP.
@@ -30,6 +31,24 @@ test('the first visitor registers and becomes the owner', async ({ page }) => {
 		await expect(steps.getByRole('link', { name, exact: true })).toHaveAttribute('href', href);
 	}
 	await expect(steps).not.toContainText('erledigt');
+
+	// With a property but no lease and no bank account it stays, the property ticked off and the
+	// unit step pointing to the property's page with the unit form.
+	const {
+		ids: [propertyId]
+	} = await seedRows(page.request, 'properties', [
+		{ name: 'Erstes Haus', street: 'Anfangsweg 1', postalCode: '10115', city: 'Berlin' }
+	]);
+	await page.reload();
+	await expect(page.getByRole('list', { name: 'Kennzahlen' })).toHaveCount(0);
+	const items = steps.locator('ol > li');
+	await expect(items.nth(0)).toContainText('erledigt');
+	await expect(items.nth(1)).not.toContainText('erledigt');
+	await expect(steps.getByRole('link', { name: 'Einheit anlegen', exact: true })).toHaveAttribute(
+		'href',
+		`/objekte/${propertyId}`
+	);
+	await clearTables(page.request, ['properties']);
 	await page.context().storageState({ path: '.e2e/owner.json' });
 	expect(violations).toEqual([]);
 });
