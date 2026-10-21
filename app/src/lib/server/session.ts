@@ -1,11 +1,11 @@
 import { redirect, type RequestEvent } from '@sveltejs/kit';
-import { SESSION_COOKIE } from './auth';
+import { sessionCookieName } from './auth';
 import type { AuditContext } from './audit';
 
 // Helpers for routes and hooks; the sign-in logic itself lives in auth.ts.
 
 export function setSessionCookie(event: RequestEvent, token: string, expiresAt: Date) {
-	event.cookies.set(SESSION_COOKIE, token, {
+	event.cookies.set(sessionCookieName(event.url), token, {
 		path: '/',
 		httpOnly: true,
 		sameSite: 'lax',
@@ -13,6 +13,17 @@ export function setSessionCookie(event: RequestEvent, token: string, expiresAt: 
 		// secure cookie would never be sent back.
 		secure: event.url.protocol === 'https:',
 		expires: expiresAt
+	});
+}
+
+export function getSessionToken(event: Pick<RequestEvent, 'cookies' | 'url'>): string | undefined {
+	return event.cookies.get(sessionCookieName(event.url));
+}
+
+export function deleteSessionCookie(event: Pick<RequestEvent, 'cookies' | 'url'>) {
+	event.cookies.delete(sessionCookieName(event.url), {
+		path: '/',
+		secure: event.url.protocol === 'https:'
 	});
 }
 

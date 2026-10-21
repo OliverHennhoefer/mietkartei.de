@@ -10,6 +10,8 @@ import {
 	deleteSession,
 	hashPassword,
 	registerUser,
+	SESSION_MAX_AGE,
+	sessionCookieName,
 	validateSession,
 	verifyPassword
 } from './auth';
@@ -132,10 +134,32 @@ describe('sessions', () => {
 		expect(validated?.expiresAt?.getTime()).toBeGreaterThan(soon.getTime());
 	});
 
+	it('never extends a session past the maximum age', async () => {
+		const { token } = await signedIn();
+		const signedInAt = new Date(Date.now() - SESSION_MAX_AGE + 24 * 60 * 60 * 1000);
+		await db
+			.update(sessions)
+			.set({ createdAt: signedInAt, expiresAt: new Date(Date.now() + 60 * 60 * 1000) });
+		const validated = await validateSession(db, token);
+		expect(validated?.expiresAt?.getTime()).toBe(signedInAt.getTime() + SESSION_MAX_AGE);
+
+		await db.update(sessions).set({ expiresAt: validated!.expiresAt! });
+		const again = await validateSession(db, token);
+		expect(again?.user).toBeDefined();
+		expect(again?.expiresAt).toBeUndefined();
+	});
+
 	it('ends a session on sign-out', async () => {
 		const { token } = await signedIn();
 		await deleteSession(db, token);
 		expect(await validateSession(db, token)).toBeUndefined();
 		expect(await db.select().from(sessions).where(eq(sessions.id, token))).toHaveLength(0);
+	});
+});
+
+describe('sessionCookieName', () => {
+	it('uses the __Host- prefix over https only', () => {
+		expect(sessionCookieName(new URL('https://app.mietkartei.de/'))).toBe('__Host-session');
+		expect(sessionCookieName(new URL('http://192.168.1.5:3000/'))).toBe('session');
 	});
 });
