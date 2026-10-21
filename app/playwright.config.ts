@@ -5,7 +5,7 @@ import { defineConfig } from '@playwright/test';
 const target = process.env.DEPLOY_TARGET === 'cloudflare' ? 'cloudflare' : 'node';
 const port = Number(process.env.E2E_PORT || 4173);
 
-// E2E=true enables /__e2e/seed, through which the tests create what they do not own.
+// E2E=true enables /api/e2e/seed, through which the tests create what they do not own.
 const commands = {
 	node: [
 		'rm -rf .e2e',

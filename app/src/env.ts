@@ -13,7 +13,7 @@ export const variables = defineEnvVars({
 	},
 	E2E: {
 		description:
-			'"true" enables the /__e2e routes the end-to-end tests use to seed data. Never set it elsewhere.',
+			'"true" enables the /api/e2e routes the end-to-end tests use to seed data. Never set it elsewhere.',
 		schema: (value) => value === 'true'
 	}
 });

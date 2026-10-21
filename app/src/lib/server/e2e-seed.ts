@@ -6,7 +6,7 @@ import { chunk, rowsPerStatement, runBatch } from './db/batch';
 import * as schema from './db/schema';
 import { accounts, leaseTenants, leases, properties, tenants, units, users } from './db/schema';
 
-// Seeds data for the end-to-end tests, behind POST /__e2e/seed (only when E2E is set). A feature's
+// Seeds data for the end-to-end tests, behind POST /api/e2e/seed (only when E2E is set). A feature's
 // test creates the prerequisites it does not own here, instead of driving other features' pages.
 // Everything lands in the account of the first registered user: the e2e owner takes over the
 // default account, as the first user always does.
