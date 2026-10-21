@@ -19,7 +19,7 @@ export function openFileStorage(root = documentsDirectory()): Storage {
 		return join(root, safe);
 	}
 
-	return {
+	const storage: Storage = {
 		async put(key, body, contentType) {
 			const file = path(key);
 			await mkdir(dirname(file), { recursive: true });
@@ -47,8 +47,12 @@ export function openFileStorage(root = documentsDirectory()): Storage {
 			// The account's directory goes with its last file; a non-empty one stays.
 			const directory = dirname(file);
 			if (directory !== root) await rmdir(directory).catch(() => undefined);
+		},
+		async deleteMany(keys) {
+			for (const key of keys) await storage.delete(key);
 		}
 	};
+	return storage;
 }
 
 async function readType(file: string): Promise<string> {

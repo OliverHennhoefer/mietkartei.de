@@ -334,7 +334,8 @@ new`. `matched` means at least one payment or deposit movement references the tr
   tenantId, costItemId (all nullable links, `set null`), uploadedBy. Stored via the adapter in
   `src/lib/server/storage/` under `<accountId>/<id>`; max 10 MB (checked in the action, and
   `server.js` raises the node body limit to 12 MB); served only to signed-in users of the same
-  account; the object is deleted before the row, and account deletion deletes all objects first.
+  account; the object is deleted before the row, and account deletion deletes all objects first,
+  in bulk deletes of up to 1000 keys (`Storage.deleteMany`; one R2 call each).
 - `tasks` (Aufgaben): id, accountId, title, dueDate, done, doneAt, propertyId, leaseId, note.
   Deadlines that follow from the data are computed by `src/lib/server/deadlines.ts`, not stored.
 
@@ -585,7 +586,7 @@ Signed in (German paths; every page has a `<title>` ending in `· mietkartei`):
 | `/einstellungen/profil`                                                 | auth                  | name, email, password change, landlord sender block                                                                                                                                                               |
 | `/einstellungen/mitverwalter`                                           | auth                  | invitations (owner)                                                                                                                                                                                               |
 | `/einstellungen/vpi`                                                    | rent                  | VPI values                                                                                                                                                                                                        |
-| `/einstellungen/export`                                                 | auth                  | ZIP export: `export.json` (every account table) + documents                                                                                                                                                       |
+| `/einstellungen/export`                                                 | auth                  | ZIP export, streamed: `export.json` (every account table) + documents                                                                                                                                             |
 | `/einstellungen/protokoll`                                              | auth                  | audit log                                                                                                                                                                                                         |
 | `/einstellungen/konto`                                                  | auth                  | delete account (owner, re-enter password), demo data button (integration)                                                                                                                                         |
 | `/abo`                                                                  | billing               | subscription (owner; only when Stripe is configured)                                                                                                                                                              |

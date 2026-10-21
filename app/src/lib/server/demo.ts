@@ -1,31 +1,43 @@
-import { count, eq } from 'drizzle-orm';
+import { count, eq, sql, type Table } from 'drizzle-orm';
 import {
 	addDays,
 	addMonths,
 	addMonthsToMonth,
 	firstOfMonth,
+	formatDate,
 	monthOf,
 	monthsInRange,
 	today
 } from '../dates';
-import { fingerprintRows, type BankRow } from '../domain/bank-matching';
-import { auditEntry, type AuditContext } from './audit';
-import { createBankAccount } from './bank/accounts';
+import { fingerprintRows, formatIban, type BankRow } from '../domain/bank-matching';
+import { formatCents } from '../money';
+import type { UnitKind } from '../units';
+import type { AuditContext } from './audit';
 import type { Database } from './db';
 import { chunk, rowsPerStatement, runBatch } from './db/batch';
-import { bankTransactions, properties, units } from './db/schema';
-import { depositEntry } from './deposits';
-import { paymentEntry } from './ledger';
-import { createLease, type LeaseInput } from './leases';
-import { createCostItem, ensureDefaults, listCategories, listKeys } from './operating-costs';
-import { createTask } from './tasks';
-import { createTenant, type TenantInput } from './tenants';
+import {
+	auditLog,
+	bankAccounts,
+	bankTransactions,
+	costItems,
+	depositTransactions,
+	payments,
+	properties,
+	tasks,
+	tenants,
+	units
+} from './db/schema';
+import { signedDepositAmount } from './deposits';
+import { newLeaseStatements, type LeaseInput } from './leases';
+import { ensureDefaults, listCategories, listKeys } from './operating-costs';
+import type { TenantInput } from './tenants';
 
 // Demo data for an empty account (PROTOTYPE.md, assumption 18): two properties with six units,
 // five tenants, four running leases and one ended, two years of rent payments, one lease two
 // months in arrears, a bank account with open transactions, last year's cost items and two
-// tasks. Most rows go through the features' own functions, so the audit log and the ledger look
-// like real use. The names read like a small real portfolio; nothing marks them as demo rows,
+// tasks. Everything is written in one batch with the rows and audit lines the features' own
+// functions write, so the audit log and the ledger look like real use and a failure leaves the
+// account empty. The names read like a small real portfolio; nothing marks them as demo rows,
 // so the landlord deletes them with the account (Einstellungen → Konto).
 
 export type DemoResult = { ok: true; leases: number } | { ok: false; reason: 'not-empty' };
@@ -88,108 +100,107 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 	const date = today();
 	const lastMonth = addMonthsToMonth(monthOf(date), -1);
 
+	// Reads and idempotent seeding first; everything else is written in one batch below, so a
+	// failure leaves the account empty and the button offers the demo again.
+	await ensureDefaults(db, accountId);
+	const categories = await listCategories(db, accountId);
+	const keys = await listKeys(db, accountId);
+
 	// Properties and units.
-	const [linden] = await db
-		.insert(properties)
-		.values({
+	const lindenId = crypto.randomUUID();
+	const gartenId = crypto.randomUUID();
+	const propertyRows = [
+		{
+			id: lindenId,
 			accountId,
 			name: 'Lindenstraße 12',
 			street: 'Lindenstraße 12',
 			postalCode: '10115',
 			city: 'Berlin'
-		})
-		.returning({ id: properties.id });
-	const [garten] = await db
-		.insert(properties)
-		.values({
+		},
+		{
+			id: gartenId,
 			accountId,
 			name: 'Gartenweg 3',
 			street: 'Gartenweg 3',
 			postalCode: '14467',
 			city: 'Potsdam'
-		})
-		.returning({ id: properties.id });
-	const unitRows = await db
-		.insert(units)
-		.values([
-			{
-				accountId,
-				propertyId: linden.id,
-				name: 'Wohnung EG links',
-				kind: 'apartment',
-				floorArea: 62,
-				floor: 'EG',
-				rooms: 2
-			},
-			{
-				accountId,
-				propertyId: linden.id,
-				name: 'Wohnung EG rechts',
-				kind: 'apartment',
-				floorArea: 58,
-				floor: 'EG',
-				rooms: 2
-			},
-			{
-				accountId,
-				propertyId: linden.id,
-				name: 'Wohnung 1. OG',
-				kind: 'apartment',
-				floorArea: 76,
-				floor: '1. OG',
-				rooms: 3
-			},
-			{ accountId, propertyId: linden.id, name: 'Stellplatz 1', kind: 'parking', floorArea: null },
-			{
-				accountId,
-				propertyId: garten.id,
-				name: 'Wohnung EG',
-				kind: 'apartment',
-				floorArea: 84,
-				floor: 'EG',
-				rooms: 3
-			},
-			{
-				accountId,
-				propertyId: garten.id,
-				name: 'Wohnung DG',
-				kind: 'apartment',
-				floorArea: 55,
-				floor: 'DG',
-				rooms: 2
-			}
-		])
-		.returning({ id: units.id, name: units.name });
-	const unit = (name: string) => unitRows.find((row) => row.name === name)!.id;
+		}
+	];
+	const unitRows = [
+		{
+			propertyId: lindenId,
+			name: 'Wohnung EG links',
+			kind: 'apartment',
+			floorArea: 62,
+			floor: 'EG',
+			rooms: 2
+		},
+		{
+			propertyId: lindenId,
+			name: 'Wohnung EG rechts',
+			kind: 'apartment',
+			floorArea: 58,
+			floor: 'EG',
+			rooms: 2
+		},
+		{
+			propertyId: lindenId,
+			name: 'Wohnung 1. OG',
+			kind: 'apartment',
+			floorArea: 76,
+			floor: '1. OG',
+			rooms: 3
+		},
+		{
+			propertyId: lindenId,
+			name: 'Stellplatz 1',
+			kind: 'parking',
+			floorArea: null,
+			floor: null,
+			rooms: null
+		},
+		{
+			propertyId: gartenId,
+			name: 'Wohnung EG',
+			kind: 'apartment',
+			floorArea: 84,
+			floor: 'EG',
+			rooms: 3
+		},
+		{
+			propertyId: gartenId,
+			name: 'Wohnung DG',
+			kind: 'apartment',
+			floorArea: 55,
+			floor: 'DG',
+			rooms: 2
+		}
+	].map((row) => ({ id: crypto.randomUUID(), accountId, ...row, kind: row.kind as UnitKind }));
+	const unitId = (name: string) => unitRows.find((row) => row.name === name)!.id;
 
 	// Tenants.
-	const schmidt = await createTenant(
-		db,
+	const tenantInputs = {
+		schmidt: tenant('Anna', 'Schmidt', 'anna.schmidt@example.org'),
+		yilmaz: tenant('Murat', 'Yılmaz', 'murat.yilmaz@example.org'),
+		berger: tenant('Lena', 'Berger', 'lena.berger@example.org'),
+		nowak: tenant('Tomasz', 'Nowak', 'tomasz.nowak@example.org'),
+		kraus: tenant('Helga', 'Kraus', null)
+	};
+	const tenantRows = Object.values(tenantInputs).map((input) => ({
+		id: crypto.randomUUID(),
 		accountId,
-		tenant('Anna', 'Schmidt', 'anna.schmidt@example.org')
-	);
-	const yilmaz = await createTenant(
-		db,
-		accountId,
-		tenant('Murat', 'Yılmaz', 'murat.yilmaz@example.org')
-	);
-	const berger = await createTenant(
-		db,
-		accountId,
-		tenant('Lena', 'Berger', 'lena.berger@example.org')
-	);
-	const nowak = await createTenant(
-		db,
-		accountId,
-		tenant('Tomasz', 'Nowak', 'tomasz.nowak@example.org')
-	);
-	const kraus = await createTenant(db, accountId, tenant('Helga', 'Kraus', null));
+		...input
+	}));
+	const tenantIds = Object.fromEntries(
+		Object.keys(tenantInputs).map((key, index) => [key, tenantRows[index].id])
+	) as Record<keyof typeof tenantInputs, string>;
 
 	// Leases: four running, one ended (the previous tenant of EG rechts).
 	const inputs: { key: string; input: LeaseInput }[] = [
 		{
 			key: 'schmidt',
-			input: lease(unit('Wohnung EG links'), [schmidt.id], {
+			input: lease(unitId('Wohnung EG links'), [tenantIds.schmidt], {
 				startDate: '2023-04-01',
 				baseRent: 62000,
 				operatingCostPrepayment: 13000,
@@ -199,7 +210,7 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 		},
 		{
 			key: 'kraus',
-			input: lease(unit('Wohnung EG rechts'), [kraus.id], {
+			input: lease(unitId('Wohnung EG rechts'), [tenantIds.kraus], {
 				startDate: '2019-09-01',
 				endDate: '2024-08-31',
 				baseRent: 52000,
@@ -213,7 +224,7 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 		},
 		{
 			key: 'yilmaz',
-			input: lease(unit('Wohnung EG rechts'), [yilmaz.id], {
+			input: lease(unitId('Wohnung EG rechts'), [tenantIds.yilmaz], {
 				startDate: '2024-10-01',
 				rentModel: 'indexed',
 				indexBaseMonth: '2024-09',
@@ -227,8 +238,8 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 		},
 		{
 			key: 'berger',
-			input: lease(unit('Wohnung 1. OG'), [berger.id], {
-				extraUnitIds: [unit('Stellplatz 1')],
+			input: lease(unitId('Wohnung 1. OG'), [tenantIds.berger], {
+				extraUnitIds: [unitId('Stellplatz 1')],
 				startDate: '2022-01-01',
 				baseRent: 83000,
 				operatingCostPrepayment: 16000,
@@ -239,7 +250,7 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 		},
 		{
 			key: 'nowak',
-			input: lease(unit('Wohnung EG'), [nowak.id], {
+			input: lease(unitId('Wohnung EG'), [tenantIds.nowak], {
 				startDate: '2025-06-01',
 				baseRent: 92000,
 				operatingCostPrepayment: 18000,
@@ -256,68 +267,65 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 		if (monthOf(input.startDate) < firstBookedMonth)
 			input.ledgerStart = firstOfMonth(firstBookedMonth);
 	}
-	const leaseIds = new Map<string, string>();
-	for (const { key, input } of inputs) {
-		const created = await createLease(db, context, input);
-		if (!created.ok) throw new Error(`Demo lease ${key}: ${created.reason}`);
-		leaseIds.set(key, created.id);
-	}
+	const leaseEntries = inputs.map(({ key, input }) => ({ key, id: crypto.randomUUID(), input }));
+	const leaseId = (key: string) => leaseEntries.find((entry) => entry.key === key)!.id;
 
 	// Deposits received at the start, and the rent paid month by month until last month (the
 	// current month is open on the bank account below). Berger has not paid the two months before:
-	// the arrears tile.
-	const statements = [];
-	for (const { key, input } of inputs) {
-		const leaseId = leaseIds.get(key)!;
-		statements.push(
-			depositEntry(db, context, {
-				leaseId,
-				date: input.startDate,
-				kind: 'received',
-				amount: input.securityDeposit,
-				note: 'Überweisung bei Vertragsbeginn'
-			}).statement
-		);
+	// the arrears tile. Kraus got her deposit back after moving out.
+	const depositRows = [
+		...leaseEntries.map(({ id, input }) => ({
+			leaseId: id,
+			date: input.startDate,
+			kind: 'received' as const,
+			amount: input.securityDeposit,
+			note: 'Überweisung bei Vertragsbeginn'
+		})),
+		{
+			leaseId: leaseId('kraus'),
+			date: '2024-11-15',
+			kind: 'returned' as const,
+			amount: 156000,
+			note: 'Rückzahlung nach Auszug'
+		}
+	].map((row) => ({
+		id: crypto.randomUUID(),
+		accountId,
+		...row,
+		amount: signedDepositAmount(row.kind, row.amount),
+		bankTransactionId: null
+	}));
+	const paymentRows = leaseEntries.flatMap(({ key, id, input }) => {
 		const total = input.baseRent + input.operatingCostPrepayment + input.heatingCostPrepayment;
 		const from =
 			monthOf(input.startDate) > firstBookedMonth ? monthOf(input.startDate) : firstBookedMonth;
 		const to = input.endDate ? monthOf(input.endDate) : lastMonth;
-		if (from > to) continue;
+		if (from > to) return [];
 		let months = monthsInRange(from, to);
 		if (key === 'berger') months = months.slice(0, -2);
-		for (const month of months) {
-			statements.push(
-				paymentEntry(db, context, {
-					leaseId,
-					date: addDays(firstOfMonth(month), RENT_DAY),
-					amount: total,
-					source: 'manual',
-					note: `Miete ${month}`
-				}).statement
-			);
-		}
-	}
-	// Kraus got her deposit back after moving out.
-	statements.push(
-		depositEntry(db, context, {
-			leaseId: leaseIds.get('kraus')!,
-			date: '2024-11-15',
-			kind: 'returned',
-			amount: 156000,
-			note: 'Rückzahlung nach Auszug'
-		}).statement
-	);
-	await runBatch(db, statements);
+		return months.map((month) => ({
+			id: crypto.randomUUID(),
+			accountId,
+			leaseId: id,
+			date: addDays(firstOfMonth(month), RENT_DAY),
+			amount: total,
+			source: 'manual' as const,
+			bankTransactionId: null,
+			note: `Miete ${month}`
+		}));
+	});
 
 	// A bank account with this month's transactions, none assigned yet: the open transactions tile.
-	const bankAccountId = await createBankAccount(db, context, {
+	const bankAccount = {
+		id: crypto.randomUUID(),
+		accountId,
 		name: 'Mietkonto Sparkasse',
 		iban: 'DE02120300000000202051',
 		bic: 'BYLADEM1001',
 		holder: 'Vermietung Lindenstraße'
-	});
+	};
 	const thisMonth = firstOfMonth(monthOf(date));
-	const rows: BankRow[] = [
+	const bankRows: BankRow[] = [
 		{
 			bookingDate: addDays(thisMonth, 2),
 			valueDate: addDays(thisMonth, 2),
@@ -346,20 +354,15 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			externalId: null
 		}
 	];
-	const fingerprinted = await fingerprintRows(rows);
-	await runBatch(
-		db,
-		chunk(fingerprinted, rowsPerStatement(bankTransactions)).map((group) =>
-			db
-				.insert(bankTransactions)
-				.values(group.map((row) => ({ accountId, bankAccountId, importId: null, ...row })))
-		)
-	);
+	const transactionRows = (await fingerprintRows(bankRows)).map((row) => ({
+		id: crypto.randomUUID(),
+		accountId,
+		bankAccountId: bankAccount.id,
+		importId: null,
+		...row
+	}));
 
 	// Last year's cost items for Lindenstraße 12 on the standard categories and keys.
-	await ensureDefaults(db, accountId);
-	const categories = await listCategories(db, accountId);
-	const keys = await listKeys(db, accountId);
 	const lastYear = String(Number(date.slice(0, 4)) - 1);
 	const items: [string, string, string, number][] = [
 		['Grundsteuer', 'Grundsteuerbescheid', 'Finanzamt Berlin', 98400],
@@ -368,47 +371,109 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 		['Sach- und Haftpflichtversicherung', 'Gebäudeversicherung', 'Allianz', 142300],
 		['Hauswart', 'Hausmeisterdienst', 'Hausmeisterservice Krüger', 180000]
 	];
-	for (const [categoryName, description, supplier, amount] of items) {
+	const costItemRows = items.flatMap(([categoryName, description, supplier, amount]) => {
 		const category = categories.find((row) => row.name === categoryName);
 		const keyId = category?.allocationKeyId ?? keys[0]?.id;
-		if (!category || !keyId) continue;
-		await createCostItem(db, context, {
-			propertyId: linden.id,
-			categoryId: category.id,
-			allocationKeyId: keyId,
-			billingCircleId: null,
-			description,
-			supplier,
-			invoiceDate: `${lastYear}-12-15`,
-			periodStart: `${lastYear}-01-01`,
-			periodEnd: `${lastYear}-12-31`,
-			amount,
-			allocable: true,
-			fuel: null,
-			fuelKwh: null,
-			co2Kg: null,
-			co2Cost: null
-		});
-	}
+		if (!category || !keyId) return [];
+		return [
+			{
+				id: crypto.randomUUID(),
+				accountId,
+				propertyId: lindenId,
+				categoryId: category.id,
+				allocationKeyId: keyId,
+				billingCircleId: null,
+				description,
+				supplier,
+				invoiceDate: `${lastYear}-12-15`,
+				periodStart: `${lastYear}-01-01`,
+				periodEnd: `${lastYear}-12-31`,
+				amount,
+				allocable: true
+			}
+		];
+	});
 
 	// Two tasks.
-	await createTask(db, context, {
-		title: 'Rauchmelder prüfen lassen',
-		dueDate: addMonths(date, 1),
-		propertyId: linden.id,
-		leaseId: null,
-		note: 'Jährliche Wartung, alle Wohnungen.'
-	});
-	await createTask(db, context, {
-		title: 'Mahnung schreiben',
-		dueDate: addDays(date, 7),
-		propertyId: null,
-		leaseId: leaseIds.get('berger')!,
-		note: 'Zwei Monatsmieten offen.'
-	});
+	const taskRows = [
+		{
+			id: crypto.randomUUID(),
+			accountId,
+			title: 'Rauchmelder prüfen lassen',
+			dueDate: addMonths(date, 1),
+			propertyId: lindenId,
+			leaseId: null,
+			note: 'Jährliche Wartung, alle Wohnungen.'
+		},
+		{
+			id: crypto.randomUUID(),
+			accountId,
+			title: 'Mahnung schreiben',
+			dueDate: addDays(date, 7),
+			propertyId: null,
+			leaseId: leaseId('berger'),
+			note: 'Zwei Monatsmieten offen.'
+		}
+	];
 
-	await runBatch(db, [
-		auditEntry(db, context, 'account', accountId, 'create', 'Demodaten angelegt')
-	]);
+	// The audit lines the features' own functions write.
+	const audit = (entity: string, entityId: string, summary: string) => ({
+		id: crypto.randomUUID(),
+		accountId,
+		userId: context.userId,
+		entity,
+		entityId,
+		action: 'create' as const,
+		summary
+	});
+	const auditRows = [
+		audit(
+			'bankAccount',
+			bankAccount.id,
+			`Bankverbindung „${bankAccount.name}“ (${formatIban(bankAccount.iban)}) angelegt`
+		),
+		...costItemRows.map((item) =>
+			audit(
+				'cost_item',
+				item.id,
+				`Beleg ${item.description} (${formatCents(item.amount)}) angelegt`
+			)
+		),
+		...taskRows.map((task) =>
+			audit('task', task.id, `Aufgabe „${task.title}“ (bis ${formatDate(task.dueDate)}) angelegt`)
+		)
+	];
+
+	const insert = <T extends Table>(table: T, rows: T['$inferInsert'][]) =>
+		chunk(rows, rowsPerStatement(table)).map((group) => db.insert(table).values(group));
+	try {
+		await runBatch(db, [
+			...insert(properties, propertyRows),
+			...insert(units, unitRows),
+			...insert(tenants, tenantRows),
+			...newLeaseStatements(db, context, leaseEntries),
+			...insert(depositTransactions, depositRows),
+			...insert(payments, paymentRows),
+			...insert(bankAccounts, [bankAccount]),
+			...insert(bankTransactions, transactionRows),
+			...insert(costItems, costItemRows),
+			...insert(tasks, taskRows),
+			...insert(auditLog, auditRows),
+			// The last line is also the guard against a second run at the same time (a double
+			// click): both pass isEmptyAccount, but once one batch is in, the other sees four
+			// properties, the summary is NULL and its whole batch is rolled back.
+			db.insert(auditLog).values({
+				accountId,
+				userId: context.userId,
+				entity: 'account',
+				entityId: accountId,
+				action: 'create',
+				summary: sql`(select case when count(*) = ${propertyRows.length} then ${'Demodaten angelegt'} end from ${properties} where ${properties.accountId} = ${accountId})`
+			})
+		]);
+	} catch (error) {
+		if (!(await isEmptyAccount(db, accountId))) return { ok: false, reason: 'not-empty' };
+		throw error;
+	}
 	return { ok: true, leases: inputs.length };
 }

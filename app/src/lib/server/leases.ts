@@ -1,4 +1,5 @@
 import { and, asc, count, desc, eq, inArray, ne } from 'drizzle-orm';
+import type { BatchItem } from 'drizzle-orm/batch';
 import { today } from '../dates';
 import { rentOn, type RentChange as RentHistoryEntry } from '../domain/rents';
 import type { AuditContext } from './audit';
@@ -7,6 +8,7 @@ import type { Database } from './db';
 import { chunk, chunkIds, rowsPerStatement, runBatch } from './db/batch';
 import { laterRows, laterRowsNote, type LaterRows } from './rent-history';
 import {
+	auditLog,
 	depositTransactions,
 	leasePersons,
 	leaseTenants,
@@ -252,46 +254,84 @@ function leaseColumns(input: LeaseInput) {
 	};
 }
 
+/**
+ * The inserts that create new leases with their tenants, extra units, the initial rent, the first
+ * persons row and the "Mietvertrag angelegt" audit line, as bulk inserts chunked for D1's
+ * parameter limit. Every id is given or generated here, so a caller can put any number of leases
+ * into one batch (the CSV import, the demo data). The references must already be checked
+ * against the account.
+ */
+export function newLeaseStatements(
+	db: Database,
+	context: AuditContext,
+	entries: { id: string; input: LeaseInput }[]
+): BatchItem<'sqlite'>[] {
+	const { accountId } = context;
+	const leaseRows = entries.map(({ id, input }) => ({ id, accountId, ...leaseColumns(input) }));
+	const tenantRows = entries.flatMap(({ id, input }) =>
+		[...new Set(input.tenantIds)].map((tenantId) => ({ leaseId: id, tenantId }))
+	);
+	const extraUnitRows = entries.flatMap(({ id, input }) =>
+		[...new Set(input.extraUnitIds)]
+			.filter((unitId) => unitId !== input.unitId)
+			.map((unitId) => ({ accountId, leaseId: id, unitId }))
+	);
+	const rentChangeRows = entries.map(({ id, input }) => ({
+		id: crypto.randomUUID(),
+		accountId,
+		leaseId: id,
+		validFrom: input.startDate,
+		baseRent: input.baseRent,
+		operatingCostPrepayment: input.operatingCostPrepayment,
+		heatingCostPrepayment: input.heatingCostPrepayment,
+		reason: 'initial' as const,
+		status: 'approved' as const,
+		createdBy: context.userId
+	}));
+	const personsRows = entries.map(({ id, input }) => ({
+		id: crypto.randomUUID(),
+		accountId,
+		leaseId: id,
+		validFrom: input.startDate,
+		persons: input.persons
+	}));
+	const auditRows = entries.map(({ id }) => ({
+		id: crypto.randomUUID(),
+		accountId,
+		userId: context.userId,
+		entity: 'lease',
+		entityId: id,
+		action: 'create' as const,
+		summary: 'Mietvertrag angelegt'
+	}));
+	return [
+		...chunk(leaseRows, rowsPerStatement(leases)).map((rows) => db.insert(leases).values(rows)),
+		...chunk(tenantRows, rowsPerStatement(leaseTenants)).map((rows) =>
+			db.insert(leaseTenants).values(rows)
+		),
+		...chunk(extraUnitRows, rowsPerStatement(leaseUnits)).map((rows) =>
+			db.insert(leaseUnits).values(rows)
+		),
+		...chunk(rentChangeRows, rowsPerStatement(rentChanges)).map((rows) =>
+			db.insert(rentChanges).values(rows)
+		),
+		...chunk(personsRows, rowsPerStatement(leasePersons)).map((rows) =>
+			db.insert(leasePersons).values(rows)
+		),
+		...chunk(auditRows, rowsPerStatement(auditLog)).map((rows) => db.insert(auditLog).values(rows))
+	];
+}
+
 /** Creates the lease with its tenants, extra units, the initial rent and persons, atomically. */
 export async function createLease(
 	db: Database,
 	context: AuditContext,
 	input: LeaseInput
 ): Promise<{ ok: true; id: string } | { ok: false; reason: LeaseError }> {
-	const { accountId } = context;
-	const reason = await checkReferences(db, accountId, input);
+	const reason = await checkReferences(db, context.accountId, input);
 	if (reason) return { ok: false, reason };
-
 	const id = crypto.randomUUID();
-	const extraUnitIds = [...new Set(input.extraUnitIds)].filter((unitId) => unitId !== input.unitId);
-	const tenantIds = [...new Set(input.tenantIds)];
-	await runBatch(db, [
-		db.insert(leases).values({ id, accountId, ...leaseColumns(input) }),
-		...chunk(tenantIds, rowsPerStatement(leaseTenants)).map((ids) =>
-			db.insert(leaseTenants).values(ids.map((tenantId) => ({ leaseId: id, tenantId })))
-		),
-		...chunk(extraUnitIds, rowsPerStatement(leaseUnits)).map((ids) =>
-			db.insert(leaseUnits).values(ids.map((unitId) => ({ accountId, leaseId: id, unitId })))
-		),
-		db.insert(rentChanges).values({
-			accountId,
-			leaseId: id,
-			validFrom: input.startDate,
-			baseRent: input.baseRent,
-			operatingCostPrepayment: input.operatingCostPrepayment,
-			heatingCostPrepayment: input.heatingCostPrepayment,
-			reason: 'initial',
-			status: 'approved',
-			createdBy: context.userId
-		}),
-		db.insert(leasePersons).values({
-			accountId,
-			leaseId: id,
-			validFrom: input.startDate,
-			persons: input.persons
-		}),
-		auditEntry(db, context, 'lease', id, 'create', 'Mietvertrag angelegt')
-	]);
+	await runBatch(db, newLeaseStatements(db, context, [{ id, input }]));
 	return { ok: true, id };
 }
 

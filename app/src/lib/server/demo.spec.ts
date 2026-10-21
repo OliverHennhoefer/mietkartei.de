@@ -1,8 +1,17 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { countUnmatched } from './bank/transactions';
 import type { Database } from './db';
-import { costItems, leases, properties, tasks, tenants, units } from './db/schema';
+import {
+	auditLog,
+	costItems,
+	leases,
+	payments,
+	properties,
+	tasks,
+	tenants,
+	units
+} from './db/schema';
 import { createDemoData, isEmptyAccount } from './demo';
 import { listBalances } from './ledger';
 import { contextA, contextB, seedUnit, testDatabase } from './testing';
@@ -40,6 +49,32 @@ describe('createDemoData', () => {
 		expect(balances.every((balance) => balance.balance >= 0)).toBe(true);
 
 		expect(await isEmptyAccount(db, 'b')).toBe(true);
+	});
+
+	it('writes in one batch: a failure part-way leaves the account empty, so the demo can be retried', async () => {
+		// The database refuses the task rows, which come late in the batch.
+		await db.run(
+			sql`create trigger refuse_tasks before insert on tasks begin select raise(abort, 'D1 down'); end`
+		);
+		await expect(createDemoData(db, contextA)).rejects.toThrow('D1 down');
+		expect(await isEmptyAccount(db, 'a')).toBe(true);
+		for (const table of [properties, units, tenants, leases, payments, costItems]) {
+			expect(await db.select().from(table).where(eq(table.accountId, 'a'))).toEqual([]);
+		}
+
+		await db.run(sql`drop trigger refuse_tasks`);
+		expect(await createDemoData(db, contextA)).toEqual({ ok: true, leases: 5 });
+		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(2);
+	});
+
+	it('creates the demo once when the button is pressed twice at the same time', async () => {
+		const results = await Promise.all([createDemoData(db, contextA), createDemoData(db, contextA)]);
+		expect(results).toContainEqual({ ok: true, leases: 5 });
+		expect(results).toContainEqual({ ok: false, reason: 'not-empty' });
+		expect(await db.select().from(properties).where(eq(properties.accountId, 'a'))).toHaveLength(2);
+		expect(await db.select().from(leases).where(eq(leases.accountId, 'a'))).toHaveLength(5);
+		const audit = await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'));
+		expect(audit.filter((entry) => entry.summary === 'Demodaten angelegt')).toHaveLength(1);
 	});
 
 	it('refuses an account that already has a property', async () => {
