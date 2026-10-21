@@ -169,10 +169,11 @@ export async function deleteDepositMovement(
 export type DepositInstalment = { dueDate: IsoDate; amount: number };
 
 /**
- * § 551 Abs. 2 BGB: a residential tenant may pay the deposit in three instalments, the first
- * with the first rent, the others with the two following rents. The dates are the due dates of
- * the first three rent charges of the lease (same rule as the ledger, from the start date even
- * when the ledger starts later); the amounts split the agreed deposit to the cent. Empty for
+ * § 551 Abs. 2 BGB: a residential tenant may pay the deposit in three instalments, the first at
+ * the start of the tenancy, the others with the two following rents. The dates are the due dates
+ * of the first three rent charges of the lease (same rule as the ledger, from the start date even
+ * when the ledger starts later), the first one not before the start date; the amounts split the
+ * agreed deposit to the cent. Empty for
  * commercial and parking leases, for a lease without a deposit, and for an unknown lease.
  */
 export async function instalmentDeadlines(
@@ -192,5 +193,10 @@ export async function instalmentDeadlines(
 		lease.securityDeposit,
 		charges.map(() => 1)
 	);
-	return charges.map((charge, index) => ({ dueDate: charge.dueDate, amount: amounts[index] }));
+	// § 551 Abs. 2 BGB: the first instalment is due at the start of the tenancy, never before it
+	// (a lease starting on the 15th has its first rent due on the 3rd working day of the month).
+	return charges.map((charge, index) => ({
+		dueDate: charge.dueDate < lease.startDate ? lease.startDate : charge.dueDate,
+		amount: amounts[index]
+	}));
 }

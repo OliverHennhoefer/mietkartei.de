@@ -10,8 +10,11 @@ import { FormParser, type ParseResult } from './fields';
 // proposal and a VPI value. Whether the lease allows the change is checked by the server module.
 
 export type ManualChangeOptions = {
-	/** The base rent valid today, to tell a change of the Kaltmiete from one of the prepayments. */
-	currentBaseRent: number;
+	/**
+	 * The base rent valid on the change's first day, to tell a change of the Kaltmiete from one of
+	 * the prepayments (undefined before the lease starts).
+	 */
+	baseRentOn: (validFrom: string) => number | undefined;
 	/** Residential graduated or indexed lease: § 557a/§ 557b exclude § 558, so a change needs a reason. */
 	noteRequiredOnBaseRentChange: boolean;
 };
@@ -30,7 +33,8 @@ export function parseManualChange(
 	if (
 		options.noteRequiredOnBaseRentChange &&
 		baseRent !== null &&
-		baseRent !== options.currentBaseRent &&
+		validFrom !== null &&
+		baseRent !== options.baseRentOn(validFrom) &&
 		!note
 	) {
 		parser.fail(

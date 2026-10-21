@@ -77,8 +77,9 @@
 						</td>
 						<td>{lease.main ? 'Haupteinheit' : 'Mitvermietet'}</td>
 						<td>
-							{#if lease.active}<Badge tone="success">Aktiv</Badge>{:else}<Badge>Beendet</Badge
-								>{/if}
+							{#if lease.active}<Badge tone="success">Aktiv</Badge>{:else if lease.upcoming}<Badge
+									tone="info">Beginnt später</Badge
+								>{:else}<Badge>Beendet</Badge>{/if}
 						</td>
 					</tr>
 				{/each}

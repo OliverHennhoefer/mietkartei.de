@@ -76,12 +76,16 @@ export function monthlyAmounts(
 
 	const days = endDay - Number(occupied.start.slice(8, 10)) + 1;
 	const full = days === total && stretches.length === 1;
+	// Each field is rounded once over the whole month, not per stretch: a field that stays the same
+	// across a mid-month change of another field keeps its exact amount (12345 × 15/30 twice would
+	// round to 12346).
 	const sum = (key: keyof RentAmounts) =>
 		full
 			? stretches[0].rent[key]
-			: stretches.reduce(
-					(acc, stretch) => acc + proRata(stretch.rent[key], stretch.days, total),
-					0
+			: proRata(
+					stretches.reduce((acc, stretch) => acc + stretch.rent[key] * stretch.days, 0),
+					1,
+					total
 				);
 	return {
 		baseRent: sum('baseRent'),
@@ -98,4 +102,42 @@ function sameAmounts(a: RentAmounts, b: RentAmounts): boolean {
 		a.operatingCostPrepayment === b.operatingCostPrepayment &&
 		a.heatingCostPrepayment === b.heatingCostPrepayment
 	);
+}
+
+export const rentFields = ['baseRent', 'operatingCostPrepayment', 'heatingCostPrepayment'] as const;
+
+export type RentFieldUpdate = { field: keyof RentAmounts; value: number; ids: string[] };
+
+/**
+ * A history row stores all three amounts, so a row entered for a later date (a Staffel step
+ * entered up front, a § 560 change) carries the other fields as they were when it was entered.
+ * When the value of a field changes from `validFrom` on (a new row, an edited initial row, a
+ * deleted row), the later approved rows that still carry the old value inherited it and must
+ * follow; the first later row with a different value set the field itself, and the rows after it
+ * follow that one. Returns, per changed field, the ids of the later rows to update.
+ */
+export function laterRowUpdates(
+	changes: readonly (RentChange & { id: string })[],
+	validFrom: IsoDate,
+	before: RentAmounts,
+	after: RentAmounts,
+	excludeId?: string
+): RentFieldUpdate[] {
+	const later = changes
+		.filter(
+			(change) =>
+				change.status === 'approved' && change.validFrom > validFrom && change.id !== excludeId
+		)
+		.sort((a, b) => a.validFrom.localeCompare(b.validFrom));
+	const updates: RentFieldUpdate[] = [];
+	for (const field of rentFields) {
+		if (before[field] === after[field]) continue;
+		const ids: string[] = [];
+		for (const change of later) {
+			if (change[field] !== before[field]) break;
+			ids.push(change.id);
+		}
+		if (ids.length > 0) updates.push({ field, value: after[field], ids });
+	}
+	return updates;
 }

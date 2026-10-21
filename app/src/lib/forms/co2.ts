@@ -1,4 +1,4 @@
-import { today } from '../dates';
+import { addMonths, formatDate, today } from '../dates';
 import { emissionFactors } from '../domain/co2';
 import { formatNumber } from '../format';
 import { fuelLabels } from '../labels';
@@ -77,6 +77,12 @@ export function parseCo2Split(form: FormData, currentDate = today()): Co2SplitPa
 	const claimedOn = parser.date('claimedOn');
 	if (claimedOn && invoiceDate && claimedOn < invoiceDate) {
 		parser.fail('claimedOn', 'Die Geltendmachung liegt vor dem Rechnungsdatum.');
+	} else if (claimedOn && invoiceDate && claimedOn > addMonths(invoiceDate, 12)) {
+		// § 6 Abs. 1 CO2KostAufG: the tenant claims within twelve months of the supplier's bill.
+		parser.fail(
+			'claimedOn',
+			`Der Mieter muss die Erstattung binnen zwölf Monaten nach der Abrechnung des Lieferanten geltend machen (§ 6 Abs. 1 CO2KostAufG); die Frist endete am ${formatDate(addMonths(invoiceDate, 12))}.`
+		);
 	}
 
 	if (parser.hasErrors || hint !== null) {

@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { untrack } from 'svelte';
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
-	import { formatDate, formatMonth } from '#lib/dates.ts';
+	import { formatDate, formatMonth, isIsoDate } from '#lib/dates.ts';
+	import { formatIndexValue } from '#lib/domain/index-rent.ts';
+	import { proposedEndDate } from '#lib/domain/lease-end.ts';
 	import { personName } from '#lib/format.ts';
 	import {
 		heatingCostModelLabels,
@@ -23,13 +26,36 @@
 	const endForm = $derived(form?.which === 'end' && form.errors ? form : undefined);
 	const endValues = $derived(endForm?.values ?? data.endProposal);
 	const parties = Object.entries(terminatedByLabels) as [keyof typeof terminatedByLabels, string][];
+
+	// "Vertrag beenden": the end date follows the receipt date and the party (§ 573c / § 580a
+	// BGB) until it is typed over; changing either input proposes it again. The action checks it.
+	// A value typed before hydration reaches the bound state, so the proposal follows it too.
+	let endAt = $state(untrack(() => endValues.terminatedAt ?? ''));
+	let endBy = $state(untrack(() => endValues.terminatedBy ?? 'tenant'));
+	let endTyped = $state<string | undefined>(untrack(() => endForm?.values.endDate));
+	const earliestEnd = $derived(
+		isIsoDate(endAt) && (endBy === 'tenant' || endBy === 'landlord')
+			? proposedEndDate({
+					kind: lease.kind,
+					startDate: lease.startDate,
+					terminatedAt: endAt,
+					terminatedBy: endBy
+				})
+			: undefined
+	);
+	const endOn = $derived(endTyped ?? earliestEnd ?? endValues.endDate ?? '');
+	function proposeEnd() {
+		endTyped = undefined;
+	}
+	const law = $derived(lease.kind === 'commercial' ? '§ 580a Abs. 2 BGB' : '§ 573c BGB');
 </script>
 
 <!-- The heading, tenants and tab bar come from +layout.svelte; this page is the "Übersicht" tab. -->
 <div class="toolbar">
 	<a href="/vertraege/{lease.id}/bearbeiten" class="button">Bearbeiten</a>
-	{#if lease.active}<Badge tone="success">Aktiv</Badge>{:else if lease.endDate}<Badge>Beendet</Badge
-		>{:else}<Badge tone="info">Beginnt später</Badge>{/if}
+	{#if lease.active}<Badge tone="success">Aktiv</Badge>{:else if lease.upcoming}<Badge tone="info"
+			>Beginnt später</Badge
+		>{:else}<Badge>Beendet</Badge>{/if}
 </div>
 
 {#if form?.message}
@@ -74,7 +100,11 @@
 	<dd>{formatDate(lease.ledgerStart ?? lease.startDate)}</dd>
 	{#if lease.rentModel === 'indexed' && lease.indexBaseMonth}
 		<dt>Indexbasis</dt>
-		<dd>{formatMonth(lease.indexBaseMonth)}: {lease.indexBaseValue}</dd>
+		<dd>
+			{formatMonth(lease.indexBaseMonth)}{#if lease.indexBaseValue !== null}: {formatIndexValue(
+					lease.indexBaseValue
+				)}{/if}
+		</dd>
 	{/if}
 	{#if lease.notes}
 		<dt>Notizen</dt>
@@ -206,16 +236,23 @@
 	>
 		<div class="card form end-form">
 			<p class="form-wide muted small">
-				Das Vertragsende ist nach § 573c BGB vorbelegt: Eine Kündigung, die bis zum dritten Werktag
-				eines Monats eingeht, beendet den Vertrag zum Ende des übernächsten Monats. Bei einer
-				Kündigung durch den Vermieter verlängert sich die Frist nach fünf und acht Jahren Mietdauer;
-				passe das Datum dann an.
+				{#if lease.kind === 'commercial'}
+					Das Vertragsende folgt § 580a Abs. 2 BGB: Eine Kündigung, die bis zum dritten Werktag
+					eines Quartals eingeht, beendet den Vertrag zum Ende des nächsten Quartals.
+				{:else}
+					Das Vertragsende folgt § 573c BGB: Eine Kündigung, die bis zum dritten Werktag eines
+					Monats eingeht (der Samstag zählt mit), beendet den Vertrag zum Ende des übernächsten
+					Monats. Bei einer Kündigung durch den Vermieter verlängert sich die Frist nach fünf und
+					acht Jahren Mietdauer um drei und sechs Monate.
+				{/if}
+				Das Datum passt sich an, wenn du Eingang oder Partei änderst.
 			</p>
 			<Field label="Kündigung erhalten am" error={endForm?.errors.terminatedAt}>
 				<input
 					name="terminatedAt"
 					type="date"
-					defaultValue={endValues.terminatedAt ?? ''}
+					bind:value={endAt}
+					oninput={proposeEnd}
 					aria-invalid={endForm?.errors.terminatedAt ? 'true' : undefined}
 					required
 				/>
@@ -223,22 +260,37 @@
 			<Field label="Gekündigt" error={endForm?.errors.terminatedBy}>
 				<select
 					name="terminatedBy"
+					bind:value={endBy}
+					onchange={proposeEnd}
 					aria-invalid={endForm?.errors.terminatedBy ? 'true' : undefined}
 				>
 					{#each parties as [party, label] (party)}
-						<option value={party} selected={endValues.terminatedBy === party}>{label}</option>
+						<option value={party}>{label}</option>
 					{/each}
 				</select>
 			</Field>
-			<Field label="Vertragsende" error={endForm?.errors.endDate}>
+			<Field
+				label="Vertragsende"
+				error={endForm?.errors.endDate}
+				hint={earliestEnd ? `Nach ${law} frühestens am ${formatDate(earliestEnd)}.` : undefined}
+			>
 				<input
 					name="endDate"
 					type="date"
-					defaultValue={endValues.endDate ?? ''}
+					value={endOn}
+					oninput={(event) => (endTyped = event.currentTarget.value)}
 					aria-invalid={endForm?.errors.endDate ? 'true' : undefined}
 					required
 				/>
 			</Field>
+			<label class="inline form-wide">
+				<input
+					type="checkbox"
+					name="earlyEndAgreed"
+					defaultChecked={endForm?.values.earlyEndAgreed === 'on'}
+				/>
+				Früheres Ende vereinbart (Aufhebungsvertrag)
+			</label>
 		</div>
 	</ConfirmButton>
 {/if}

@@ -207,8 +207,10 @@ source of truth; this section explains it.
   `heatingCostPrepayment`, `persons` (initial value), `rentDueDay` (n-th working day, default 3),
   `ledgerStart` (date, null = startDate), `indexBaseMonth`, `indexBaseValue`, `terminatedAt`,
   `terminatedBy` (`tenant` | `landlord`), `notes`. `baseRent`, `operatingCostPrepayment`,
-  `heatingCostPrepayment`, `securityDeposit` and `persons` are written once on creation and never
-  read for calculations; the values valid on a day come from `rent_changes` and `lease_persons`.
+  `heatingCostPrepayment`, `securityDeposit` and `persons` are the values at the start (written on
+  creation, corrected in the edit form together with the initial rent change and persons row) and
+  never read for calculations; the values valid on a day come from `rent_changes` and
+  `lease_persons`.
 - `lease_units`: accountId, leaseId, unitId. Extra units rented with the main unit (parking). The
   main unit is not repeated; changing the units of a running lease means ending it and starting a
   new one. A unit occupied by a lease in a period means `leases.unitId = unit` or a `lease_units`
@@ -223,7 +225,10 @@ source of truth; this section explains it.
   note, indexMonth, indexValue (the VPI the change was computed against; also recorded on a manual
   change of an indexed lease), letterText, deliveredOn, createdBy. Partial unique
   (leaseId, validFrom) where approved. The rent valid on a day is the approved change with the
-  latest `validFrom <= day`.
+  latest `validFrom <= day`. Each row stores all three amounts, so a write that changes a field
+  from a date on also updates that field in the later approved rows that still held the old
+  value, up to the first later row that set it itself (`laterRowUpdates` in
+  `src/lib/domain/rents.ts`); deleting a change lets the rows that inherited from it fall back.
 - `deposit_transactions` (Kaution): id, accountId, leaseId, date, amount (positive = received),
   kind (`received` | `interest` | `returned` | `withheld`), bankTransactionId (null, partial
   unique), note.
@@ -347,11 +352,13 @@ but the app refuses to delete a bank account with assigned transactions.
 - **Rent valid on a day:** latest approved `rent_changes` row with `validFrom <= day`
   (`rentOn` in `src/lib/domain/rents.ts`). A change may start on any day; the ledger prorates the
   month by days.
-- **Manual change** ("Änderung ab Datum"): any field, any reason note. On a graduated or indexed
-  residential lease a manual change of the base rent shows a warning (§ 557a Abs. 2 / § 557b Abs. 2
+- **Manual change** ("Änderung ab Datum"): any field, any reason note, prefilled with the rent
+  valid on its default date. On a graduated or indexed residential lease a manual change of the
+  base rent (against the rent valid on its date) shows a warning (§ 557a Abs. 2 / § 557b Abs. 2
   exclude § 558 increases) and requires a note.
 - **Graduated rent (§ 557a BGB):** steps (date, new base rent) become `graduated` changes,
-  approved immediately; at least one year between steps for residential leases (validation).
+  approved immediately after a confirmation naming the rent and the date; at least one year
+  between steps for residential leases (validation).
 - **Index rent (§ 557b BGB):** the proposal page computes new base rent = current base rent ×
   (latest VPI value ÷ reference index), rounded half-up to cents, where the reference index is the
   `indexValue` of the latest approved change that carries one, else the lease's `indexBaseValue`.
@@ -366,17 +373,22 @@ but the app refuses to delete a bank account with assigned transactions.
   increase as an amount, the effective date, and the landlord sender block.
 - **Prepayment adjustment after a statement (§ 560 Abs. 4):** the approved statement page offers
   "Vorauszahlung anpassen" per lease, linking to `/vertraege/[id]/miethoehe?prepayment=<costs/12>`
-  with reason `statement` preselected and valid-from the first of the month after next.
+  with reason `statement` preselected and valid-from the first of the month after next. A
+  `statement` change changes only the prepayments; a different Kaltmiete is refused.
 - **Rent due date:** the n-th working day of the month (`rentDueDay`, default 3; Saturday does not
   count; public holidays are ignored).
 - **Deposit (§ 551 BGB):** warning (not an error) when a residential deposit exceeds three initial
-  base rents; three instalments due with the first three rents (shown as deadlines until
+  base rents; three instalments due with the first three rents, the first not before the start of
+  the tenancy (shown as deadlines until
   `received` covers the amount). The deposit ledger is separate from the rent ledger; movements
   can be assigned from bank transactions.
 - **Lease end:** "Vertrag beenden" on the lease overview: Kündigung erhalten am (`terminatedAt`),
   durch (`terminatedBy`), Vertragsende (`endDate`, prefilled per § 573c: notice by the third
-  working day of a month ends the lease at the end of the month after next; landlord notice after
-  5 / 8 years of tenancy adds 3 / 6 months), confirmed with `ConfirmButton`. Afterwards the
+  Werktag of a month, Saturday counting, a Saturday deadline moved to Monday, ends the lease at the
+  end of the month after next; landlord notice after 5 / 8 years of tenancy adds 3 / 6 months;
+  commercial leases per § 580a Abs. 2: by the third Werktag of a quarter to the end of the next
+  quarter; the date follows the inputs and an earlier one is refused unless an earlier end was
+  agreed), confirmed with `ConfirmButton`. Afterwards the
   overview shows the deadlines Zählerstände ablesen (end date), Kaution abrechnen (6 months after
   the end) and Betriebskostenabrechnung (12 months after the period end).
 - **Rules by lease kind:** the deposit cap, the one-year Staffel rule, the index waiting period,
@@ -470,7 +482,8 @@ statement needs (Gesamtkosten, Umlageschlüssel, Mieteranteil, Vorauszahlungen).
 - **Tenant with own fuel contract (§ 6):** `/vertraege/[id]/co2` asks for the year, fuel
   (`gas` 0.201 kg/kWh, `oil` 0.266, `lpg` 0.234, `district_heating`/`other`: enter kg), the CO₂
   kg and CO₂ cost printed on the supplier invoice (kWh × factor only prefills the kg), the invoice
-  date and the date the tenant presented the claim, and the floor area of the dwelling (prefilled
+  date and the date the tenant presented the claim (refused when more than twelve months after the
+  invoice date, § 6 Abs. 1), and the floor area of the dwelling (prefilled
   from the lease's unit plus extra units, editable). Emissions per m² of that area → tier →
   landlord share → amount, stored in `co2_cost_splits` and posted as a `co2_reimbursement` credit
   (referenceId = split id). The landlord settles within 12 months of the claim (deadline).
@@ -493,8 +506,9 @@ lease (hint under "Weitere Einheiten" on the lease form); otherwise it is split.
 Per account, for `/aufgaben` and the dashboard: statement deadline (period end + 12 months, per
 property and year with residential leases, until an approved statement exists), Einwendungsfrist
 (`deliveredOn` + 12 months), lease end, deposit instalments, deposit return (6 months after the
-end), next Staffel step, earliest next index proposal, CO₂ reimbursement (`claimedOn` + 12
-months), lease end proposal from a notice, Zählerstände ablesen at a lease end.
+end), next Staffel step, earliest next index proposal (the first day a proposal can be sent so it
+takes effect when the waiting period ends), CO₂ reimbursement (`claimedOn` + 12 months), lease
+end proposal from a notice, Zählerstände ablesen at a lease end.
 
 ## Layouts and routes
 
@@ -670,7 +684,8 @@ Listed for the PR; each is a product decision the PRD and TDD do not make.
 
 1. Stack and infrastructure as in "Decisions that differ from the TDD".
 2. Money as integer cents; rounding half-up for single amounts, largest remainder for splits.
-3. Rent due on the n-th working day (default third), Saturday excluded, public holidays ignored.
+3. Rent due on the n-th working day (default third), Saturday excluded, public holidays ignored;
+   the notice cutoff of § 573c / § 580a counts Saturday (moved to Monday by § 193 BGB).
 4. A rent change may start on any day; the month is prorated by days.
 5. Ledger start and opening balance for migrated leases; charges before the ledger start are not
    generated.

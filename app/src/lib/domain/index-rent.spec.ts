@@ -252,16 +252,17 @@ describe('indexSituation', () => {
 });
 
 describe('greeting', () => {
-	it('addresses the tenants by salutation', () => {
+	it('addresses the tenants by salutation in the informal register of the letter', () => {
+		// The letter says "dein Mietvertrag", so the greeting is "Guten Tag", not "Sehr geehrte".
 		expect(greeting([{ salutation: 'Frau', firstName: 'Erika', lastName: 'Muster' }])).toBe(
-			'Sehr geehrte Frau Muster,'
+			'Guten Tag Frau Muster,'
 		);
 		expect(
 			greeting([
 				{ salutation: 'Herr', firstName: 'Max', lastName: 'Beispiel' },
 				{ salutation: null, firstName: 'Kim', lastName: 'Test' }
 			])
-		).toBe('Sehr geehrter Herr Beispiel, guten Tag Kim Test,');
+		).toBe('Guten Tag Herr Beispiel, Kim Test,');
 		expect(greeting([])).toBe('Guten Tag,');
 	});
 });
@@ -299,8 +300,8 @@ describe('letterFigures and indexLetterText', () => {
 		});
 		const paragraphs = text.split('\n\n');
 		expect(paragraphs).toHaveLength(4);
-		expect(paragraphs[0]).toBe('Sehr geehrte Frau Muster,');
-		expect(paragraphs[1]).toContain('Wohnung EG links');
+		expect(paragraphs[0]).toBe('Guten Tag Frau Muster,');
+		expect(paragraphs[1]).toMatch(/^dein Mietvertrag für Wohnung EG links/);
 		expect(paragraphs[1]).toContain('Basisjahr 2020 = 100');
 		expect(paragraphs[2]).toContain(
 			'von 118,2 (Januar 2024) auf 124,3 (Januar 2026) gestiegen, das sind 5,16 %'
@@ -314,6 +315,21 @@ describe('letterFigures and indexLetterText', () => {
 			['Kaltmiete', '600,00 €', '630,96 €'],
 			['Gesamtmiete', '800,00 €', '830,96 €']
 		]);
+	});
+
+	it('says "euer Mietvertrag" to two tenants', () => {
+		const figures = letterFigures([initial, approved], lease, approved, '2020')!;
+		const text = indexLetterText({
+			unitName: 'Wohnung EG links',
+			tenants: [
+				{ salutation: 'Frau', firstName: 'Erika', lastName: 'Muster' },
+				{ salutation: 'Herr', firstName: 'Max', lastName: 'Muster' }
+			],
+			figures
+		});
+		const paragraphs = text.split('\n\n');
+		expect(paragraphs[0]).toBe('Guten Tag Frau Muster, Herr Muster,');
+		expect(paragraphs[1]).toMatch(/^euer Mietvertrag für Wohnung EG links/);
 	});
 });
 

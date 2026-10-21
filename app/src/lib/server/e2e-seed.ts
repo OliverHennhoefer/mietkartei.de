@@ -6,7 +6,7 @@ import { hashPassword, normalizeEmail } from './auth';
 import type { Database } from './db';
 import { chunk, rowsPerStatement, runBatch } from './db/batch';
 import * as schema from './db/schema';
-import { properties, tenants, units, userRoles, users, type UserRole } from './db/schema';
+import { accounts, properties, tenants, units, userRoles, users, type UserRole } from './db/schema';
 import { createLease, type LeaseInput } from './leases';
 
 // Seeds data for the end-to-end tests, behind POST /__e2e/seed (only when E2E is set). A feature's
@@ -163,6 +163,18 @@ async function seedLease(
 	return { status: 200, body };
 }
 
+/** The account no e2e user belongs to; its ids must answer 404 to the owner. */
+export const FOREIGN_ACCOUNT_ID = 'e2e-foreign';
+
+/** A lease with property, unit and tenant in a second account, for the 404 checks. */
+async function seedForeignLease(db: Database): Promise<SeedResult> {
+	await db
+		.insert(accounts)
+		.values({ id: FOREIGN_ACCOUNT_ID, name: 'Fremdes Konto' })
+		.onConflictDoNothing();
+	return seedLease(db, { accountId: FOREIGN_ACCOUNT_ID, userId: null }, {});
+}
+
 async function seedRows(db: Database, accountId: string, body: Row): Promise<SeedResult> {
 	if (typeof body.table !== 'string') return bad('Bitte gib die Tabelle an.');
 	const table = findTable(body.table);
@@ -230,6 +242,7 @@ async function clearTables(db: Database, accountId: string, body: Row): Promise<
 
 /**
  * Runs one seed operation, chosen by `body.op`: `lease` (property, unit, tenant and lease),
+ * `foreignLease` (the same in a second account no e2e user belongs to, for the 404 checks),
  * `rows` (raw rows of any table), `user` (a second user of the owner's account) or `clear`
  * (the owner's rows of the given tables). Returns the HTTP status and body for the route.
  */
@@ -249,6 +262,8 @@ export async function seed(db: Database, body: unknown): Promise<SeedResult> {
 				}
 				return await seedLease(db, context, overrides);
 			}
+			case 'foreignLease':
+				return await seedForeignLease(db);
 			case 'rows':
 				return await seedRows(db, context.accountId, body);
 			case 'user':
@@ -256,7 +271,7 @@ export async function seed(db: Database, body: unknown): Promise<SeedResult> {
 			case 'clear':
 				return await clearTables(db, context.accountId, body);
 			default:
-				return bad('Unbekannte Operation; erlaubt sind lease, rows, user und clear.');
+				return bad('Unbekannte Operation; erlaubt sind lease, foreignLease, rows, user und clear.');
 		}
 	} catch (error) {
 		// A constraint violation or a wrong value type; the message tells the test what went wrong.

@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { formDataOf } from './fields';
 import { parseApproval, parseGraduatedStep, parseIndexValue, parseManualChange } from './rent';
 
-const restricted = { currentBaseRent: 60000, noteRequiredOnBaseRentChange: true };
-const free = { currentBaseRent: 60000, noteRequiredOnBaseRentChange: false };
+// 600 € until a Staffel step to 650 € on 2026-12-01.
+const baseRentOn = (validFrom: string) => (validFrom >= '2026-12-01' ? 65000 : 60000);
+const restricted = { baseRentOn, noteRequiredOnBaseRentChange: true };
+const free = { baseRentOn, noteRequiredOnBaseRentChange: false };
 
 const change = {
 	validFrom: '2027-01-01',
@@ -29,18 +31,37 @@ describe('parseManualChange', () => {
 	});
 
 	it('requires a note when the base rent of a restricted lease changes', () => {
-		const result = parseManualChange(formDataOf(change), restricted);
+		const result = parseManualChange(
+			formDataOf({ ...change, validFrom: '2026-11-01' }),
+			restricted
+		);
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
 			expect(result.errors.note).toContain('§ 557a Abs. 2 / § 557b Abs. 2 BGB');
 			expect(result.values.baseRent).toBe('650,00');
 		}
 		expect(
-			parseManualChange(formDataOf({ ...change, note: 'Einvernehmlich vereinbart.' }), restricted)
-				.ok
+			parseManualChange(
+				formDataOf({ ...change, validFrom: '2026-11-01', note: 'Einvernehmlich vereinbart.' }),
+				restricted
+			).ok
 		).toBe(true);
 		// Only the prepayments change: no reason needed.
-		expect(parseManualChange(formDataOf({ ...change, baseRent: '600' }), restricted).ok).toBe(true);
+		expect(
+			parseManualChange(
+				formDataOf({ ...change, validFrom: '2026-11-01', baseRent: '600' }),
+				restricted
+			).ok
+		).toBe(true);
+	});
+
+	it('compares the base rent with the one valid on the change date, not today', () => {
+		// From 2027-01-01 the Staffel step's 650 € apply, so 650 € is no change of the Kaltmiete...
+		expect(parseManualChange(formDataOf(change), restricted).ok).toBe(true);
+		// ...while 600 € would undo the step and needs a reason.
+		const undo = parseManualChange(formDataOf({ ...change, baseRent: '600,00' }), restricted);
+		expect(undo.ok).toBe(false);
+		if (!undo.ok) expect(undo.errors.note).toContain('§ 557a Abs. 2 / § 557b Abs. 2 BGB');
 	});
 
 	it('refuses a missing date, a bad amount and an unknown reason', () => {

@@ -17,6 +17,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			startDate: lease.startDate,
 			endDate: lease.endDate,
 			active: lease.active,
+			upcoming: lease.upcoming,
 			main: lease.unitId === unit.id,
 			tenants: lease.tenants
 		}))

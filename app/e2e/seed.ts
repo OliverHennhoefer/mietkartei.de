@@ -32,6 +32,15 @@ export async function seedLease(
 }
 
 /**
+ * The same lease as seedLease, but in a second account ("Fremdes Konto") that no e2e user
+ * belongs to. Its ids are real, so a page that forgot the account filter would show them; every
+ * id route must answer them with 404.
+ */
+export async function seedForeignLease(request: APIRequestContext): Promise<SeedLeaseResult> {
+	return (await post(request, { op: 'foreignLease' })) as SeedLeaseResult;
+}
+
+/**
  * Inserts raw rows into a schema table, named by its export (`costCategories`) or SQL name
  * (`cost_categories`). The account is forced to the owner's, missing ids are generated. Returns
  * the ids in row order (none for link tables without an id column).

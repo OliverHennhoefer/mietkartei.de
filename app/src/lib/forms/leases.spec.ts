@@ -267,13 +267,17 @@ const current: LeaseInput = {
 };
 
 describe('parseLeaseEdit', () => {
-	it('takes the editable fields from the form and the rest from the lease', () => {
+	it('takes the editable fields from the form and the units from the lease', () => {
 		const result = parseLeaseEdit(
 			formDataOf({
 				unitId: 'hacked',
 				extraUnitIds: ['hacked'],
-				baseRent: '1',
-				persons: '9',
+				// The amounts, deposit and persons at the start can be corrected here.
+				baseRent: '610,00',
+				operatingCostPrepayment: '155,00',
+				heatingCostPrepayment: '',
+				securityDeposit: '1.830,00',
+				persons: '3',
 				tenantIds: ['tenant-2'],
 				startDate: '2025-02-01',
 				endDate: '2026-12-31',
@@ -291,6 +295,11 @@ describe('parseLeaseEdit', () => {
 			ok: true,
 			data: {
 				...current,
+				baseRent: 61000,
+				operatingCostPrepayment: 15500,
+				heatingCostPrepayment: 0,
+				securityDeposit: 183000,
+				persons: 3,
 				tenantIds: ['tenant-2'],
 				startDate: '2025-02-01',
 				endDate: '2026-12-31',
@@ -351,8 +360,23 @@ describe('parseLeaseEnd', () => {
 			)
 		).toEqual({
 			ok: true,
-			data: { terminatedAt: '2026-03-02', terminatedBy: 'landlord', endDate: '2026-05-31' }
+			data: {
+				terminatedAt: '2026-03-02',
+				terminatedBy: 'landlord',
+				endDate: '2026-05-31',
+				earlyEndAgreed: false
+			}
 		});
+		expect(
+			parseLeaseEnd(
+				formDataOf({
+					terminatedAt: '2026-03-02',
+					terminatedBy: 'tenant',
+					endDate: '2026-03-31',
+					earlyEndAgreed: 'on'
+				})
+			)
+		).toMatchObject({ ok: true, data: { earlyEndAgreed: true } });
 		const bad = parseLeaseEnd(
 			formDataOf({ terminatedAt: '2026-03-02', terminatedBy: 'tenant', endDate: '2026-03-01' })
 		);

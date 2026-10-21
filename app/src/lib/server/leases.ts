@@ -4,7 +4,8 @@ import { rentOn, type RentChange as RentHistoryEntry } from '../domain/rents';
 import type { AuditContext } from './audit';
 import { auditEntry } from './audit';
 import type { Database } from './db';
-import { chunk, rowsPerStatement, runBatch } from './db/batch';
+import { chunk, chunkIds, rowsPerStatement, runBatch } from './db/batch';
+import { laterRows, laterRowsNote, type LaterRows } from './rent-history';
 import {
 	depositTransactions,
 	leasePersons,
@@ -65,6 +66,8 @@ export type LeaseSummary = Lease & {
 	/** The rent valid today, or the initial rent before the lease starts. */
 	currentRent: { baseRent: number; operatingCostPrepayment: number; heatingCostPrepayment: number };
 	active: boolean;
+	/** Starts after today; a lease neither active nor upcoming has ended. */
+	upcoming: boolean;
 };
 
 export function isActive(lease: { startDate: string; endDate: string | null }, date = today()) {
@@ -78,27 +81,50 @@ export function leaseLabel(lease: { unit: { name: string }; property: { name: st
 
 async function decorate(db: Database, accountId: string, rows: Lease[]): Promise<LeaseSummary[]> {
 	if (rows.length === 0) return [];
-	const leaseIds = rows.map((row) => row.id);
-	const [allUnits, allProperties, tenantRows, extraRows, changeRows] = await Promise.all([
+	// D1 binds at most 100 parameters per statement: the lease ids go in groups (chunkIds), one
+	// query per table and group, and the groups' rows are put together again.
+	const groups = chunkIds(rows.map((row) => row.id));
+	const [allUnits, allProperties, tenantGroups, extraGroups, changeGroups] = await Promise.all([
 		db.select().from(units).where(eq(units.accountId, accountId)),
 		db.select().from(properties).where(eq(properties.accountId, accountId)),
-		db
-			.select({ leaseId: leaseTenants.leaseId, tenant: tenants })
-			.from(leaseTenants)
-			.innerJoin(tenants, eq(leaseTenants.tenantId, tenants.id))
-			.where(inArray(leaseTenants.leaseId, leaseIds))
-			.orderBy(asc(tenants.lastName), asc(tenants.firstName)),
-		db
-			.select({ leaseId: leaseUnits.leaseId, unit: units })
-			.from(leaseUnits)
-			.innerJoin(units, eq(leaseUnits.unitId, units.id))
-			.where(inArray(leaseUnits.leaseId, leaseIds))
-			.orderBy(asc(units.name)),
-		db
-			.select()
-			.from(rentChanges)
-			.where(and(eq(rentChanges.accountId, accountId), inArray(rentChanges.leaseId, leaseIds)))
+		Promise.all(
+			groups.map((leaseIds) =>
+				db
+					.select({ leaseId: leaseTenants.leaseId, tenant: tenants })
+					.from(leaseTenants)
+					.innerJoin(tenants, eq(leaseTenants.tenantId, tenants.id))
+					.where(and(eq(tenants.accountId, accountId), inArray(leaseTenants.leaseId, leaseIds)))
+			)
+		),
+		Promise.all(
+			groups.map((leaseIds) =>
+				db
+					.select({ leaseId: leaseUnits.leaseId, unit: units })
+					.from(leaseUnits)
+					.innerJoin(units, eq(leaseUnits.unitId, units.id))
+					.where(and(eq(leaseUnits.accountId, accountId), inArray(leaseUnits.leaseId, leaseIds)))
+			)
+		),
+		Promise.all(
+			groups.map((leaseIds) =>
+				db
+					.select()
+					.from(rentChanges)
+					.where(and(eq(rentChanges.accountId, accountId), inArray(rentChanges.leaseId, leaseIds)))
+			)
+		)
 	]);
+	// Ordered as SQLite's ORDER BY did (binary), across the groups.
+	const binary = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+	const tenantRows = tenantGroups
+		.flat()
+		.sort(
+			(a, b) =>
+				binary(a.tenant.lastName, b.tenant.lastName) ||
+				binary(a.tenant.firstName, b.tenant.firstName)
+		);
+	const extraRows = extraGroups.flat().sort((a, b) => binary(a.unit.name, b.unit.name));
+	const changeRows = changeGroups.flat();
 	const unitById = new Map(allUnits.map((unit) => [unit.id, unit]));
 	const propertyById = new Map(allProperties.map((property) => [property.id, property]));
 	const date = today();
@@ -126,7 +152,8 @@ async function decorate(db: Database, accountId: string, rows: Lease[]): Promise
 					operatingCostPrepayment: current.operatingCostPrepayment,
 					heatingCostPrepayment: current.heatingCostPrepayment
 				},
-				active: isActive(lease, date)
+				active: isActive(lease, date),
+				upcoming: lease.startDate > date
 			}
 		];
 	});
@@ -178,7 +205,7 @@ export async function getLease(
 	return lease;
 }
 
-export type LeaseError = 'unknown-unit' | 'unknown-tenant' | 'missing';
+export type LeaseError = 'unknown-unit' | 'unknown-tenant' | 'missing' | 'start-after-changes';
 
 async function checkReferences(
 	db: Database,
@@ -270,21 +297,53 @@ export async function createLease(
 
 /**
  * Updates the lease, its tenants and extra units. The initial rent change and persons row follow
- * the new start date and initial values; later changes stay as they are. The rent charges are
- * not touched here; the caller syncs them through the ledger module.
+ * the new start date and initial values; later rows that carried an initial amount unchanged
+ * follow it too (see laterRows). A start date on or after a later rent change or persons row is
+ * refused ('start-after-changes'), since those rows would then come first or collide with the
+ * initial ones. The rent charges are not touched here; the caller syncs them through the ledger
+ * module.
  */
 export async function updateLease(
 	db: Database,
 	context: AuditContext,
 	leaseId: string,
 	input: LeaseInput
-): Promise<{ ok: true } | { ok: false; reason: LeaseError }> {
+): Promise<{ ok: true } | { ok: false; reason: LeaseError; date?: string }> {
 	const { accountId } = context;
 	const existing = await getLease(db, accountId, leaseId);
 	if (!existing) return { ok: false, reason: 'missing' };
 	const reason = await checkReferences(db, accountId, input);
 	if (reason) return { ok: false, reason };
 
+	const [changes, personsRows] = await Promise.all([
+		db
+			.select()
+			.from(rentChanges)
+			.where(and(eq(rentChanges.accountId, accountId), eq(rentChanges.leaseId, leaseId))),
+		db
+			.select()
+			.from(leasePersons)
+			.where(and(eq(leasePersons.accountId, accountId), eq(leasePersons.leaseId, leaseId)))
+	]);
+	const initial = changes.find((change) => change.reason === 'initial');
+	const blocking = [
+		...changes
+			.filter((change) => change.reason !== 'initial' && change.status === 'approved')
+			.map((change) => change.validFrom),
+		...personsRows.filter((row) => row.validFrom !== existing.startDate).map((row) => row.validFrom)
+	]
+		.filter((date) => date <= input.startDate)
+		.sort();
+	if (blocking.length > 0) return { ok: false, reason: 'start-after-changes', date: blocking[0] };
+
+	const amounts = {
+		baseRent: input.baseRent,
+		operatingCostPrepayment: input.operatingCostPrepayment,
+		heatingCostPrepayment: input.heatingCostPrepayment
+	};
+	const later = initial
+		? laterRows(db, accountId, changes, input.startDate, initial, amounts, initial.id)
+		: { statements: [], count: 0 };
 	const extraUnitIds = [...new Set(input.extraUnitIds)].filter((unitId) => unitId !== input.unitId);
 	const tenantIds = [...new Set(input.tenantIds)];
 	await runBatch(db, [
@@ -302,22 +361,52 @@ export async function updateLease(
 		),
 		db
 			.update(rentChanges)
-			.set({
-				validFrom: input.startDate,
-				baseRent: input.baseRent,
-				operatingCostPrepayment: input.operatingCostPrepayment,
-				heatingCostPrepayment: input.heatingCostPrepayment
-			})
-			.where(and(eq(rentChanges.leaseId, leaseId), eq(rentChanges.reason, 'initial'))),
+			.set({ validFrom: input.startDate, ...amounts })
+			.where(
+				and(
+					eq(rentChanges.accountId, accountId),
+					eq(rentChanges.leaseId, leaseId),
+					eq(rentChanges.reason, 'initial')
+				)
+			),
+		...later.statements,
 		db
 			.update(leasePersons)
 			.set({ validFrom: input.startDate, persons: input.persons })
 			.where(
-				and(eq(leasePersons.leaseId, leaseId), eq(leasePersons.validFrom, existing.startDate))
+				and(
+					eq(leasePersons.accountId, accountId),
+					eq(leasePersons.leaseId, leaseId),
+					eq(leasePersons.validFrom, existing.startDate)
+				)
 			),
-		auditEntry(db, context, 'lease', leaseId, 'update', 'Mietvertrag geändert')
+		auditEntry(db, context, 'lease', leaseId, 'update', updateSummary(existing, input, later))
 	]);
 	return { ok: true };
+}
+
+/** "Mietvertrag geändert", naming the initial amounts, deposit and persons when they changed. */
+function updateSummary(existing: Lease, input: LeaseInput, later: LaterRows): string {
+	const changed: string[] = [];
+	if (existing.startDate !== input.startDate) {
+		changed.push(`Beginn ${formatDate(input.startDate)}`);
+	}
+	if (existing.baseRent !== input.baseRent) {
+		changed.push(`Kaltmiete bei Vertragsbeginn ${formatCents(input.baseRent)}`);
+	}
+	if (existing.operatingCostPrepayment !== input.operatingCostPrepayment) {
+		changed.push(`Betriebskostenvorauszahlung ${formatCents(input.operatingCostPrepayment)}`);
+	}
+	if (existing.heatingCostPrepayment !== input.heatingCostPrepayment) {
+		changed.push(`Heizkostenvorauszahlung ${formatCents(input.heatingCostPrepayment)}`);
+	}
+	if (existing.securityDeposit !== input.securityDeposit) {
+		changed.push(`Kaution ${formatCents(input.securityDeposit)}`);
+	}
+	if (existing.persons !== input.persons) changed.push(`Personen bei Einzug ${input.persons}`);
+	return changed.length === 0
+		? 'Mietvertrag geändert'
+		: `Mietvertrag geändert: ${changed.join(', ')}${laterRowsNote(later)}`;
 }
 
 /**
@@ -382,6 +471,7 @@ export async function listUnitsWithProperty(db: Database, accountId: string) {
 
 import { formatDate, type IsoDate } from '../dates';
 import { terminatedByLabels } from '../labels';
+import { formatCents } from '../money';
 
 /** The lease's columns as a LeaseInput, so the edit form can change some fields and keep the rest. */
 export function leaseInputOf(lease: LeaseSummary): LeaseInput {
@@ -415,6 +505,8 @@ export type LeaseEndInput = {
 	terminatedAt: IsoDate;
 	terminatedBy: TerminatedBy;
 	endDate: IsoDate;
+	/** An end before the legal notice period, agreed with the other party (Aufhebungsvertrag). */
+	earlyEndAgreed?: boolean;
 };
 
 /**
@@ -445,7 +537,7 @@ export async function endLease(
 			'lease',
 			leaseId,
 			'update',
-			`Mietvertrag ${leaseLabel(existing)} zum ${formatDate(input.endDate)} beendet (Kündigung vom ${formatDate(input.terminatedAt)} ${terminatedByLabels[input.terminatedBy]})`
+			`Mietvertrag ${leaseLabel(existing)} zum ${formatDate(input.endDate)} beendet (Kündigung vom ${formatDate(input.terminatedAt)} ${terminatedByLabels[input.terminatedBy]}${input.earlyEndAgreed ? ', früheres Ende vereinbart' : ''})`
 		)
 	]);
 	return 'ended';

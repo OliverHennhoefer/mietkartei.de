@@ -57,8 +57,8 @@
 {#if data.instalments.length > 0}
 	<h2>Raten</h2>
 	<p class="muted small">
-		Nach § 551 Abs. 2 BGB darf der Mieter die Kaution in drei Raten zahlen, die erste mit der ersten
-		Miete.
+		Nach § 551 Abs. 2 BGB darf der Mieter die Kaution in drei Raten zahlen: die erste zu Beginn des
+		Mietverhältnisses, die beiden anderen mit den folgenden Mieten.
 	</p>
 	<ul class="instalments" aria-label="Raten">
 		{#each data.instalments as instalment, index (instalment.dueDate)}

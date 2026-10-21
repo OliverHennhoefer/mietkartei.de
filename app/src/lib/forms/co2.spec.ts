@@ -124,4 +124,16 @@ describe('parseCo2Split', () => {
 		expect(withoutInvoiceDate.ok).toBe(true);
 		if (withoutInvoiceDate.ok) expect(withoutInvoiceDate.data.invoiceDate).toBeNull();
 	});
+
+	it('refuses a claim made more than twelve months after the supplier bill (§ 6 CO2KostAufG)', () => {
+		// Bill of 01.02.2024: the claim must be made by 01.02.2025.
+		expect(parse({ year: '2023', invoiceDate: '2024-02-01', claimedOn: '2025-02-01' }).ok).toBe(
+			true
+		);
+		expect(
+			failed({ year: '2023', invoiceDate: '2024-02-01', claimedOn: '2025-09-01' }).errors.claimedOn
+		).toBe(
+			'Der Mieter muss die Erstattung binnen zwölf Monaten nach der Abrechnung des Lieferanten geltend machen (§ 6 Abs. 1 CO2KostAufG); die Frist endete am 01.02.2025.'
+		);
+	});
 });

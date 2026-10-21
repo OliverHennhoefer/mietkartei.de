@@ -1,7 +1,9 @@
 import { and, eq, isNotNull } from 'drizzle-orm';
 import {
 	addMonths,
+	addMonthsToMonth,
 	daysBetween,
+	firstOfMonth,
 	formatDate,
 	monthOf,
 	nthWorkingDay,
@@ -147,6 +149,10 @@ export async function listDeadlines(
 	const yearsByProperty = new Map<string, Set<number>>();
 	for (const lease of allLeases) {
 		if (lease.kind !== 'residential') continue;
+		// A lease with Pauschale or Inklusivmiete for both cost groups gets no statement.
+		if (lease.operatingCostModel !== 'prepayment' && lease.heatingCostModel !== 'prepayment') {
+			continue;
+		}
 		const bookkeepingStart =
 			lease.ledgerStart && lease.ledgerStart > lease.startDate
 				? lease.ledgerStart
@@ -342,12 +348,18 @@ export async function listDeadlines(
 				previousBaseRent = change.baseRent;
 			}
 			if (lastChange) {
+				// The proposal may go out two months before it takes effect (§ 557b Abs. 3 BGB: from
+				// the start of the month after next), so the row names the earliest sending date.
+				const effective = addMonths(lastChange, 12);
+				const sendFrom = firstOfMonth(
+					addMonthsToMonth(monthOf(effective), effective.endsWith('-01') ? -2 : -1)
+				);
 				push(
 					{
 						kind: 'index_proposal',
-						date: addMonths(lastChange, 12),
+						date: sendFrom,
 						title: 'Indexanpassung frühestens möglich',
-						detail: `Letzte Änderung der Kaltmiete am ${formatDate(lastChange)} · ${detail}`,
+						detail: `Erhöhung kann ab ${formatDate(sendFrom)} verlangt werden und frühestens ab ${formatDate(effective)} gelten; letzte Änderung der Kaltmiete am ${formatDate(lastChange)} · ${detail}`,
 						href: `/vertraege/${lease.id}/miethoehe`,
 						...base
 					},

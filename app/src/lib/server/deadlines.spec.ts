@@ -92,6 +92,24 @@ describe('statement deadline (§ 556 Abs. 3 BGB)', () => {
 		]);
 	});
 
+	it('skips leases with Pauschale or Inklusivmiete for both cost groups, which get no statement', async () => {
+		await lease('a', {
+			startDate: '2025-01-01',
+			operatingCostModel: 'inclusive',
+			heatingCostModel: 'flat'
+		});
+		expect(await list('statement')).toEqual([]);
+		// A heating prepayment alone still gets a statement.
+		await lease('a', {
+			startDate: '2025-01-01',
+			operatingCostModel: 'flat',
+			heatingCostModel: 'prepayment'
+		});
+		expect((await list('statement')).map(brief)).toEqual([
+			['2026-12-31', 'Betriebskostenabrechnung 2025', false]
+		]);
+	});
+
 	it('counts the year once however many leases the property has', async () => {
 		const { propertyId } = await lease('a', { startDate: '2025-01-01' });
 		const second = await seedTenant(db, 'a');
@@ -385,7 +403,7 @@ describe('next Staffel step', () => {
 });
 
 describe('earliest index proposal (§ 557b Abs. 2 BGB)', () => {
-	it('is twelve months after the last change of the base rent, ignoring § 560 changes', async () => {
+	it('is two months before the end of the twelve months after the last change of the base rent, ignoring § 560 changes', async () => {
 		const { leaseId } = await lease('a', { rentModel: 'indexed', indexBaseValue: 120 });
 		// Only the initial rent from 01.01.2025: the waiting period ended 01.01.2026, so nothing to
 		// know about any more.
@@ -412,10 +430,30 @@ describe('earliest index proposal (§ 557b Abs. 2 BGB)', () => {
 				reason: 'manual'
 			}
 		]);
+		// The waiting period ends 01.04.2027; a proposal sent in February 2027 takes effect on
+		// 01.04.2027 (§ 557b Abs. 3 BGB: the month after next), so the row is dated 01.02.2027.
 		const rows = await list('index_proposal');
-		expect(rows.map(brief)).toEqual([['2027-04-01', 'Indexanpassung frühestens möglich', false]]);
+		expect(rows.map(brief)).toEqual([['2027-02-01', 'Indexanpassung frühestens möglich', false]]);
 		expect(rows[0]).toMatchObject({ href: `/vertraege/${leaseId}/miethoehe` });
-		expect(rows[0].detail).toMatch(/^Letzte Änderung der Kaltmiete am 01\.04\.2026/);
+		expect(rows[0].detail).toMatch(
+			/^Erhöhung kann ab 01\.02\.2027 verlangt werden und frühestens ab 01\.04\.2027 gelten; letzte Änderung der Kaltmiete am 01\.04\.2026/
+		);
+	});
+
+	it('dates a waiting period ending mid-month on the first of the month before', async () => {
+		const { leaseId } = await lease('a', { rentModel: 'indexed', indexBaseValue: 120 });
+		await db.insert(rentChanges).values({
+			accountId: 'a',
+			leaseId,
+			validFrom: '2026-04-15',
+			baseRent: 62000,
+			reason: 'manual'
+		});
+		// Waiting period until 15.04.2027: a proposal in February takes effect on 01.04.2027, too
+		// early; one in March takes effect on 01.05.2027. So 01.03.2027.
+		expect((await list('index_proposal')).map(brief)).toEqual([
+			['2027-03-01', 'Indexanpassung frühestens möglich', false]
+		]);
 	});
 
 	it('applies to residential indexed leases only', async () => {

@@ -14,6 +14,7 @@
 	values={form?.values ?? data.defaults}
 	errors={form?.errors ?? {}}
 	lease={data.lease}
+	depositWarning={form?.depositWarning ?? data.depositWarning}
 	tenants={data.tenants}
 	submitLabel="Speichern"
 	cancelHref="/vertraege/{data.lease.id}"
