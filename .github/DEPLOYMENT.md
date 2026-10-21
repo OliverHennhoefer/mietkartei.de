@@ -72,7 +72,7 @@ If the domain does not point to Cloudflare yet, first check that the old `docs` 
 
 The job **Deploy app** in [app.yml](workflows/app.yml) runs after every push to `main` that changes `app/**`, once lint, type check, unit tests and both end-to-end runs have passed. Uploaded documents are kept in the R2 bucket `mietkartei-documents`. The job builds the cloudflare target, applies new D1 migrations with `wrangler d1 migrations apply DB --remote` and then runs `wrangler deploy`. While the app is in development, a migration may change or drop existing data, and the previous version can fail for the moments between the two steps. Pull requests and releases deploy nothing. For a redeploy without a change, choose **Actions → App → Run workflow → Branch: main**.
 
-The hosted app sets `OPEN_REGISTRATION=true` in `app/wrangler.jsonc`, so everyone who signs up gets an own, empty account.
+Registration on the hosted app is closed: only the addresses in the Worker secret `REGISTRATION_EMAILS` (comma-separated) can create an account, each once. Without the secret nobody can, not even into an empty database. To let yourself or someone else in, run `npx wrangler secret put REGISTRATION_EMAILS` in `app/` and enter the addresses, or add the secret under **Workers & Pages → mietkartei-app → Settings → Variables and Secrets** as type **Secret**. The sign-in page links to no registration; open `https://app.mietkartei.de/registrieren` directly.
 
 ### One-time setup
 
@@ -81,7 +81,7 @@ Complete these steps before merging the pull request that adds the job.
 1. **Create the database.** In Cloudflare, open **Storage & Databases → D1 → Create database**, name it `mietkartei` and choose the location **Jurisdiction: European Union**. Alternatively run `npx wrangler d1 create mietkartei --jurisdiction eu` in `app/`. Enter the database ID shown afterwards as `database_id` in `app/wrangler.jsonc`. The ID is not a secret.
 2. **Extend the token.** Edit the existing API token from step 1 above and add **Account → D1 → Edit**. The other permissions already cover the Worker and its custom domain.
 3. **Check the Workers plan.** Hashing a password takes roughly 30 to 60 ms of CPU time, more than the 10 ms per request of the Workers Free plan, so sign-in and registration need **Workers Paid** (USD 5 per month).
-4. **Merge and check.** After the merge, check under **Actions → App** that **Deploy app** succeeds. Wrangler creates the Worker `mietkartei-app` and registers `app.mietkartei.de` as its custom domain. Then open `https://app.mietkartei.de/` and register.
+4. **Merge and check.** After the merge, check under **Actions → App** that **Deploy app** succeeds. Wrangler creates the Worker `mietkartei-app` and registers `app.mietkartei.de` as its custom domain. Then set `REGISTRATION_EMAILS` as described above and register at `https://app.mietkartei.de/registrieren`.
 
 ### Document storage
 

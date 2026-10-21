@@ -5,7 +5,8 @@ import { defineConfig } from '@playwright/test';
 const target = process.env.DEPLOY_TARGET === 'cloudflare' ? 'cloudflare' : 'node';
 const port = Number(process.env.E2E_PORT || 4173);
 
-// E2E=true enables /api/e2e/seed, through which the tests create what they do not own.
+// E2E=true enables /api/e2e/seed, through which the tests create what they do not own. The
+// hosted variant lets only listed addresses register, so the owner of e2e/owner.ts is listed.
 const commands = {
 	node: [
 		'rm -rf .e2e',
@@ -16,7 +17,7 @@ const commands = {
 		'rm -rf .e2e',
 		'npm run build:cloudflare',
 		'wrangler d1 migrations apply DB --local --persist-to .e2e/wrangler',
-		`wrangler dev --port ${port} --inspector-port 0 --persist-to .e2e/wrangler --var E2E:true`
+		`wrangler dev --port ${port} --inspector-port 0 --persist-to .e2e/wrangler --var E2E:true --var REGISTRATION_EMAILS:vermieterin@example.org`
 	]
 };
 

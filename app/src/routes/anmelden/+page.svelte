@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { resolve } from '$app/paths';
 	import type { PageProps } from './$types';
 
 	let { form }: PageProps = $props();
@@ -35,6 +34,4 @@
 			<button type="submit">Anmelden</button>
 		</div>
 	</form>
-
-	<p class="muted">Noch kein Konto? <a href={resolve('/registrieren')}>Registrieren</a></p>
 </div>
