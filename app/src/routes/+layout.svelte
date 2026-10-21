@@ -17,7 +17,8 @@
 		{ href: '/mietkonto', label: 'Mietkonto' },
 		{ href: '/bank', label: 'Bank' },
 		{ href: '/betriebskosten', label: 'Betriebskosten' },
-		{ href: '/dokumente', label: 'Dokumente' }
+		{ href: '/dokumente', label: 'Dokumente' },
+		{ href: '/aufgaben', label: 'Aufgaben' }
 	];
 
 	function current(href: string): 'page' | undefined {

@@ -17,6 +17,7 @@ const pages = [
 	'/bank/import',
 	'/bank/regeln',
 	'/dokumente',
+	'/aufgaben',
 	'/betriebskosten',
 	'/betriebskosten/belege',
 	'/betriebskosten/belege/neu',
@@ -27,7 +28,7 @@ const pages = [
 
 /**
  * Pages below a seeded lease and property: the lease's CO₂ tab, the property's meters (with a
- * reading), a cost item and a statement.
+ * reading), a cost item, a statement and a task.
  */
 async function seededPages(request: Parameters<typeof seedLease>[0]): Promise<string[]> {
 	const suffix = crypto.randomUUID().slice(0, 6);
@@ -60,11 +61,15 @@ async function seededPages(request: Parameters<typeof seedLease>[0]): Promise<st
 	} = await seedRows(request, 'operatingCostStatements', [
 		{ propertyId, periodStart: '2025-01-01', periodEnd: '2025-12-31' }
 	]);
+	const {
+		ids: [taskId]
+	} = await seedRows(request, 'tasks', [{ title: `Aufgabe ${suffix}`, leaseId }]);
 	return [
 		`/vertraege/${leaseId}/co2`,
 		`/objekte/${propertyId}/zaehler`,
 		`/betriebskosten/belege/${costItemId}`,
-		`/betriebskosten/abrechnungen/${statementId}`
+		`/betriebskosten/abrechnungen/${statementId}`,
+		`/aufgaben/${taskId}`
 	];
 }
 
