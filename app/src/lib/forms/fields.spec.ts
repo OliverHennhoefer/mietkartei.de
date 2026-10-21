@@ -34,6 +34,11 @@ describe('FormParser', () => {
 		});
 	});
 
+	it('reads a dot as the decimal point when there is no comma', () => {
+		const result = parse({ name: 'Haus', area: '72.5', count: '3', kind: 'a' });
+		expect(result.ok && result.data.area).toBe(72.5);
+	});
+
 	it('collects one error per field and echoes the values', () => {
 		const result = parse({ name: 'viel zu langer Name', area: 'x', count: '2,5', kind: 'c' });
 		expect(result.ok).toBe(false);

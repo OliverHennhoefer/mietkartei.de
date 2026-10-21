@@ -38,7 +38,10 @@ export class FormParser<T> {
 		return this.text(name, { required: false, max }) || null;
 	}
 
-	/** A decimal number; accepts the German comma. */
+	/**
+	 * A decimal number; accepts the German comma. Dots are thousands separators only when a
+	 * comma follows them ("1.072,5"); without a comma a dot is the decimal point ("72.5").
+	 */
 	number(
 		name: keyof T & string,
 		options: { required?: boolean; min?: number; max?: number; integer?: boolean } = {}
@@ -49,7 +52,7 @@ export class FormParser<T> {
 			if (required) this.fail(name, 'Bitte gib eine Zahl an.');
 			return null;
 		}
-		const parsed = Number(value.replace(/\./g, integer ? '.' : '').replace(',', '.'));
+		const parsed = Number(value.includes(',') ? value.replace(/\./g, '').replace(',', '.') : value);
 		if (!Number.isFinite(parsed) || (integer && !Number.isInteger(parsed))) {
 			this.fail(name, integer ? 'Bitte gib eine ganze Zahl an.' : 'Bitte gib eine Zahl an.');
 			return null;

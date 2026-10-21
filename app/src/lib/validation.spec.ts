@@ -123,6 +123,13 @@ describe('parseUnit', () => {
 		});
 	});
 
+	it('reads a decimal point as one', () => {
+		const result = parseUnit(
+			form({ name: 'EG links', kind: 'apartment', floorArea: '72.5', rooms: '2.5' })
+		);
+		expect(result.ok && result.data).toMatchObject({ floorArea: 72.5, rooms: 2.5 });
+	});
+
 	it('treats empty optional fields as unknown', () => {
 		const result = parseUnit(form({ name: 'Stellplatz 3', kind: 'parking', floorArea: '' }));
 		expect(result).toEqual({
