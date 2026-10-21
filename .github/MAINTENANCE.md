@@ -43,6 +43,19 @@ Keep label names used in the issue forms or in `release.yml` consistent with the
 
 Before merging such changes, check them for new permissions and effects on the workflow. Keep the actions in use pinned to specific commit IDs.
 
+## Supply-chain and security checks
+
+`app/.npmrc` sets `ignore-scripts=true`, so no package runs code while it is installed. The native parts the app needs (better-sqlite3, esbuild, workerd) ship prebuilt binaries. A new dependency that only works with its install script needs a deliberate exception, not a change of this setting.
+
+The **Lint, type check and unit tests** job of [app.yml](workflows/app.yml) fails on any advisory for a production dependency, on high or critical advisories for dev tooling, and on packages whose registry signature does not verify. It also refuses an `E2E` variable in `app/wrangler.jsonc`, which would open the seeding routes in production. In the deploy job only the two wrangler steps receive the Cloudflare token.
+
+These repository settings complement the workflow (Settings → Code security):
+
+- Secret scanning with push protection
+- Code scanning with CodeQL in the default setup
+- Dependabot alerts and Dependabot security updates
+- Private vulnerability reporting, as a second channel next to the email address in [SECURITY.md](../SECURITY.md)
+
 ## Deploying the websites
 
 The workflow [websites.yml](workflows/websites.yml) reports the required check **Check websites** for every pull request. It checks changed files for whitespace errors and builds the affected websites. Changes to the shared brand assets or the workflow file affect both sites. Before the Zensical build, the selected wordmarks are copied from the shared brand assets.
