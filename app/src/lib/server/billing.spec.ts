@@ -243,6 +243,54 @@ describe('with a database', () => {
 		expect((await row('a')).subscriptionStatus).toBe('canceled');
 	});
 
+	it('ignores a late end of an older subscription while a newer one runs', async () => {
+		await setStripeCustomer(db, contextA, 'cus_a');
+		const periodEnd = new Date('2026-11-20T10:00:00.000Z');
+		await applySubscriptionUpdate(
+			db,
+			{ id: 'evt_1', type: 'customer.subscription.updated' },
+			{
+				customerId: 'cus_a',
+				subscriptionId: 'sub_new',
+				status: 'active',
+				currentPeriodEnd: periodEnd
+			}
+		);
+		// A retried delivery about sub_old, which ended before sub_new started.
+		const accountId = await applySubscriptionUpdate(
+			db,
+			{ id: 'evt_2', type: 'customer.subscription.deleted' },
+			{ customerId: 'cus_a', subscriptionId: 'sub_old', status: 'canceled', currentPeriodEnd: null }
+		);
+		expect(accountId).toBe('a');
+		expect(await row('a')).toMatchObject({
+			stripeSubscriptionId: 'sub_new',
+			subscriptionStatus: 'active',
+			currentPeriodEnd: periodEnd
+		});
+		expect(await stripeEventSeen(db, 'evt_2')).toBe(true);
+		// Once the running one has ended, another subscription takes its place.
+		await applySubscriptionUpdate(
+			db,
+			{ id: 'evt_3', type: 'customer.subscription.deleted' },
+			{ customerId: 'cus_a', subscriptionId: 'sub_new', status: 'canceled', currentPeriodEnd: null }
+		);
+		await applySubscriptionUpdate(
+			db,
+			{ id: 'evt_4', type: 'customer.subscription.updated' },
+			{
+				customerId: 'cus_a',
+				subscriptionId: 'sub_next',
+				status: 'trialing',
+				currentPeriodEnd: null
+			}
+		);
+		expect(await row('a')).toMatchObject({
+			stripeSubscriptionId: 'sub_next',
+			subscriptionStatus: 'trialing'
+		});
+	});
+
 	it('returns undefined for an unknown customer and changes nothing', async () => {
 		const accountId = await applySubscriptionUpdate(
 			db,
@@ -278,41 +326,68 @@ describe('with a database', () => {
 			vi.unstubAllGlobals();
 		});
 
-		async function subscribe(status: 'active' | 'past_due' | 'trialing' | 'canceled') {
-			await db
-				.update(accounts)
-				.set({ stripeSubscriptionId: 'sub_a', subscriptionStatus: status })
-				.where(eq(accounts.id, 'a'));
+		const list = 'GET http://stripe.test/v1/subscriptions?customer=cus_a&limit=100';
+
+		/** Stripe's answer to the list: the customer's subscriptions that are not canceled. */
+		function listed(...subscriptions: { id: string; status: string }[]) {
+			return { status: 200, body: { object: 'list', has_more: false, data: subscriptions } };
 		}
 
-		it('cancels a running subscription at Stripe', async () => {
-			await subscribe('active');
-			const calls = stripeAnswers({ status: 200, body: { id: 'sub_a', status: 'canceled' } });
+		it('cancels every running subscription of the customer at Stripe', async () => {
+			await setStripeCustomer(db, contextA, 'cus_a');
+			// The stored one, and one whose Checkout webhook has not arrived yet.
+			await db
+				.update(accounts)
+				.set({ stripeSubscriptionId: 'sub_a', subscriptionStatus: 'active' })
+				.where(eq(accounts.id, 'a'));
+			const calls = stripeAnswers(
+				listed({ id: 'sub_a', status: 'active' }, { id: 'sub_b', status: 'incomplete' }),
+				{ status: 200, body: { id: 'sub_a', status: 'canceled' } },
+				{ status: 200, body: { id: 'sub_b', status: 'canceled' } }
+			);
 			expect(await cancelSubscriptionOf(db, 'a')).toBe(true);
-			expect(calls).toEqual(['DELETE http://stripe.test/v1/subscriptions/sub_a']);
+			expect(calls).toEqual([
+				list,
+				'DELETE http://stripe.test/v1/subscriptions/sub_a',
+				'DELETE http://stripe.test/v1/subscriptions/sub_b'
+			]);
 		});
 
-		it('calls nobody without a running subscription', async () => {
-			const calls = stripeAnswers();
+		it('calls nobody without a Stripe customer and cancels nothing that has ended', async () => {
+			const calls = stripeAnswers(listed(), listed({ id: 'sub_a', status: 'unpaid' }));
+			// Neither account has a Stripe customer before its first Checkout.
 			expect(await cancelSubscriptionOf(db, 'a')).toBe(true);
-			await subscribe('canceled');
-			expect(await cancelSubscriptionOf(db, 'a')).toBe(true);
-			// Account b never had one.
 			expect(await cancelSubscriptionOf(db, 'b')).toBe(true);
 			expect(calls).toEqual([]);
+			await setStripeCustomer(db, contextA, 'cus_a');
+			expect(await cancelSubscriptionOf(db, 'a')).toBe(true);
+			expect(await cancelSubscriptionOf(db, 'a')).toBe(true);
+			expect(calls).toEqual([list, list]);
 		});
 
 		it('refuses while Stripe cannot cancel, unless the subscription is gone', async () => {
-			await subscribe('past_due');
+			await setStripeCustomer(db, contextA, 'cus_a');
+			const running = listed({ id: 'sub_a', status: 'past_due' });
 			// Stripe fails, and the subscription still runs: the account must stay.
-			stripeAnswers({ status: 500, body: {} }, { status: 200, body: { status: 'past_due' } });
+			stripeAnswers(
+				running,
+				{ status: 500, body: {} },
+				{ status: 200, body: { status: 'past_due' } }
+			);
 			expect(await cancelSubscriptionOf(db, 'a')).toBe(false);
 			// Canceled in the meantime: nothing bills the account any more.
-			stripeAnswers({ status: 400, body: {} }, { status: 200, body: { status: 'canceled' } });
+			stripeAnswers(
+				running,
+				{ status: 400, body: {} },
+				{ status: 200, body: { status: 'canceled' } }
+			);
 			expect(await cancelSubscriptionOf(db, 'a')).toBe(true);
 			// Unknown to Stripe.
-			stripeAnswers({ status: 404, body: {} });
+			stripeAnswers(running, { status: 404, body: {} });
 			expect(await cancelSubscriptionOf(db, 'a')).toBe(true);
+			// The list fails.
+			stripeAnswers({ status: 500, body: {} });
+			expect(await cancelSubscriptionOf(db, 'a')).toBe(false);
 			// Stripe not reachable at all.
 			vi.stubGlobal(
 				'fetch',
@@ -328,6 +403,17 @@ describe('with a database', () => {
 		await recordStripeEvent(db, 'evt_x', 'invoice.paid');
 		await recordStripeEvent(db, 'evt_x', 'invoice.paid');
 		expect(await db.select().from(stripeEvents)).toHaveLength(1);
+	});
+
+	it('forgets events long past Stripe retrying them', async () => {
+		const day = 24 * 60 * 60 * 1000;
+		await db.insert(stripeEvents).values([
+			{ id: 'evt_old', type: 'invoice.paid', receivedAt: new Date(Date.now() - 31 * day) },
+			{ id: 'evt_recent', type: 'invoice.paid', receivedAt: new Date(Date.now() - 4 * day) }
+		]);
+		await recordStripeEvent(db, 'evt_new', 'invoice.paid');
+		const ids = (await db.select().from(stripeEvents)).map((event) => event.id).sort();
+		expect(ids).toEqual(['evt_new', 'evt_recent']);
 	});
 
 	function requestEvent(method: string, pathname: string, user = true) {

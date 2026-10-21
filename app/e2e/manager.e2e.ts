@@ -82,6 +82,7 @@ test('the owner invites a manager, who registers through the link', async ({
 	await expect(
 		invitee.getByText('Das Abo verwaltet der Vermieter des Kontos, nicht die Mitverwalter.')
 	).toBeVisible();
+	await expect(invitee.getByRole('button', { name: 'Abo abschließen' })).toHaveCount(0);
 	const checkout = await invitee.request.post('/abo?/checkout', {
 		form: {},
 		headers: { origin: baseURL! }

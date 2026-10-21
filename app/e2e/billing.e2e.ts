@@ -49,7 +49,10 @@ function eventId(): string {
 	return `evt_${randomUUID().replaceAll('-', '')}`;
 }
 
-test('shows the trial, subscribes through Checkout and follows the webhooks', async ({ page }) => {
+test('shows the trial, subscribes through Checkout and follows the webhooks', async ({
+	page,
+	baseURL
+}) => {
 	// A fresh account is in its 30-day trial: the page and the notice above every page say so.
 	// The settings and the navigation lead to the page.
 	await page.goto('/einstellungen');
@@ -162,6 +165,15 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	await page.reload();
 	await expect(page.getByText('Dein Abo ist aktiv.')).toBeVisible();
 	await expect(page.getByText('15.02.2030')).toBeVisible();
+
+	// A second Checkout, from a stale tab say, would start a second subscription: refused.
+	requests.length = 0;
+	const second = await page.request.post('/abo?/checkout', {
+		form: {},
+		headers: { origin: baseURL! }
+	});
+	expect(second.status()).toBe(400);
+	expect(requests.some((entry) => entry.path === '/v1/checkout/sessions')).toBe(false);
 
 	// The Customer Portal: the app asks Stripe for a session and follows its URL (the fake
 	// answers with the return URL, so the browser lands back on the page).

@@ -27,6 +27,15 @@ export const requests: RecordedRequest[] = [];
 /** The state of sub_fake as GET /v1/subscriptions/sub_fake answers it; start() resets it. */
 export const subscription = { status: 'active', current_period_end: FAKE_PERIOD_END };
 
+function subscriptionObject() {
+	return {
+		id: FAKE_SUBSCRIPTION_ID,
+		object: 'subscription',
+		customer: FAKE_CUSTOMER_ID,
+		...subscription
+	};
+}
+
 let server: Server | undefined;
 
 function readBody(request: IncomingMessage): Promise<string> {
@@ -79,16 +88,19 @@ async function handle(request: IncomingMessage, response: ServerResponse): Promi
 			url: params.get('return_url')
 		});
 	}
+	if (method === 'GET' && url.pathname === '/v1/subscriptions') {
+		// Like Stripe without `status`: the customer's subscriptions that are not canceled.
+		const running =
+			params.get('customer') === FAKE_CUSTOMER_ID && subscription.status !== 'canceled';
+		return answer(response, 200, {
+			object: 'list',
+			has_more: false,
+			data: running ? [subscriptionObject()] : []
+		});
+	}
 	if (url.pathname === `/v1/subscriptions/${FAKE_SUBSCRIPTION_ID}`) {
 		if (method === 'DELETE') subscription.status = 'canceled';
-		if (method === 'GET' || method === 'DELETE') {
-			return answer(response, 200, {
-				id: FAKE_SUBSCRIPTION_ID,
-				object: 'subscription',
-				customer: FAKE_CUSTOMER_ID,
-				...subscription
-			});
-		}
+		if (method === 'GET' || method === 'DELETE') return answer(response, 200, subscriptionObject());
 	}
 	if (method === 'GET' && url.pathname === '/v1/prices/price_fake') {
 		return answer(response, 200, {

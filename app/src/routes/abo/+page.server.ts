@@ -1,5 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { BILLING_REQUIRED, STRIPE_PRICE_ID } from '$app/env/private';
+import { BILLING_REQUIRED, ORIGIN, STRIPE_PRICE_ID } from '$app/env/private';
 import { dayOf } from '#lib/dates.ts';
 import { formatCents } from '#lib/money.ts';
 import {
@@ -7,9 +7,11 @@ import {
 	billingState,
 	getBillingAccount,
 	setStripeCustomer,
+	subscriptionRuns,
 	trialDaysLeft,
 	trialEnd
 } from '#lib/server/billing.ts';
+import { mailLinkOrigin } from '#lib/server/mail-links.ts';
 import { auditContext, requireOwner, requireUser } from '#lib/server/session.ts';
 import {
 	createCheckoutSession,
@@ -21,6 +23,19 @@ import {
 import type { Actions, PageServerLoad } from './$types';
 
 const STRIPE_DOWN = 'Stripe antwortet gerade nicht. Bitte versuche es gleich noch einmal.';
+
+const NO_ORIGIN =
+	'Das Abo ist hier noch nicht eingerichtet: Wer mietkartei betreibt, muss dafür ORIGIN auf die öffentliche Adresse setzen.';
+
+/**
+ * The origin Stripe sends the owner back to. Like a link in a mail it must not follow a Host
+ * header the request chose, so the same rules apply; undefined when there is no trusted one.
+ */
+function returnOrigin(url: URL): string | undefined {
+	const origin = mailLinkOrigin(url, ORIGIN, __DEPLOY_TARGET__);
+	if (!origin) console.warn('Stripe redirect refused: set ORIGIN to the public URL of mietkartei.');
+	return origin;
+}
 
 /** The monthly price as text, read from Stripe; "monatlich" when Stripe does not answer. */
 async function priceText(): Promise<string> {
@@ -61,6 +76,11 @@ export const actions: Actions = {
 		const user = requireOwner(locals);
 		const account = await getBillingAccount(locals.db, user.accountId);
 		if (!account) error(404, 'Dieses Konto gibt es nicht.');
+		// A second Checkout would start a second subscription that bills at once.
+		if (subscriptionRuns(account))
+			return fail(400, { message: 'Du hast bereits ein laufendes Abo.' });
+		const origin = returnOrigin(url);
+		if (!origin) return fail(503, { message: NO_ORIGIN });
 		let checkoutUrl: string;
 		try {
 			let customerId = account.stripeCustomerId;
@@ -74,8 +94,8 @@ export const actions: Actions = {
 			const session = await createCheckoutSession({
 				customerId,
 				priceId: STRIPE_PRICE_ID,
-				successUrl: `${url.origin}/abo?erfolg=1`,
-				cancelUrl: `${url.origin}/abo`,
+				successUrl: `${origin}/abo?erfolg=1`,
+				cancelUrl: `${origin}/abo`,
 				trialDays
 			});
 			checkoutUrl = session.url;
@@ -95,9 +115,11 @@ export const actions: Actions = {
 		const user = requireOwner(locals);
 		const account = await getBillingAccount(locals.db, user.accountId);
 		if (!account?.stripeCustomerId) return fail(400, { message: 'Es gibt noch kein Abo.' });
+		const origin = returnOrigin(url);
+		if (!origin) return fail(503, { message: NO_ORIGIN });
 		let portalUrl: string;
 		try {
-			portalUrl = (await createPortalSession(account.stripeCustomerId, `${url.origin}/abo`)).url;
+			portalUrl = (await createPortalSession(account.stripeCustomerId, `${origin}/abo`)).url;
 		} catch (cause) {
 			if (cause instanceof StripeError) {
 				console.error(cause.message);

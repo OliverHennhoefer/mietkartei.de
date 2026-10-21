@@ -123,4 +123,6 @@ The hosted app charges a monthly subscription through Stripe Checkout and the St
 7. **Check.** After the deploy, open `https://app.mietkartei.de/abo`, choose **Abo abschließen** and pay with the test card `4242 4242 4242 4242`. Under **Developers → Webhooks**, the deliveries to the endpoint must answer 200, and the page must show the subscription as **Aktiv**. **Abo verwalten** opens the Customer Portal.
 8. **Read-only after the trial.** Add `"BILLING_REQUIRED": "true"` under `vars` only when accounts without a subscription should become read-only after their trial. Without it the app only shows a notice. Reading, the export, signing out, changing the name, email address or password and deleting the account always work.
 
-Deleting an account cancels its subscription at Stripe first. If Stripe does not answer, the account is not deleted and the owner is asked to try again.
+Deleting an account cancels every subscription of its Stripe customer first. If Stripe does not answer, the account is not deleted and the owner is asked to try again.
+
+Checkout and the Customer Portal send the owner back to the host Cloudflare routed the request to, so the hosted app needs no `ORIGIN` for them either. The app keeps the id of every webhook event it processed for 30 days, well past Stripe's three days of retries, and then deletes it.

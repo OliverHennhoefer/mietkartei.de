@@ -144,6 +144,19 @@ export async function getSubscription(id: string): Promise<StripeSubscription> {
 	);
 }
 
+/**
+ * The subscriptions of a customer that are not canceled yet (Stripe's default without `status`).
+ * One customer has one or two, so the first page of 100 holds all of them.
+ */
+export async function listSubscriptions(customerId: string): Promise<StripeSubscription[]> {
+	const page = await stripeRequest<{ data: StripeSubscription[] }>(
+		'/v1/subscriptions',
+		{ customer: customerId, limit: 100 },
+		{ method: 'GET' }
+	);
+	return page.data;
+}
+
 /** Cancels a subscription at once (no further invoices); Stripe answers with the canceled object. */
 export async function cancelSubscription(id: string): Promise<StripeSubscription> {
 	return stripeRequest<StripeSubscription>(

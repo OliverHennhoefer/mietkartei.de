@@ -1,5 +1,5 @@
 import { error, type RequestEvent } from '@sveltejs/kit';
-import { eq } from 'drizzle-orm';
+import { eq, lt } from 'drizzle-orm';
 import { BILLING_REQUIRED, STRIPE_PRICE_ID, STRIPE_SECRET_KEY } from '$app/env/private';
 import { dayOf, formatDate } from '../dates';
 import { subscriptionStatusLabels } from '../labels';
@@ -7,7 +7,7 @@ import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import { accounts, stripeEvents, type SubscriptionStatus } from './db/schema';
-import { cancelSubscription, getSubscription, StripeError } from './stripe';
+import { cancelSubscription, getSubscription, listSubscriptions, StripeError } from './stripe';
 
 // Subscriptions through Stripe. The hosted variant configures the keys; self-hosting leaves them
 // unset, and then nothing about billing is shown. Every account starts with a 30-day trial; with
@@ -233,6 +233,21 @@ export type SubscriptionUpdate = {
 };
 
 /**
+ * Stripe retries a delivery for three days, so an event row only has to outlive that. Older rows
+ * are deleted with every new one, which keeps the table at a few rows per account.
+ */
+const STRIPE_EVENT_RETENTION_MS = 30 * DAY_MS;
+
+function insertStripeEvent(db: Database, id: string, type: string) {
+	return db.insert(stripeEvents).values({ id, type }).onConflictDoNothing();
+}
+
+function pruneStripeEvents(db: Database) {
+	const before = new Date(Date.now() - STRIPE_EVENT_RETENTION_MS);
+	return db.delete(stripeEvents).where(lt(stripeEvents.receivedAt, before));
+}
+
+/**
  * Applies a subscription change from a webhook to the account of the Stripe customer, together
  * with the event row that marks the delivery as processed, in one batch. The audit entry has no
  * user. Returns the account id, or undefined when no account has this customer.
@@ -243,19 +258,33 @@ export async function applySubscriptionUpdate(
 	update: SubscriptionUpdate
 ): Promise<string | undefined> {
 	const [account] = await db
-		.select({ id: accounts.id, subscriptionStatus: accounts.subscriptionStatus })
+		.select({
+			id: accounts.id,
+			subscriptionStatus: accounts.subscriptionStatus,
+			stripeSubscriptionId: accounts.stripeSubscriptionId
+		})
 		.from(accounts)
 		.where(eq(accounts.stripeCustomerId, update.customerId));
 	if (!account) return undefined;
 
 	const mapped = mapSubscriptionStatus(update.status);
+	// A customer can have an older, ended subscription besides the running one. An event about
+	// that one (a late retry, say) must not replace the running subscription, or the account
+	// would turn read-only and its deletion would not cancel what still bills it.
+	const other =
+		account.stripeSubscriptionId !== null && account.stripeSubscriptionId !== update.subscriptionId;
+	if (other && subscriptionRuns(account) && (mapped === 'canceled' || mapped === 'none')) {
+		await recordStripeEvent(db, event.id, event.type);
+		return account.id;
+	}
 	const status = mapped === 'none' ? account.subscriptionStatus : mapped;
 	const until = update.currentPeriodEnd
 		? ` (bis ${formatDate(dayOf(update.currentPeriodEnd))})`
 		: '';
 	const context: AuditContext = { accountId: account.id, userId: null };
 	await runBatch(db, [
-		db.insert(stripeEvents).values({ id: event.id, type: event.type }).onConflictDoNothing(),
+		insertStripeEvent(db, event.id, event.type),
+		pruneStripeEvents(db),
 		db
 			.update(accounts)
 			.set({
@@ -285,16 +314,31 @@ export function subscriptionRuns(
 }
 
 /**
- * Ends the Stripe subscription of an account that is about to be deleted, so nobody keeps paying
- * for an account that no longer exists. True when nothing bills the account any more (billing
- * off, no subscription, already canceled, or canceled now); false when Stripe could not cancel
- * it, and then the account must not be deleted.
+ * Ends the Stripe subscriptions of an account that is about to be deleted, so nobody keeps paying
+ * for an account that no longer exists. Stripe is asked for every subscription of the customer,
+ * not only the stored one: a Checkout whose webhook has not arrived yet bills as well. True when
+ * nothing bills the account any more (billing off, no customer, nothing running, or canceled
+ * now); false when Stripe could not cancel, and then the account must not be deleted.
  */
 export async function cancelSubscriptionOf(db: Database, accountId: string): Promise<boolean> {
 	if (!billingEnabled()) return true;
 	const account = await getBillingAccount(db, accountId);
-	if (!account || !subscriptionRuns(account)) return true;
-	const subscriptionId = account.stripeSubscriptionId!;
+	if (!account?.stripeCustomerId) return true;
+	let subscriptions;
+	try {
+		subscriptions = await listSubscriptions(account.stripeCustomerId);
+	} catch {
+		return false;
+	}
+	for (const subscription of subscriptions) {
+		if (mapSubscriptionStatus(subscription.status) === 'canceled') continue;
+		if (!(await cancelOne(subscription.id))) return false;
+	}
+	return true;
+}
+
+/** Cancels one subscription; true when it no longer bills, whoever ended it. */
+async function cancelOne(subscriptionId: string): Promise<boolean> {
 	try {
 		await cancelSubscription(subscriptionId);
 		return true;
@@ -320,5 +364,5 @@ export async function stripeEventSeen(db: Database, eventId: string): Promise<bo
 
 /** Records an event that needs no other change. */
 export async function recordStripeEvent(db: Database, id: string, type: string): Promise<void> {
-	await db.insert(stripeEvents).values({ id, type }).onConflictDoNothing();
+	await runBatch(db, [insertStripeEvent(db, id, type), pruneStripeEvents(db)]);
 }
