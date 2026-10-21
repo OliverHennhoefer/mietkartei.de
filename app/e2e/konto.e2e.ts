@@ -1,9 +1,15 @@
 import { expect, test } from '@playwright/test';
 import { strFromU8, unzipSync } from 'fflate';
 import { owner } from './owner';
+import { FAKE_SUBSCRIPTION_ID, requests, start, stop } from './stripe-fake';
 
 // Project "account", runs last with the owner's storage state: the export, then the deletion
-// of the account, after which nothing else can run.
+// of the account, after which nothing else can run. The owner's subscription (sub_fake, started
+// in billing.e2e.ts) runs, so the deletion has to cancel it at the Stripe fake first.
+
+test.afterAll(async () => {
+	await stop();
+});
 
 test('downloads the export as a ZIP with export.json and a documents folder', async ({ page }) => {
 	await page.goto('/einstellungen/export');
@@ -37,14 +43,33 @@ test('downloads the export as a ZIP with export.json and a documents folder', as
 });
 
 test('deletes the account after the password is entered again', async ({ page, baseURL }) => {
+	await page.goto('/abo');
+	await expect(page.getByText('Dein Abo ist aktiv.')).toBeVisible();
+
 	await page.goto('/einstellungen/konto');
+	await expect(page.getByText('Dein Abo wird dabei sofort gekündigt')).toBeVisible();
 	await page.getByLabel('Passwort').fill('falsches-passwort');
 	await page.getByRole('button', { name: 'Konto endgültig löschen' }).click();
 	await expect(page.getByText('Das Passwort stimmt nicht.')).toBeVisible();
 
+	// While Stripe does not answer (the fake is not running), the subscription cannot be
+	// canceled, so the account stays.
+	await stop();
+	await page.getByLabel('Passwort').fill(owner.password);
+	await page.getByRole('button', { name: 'Konto endgültig löschen' }).click();
+	await expect(
+		page.getByRole('alert').filter({ hasText: 'Stripe antwortet gerade nicht' })
+	).toBeVisible();
+	await expect(page).toHaveURL(/\/einstellungen\/konto$/);
+
+	await start();
 	await page.getByLabel('Passwort').fill(owner.password);
 	await page.getByRole('button', { name: 'Konto endgültig löschen' }).click();
 	await expect(page).toHaveURL(/\/registrieren$/);
+	const cancel = requests.filter(
+		(entry) => entry.path === `/v1/subscriptions/${FAKE_SUBSCRIPTION_ID}`
+	);
+	expect(cancel.map((entry) => entry.method)).toEqual(['DELETE']);
 
 	// The owner was the last user, so the instance is empty again: the sign-in page sends every
 	// visitor to the registration, and the old credentials do not sign anyone in. The action is

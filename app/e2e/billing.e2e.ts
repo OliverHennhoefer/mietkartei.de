@@ -6,12 +6,16 @@ import {
 	FAKE_SUBSCRIPTION_ID,
 	requests,
 	start,
-	stop
+	stop,
+	subscription
 } from './stripe-fake';
 
 // The web server runs with STRIPE_SECRET_KEY=sk_test_fake, STRIPE_PRICE_ID=price_fake,
 // STRIPE_WEBHOOK_SECRET=whsec_fake and STRIPE_API_BASE pointing at e2e/stripe-fake.ts.
 const WEBHOOK_SECRET = 'whsec_fake';
+
+// The later tests build on the subscription the first one starts, so a retry runs them all.
+test.describe.configure({ mode: 'serial' });
 
 test.beforeAll(async () => {
 	await start();
@@ -98,7 +102,9 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	await expect(page.getByText('15.01.2030')).toBeVisible();
 	await expect(page.getByRole('note').filter({ hasText: 'Testphase' })).toHaveCount(0);
 
-	// A failed payment shows a warning above every page …
+	// A failed payment shows a warning above every page … (the app reads the status back from
+	// the API, so the fake's subscription changes first, as Stripe's would)
+	subscription.status = 'past_due';
 	const failed = await postEvent(page.request, {
 		id: eventId(),
 		type: 'customer.subscription.updated',
@@ -119,6 +125,7 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	).toBeVisible();
 
 	// … until the subscription is active again, with a new period end.
+	Object.assign(subscription, { status: 'active', current_period_end: 1_897_344_000 });
 	const recovered = {
 		id: eventId(),
 		type: 'customer.subscription.updated',
@@ -160,6 +167,52 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	const portal = requests.find((entry) => entry.path === '/v1/billing_portal/sessions');
 	expect(portal?.params.get('customer')).toBe(FAKE_CUSTOMER_ID);
 	expect(portal?.params.get('return_url')).toMatch(/\/abo$/);
+});
+
+test('applies the current subscription, not a late delivery of an older event', async ({
+	page
+}) => {
+	// Stripe ends the subscription …
+	subscription.status = 'canceled';
+	const deleted = await postEvent(page.request, {
+		id: eventId(),
+		type: 'customer.subscription.deleted',
+		data: { object: { id: FAKE_SUBSCRIPTION_ID, status: 'canceled', customer: FAKE_CUSTOMER_ID } }
+	});
+	expect(deleted.status()).toBe(200);
+	await page.goto('/abo');
+	await expect(page.getByText('Gekündigt', { exact: true })).toBeVisible();
+
+	// … and then delivers an older "active" event again, e.g. after a failed first delivery. Its
+	// payload is stale, so the account stays canceled.
+	const late = await postEvent(page.request, {
+		id: eventId(),
+		type: 'customer.subscription.updated',
+		data: {
+			object: {
+				id: FAKE_SUBSCRIPTION_ID,
+				status: 'active',
+				customer: FAKE_CUSTOMER_ID,
+				current_period_end: FAKE_PERIOD_END
+			}
+		}
+	});
+	expect(late.status()).toBe(200);
+	await page.reload();
+	await expect(page.getByText('Gekündigt', { exact: true })).toBeVisible();
+	await expect(page.getByText('Dein Abo ist aktiv.')).toHaveCount(0);
+
+	// The landlord subscribes again in the portal: the next event brings the active state back,
+	// which the account deletion in konto.e2e.ts cancels.
+	Object.assign(subscription, { status: 'active', current_period_end: 1_897_344_000 });
+	const resumed = await postEvent(page.request, {
+		id: eventId(),
+		type: 'customer.subscription.updated',
+		data: { object: { id: FAKE_SUBSCRIPTION_ID, status: 'active', customer: FAKE_CUSTOMER_ID } }
+	});
+	expect(resumed.status()).toBe(200);
+	await page.reload();
+	await expect(page.getByText('Dein Abo ist aktiv.')).toBeVisible();
 });
 
 test('refuses webhooks with a bad signature or an old timestamp', async ({ page }) => {

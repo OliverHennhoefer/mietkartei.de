@@ -96,6 +96,27 @@ export async function resetPassword(
 	return { ok: true, userId: user.id };
 }
 
+function isLoopback(hostname: string): boolean {
+	return hostname === 'localhost' || hostname === '[::1]' || /^127(\.\d{1,3}){3}$/.test(hostname);
+}
+
+/**
+ * The origin for the link in a reset mail, or undefined when the request cannot be trusted with
+ * it. The mail goes to someone other than the sender of the request, so the link must not
+ * follow a Host header the sender chose: ORIGIN wins when set; on Workers the request URL is the
+ * host Cloudflare routed to the app; on node without ORIGIN the Host header is the client's, and
+ * only a loopback address is accepted, because a link to localhost cannot lead to a foreign site.
+ */
+export function resetLinkOrigin(
+	url: URL,
+	configuredOrigin: string,
+	target: 'node' | 'cloudflare'
+): string | undefined {
+	if (configuredOrigin) return new URL(configuredOrigin).origin;
+	if (target === 'cloudflare' || isLoopback(url.hostname)) return url.origin;
+	return undefined;
+}
+
 /** The mail with the reset link; `link` is the absolute URL of /passwort-zuruecksetzen/<token>. */
 export function passwordResetMail(to: string, link: string): Mail {
 	return {

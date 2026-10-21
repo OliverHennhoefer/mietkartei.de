@@ -41,18 +41,18 @@ export function encodeForm(params: StripeParams): string {
 }
 
 /**
- * Calls the Stripe API. POST sends `params` form-encoded; GET appends them to the query. Throws a
- * StripeError with Stripe's message when the answer is not 2xx.
+ * Calls the Stripe API. POST sends `params` form-encoded; GET and DELETE append them to the query.
+ * Throws a StripeError with Stripe's message when the answer is not 2xx.
  */
 export async function stripeRequest<T = Record<string, unknown>>(
 	path: string,
 	params: StripeParams = {},
-	options: { method?: 'POST' | 'GET' } = {}
+	options: { method?: 'POST' | 'GET' | 'DELETE' } = {}
 ): Promise<T> {
 	const method = options.method ?? 'POST';
 	const base = STRIPE_API_BASE.replace(/\/$/, '');
 	const body = encodeForm(params);
-	const url = method === 'GET' && body ? `${base}${path}?${body}` : `${base}${path}`;
+	const url = method !== 'POST' && body ? `${base}${path}?${body}` : `${base}${path}`;
 	const response = await fetch(url, {
 		method,
 		headers: {
@@ -141,6 +141,15 @@ export async function getSubscription(id: string): Promise<StripeSubscription> {
 		{
 			method: 'GET'
 		}
+	);
+}
+
+/** Cancels a subscription at once (no further invoices); Stripe answers with the canceled object. */
+export async function cancelSubscription(id: string): Promise<StripeSubscription> {
+	return stripeRequest<StripeSubscription>(
+		`/v1/subscriptions/${encodeURIComponent(id)}`,
+		{},
+		{ method: 'DELETE' }
 	);
 }
 

@@ -17,6 +17,12 @@ export const variables = defineEnvVars({
 			'and that person takes over the existing data. The hosted variant sets it; self-hosting does not.',
 		schema: (value) => value === 'true'
 	},
+	ORIGIN: {
+		description:
+			'Public URL of the app, e.g. "https://mietkartei.example.de". On node server.js derives ' +
+			'the request origin from it; password reset mails need it unless the app is opened at localhost.',
+		schema: (value) => value || ''
+	},
 	MAIL_TRANSPORT: {
 		description:
 			'How mails (password reset, invitations) are sent: "console" logs them, "resend" uses the ' +

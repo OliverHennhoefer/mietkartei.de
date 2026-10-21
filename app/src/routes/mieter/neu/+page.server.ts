@@ -1,15 +1,11 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { parseTenant } from '#lib/forms/tenants.ts';
 import { personName } from '#lib/format.ts';
+import { returnPath } from '#lib/return-path.ts';
 import { logChange } from '#lib/server/audit.ts';
 import { auditContext } from '#lib/server/session.ts';
 import { createTenant } from '#lib/server/tenants.ts';
 import type { Actions, PageServerLoad } from './$types';
-
-/** Only a path of this app, so the page never redirects to another site. */
-function returnPath(value: string | null | undefined): string | null {
-	return value && /^\/(?!\/)/.test(value) ? value : null;
-}
 
 // ?return=<path> brings the user back to where they came from (the lease form), with the new
 // tenant preselected through ?tenantId=.
