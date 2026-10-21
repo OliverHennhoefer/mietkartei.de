@@ -1,9 +1,11 @@
 import type {
+	AllocationKeyKind,
 	BankTransactionStatus,
 	BuildingUse,
 	DepositTransactionKind,
 	HeatingCostModel,
 	LeaseKind,
+	MeterKind,
 	OperatingCostModel,
 	RentChangeReason,
 	RentChargeKind,
@@ -70,4 +72,22 @@ export const bankTransactionStatusLabels: Record<BankTransactionStatus, string> 
 	unmatched: 'Offen',
 	matched: 'Zugeordnet',
 	ignored: 'Ignoriert'
+};
+
+export const allocationKeyKindLabels: Record<AllocationKeyKind, string> = {
+	area: 'nach Wohnfläche',
+	persons: 'nach Personen',
+	units: 'nach Einheiten',
+	consumption: 'nach Verbrauch',
+	mixed: 'Verbrauch und Fläche',
+	custom: 'eigene Anteile',
+	direct: 'Beträge je Einheit (z. B. vom Messdienst)'
+};
+
+export const meterKindLabels: Record<MeterKind, string> = {
+	cold_water: 'Kaltwasser',
+	hot_water: 'Warmwasser',
+	heat: 'Wärme',
+	gas: 'Gas',
+	electricity: 'Strom'
 };
