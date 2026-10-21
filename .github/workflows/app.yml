@@ -165,7 +165,7 @@ jobs:
           curl -fsS -o /dev/null -b cookies.txt -H "Origin: http://localhost:3001" \
             --data-urlencode "name=Upgrade-Testobjekt" --data-urlencode "street=Teststraße 1" \
             --data-urlencode "postalCode=12345" --data-urlencode "city=Teststadt" \
-            "http://localhost:3001/objekte?/create"
+            "http://localhost:3001/objekte/neu?/create"
           docker stop previous
           docker run -d --name current -p 3002:3000 -v upgrade-data:/data mietkartei:ci
           wait_healthy 3002 current
