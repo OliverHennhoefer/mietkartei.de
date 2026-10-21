@@ -409,6 +409,13 @@ test('edits and deletes categories, keys, circles, cost items, meters and readin
 
 	// A meter: a reading entered and deleted, the meter removed, then deleted.
 	await page.goto(`/objekte/${propertyId}/zaehler`);
+	await expect(propertyTabs.getByRole('link', { name: 'Zähler' })).toHaveAttribute(
+		'aria-current',
+		'page'
+	);
+	await expect(propertyTabs.getByRole('link', { name: 'Einheiten' })).not.toHaveAttribute(
+		'aria-current'
+	);
 	await page
 		.getByRole('combobox', { name: 'Einheit', exact: true })
 		.selectOption({ label: unitName });
