@@ -164,5 +164,6 @@ export const auditEntityLabels: Record<string, string> = {
 	statement: 'Betriebskostenabrechnung',
 	document: 'Dokument',
 	task: 'Aufgabe',
-	vpi: 'Verbraucherpreisindex'
+	vpi: 'Verbraucherpreisindex',
+	import: 'Datenübernahme'
 };

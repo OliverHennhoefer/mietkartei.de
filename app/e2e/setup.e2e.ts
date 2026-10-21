@@ -49,6 +49,21 @@ test('the first visitor registers and becomes the owner', async ({ page, request
 		await expect(steps.getByRole('link', { name, exact: true })).toHaveAttribute('href', href);
 	}
 	await expect(steps).not.toContainText('erledigt');
+	// The import is linked, also from the empty lists of properties and tenants.
+	await expect(steps.getByRole('link', { name: 'Datenübernahme' })).toHaveAttribute(
+		'href',
+		'/datenuebernahme'
+	);
+	await page.goto('/objekte');
+	await expect(
+		page.getByRole('link', { name: 'Daten aus einer anderen Software importieren' })
+	).toHaveAttribute('href', '/datenuebernahme');
+	await page.goto('/mieter');
+	await expect(page.getByRole('link', { name: 'Importieren' })).toHaveAttribute(
+		'href',
+		'/datenuebernahme'
+	);
+	await page.goto('/');
 
 	// With a property but no lease and no bank account it stays, the property ticked off and the
 	// unit step pointing to the property's page with the unit form.

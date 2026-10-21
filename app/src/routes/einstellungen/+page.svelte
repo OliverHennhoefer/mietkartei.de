@@ -39,6 +39,11 @@
 			text: 'Indexwerte für Indexmietverträge.'
 		},
 		{
+			href: '/datenuebernahme',
+			label: 'Datenübernahme',
+			text: 'Objekte, Mieter, Mietverträge und Zahlungen aus einer CSV-Datei übernehmen.'
+		},
+		{
 			href: '/einstellungen/export',
 			label: 'Export',
 			text: 'Alle Daten als Datei herunterladen.',
