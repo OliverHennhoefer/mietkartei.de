@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FormParser } from './fields';
+import { FormParser, formDataOf } from './fields';
 
 type Sample = {
 	name: string;
@@ -9,14 +9,8 @@ type Sample = {
 	kind: 'a' | 'b';
 };
 
-function formData(entries: Record<string, string>): FormData {
-	const data = new FormData();
-	for (const [name, value] of Object.entries(entries)) data.set(name, value);
-	return data;
-}
-
 function parse(entries: Record<string, string>) {
-	const parser = new FormParser<Sample>(formData(entries));
+	const parser = new FormParser<Sample>(formDataOf(entries));
 	const name = parser.text('name', { max: 10 });
 	const note = parser.optionalText('note');
 	const area = parser.number('area', { required: false });
@@ -69,5 +63,81 @@ describe('FormParser', () => {
 			area: 'Der Wert darf nicht unter 0 liegen.',
 			count: 'Der Wert darf nicht über 10 liegen.'
 		});
+	});
+});
+
+type Lease = {
+	unitId: string;
+	tenantIds: string[];
+	rent: number;
+	start: string;
+	email: string;
+	active: boolean;
+};
+
+function parseLease(entries: Record<string, string | string[]>) {
+	const parser = new FormParser<Lease>(formDataOf(entries));
+	const unitId = parser.id('unitId');
+	const tenantIds = parser.ids('tenantIds');
+	const rent = parser.money('rent');
+	const start = parser.date('start');
+	const email = parser.email('email');
+	const active = parser.flag('active');
+	return parser.result(() => ({
+		unitId: unitId!,
+		tenantIds,
+		rent: rent!,
+		start: start!,
+		email,
+		active
+	}));
+}
+
+describe('FormParser for ids, money, dates, email and flags', () => {
+	it('parses German amounts, dates, several ids and a ticked checkbox', () => {
+		const result = parseLease({
+			unitId: 'u1',
+			tenantIds: ['t1', 't2'],
+			rent: '1.250,50',
+			start: '2026-01-01',
+			email: 'Erika@Example.org',
+			active: 'on'
+		});
+		expect(result).toEqual({
+			ok: true,
+			data: {
+				unitId: 'u1',
+				tenantIds: ['t1', 't2'],
+				rent: 125050,
+				start: '2026-01-01',
+				email: 'erika@example.org',
+				active: true
+			}
+		});
+	});
+
+	it('rejects bad values and echoes them, a missing checkbox as empty', () => {
+		const result = parseLease({ rent: 'abc', start: '2026-02-30', email: 'erika@' });
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.errors).toEqual({
+			unitId: 'Bitte wähle einen Eintrag aus.',
+			rent: 'Bitte gib einen Betrag an, z. B. 650,00.',
+			start: 'Bitte gib ein gültiges Datum an.',
+			email: 'Bitte gib eine gültige E-Mail-Adresse an.'
+		});
+		expect(result.values).toMatchObject({ rent: 'abc', tenantIds: '', active: '' });
+	});
+
+	it('checks the amount range and requires the amount and the date', () => {
+		const result = parseLease({ unitId: 'u1', rent: '-1', email: 'a@b.de' });
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.errors).toEqual({
+			rent: 'Der Betrag darf nicht unter 0 € liegen.',
+			start: 'Bitte gib ein Datum an.'
+		});
+		const missing = parseLease({ unitId: 'u1', start: '2026-01-01', email: 'a@b.de' });
+		expect(missing.ok || missing.errors).toEqual({ rent: 'Bitte gib einen Betrag an.' });
 	});
 });
