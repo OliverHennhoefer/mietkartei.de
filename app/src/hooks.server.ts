@@ -10,6 +10,9 @@ import { getAuthLimiter } from '#lib/server/rate-limit/index.ts';
 /** Paths that work without signing in. Everything else redirects to the sign-in page. */
 const publicPaths = new Set(['/anmelden', '/registrieren', '/health']);
 
+/** Paths whose posts check a password or create an account, counted per client address. */
+const authPaths = new Set(['/anmelden', '/registrieren']);
+
 function isPublic(pathname: string): boolean {
 	if (publicPaths.has(pathname)) return true;
 	// Test-only endpoints, e.g. the seed. Only enabled by the end-to-end test server.
@@ -32,8 +35,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	if (!event.locals.user && !isPublic(event.url.pathname)) redirect(303, '/anmelden');
-	// A post without a session can only be a sign-in or a registration; both are counted per client.
-	if (!event.locals.user && event.request.method === 'POST') {
+	// Counted with or without a session: a signed-in client can post to these actions as well.
+	if (event.request.method === 'POST' && authPaths.has(event.url.pathname)) {
 		const limiter = await getAuthLimiter();
 		if (!(await limiter.limit(`auth:${event.getClientAddress()}`))) {
 			error(429, 'Zu viele Versuche in kurzer Zeit. Bitte warte eine Minute.');
