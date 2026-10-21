@@ -187,6 +187,27 @@ export async function revokeInvitation(
 	return true;
 }
 
+/**
+ * Sends the mail with the invitation link. When it cannot be sent, the invitation is revoked, so
+ * the owner can invite the address again instead of being told it is already invited. False then.
+ */
+export async function deliverInvitation(
+	db: Database,
+	context: AuditContext,
+	invitationId: string,
+	mail: Mail,
+	send: (mail: Mail) => Promise<void>
+): Promise<boolean> {
+	try {
+		await send(mail);
+		return true;
+	} catch (error) {
+		console.error('[mail] The invitation was not sent and is revoked:', error);
+		await revokeInvitation(db, context, invitationId);
+		return false;
+	}
+}
+
 export type InvitationStatus = 'open' | 'expired' | 'accepted';
 
 export type FoundInvitation = {

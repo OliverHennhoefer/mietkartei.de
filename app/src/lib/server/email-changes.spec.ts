@@ -1,6 +1,6 @@
 import { isHttpError } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { authenticate, createSession, hashPassword, isLockedOut, validateSession } from './auth';
 import type { Database } from './db';
 import { auditLog, emailChanges, passwordResets, users } from './db/schema';
@@ -8,6 +8,7 @@ import {
 	EMAIL_CHANGE_LIFETIME,
 	MAX_EMAIL_CHANGES_PER_DAY,
 	confirmEmailChange,
+	deliverEmailChange,
 	emailChangeMail,
 	emailChangeNoticeMail,
 	findEmailChange,
@@ -110,6 +111,34 @@ describe('requestEmailChange', () => {
 		);
 		const refusal = await request().catch((error) => error);
 		expect(isHttpError(refusal, 409)).toBe(true);
+	});
+});
+
+describe('deliverEmailChange', () => {
+	const toNew = { to: 'neu@example.org', subject: 'Bestätigen', text: 'Link' };
+	const toOld = { to: 'a@example.org', subject: 'Hinweis', text: 'Neue Adresse' };
+
+	it('sends both mails and keeps the request', async () => {
+		const result = await request();
+		const send = vi.fn(async () => {});
+		expect(await deliverEmailChange(db, result.token, [toNew, toOld], send)).toBe(true);
+		expect(send.mock.calls).toEqual([[toNew], [toOld]]);
+		expect(await findEmailChange(db, result.token, now)).toBeDefined();
+	});
+
+	it('withdraws the request when a mail fails, even after the link went out', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const result = await request();
+		const sent: string[] = [];
+		const failOnNotice = async (mail: { to: string }) => {
+			if (mail.to === toOld.to) throw new Error('Mail provider answered 500');
+			sent.push(mail.to);
+		};
+		expect(await deliverEmailChange(db, result.token, [toNew, toOld], failOnNotice)).toBe(false);
+		expect(sent).toEqual([toNew.to]);
+		expect(await findEmailChange(db, result.token, now)).toBeUndefined();
+		expect(await db.select().from(emailChanges)).toEqual([]);
+		vi.restoreAllMocks();
 	});
 });
 

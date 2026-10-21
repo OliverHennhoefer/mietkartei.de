@@ -73,6 +73,27 @@ export async function requestEmailChange(
 	return { ok: true, token, email, previousEmail: user.email };
 }
 
+/**
+ * Sends the mails of a request: the link to the new address, the notice to the old one. When one
+ * of them cannot be sent, the request is deleted, so no link from a half-sent request stays valid.
+ * False then.
+ */
+export async function deliverEmailChange(
+	db: Database,
+	token: string,
+	mails: Mail[],
+	send: (mail: Mail) => Promise<void>
+): Promise<boolean> {
+	try {
+		for (const mail of mails) await send(mail);
+		return true;
+	} catch (error) {
+		console.error('[mail] The email change was not sent and is withdrawn:', error);
+		await db.delete(emailChanges).where(eq(emailChanges.id, await hashToken(token)));
+		return false;
+	}
+}
+
 /** The request behind a token, when it exists and has not expired. */
 export async function findEmailChange(
 	db: Database,

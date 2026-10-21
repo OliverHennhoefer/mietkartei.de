@@ -1,6 +1,6 @@
 import { isHttpError } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { authenticate, createSession, validateSession } from './auth';
 import type { Database } from './db';
 import { auditLog, emailChanges, invitations, passwordResets, sessions, users } from './db/schema';
@@ -9,6 +9,7 @@ import {
 	MAX_INVITATIONS_PER_DAY,
 	acceptInvitation,
 	createInvitation,
+	deliverInvitation,
 	findInvitation,
 	invitationMail,
 	inviterName,
@@ -161,6 +162,32 @@ describe('revokeInvitation', () => {
 	});
 });
 
+describe('deliverInvitation', () => {
+	const mail = { to: 'neu@example.org', subject: 'Einladung', text: 'Link' };
+
+	it('sends the mail and keeps the invitation', async () => {
+		const created = await invite();
+		const send = vi.fn(async () => {});
+		expect(await deliverInvitation(db, contextA, created.id, mail, send)).toBe(true);
+		expect(send).toHaveBeenCalledWith(mail);
+		expect(await listPendingInvitations(db, 'a', now)).toHaveLength(1);
+	});
+
+	it('revokes the invitation when the mail fails, so the address can be invited again', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const created = await invite();
+		const failing = async () => {
+			throw new Error('Mail provider answered 500');
+		};
+		expect(await deliverInvitation(db, contextA, created.id, mail, failing)).toBe(false);
+		expect(await listPendingInvitations(db, 'a', now)).toEqual([]);
+		expect(await findInvitation(db, created.token, now)).toBeUndefined();
+		const again = await createInvitation(db, contextA, { email: 'neu@example.org' }, now);
+		expect(again.ok).toBe(true);
+		vi.restoreAllMocks();
+	});
+});
+
 describe('findInvitation and acceptInvitation', () => {
 	it('tells an open, expired, accepted and unknown token apart', async () => {
 		const { token } = await invite();
@@ -280,15 +307,10 @@ describe('removeUser', () => {
 
 	it('neither removes oneself, an owner nor a user of another account', async () => {
 		const foreign = await manager(contextB);
-		await db.insert(users).values({
-			id: 'owner-a',
-			accountId: 'a',
-			email: 'zweiter-vermieter@example.org',
-			passwordHash: 'x',
-			role: 'owner'
-		});
+		const own = await manager(contextA, 'eigener@example.org');
 		expect(await removeUser(db, contextA, 'user-a')).toBe('self');
-		expect(await removeUser(db, contextA, 'owner-a')).toBe('owner');
+		// Only the owner reaches the page, so this guards against a caller that skipped the check.
+		expect(await removeUser(db, { accountId: 'a', userId: own }, 'user-a')).toBe('owner');
 		expect(await removeUser(db, contextA, foreign)).toBe('missing');
 		expect(await removeUser(db, contextA, 'user-b')).toBe('missing');
 		expect(await db.select().from(users)).toHaveLength(4);

@@ -11,6 +11,7 @@ import type { FieldErrors } from '#lib/forms/fields.ts';
 import { getLandlord, updateLandlord } from '#lib/server/accounts.ts';
 import { changePassword, updateName } from '#lib/server/auth.ts';
 import {
+	deliverEmailChange,
 	emailChangeMail,
 	emailChangeNoticeMail,
 	requestEmailChange
@@ -25,6 +26,8 @@ import type { Actions, PageServerLoad } from './$types';
 // address takes effect only through the link mailed to it (see email-changes.ts).
 
 const LOCKED = 'Zu viele Fehlversuche. Bitte warte 15 Minuten.';
+const MAIL_NOT_SENT =
+	'Die Bestätigung konnte nicht verschickt werden. Deine Adresse bleibt unverändert; bitte versuche es später noch einmal.';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const user = requireUser(locals);
@@ -69,8 +72,19 @@ export const actions: Actions = {
 			}
 			// The token is in the mail only; the database holds its hash.
 			const link = `${origin}/e-mail-bestaetigen/${requested.token}`;
-			await sendMail(locals.db, emailChangeMail(requested.email, link));
-			await sendMail(locals.db, emailChangeNoticeMail(requested.previousEmail, requested.email));
+			const sent = await deliverEmailChange(
+				locals.db,
+				requested.token,
+				[
+					emailChangeMail(requested.email, link),
+					emailChangeNoticeMail(requested.previousEmail, requested.email)
+				],
+				(mail) => sendMail(locals.db, mail)
+			);
+			if (!sent) {
+				const errors: FieldErrors<ProfileInput> = { email: MAIL_NOT_SENT };
+				return fail(502, { form: 'profile' as const, errors, values });
+			}
 			pendingEmail = requested.email;
 		}
 		if (result.data.name !== user.name) {

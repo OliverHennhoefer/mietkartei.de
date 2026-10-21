@@ -4,6 +4,7 @@ import { parseInvitation, type InvitationFormInput } from '#lib/forms/auth.ts';
 import type { FieldErrors } from '#lib/forms/fields.ts';
 import {
 	createInvitation,
+	deliverInvitation,
 	invitationMail,
 	listAccountUsers,
 	listPendingInvitations,
@@ -49,10 +50,20 @@ export const actions: Actions = {
 			return fail(400, { errors, values: { email: result.data.email } });
 		}
 		// The token is in the mail only; the database holds its hash.
-		await sendMail(
+		const sent = await deliverInvitation(
 			locals.db,
-			invitationMail(created.email, `${origin}/einladung/${created.token}`, user.name)
+			auditContext(locals),
+			created.id,
+			invitationMail(created.email, `${origin}/einladung/${created.token}`, user.name),
+			(mail) => sendMail(locals.db, mail)
 		);
+		if (!sent) {
+			const errors: FieldErrors<InvitationFormInput> = {
+				email:
+					'Die Einladung konnte nicht verschickt werden und wurde zurückgezogen. Bitte versuche es später noch einmal.'
+			};
+			return fail(502, { errors, values: { email: created.email } });
+		}
 		return { invited: created.email };
 	},
 
