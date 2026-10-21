@@ -15,6 +15,7 @@ const pages = [
 	'/bank/konten',
 	'/bank/import',
 	'/bank/regeln',
+	'/dokumente',
 	'/einstellungen',
 	'/einstellungen/profil',
 	'/einstellungen/vpi'
