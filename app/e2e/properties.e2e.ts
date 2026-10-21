@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { seedLease } from './seed';
 
 // Names carry a random suffix, so the tests can find their own rows in a shared database.
-const suffix = () => Math.random().toString(36).slice(2, 8);
+const suffix = () => crypto.randomUUID().slice(0, 6);
 
 /** Accepts the next confirm() dialog, as ConfirmButton asks before a delete. */
 function acceptNextDialog(page: Page) {

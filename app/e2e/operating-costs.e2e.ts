@@ -5,7 +5,7 @@ import { seedLease } from './seed';
 // property's tabs, cost items with a receipt. The lease (property, unit, tenant) is seeded; the
 // test drives only the pages of this feature.
 
-const suffix = Math.random().toString(36).slice(2, 8);
+const suffix = crypto.randomUUID().slice(0, 6);
 
 /** ConfirmButton asks with window.confirm; every dialog of the test is accepted. */
 function acceptDialogs(page: Page) {

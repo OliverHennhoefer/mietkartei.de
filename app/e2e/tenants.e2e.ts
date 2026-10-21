@@ -4,7 +4,7 @@ import { seedLease } from './seed';
 // Tenants: create, edit, list and delete. The lease that blocks a delete is seeded, not clicked
 // together, so this file drives only the tenant pages.
 
-const suffix = () => Math.random().toString(36).slice(2, 8);
+const suffix = () => crypto.randomUUID().slice(0, 6);
 
 test('creates a tenant, edits it and finds it in the list', async ({ page }) => {
 	const lastName = `Testmieter-${suffix()}`;

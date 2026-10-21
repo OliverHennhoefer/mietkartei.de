@@ -5,7 +5,7 @@ import { seedLease } from './seed';
 // The deadlines come from a lease that ends next month (seeded); the tasks are driven through the
 // page. Names carry a random suffix, so the rows of this test are told apart from other tests'.
 
-const suffix = Math.random().toString(36).slice(2, 8);
+const suffix = crypto.randomUUID().slice(0, 6);
 const tenantName = `Fristmann-${suffix}`;
 const propertyName = `Fristenhaus ${suffix}`;
 const taskTitle = `Rauchmelder prüfen ${suffix}`;

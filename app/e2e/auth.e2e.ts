@@ -90,7 +90,7 @@ test('resets the password through the link from the mail', async ({ page }) => {
 });
 
 test('locks an address after five wrong passwords', async ({ page }) => {
-	const email = `gesperrt-${Math.random().toString(36).slice(2, 8)}@example.org`;
+	const email = `gesperrt-${crypto.randomUUID().slice(0, 6)}@example.org`;
 	for (let attempt = 1; attempt <= 6; attempt++) {
 		await page.goto('/anmelden');
 		await page.getByLabel('E-Mail-Adresse').fill(email);

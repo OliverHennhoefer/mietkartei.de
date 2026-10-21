@@ -9,7 +9,7 @@ import { seedLease } from './seed';
 
 test.describe.configure({ mode: 'serial' });
 
-const suffix = Math.random().toString(36).slice(2, 8);
+const suffix = crypto.randomUUID().slice(0, 6);
 const lastName = `Zahler-${suffix}`;
 const purpose = `Miete Oktober für ${lastName}`;
 const unitName = `Wohnung ${suffix}`;

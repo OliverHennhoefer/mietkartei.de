@@ -4,7 +4,7 @@ import { seedRows } from './seed';
 // Leases: the whole life of one lease on the pages this feature owns. Property, unit and
 // tenant are seeded as raw rows (the portfolio and tenant pages are not driven here).
 
-const suffix = () => Math.random().toString(36).slice(2, 8);
+const suffix = () => crypto.randomUUID().slice(0, 6);
 
 async function seedUnitAndTenant(page: Page) {
 	const s = suffix();
