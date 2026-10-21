@@ -198,7 +198,11 @@ describe('parseCostItem', () => {
 		periodStart: '2025-01-01',
 		periodEnd: '2025-12-31',
 		amount: '1.200,00',
-		allocable: 'on'
+		allocable: 'on',
+		fuel: '',
+		fuelKwh: '',
+		co2Kg: '',
+		co2Cost: ''
 	};
 
 	it('leaves key and circle to the category when nothing was chosen', () => {
@@ -217,6 +221,10 @@ describe('parseCostItem', () => {
 				periodEnd: '2025-12-31',
 				amount: 120000,
 				allocable: true,
+				fuel: null,
+				fuelKwh: null,
+				co2Kg: null,
+				co2Cost: null,
 				receipt: null
 			}
 		});
@@ -234,6 +242,24 @@ describe('parseCostItem', () => {
 				circleFromCategory: false
 			});
 		}
+	});
+
+	it('keeps the fuel figures only with a fuel', () => {
+		const result = parseCostItem(
+			formDataOf({ ...fields, fuel: 'gas', fuelKwh: '25000', co2Kg: '', co2Cost: '300,00' })
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toMatchObject({
+				fuel: 'gas',
+				fuelKwh: 25000,
+				co2Kg: null,
+				co2Cost: 30000
+			});
+		}
+		const noFuel = parseCostItem(formDataOf({ ...fields, fuelKwh: '25000', co2Cost: '300' }));
+		expect(noFuel.ok).toBe(true);
+		if (noFuel.ok) expect(noFuel.data).toMatchObject({ fuel: null, fuelKwh: null, co2Cost: null });
 	});
 
 	it('reads "Alle Einheiten des Objekts" as no circle and a negative amount as a credit', () => {

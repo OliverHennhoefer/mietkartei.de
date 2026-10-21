@@ -7,6 +7,7 @@ import {
 	bankAccounts,
 	billingCircles,
 	bankTransactions,
+	co2CostSplits,
 	consumerPriceIndex,
 	costCategories,
 	costItems,
@@ -62,7 +63,9 @@ export const QUOTAS = {
 		label: 'Betriebskostenabrechnungen'
 	},
 	/** One per lease and approved statement. */
-	statementResults: { table: statementResults, max: 200_000, label: 'Abrechnungsergebnisse' }
+	statementResults: { table: statementResults, max: 200_000, label: 'Abrechnungsergebnisse' },
+	/** One per lease and year. */
+	co2CostSplits: { table: co2CostSplits, max: 50_000, label: 'CO₂-Kostenaufteilungen' }
 } satisfies Record<string, Quota>;
 
 export type QuotaKind = keyof typeof QUOTAS;

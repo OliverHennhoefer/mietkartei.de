@@ -1,3 +1,5 @@
+import { co2KgFromKwh } from './co2';
+
 // Pure helpers of the operating costs setup: defaults a form fills in before the user types, and
 // the small sums the pages show. Everything that touches the database lives in
 // src/lib/server/operating-costs/.
@@ -57,6 +59,9 @@ export type CostItemChoice = {
 	/** Null: no circle (all units of the property), unless `circleFromCategory`. */
 	billingCircleId: string | null;
 	circleFromCategory: boolean;
+	fuel: string | null;
+	fuelKwh: number | null;
+	co2Kg: number | null;
 };
 
 export type CategoryDefaults = {
@@ -65,9 +70,9 @@ export type CategoryDefaults = {
 };
 
 /**
- * Fills in what the form left to the category: the key when none was chosen and the circle when
- * "Standard der Kostenart" was chosen. Undefined when neither the form nor the category names a
- * key.
+ * Fills in what the form left to the category: the key when none was chosen, the circle when
+ * "Standard der Kostenart" was chosen, and the CO₂ kg from the kWh when the invoice did not
+ * state them. Undefined when neither the form nor the category names a key.
  */
 export function applyCategoryDefaults<T extends CostItemChoice>(
 	choice: T,
@@ -81,7 +86,8 @@ export function applyCategoryDefaults<T extends CostItemChoice>(
 	const billingCircleId = choice.circleFromCategory
 		? category.billingCircleId
 		: choice.billingCircleId;
-	return { ...choice, allocationKeyId, billingCircleId };
+	const co2Kg = choice.co2Kg ?? co2KgFromKwh(choice.fuel, choice.fuelKwh);
+	return { ...choice, allocationKeyId, billingCircleId, co2Kg };
 }
 
 /** The sum of the amounts of each category, in the order the categories first appear. */

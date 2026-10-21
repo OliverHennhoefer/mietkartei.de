@@ -353,13 +353,18 @@ export const consumerPriceIndex = sqliteTable(
 
 // Rent ledger (Mietkonto)
 
-export const rentChargeKinds = ['rent', 'statement_balance', 'adjustment'] as const;
+export const rentChargeKinds = [
+	'rent',
+	'statement_balance',
+	'co2_reimbursement',
+	'adjustment'
+] as const;
 export type RentChargeKind = (typeof rentChargeKinds)[number];
 
 /**
  * Sollstellung: what the tenant owes for a month (kind `rent`, derived from the rent history and
- * kept in sync by the ledger module), from a statement or from a manual adjustment. Positive =
- * the tenant owes, negative = a credit to the tenant.
+ * kept in sync by the ledger module) or from a statement, a CO₂ split or a manual adjustment.
+ * Positive = the tenant owes, negative = a credit to the tenant.
  */
 export const rentCharges = sqliteTable(
 	'rent_charges',
@@ -382,7 +387,7 @@ export const rentCharges = sqliteTable(
 		/** The total of the charge. */
 		amount: integer('amount').notNull(),
 		kind: text('kind', { enum: rentChargeKinds }).notNull(),
-		/** The statement this charge comes from. */
+		/** The statement or CO₂ split this charge comes from. */
 		referenceId: text('reference_id'),
 		/** A correction or a late delivery reverses a statement's charge: a row of its own. */
 		reversesChargeId: text('reverses_charge_id'),
@@ -396,7 +401,7 @@ export const rentCharges = sqliteTable(
 		uniqueIndex('rent_charges_rent_unique')
 			.on(table.leaseId, table.period)
 			.where(sql`${table.kind} = 'rent'`),
-		// A statement is posted once per lease, and reverses a charge at most once.
+		// A statement or CO₂ split is posted once per lease; a statement reverses a charge at most once.
 		uniqueIndex('rent_charges_reference_unique')
 			.on(table.leaseId, table.referenceId)
 			.where(sql`${table.referenceId} is not null and ${table.reversesChargeId} is null`),
@@ -649,6 +654,9 @@ export const billingCircleUnits = sqliteTable(
 	(table) => [primaryKey({ columns: [table.circleId, table.unitId] })]
 );
 
+export const fuels = ['gas', 'oil', 'lpg', 'district_heating', 'other'] as const;
+export type Fuel = (typeof fuels)[number];
+
 /** Beleg: an invoice or cost of a property for a period. The receipt is a document with costItemId. */
 export const costItems = sqliteTable(
 	'cost_items',
@@ -675,6 +683,14 @@ export const costItems = sqliteTable(
 		periodEnd: text('period_end').notNull(),
 		amount: integer('amount').notNull(),
 		allocable: bool('allocable', true),
+		/**
+		 * For a fuel bill of a central heating: what the supplier printed, so the statement can
+		 * deduct the landlord's CO₂ share (CO2KostAufG) before allocating. All optional.
+		 */
+		fuel: text('fuel', { enum: fuels }),
+		fuelKwh: real('fuel_kwh'),
+		co2Kg: real('co2_kg'),
+		co2Cost: integer('co2_cost'),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -819,6 +835,40 @@ export const statementResults = sqliteTable(
 	(table) => [
 		index('statement_results_account_id_idx').on(table.accountId),
 		uniqueIndex('statement_results_unique').on(table.statementId, table.leaseId)
+	]
+);
+
+/**
+ * CO₂-Kostenaufteilung for a tenant with their own fuel contract (§ 6 CO2KostAufG): the inputs
+ * and the result, so the amount can be re-derived and a year is settled once.
+ */
+export const co2CostSplits = sqliteTable(
+	'co2_cost_splits',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		year: integer('year').notNull(),
+		fuel: text('fuel', { enum: fuels }).notNull(),
+		fuelKwh: real('fuel_kwh'),
+		co2Kg: real('co2_kg').notNull(),
+		co2Cost: integer('co2_cost').notNull(),
+		/** The dwelling's floor area the emissions are measured against. */
+		area: real('area').notNull(),
+		landlordPercent: integer('landlord_percent').notNull(),
+		/** The landlord's share in cents; posted as a `co2_reimbursement` credit. */
+		amount: integer('amount').notNull(),
+		invoiceDate: text('invoice_date'),
+		/** When the tenant presented the claim; the landlord settles within 12 months. */
+		claimedOn: text('claimed_on').notNull(),
+		createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('co2_cost_splits_account_id_idx').on(table.accountId),
+		uniqueIndex('co2_cost_splits_unique').on(table.leaseId, table.year)
 	]
 );
 

@@ -30,8 +30,8 @@ import {
 //       at the change
 //
 // Cost items: Grundsteuer 1.200 € (area), Müll 600 € (persons), Hausmeister 900 € (units),
-// Heizung 3.000 € (mixed 70/30 on heat meters EG 1.000 kWh, OG 600 + 400 kWh, DG 200 kWh),
-// Verwaltung 500 € (not allocable).
+// Heizung 3.000 € (mixed 70/30 on heat meters EG 1.000 kWh, OG 600 + 400 kWh, DG 200 kWh; CO₂
+// data 25.000 kWh gas, 5.025 kg, 300 € CO₂ cost), Verwaltung 500 € (not allocable).
 
 const period = { start: '2025-01-01', end: '2025-12-31' };
 
@@ -127,6 +127,10 @@ function item(
 		periodEnd: '2025-12-31',
 		amount,
 		allocable: true,
+		fuel: null,
+		fuelKwh: null,
+		co2Kg: null,
+		co2Cost: null,
 		unitAmounts: [],
 		...overrides
 	};
@@ -156,7 +160,8 @@ function scenario(): StatementInput {
 			street: 'Lindenstraße 4',
 			postalCode: '10115',
 			city: 'Berlin',
-			vacancyPersons: 1
+			vacancyPersons: 1,
+			buildingUse: 'residential'
 		},
 		period,
 		units: [
@@ -203,7 +208,12 @@ function scenario(): StatementInput {
 			item('i-grundsteuer', 'Grundsteuer 2025', 'c-grundsteuer', 'k-area', 120000),
 			item('i-muell', 'Müllabfuhr', 'c-muell', 'k-persons', 60000),
 			item('i-hausmeister', 'Hausmeister', 'c-hausmeister', 'k-units', 90000),
-			item('i-heizung', 'Gasrechnung', 'c-heizung', 'k-heat', 300000),
+			item('i-heizung', 'Gasrechnung', 'c-heizung', 'k-heat', 300000, {
+				fuel: 'gas',
+				fuelKwh: 25000,
+				co2Kg: 5025,
+				co2Cost: 30000
+			}),
 			item('i-verwaltung', 'Hausverwaltung', 'c-verwaltung', 'k-units', 50000)
 		],
 		categories: [
@@ -279,6 +289,17 @@ describe('computeStatement with the reference scenario', () => {
 		expect(result.property.costsTotal).toBe(620000);
 		expect(result.property.allocableTotal).toBe(570000);
 		expect(result.property.nonAllocableTotal).toBe(50000);
+		// CO₂: 5.025 kg / 184,5 m² = 27,24 kg/m² → tier 27–32 → landlord 40 % of 300 € = 120 €.
+		expect(result.property.landlordCo2Share).toBe(12000);
+		expect(result.property.items.find((i) => i.itemId === 'i-heizung')?.co2).toMatchObject({
+			fuel: 'gas',
+			co2Kg: 5025,
+			co2Cost: 30000,
+			area: 184.5,
+			landlordPercent: 40,
+			landlordAmount: 12000,
+			tenantAmount: 18000
+		});
 		expect(result.property.leaseCount).toBe(4);
 		expect(result.property.deadline).toBe('2026-12-31');
 		expect(result.property.late).toBe(false);
@@ -303,14 +324,16 @@ describe('computeStatement with the reference scenario', () => {
 			Müllbeseitigung: 26691,
 			// Hausmeister 900 € / 3 units = 300 €.
 			Hauswart: 30000,
-			// Heizung: 70 % = 2.100 € by consumption (EG 1.000 of 2.200 kWh → 954,545… → 954,55 € with
-			// the remainder), 30 % = 900 € by area (72,5 / 184,5 → 353,658… → 353,66 €): 1.308,21 €.
-			Heizung: 130821
+			// Heizung: 3.000 € − 120 € CO₂ landlord share = 2.880 €; 70 % = 2.016 € by consumption
+			// (EG 1.000 of 2.200 kWh → 916,363… → 916,37 € with the remainder), 30 % = 864 € by area
+			// (72,5 / 184,5 → 339,512… → 339,51 €): 916,37 + 339,51 = 1.255,88 €.
+			Heizung: 125588
 		});
 		const heating = eg.lines.find((line) => line.categoryName === 'Heizung')!;
 		expect(heating).toMatchObject({
 			heating: true,
 			itemTotal: 300000,
+			allocated: 288000,
 			keyName: 'Heizung 70/30',
 			keyKind: 'mixed',
 			keyTotal: '70 % nach Verbrauch: 2.200 kWh · 30 % nach Fläche: 184,5 m²'
@@ -318,6 +341,7 @@ describe('computeStatement with the reference scenario', () => {
 		expect(heating.share).toBe(
 			'70 % nach Verbrauch: 1.000 von 2.200 kWh · 30 % nach Fläche: 72,5 m² von 184,5 m² · 365 von 365 Tagen'
 		);
+		expect(heating.co2?.landlordPercent).toBe(40);
 		expect(eg.lines.find((line) => line.categoryName === 'Grundsteuer')).toMatchObject({
 			keyTotal: '184,5 m²',
 			share: '72,5 m² von 184,5 m² · 365 von 365 Tagen',
@@ -327,8 +351,8 @@ describe('computeStatement with the reference scenario', () => {
 			keyTotal: '1.641 Personentage',
 			share: '730 von 1.641 Personentagen'
 		});
-		// 471,54 + 266,91 + 300,00 + 1.308,21 = 2.346,66 €.
-		expect(eg.costsTotal).toBe(234666);
+		// 471,54 + 266,91 + 300,00 + 1.255,88 = 2.294,33 €.
+		expect(eg.costsTotal).toBe(229433);
 		// Prepayments: 11 paid months (February to December) plus January from the rent history,
 		// each 150 + 50 € = 200 €: 2.400 €.
 		expect(eg.prepayments).toHaveLength(12);
@@ -343,8 +367,8 @@ describe('computeStatement with the reference scenario', () => {
 		expect(eg.prepayments[1]).toMatchObject({ source: 'ledger', charged: 20000, amount: 20000 });
 		expect(eg.prepaymentsTotal).toBe(240000);
 		expect(eg.unpaidPrepayments).toBe(0);
-		// 2.346,66 − 2.400,00 = −53,34 € Guthaben.
-		expect(eg.balance).toBe(-5334);
+		// 2.294,33 − 2.400,00 = −105,67 € Guthaben.
+		expect(eg.balance).toBe(-10567);
 		expect(balanceLabel(eg.balance)).toBe('Guthaben');
 		expect(eg.excluded).toEqual([]);
 		expect(eg.warnings).toEqual([]);
@@ -363,10 +387,10 @@ describe('computeStatement with the reference scenario', () => {
 			Müllbeseitigung: 13236,
 			// OG Hausmeister 300 €; A 181 / 365 = 148,767… → 148,77 €.
 			Hauswart: 14877,
-			// OG heating: consumption 2.100 € × 1.000 / 2.200 = 954,54 €, A 600 of 1.000 kWh by the
-			// reading of 30 June = 572,724 → 572,72 €; area 900 € × 64 / 184,5 = 312,19 €, A 181 / 365
-			// days = 154,812… → 154,81 €: 727,53 €.
-			Heizung: 72753
+			// OG heating: consumption 2.016 € × 1.000 / 2.200 = 916,36 €, A 600 of 1.000 kWh by the
+			// reading of 30 June = 549,816 → 549,82 €; area 864 € × 64 / 184,5 = 299,71 €, A 181 / 365
+			// days = 148,623… → 148,62 €: 698,44 €.
+			Heizung: 69844
 		});
 		expect(lineAmounts(b)).toEqual({
 			// 416,26 − 206,42
@@ -375,8 +399,8 @@ describe('computeStatement with the reference scenario', () => {
 			Müllbeseitigung: 6727,
 			// 300,00 − 148,77
 			Hauswart: 15123,
-			// 954,54 − 572,72 = 381,82 and 312,19 − 154,81 = 157,38
-			Heizung: 53920
+			// 916,36 − 549,82 = 366,54 and 299,71 − 148,62 = 151,09
+			Heizung: 51763
 		});
 		const heatingA = a.lines.find((line) => line.categoryName === 'Heizung')!;
 		expect(heatingA.method).toBe('readings');
@@ -385,14 +409,14 @@ describe('computeStatement with the reference scenario', () => {
 		expect(a.lines.find((line) => line.categoryName === 'Müllbeseitigung')?.share).toBe(
 			'546 von 1.641 Personentagen · davon 362 Personentage'
 		);
-		// A: 206,42 + 132,36 + 148,77 + 727,53 = 1.215,08 €; prepayments 6 × 180 € = 1.080 €.
-		expect(a.costsTotal).toBe(121508);
+		// A: 206,42 + 132,36 + 148,77 + 698,44 = 1.185,99 €; prepayments 6 × 180 € = 1.080 €.
+		expect(a.costsTotal).toBe(118599);
 		expect(a.prepaymentsTotal).toBe(108000);
-		expect(a.balance).toBe(13508);
-		// B: 209,84 + 67,27 + 151,23 + 539,20 = 967,54 €; prepayments 6 × 150 € = 900 €.
-		expect(b.costsTotal).toBe(96754);
+		expect(a.balance).toBe(10599);
+		// B: 209,84 + 67,27 + 151,23 + 517,63 = 945,97 €; prepayments 6 × 150 € = 900 €.
+		expect(b.costsTotal).toBe(94597);
 		expect(b.prepaymentsTotal).toBe(90000);
-		expect(b.balance).toBe(6754);
+		expect(b.balance).toBe(4597);
 	});
 
 	it('splits the DG unit between the lease and the vacancy by Gradtagszahlen', () => {
@@ -405,30 +429,30 @@ describe('computeStatement with the reference scenario', () => {
 			Müllbeseitigung: 8885,
 			// DG Hausmeister 300 €; 243 / 365 = 199,726… → 199,73 €.
 			Hauswart: 19973,
-			// DG heating: consumption 2.100 € × 200 / 2.200 = 190,91 €, no reading on 31 August, so
-			// Gradtagszahlen January–August 610 of 1.000: 116,455… → 116,46 €; area 900 € × 48 / 184,5
-			// = 234,15 €, 243 / 365 days = 155,886… → 155,89 €: 272,35 €.
-			Heizung: 27235
+			// DG heating: consumption 2.016 € × 200 / 2.200 = 183,27 €, no reading on 31 August, so
+			// Gradtagszahlen January–August 610 of 1.000: 111,794… → 111,79 €; area 864 € × 48 / 184,5
+			// = 224,78 €, 243 / 365 days = 149,648… → 149,65 €: 261,44 €.
+			Heizung: 26144
 		});
 		const heating = dg.lines.find((line) => line.categoryName === 'Heizung')!;
 		expect(heating.method).toBe('degree_days');
 		expect(heating.share).toContain('davon 61 % nach Gradtagszahlen');
-		// 207,85 + 88,85 + 199,73 + 272,35 = 768,78 €; prepayments 8 × 120 € = 960 €.
-		expect(dg.costsTotal).toBe(76878);
+		// 207,85 + 88,85 + 199,73 + 261,44 = 757,87 €; prepayments 8 × 120 € = 960 €.
+		expect(dg.costsTotal).toBe(75787);
 		expect(dg.prepaymentsTotal).toBe(96000);
-		expect(dg.balance).toBe(-19122);
+		expect(dg.balance).toBe(-20213);
 		expect(dg.warnings.map((warning) => warning.code)).toEqual(['no_interim_reading']);
-		// The vacancy: 104,35 + 44,61 + 100,27 + 74,45 + 78,26 = 401,94 € stay with the landlord.
-		expect(result.property.vacancyShare).toBe(40194);
+		// The vacancy: 104,35 + 44,61 + 100,27 + 71,48 + 75,13 = 395,84 € stay with the landlord.
+		expect(result.property.vacancyShare).toBe(39584);
 		expect(result.property.items.find((i) => i.itemId === 'i-muell')?.vacancyShare).toBe(4461);
 	});
 
 	it('adds up: every allocated cent lands on a lease or the vacancy', () => {
 		const leaseSum = result.leases.reduce((sum, lease) => sum + lease.costsTotal, 0);
-		// 2.346,66 + 1.215,08 + 967,54 + 768,78 + 401,94 = 5.700,00 €.
-		expect(leaseSum + result.property.vacancyShare).toBe(570000);
-		expect(result.property.nachzahlungen).toBe(13508 + 6754);
-		expect(result.property.guthaben).toBe(5334 + 19122);
+		// 2.294,33 + 1.185,99 + 945,97 + 757,87 + 395,84 = 5.580,00 = 5.700 − 120 € CO₂.
+		expect(leaseSum + result.property.vacancyShare).toBe(558000);
+		expect(result.property.nachzahlungen).toBe(10599 + 4597);
+		expect(result.property.guthaben).toBe(10567 + 20213);
 		expect(result.property.excludedTotal).toBe(0);
 		expect(result.property.unallocatedTotal).toBe(0);
 		expect(result.property.leases.map((lease) => lease.label)).toEqual([
@@ -484,8 +508,8 @@ describe('computeStatement prepayments', () => {
 		});
 		expect(unpaid.prepaymentsTotal).toBe(220000);
 		expect(unpaid.unpaidPrepayments).toBe(20000);
-		// 2.346,66 − 2.200,00 = 146,66 € Nachzahlung instead of a Guthaben of 53,34 €.
-		expect(unpaid.balance).toBe(14666);
+		// 2.294,33 − 2.200,00 = 94,33 € Nachzahlung instead of a Guthaben of 105,67 €.
+		expect(unpaid.balance).toBe(9433);
 	});
 
 	it('takes a partial payment of a month for its prepayments first', () => {
@@ -543,8 +567,8 @@ describe('computeStatement prepayments', () => {
 		const statement = computeStatement(input, options).leases.find((l) => l.leaseId === 'l-dg')!;
 		expect(statement.prepaymentsTotal).toBe(72000);
 		expect(statement.unpaidPrepayments).toBe(24000);
-		// 768,78 − 720,00 = 48,78 € Nachzahlung.
-		expect(statement.balance).toBe(4878);
+		// 757,87 − 720,00 = 37,87 € Nachzahlung.
+		expect(statement.balance).toBe(3787);
 	});
 
 	it('counts no Pauschale as a prepayment', () => {
@@ -823,6 +847,44 @@ describe('computeStatement warnings', () => {
 		expect(over.leases.map((l) => l.costsTotal)).toEqual([-65000, -40000]);
 	});
 
+	it('takes the landlord CO₂ share of a credit note off its direct amounts in proportion', () => {
+		// An oil bill of 3.000 € (3.000 kg, 200 € CO₂ cost) and a credit note of −300 € (−300 kg,
+		// −20 € CO₂ cost), both by amounts per unit: the building emits 2.700 kg / 100 m² = 27 kg/m²
+		// → 40 %. The landlord bears 80 € of the bill's CO₂ cost (48 + 32 € off EG and OG) and gets
+		// −8 € of the credit's (−4,80 and −3,20 € off the credit amounts), 72 € in all.
+		const input = small({
+			items: [
+				item('i-oel', 'Heizöl', 'c-heizung', 'k-direct', 300000, {
+					fuel: 'oil',
+					co2Kg: 3000,
+					co2Cost: 20000,
+					unitAmounts: [
+						{ unitId: 'eg', amount: 180000 },
+						{ unitId: 'og', amount: 120000 }
+					]
+				}),
+				item('i-gutschrift', 'Gutschrift Heizöl', 'c-heizung', 'k-direct', -30000, {
+					fuel: 'oil',
+					co2Kg: -300,
+					co2Cost: -2000,
+					unitAmounts: [
+						{ unitId: 'eg', amount: -18000 },
+						{ unitId: 'og', amount: -12000 }
+					]
+				})
+			],
+			keys: [key('k-direct', 'Beträge je Einheit', 'direct')]
+		});
+		const result = computeStatement(input, options);
+		const credit = result.property.items.find((entry) => entry.itemId === 'i-gutschrift');
+		expect(credit).toMatchObject({ landlordCo2Share: -800, allocated: -29200 });
+		expect(result.property.landlordCo2Share).toBe(7200);
+		// EG 1.800 − 48 − (180 − 4,80) = 1.576,80 €; OG 1.200 − 32 − (120 − 3,20) = 1.051,20 €.
+		expect(result.leases.map((l) => l.costsTotal)).toEqual([157680, 105120]);
+		expect(result.property.unallocatedTotal).toBe(0);
+		expect(result.property.warnings).toEqual([]);
+	});
+
 	it('keeps the sum of direct amounts when the item is prorated', () => {
 		// 1.000 € for 1 October 2024 to 30 September 2025 (365 days, 273 in 2025) split as 333,33 +
 		// 666,67 €; the item's share is 1.000 × 273 / 365 = 747,945… → 747,95 €. Prorated one by
@@ -1051,6 +1113,95 @@ describe('computeStatement warnings', () => {
 	});
 });
 
+describe('computeStatement CO₂ split (CO2KostAufG)', () => {
+	const scenarioWith = (items: StatementItem[]) => {
+		const input = scenario();
+		input.items = [...input.items.filter((entry) => entry.id !== 'i-heizung'), ...items];
+		return computeStatement(input, options);
+	};
+	const heating = (id: string, overrides: Partial<StatementItem>) =>
+		item(id, 'Heizöl', 'c-heizung', 'k-heat', 150000, { fuel: 'oil', ...overrides });
+
+	it('takes the tier from the emissions of all fuel bills of the year', () => {
+		// The year's fuel as two oil deliveries of 1.500 € with 2.512,5 kg and 150 € CO₂ cost each.
+		// Each alone gives 2.512,5 / 184,5 = 13,6 kg/m² (10 %); the building emits 5.025 kg =
+		// 27,24 kg/m² → 40 %: 60 € of each delivery's CO₂ cost, 120 € in all, as with one bill.
+		const result = scenarioWith([
+			heating('i-oel-1', { co2Kg: 2512.5, co2Cost: 15000 }),
+			heating('i-oel-2', { co2Kg: 2512.5, co2Cost: 15000 })
+		]);
+		expect(result.property.landlordCo2Share).toBe(12000);
+		for (const id of ['i-oel-1', 'i-oel-2']) {
+			expect(result.property.items.find((entry) => entry.itemId === id)?.co2).toMatchObject({
+				co2Kg: 2512.5,
+				buildingCo2Kg: 5025,
+				area: 184.5,
+				landlordPercent: 40,
+				landlordAmount: 6000,
+				tenantAmount: 9000
+			});
+		}
+	});
+
+	it('prorates the kg of a bill that covers more than the period', () => {
+		// One bill for 2024 and 2025 (731 days): 10.050 kg, 600 € CO₂ cost. In 2025 (365 days):
+		// 10.050 × 365 / 731 = 5.018,1 kg = 27,2 kg/m² → 40 % of 600 × 365 / 731 = 299,59 € =
+		// 119,84 €; the whole bill's kg would give 54,5 kg/m² → 95 %.
+		const result = scenarioWith([
+			heating('i-oel', {
+				periodStart: '2024-01-01',
+				periodEnd: '2025-12-31',
+				amount: 600000,
+				co2Kg: 10050,
+				co2Cost: 60000
+			})
+		]);
+		expect(result.property.items.find((entry) => entry.itemId === 'i-oel')?.co2).toMatchObject({
+			co2Kg: 10050,
+			buildingCo2Kg: 5018.1,
+			co2Cost: 29959,
+			landlordPercent: 40,
+			landlordAmount: 11984
+		});
+	});
+
+	it('blocks the approval when the floor area for the CO₂ tier is missing', () => {
+		const input = scenario();
+		input.units = input.units.map((unit) => ({ ...unit, floorArea: null }));
+		const result = computeStatement(input, options);
+		const warning = result.property.warnings.find((entry) => entry.code === 'co2_missing_area');
+		expect(warning).toMatchObject({ blocking: true, itemId: 'i-heizung' });
+	});
+
+	it('blocks the approval when one unit lacks the floor area for the CO₂ tier', () => {
+		// Without the OG's 64 m² the building would have 120,5 m²: 5.025 / 120,5 = 41,7 kg/m² → 60 %
+		// instead of 40 %, taking too much from the tenants. A parking space needs no area.
+		const input = scenario();
+		input.units = [
+			...input.units.map((unit) => (unit.id === 'og' ? { ...unit, floorArea: null } : unit)),
+			{ id: 'sp', name: 'Stellplatz 1', kind: 'parking', floorArea: null }
+		];
+		const result = computeStatement(input, options);
+		expect(result.property.warnings.filter((entry) => entry.code === 'co2_missing_area')).toEqual([
+			{
+				code: 'co2_missing_area',
+				blocking: true,
+				itemId: 'i-heizung',
+				href: '/objekte/p/einheiten/og/bearbeiten',
+				message:
+					'Für die CO₂-Kostenaufteilung des Belegs „Gasrechnung“ fehlt die Wohnfläche der Einheit OG; ohne sie lässt sich der Anteil des Vermieters nicht bestimmen.'
+			}
+		]);
+
+		input.units = input.units.map((unit) => (unit.id === 'og' ? { ...unit, floorArea: 64 } : unit));
+		expect(
+			computeStatement(input, options).property.warnings.some(
+				(entry) => entry.code === 'co2_missing_area'
+			)
+		).toBe(false);
+	});
+});
+
 describe('helpers', () => {
 	it('counts the § 556 Abs. 3 deadlines to the end of the twelfth month', () => {
 		expect(statementDeadline('2025-12-31')).toBe('2026-12-31');
@@ -1065,11 +1216,11 @@ describe('helpers', () => {
 		const result = computeStatement(scenario(), options);
 		const byLease = Object.fromEntries(result.leases.map((lease) => [lease.leaseId, lease]));
 		// EG, all year: operating 471,54 + 266,91 + 300,00 = 1.038,45 € / 12 = 86,54 €; heating
-		// 1.308,21 € / 12 = 109,0175 → 109,02 €. Not 2.346,66 / 12 = 195,56 € into one field.
-		expect(suggestedPrepayments(byLease['l-eg'])).toEqual({ operating: 8654, heating: 10902 });
+		// 1.255,88 € / 12 = 104,656… → 104,66 €. Not 2.294,33 / 12 = 191,19 € into one field.
+		expect(suggestedPrepayments(byLease['l-eg'])).toEqual({ operating: 8654, heating: 10466 });
 		// OG B, 184 days: operating 209,84 + 67,27 + 151,23 = 428,34 € × 365 / 184 / 12 = 70,808… →
-		// 70,81 €; heating 539,20 € × 365 / 184 / 12 = 89,134… → 89,13 €.
-		expect(suggestedPrepayments(byLease['l-og-b'])).toEqual({ operating: 7081, heating: 8913 });
+		// 70,81 €; heating 517,63 € × 365 / 184 / 12 = 85,568… → 85,57 €.
+		expect(suggestedPrepayments(byLease['l-og-b'])).toEqual({ operating: 7081, heating: 8557 });
 		// Without heating lines (a Heizkostenpauschale) the heating prepayment is left alone.
 		const flat = { ...byLease['l-eg'], lines: byLease['l-eg'].lines.filter((l) => !l.heating) };
 		expect(suggestedPrepayments(flat)).toEqual({ operating: 8654, heating: null });

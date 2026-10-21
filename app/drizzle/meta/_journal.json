@@ -120,6 +120,13 @@
       "when": 1792596876207,
       "tag": "0016_nullable_charge_due_date",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1792597743902,
+      "tag": "0017_co2_cost_split",
+      "breakpoints": true
     }
   ]
 }

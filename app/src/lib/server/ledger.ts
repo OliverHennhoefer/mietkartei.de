@@ -30,7 +30,7 @@ import { assertQuota } from './quotas';
 // (payments, Ist). Monthly rent charges are derived from the lease term and the rent history and
 // synced on demand by ensureCharges; everything else on the ledger is posted explicitly, by the
 // landlord (adjustments, payments), by the banking feature (payments from bank transactions) or
-// by the statement feature through chargeEntry.
+// by the statement and CO₂ features through chargeEntry.
 
 type Statement = BatchItem<'sqlite'>;
 
@@ -211,7 +211,7 @@ export type ChargeInput = {
 	dueDate: IsoDate | null;
 	/** Positive = the tenant owes, negative = a credit to the tenant. */
 	amount: number;
-	/** The statement the charge comes from; posted once per lease (unique index). */
+	/** The statement or CO₂ split the charge comes from; posted once per lease (unique index). */
 	referenceId?: string | null;
 	/** The charge this one reverses, for a corrected or late delivered statement. */
 	reversesChargeId?: string | null;
@@ -285,7 +285,7 @@ export async function postCharge(
 
 /**
  * Deletes a manual posting. Rent rows are derived and would come back with the next sync;
- * statement postings are reversed by a correction, never deleted.
+ * statement and CO₂ postings are reversed by the feature that posted them, never deleted.
  */
 export async function deleteCharge(
 	db: Database,
@@ -490,7 +490,8 @@ export type LeaseBalance = {
 	/**
 	 * The Rückstand: charges due by `asOf` minus the payments made by `asOf`, at least 0. A month's
 	 * rent before its due day, a correction dated later, a Nachzahlung before it is due (30 days
-	 * after the statement reached the tenant) and a payment dated later do not count yet.
+	 * after the statement reached the tenant), a CO₂ credit before its date and a payment dated
+	 * later do not count yet.
 	 */
 	overdue: number;
 	/** The last day by `asOf` money came in, null when nothing was paid by then. */

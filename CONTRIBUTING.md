@@ -89,6 +89,7 @@ Viele Begriffe des Mietrechts haben keine genaue englische Entsprechung. Verwend
 | Umlageschlüssel | `allocationKey` | Verteilung von Kosten, etwa nach Fläche, Personen oder Verbrauch |
 | Mietsicherheit (Kaution) | `securityDeposit` | Sicherheitsleistung des Mieters |
 | Zählerstand | `meterReading` | Ablesewert eines Zählers zu einem Stichtag |
+| CO₂-Kostenaufteilung | `co2CostSplit` | Aufteilung der CO₂-Kosten des Heizens zwischen Vermieter und Mieter nach dem CO2KostAufG |
 
 ### Pfade
 

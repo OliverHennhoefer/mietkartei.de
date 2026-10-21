@@ -4,12 +4,18 @@
 	import { CIRCLE_FROM_CATEGORY, defaultCostPeriod } from '../domain/operating-costs';
 	import type { FieldErrors } from '../forms/fields';
 	import type { CostItemForm } from '../forms/operating-costs';
+	import { fuelLabels } from '../labels';
 	import { formatCentsPlain } from '../money';
+	import type { Fuel } from '../server/db/schema';
 	import type { CostItemSummary } from '../server/operating-costs/cost-items';
 
 	// The one form of a Beleg, for creating (/belege/neu) and editing (/belege/[id]). The key and
 	// circle selects offer "Standard der Kostenart", which the action resolves to the category's
 	// defaults. Keys and circles are narrowed to the chosen property.
+
+	// The fuel list comes from the labels: schema.ts is server-only code.
+	const fuels = Object.keys(fuelLabels) as Fuel[];
+
 	let {
 		action,
 		properties,
@@ -64,6 +70,7 @@
 		if (category) allocable = category.allocable;
 	}
 
+	const fuelChoice = $derived(value('fuel', item?.fuel ?? ''));
 	const keyChoice = $derived(value('allocationKeyId', item?.allocationKeyId ?? ''));
 	const circleChoice = $derived(
 		value('billingCircleId', item ? (item.billingCircleId ?? '') : CIRCLE_FROM_CATEGORY)
@@ -203,6 +210,59 @@
 		umlagefähig
 	</label>
 
+	<fieldset class="fuel form-wide">
+		<legend>Brennstoffrechnung (für die CO₂-Kostenaufteilung)</legend>
+		<p class="muted small">
+			Nur für die Rechnung des Energieversorgers einer Zentralheizung: kWh, CO₂-Menge und
+			CO₂-Kosten, wie sie auf der Rechnung stehen. Bei Erdgas, Heizöl und Flüssiggas kannst du die
+			CO₂-Menge leer lassen; sie wird aus den kWh berechnet.
+		</p>
+		<div class="form">
+			<label>
+				Brennstoff
+				<select name="fuel" aria-invalid={errors?.fuel ? 'true' : undefined}>
+					<option value="" selected={fuelChoice === ''}>keiner</option>
+					{#each fuels as candidate (candidate)}
+						<option value={candidate} selected={fuelChoice === candidate}
+							>{fuelLabels[candidate]}</option
+						>
+					{/each}
+				</select>
+				{#if errors?.fuel}<span class="error">{errors.fuel}</span>{/if}
+			</label>
+			<label>
+				Energiemenge in kWh
+				<input
+					name="fuelKwh"
+					inputmode="decimal"
+					defaultValue={value('fuelKwh', item?.fuelKwh?.toString() ?? '')}
+					aria-invalid={errors?.fuelKwh ? 'true' : undefined}
+				/>
+				{#if errors?.fuelKwh}<span class="error">{errors.fuelKwh}</span>{/if}
+			</label>
+			<label>
+				CO₂-Menge in kg
+				<input
+					name="co2Kg"
+					inputmode="decimal"
+					defaultValue={value('co2Kg', item?.co2Kg?.toString() ?? '')}
+					aria-invalid={errors?.co2Kg ? 'true' : undefined}
+				/>
+				{#if errors?.co2Kg}<span class="error">{errors.co2Kg}</span>{/if}
+			</label>
+			<label>
+				CO₂-Kosten in €
+				<input
+					name="co2Cost"
+					inputmode="decimal"
+					defaultValue={value('co2Cost', item?.co2Cost ? formatCentsPlain(item.co2Cost) : '')}
+					aria-invalid={errors?.co2Cost ? 'true' : undefined}
+				/>
+				{#if errors?.co2Cost}<span class="error">{errors.co2Cost}</span>{/if}
+			</label>
+		</div>
+	</fieldset>
+
 	<label class="form-wide">
 		Beleg als Datei (optional, höchstens 10 MB)
 		<input type="file" name="receipt" aria-invalid={errors?.receipt ? 'true' : undefined} />
@@ -218,3 +278,20 @@
 		{/if}
 	</div>
 </form>
+
+<style>
+	.fuel {
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius);
+		padding: 0.75rem 1rem 1rem;
+		margin: 0;
+	}
+	.fuel legend {
+		font-weight: 500;
+		font-size: 0.9rem;
+		padding: 0 0.25rem;
+	}
+	.fuel p {
+		margin: 0 0 0.75rem;
+	}
+</style>

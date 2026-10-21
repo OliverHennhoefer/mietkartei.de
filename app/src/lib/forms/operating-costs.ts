@@ -1,5 +1,5 @@
 import { CIRCLE_FROM_CATEGORY } from '../domain/operating-costs';
-import { allocationKeyKinds, meterKinds } from '../server/db/schema';
+import { allocationKeyKinds, fuels, meterKinds } from '../server/db/schema';
 import type { CostCategoryInput } from '../server/operating-costs/categories';
 import type { BillingCircleInput } from '../server/operating-costs/circles';
 import type { CostItemInput, UnitAmount } from '../server/operating-costs/cost-items';
@@ -186,6 +186,10 @@ export function parseCostItem(form: FormData): ParseResult<CostItemForm> {
 	// Credit notes are negative amounts.
 	const amount = parser.money('amount', { min: -100_000_000_00 });
 	const allocable = parser.flag('allocable');
+	const fuel = parser.oneOf('fuel', fuels, { required: false });
+	const fuelKwh = parser.number('fuelKwh', { required: false, min: 0 });
+	const co2Kg = parser.number('co2Kg', { required: false, min: 0 });
+	const co2Cost = parser.money('co2Cost', { required: false });
 	const receipt = parser.file('receipt');
 	return parser.result(() => ({
 		propertyId: propertyId!,
@@ -200,6 +204,10 @@ export function parseCostItem(form: FormData): ParseResult<CostItemForm> {
 		periodEnd: periodEnd!,
 		amount: amount!,
 		allocable,
+		fuel: fuel ?? null,
+		fuelKwh: fuel ? fuelKwh : null,
+		co2Kg: fuel ? co2Kg : null,
+		co2Cost: fuel ? co2Cost : null,
 		receipt
 	}));
 }

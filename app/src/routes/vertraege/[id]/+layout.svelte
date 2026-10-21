@@ -25,6 +25,7 @@
 		{ href: `/vertraege/${data.lease.id}/miethoehe`, label: 'Miethöhe' },
 		{ href: `/vertraege/${data.lease.id}/mietkonto`, label: 'Mietkonto' },
 		{ href: `/vertraege/${data.lease.id}/kaution`, label: 'Kaution' },
+		{ href: `/vertraege/${data.lease.id}/co2`, label: 'CO₂' },
 		{ href: `/vertraege/${data.lease.id}/dokumente`, label: 'Dokumente' }
 	]);
 </script>

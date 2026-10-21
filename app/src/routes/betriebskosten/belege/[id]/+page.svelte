@@ -7,7 +7,8 @@
 	import Money from '#lib/components/Money.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { unitAmountsSummary } from '#lib/domain/operating-costs.ts';
-	import { allocationKeyKindLabels } from '#lib/labels.ts';
+	import { formatNumber } from '#lib/format.ts';
+	import { allocationKeyKindLabels, fuelLabels } from '#lib/labels.ts';
 	import { formatCentsPlain } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
@@ -66,6 +67,15 @@
 	<dd>{formatDate(data.item.periodStart)} – {formatDate(data.item.periodEnd)}</dd>
 	<dt>Betrag</dt>
 	<dd><Money cents={data.item.amount} /> {data.item.allocable ? '' : '(nicht umlagefähig)'}</dd>
+	{#if data.item.fuel}
+		<dt>Brennstoff</dt>
+		<dd>
+			{fuelLabels[data.item.fuel]}{#if data.item.fuelKwh !== null}, {formatNumber(
+					data.item.fuelKwh
+				)} kWh{/if}{#if data.item.co2Kg !== null}, {formatNumber(data.item.co2Kg)} kg CO₂{/if}{#if data.item.co2Cost !== null},
+				CO₂-Kosten <Money cents={data.item.co2Cost} />{/if}
+		</dd>
+	{/if}
 </dl>
 
 {#if refused}

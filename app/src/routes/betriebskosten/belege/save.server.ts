@@ -58,7 +58,11 @@ export async function parseCostItemForm(
 		periodStart: resolved.periodStart,
 		periodEnd: resolved.periodEnd,
 		amount: resolved.amount,
-		allocable: resolved.allocable
+		allocable: resolved.allocable,
+		fuel: resolved.fuel,
+		fuelKwh: resolved.fuelKwh,
+		co2Kg: resolved.co2Kg,
+		co2Cost: resolved.co2Cost
 	};
 	return { ok: true, parsed: { input, receipt: resolved.receipt, values } };
 }

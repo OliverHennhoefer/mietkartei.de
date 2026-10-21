@@ -99,6 +99,7 @@ test('no detail page violates the Content-Security-Policy', async ({ page }) => 
 		`/mieter/${tenantId}/bearbeiten`,
 		lease,
 		`${lease}/bearbeiten`,
+		`${lease}/co2`,
 		`${lease}/dokumente`,
 		`${lease}/kaution`,
 		`${lease}/miethoehe`,

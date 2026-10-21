@@ -81,7 +81,11 @@ describe('storeReceipt', () => {
 			periodStart: '2025-01-01',
 			periodEnd: '2025-12-31',
 			amount: 120000,
-			allocable: true
+			allocable: true,
+			fuel: null,
+			fuelKwh: null,
+			co2Kg: null,
+			co2Cost: null
 		});
 		if (!item.ok) throw new Error('setup failed');
 		// A row stands in for a full storage; the quota only reads the documents table.
