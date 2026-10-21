@@ -32,7 +32,7 @@
 		{#if blockingLeases && blockingLeases.length > 0}
 			<ul aria-label="Mietverträge auf dem Objekt">
 				{#each blockingLeases as lease (lease.id)}
-					<li>{lease.label}</li>
+					<li><a href="/vertraege/{lease.id}">{lease.label}</a></li>
 				{/each}
 			</ul>
 		{/if}

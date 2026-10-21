@@ -21,8 +21,8 @@ async function post(request: APIRequestContext, body: Record<string, unknown>): 
 
 /**
  * A property ("Testhaus …" in Berlin) with one apartment ("Wohnung …", 64 m²), a tenant
- * (Erika Muster-…) and a lease from 2025-01-01 at 600 € + 150 €, deposit 1.800 €. Overrides are
- * partial rows of each table.
+ * (Erika Muster-…) and a residential lease from 2025-01-01 at 600 € + 150 € + 50 €, deposit
+ * 1.800 €, two persons. Overrides are partial rows of each table and a partial LeaseInput.
  */
 export async function seedLease(
 	request: APIRequestContext,

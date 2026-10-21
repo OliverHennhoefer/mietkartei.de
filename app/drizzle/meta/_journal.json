@@ -22,6 +22,20 @@
       "when": 1792565286438,
       "tag": "0002_audit_log_and_portfolio",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792577033051,
+      "tag": "0003_tenants_leases_deposits",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1792577038396,
+      "tag": "0004_backfill_lease_history",
+      "breakpoints": true
     }
   ]
 }

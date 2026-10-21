@@ -1,3 +1,6 @@
+import { isIsoDate } from '../dates';
+import { parseCents } from '../money';
+
 // Helpers for parsing FormData in server actions. A parse function builds on FormParser and
 // returns a ParseResult, which the action hands back to the form on failure.
 
@@ -21,6 +24,14 @@ export class FormParser<T> {
 		return text;
 	}
 
+	/** Whether the checkbox or switch was sent. */
+	flag(name: string): boolean {
+		const value = this.form.get(name);
+		const on = value === 'on' || value === 'true' || value === '1';
+		this.values[name] = on ? 'on' : '';
+		return on;
+	}
+
 	fail(name: keyof T, message: string): void {
 		if (!this.errors[name]) this.errors[name] = message;
 	}
@@ -36,6 +47,24 @@ export class FormParser<T> {
 	/** Empty becomes null, so optional text columns stay null instead of ''. */
 	optionalText(name: keyof T & string, max = 200): string | null {
 		return this.text(name, { required: false, max }) || null;
+	}
+
+	/** Amount in cents. */
+	money(
+		name: keyof T & string,
+		options: { required?: boolean; min?: number; max?: number } = {}
+	): number | null {
+		const value = this.raw(name);
+		const { required = true, min = 0, max = 100_000_000_00 } = options;
+		if (!value) {
+			if (required) this.fail(name, 'Bitte gib einen Betrag an.');
+			return null;
+		}
+		const cents = parseCents(value);
+		if (cents === undefined) this.fail(name, 'Bitte gib einen Betrag an, z. B. 650,00.');
+		else if (cents < min) this.fail(name, `Der Betrag darf nicht unter ${min / 100} € liegen.`);
+		else if (cents > max) this.fail(name, 'Der Betrag ist zu hoch.');
+		return cents ?? null;
 	}
 
 	/**
@@ -62,6 +91,20 @@ export class FormParser<T> {
 		return parsed;
 	}
 
+	/** ISO date from a `<input type="date">`. */
+	date(name: keyof T & string, options: { required?: boolean } = {}): string | null {
+		const value = this.raw(name);
+		if (!value) {
+			if (options.required ?? true) this.fail(name, 'Bitte gib ein Datum an.');
+			return null;
+		}
+		if (!isIsoDate(value)) {
+			this.fail(name, 'Bitte gib ein gültiges Datum an.');
+			return null;
+		}
+		return value;
+	}
+
 	/** One of the allowed values, else an error. */
 	oneOf<const V extends readonly string[]>(
 		name: keyof T & string,
@@ -78,6 +121,34 @@ export class FormParser<T> {
 		return match ?? null;
 	}
 
+	/** A record id from a select; existence is checked by the caller against the account. */
+	id(name: keyof T & string, options: { required?: boolean } = {}): string | null {
+		const value = this.raw(name);
+		if (!value) {
+			if (options.required ?? true) this.fail(name, 'Bitte wähle einen Eintrag aus.');
+			return null;
+		}
+		if (value.length > 64) this.fail(name, 'Ungültige Auswahl.');
+		return value;
+	}
+
+	/** All values of a multi-select or checkbox group. */
+	ids(name: keyof T & string): string[] {
+		const values = this.form
+			.getAll(name)
+			.filter((value): value is string => typeof value === 'string' && value.length <= 64);
+		this.values[name] = values.join(',');
+		return values;
+	}
+
+	email(name: keyof T & string): string {
+		const value = this.raw(name).toLowerCase();
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) || value.length > 254) {
+			this.fail(name, 'Bitte gib eine gültige E-Mail-Adresse an.');
+		}
+		return value;
+	}
+
 	get hasErrors(): boolean {
 		return Object.keys(this.errors).length > 0;
 	}
@@ -87,4 +158,14 @@ export class FormParser<T> {
 		if (this.hasErrors) return { ok: false, errors: this.errors, values: this.values };
 		return { ok: true, data: data() };
 	}
+}
+
+/** Builds a FormData from a plain object, for tests. */
+export function formDataOf(entries: Record<string, string | string[]>): FormData {
+	const data = new FormData();
+	for (const [name, value] of Object.entries(entries)) {
+		if (Array.isArray(value)) for (const item of value) data.append(name, item);
+		else data.set(name, value);
+	}
+	return data;
 }

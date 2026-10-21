@@ -10,7 +10,11 @@
 	let { data, children }: LayoutProps = $props();
 	let open = $state(false);
 
-	const sections = [{ href: '/objekte', label: 'Objekte' }];
+	const sections = [
+		{ href: '/objekte', label: 'Objekte' },
+		{ href: '/mieter', label: 'Mieter' },
+		{ href: '/vertraege', label: 'Mietverträge' }
+	];
 
 	function current(href: string): 'page' | undefined {
 		const path = page.url.pathname;

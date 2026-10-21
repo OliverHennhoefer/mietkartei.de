@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lte, or } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNull, lte, or } from 'drizzle-orm';
 import type { Database } from './db';
-import { leaseTenants, leases, properties, tenants, units } from './db/schema';
+import { leaseTenants, leaseUnits, leases, properties, tenants, units } from './db/schema';
 import type { PropertyInput, UnitInput } from '../validation';
 import type { AuditContext } from './audit';
 import { auditEntry } from './audit';
@@ -78,15 +78,24 @@ export async function updateProperty(
 	return true;
 }
 
-/** Whether any lease, running or ended, uses one of the units. */
+/**
+ * Whether any lease, running or ended, uses one of the units as its main unit or as an extra
+ * unit.
+ */
 async function unitsInUse(db: Database, accountId: string, unitIds: string[]): Promise<boolean> {
 	for (const ids of chunkIds(unitIds)) {
-		const [lease] = await db
+		const [main] = await db
 			.select({ id: leases.id })
 			.from(leases)
 			.where(and(eq(leases.accountId, accountId), inArray(leases.unitId, ids)))
 			.limit(1);
-		if (lease) return true;
+		if (main) return true;
+		const [extra] = await db
+			.select({ leaseId: leaseUnits.leaseId })
+			.from(leaseUnits)
+			.where(and(eq(leaseUnits.accountId, accountId), inArray(leaseUnits.unitId, ids)))
+			.limit(1);
+		if (extra) return true;
 	}
 	return false;
 }
@@ -210,62 +219,13 @@ async function tenantsOfLeases(
 	return byLease;
 }
 
-/** A lease on a unit, running, upcoming or ended on the date, with its tenants. */
-export type UnitLease = {
-	id: string;
-	unitId: string;
-	unitName: string;
-	startDate: string;
-	endDate: string | null;
-	/** Runs on the date. */
-	active: boolean;
-	/** Starts after the date; a lease neither active nor upcoming has ended. */
-	upcoming: boolean;
-	tenants: Tenant[];
-};
-
-/** Every lease on one unit or on the units of a property, newest first. */
-export async function listUnitLeases(
-	db: Database,
-	accountId: string,
-	on: { unitId: string } | { propertyId: string },
-	date: string
-): Promise<UnitLease[]> {
-	const rows = await db
-		.select({
-			id: leases.id,
-			unitId: leases.unitId,
-			unitName: units.name,
-			startDate: leases.startDate,
-			endDate: leases.endDate
-		})
-		.from(leases)
-		.innerJoin(units, eq(leases.unitId, units.id))
-		.where(
-			and(
-				eq(leases.accountId, accountId),
-				'unitId' in on ? eq(units.id, on.unitId) : eq(units.propertyId, on.propertyId)
-			)
-		)
-		.orderBy(desc(leases.startDate));
-	const tenantsOf = await tenantsOfLeases(
-		db,
-		accountId,
-		rows.map((row) => row.id)
-	);
-	return rows.map((row) => ({
-		...row,
-		active: row.startDate <= date && (row.endDate === null || row.endDate >= date),
-		upcoming: row.startDate > date,
-		tenants: tenantsOf.get(row.id) ?? []
-	}));
-}
-
 /** A lease active on the given date that occupies a unit, with its tenants. */
 export type Occupancy = {
 	leaseId: string;
 	startDate: string;
 	endDate: string | null;
+	/** Whether the unit is the lease's main unit (false: rented along with it, e.g. a parking space). */
+	main: boolean;
 	tenants: Tenant[];
 };
 
@@ -290,35 +250,53 @@ function activeLeases(db: Database, accountId: string, date: string) {
 		);
 }
 
-/** The units of the property with the leases occupying each one on the date and their tenants. */
+/** Every extra unit (lease_units row) of the account. */
+function leaseUnitRows(db: Database, accountId: string) {
+	return db
+		.select({ leaseId: leaseUnits.leaseId, unitId: leaseUnits.unitId })
+		.from(leaseUnits)
+		.where(eq(leaseUnits.accountId, accountId));
+}
+
+/**
+ * The units of the property with the leases occupying each one on the date (as main unit or as
+ * extra unit) and their tenants.
+ */
 export async function unitsWithOccupancy(
 	db: Database,
 	accountId: string,
 	propertyId: string,
 	date: string
 ): Promise<UnitWithOccupancy[]> {
-	const [ownUnits, active] = await Promise.all([
+	const [ownUnits, active, extraRows] = await Promise.all([
 		listUnits(db, accountId, propertyId),
-		activeLeases(db, accountId, date)
+		activeLeases(db, accountId, date),
+		leaseUnitRows(db, accountId)
 	]);
 	const unitIds = new Set(ownUnits.map((unit) => unit.id));
-	const own = active
-		.filter((lease) => unitIds.has(lease.unitId))
-		.sort((a, b) => a.startDate.localeCompare(b.startDate));
-	const tenantsOf = await tenantsOfLeases(
-		db,
-		accountId,
-		own.map((lease) => lease.id)
-	);
+	const activeById = new Map(active.map((lease) => [lease.id, lease]));
+	const placed = [
+		...active.map((lease) => ({ unitId: lease.unitId, lease, main: true })),
+		...extraRows.flatMap((row) => {
+			const lease = activeById.get(row.leaseId);
+			return lease ? [{ unitId: row.unitId, lease, main: false }] : [];
+		})
+	]
+		.filter((entry) => unitIds.has(entry.unitId))
+		.sort((a, b) => a.lease.startDate.localeCompare(b.lease.startDate));
+	const tenantsOf = await tenantsOfLeases(db, accountId, [
+		...new Set(placed.map((entry) => entry.lease.id))
+	]);
 
 	return ownUnits.map((unit) => ({
 		...unit,
-		occupancies: own
-			.filter((lease) => lease.unitId === unit.id)
-			.map((lease) => ({
+		occupancies: placed
+			.filter((entry) => entry.unitId === unit.id)
+			.map(({ lease, main }) => ({
 				leaseId: lease.id,
 				startDate: lease.startDate,
 				endDate: lease.endDate,
+				main,
 				tenants: tenantsOf.get(lease.id) ?? []
 			}))
 	}));
@@ -326,27 +304,30 @@ export async function unitsWithOccupancy(
 
 export type PropertyOverview = Property & {
 	unitCount: number;
-	/** Leases running on the date whose unit is in the property. */
+	/** Leases running on the date whose main unit is in the property. */
 	activeLeases: number;
-	/** Units no running lease occupies. */
+	/** Units no running lease occupies, as main unit or as extra unit. */
 	vacantUnits: number;
 };
 
-/** Every property of the account with its unit, lease and vacancy counts on the date; three queries. */
+/** Every property of the account with its unit, lease and vacancy counts on the date; four queries. */
 export async function propertyOverview(
 	db: Database,
 	accountId: string,
 	date: string
 ): Promise<PropertyOverview[]> {
-	const [rows, allUnits, active] = await Promise.all([
+	const [rows, allUnits, active, extraRows] = await Promise.all([
 		listProperties(db, accountId),
 		db
 			.select({ id: units.id, propertyId: units.propertyId })
 			.from(units)
 			.where(eq(units.accountId, accountId)),
-		activeLeases(db, accountId, date)
+		activeLeases(db, accountId, date),
+		leaseUnitRows(db, accountId)
 	]);
+	const activeIds = new Set(active.map((lease) => lease.id));
 	const occupied = new Set<string>(active.map((lease) => lease.unitId));
+	for (const row of extraRows) if (activeIds.has(row.leaseId)) occupied.add(row.unitId);
 	const propertyOfUnit = new Map(allUnits.map((unit) => [unit.id, unit.propertyId]));
 
 	return rows.map((property) => {

@@ -44,8 +44,12 @@ test('creates a property and adds units to it', async ({ page }) => {
 	await expect(units).toContainText('72,5 m²');
 	await expect(units).toContainText('EG');
 	await expect(units).toContainText('3 Zimmer');
-	// Without a lease the unit is vacant.
+	// Without a lease the unit is vacant and offers to create one.
 	await expect(units).toContainText('Leerstand');
+	await expect(units.getByRole('link', { name: 'Mietvertrag anlegen' })).toHaveAttribute(
+		'href',
+		/^\/vertraege\/neu\?unitId=/
+	);
 
 	await page.getByRole('link', { name: '← Alle Objekte' }).click();
 	const list = page.getByRole('list', { name: 'Objekte' });
@@ -130,15 +134,16 @@ test('edits a property and shows its occupancy in the list', async ({ page }) =>
 
 test('opens a unit, shows its lease and edits the unit', async ({ page }) => {
 	const unitName = `Wohnung ${suffix()}`;
-	const { propertyId, unitId } = await seedLease(page.request, {
+	const { propertyId, unitId, leaseId } = await seedLease(page.request, {
 		unit: { name: unitName },
 		tenant: { firstName: 'Erika', lastName: 'Musterfrau' }
 	});
 
 	await page.goto(`/objekte/${propertyId}`);
 	const units = page.getByRole('list', { name: 'Einheiten' });
-	await expect(units.getByRole('listitem').filter({ hasText: unitName })).toContainText(
-		'Erika Musterfrau'
+	await expect(units.getByRole('link', { name: 'Erika Musterfrau' })).toHaveAttribute(
+		'href',
+		`/vertraege/${leaseId}`
 	);
 	await units.getByRole('link', { name: unitName }).click();
 	await expect(page).toHaveURL(new RegExp(`/objekte/${propertyId}/einheiten/${unitId}$`));
@@ -148,6 +153,13 @@ test('opens a unit, shows its lease and edits the unit', async ({ page }) => {
 	await expect(leases).toContainText('Erika Musterfrau');
 	await expect(leases).toContainText('seit 01.01.2025');
 	await expect(leases).toContainText('Aktiv');
+	await expect(leases).toContainText('Haupteinheit');
+	await expect(leases.getByRole('link', { name: 'Erika Musterfrau' })).toHaveAttribute(
+		'href',
+		`/vertraege/${leaseId}`
+	);
+	// A rented unit does not offer a new lease.
+	await expect(page.getByRole('link', { name: 'Mietvertrag anlegen' })).toHaveCount(0);
 
 	await page.getByRole('link', { name: 'Bearbeiten' }).click();
 	await expect(page.getByLabel('Bezeichnung')).toHaveValue(unitName);
@@ -172,7 +184,9 @@ test('opens a unit, shows its lease and edits the unit', async ({ page }) => {
 
 test('refuses to delete a property or unit that has a lease', async ({ page }) => {
 	const unitName = `Wohnung ${suffix()}`;
-	const { propertyId, unitId } = await seedLease(page.request, { unit: { name: unitName } });
+	const { propertyId, unitId, leaseId } = await seedLease(page.request, {
+		unit: { name: unitName }
+	});
 
 	await page.goto(`/objekte/${propertyId}/bearbeiten`);
 	// The URL check below needs the enhanced form; a click before hydration posts natively.
@@ -182,10 +196,12 @@ test('refuses to delete a property or unit that has a lease', async ({ page }) =
 	await expect(page.getByRole('alert')).toContainText(
 		'Das Objekt kann nicht gelöscht werden, solange Mietverträge auf seinen Einheiten liegen, auch beendete'
 	);
-	// The refusal names the lease that blocks it.
-	await expect(
-		page.getByRole('list', { name: 'Mietverträge auf dem Objekt' }).getByRole('listitem')
-	).toHaveText([new RegExp(`^${unitName}: Erika Muster-[0-9a-f]{4}, seit 01\\.01\\.2025$`)]);
+	// The refusal names and links the lease that blocks it.
+	const blocking = page.getByRole('list', { name: 'Mietverträge auf dem Objekt' });
+	await expect(blocking.getByRole('listitem')).toHaveText([
+		new RegExp(`^${unitName}: Erika Muster-[0-9a-f]{4}, seit 01\\.01\\.2025$`)
+	]);
+	await expect(blocking.getByRole('link')).toHaveAttribute('href', `/vertraege/${leaseId}`);
 	await expect(page).toHaveURL(new RegExp(`/objekte/${propertyId}/bearbeiten$`));
 
 	await page.goto(`/objekte/${propertyId}/einheiten/${unitId}`);
