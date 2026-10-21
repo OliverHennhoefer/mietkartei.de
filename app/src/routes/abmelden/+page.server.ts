@@ -1,5 +1,6 @@
 import { redirect } from '@sveltejs/kit';
-import { SESSION_COOKIE, deleteSession } from '#lib/server/auth.ts';
+import { deleteSession } from '#lib/server/auth.ts';
+import { deleteSessionCookie, getSessionToken } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 // Signing out changes state, so it only happens through the form in the header.
@@ -8,10 +9,10 @@ export const load: PageServerLoad = () => {
 };
 
 export const actions: Actions = {
-	default: async ({ cookies, locals }) => {
-		const token = cookies.get(SESSION_COOKIE);
-		if (token) await deleteSession(locals.db, token);
-		cookies.delete(SESSION_COOKIE, { path: '/' });
+	default: async (event) => {
+		const token = getSessionToken(event);
+		if (token) await deleteSession(event.locals.db, token);
+		deleteSessionCookie(event);
 		redirect(303, '/anmelden');
 	}
 };

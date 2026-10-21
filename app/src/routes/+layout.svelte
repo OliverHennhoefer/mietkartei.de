@@ -16,6 +16,7 @@
 		{ href: '/vertraege', label: 'Mietverträge' },
 		{ href: '/mietkonto', label: 'Mietkonto' },
 		{ href: '/bank', label: 'Bank' },
+		{ href: '/betriebskosten', label: 'Betriebskosten' },
 		{ href: '/dokumente', label: 'Dokumente' }
 	];
 

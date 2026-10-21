@@ -148,6 +148,15 @@ test('opens a unit, shows its lease and edits the unit', async ({ page }) => {
 	await units.getByRole('link', { name: unitName }).click();
 	await expect(page).toHaveURL(new RegExp(`/objekte/${propertyId}/einheiten/${unitId}$`));
 	await expect(page.getByRole('heading', { level: 2, name: `Einheit ${unitName}` })).toBeVisible();
+	// The unit pages belong to the Einheiten tab.
+	const tabs = page.getByRole('navigation', { name: 'Bereiche' });
+	await expect(tabs.getByRole('link', { name: 'Einheiten' })).toHaveAttribute(
+		'aria-current',
+		'page'
+	);
+	await expect(tabs.getByRole('link', { name: 'Abrechnungskreise' })).not.toHaveAttribute(
+		'aria-current'
+	);
 	await expect(page.getByText('Vermietet', { exact: true })).toBeVisible();
 	const leases = page.getByRole('table', { name: 'Mietverträge' });
 	await expect(leases).toContainText('Erika Musterfrau');
@@ -163,6 +172,10 @@ test('opens a unit, shows its lease and edits the unit', async ({ page }) => {
 
 	await page.getByRole('link', { name: 'Bearbeiten' }).click();
 	await expect(page.getByLabel('Bezeichnung')).toHaveValue(unitName);
+	await expect(tabs.getByRole('link', { name: 'Einheiten' })).toHaveAttribute(
+		'aria-current',
+		'page'
+	);
 	await expect(page.getByLabel('Fläche in m² (optional)')).toHaveValue('64');
 	await page.getByLabel('Bezeichnung').fill(`${unitName} rechts`);
 	await page.getByLabel('Fläche in m² (optional)').fill('65,5');

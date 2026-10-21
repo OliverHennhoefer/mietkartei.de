@@ -1,12 +1,17 @@
-import { redirect } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import type { Handle } from '@sveltejs/kit/hooks';
 import { E2E } from '$app/env/private';
-import { SESSION_COOKIE, validateSession } from '#lib/server/auth.ts';
-import { setSessionCookie } from '#lib/server/session.ts';
+import { validateSession } from '#lib/server/auth.ts';
+import { applySecurityHeaders } from '#lib/server/security-headers.ts';
+import { deleteSessionCookie, getSessionToken, setSessionCookie } from '#lib/server/session.ts';
 import { getDatabase } from '#lib/server/db/index.ts';
+import { getAuthLimiter } from '#lib/server/rate-limit/index.ts';
 
 /** Paths that work without signing in. Everything else redirects to the sign-in page. */
 const publicPaths = new Set(['/anmelden', '/registrieren', '/health']);
+
+/** Paths whose posts check a password or create an account, counted per client address. */
+const authPaths = new Set(['/anmelden', '/registrieren']);
 
 function isPublic(pathname: string): boolean {
 	if (publicPaths.has(pathname)) return true;
@@ -18,17 +23,29 @@ export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.db = await getDatabase();
 	event.locals.user = undefined;
 
-	const token = event.cookies.get(SESSION_COOKIE);
+	const token = getSessionToken(event);
 	if (token) {
 		const session = await validateSession(event.locals.db, token);
 		if (session) {
 			event.locals.user = session.user;
 			if (session.expiresAt) setSessionCookie(event, token, session.expiresAt);
 		} else {
-			event.cookies.delete(SESSION_COOKIE, { path: '/' });
+			deleteSessionCookie(event);
 		}
 	}
 
 	if (!event.locals.user && !isPublic(event.url.pathname)) redirect(303, '/anmelden');
-	return resolve(event);
+	// Counted with or without a session: a signed-in client can post to these actions as well.
+	if (event.request.method === 'POST' && authPaths.has(event.url.pathname)) {
+		const limiter = await getAuthLimiter();
+		if (!(await limiter.limit(`auth:${event.getClientAddress()}`))) {
+			error(429, 'Zu viele Versuche in kurzer Zeit. Bitte warte eine Minute.');
+		}
+	}
+	const response = await resolve(event);
+	applySecurityHeaders(response.headers, {
+		https: event.url.protocol === 'https:',
+		signedIn: Boolean(event.locals.user)
+	});
+	return response;
 };
