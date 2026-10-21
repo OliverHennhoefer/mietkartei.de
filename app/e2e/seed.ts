@@ -52,3 +52,8 @@ export async function seedRows(
 ): Promise<{ ids: string[] }> {
 	return (await post(request, { op: 'rows', table, rows })) as { ids: string[] };
 }
+
+/** Deletes the owner's rows of the named tables, in the order given (children before parents). */
+export async function clearTables(request: APIRequestContext, tables: string[]): Promise<void> {
+	await post(request, { op: 'clear', tables });
+}
