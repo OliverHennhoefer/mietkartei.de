@@ -57,6 +57,11 @@
 				<a href={section.href} aria-current={current(section.href)}>{section.label}</a>
 			{/each}
 			<div class="nav-group">
+				<a href={resolve('/einstellungen')} aria-current={current('/einstellungen')}>
+					Einstellungen
+				</a>
+			</div>
+			<div class="nav-group">
 				<p class="nav-user muted">{data.email}</p>
 				<form method="POST" action={resolve('/abmelden')}>
 					<button type="submit" class="link">Abmelden</button>

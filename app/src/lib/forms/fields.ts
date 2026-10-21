@@ -1,4 +1,4 @@
-import { isIsoDate } from '../dates';
+import { isIsoDate, isIsoMonth } from '../dates';
 import { parseCents } from '../money';
 
 // Helpers for parsing FormData in server actions. A parse function builds on FormParser and
@@ -100,6 +100,20 @@ export class FormParser<T> {
 		}
 		if (!isIsoDate(value)) {
 			this.fail(name, 'Bitte gib ein gültiges Datum an.');
+			return null;
+		}
+		return value;
+	}
+
+	/** `YYYY-MM` from a `<input type="month">`. */
+	month(name: keyof T & string, options: { required?: boolean } = {}): string | null {
+		const value = this.raw(name);
+		if (!value) {
+			if (options.required ?? true) this.fail(name, 'Bitte gib einen Monat an.');
+			return null;
+		}
+		if (!isIsoMonth(value)) {
+			this.fail(name, 'Bitte gib einen gültigen Monat an.');
 			return null;
 		}
 		return value;

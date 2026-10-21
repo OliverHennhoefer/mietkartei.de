@@ -395,6 +395,11 @@ button.small {
 	gap: 0.5rem 1rem;
 }
 
+.stack {
+	display: grid;
+	gap: 1rem;
+}
+
 dl.details {
 	display: grid;
 	grid-template-columns: max-content 1fr;
