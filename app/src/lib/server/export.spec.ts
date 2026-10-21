@@ -1,16 +1,18 @@
-import { eq, getTableName } from 'drizzle-orm';
+import { and, eq, getTableName } from 'drizzle-orm';
 import { strFromU8, unzipSync } from 'fflate';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from './db';
-import { auditLog, leaseTenants } from './db/schema';
+import { chunk, rowsPerStatement } from './db/batch';
+import { auditLog, leaseTenants, properties } from './db/schema';
 import { storeDocument } from './documents';
 import {
+	EXPORT_PAGE_ROWS,
 	accountTables,
-	collectExport,
 	documentPath,
+	exportJson,
 	exportTables,
 	exportZip,
 	type ExportData
@@ -76,12 +78,19 @@ describe('exportTables', () => {
 	});
 });
 
-describe('collectExport', () => {
+/** export.json of the account, put together from its pieces. */
+async function collect(accountId: string): Promise<ExportData> {
+	let text = '';
+	for await (const piece of exportJson(db, accountId)) text += piece;
+	return JSON.parse(text) as ExportData;
+}
+
+describe('exportJson', () => {
 	it('exports every row of the account, users without their hash, and the join rows', async () => {
 		const own = await seedAccount(contextA);
 		await seedAccount(contextB);
 
-		const data = await collectExport(db, 'a');
+		const data = await collect('a');
 		expect(data).toMatchObject({ format: 'mietkartei', version: 1, accountId: 'a' });
 		expect(Date.parse(data.exportedAt)).not.toBeNaN();
 		// The account row first, then the tables in dependency order.
@@ -125,6 +134,51 @@ describe('collectExport', () => {
 		}
 		expect(await db.select().from(leaseTenants)).toHaveLength(2);
 	});
+
+	it('reads large tables a page at a time, every row once and in order', async () => {
+		// Two pages and one row of properties (by rowid), between those of account b, and of log
+		// entries, which follow their index (by time, then rowid); the first half of the entries
+		// share one time across the page border.
+		const count = 2 * EXPORT_PAGE_ROWS + 1;
+		const propertyRows = Array.from({ length: count + EXPORT_PAGE_ROWS }, (_, index) => ({
+			accountId: index % 3 === 2 ? 'b' : 'a',
+			name: `Haus ${index}`,
+			street: 'Lindenstraße 4',
+			postalCode: '10115',
+			city: 'Berlin'
+		}));
+		for (const group of chunk(propertyRows, rowsPerStatement(properties))) {
+			await db.insert(properties).values(group);
+		}
+		const logRows = Array.from({ length: count }, (_, index) => ({
+			accountId: 'a',
+			entity: 'property',
+			entityId: `p${index}`,
+			action: 'create',
+			summary: `Eintrag ${index}`,
+			at: new Date(Date.UTC(2025, 0, 1) + (index < count / 2 ? 0 : index * 1000))
+		}));
+		for (const group of chunk(logRows, rowsPerStatement(auditLog))) {
+			await db.insert(auditLog).values(group);
+		}
+
+		const selects = vi.spyOn(db, 'select');
+		const data = await collect('a');
+		const pagesRead = selects.mock.calls.length;
+		selects.mockRestore();
+
+		const ownProperties = propertyRows.filter((row) => row.accountId === 'a');
+		expect(data.tables.properties.map((row) => row.name)).toEqual(
+			ownProperties.map((row) => row.name)
+		);
+		expect(data.tables.audit_log.map((row) => row.summary)).toEqual(
+			logRows.map((row) => row.summary)
+		);
+		// One query per table (and the account, the join rows and their leases), two more each for
+		// the large ones.
+		expect(ownProperties).toHaveLength(count);
+		expect(pagesRead).toBe(exportTables.length + 2 + 1 + 2 * 2);
+	});
 });
 
 /** The whole archive the stream yields, as the browser receives it. */
@@ -132,8 +186,11 @@ async function readZip(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> 
 	return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
-async function exportEntries(): Promise<string[]> {
-	const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'export'));
+async function exportEntries(accountId: string): Promise<string[]> {
+	const audit = await db
+		.select()
+		.from(auditLog)
+		.where(and(eq(auditLog.accountId, accountId), eq(auditLog.action, 'export')));
 	return audit.map((entry) => entry.summary);
 }
 
@@ -213,21 +270,21 @@ describe('exportZip', () => {
 		};
 		// The same number of queries with three documents as without any: no lookup per document.
 		const selects = vi.spyOn(db, 'select');
-		const empty = await exportZip(db, contextB, { storage });
+		await readZip(await exportZip(db, contextB, { storage }));
 		const queriesWithout = selects.mock.calls.length;
 		selects.mockClear();
 		const stream = await exportZip(db, contextA, { storage: watched });
-		expect(selects.mock.calls.length).toBe(queriesWithout);
-		selects.mockRestore();
-		await empty.cancel();
-
-		// Nothing is read or logged before the reader pulls.
+		// Only the document list before the reader pulls: no row of export.json, no object, no log.
+		expect(selects.mock.calls.length).toBe(1);
 		expect(keys).toEqual([]);
-		expect(await exportEntries()).toEqual([]);
+		expect(await exportEntries('a')).toEqual([]);
+		selects.mockClear();
 		const files = unzipSync(await readZip(stream));
+		expect(selects.mock.calls.length).toBe(queriesWithout - 1);
+		selects.mockRestore();
 		expect(keys.sort()).toEqual(ids.map((id) => `a/${id}`).sort());
 		expect(strFromU8(files[`documents/${ids[1]}-Zwei.pdf`])).toBe('Zwei.pdf');
-		expect(await exportEntries()).toEqual(['Alle Daten als ZIP-Datei exportiert']);
+		expect(await exportEntries('a')).toEqual(['Alle Daten als ZIP-Datei exportiert']);
 	});
 
 	it('does not log an export that fails part-way', async () => {
@@ -252,7 +309,7 @@ describe('exportZip', () => {
 		await expect(readZip(await exportZip(db, contextA, { storage: broken }))).rejects.toThrow(
 			'R2 nicht erreichbar'
 		);
-		expect(await exportEntries()).toEqual([]);
+		expect(await exportEntries('a')).toEqual([]);
 	});
 
 	it('builds a ZIP for an empty account', async () => {
