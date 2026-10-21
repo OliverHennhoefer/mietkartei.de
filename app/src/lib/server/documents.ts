@@ -12,6 +12,8 @@ import { getStorage, storageKey, type Storage } from './storage';
 // user of the account that uploaded it.
 
 export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+/** The longest document name that is stored. */
+export const MAX_DOCUMENT_NAME = 200;
 
 export type Document = typeof documents.$inferSelect;
 
@@ -86,7 +88,7 @@ export async function storeDocument(
 		return { ok: false, reason: 'unknown-link' };
 	}
 
-	const name = input.name.trim().slice(0, 200).trim() || 'Dokument';
+	const name = input.name.trim().slice(0, MAX_DOCUMENT_NAME).trim() || 'Dokument';
 	const mimeType = input.mimeType.trim() || 'application/octet-stream';
 	const id = crypto.randomUUID();
 	const key = storageKey(accountId, id);
