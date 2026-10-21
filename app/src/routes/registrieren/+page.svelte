@@ -20,6 +20,12 @@
 	{#if !data.open || form?.closed}
 		<p>Auf dieser Instanz können sich keine weiteren Personen registrieren.</p>
 	{:else}
+		{#if data.restricted}
+			<p>
+				mietkartei ist noch nicht öffentlich. Ein Konto anlegen können nur freigeschaltete
+				E-Mail-Adressen.
+			</p>
+		{/if}
 		<form
 			method="POST"
 			class="card"
@@ -57,6 +63,11 @@
 			</label>
 			{#if data.turnstileSiteKey}
 				<div class="cf-turnstile" data-sitekey={data.turnstileSiteKey} data-language="de"></div>
+			{/if}
+			{#if form?.notListed}
+				<p class="error" role="alert">
+					Diese E-Mail-Adresse ist nicht für eine Registrierung freigeschaltet.
+				</p>
 			{/if}
 			{#if form?.botCheckFailed}
 				<p class="error" role="alert">

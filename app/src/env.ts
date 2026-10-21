@@ -11,11 +11,12 @@ export const variables = defineEnvVars({
 			'"documents" directory next to the database file, so one volume holds both.',
 		schema: (value) => value || ''
 	},
-	OPEN_REGISTRATION: {
+	REGISTRATION_EMAILS: {
 		description:
-			'"true" lets anyone register a new account. Otherwise only the first person can register, ' +
-			'and that person takes over the existing data. The hosted variant sets it; self-hosting does not.',
-		schema: (value) => value === 'true'
+			'Email addresses that may register, separated by commas. Set, only they can. Unset, a ' +
+			'self-hosted instance lets only the first person register, who takes over the existing ' +
+			'data, and the hosted variant lets nobody. Keep it a secret on the hosted variant.',
+		schema: (value) => value || ''
 	},
 	TURNSTILE_SITE_KEY: {
 		description:
