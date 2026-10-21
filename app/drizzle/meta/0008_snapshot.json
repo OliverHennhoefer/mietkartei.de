@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6b967934-99a7-4c8c-840b-45a0d2f25734",
-  "prevId": "0af75119-4082-435a-93be-2ee19c2bf708",
+  "id": "01f0f860-806b-4fa3-871c-3ae854a1a51a",
+  "prevId": "1f46da49-a726-4fd6-a69a-164398a04ec4",
   "tables": {
     "accounts": {
       "name": "accounts",
@@ -1165,6 +1165,14 @@
           "notNull": false,
           "autoincrement": false
         },
+        "index_base_year": {
+          "name": "index_base_year",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'2020'"
+        },
         "notes": {
           "name": "notes",
           "type": "text",
@@ -1658,8 +1666,23 @@
           "notNull": false,
           "autoincrement": false
         },
+        "index_base_year": {
+          "name": "index_base_year",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'2020'"
+        },
         "letter_text": {
           "name": "letter_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "letter_table": {
+          "name": "letter_table",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
