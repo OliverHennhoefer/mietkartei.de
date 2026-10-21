@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { auditLog, co2CostSplits, properties, rentCharges } from './db/schema';
 import type { Database } from './db';
@@ -100,7 +100,7 @@ describe('createCo2Split', () => {
 			.select()
 			.from(auditLog)
 			.where(eq(auditLog.entityId, leaseId))
-			.orderBy(desc(auditLog.at))
+			.orderBy(desc(auditLog.at), desc(sql`rowid`))
 			.limit(1);
 		expect(entry).toMatchObject({ accountId: 'a', userId: 'user-a', action: 'post' });
 		expect(entry.summary).toBe(
@@ -203,7 +203,7 @@ describe('deleteCo2Split', () => {
 			.select()
 			.from(auditLog)
 			.where(eq(auditLog.entityId, leaseId))
-			.orderBy(desc(auditLog.at))
+			.orderBy(desc(auditLog.at), desc(sql`rowid`))
 			.limit(1);
 		expect(entry).toMatchObject({ action: 'delete' });
 		expect(entry.summary).toBe(

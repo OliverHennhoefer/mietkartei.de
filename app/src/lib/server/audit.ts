@@ -1,6 +1,9 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import type { Database } from './db';
 import { auditLog, users, type AuditAction } from './db/schema';
+
+/** Entries written in the same millisecond keep the order they were inserted in. */
+const insertOrder = sql`"audit_log"."rowid"`;
 
 // Every change a landlord would want to look up later gets one line: who, when, what.
 // The summary is a German sentence, e.g. "Mietvertrag Wohnung EG links angelegt".
@@ -59,7 +62,7 @@ export async function listAuditLog(db: Database, accountId: string, limit = 200)
 		.from(auditLog)
 		.leftJoin(users, eq(auditLog.userId, users.id))
 		.where(eq(auditLog.accountId, accountId))
-		.orderBy(desc(auditLog.at))
+		.orderBy(desc(auditLog.at), desc(insertOrder))
 		.limit(limit);
 }
 
@@ -84,7 +87,7 @@ export async function listAuditLogForEntity(
 		.from(auditLog)
 		.leftJoin(users, eq(auditLog.userId, users.id))
 		.where(and(eq(auditLog.accountId, accountId), eq(auditLog.entity, entity)))
-		.orderBy(desc(auditLog.at))
+		.orderBy(desc(auditLog.at), desc(insertOrder))
 		.limit(limit);
 }
 
