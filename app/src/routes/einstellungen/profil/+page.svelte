@@ -14,7 +14,9 @@
 			landlordName: data.landlord.landlordName ?? '',
 			street: data.landlord.street ?? '',
 			postalCode: data.landlord.postalCode ?? '',
-			city: data.landlord.city ?? ''
+			city: data.landlord.city ?? '',
+			iban: data.landlord.iban ?? '',
+			bankName: data.landlord.bankName ?? ''
 		}
 	);
 </script>
@@ -25,8 +27,9 @@
 	<section>
 		<h2>Vermieter (Absender)</h2>
 		<p class="muted">
-			Briefe drucken diese Angaben als Absender. Solange der Block leer ist, steht der Name deines
-			Kontos dort.
+			Briefe und Betriebskostenabrechnungen drucken diese Angaben als Absender; die IBAN steht auf
+			der Abrechnung für Nachzahlungen. Solange der Block leer ist, steht der Name deines Kontos
+			dort.
 		</p>
 		{#if landlord && 'saved' in landlord}
 			<Alert tone="success"><p>Der Absender wurde gespeichert.</p></Alert>
@@ -72,6 +75,24 @@
 					aria-invalid={landlordErrors?.city ? 'true' : undefined}
 				/>
 				{#if landlordErrors?.city}<span class="error">{landlordErrors.city}</span>{/if}
+			</label>
+			<label>
+				IBAN
+				<input
+					name="iban"
+					defaultValue={landlordValues.iban ?? ''}
+					aria-invalid={landlordErrors?.iban ? 'true' : undefined}
+				/>
+				{#if landlordErrors?.iban}<span class="error">{landlordErrors.iban}</span>{/if}
+			</label>
+			<label>
+				Bank
+				<input
+					name="bankName"
+					defaultValue={landlordValues.bankName ?? ''}
+					aria-invalid={landlordErrors?.bankName ? 'true' : undefined}
+				/>
+				{#if landlordErrors?.bankName}<span class="error">{landlordErrors.bankName}</span>{/if}
 			</label>
 			<div class="form-actions">
 				<button type="submit">Absender speichern</button>

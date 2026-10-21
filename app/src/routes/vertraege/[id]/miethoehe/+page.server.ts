@@ -1,6 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import { addMonthsToMonth, firstOfMonth, monthOf, today } from '#lib/dates.ts';
-import { indexSituation, nextGraduatedStepAllowed } from '#lib/domain/index-rent.ts';
+import { effectiveFrom, indexSituation, nextGraduatedStepAllowed } from '#lib/domain/index-rent.ts';
 import { rentOn } from '#lib/domain/rents.ts';
 import { parseApproval, parseGraduatedStep, parseManualChange } from '#lib/forms/rent.ts';
 import { landlordAddress } from '#lib/server/accounts.ts';
@@ -21,7 +21,7 @@ import type { Actions, PageServerLoad } from './$types';
 // The lease comes from the layout; every action loads it again, so an id of another account
 // answers 404 before anything is written.
 
-export const load: PageServerLoad = async ({ locals, params, parent }) => {
+export const load: PageServerLoad = async ({ locals, params, parent, url }) => {
 	const accountId = requireAccount(locals);
 	const { lease } = await parent();
 	const [changes, values, landlord] = await Promise.all([
@@ -30,9 +30,20 @@ export const load: PageServerLoad = async ({ locals, params, parent }) => {
 		landlordAddress(locals.db, accountId)
 	]);
 	const day = today();
+	// ?prepayment=<cents>&heating=<cents> come from an approved statement ("Vorauszahlung
+	// anpassen"): the suggested operating and heating cost prepayments, each optional.
+	const cents = (name: string) => {
+		const value = url.searchParams.get(name);
+		return value && /^\d{1,12}$/.test(value) ? Number(value) : null;
+	};
+	const prepaymentCents = cents('prepayment');
+	const heatingCents = cents('heating');
+	const fromStatement = prepaymentCents !== null || heatingCents !== null;
 	// The change form starts from the rent valid on its default date, so a Staffel step or index
 	// change between today and that date is not undone by today's amounts.
-	const changeFrom = firstOfMonth(addMonthsToMonth(monthOf(day), 1));
+	const changeFrom = fromStatement
+		? effectiveFrom(day)
+		: firstOfMonth(addMonthsToMonth(monthOf(day), 1));
 	const rentThen = rentOn(changes, changeFrom) ?? lease.currentRent;
 	return {
 		changes,
@@ -40,13 +51,18 @@ export const load: PageServerLoad = async ({ locals, params, parent }) => {
 		situation: indexSituation(lease, changes, values, day),
 		nextStepAllowed:
 			lease.rentModel === 'graduated' ? nextGraduatedStepAllowed(changes) : undefined,
-		/** The default first day of the change: the first of next month. */
+		prepayment: prepaymentCents,
+		heatingPrepayment: heatingCents,
+		/**
+		 * The default first day of the change: the first of next month, the month after next for
+		 * a § 560 adjustment.
+		 */
 		changeFrom,
 		/** The amounts valid on changeFrom, to prefill the change form. */
 		changeDefaults: {
 			baseRent: rentThen.baseRent,
-			operatingCostPrepayment: rentThen.operatingCostPrepayment,
-			heatingCostPrepayment: rentThen.heatingCostPrepayment
+			operatingCostPrepayment: prepaymentCents ?? rentThen.operatingCostPrepayment,
+			heatingCostPrepayment: heatingCents ?? rentThen.heatingCostPrepayment
 		},
 		landlordComplete: landlord.complete
 	};

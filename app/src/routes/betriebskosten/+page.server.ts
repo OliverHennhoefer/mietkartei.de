@@ -1,30 +1,47 @@
+import { fail, redirect } from '@sveltejs/kit';
+import { today } from '#lib/dates.ts';
+import type { FieldErrors } from '#lib/forms/fields.ts';
+import { parseNewStatement, type NewStatementInput } from '#lib/forms/statements.ts';
+import { auditContext, requireAccount } from '#lib/server/session.ts';
 import {
-	ensureDefaults,
-	listCategories,
-	listCircles,
-	listKeys
-} from '#lib/server/operating-costs.ts';
-import { listProperties } from '#lib/server/properties.ts';
-import { requireAccount } from '#lib/server/session.ts';
-import type { PageServerLoad } from './$types';
+	createStatement,
+	listPropertiesForStatements,
+	listStatements
+} from '#lib/server/statements.ts';
+import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const accountId = requireAccount(locals);
-	await ensureDefaults(locals.db, accountId);
-	const [categories, keys, properties, circles] = await Promise.all([
-		listCategories(locals.db, accountId),
-		listKeys(locals.db, accountId),
-		listProperties(locals.db, accountId),
-		listCircles(locals.db, accountId)
+	const [groups, properties] = await Promise.all([
+		listStatements(locals.db, accountId),
+		listPropertiesForStatements(locals.db, accountId)
 	]);
+	// A statement usually covers the last calendar year.
+	const lastYear = Number(today().slice(0, 4)) - 1;
 	return {
-		categoryCount: categories.length,
-		allocableCount: categories.filter((category) => category.allocable).length,
-		keyCount: keys.length,
-		properties: properties.map((property) => ({
-			id: property.id,
-			name: property.name,
-			circleCount: circles.filter((circle) => circle.propertyId === property.id).length
-		}))
+		groups,
+		properties,
+		defaults: { periodStart: `${lastYear}-01-01`, periodEnd: `${lastYear}-12-31` }
 	};
+};
+
+export const actions: Actions = {
+	create: async ({ request, locals }) => {
+		const result = parseNewStatement(await request.formData());
+		if (!result.ok) return fail(400, { errors: result.errors, values: result.values });
+		const created = await createStatement(locals.db, auditContext(locals), result.data);
+		if (!created.ok) {
+			// The same shape as a parser failure, so the page reads one `form` type.
+			const errors: FieldErrors<NewStatementInput> = { propertyId: created.message };
+			return fail(400, {
+				errors,
+				values: {
+					propertyId: result.data.propertyId,
+					periodStart: result.data.periodStart,
+					periodEnd: result.data.periodEnd
+				}
+			});
+		}
+		redirect(303, `/betriebskosten/abrechnungen/${created.id}`);
+	}
 };

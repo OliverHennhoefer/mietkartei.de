@@ -21,6 +21,8 @@
 	const pending = $derived(data.changes.find((change) => change.status === 'proposed'));
 	// § 557a Abs. 2 / § 557b Abs. 2 BGB: no § 558 increase on a residential Staffel or index rent.
 	const restricted = $derived(lease.kind === 'residential' && lease.rentModel !== 'fixed');
+	/** Opened from a statement's "Vorauszahlung anpassen" (§ 560 Abs. 4 BGB). */
+	const fromStatement = $derived(data.prepayment !== null || data.heatingPrepayment !== null);
 
 	// Every action answers with its source, so each form shows only its own errors and values.
 	type FieldErrors = Partial<Record<string, string>>;
@@ -375,7 +377,10 @@
 	<Field label="Grund" error={changeErrors?.reason}>
 		<select name="reason" aria-invalid={changeErrors?.reason ? 'true' : undefined} required>
 			{#each ['manual', 'statement'] as const as reason (reason)}
-				<option value={reason} selected={(changeValues?.reason ?? 'manual') === reason}>
+				<option
+					value={reason}
+					selected={(changeValues?.reason ?? (fromStatement ? 'statement' : 'manual')) === reason}
+				>
 					{rentChangeReasonLabels[reason]}
 				</option>
 			{/each}
