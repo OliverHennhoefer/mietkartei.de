@@ -7,6 +7,8 @@ import {
 	leasePersons,
 	leaseTenants,
 	leaseUnits,
+	payments,
+	rentCharges,
 	rentChanges
 } from './db/schema';
 import {
@@ -24,6 +26,7 @@ import {
 	listUnitsWithProperty,
 	updateLease
 } from './leases';
+import { ensureCharges, postCharge } from './ledger';
 import { contextA, contextB, leaseInput, seedTenant, seedUnit, testDatabase } from './testing';
 
 let db: Database;
@@ -108,6 +111,35 @@ describe('createLease', () => {
 		).toEqual({ ok: false, reason: 'unknown-tenant' });
 		expect(await listLeases(db, 'a')).toEqual([]);
 		expect(await db.select().from(auditLog)).toEqual([]);
+	});
+
+	it('posts the opening balance with the lease, due at the ledger start', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const result = await createLease(
+			db,
+			contextA,
+			leaseInput(unitId, { startDate: '2020-01-01', ledgerStart: '2025-03-01' }),
+			-4500
+		);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+
+		const charges = await db.select().from(rentCharges).where(eq(rentCharges.leaseId, result.id));
+		expect(charges).toEqual([
+			expect.objectContaining({
+				accountId: 'a',
+				kind: 'adjustment',
+				period: '2025-03',
+				dueDate: '2025-03-01',
+				amount: -4500,
+				note: 'Anfangssaldo'
+			})
+		]);
+		const audit = await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'));
+		expect(audit.map((entry) => [entry.entityId, entry.action])).toEqual([
+			[result.id, 'create'],
+			[result.id, 'post']
+		]);
 	});
 });
 
@@ -403,7 +435,7 @@ describe('listLeases with many leases', () => {
 });
 
 describe('deleteLease', () => {
-	it('deletes the lease with its links and rent history, and logs it', async () => {
+	it('deletes the lease with its links, rent history and rent charges, and logs it', async () => {
 		const { unitId } = await seedUnit(db, 'a');
 		const { unitId: parking } = await seedUnit(db, 'a', { name: 'Stellplatz' });
 		const tenantId = await seedTenant(db, 'a');
@@ -413,6 +445,7 @@ describe('deleteLease', () => {
 			leaseInput(unitId, { tenantIds: [tenantId], extraUnitIds: [parking] })
 		);
 		if (!result.ok) throw new Error('setup failed');
+		await ensureCharges(db, 'a', [result.id], '2025-03');
 
 		expect(await deleteLease(db, contextA, result.id)).toBe('deleted');
 		expect(await getLease(db, 'a', result.id)).toBeUndefined();
@@ -420,6 +453,7 @@ describe('deleteLease', () => {
 		expect(await db.select().from(leaseUnits)).toEqual([]);
 		expect(await db.select().from(leasePersons)).toEqual([]);
 		expect(await db.select().from(rentChanges)).toEqual([]);
+		expect(await db.select().from(rentCharges)).toEqual([]);
 		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'delete'));
 		expect(audit[0]?.summary).toBe('Mietvertrag EG links · Haus gelöscht');
 	});
@@ -446,6 +480,28 @@ describe('deleteLease', () => {
 		expect(await deleteLease(db, contextA, result.id)).toBe('in-use');
 		expect(await getLease(db, 'a', result.id)).toBeDefined();
 	});
+
+	it('refuses to delete a lease with payments or corrections on it', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const paid = await createLease(db, contextA, leaseInput(unitId));
+		const corrected = await createLease(db, contextA, leaseInput(unitId));
+		if (!paid.ok || !corrected.ok) throw new Error('setup failed');
+		await db
+			.insert(payments)
+			.values({ accountId: 'a', leaseId: paid.id, date: '2025-02-03', amount: 80000 });
+		await postCharge(db, contextA, {
+			leaseId: corrected.id,
+			kind: 'adjustment',
+			period: '2025-01',
+			dueDate: '2025-01-01',
+			amount: 12000,
+			note: 'Anfangssaldo'
+		});
+		expect(await deleteLease(db, contextA, paid.id)).toBe('in-use');
+		expect(await deleteLease(db, contextA, corrected.id)).toBe('in-use');
+		expect(await getLease(db, 'a', paid.id)).toBeDefined();
+		expect(await getLease(db, 'a', corrected.id)).toBeDefined();
+	});
 });
 
 describe('listUnitsWithProperty', () => {
@@ -469,6 +525,8 @@ describe('leaseInputOf', () => {
 		const input = leaseInput(unitId, {
 			tenantIds: [tenantId],
 			extraUnitIds: [parking],
+			rentDueDay: 5,
+			ledgerStart: '2025-06-01',
 			notes: 'Hinweis'
 		});
 		const result = await createLease(db, contextA, input);
@@ -478,10 +536,11 @@ describe('leaseInputOf', () => {
 });
 
 describe('endLease', () => {
-	it('records the notice and the end date and logs it', async () => {
+	it('records the notice and the end date, logs it, and the ledger follows', async () => {
 		const { unitId } = await seedUnit(db, 'a');
 		const result = await createLease(db, contextA, leaseInput(unitId));
 		if (!result.ok) throw new Error('setup failed');
+		await ensureCharges(db, 'a', [result.id], '2025-12');
 
 		expect(
 			await endLease(db, contextA, result.id, {
@@ -499,6 +558,13 @@ describe('endLease', () => {
 		expect(audit.map((entry) => entry.summary)).toEqual([
 			'Mietvertrag EG links · Haus zum 31.05.2025 beendet (Kündigung vom 02.03.2025 durch Mieter)'
 		]);
+
+		// The months after the end disappear with the next sync.
+		await ensureCharges(db, 'a', [result.id], '2025-12');
+		const periods = (await db.select().from(rentCharges).where(eq(rentCharges.leaseId, result.id)))
+			.map((row) => row.period)
+			.sort();
+		expect(periods).toEqual(['2025-01', '2025-02', '2025-03', '2025-04', '2025-05']);
 	});
 
 	it('refuses an end before the start and a lease of another account', async () => {

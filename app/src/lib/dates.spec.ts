@@ -7,7 +7,10 @@ import {
 	formatDate,
 	formatMonth,
 	isIsoDate,
+	isIsoMonth,
 	lastOfMonth,
+	monthsInRange,
+	overlap,
 	today
 } from './dates';
 
@@ -18,6 +21,8 @@ describe('validation', () => {
 		expect(isIsoDate('2026-02-29')).toBe(false);
 		expect(isIsoDate('2026-13-01')).toBe(false);
 		expect(isIsoDate('26-01-01')).toBe(false);
+		expect(isIsoMonth('2026-12')).toBe(true);
+		expect(isIsoMonth('2026-00')).toBe(false);
 	});
 });
 
@@ -36,6 +41,25 @@ describe('arithmetic', () => {
 		expect(lastOfMonth('2026-02')).toBe('2026-02-28');
 		expect(lastOfMonth('2024-02')).toBe('2024-02-29');
 		expect(lastOfMonth('2026-12')).toBe('2026-12-31');
+	});
+
+	it('computes overlaps of closed ranges', () => {
+		const year = { start: '2026-01-01', end: '2026-12-31' };
+		expect(overlap(year, { start: '2025-10-01', end: '2026-03-15' })).toEqual({
+			start: '2026-01-01',
+			end: '2026-03-15'
+		});
+		expect(overlap(year, { start: '2027-01-01', end: '2027-01-02' })).toBeUndefined();
+	});
+
+	it('lists months', () => {
+		expect(monthsInRange('2026-11', '2027-02')).toEqual([
+			'2026-11',
+			'2026-12',
+			'2027-01',
+			'2027-02'
+		]);
+		expect(monthsInRange('2026-03', '2026-02')).toEqual([]);
 	});
 });
 

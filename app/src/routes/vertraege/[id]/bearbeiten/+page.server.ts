@@ -3,6 +3,7 @@ import { formatDate } from '#lib/dates.ts';
 import { depositWarning, parseLeaseEdit } from '#lib/forms/leases.ts';
 import { formatCentsPlain, parseCents } from '#lib/money.ts';
 import { getLease, leaseInputOf, updateLease } from '#lib/server/leases.ts';
+import { ensureCharges } from '#lib/server/ledger.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -23,11 +24,13 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 		rentModel: input.rentModel,
 		operatingCostModel: input.operatingCostModel,
 		heatingCostModel: input.heatingCostModel,
+		rentDueDay: String(input.rentDueDay),
 		baseRent: formatCentsPlain(input.baseRent),
 		operatingCostPrepayment: formatCentsPlain(input.operatingCostPrepayment),
 		heatingCostPrepayment: formatCentsPlain(input.heatingCostPrepayment),
 		securityDeposit: formatCentsPlain(input.securityDeposit),
 		persons: String(input.persons),
+		ledgerStart: input.ledgerStart ?? '',
 		terminatedAt: input.terminatedAt ?? '',
 		terminatedBy: input.terminatedBy ?? '',
 		notes: input.notes ?? ''
@@ -87,6 +90,8 @@ export const actions: Actions = {
 						: { tenantIds: 'Einen der Mieter gibt es nicht.' };
 			return fail(400, { errors, values, depositWarning: depositWarning(result.data) });
 		}
+		// A new start, end, due day or ledger start moves the months on the ledger.
+		await ensureCharges(locals.db, context.accountId, [lease.id]);
 		redirect(303, `/vertraege/${lease.id}`);
 	}
 };

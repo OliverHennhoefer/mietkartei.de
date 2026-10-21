@@ -93,6 +93,10 @@
 	<dd>{operatingCostModelLabels[lease.operatingCostModel]}</dd>
 	<dt>Heizkosten</dt>
 	<dd>{heatingCostModelLabels[lease.heatingCostModel]}</dd>
+	<dt>Fälligkeit</dt>
+	<dd>am {lease.rentDueDay}. Werktag des Monats</dd>
+	<dt>Mietkonto führen ab</dt>
+	<dd>{formatDate(lease.ledgerStart ?? lease.startDate)}</dd>
 	{#if lease.notes}
 		<dt>Notizen</dt>
 		<dd class="notes">{lease.notes}</dd>
@@ -110,6 +114,18 @@
 	<dt>Gesamtmiete</dt>
 	<dd><strong><Money cents={data.currentRent.total} /></strong></dd>
 </dl>
+
+<h2>Saldo</h2>
+<p aria-label="Saldo">
+	{#if data.balance > 0}
+		Rückstand <strong><Money cents={data.balance} /></strong>
+	{:else if data.balance < 0}
+		Guthaben <strong><Money cents={-data.balance} /></strong>
+	{:else}
+		Ausgeglichen
+	{/if}
+	· <a href="/vertraege/{lease.id}/mietkonto">Mietkonto</a>
+</p>
 
 <h2>Kaution</h2>
 <p aria-label="Kaution">
@@ -205,7 +221,7 @@
 	<ConfirmButton
 		action="?/end"
 		label="Vertrag beenden"
-		message="Den Vertrag wirklich zu diesem Datum beenden?"
+		message="Den Vertrag wirklich zu diesem Datum beenden? Die Sollstellungen nach dem Vertragsende entfallen."
 		tone="primary"
 	>
 		<div class="card form end-form">
@@ -215,9 +231,9 @@
 					eines Quartals eingeht, beendet den Vertrag zum Ende des nächsten Quartals.
 				{:else}
 					Das Vertragsende folgt § 573c BGB: Eine Kündigung, die bis zum dritten Werktag eines
-					Monats eingeht (der Samstag zählt mit), beendet den Vertrag zum Ende des übernächsten
-					Monats. Bei einer Kündigung durch den Vermieter verlängert sich die Frist nach fünf und
-					acht Jahren Mietdauer um drei und sechs Monate.
+					Monats eingeht (der Samstag zählt mit, bundesweite Feiertage nicht), beendet den Vertrag
+					zum Ende des übernächsten Monats. Bei einer Kündigung durch den Vermieter verlängert sich
+					die Frist nach fünf und acht Jahren Mietdauer um drei und sechs Monate.
 				{/if}
 				Das Datum passt sich an, wenn du Eingang oder Partei änderst.
 			</p>
@@ -271,7 +287,7 @@
 
 <h2>Löschen</h2>
 <p class="muted small">
-	Ein Vertrag ohne Kautionsbewegungen lässt sich löschen; sonst beende ihn, damit die Historie
+	Ein Vertrag ohne Zahlungen und Buchungen lässt sich löschen; sonst beende ihn, damit die Historie
 	bleibt.
 </p>
 <ConfirmButton

@@ -1,7 +1,8 @@
 import { and, asc, eq } from 'drizzle-orm';
-import { addMonthsToMonth, formatDate, monthOf, type IsoDate, type IsoMonth } from '../dates';
+import { addMonthsToMonth, formatDate, monthOf, type IsoDate } from '../dates';
 import { depositTransactionKindLabels } from '../labels';
 import { distributeCents, formatCents } from '../money';
+import { nthWorkingDay } from '../working-days';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
@@ -141,14 +142,16 @@ export async function deleteDepositMovement(
 	return 'deleted';
 }
 
-/** An instalment and the month of the rent it is paid with; the first one is due at the start. */
-export type DepositInstalment = { month: IsoMonth; amount: number };
+export type DepositInstalment = { dueDate: IsoDate; amount: number };
 
 /**
- * § 551 Abs. 2 BGB: a residential tenant may pay the deposit in three instalments, the first at
- * the start of the tenancy, the others with the two following rents. The amounts split the agreed
- * deposit to the cent over the month the lease starts in and the two after it. Empty for
- * commercial and parking leases, for a lease without a deposit, and for an unknown lease.
+ * § 551 Abs. 2 BGB: a residential tenant may pay the deposit in three equal monthly instalments,
+ * the first at the start of the tenancy, the others with the two following rents. The dates are
+ * the rent due days of the first three months of the lease (the n-th working day, as in the
+ * ledger, from the start date even when the ledger starts later and whatever the end date or the
+ * rent history), the first one not before the start date; the amounts split the agreed deposit to
+ * the cent. Empty for commercial and parking leases, for a lease without a deposit, and for an
+ * unknown lease.
  */
 export async function instalmentDeadlines(
 	db: Database,
@@ -158,8 +161,13 @@ export async function instalmentDeadlines(
 	const lease = await getLease(db, accountId, leaseId);
 	if (!lease || lease.kind !== 'residential' || lease.securityDeposit <= 0) return [];
 	const amounts = distributeCents(lease.securityDeposit, [1, 1, 1]);
-	return amounts.map((amount, index) => ({
-		month: addMonthsToMonth(monthOf(lease.startDate), index),
-		amount
-	}));
+	return amounts.map((amount, index) => {
+		const dueDate = nthWorkingDay(
+			addMonthsToMonth(monthOf(lease.startDate), index),
+			lease.rentDueDay
+		);
+		// The first instalment is due at the start of the tenancy, never before it (a lease starting
+		// on the 15th has its first rent due on the 3rd working day of the month).
+		return { dueDate: dueDate < lease.startDate ? lease.startDate : dueDate, amount };
+	});
 }

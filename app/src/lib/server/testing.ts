@@ -94,6 +94,8 @@ export function leaseInput(unitId: string, overrides: Partial<LeaseInput> = {}):
 		heatingCostPrepayment: 5000,
 		securityDeposit: 180000,
 		persons: 2,
+		rentDueDay: 3,
+		ledgerStart: null,
 		terminatedAt: null,
 		terminatedBy: null,
 		notes: null,

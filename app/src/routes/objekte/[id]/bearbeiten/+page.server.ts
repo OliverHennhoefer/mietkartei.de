@@ -32,7 +32,7 @@ export const actions: Actions = {
 					lease.extraUnits.some((unit) => unit.propertyId === params.id)
 			);
 			return fail(400, {
-				deleteError: `Das Objekt kann nicht gelöscht werden, solange Mietverträge auf seinen Einheiten liegen, auch beendete: Sie bleiben mit ihrer Geschichte erhalten. ${leases.length === 1 ? 'Es liegt' : 'Es liegen'} ${pluralize(leases.length, 'Mietvertrag', 'Mietverträge')} darauf; einen Mietvertrag ohne Kautionsbewegungen kannst du auf seiner Seite löschen.`,
+				deleteError: `Das Objekt kann nicht gelöscht werden, solange Mietverträge auf seinen Einheiten liegen, auch beendete: Sie bleiben mit Mietkonto und Kaution erhalten. ${leases.length === 1 ? 'Es liegt' : 'Es liegen'} ${pluralize(leases.length, 'Mietvertrag', 'Mietverträge')} darauf; einen Mietvertrag ohne Zahlungen, Korrekturen und Kautionsbewegungen kannst du auf seiner Seite löschen.`,
 				blockingLeases: leases.map((lease) => ({
 					id: lease.id,
 					label: `${lease.unit.name}: ${

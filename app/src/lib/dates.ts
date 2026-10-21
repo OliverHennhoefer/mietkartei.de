@@ -5,12 +5,18 @@ export type IsoDate = string;
 export type IsoMonth = string;
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const ISO_MONTH = /^(\d{4})-(\d{2})$/;
 
 export function isIsoDate(value: string): boolean {
 	const match = ISO_DATE.exec(value);
 	if (!match) return false;
 	const [, year, month, day] = match.map(Number);
 	return month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth(year, month);
+}
+
+export function isIsoMonth(value: string): boolean {
+	const match = ISO_MONTH.exec(value);
+	return !!match && Number(match[2]) >= 1 && Number(match[2]) <= 12;
 }
 
 function parts(date: IsoDate): [number, number, number] {
@@ -50,8 +56,17 @@ export function weekday(date: IsoDate): number {
 	return toUtc(date).getUTCDay();
 }
 
-function daysInMonth(year: number, month: number): number {
+export function daysInMonth(year: number, month: number): number {
 	return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+export type DateRange = { start: IsoDate; end: IsoDate };
+
+/** The shared part of two closed ranges, or undefined when they do not overlap. */
+export function overlap(a: DateRange, b: DateRange): DateRange | undefined {
+	const start = a.start > b.start ? a.start : b.start;
+	const end = a.end < b.end ? a.end : b.end;
+	return start > end ? undefined : { start, end };
 }
 
 export function addDays(date: IsoDate, days: number): IsoDate {
@@ -82,8 +97,19 @@ export function lastOfMonth(month: IsoMonth): IsoDate {
 	return iso(year, monthNumber, daysInMonth(year, monthNumber));
 }
 
+export function monthRange(month: IsoMonth): DateRange {
+	return { start: firstOfMonth(month), end: lastOfMonth(month) };
+}
+
 export function addMonthsToMonth(month: IsoMonth, months: number): IsoMonth {
 	return monthOf(addMonths(firstOfMonth(month), months));
+}
+
+/** All months from `from` to `to`, both included, in order. Empty when `to` is earlier. */
+export function monthsInRange(from: IsoMonth, to: IsoMonth): IsoMonth[] {
+	const months: IsoMonth[] = [];
+	for (let month = from; month <= to; month = addMonthsToMonth(month, 1)) months.push(month);
+	return months;
 }
 
 export function formatDate(date: IsoDate): string {

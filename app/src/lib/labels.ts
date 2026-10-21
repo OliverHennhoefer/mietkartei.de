@@ -4,6 +4,7 @@ import type {
 	HeatingCostModel,
 	LeaseKind,
 	OperatingCostModel,
+	RentChargeKind,
 	RentModel,
 	TerminatedBy
 } from './server/db/schema';
@@ -48,4 +49,9 @@ export const depositTransactionKindLabels: Record<DepositTransactionKind, string
 	interest: 'Zinsen',
 	returned: 'Zurückgezahlt',
 	withheld: 'Einbehalten'
+};
+
+export const rentChargeKindLabels: Record<RentChargeKind, string> = {
+	rent: 'Miete',
+	adjustment: 'Korrektur'
 };

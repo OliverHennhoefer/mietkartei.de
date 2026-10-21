@@ -1,7 +1,9 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { depositWarning, parseLease } from '#lib/forms/leases.ts';
+import { firstOfMonth, monthOf, today } from '#lib/dates.ts';
+import { depositWarning, parseLease, parseOpeningBalance } from '#lib/forms/leases.ts';
 import { parseCents } from '#lib/money.ts';
 import { createLease, listUnitsWithProperty } from '#lib/server/leases.ts';
+import { ensureCharges } from '#lib/server/ledger.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -46,12 +48,27 @@ export const actions: Actions = {
 		const context = auditContext(locals);
 		const form = await request.formData();
 		const lease = parseLease(form);
-		if (!lease.ok) {
-			const values = lease.values;
-			return fail(400, { errors: lease.errors, values, depositWarning: warningFor(values) });
+		const opening = parseOpeningBalance(form);
+		if (!lease.ok || !opening.ok) {
+			const errors = {
+				...(lease.ok ? {} : lease.errors),
+				...(opening.ok ? {} : opening.errors)
+			};
+			// The whole form, so a refused opening balance alone does not empty the other fields.
+			const values = valuesOf(form);
+			return fail(400, { errors, values, depositWarning: warningFor(values) });
 		}
 
-		const result = await createLease(locals.db, context, lease.data);
+		// A lease entered after it began keeps its old months out of the ledger: the account starts
+		// with the current month unless the form says otherwise. A lease that began within the current
+		// month keeps its start date; a ledger start before the lease began would be refused.
+		const input = { ...lease.data };
+		const start = firstOfMonth(monthOf(today()));
+		if (input.ledgerStart === null && input.startDate < start) {
+			if (input.endDate === null || start <= input.endDate) input.ledgerStart = start;
+		}
+
+		const result = await createLease(locals.db, context, input, opening.data.openingBalance);
 		if (!result.ok) {
 			const values = valuesOf(form);
 			const errors =
@@ -60,6 +77,8 @@ export const actions: Actions = {
 					: { tenantIds: 'Einen der Mieter gibt es nicht.' };
 			return fail(400, { errors, values, depositWarning: warningFor(values) });
 		}
+
+		await ensureCharges(locals.db, context.accountId, [result.id]);
 		redirect(303, `/vertraege/${result.id}`);
 	}
 };

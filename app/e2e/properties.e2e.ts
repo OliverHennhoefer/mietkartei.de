@@ -244,7 +244,7 @@ test('deletes a unit without a lease and refuses the property while an ended lea
 	await page.getByRole('button', { name: 'Objekt löschen' }).click();
 	const refusal = page.getByRole('alert');
 	await expect(refusal).toContainText(
-		'Das Objekt kann nicht gelöscht werden, solange Mietverträge auf seinen Einheiten liegen, auch beendete: Sie bleiben mit ihrer Geschichte erhalten.'
+		'Das Objekt kann nicht gelöscht werden, solange Mietverträge auf seinen Einheiten liegen, auch beendete: Sie bleiben mit Mietkonto und Kaution erhalten.'
 	);
 	await expect(refusal).toContainText(/Es liegt 1\sMietvertrag darauf/);
 	await expect(
