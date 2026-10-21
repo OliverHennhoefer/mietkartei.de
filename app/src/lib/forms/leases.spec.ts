@@ -51,6 +51,7 @@ describe('parseLease', () => {
 			ledgerStart: '2026-06-01',
 			indexBaseMonth: '2025-12',
 			indexBaseValue: '121,4',
+			indexBaseYear: '2015',
 			terminatedAt: '2027-09-30',
 			terminatedBy: 'tenant',
 			notes: 'Büro im EG, Stellplätze inklusive.'
@@ -76,6 +77,7 @@ describe('parseLease', () => {
 				ledgerStart: '2026-06-01',
 				indexBaseMonth: '2025-12',
 				indexBaseValue: 121.4,
+				indexBaseYear: '2015',
 				terminatedAt: '2027-09-30',
 				terminatedBy: 'tenant',
 				notes: 'Büro im EG, Stellplätze inklusive.'
@@ -105,6 +107,7 @@ describe('parseLease', () => {
 				ledgerStart: null,
 				indexBaseMonth: null,
 				indexBaseValue: null,
+				indexBaseYear: '2020',
 				terminatedAt: null,
 				terminatedBy: null,
 				notes: null
@@ -215,6 +218,14 @@ describe('parseLease', () => {
 			indexBaseMonth: 'Bitte gib einen gültigen Monat an.',
 			indexBaseValue: 'Der Indexwert muss größer als 0 sein.'
 		});
+		expect(
+			errorsOf({
+				rentModel: 'indexed',
+				indexBaseMonth: '2025-12',
+				indexBaseValue: '121,4',
+				indexBaseYear: '20'
+			})
+		).toEqual({ indexBaseYear: 'Bitte gib das Basisjahr mit vier Ziffern an, z. B. 2020.' });
 	});
 
 	it('limits the notes', () => {
@@ -264,6 +275,7 @@ const current: LeaseInput = {
 	ledgerStart: null,
 	indexBaseMonth: null,
 	indexBaseValue: null,
+	indexBaseYear: '2020',
 	terminatedAt: null,
 	terminatedBy: null,
 	notes: null

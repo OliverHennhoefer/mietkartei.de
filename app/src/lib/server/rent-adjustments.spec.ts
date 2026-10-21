@@ -1,10 +1,10 @@
 import { asc, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { today } from '../dates';
+import { addMonthsToMonth, firstOfMonth, monthOf, today } from '../dates';
 import { effectiveFrom } from '../domain/index-rent';
 import type { Database } from './db';
 import { auditLog, rentCharges } from './db/schema';
-import { createLease } from './leases';
+import { createLease, getLease, leaseInputOf, updateLease } from './leases';
 import { ensureCharges } from './ledger';
 import {
 	addGraduatedStep,
@@ -131,7 +131,9 @@ describe('proposeIndexChange and approveChange', () => {
 			status: 'proposed',
 			indexMonth: '2026-01',
 			indexValue: 124.3,
+			indexBaseYear: '2020',
 			letterText: null,
+			letterTable: null,
 			deliveredOn: null,
 			createdBy: 'user-a'
 		});
@@ -190,6 +192,61 @@ describe('proposeIndexChange and approveChange', () => {
 		});
 		const [, change] = await listRentChanges(db, 'a', lease.id);
 		expect(change).toMatchObject({ status: 'approved', validFrom: '2026-11-01' });
+	});
+
+	it('refuses to approve a proposal whose basis changed since it was made', async () => {
+		// A commercial lease approves at once. After the proposal of 630,96 €, a manual change to
+		// 650,00 € takes effect before the proposal would: 630,96 € would now be a decrease.
+		await seedValues();
+		const { unitId: office } = await seedUnit(db, 'a', { name: 'Büro' });
+		const lease = await createLease(
+			db,
+			contextA,
+			leaseInput(office, { ...indexed, kind: 'commercial' })
+		);
+		if (!lease.ok) throw new Error('setup failed');
+		const proposed = await proposeIndexChange(db, contextA, lease.id);
+		const changeId = proposed?.ok ? proposed.id : '';
+		const nextMonth = firstOfMonth(addMonthsToMonth(monthOf(today()), 1));
+		await manualChange(db, contextA, lease.id, {
+			validFrom: nextMonth,
+			baseRent: 65000,
+			operatingCostPrepayment: 15000,
+			heatingCostPrepayment: 5000,
+			reason: 'manual',
+			note: null
+		});
+		const validFrom = effectiveFrom(today());
+		expect(
+			await approveChange(db, contextA, lease.id, changeId, { deliveredOn: today(), validFrom })
+		).toEqual({
+			ok: false,
+			message: `Die Kaltmiete oder der Bezugsindex zum ${validFrom.split('-').reverse().join('.')} hat sich seit dem Vorschlag geändert. Lösche den Vorschlag und lass ihn neu berechnen.`
+		});
+		const changes = await listRentChanges(db, 'a', lease.id);
+		expect(changes.find((change) => change.id === changeId)?.status).toBe('proposed');
+	});
+
+	it('refuses VPI values of another base year than the lease reference', async () => {
+		// The lease's reference January 2024 = 118,2 is on base 2020; the account only has a
+		// value on base 2025, which cannot be divided by it.
+		await addIndexValue(db, contextA, { month: '2026-01', value: 104.1, baseYear: '2025' });
+		expect(await proposeIndexChange(db, contextA, leaseId)).toEqual({
+			ok: false,
+			message:
+				'Der Bezugsindex beruht auf dem Basisjahr 2020, die VPI-Werte auf dem Basisjahr 2025. ' +
+				'Trage die VPI-Werte zum Basisjahr 2020 ein oder den Bezugsindex umgerechnet im Mietvertrag.'
+		});
+		// With the reference on base 2025 the proposal is made and records the base year.
+		const lease = await getLease(db, 'a', leaseId);
+		await updateLease(db, contextA, leaseId, {
+			...leaseInputOf(lease!),
+			indexBaseValue: 100.2,
+			indexBaseYear: '2025'
+		});
+		expect((await proposeIndexChange(db, contextA, leaseId))?.ok).toBe(true);
+		const [, proposal] = await listRentChanges(db, 'a', leaseId);
+		expect(proposal).toMatchObject({ indexValue: 104.1, indexBaseYear: '2025' });
 	});
 
 	it('refuses without VPI values and names the reason', async () => {
@@ -453,6 +510,32 @@ describe('indexLetter', () => {
 			['Gesamtmiete', '800,00 €', '830,96 €']
 		]);
 		expect(letter.closing).toEqual(['Mit freundlichen Grüßen', '', 'Konto A']);
+	});
+
+	it('keeps the approved figures when the history is corrected later', async () => {
+		await seedValues();
+		const proposed = await proposeIndexChange(db, contextA, leaseId);
+		const changeId = proposed?.ok ? proposed.id : '';
+		await approveChange(db, contextA, leaseId, changeId, {
+			deliveredOn: '2026-10-15',
+			validFrom: null
+		});
+		const before = (await indexLetter(db, 'a', leaseId, changeId))!.letter;
+		// The initial rent and the index base are corrected after the letter went out.
+		const lease = await getLease(db, 'a', leaseId);
+		const updated = await updateLease(db, contextA, leaseId, {
+			...leaseInputOf(lease!),
+			baseRent: 59000,
+			indexBaseValue: 117
+		});
+		expect(updated.ok).toBe(true);
+		const after = (await indexLetter(db, 'a', leaseId, changeId))!.letter;
+		expect(after.paragraphs).toEqual(before.paragraphs);
+		expect(after.tables?.[0].rows).toEqual([
+			['Verbraucherpreisindex', '118,2 (Januar 2024)', '124,3 (Januar 2026)'],
+			['Kaltmiete', '600,00 €', '630,96 €'],
+			['Gesamtmiete', '800,00 €', '830,96 €']
+		]);
 	});
 
 	it('does not leak into another account', async () => {

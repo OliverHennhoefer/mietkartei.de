@@ -47,7 +47,8 @@ test('saves the landlord sender block, which the letters print', async ({ page }
 			reason: 'indexed',
 			status: 'approved',
 			deliveredOn: '2026-01-10',
-			letterText: 'Sehr geehrte Frau Muster,\n\ndie Kaltmiete steigt nach dem Index.'
+			letterText: 'Sehr geehrte Frau Muster,\n\ndie Kaltmiete steigt nach dem Index.',
+			letterTable: [['Kaltmiete', '600,00 €', '620,00 €']]
 		}
 	]);
 	const response = await page.request.get(

@@ -103,7 +103,7 @@
 		<dd>
 			{formatMonth(lease.indexBaseMonth)}{#if lease.indexBaseValue !== null}: {formatIndexValue(
 					lease.indexBaseValue
-				)}{/if}
+				)} (Basisjahr {lease.indexBaseYear}){/if}
 		</dd>
 	{/if}
 	{#if lease.notes}

@@ -203,12 +203,13 @@
 				{/if}
 			</dd>
 		{/if}
-		{#if situation.proposal && current}
+		{#if situation.proposal}
 			<dt>Rechnung</dt>
 			<dd>
-				{formatCents(current.baseRent)} × {formatIndexValue(situation.proposal.latest.value)} ÷ {formatIndexValue(
-					situation.proposal.reference.value
-				)} = <strong>{formatCents(situation.proposal.newBaseRent)}</strong>
+				{formatCents(situation.proposal.currentBaseRent)} × {formatIndexValue(
+					situation.proposal.latest.value
+				)} ÷ {formatIndexValue(situation.proposal.reference.value)} =
+				<strong>{formatCents(situation.proposal.newBaseRent)}</strong>
 				({formatPercent(situation.proposal.percent)}, {situation.proposal.increase >= 0
 					? '+'
 					: ''}{formatCents(situation.proposal.increase)})
