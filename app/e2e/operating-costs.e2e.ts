@@ -156,6 +156,156 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 	await expect(page.getByText('Für 2025 sind noch keine Belege erfasst.')).toBeVisible();
 });
 
+test('edits and deletes categories, keys, circles, cost items, meters and readings', async ({
+	page
+}) => {
+	acceptDialogs(page);
+	const tag = crypto.randomUUID().slice(0, 6);
+	const propertyName = `Änderungshaus ${tag}`;
+	const unitName = `Wohnung OG ${tag}`;
+	const { propertyId } = await seedLease(page.request, {
+		property: { name: propertyName },
+		unit: { name: unitName }
+	});
+
+	// A category of its own, renamed on its page.
+	const categoryName = `Gartenpflege extra ${tag}`;
+	await page.goto('/betriebskosten/kostenarten');
+	await page.getByLabel('Bezeichnung').fill(`${categoryName} alt`);
+	await page.getByRole('button', { name: 'Kostenart anlegen' }).click();
+	await expect(page).toHaveURL(/\/betriebskosten\/kostenarten$/);
+	const categories = page.getByRole('table', { name: 'Kostenarten' });
+	await categories.getByRole('link', { name: `${categoryName} alt` }).click();
+	await expect(page).toHaveURL(/\/betriebskosten\/kostenarten\/[0-9a-f-]+$/);
+	const categoryUrl = page.url();
+	await page.getByLabel('Bezeichnung').fill(categoryName);
+	await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+	await expect(page).toHaveURL(/\/betriebskosten\/kostenarten$/);
+	await expect(categories.getByRole('link', { name: categoryName, exact: true })).toBeVisible();
+	await expect(categories).not.toContainText(`${categoryName} alt`);
+
+	// A custom key of the property, renamed on its page.
+	const keyName = `Gartenanteile ${tag}`;
+	await page.goto('/betriebskosten/schluessel');
+	await page.getByLabel('Bezeichnung').fill(`${keyName} alt`);
+	await page.getByRole('combobox', { name: 'Art', exact: true }).selectOption('custom');
+	await page.getByRole('combobox', { name: 'Objekt' }).selectOption({ label: propertyName });
+	await page.getByRole('button', { name: 'Umlageschlüssel anlegen' }).click();
+	await expect(page).toHaveURL(/\/betriebskosten\/schluessel\/[0-9a-f-]+$/);
+	const keyUrl = page.url();
+	await page.getByLabel('Bezeichnung').fill(keyName);
+	await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+	await expect(page).toHaveURL(keyUrl);
+	await expect(page.getByRole('heading', { level: 2, name: keyName, exact: true })).toBeVisible();
+
+	// A cost item with both.
+	await page.goto(`/betriebskosten/belege/neu?property=${propertyId}&year=2025`);
+	await page.getByRole('combobox', { name: 'Kostenart' }).selectOption({ label: categoryName });
+	await page.getByRole('combobox', { name: 'Umlageschlüssel' }).selectOption({ label: keyName });
+	await page
+		.getByRole('combobox', { name: 'Abrechnungskreis' })
+		.selectOption({ label: 'Alle Einheiten des Objekts' });
+	const description = `Gartenpflege 2025 ${tag}`;
+	await page.getByLabel('Beschreibung').fill(description);
+	await page.getByLabel('Rechnungsdatum').fill('2025-06-30');
+	await page.getByLabel('Betrag in €').fill('250,00');
+	await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+	await expect(page).toHaveURL(/\/betriebskosten\/belege\/[0-9a-f-]+$/);
+	const itemUrl = page.url();
+
+	// While the item uses them, the category and the key are not deleted; the refusal counts it.
+	await page.goto(categoryUrl);
+	await page.getByRole('button', { name: 'Kostenart löschen' }).click();
+	await expect(page.getByRole('alert')).toContainText(
+		/Die Kostenart wird von 1\sBeleg verwendet und kann nicht gelöscht werden\./
+	);
+	await page.goto(keyUrl);
+	await page.getByRole('button', { name: 'Umlageschlüssel löschen' }).click();
+	await expect(page.getByRole('alert')).toContainText(
+		/Der Umlageschlüssel wird von 1\sBeleg verwendet und kann nicht gelöscht werden\./
+	);
+
+	// The item is edited to amounts per unit, which are entered on its page.
+	await page.goto(itemUrl);
+	await page
+		.getByRole('combobox', { name: 'Umlageschlüssel' })
+		.selectOption({ label: 'Beträge je Einheit' });
+	await page.getByLabel('Betrag in €').fill('300,00');
+	await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+	await expect(page).toHaveURL(itemUrl);
+	const details = page.locator('dl.details');
+	await expect(details).toContainText('Beträge je Einheit');
+	await expect(details).toContainText('300,00 €');
+	await page.getByLabel(`${unitName} in €`).fill('300,00');
+	await page.getByRole('button', { name: 'Beträge speichern' }).click();
+	await expect(page.getByText('Die Beträge wurden gespeichert.')).toBeVisible();
+	await expect(page.getByLabel(`${unitName} in €`)).toHaveValue('300,00');
+	await expect(page.getByText(/Summe der Beträge:\s300,00\s€ von 300,00\s€\./)).toBeVisible();
+
+	// The key is free now and goes; then the item, then the category.
+	await page.goto(keyUrl);
+	await page.getByRole('button', { name: 'Umlageschlüssel löschen' }).click();
+	await expect(page).toHaveURL(/\/betriebskosten\/schluessel$/);
+	await expect(page.getByRole('table', { name: 'Umlageschlüssel' })).not.toContainText(keyName);
+	await page.goto(itemUrl);
+	await page.getByRole('button', { name: 'Beleg löschen' }).click();
+	await expect(page).toHaveURL(/\/betriebskosten\/belege\?/);
+	await page.goto(categoryUrl);
+	await page.getByRole('button', { name: 'Kostenart löschen' }).click();
+	await expect(page).toHaveURL(/\/betriebskosten\/kostenarten$/);
+	await expect(categories).not.toContainText(categoryName);
+
+	// A circle, renamed on its page (it keeps at least one unit), then deleted.
+	await page.goto(`/objekte/${propertyId}/abrechnungskreise`);
+	await page.getByLabel('Bezeichnung').fill(`Haus B ${tag}`);
+	await page.getByLabel(unitName).check();
+	await page.getByRole('button', { name: 'Abrechnungskreis anlegen' }).click();
+	const circles = page.getByRole('list', { name: 'Abrechnungskreise' });
+	await circles.getByRole('link', { name: `Haus B ${tag}` }).click();
+	await expect(page).toHaveURL(/\/abrechnungskreise\/[0-9a-f-]+$/);
+	const circleUrl = page.url();
+	await page.getByLabel('Bezeichnung').fill(`Haus C ${tag}`);
+	await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+	await expect(page).toHaveURL(new RegExp(`/objekte/${propertyId}/abrechnungskreise$`));
+	await expect(circles.getByRole('listitem')).toHaveCount(1);
+	await expect(circles).toContainText(`Haus C ${tag}`);
+	await expect(circles).not.toContainText(`Haus B ${tag}`);
+	await expect(circles).toContainText(unitName);
+	await page.goto(circleUrl);
+	await page.getByRole('button', { name: 'Abrechnungskreis löschen' }).click();
+	await expect(page.getByText('Dieses Objekt hat noch keine Abrechnungskreise.')).toBeVisible();
+
+	// A meter: a reading entered and deleted, the meter removed, then deleted.
+	await page.goto(`/objekte/${propertyId}/zaehler`);
+	await page
+		.getByRole('combobox', { name: 'Einheit', exact: true })
+		.selectOption({ label: unitName });
+	await page.getByRole('combobox', { name: 'Art', exact: true }).selectOption('cold_water');
+	await page.getByLabel('Zählernummer (optional)').fill(`KW-${tag}`);
+	await page.getByRole('button', { name: 'Zähler anlegen' }).click();
+	await expect(page).toHaveURL(/\/zaehler\?meter=[0-9a-f-]+$/);
+	const readings = page.getByRole('region', { name: 'Zählerstände' });
+	await readings.getByLabel('Abgelesen am').fill('2025-01-01');
+	await readings.getByLabel(/^Stand in/).fill('12,5');
+	await readings.getByRole('button', { name: 'Zählerstand erfassen' }).click();
+	await expect(readings.getByRole('table')).toContainText('01.01.2025');
+	await readings.getByRole('table').getByRole('button', { name: 'Löschen' }).click();
+	await expect(readings).toContainText('Noch kein Zählerstand erfasst.');
+
+	await readings.getByLabel('Ausgebaut am').fill('2025-06-30');
+	await readings.getByRole('button', { name: 'Zähler ausbauen' }).click();
+	const meters = page.getByRole('table', { name: `Zähler ${unitName}` });
+	const meterRow = meters.getByRole('row').filter({ hasText: `KW-${tag}` });
+	await expect(meterRow).toContainText('30.06.2025');
+	await meterRow.getByRole('link', { name: 'Stände' }).click();
+	await page
+		.getByRole('region', { name: 'Zählerstände' })
+		.getByRole('button', { name: 'Zähler löschen' })
+		.click();
+	await expect(page).toHaveURL(new RegExp(`/objekte/${propertyId}/zaehler$`));
+	await expect(page.getByText('Dieses Objekt hat noch keine Zähler.')).toBeVisible();
+});
+
 test('answers an unknown cost item with 404', async ({ page }) => {
 	const response = await page.goto('/betriebskosten/belege/does-not-exist');
 	expect(response?.status()).toBe(404);
