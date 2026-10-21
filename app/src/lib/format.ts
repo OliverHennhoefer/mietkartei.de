@@ -2,9 +2,10 @@
 
 const number = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 });
 
-/** `72.5` → `72,5`. */
-export function formatNumber(value: number): string {
-	return number.format(value);
+/** `72.5` → `72,5`; at most `fractionDigits` decimals (2 by default). */
+export function formatNumber(value: number, fractionDigits = 2): string {
+	if (fractionDigits === 2) return number.format(value);
+	return new Intl.NumberFormat('de-DE', { maximumFractionDigits: fractionDigits }).format(value);
 }
 
 /** `72.5` → `72,5 m²`. */

@@ -88,7 +88,23 @@ export function daysInMonth(year: number, month: number): number {
 	return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
+/** Days from `from` to `to`, negative when `to` is earlier. Same day = 0. */
+export function daysBetween(from: IsoDate, to: IsoDate): number {
+	return Math.round((toUtc(to).getTime() - toUtc(from).getTime()) / 86_400_000);
+}
+
+/** Days in the closed range from `from` to `to`, both included. Same day = 1. */
+export function daysInclusive(from: IsoDate, to: IsoDate): number {
+	return Math.max(0, daysBetween(from, to) + 1);
+}
+
 export type DateRange = { start: IsoDate; end: IsoDate };
+
+/** Days both closed ranges share. 0 when they do not overlap. */
+export function overlapDays(a: DateRange, b: DateRange): number {
+	const shared = overlap(a, b);
+	return shared ? daysInclusive(shared.start, shared.end) : 0;
+}
 
 /** The shared part of two closed ranges, or undefined when they do not overlap. */
 export function overlap(a: DateRange, b: DateRange): DateRange | undefined {

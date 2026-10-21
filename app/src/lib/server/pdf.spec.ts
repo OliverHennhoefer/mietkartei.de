@@ -15,6 +15,7 @@ const letter: Letter = {
 };
 
 const costTable: PdfTable = {
+	title: 'Kostenaufstellung',
 	columns: [
 		{ label: 'Kostenart' },
 		{ label: 'Schlüssel', width: 0.2 },
@@ -24,7 +25,8 @@ const costTable: PdfTable = {
 	rows: [
 		['Grundsteuer', 'Wohnfläche', '1.200,00 €', '393,00 €'],
 		['Wasser und Abwasser', 'Personen', '2.400,50 €', '800,17 €']
-	]
+	],
+	footer: ['Summe', '', '3.600,50 €', '1.193,17 €']
 };
 
 // The WinAnsi block 0x80–0x9F (`?` where the encoding has no character); all other bytes are Latin-1.
@@ -69,8 +71,8 @@ describe('renderLetter', () => {
 		expect(pages[0]).toContain('Berlin, 15.03.2026');
 		expect(pages[0]).toContain('Betriebskostenabrechnung 2025');
 		expect(pages[0]).toContain('Der Betrag ist bis zum 15.04.2026 fällig.');
-		expect(pages[0]).toContain('Dein Anteil');
-		expect(pages[0]).toContain('800,17 €');
+		expect(pages[0]).toContain('Kostenaufstellung');
+		expect(pages[0]).toContain('1.193,17 €');
 		expect(pages[0]).toContain('Mit freundlichen Grüßen');
 		expect(pages[0]).toContain('Seite 1 von 1');
 	});
@@ -94,10 +96,29 @@ describe('renderLetter', () => {
 			expect(page).toContain('Kostenart');
 			expect(page.indexOf('Kostenart')).toBeLessThan(page.indexOf('Position '));
 		}
-		// Every row is on exactly one page, in order, and the closing follows the table.
+		// Every row is on exactly one page, in order, and the sum row closes the table.
 		const all = pages.join('');
 		expect(all.match(/Position \d+\n/g)).toHaveLength(90);
-		expect(all.indexOf('Position 90')).toBeLessThan(all.indexOf('Mit freundlichen Grüßen'));
+		expect(all.indexOf('Position 90')).toBeLessThan(all.indexOf('Summe'));
+		expect(all).toContain('Mit freundlichen Grüßen');
+	});
+
+	it('keeps blocks in the given order', async () => {
+		const { pages } = await renderAndLoad({
+			...letter,
+			paragraphs: ['Dieser Absatz wird ignoriert.'],
+			blocks: [
+				{ paragraph: 'Erster Absatz.' },
+				{ table: { ...costTable, title: 'Tabelle A' } },
+				{ paragraph: 'Text zwischen den Tabellen.' },
+				{ table: { ...costTable, title: 'Tabelle B' } }
+			]
+		});
+		const text = pages.join('');
+		expect(text).not.toContain('ignoriert');
+		expect(text.indexOf('Erster Absatz.')).toBeLessThan(text.indexOf('Tabelle A'));
+		expect(text.indexOf('Tabelle A')).toBeLessThan(text.indexOf('Text zwischen den Tabellen.'));
+		expect(text.indexOf('Text zwischen den Tabellen.')).toBeLessThan(text.indexOf('Tabelle B'));
 	});
 
 	it('wraps long paragraphs and words without throwing', async () => {
