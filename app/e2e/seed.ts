@@ -1,10 +1,10 @@
-import type { APIRequestContext } from '@playwright/test';
-import type { SeedLeaseOverrides, SeedLeaseResult } from '../src/lib/server/e2e-seed';
+import type { APIRequestContext, BrowserContext } from '@playwright/test';
+import type { SeedLeaseOverrides, SeedLeaseResult, SeedUser } from '../src/lib/server/e2e-seed';
 
 /**
  * Seed what you do not own, drive only your own pages. A feature's end-to-end test creates its
  * prerequisites through these helpers (a lease with property, unit and tenant; rows of tables
- * other features define) instead of clicking through other features' pages, so
+ * other features define; a second user) instead of clicking through other features' pages, so
  * it keeps working when those pages change. Everything lands in the owner's account; seeded
  * names carry a random suffix, so repeated calls do not collide. Pass `page.request`.
  */
@@ -56,4 +56,22 @@ export async function seedRows(
 /** Deletes the owner's rows of the named tables, in the order given (children before parents). */
 export async function clearTables(request: APIRequestContext, tables: string[]): Promise<void> {
 	await post(request, { op: 'clear', tables });
+}
+
+/** A second user of the owner's account, who can sign in with the given password. */
+export async function seedUser(
+	request: APIRequestContext,
+	user: SeedUser
+): Promise<{ id: string }> {
+	return (await post(request, { op: 'user', ...user })) as { id: string };
+}
+
+/**
+ * Signs a seeded user in on the browser context, with a session as the sign-in form creates it.
+ * Tests that are not about signing in use this: the whole run may post only a few sign-ins
+ * before the rate limit of the test client applies (see playwright.config.ts).
+ */
+export async function signInAs(context: BrowserContext, userId: string, baseURL: string) {
+	const { token } = (await post(context.request, { op: 'session', userId })) as { token: string };
+	await context.addCookies([{ name: 'session', value: token, url: baseURL }]);
 }
