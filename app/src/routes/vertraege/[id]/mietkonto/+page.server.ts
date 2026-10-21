@@ -20,8 +20,12 @@ import type { Actions, PageServerLoad } from './$types';
 // only ever post to params.id.
 
 export type LedgerRow = LedgerLine & {
-	/** A payment or an adjustment: the landlord may delete it here. */
+	/** A manual payment or an adjustment: the landlord may delete it here. */
 	deletable: boolean;
+	/** A payment assigned from a bank transaction: undone under /bank, not here. */
+	fromBank: boolean;
+	/** The bank transaction of such a payment, for the link to it on /bank. */
+	bankTransactionId: string | null;
 };
 
 export const load: PageServerLoad = async ({ locals, parent, url }) => {
@@ -46,10 +50,13 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 	const carried = ledger.balance - ledger.charged + ledger.paid;
 	const rows: LedgerRow[] = shown.map((line) => {
 		const detail = details[line.id];
+		const fromBank = detail?.kind === 'payment' && detail.source === 'bank';
 		const deletable =
-			detail?.kind === 'payment' ||
+			(detail?.kind === 'payment' && detail.source === 'manual') ||
 			(detail?.kind === 'charge' && detail.chargeKind === 'adjustment');
-		return { ...line, deletable };
+		const bankTransactionId =
+			detail?.kind === 'payment' && fromBank ? detail.bankTransactionId : null;
+		return { ...line, deletable, fromBank, bankTransactionId };
 	});
 
 	const currentDate = today();
@@ -68,6 +75,8 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 	};
 };
 
+const bankPaymentMessage =
+	'Diese Zahlung stammt aus einem Umsatz. Hebe die Zuordnung unter Bank beim Umsatz auf (Status „Zugeordnet“), dann verschwindet sie auch hier.';
 const chargeMessage =
 	'Nur Korrekturen lassen sich hier löschen. Mieten folgen aus dem Vertrag; ändere dazu den Vertrag oder buche eine Korrektur.';
 
@@ -86,6 +95,7 @@ export const actions: Actions = {
 			leaseId: params.id,
 			date: result.data.date,
 			amount: result.data.amount,
+			source: 'manual',
 			note: result.data.note
 		});
 		if (!id) error(404, 'Diesen Mietvertrag gibt es nicht.');
@@ -120,6 +130,7 @@ export const actions: Actions = {
 		if (!detail || detail.kind !== 'payment') {
 			return fail(400, { message: 'Diese Zahlung gibt es nicht mehr.' });
 		}
+		if (detail.source === 'bank') return fail(400, { message: bankPaymentMessage });
 		if (!(await deletePayment(locals.db, context, id))) {
 			return fail(400, { message: 'Diese Zahlung gibt es nicht mehr.' });
 		}

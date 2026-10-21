@@ -11,7 +11,8 @@ import { getLease } from './leases';
 
 // The deposit ledger (Kaution) of a lease, kept apart from the rent. Amounts are signed from the
 // deposit's point of view: received and interest add to it (positive), returned and withheld
-// take from it (negative). The Kaution tab books them by hand.
+// take from it (negative). The Kaution tab books them by hand, the banking feature from bank
+// transactions.
 
 export type DepositMovement = typeof depositTransactions.$inferSelect;
 
@@ -103,13 +104,17 @@ export async function addDepositMovement(
 	return id;
 }
 
-/** Deletes a movement of the lease with its audit entry; a movement of another lease is missing. */
+/**
+ * Deletes a movement of the lease with its audit entry; a movement of another lease is missing.
+ * A movement assigned from a bank transaction is undone by the banking feature, which also
+ * resets the transaction; deleting it here would leave the transaction marked as matched.
+ */
 export async function deleteDepositMovement(
 	db: Database,
 	context: AuditContext,
 	leaseId: string,
 	movementId: string
-): Promise<'deleted' | 'missing'> {
+): Promise<'deleted' | 'from-bank' | 'missing'> {
 	const [movement] = await db
 		.select()
 		.from(depositTransactions)
@@ -121,6 +126,7 @@ export async function deleteDepositMovement(
 			)
 		);
 	if (!movement) return 'missing';
+	if (movement.bankTransactionId) return 'from-bank';
 	await runBatch(db, [
 		db
 			.delete(depositTransactions)

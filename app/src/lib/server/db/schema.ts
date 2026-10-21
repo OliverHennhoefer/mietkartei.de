@@ -29,6 +29,9 @@ const accountId = () =>
 		.notNull()
 		.references(() => accounts.id, { onDelete: 'cascade' });
 
+const bool = (name: string, fallback: boolean) =>
+	integer(name, { mode: 'boolean' }).notNull().default(fallback);
+
 export const accounts = sqliteTable('accounts', {
 	id: id(),
 	name: text('name').notNull(),
@@ -292,7 +295,7 @@ export const rentChanges = sqliteTable(
 export const depositTransactionKinds = ['received', 'interest', 'returned', 'withheld'] as const;
 export type DepositTransactionKind = (typeof depositTransactionKinds)[number];
 
-/** Kaution: movements on the deposit, kept apart from the rent. Positive = received. */
+/** Kaution: movements on the deposit, kept apart from the rent ledger. Positive = received. */
 export const depositTransactions = sqliteTable(
 	'deposit_transactions',
 	{
@@ -305,9 +308,20 @@ export const depositTransactions = sqliteTable(
 		amount: integer('amount').notNull(),
 		kind: text('kind', { enum: depositTransactionKinds }).notNull(),
 		note: text('note'),
+		/**
+		 * Set when the movement was assigned from a bank transaction. No delete action: SQLite adds
+		 * the column with a bare REFERENCES, and a referenced transaction is never deleted (undo
+		 * deletes the movement first, a bank account with matched transactions is kept).
+		 */
+		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id),
 		createdAt: createdAt()
 	},
-	(table) => [index('deposit_transactions_lease_id_idx').on(table.leaseId)]
+	(table) => [
+		index('deposit_transactions_lease_id_idx').on(table.leaseId),
+		uniqueIndex('deposit_transactions_bank_transaction_unique')
+			.on(table.bankTransactionId)
+			.where(sql`${table.bankTransactionId} is not null`)
+	]
 );
 
 /** Verbraucherpreisindex values entered per account, for indexed rents. */
@@ -367,7 +381,13 @@ export const rentCharges = sqliteTable(
 	]
 );
 
-/** Zahlung: money received for a lease. Positive = received, negative = refunded. */
+export const paymentSources = ['manual', 'bank'] as const;
+export type PaymentSource = (typeof paymentSources)[number];
+
+/**
+ * Zahlung: money received for a lease. Positive = received, negative = refunded. One bank
+ * transaction can be split over several leases (flat and separately leased garage).
+ */
 export const payments = sqliteTable(
 	'payments',
 	{
@@ -379,12 +399,111 @@ export const payments = sqliteTable(
 		date: text('date').notNull(),
 		amount: integer('amount').notNull(),
 		note: text('note'),
+		source: text('source', { enum: paymentSources }).notNull().default('manual'),
+		/** The bank transaction the payment was assigned from; no delete action, as above. */
+		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id),
 		createdAt: createdAt()
 	},
 	(table) => [
 		index('payments_account_id_idx').on(table.accountId),
-		index('payments_lease_id_date_idx').on(table.leaseId, table.date)
+		index('payments_lease_id_date_idx').on(table.leaseId, table.date),
+		index('payments_bank_transaction_id_idx').on(table.bankTransactionId)
 	]
+);
+
+// Banking
+
+export const bankAccounts = sqliteTable(
+	'bank_accounts',
+	{
+		id: id(),
+		accountId: accountId(),
+		name: text('name').notNull(),
+		iban: text('iban').notNull(),
+		bic: text('bic'),
+		holder: text('holder').notNull(),
+		createdAt: createdAt()
+	},
+	(table) => [uniqueIndex('bank_accounts_iban_unique').on(table.accountId, table.iban)]
+);
+
+export const bankImports = sqliteTable(
+	'bank_imports',
+	{
+		id: id(),
+		accountId: accountId(),
+		bankAccountId: text('bank_account_id')
+			.notNull()
+			.references(() => bankAccounts.id, { onDelete: 'cascade' }),
+		fileName: text('file_name').notNull(),
+		rowCount: integer('row_count').notNull(),
+		importedCount: integer('imported_count').notNull(),
+		duplicateCount: integer('duplicate_count').notNull(),
+		importedBy: text('imported_by').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: createdAt()
+	},
+	(table) => [index('bank_imports_account_id_idx').on(table.accountId)]
+);
+
+export const bankTransactionStatuses = ['unmatched', 'matched', 'ignored'] as const;
+export type BankTransactionStatus = (typeof bankTransactionStatuses)[number];
+
+/** Umsatz: one line of a bank statement. Amount is signed cents; incoming rent is positive. */
+export const bankTransactions = sqliteTable(
+	'bank_transactions',
+	{
+		id: id(),
+		accountId: accountId(),
+		bankAccountId: text('bank_account_id')
+			.notNull()
+			.references(() => bankAccounts.id, { onDelete: 'cascade' }),
+		importId: text('import_id').references(() => bankImports.id, { onDelete: 'set null' }),
+		bookingDate: text('booking_date').notNull(),
+		valueDate: text('value_date'),
+		amount: integer('amount').notNull(),
+		counterpartName: text('counterpart_name').notNull().default(''),
+		counterpartIban: text('counterpart_iban'),
+		purpose: text('purpose').notNull().default(''),
+		/**
+		 * SHA-256 of bookingDate|amount|counterpartName|counterpartIban|purpose|occurrence, over
+		 * the normalized fields. Two identical lines in one file get occurrence 0 and 1, so a
+		 * tenant paying twice on one day is kept while a re-import of the file adds nothing.
+		 */
+		fingerprint: text('fingerprint').notNull(),
+		occurrence: integer('occurrence').notNull().default(0),
+		/** The bank's own transaction id, when the export has one. */
+		externalId: text('external_id'),
+		/** matched = assigned to payments or a deposit movement; set by the banking module. */
+		status: text('status', { enum: bankTransactionStatuses }).notNull().default('unmatched'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('bank_transactions_account_id_idx').on(table.accountId),
+		index('bank_transactions_status_idx').on(table.accountId, table.status),
+		// The same statement line is never imported twice.
+		uniqueIndex('bank_transactions_fingerprint_unique').on(table.bankAccountId, table.fingerprint)
+	]
+);
+
+export const matchingFields = ['counterpartIban', 'counterpartName', 'purpose'] as const;
+export type MatchingField = (typeof matchingFields)[number];
+
+/** A rule "transactions whose <field> contains <pattern> belong to this lease". */
+export const matchingRules = sqliteTable(
+	'matching_rules',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		field: text('field', { enum: matchingFields }).notNull(),
+		pattern: text('pattern').notNull(),
+		/** Confirmed rules assign automatically on import; others only suggest. */
+		confirmed: bool('confirmed', false),
+		createdAt: createdAt()
+	},
+	(table) => [index('matching_rules_account_id_idx').on(table.accountId)]
 );
 
 /** A person who signs in. Each user works in exactly one account. */
@@ -424,7 +543,8 @@ export const sessions = sqliteTable(
  * The verbs used in audit_log.action. The column is plain text so a feature can add a verb
  * without a schema change.
  */
-export type AuditAction = 'create' | 'update' | 'delete' | 'post' | 'approve';
+export type AuditAction =
+	'create' | 'update' | 'delete' | 'post' | 'approve' | 'import' | 'assign' | 'undo' | 'ignore';
 
 /** Who changed what, as one German sentence per change. */
 export const auditLog = sqliteTable(

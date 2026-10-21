@@ -51,6 +51,19 @@ export function today(): IsoDate {
 	return dayOf(new Date());
 }
 
+/** `31.12.2026` (also `31.12.26`, `1.2.2026`) → `2026-12-31`; undefined when not a date. */
+export function parseGermanDate(value: string): IsoDate | undefined {
+	const trimmed = value.trim();
+	if (isIsoDate(trimmed)) return trimmed;
+	const match = /^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$/.exec(trimmed);
+	if (!match) return undefined;
+	const day = Number(match[1]);
+	const month = Number(match[2]);
+	const year = match[3].length === 2 ? 2000 + Number(match[3]) : Number(match[3]);
+	const date = iso(year, month, day);
+	return isIsoDate(date) ? date : undefined;
+}
+
 /** 0 = Sunday … 6 = Saturday. */
 export function weekday(date: IsoDate): number {
 	return toUtc(date).getUTCDay();

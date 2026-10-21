@@ -8,6 +8,11 @@
 			text: 'Der Absender (Vermieter) auf deinen Briefen.'
 		},
 		{
+			href: '/bank/konten',
+			label: 'Bankverbindungen',
+			text: 'Deine Konten, auf die Mieten eingehen.'
+		},
+		{
 			href: '/einstellungen/vpi',
 			label: 'Verbraucherpreisindex',
 			text: 'Indexwerte für Indexmietverträge.'

@@ -2,6 +2,7 @@ import { asc, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { formatCents } from '../money';
 import type { Database } from './db';
+import { runBatch } from './db/batch';
 import { auditLog, leases, payments, rentCharges, rentChanges } from './db/schema';
 import { createLease } from './leases';
 import {
@@ -11,6 +12,7 @@ import {
 	ensureCharges,
 	listBalances,
 	listLedger,
+	paymentEntry,
 	postCharge
 } from './ledger';
 import { contextA, contextB, leaseInput, seedUnit, testDatabase } from './testing';
@@ -224,7 +226,7 @@ describe('postCharge and deleteCharge', () => {
 });
 
 describe('createPayment and deletePayment', () => {
-	const payment = { leaseId: '', date: '2025-04-03', amount: 65000 };
+	const payment = { leaseId: '', date: '2025-04-03', amount: 65000, source: 'manual' as const };
 
 	it('books a payment with an audit line and deletes it again', async () => {
 		const id = await createPayment(db, contextA, { ...payment, leaseId, note: 'Überweisung' });
@@ -235,6 +237,8 @@ describe('createPayment and deletePayment', () => {
 			leaseId,
 			date: '2025-04-03',
 			amount: 65000,
+			source: 'manual',
+			bankTransactionId: null,
 			note: 'Überweisung'
 		});
 
@@ -252,6 +256,14 @@ describe('createPayment and deletePayment', () => {
 		await createPayment(db, contextA, { ...payment, leaseId, amount: -2500 });
 		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'create'));
 		expect(audit.at(-1)?.summary).toBe(`Rückzahlung ${formatCents(2500)} vom 03.04.2025 gebucht`);
+	});
+
+	it('builds a statement for the banking feature to run in its own batch', async () => {
+		const entry = paymentEntry(db, contextA, { ...payment, leaseId, source: 'bank' });
+		await runBatch(db, [entry.statement]);
+		const rows = await db.select().from(payments).where(eq(payments.id, entry.id));
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toMatchObject({ accountId: 'a', leaseId, source: 'bank', amount: 65000 });
 	});
 
 	it('refuses a lease or a payment of another account', async () => {
@@ -276,7 +288,7 @@ describe('listLedger', () => {
 		if (!ended.ok) throw new Error('setup failed');
 		endedLeaseId = ended.id;
 		const pay = (date: string, amount: number, note: string | null = null) =>
-			createPayment(db, contextA, { leaseId: endedLeaseId, date, amount, note });
+			createPayment(db, contextA, { leaseId: endedLeaseId, date, amount, source: 'manual', note });
 		await pay('2025-03-05', 100000, 'Nachzahlung');
 		await pay('2025-01-03', 80000);
 		await pay('2025-02-10', 50000);
@@ -336,12 +348,14 @@ describe('listBalances', () => {
 		await createPayment(db, contextA, {
 			leaseId,
 			date: '2025-01-03',
-			amount: 80000
+			amount: 80000,
+			source: 'manual'
 		});
 		await createPayment(db, contextA, {
 			leaseId,
 			date: '2025-02-10',
-			amount: 50000
+			amount: 50000,
+			source: 'manual'
 		});
 		// Lease 2: two months, nothing paid.
 		const unpaid = await createLease(db, contextA, leaseInput(unitId, { endDate: '2025-02-28' }));
@@ -351,12 +365,14 @@ describe('listBalances', () => {
 		await createPayment(db, contextA, {
 			leaseId: overpaid.id,
 			date: '2025-01-02',
-			amount: 100000
+			amount: 100000,
+			source: 'manual'
 		});
 		await createPayment(db, contextB, {
 			leaseId: foreignLeaseId,
 			date: '2025-01-02',
-			amount: 100000
+			amount: 100000,
+			source: 'manual'
 		});
 
 		expect(await listBalances(db, 'a', { untilMonth: '2025-03' })).toEqual([
@@ -397,7 +413,8 @@ describe('listBalances', () => {
 			await createPayment(db, contextA, {
 				leaseId: id,
 				date: `${month}-10`,
-				amount: 80000
+				amount: 80000,
+				source: 'manual'
 			});
 		}
 	}
@@ -419,6 +436,7 @@ describe('listBalances', () => {
 			leaseId: lease.id,
 			date: '2025-12-10',
 			amount: 50000,
+			source: 'manual',
 			note: 'Teilzahlung'
 		});
 
@@ -513,7 +531,12 @@ describe('listBalances', () => {
 		// January and February 2025, nothing paid by 28.02.; 2.000 € arrive on 10.03. The balance
 		// counts the payment (a Guthaben of 400 €), the Rückstand on 28.02. does not.
 		await db.update(leases).set({ endDate: '2025-02-28' }).where(eq(leases.id, leaseId));
-		await createPayment(db, contextA, { leaseId, date: '2025-03-10', amount: 200000 });
+		await createPayment(db, contextA, {
+			leaseId,
+			date: '2025-03-10',
+			amount: 200000,
+			source: 'manual'
+		});
 		const balances = await listBalances(db, 'a', { untilMonth: '2025-02', asOf: '2025-02-28' });
 		expect(balances.find((row) => row.leaseId === leaseId)).toEqual({
 			leaseId,

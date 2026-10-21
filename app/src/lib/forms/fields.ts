@@ -163,6 +163,42 @@ export class FormParser<T> {
 		return value;
 	}
 
+	/** An uploaded file, or null when none was chosen. Checks size and that it is not empty. */
+	file(
+		name: keyof T & string,
+		options: { required?: boolean; maxBytes?: number } = {}
+	): File | null {
+		const value = this.form.get(name);
+		const { required = false, maxBytes = 10 * 1024 * 1024 } = options;
+		const file = value instanceof File && value.size > 0 && value.name ? value : null;
+		if (!file) {
+			if (required) this.fail(name, 'Bitte wähle eine Datei aus.');
+			return null;
+		}
+		if (file.size > maxBytes) {
+			this.fail(
+				name,
+				`Die Datei ist zu groß (höchstens ${Math.round(maxBytes / 1024 / 1024)} MB).`
+			);
+			return null;
+		}
+		return file;
+	}
+
+	/** An IBAN, stored without spaces in upper case; checked with the ISO 7064 checksum. */
+	iban(name: keyof T & string, options: { required?: boolean } = {}): string | null {
+		const value = this.raw(name).replace(/\s+/g, '').toUpperCase();
+		if (!value) {
+			if (options.required ?? true) this.fail(name, 'Bitte gib eine IBAN an.');
+			return null;
+		}
+		if (!isValidIban(value)) {
+			this.fail(name, 'Bitte gib eine gültige IBAN an.');
+			return null;
+		}
+		return value;
+	}
+
 	get hasErrors(): boolean {
 		return Object.keys(this.errors).length > 0;
 	}
@@ -174,8 +210,20 @@ export class FormParser<T> {
 	}
 }
 
-/** Builds a FormData from a plain object, for tests. */
-export function formDataOf(entries: Record<string, string | string[]>): FormData {
+/** ISO 13616 check: letters to digits, move the first four characters to the end, mod 97 = 1. */
+export function isValidIban(iban: string): boolean {
+	if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(iban)) return false;
+	const rearranged = iban.slice(4) + iban.slice(0, 4);
+	let remainder = 0;
+	for (const char of rearranged) {
+		const digits = /\d/.test(char) ? char : String(char.charCodeAt(0) - 55);
+		for (const digit of digits) remainder = (remainder * 10 + Number(digit)) % 97;
+	}
+	return remainder === 1;
+}
+
+/** Builds a FormData from a plain object, for tests. Files are appended as they are. */
+export function formDataOf(entries: Record<string, string | string[] | File>): FormData {
 	const data = new FormData();
 	for (const [name, value] of Object.entries(entries)) {
 		if (Array.isArray(value)) for (const item of value) data.append(name, item);
