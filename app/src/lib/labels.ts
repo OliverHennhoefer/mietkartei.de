@@ -1,4 +1,5 @@
 import type {
+	BankTransactionStatus,
 	BuildingUse,
 	DepositTransactionKind,
 	HeatingCostModel,
@@ -63,4 +64,10 @@ export const depositTransactionKindLabels: Record<DepositTransactionKind, string
 export const rentChargeKindLabels: Record<RentChargeKind, string> = {
 	rent: 'Miete',
 	adjustment: 'Korrektur'
+};
+
+export const bankTransactionStatusLabels: Record<BankTransactionStatus, string> = {
+	unmatched: 'Offen',
+	matched: 'Zugeordnet',
+	ignored: 'Ignoriert'
 };

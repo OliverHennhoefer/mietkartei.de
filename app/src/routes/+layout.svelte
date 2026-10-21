@@ -14,7 +14,8 @@
 		{ href: '/objekte', label: 'Objekte' },
 		{ href: '/mieter', label: 'Mieter' },
 		{ href: '/vertraege', label: 'Mietverträge' },
-		{ href: '/mietkonto', label: 'Mietkonto' }
+		{ href: '/mietkonto', label: 'Mietkonto' },
+		{ href: '/bank', label: 'Bank' }
 	];
 
 	function current(href: string): 'page' | undefined {
