@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { formatCents } from '../money';
 import type { Database } from './db';
-import { auditLog, depositTransactions } from './db/schema';
+import { auditLog, bankAccounts, bankTransactions, depositTransactions } from './db/schema';
 import {
 	addDepositMovement,
 	deleteDepositMovement,
@@ -106,7 +106,7 @@ describe('addDepositMovement and listDepositMovements', () => {
 			[received, '2025-01-03', 'received', 60000, 'erste Rate'],
 			[returned, '2026-02-01', 'returned', -40000, null]
 		]);
-		expect(rows[0]).toMatchObject({ accountId: 'a', leaseId });
+		expect(rows[0]).toMatchObject({ accountId: 'a', leaseId, bankTransactionId: null });
 
 		expect(await depositAudit('create')).toEqual([
 			`Kaution erhalten: ${formatCents(60000)} vom 03.01.2025 gebucht`,
@@ -148,6 +148,37 @@ describe('deleteDepositMovement', () => {
 		expect(await depositAudit('delete')).toEqual([
 			`Kaution erhalten: ${formatCents(60000)} vom 03.01.2025 gelöscht`
 		]);
+	});
+
+	it('leaves a movement assigned from a bank transaction to the banking feature', async () => {
+		// The schema requires a real bank transaction behind the id; a bare one is enough here.
+		await db.insert(bankAccounts).values({
+			id: 'ba',
+			accountId: 'a',
+			name: 'Giro',
+			iban: 'DE02120300000000202051',
+			holder: 'V'
+		});
+		await db.insert(bankTransactions).values({
+			id: 'bt',
+			accountId: 'a',
+			bankAccountId: 'ba',
+			bookingDate: '2025-01-03',
+			amount: 60000,
+			fingerprint: 'f',
+			status: 'matched'
+		});
+		await db.insert(depositTransactions).values({
+			id: 'movement',
+			accountId: 'a',
+			leaseId,
+			date: '2025-01-03',
+			kind: 'received',
+			amount: 60000,
+			bankTransactionId: 'bt'
+		});
+		expect(await deleteDepositMovement(db, contextA, leaseId, 'movement')).toBe('from-bank');
+		expect(await listDepositMovements(db, 'a', leaseId)).toHaveLength(1);
 	});
 
 	it('does not delete a movement of another account', async () => {

@@ -23,7 +23,7 @@ beforeEach(async () => {
 });
 
 describe('listLedgerLineDetails', () => {
-	it('tells the kind of each charge and which lines are payments', async () => {
+	it('tells the kind of each charge and the source of each payment', async () => {
 		const adjustment = await postCharge(db, contextA, {
 			leaseId,
 			kind: 'adjustment',
@@ -32,22 +32,35 @@ describe('listLedgerLineDetails', () => {
 			amount: 10000,
 			note: 'Anfangssaldo'
 		});
-		const payment = await createPayment(db, contextA, {
+		const manual = await createPayment(db, contextA, {
 			leaseId,
 			date: '2025-02-03',
-			amount: 80000
+			amount: 80000,
+			source: 'manual'
+		});
+		const bank = await createPayment(db, contextA, {
+			leaseId,
+			date: '2025-03-03',
+			amount: 80000,
+			source: 'bank'
 		});
 		const details = await listLedgerLineDetails(db, 'a', leaseId);
 		expect(details[adjustment!]).toEqual({ kind: 'charge', chargeKind: 'adjustment' });
-		expect(details[payment!]).toEqual({ kind: 'payment' });
-		expect(Object.keys(details)).toHaveLength(2);
+		expect(details[manual!]).toEqual({
+			kind: 'payment',
+			source: 'manual',
+			bankTransactionId: null
+		});
+		expect(details[bank!]).toEqual({ kind: 'payment', source: 'bank', bankTransactionId: null });
+		expect(Object.keys(details)).toHaveLength(3);
 	});
 
 	it('does not leak into another account', async () => {
 		const foreign = await createPayment(db, contextB, {
 			leaseId: foreignLeaseId,
 			date: '2025-02-03',
-			amount: 80000
+			amount: 80000,
+			source: 'manual'
 		});
 		expect(foreign).toBeDefined();
 		expect(await listLedgerLineDetails(db, 'a', foreignLeaseId)).toEqual({});

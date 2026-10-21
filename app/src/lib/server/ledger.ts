@@ -8,12 +8,19 @@ import { formatCents } from '../money';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { chunk, chunkIds, rowsPerStatement, runBatch } from './db/batch';
-import { leases, payments, rentCharges, rentChanges, type RentChargeKind } from './db/schema';
+import {
+	leases,
+	payments,
+	rentCharges,
+	rentChanges,
+	type PaymentSource,
+	type RentChargeKind
+} from './db/schema';
 
 // The rent ledger (Mietkonto): what a lease owes (rent_charges, Soll) against what was paid
 // (payments, Ist). Monthly rent charges are derived from the lease term and the rent history and
-// synced on demand by ensureCharges; everything else on the ledger is posted explicitly by the
-// landlord (adjustments, payments).
+// synced on demand by ensureCharges; everything else on the ledger is posted explicitly, by the
+// landlord (adjustments, payments) or by the banking feature (payments from bank transactions).
 
 type Statement = BatchItem<'sqlite'>;
 
@@ -264,8 +271,31 @@ export type PaymentInput = {
 	date: IsoDate;
 	/** Positive = received from the tenant, negative = refunded. */
 	amount: number;
+	source: PaymentSource;
+	/** The bank transaction the payment was assigned from. */
+	bankTransactionId?: string | null;
 	note?: string | null;
 };
+
+/** The insert statement for a payment, with its id, for the banking feature's batches. */
+export function paymentEntry(
+	db: Database,
+	context: AuditContext,
+	input: PaymentInput
+): { id: string; statement: Statement } {
+	const id = crypto.randomUUID();
+	const statement = db.insert(payments).values({
+		id,
+		accountId: context.accountId,
+		leaseId: input.leaseId,
+		date: input.date,
+		amount: input.amount,
+		source: input.source,
+		bankTransactionId: input.bankTransactionId ?? null,
+		note: input.note ?? null
+	});
+	return { id, statement };
+}
 
 function paymentSummary(payment: { date: IsoDate; amount: number }, verb: string): string {
 	const what = payment.amount < 0 ? 'Rückzahlung' : 'Zahlung';
@@ -279,22 +309,15 @@ export async function createPayment(
 	input: PaymentInput
 ): Promise<string | undefined> {
 	if (!(await ownsLease(db, context.accountId, input.leaseId))) return undefined;
-	const id = crypto.randomUUID();
+	const { id, statement } = paymentEntry(db, context, input);
 	await runBatch(db, [
-		db.insert(payments).values({
-			id,
-			accountId: context.accountId,
-			leaseId: input.leaseId,
-			date: input.date,
-			amount: input.amount,
-			note: input.note ?? null
-		}),
+		statement,
 		auditEntry(db, context, 'lease', input.leaseId, 'create', paymentSummary(input, 'gebucht'))
 	]);
 	return id;
 }
 
-/** Deletes a payment of the account. */
+/** Deletes a payment of the account. A bank assignment is undone by the banking feature. */
 export async function deletePayment(
 	db: Database,
 	context: AuditContext,
@@ -526,12 +549,14 @@ export async function listBalances(
 	return balances.sort((a, b) => b.balance - a.balance || a.leaseId.localeCompare(b.leaseId));
 }
 
-export type LedgerLineDetail = { kind: 'charge'; chargeKind: RentChargeKind } | { kind: 'payment' };
+export type LedgerLineDetail =
+	| { kind: 'charge'; chargeKind: RentChargeKind }
+	| { kind: 'payment'; source: PaymentSource; bankTransactionId: string | null };
 
 /**
- * What stands behind each ledger line, by line id: the kind of a charge, or that it is a payment.
- * The ledger page decides with it which lines may be deleted (adjustments and payments). Two
- * selects, however many lines there are.
+ * What stands behind each ledger line, by line id: the kind of a charge, the source of a payment.
+ * The ledger page decides with it which lines may be deleted (manual adjustments and payments)
+ * and which ones belong to a bank transaction. Two selects, however many lines there are.
  */
 export async function listLedgerLineDetails(
 	db: Database,
@@ -544,12 +569,22 @@ export async function listLedgerLineDetails(
 			.from(rentCharges)
 			.where(and(eq(rentCharges.accountId, accountId), eq(rentCharges.leaseId, leaseId))),
 		db
-			.select({ id: payments.id })
+			.select({
+				id: payments.id,
+				source: payments.source,
+				bankTransactionId: payments.bankTransactionId
+			})
 			.from(payments)
 			.where(and(eq(payments.accountId, accountId), eq(payments.leaseId, leaseId)))
 	]);
 	const details: Record<string, LedgerLineDetail> = {};
 	for (const row of chargeRows) details[row.id] = { kind: 'charge', chargeKind: row.kind };
-	for (const row of paymentRows) details[row.id] = { kind: 'payment' };
+	for (const row of paymentRows) {
+		details[row.id] = {
+			kind: 'payment',
+			source: row.source,
+			bankTransactionId: row.bankTransactionId
+		};
+	}
 	return details;
 }

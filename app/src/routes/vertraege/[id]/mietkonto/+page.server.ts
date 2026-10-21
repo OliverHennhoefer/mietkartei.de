@@ -86,6 +86,7 @@ export const actions: Actions = {
 			leaseId: params.id,
 			date: result.data.date,
 			amount: result.data.amount,
+			source: 'manual',
 			note: result.data.note
 		});
 		if (!id) error(404, 'Diesen Mietvertrag gibt es nicht.');
