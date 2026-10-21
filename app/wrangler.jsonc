@@ -1,11 +1,14 @@
-// Configuration for the cloudflare target (DEPLOY_TARGET=cloudflare).
-// Nothing deploys from here yet; locally this runs the built app in workerd with a local D1.
+// Configuration for the cloudflare target (DEPLOY_TARGET=cloudflare). The App workflow deploys it
+// to app.mietkartei.de; locally it runs the built app in workerd with a local D1.
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "mietkartei-app",
 	"main": ".svelte-kit/cloudflare/_worker.js",
 	"compatibility_date": "2026-10-01",
 	"compatibility_flags": ["nodejs_als"],
+	"routes": [{ "pattern": "app.mietkartei.de", "custom_domain": true }],
+	// The hosted variant serves everyone who signs up, each in an own account.
+	"vars": { "OPEN_REGISTRATION": "true" },
 	"assets": {
 		"binding": "ASSETS",
 		"directory": ".svelte-kit/cloudflare"
@@ -14,9 +17,8 @@
 		{
 			"binding": "DB",
 			"database_name": "mietkartei",
-			// Placeholder for local development. The hosted database must be created with
-			// jurisdiction "eu" before the first deployment, and its id entered here.
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			// The hosted database, created with jurisdiction "eu". See .github/DEPLOYMENT.md.
+			"database_id": "08298e4f-d84f-403b-acd0-5ca38c86c052",
 			"migrations_dir": "drizzle"
 		}
 	]
