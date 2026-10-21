@@ -15,7 +15,10 @@ ALTER TABLE `accounts` ADD `postal_code` text;--> statement-breakpoint
 ALTER TABLE `accounts` ADD `city` text;--> statement-breakpoint
 ALTER TABLE `leases` ADD `index_base_month` text;--> statement-breakpoint
 ALTER TABLE `leases` ADD `index_base_value` real;--> statement-breakpoint
+ALTER TABLE `leases` ADD `index_base_year` text DEFAULT '2020' NOT NULL;--> statement-breakpoint
 ALTER TABLE `rent_changes` ADD `index_month` text;--> statement-breakpoint
 ALTER TABLE `rent_changes` ADD `index_value` real;--> statement-breakpoint
+ALTER TABLE `rent_changes` ADD `index_base_year` text DEFAULT '2020' NOT NULL;--> statement-breakpoint
 ALTER TABLE `rent_changes` ADD `letter_text` text;--> statement-breakpoint
+ALTER TABLE `rent_changes` ADD `letter_table` text;--> statement-breakpoint
 ALTER TABLE `rent_changes` ADD `delivered_on` text;

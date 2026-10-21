@@ -27,9 +27,14 @@ export type HistoryChange = RentChange & {
 	reason: RentChangeReason;
 	indexMonth: string | null;
 	indexValue: number | null;
+	indexBaseYear: string;
 };
 
-export type IndexBase = { indexBaseMonth: string | null; indexBaseValue: number | null };
+export type IndexBase = {
+	indexBaseMonth: string | null;
+	indexBaseValue: number | null;
+	indexBaseYear: string;
+};
 
 export type IndexProposal = {
 	currentBaseRent: number;
@@ -68,22 +73,31 @@ function byValidFrom(a: { validFrom: IsoDate }, b: { validFrom: IsoDate }): numb
 }
 
 /**
- * The index the current rent is based on: the index of the latest approved change that carries
- * one (an approved index adjustment, or a manual change on an indexed lease), else the lease's
- * base index; undefined when the lease has none.
+ * The index the rent valid on `date` is based on: the index of the latest approved change on or
+ * before that day that carries one (an approved index adjustment, or a manual change on an
+ * indexed lease), else the lease's base index; undefined when the lease has none. A change
+ * scheduled after `date` is ignored, as it is by rentOn, so rent and reference always match.
  */
 export function referenceIndex(
 	changes: readonly HistoryChange[],
-	lease: IndexBase
-): IndexPoint | undefined {
+	lease: IndexBase,
+	date: IsoDate
+): IndexValueRow | undefined {
 	let found: HistoryChange | undefined;
 	for (const change of changes) {
-		if (change.status !== 'approved' || !change.indexMonth || change.indexValue === null) continue;
+		if (change.status !== 'approved' || change.validFrom > date) continue;
+		if (!change.indexMonth || change.indexValue === null) continue;
 		if (!found || change.validFrom >= found.validFrom) found = change;
 	}
-	if (found) return { month: found.indexMonth!, value: found.indexValue! };
+	if (found) {
+		return { month: found.indexMonth!, value: found.indexValue!, baseYear: found.indexBaseYear };
+	}
 	if (lease.indexBaseMonth && lease.indexBaseValue !== null && lease.indexBaseValue > 0) {
-		return { month: lease.indexBaseMonth, value: lease.indexBaseValue };
+		return {
+			month: lease.indexBaseMonth,
+			value: lease.indexBaseValue,
+			baseYear: lease.indexBaseYear
+		};
 	}
 	return undefined;
 }
@@ -176,7 +190,7 @@ export type IndexLease = IndexBase & {
 };
 
 export type IndexSituation = {
-	reference: IndexPoint | undefined;
+	reference: IndexValueRow | undefined;
 	latest: LatestIndex;
 	/** The first day a new rent may take effect; residential leases only. */
 	waitingUntil: IsoDate | undefined;
@@ -197,14 +211,20 @@ export function indexSituation(
 	values: readonly IndexValueRow[],
 	today: IsoDate
 ): IndexSituation {
-	const reference = referenceIndex(changes, lease);
 	const latest = latestIndex(values);
 	const waitingUntil = lease.kind === 'residential' ? waitingPeriodEnd(changes) : undefined;
 	const provisionalFrom = effectiveFrom(today);
 	const pending = changes.find((change) => change.status === 'proposed');
-	const current = rentOn(changes, today) ?? rentOn(changes, '9999-12-31');
+	// The rent and the reference index the proposal replaces, both as of the day it takes effect,
+	// so a change scheduled after that day supplies neither. A lease that starts later is taken
+	// as of its last change.
+	const current = rentOn(changes, provisionalFrom) ?? rentOn(changes, '9999-12-31');
+	const basisDate =
+		current && current.validFrom > provisionalFrom ? current.validFrom : provisionalFrom;
+	const reference = referenceIndex(changes, lease, basisDate);
+	const sameBase = !reference || !latest.ok || reference.baseYear === latest.latest.baseYear;
 	const proposal =
-		reference && latest.ok && current
+		reference && latest.ok && sameBase && current
 			? indexProposal(current.baseRent, reference, latest.latest)
 			: undefined;
 
@@ -219,6 +239,11 @@ export function indexSituation(
 		refusal =
 			`Die VPI-Tabelle enthält Werte mit mehreren Basisjahren (${latest.baseYears.join(', ')}). ` +
 			'Trage den aktuellen Wert auf das Basisjahr des Bezugsindex umgerechnet ein.';
+	else if (!sameBase)
+		refusal =
+			`Der Bezugsindex beruht auf dem Basisjahr ${reference.baseYear}, die VPI-Werte auf dem ` +
+			`Basisjahr ${latest.latest.baseYear}. Trage die VPI-Werte zum Basisjahr ` +
+			`${reference.baseYear} ein oder den Bezugsindex umgerechnet im Mietvertrag.`;
 	else if (!current) refusal = 'Dem Mietvertrag fehlt die aktuelle Miete.';
 	else if (latest.latest.month <= reference.month)
 		refusal =
@@ -268,19 +293,20 @@ export type LetterFigures = {
 /**
  * The figures of an index letter: the rent and the reference index the approved change replaces,
  * taken from the history before its validFrom, so the letter and the PDF table agree. Undefined
- * when the change carries no index or the history has no rent before it.
+ * when the change carries no index, the history has no rent before it or the reference has
+ * another base year.
  */
 export function letterFigures(
 	changes: readonly HistoryChange[],
 	lease: IndexBase,
-	change: HistoryChange,
-	baseYear: string
+	change: HistoryChange
 ): LetterFigures | undefined {
 	if (!change.indexMonth || change.indexValue === null) return undefined;
 	const before = changes.filter((other) => other !== change && other.validFrom < change.validFrom);
-	const oldRent = rentOn(before, addDays(change.validFrom, -1));
-	const reference = referenceIndex(before, lease);
-	if (!oldRent || !reference) return undefined;
+	const dayBefore = addDays(change.validFrom, -1);
+	const oldRent = rentOn(before, dayBefore);
+	const reference = referenceIndex(before, lease, dayBefore);
+	if (!oldRent || !reference || reference.baseYear !== change.indexBaseYear) return undefined;
 	const latest = { month: change.indexMonth, value: change.indexValue };
 	return {
 		reference,
@@ -289,7 +315,7 @@ export function letterFigures(
 		oldRent,
 		newRent: change,
 		validFrom: change.validFrom,
-		baseYear
+		baseYear: change.indexBaseYear
 	};
 }
 

@@ -22,7 +22,8 @@ const lease = {
 	kind: 'residential' as const,
 	rentModel: 'indexed' as const,
 	indexBaseMonth: '2024-01',
-	indexBaseValue: 118.2
+	indexBaseValue: 118.2,
+	indexBaseYear: '2020'
 };
 
 function change(overrides: Partial<HistoryChange>): HistoryChange {
@@ -35,6 +36,7 @@ function change(overrides: Partial<HistoryChange>): HistoryChange {
 		status: 'approved',
 		indexMonth: null,
 		indexValue: null,
+		indexBaseYear: '2020',
 		...overrides
 	};
 }
@@ -96,10 +98,18 @@ describe('effectiveFrom', () => {
 
 describe('referenceIndex', () => {
 	it('falls back to the lease base when no change carries an index', () => {
-		expect(referenceIndex([initial], lease)).toEqual({ month: '2024-01', value: 118.2 });
-		expect(referenceIndex([initial], { indexBaseMonth: null, indexBaseValue: null })).toBe(
-			undefined
-		);
+		expect(referenceIndex([initial], lease, '2026-12-01')).toEqual({
+			month: '2024-01',
+			value: 118.2,
+			baseYear: '2020'
+		});
+		expect(
+			referenceIndex(
+				[initial],
+				{ indexBaseMonth: null, indexBaseValue: null, indexBaseYear: '2020' },
+				'2026-12-01'
+			)
+		).toBe(undefined);
 	});
 
 	it('takes the latest approved change with an index and ignores proposals', () => {
@@ -121,7 +131,11 @@ describe('referenceIndex', () => {
 				indexValue: 124.3
 			})
 		];
-		expect(referenceIndex(history, lease)).toEqual({ month: '2025-07', value: 121 });
+		expect(referenceIndex(history, lease, '2026-12-01')).toEqual({
+			month: '2025-07',
+			value: 121,
+			baseYear: '2020'
+		});
 		// A manual change on an indexed lease records the index too and becomes the reference.
 		const manual = change({
 			validFrom: '2026-03-01',
@@ -130,7 +144,17 @@ describe('referenceIndex', () => {
 			indexMonth: '2026-01',
 			indexValue: 124.3
 		});
-		expect(referenceIndex([...history, manual], lease)).toEqual({ month: '2026-01', value: 124.3 });
+		expect(referenceIndex([...history, manual], lease, '2026-12-01')).toEqual({
+			month: '2026-01',
+			value: 124.3,
+			baseYear: '2020'
+		});
+		// As of a day before the manual change, it is not the reference yet.
+		expect(referenceIndex([...history, manual], lease, '2026-02-28')).toEqual({
+			month: '2025-07',
+			value: 121,
+			baseYear: '2020'
+		});
 	});
 });
 
@@ -186,7 +210,7 @@ describe('nextGraduatedStepAllowed', () => {
 describe('indexSituation', () => {
 	it('proposes 630,96 € from 600,00 € once the first year is over', () => {
 		const situation = indexSituation(lease, [initial], values, '2026-10-20');
-		expect(situation.reference).toEqual({ month: '2024-01', value: 118.2 });
+		expect(situation.reference).toEqual({ month: '2024-01', value: 118.2, baseYear: '2020' });
 		expect(situation.waitingUntil).toBe('2025-01-01');
 		expect(situation.provisionalFrom).toBe('2026-12-01');
 		expect(situation.pending).toBeUndefined();
@@ -204,6 +228,53 @@ describe('indexSituation', () => {
 		expect(
 			indexSituation({ ...lease, kind: 'commercial' }, young, values, '2026-03-10').refusal
 		).toBeUndefined();
+	});
+
+	it('takes rent and reference as of the effective date, not from a later scheduled change', () => {
+		// A commercial lease (no waiting period) with a manual change to 650 € scheduled for
+		// 2027-01-01, which recorded the VPI of January 2026. A VPI of September 2026 = 125,0 came
+		// in since. A proposal made on 2026-10-20 takes effect on 2026-12-01, before that change:
+		// 600,00 × 125,0 ÷ 118,2 = 634,52 €, not 600,00 × 125,0 ÷ 124,3.
+		const scheduled = change({
+			validFrom: '2027-01-01',
+			baseRent: 65000,
+			reason: 'manual',
+			indexMonth: '2026-01',
+			indexValue: 124.3
+		});
+		const situation = indexSituation(
+			{ ...lease, kind: 'commercial' },
+			[initial, scheduled],
+			[...values, { month: '2026-09', value: 125, baseYear: '2020' }],
+			'2026-10-20'
+		);
+		expect(situation.reference).toEqual({ month: '2024-01', value: 118.2, baseYear: '2020' });
+		expect(situation.proposal).toMatchObject({ currentBaseRent: 60000, newBaseRent: 63452 });
+		expect(situation.refusal).toBeUndefined();
+		// Once the change is in effect, both come from it: 650,00 × 125,0 ÷ 124,3 = 653,66 €.
+		const later = indexSituation(
+			{ ...lease, kind: 'commercial' },
+			[initial, scheduled],
+			[...values, { month: '2026-09', value: 125, baseYear: '2020' }],
+			'2026-11-20'
+		);
+		expect(later.reference).toEqual({ month: '2026-01', value: 124.3, baseYear: '2020' });
+		expect(later.proposal).toMatchObject({ currentBaseRent: 65000, newBaseRent: 65366 });
+	});
+
+	it('refuses VPI values of another base year than the reference', () => {
+		// The lease's reference is on base 2020; the account only has values on base 2025.
+		const situation = indexSituation(
+			lease,
+			[initial],
+			[{ month: '2026-01', value: 104.1, baseYear: '2025' }],
+			'2026-10-20'
+		);
+		expect(situation.proposal).toBeUndefined();
+		expect(situation.refusal).toBe(
+			'Der Bezugsindex beruht auf dem Basisjahr 2020, die VPI-Werte auf dem Basisjahr 2025. ' +
+				'Trage die VPI-Werte zum Basisjahr 2020 ein oder den Bezugsindex umgerechnet im Mietvertrag.'
+		);
 	});
 
 	it('names the other reasons a proposal is refused', () => {
@@ -277,9 +348,9 @@ describe('letterFigures and indexLetterText', () => {
 	});
 
 	it('takes the old rent and the reference from the history before the change', () => {
-		const figures = letterFigures([initial, approved], lease, approved, '2020');
+		const figures = letterFigures([initial, approved], lease, approved);
 		expect(figures).toEqual({
-			reference: { month: '2024-01', value: 118.2 },
+			reference: { month: '2024-01', value: 118.2, baseYear: '2020' },
 			latest: { month: '2026-01', value: 124.3 },
 			percent: 5.16,
 			oldRent: initial,
@@ -287,12 +358,16 @@ describe('letterFigures and indexLetterText', () => {
 			validFrom: '2026-12-01',
 			baseYear: '2020'
 		});
-		expect(letterFigures([approved], lease, approved, '2020')).toBeUndefined();
-		expect(letterFigures([initial], lease, initial, '2020')).toBeUndefined();
+		expect(letterFigures([approved], lease, approved)).toBeUndefined();
+		expect(letterFigures([initial], lease, initial)).toBeUndefined();
+		// A reference of another base year does not fit the change's index.
+		expect(
+			letterFigures([initial, approved], { ...lease, indexBaseYear: '2015' }, approved)
+		).toBeUndefined();
 	});
 
 	it('writes the letter with index, percentage, old and new rent and the date', () => {
-		const figures = letterFigures([initial, approved], lease, approved, '2020')!;
+		const figures = letterFigures([initial, approved], lease, approved)!;
 		const text = indexLetterText({
 			unitName: 'Wohnung EG links',
 			tenants: [{ salutation: 'Frau', firstName: 'Erika', lastName: 'Muster' }],
@@ -318,7 +393,7 @@ describe('letterFigures and indexLetterText', () => {
 	});
 
 	it('says "euer Mietvertrag" to two tenants', () => {
-		const figures = letterFigures([initial, approved], lease, approved, '2020')!;
+		const figures = letterFigures([initial, approved], lease, approved)!;
 		const text = indexLetterText({
 			unitName: 'Wohnung EG links',
 			tenants: [

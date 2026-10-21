@@ -54,6 +54,10 @@ export function parseLease(form: FormData): ParseResult<LeaseInput> {
 	const indexBaseMonth = parser.month('indexBaseMonth', { required: false });
 	const indexBaseValue = parser.number('indexBaseValue', { required: false, min: 0 });
 	if (indexBaseValue === 0) parser.fail('indexBaseValue', 'Der Indexwert muss größer als 0 sein.');
+	const indexBaseYear = parser.raw('indexBaseYear') || '2020';
+	if (!/^(19|20)\d{2}$/.test(indexBaseYear)) {
+		parser.fail('indexBaseYear', 'Bitte gib das Basisjahr mit vier Ziffern an, z. B. 2020.');
+	}
 	const indexed = rentModel === 'indexed';
 	if (indexed && (indexBaseMonth === null || indexBaseValue === null)) {
 		const message = 'Für eine Indexmiete brauchst du den Basismonat und den Indexwert.';
@@ -90,6 +94,7 @@ export function parseLease(form: FormData): ParseResult<LeaseInput> {
 		ledgerStart,
 		indexBaseMonth: indexed ? indexBaseMonth : null,
 		indexBaseValue: indexed ? indexBaseValue : null,
+		indexBaseYear: indexed ? indexBaseYear : '2020',
 		terminatedAt,
 		terminatedBy,
 		notes

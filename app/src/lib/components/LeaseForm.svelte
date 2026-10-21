@@ -319,6 +319,18 @@
 			aria-invalid={invalid('indexBaseValue')}
 		/>
 	</Field>
+	<Field
+		label="Basisjahr des Index"
+		error={errors.indexBaseYear}
+		hint="Nur bei Indexmiete: das Basisjahr (= 100), auf das sich der Indexwert bezieht."
+	>
+		<input
+			name="indexBaseYear"
+			defaultValue={values.indexBaseYear ?? '2020'}
+			inputmode="numeric"
+			aria-invalid={invalid('indexBaseYear')}
+		/>
+	</Field>
 
 	{#if mode === 'edit'}
 		<Field label="Kündigung erhalten am (optional)" error={errors.terminatedAt}>

@@ -5,10 +5,12 @@ import {
 	formatIndexValue,
 	indexLetterRows,
 	indexLetterText,
+	indexProposal,
 	indexSituation,
 	latestIndex,
 	letterFigures,
 	nextGraduatedStepAllowed,
+	referenceIndex,
 	waitingPeriodEnd,
 	type HistoryChange
 } from '../domain/index-rent';
@@ -184,11 +186,15 @@ export async function manualChange(
 		);
 	}
 
-	let index: { indexMonth: string; indexValue: number } | undefined;
+	let index: { indexMonth: string; indexValue: number; indexBaseYear: string } | undefined;
 	if (lease.rentModel === 'indexed' && input.reason === 'manual') {
 		const latest = latestIndex(await listIndexValues(db, context.accountId));
 		if (latest.ok && before.baseRent !== input.baseRent) {
-			index = { indexMonth: latest.latest.month, indexValue: latest.latest.value };
+			index = {
+				indexMonth: latest.latest.month,
+				indexValue: latest.latest.value,
+				indexBaseYear: latest.latest.baseYear
+			};
 		}
 	}
 
@@ -311,7 +317,8 @@ export async function proposeIndexChange(
 	const situation = indexSituation(lease, changes, values, day);
 	if (situation.refusal) return refuse(situation.refusal);
 	const proposal = situation.proposal!;
-	const current = rentOn(changes, day) ?? rentOn(changes, '9999-12-31')!;
+	const latest = situation.latest.ok ? situation.latest.latest : undefined;
+	const current = rentOn(changes, situation.provisionalFrom) ?? rentOn(changes, '9999-12-31')!;
 
 	const id = crypto.randomUUID();
 	await runBatch(db, [
@@ -328,6 +335,7 @@ export async function proposeIndexChange(
 			note: null,
 			indexMonth: proposal.latest.month,
 			indexValue: proposal.latest.value,
+			indexBaseYear: latest!.baseYear,
 			createdBy: context.userId
 		}),
 		auditEntry(
@@ -385,12 +393,26 @@ export async function approveChange(
 	// effective date, so a § 560 change in between is kept.
 	const before = rentOn(others, validFrom);
 	if (!before) return refuse('Dem Mietvertrag fehlt die Miete bei Vertragsbeginn.');
+	// The amount was computed when the change was proposed. A change of the Kaltmiete or of the
+	// reference index before the effective date since then (or another effective date) leaves it
+	// on an outdated basis: the user confirmed this amount, so the proposal must be made again.
+	const reference = referenceIndex(others, lease, validFrom);
+	const recomputed =
+		change.indexMonth && change.indexValue !== null && reference?.baseYear === change.indexBaseYear
+			? indexProposal(before.baseRent, reference, {
+					month: change.indexMonth,
+					value: change.indexValue
+				}).newBaseRent
+			: undefined;
+	if (recomputed !== change.baseRent) {
+		return refuse(
+			`Die Kaltmiete oder der Bezugsindex zum ${formatDate(validFrom)} hat sich seit dem Vorschlag geändert. Lösche den Vorschlag und lass ihn neu berechnen.`
+		);
+	}
 	const amounts = { ...amountsOf(before), baseRent: change.baseRent };
 	const approved: HistoryChange = { ...change, ...amounts, validFrom, status: 'approved' };
 	const later = laterRows(db, context.accountId, others, validFrom, amountsOf(before), amounts);
-	const latest = latestIndex(await listIndexValues(db, context.accountId));
-	const baseYear = latest.ok ? latest.latest.baseYear : '2020';
-	const figures = letterFigures([...others, approved], lease, approved, baseYear);
+	const figures = letterFigures([...others, approved], lease, approved);
 	if (!figures)
 		return refuse('Für dieses Schreiben fehlen der Bezugsindex oder die bisherige Miete.');
 	const letterText = indexLetterText({
@@ -407,7 +429,10 @@ export async function approveChange(
 				validFrom,
 				...amounts,
 				deliveredOn: input.deliveredOn,
-				letterText
+				letterText,
+				// Stored with the paragraphs, so a later correction of the history cannot make the
+				// table of a downloaded letter disagree with its text.
+				letterTable: indexLetterRows(figures)
 			})
 			.where(and(eq(rentChanges.accountId, context.accountId), eq(rentChanges.id, changeId))),
 		...later.statements,
@@ -517,19 +542,8 @@ export async function indexLetter(
 	const lease = await getLease(db, accountId, leaseId);
 	if (!lease) return undefined;
 	const change = await getRentChange(db, accountId, leaseId, changeId);
-	if (!change || !change.letterText) return undefined;
-	const [changes, values, landlord] = await Promise.all([
-		listRentChanges(db, accountId, leaseId),
-		listIndexValues(db, accountId),
-		landlordAddress(db, accountId)
-	]);
-	const latest = latestIndex(values);
-	const figures = letterFigures(
-		changes,
-		lease,
-		change,
-		latest.ok ? latest.latest.baseYear : '2020'
-	);
+	if (!change || !change.letterText || !change.letterTable) return undefined;
+	const landlord = await landlordAddress(db, accountId);
 
 	const date = formatDate(change.deliveredOn ?? today());
 	const letter: Letter = {
@@ -538,18 +552,16 @@ export async function indexLetter(
 		date: landlord.city ? `${landlord.city}, ${date}` : date,
 		subject: 'Mieterhöhung nach § 557b BGB',
 		paragraphs: change.letterText.split('\n\n'),
-		tables: figures
-			? [
-					{
-						columns: [
-							{ label: '' },
-							{ label: 'Bisher', align: 'right', width: 0.28 },
-							{ label: 'Neu', align: 'right', width: 0.28 }
-						],
-						rows: indexLetterRows(figures)
-					}
-				]
-			: [],
+		tables: [
+			{
+				columns: [
+					{ label: '' },
+					{ label: 'Bisher', align: 'right', width: 0.28 },
+					{ label: 'Neu', align: 'right', width: 0.28 }
+				],
+				rows: change.letterTable
+			}
+		],
 		closing: ['Mit freundlichen Grüßen', '', landlord.name]
 	};
 	const names = lease.tenants.map((tenant) => tenant.lastName).join(', ') || lease.unit.name;

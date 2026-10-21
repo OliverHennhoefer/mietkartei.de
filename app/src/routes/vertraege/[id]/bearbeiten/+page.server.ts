@@ -33,6 +33,7 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 		ledgerStart: input.ledgerStart ?? '',
 		indexBaseMonth: input.indexBaseMonth ?? '',
 		indexBaseValue: input.indexBaseValue === null ? '' : String(input.indexBaseValue),
+		indexBaseYear: input.indexBaseYear,
 		terminatedAt: input.terminatedAt ?? '',
 		terminatedBy: input.terminatedBy ?? '',
 		notes: input.notes ?? ''

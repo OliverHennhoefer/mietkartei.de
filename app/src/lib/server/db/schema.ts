@@ -168,6 +168,8 @@ export const leases = sqliteTable(
 		/** For indexed rents: the VPI month and value the current rent is based on. */
 		indexBaseMonth: text('index_base_month'),
 		indexBaseValue: real('index_base_value'),
+		/** The base year (= 100) of indexBaseValue; a proposal needs VPI values of the same year. */
+		indexBaseYear: text('index_base_year').notNull().default('2020'),
 		notes: text('notes'),
 		createdAt: createdAt()
 	},
@@ -265,8 +267,14 @@ export const rentChanges = sqliteTable(
 		/** For indexed changes: the VPI month and value the new rent is based on. */
 		indexMonth: text('index_month'),
 		indexValue: real('index_value'),
-		/** For indexed changes: the generated letter, and when it was (or is to be) delivered. */
+		/** The base year (= 100) of indexValue. */
+		indexBaseYear: text('index_base_year').notNull().default('2020'),
+		/**
+		 * For indexed changes: the generated letter as approved, its paragraphs and the rows of its
+		 * old/new table, and when it was (or is to be) delivered.
+		 */
 		letterText: text('letter_text'),
+		letterTable: text('letter_table', { mode: 'json' }).$type<string[][]>(),
 		deliveredOn: text('delivered_on'),
 		createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
 		createdAt: createdAt()

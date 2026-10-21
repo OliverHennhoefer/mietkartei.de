@@ -98,6 +98,7 @@ export function leaseInput(unitId: string, overrides: Partial<LeaseInput> = {}):
 		ledgerStart: null,
 		indexBaseMonth: null,
 		indexBaseValue: null,
+		indexBaseYear: '2020',
 		terminatedAt: null,
 		terminatedBy: null,
 		notes: null,

@@ -118,6 +118,7 @@ async function seedLease(
 		ledgerStart: null,
 		indexBaseMonth: null,
 		indexBaseValue: null,
+		indexBaseYear: '2020',
 		terminatedAt: null,
 		terminatedBy: null,
 		notes: null,

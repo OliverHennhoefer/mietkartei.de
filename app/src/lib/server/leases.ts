@@ -53,6 +53,7 @@ export type LeaseInput = {
 	ledgerStart: string | null;
 	indexBaseMonth: string | null;
 	indexBaseValue: number | null;
+	indexBaseYear: string;
 	terminatedAt: string | null;
 	terminatedBy: TerminatedBy | null;
 	notes: string | null;
@@ -256,6 +257,7 @@ function leaseColumns(input: LeaseInput) {
 		ledgerStart: input.ledgerStart,
 		indexBaseMonth: input.indexBaseMonth,
 		indexBaseValue: input.indexBaseValue,
+		indexBaseYear: input.indexBaseYear,
 		terminatedAt: input.terminatedAt,
 		terminatedBy: input.terminatedBy,
 		notes: input.notes
@@ -548,6 +550,7 @@ export function leaseInputOf(lease: LeaseSummary): LeaseInput {
 		ledgerStart: lease.ledgerStart,
 		indexBaseMonth: lease.indexBaseMonth,
 		indexBaseValue: lease.indexBaseValue,
+		indexBaseYear: lease.indexBaseYear,
 		terminatedAt: lease.terminatedAt,
 		terminatedBy: lease.terminatedBy,
 		notes: lease.notes
