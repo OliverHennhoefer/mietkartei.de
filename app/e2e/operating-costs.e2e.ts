@@ -42,7 +42,8 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 			.filter({ hasText: propertyName })
 	).toContainText('keine Abrechnungskreise');
 
-	// Categories: every allocable one starts with the key the BetrKV suggests.
+	// Categories: heating and hot water start with their HeizKV key, a combined system with none
+	// (§ 9 HeizKV splits it first), everything else allocable with floor area (§ 556a BGB).
 	await page
 		.getByRole('navigation', { name: 'Bereiche' })
 		.getByRole('link', { name: 'Kostenarten' })
@@ -52,9 +53,14 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 	await expect(categories).toContainText('Grundsteuer');
 	await expect(categories).toContainText('Hauswart');
 	await expect(categories).toContainText('Verwaltungskosten (nicht umlagefähig)');
-	await expect(categories.getByRole('row').filter({ hasText: 'Heizung' }).first()).toContainText(
-		'Heizung 70/30'
-	);
+	const seededRow = (name: string) =>
+		categories.getByRole('row').filter({ has: page.getByRole('link', { name, exact: true }) });
+	await expect(seededRow('Heizung')).toContainText('Heizung 70/30');
+	await expect(seededRow('Warmwasser')).toContainText('Warmwasser 70/30');
+	const combined = seededRow('Verbundene Heizungs- und Warmwasserversorgung');
+	await expect(combined).toContainText('ja');
+	await expect(combined).not.toContainText('70/30');
+	await expect(seededRow('Straßenreinigung und Müllbeseitigung')).toContainText('Wohnfläche');
 
 	// A custom key for the property, with a share for its unit.
 	await page.goto('/betriebskosten/schluessel');
@@ -91,6 +97,14 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 		.click();
 	await expect(page).toHaveURL(new RegExp(`/objekte/${propertyId}/abrechnungskreise$`));
 	await expect(page.getByText('Dieses Objekt hat noch keine Abrechnungskreise.')).toBeVisible();
+	const propertyTabs = page.getByRole('navigation', { name: 'Bereiche' });
+	await expect(propertyTabs.getByRole('link', { name: 'Abrechnungskreise' })).toHaveAttribute(
+		'aria-current',
+		'page'
+	);
+	await expect(propertyTabs.getByRole('link', { name: 'Einheiten' })).not.toHaveAttribute(
+		'aria-current'
+	);
 	const circleName = `Haus A ${suffix}`;
 	await page.getByLabel('Bezeichnung').fill(circleName);
 	await page.getByRole('button', { name: 'Abrechnungskreis anlegen' }).click();
@@ -374,6 +388,14 @@ test('edits and deletes categories, keys, circles, cost items, meters and readin
 	await circles.getByRole('link', { name: `Haus B ${tag}` }).click();
 	await expect(page).toHaveURL(/\/abrechnungskreise\/[0-9a-f-]+$/);
 	const circleUrl = page.url();
+	const propertyTabs = page.getByRole('navigation', { name: 'Bereiche' });
+	await expect(propertyTabs.getByRole('link', { name: 'Abrechnungskreise' })).toHaveAttribute(
+		'aria-current',
+		'page'
+	);
+	await expect(propertyTabs.getByRole('link', { name: 'Einheiten' })).not.toHaveAttribute(
+		'aria-current'
+	);
 	await page.getByLabel('Bezeichnung').fill(`Haus C ${tag}`);
 	await page.getByRole('button', { name: 'Speichern', exact: true }).click();
 	await expect(page).toHaveURL(new RegExp(`/objekte/${propertyId}/abrechnungskreise$`));

@@ -170,5 +170,19 @@ describe('circles', () => {
 			name: 'Fremd',
 			unitIds: [unitId]
 		});
+		// Units of the other account cannot join a circle of account a.
+		const own = await seedUnit(db, 'a');
+		expect(
+			await createCircle(db, contextA, own.propertyId, { name: 'X', unitIds: [unitId] })
+		).toEqual({ ok: false, reason: 'unknown-unit' });
+		const circle = await createCircle(db, contextA, own.propertyId, {
+			name: 'Eigen',
+			unitIds: [own.unitId]
+		});
+		if (!circle.ok) throw new Error('setup failed');
+		expect(
+			await updateCircle(db, contextA, circle.id, { name: 'Eigen', unitIds: [own.unitId, unitId] })
+		).toEqual({ ok: false, reason: 'unknown-unit' });
+		expect(await getCircle(db, 'a', circle.id)).toMatchObject({ unitIds: [own.unitId] });
 	});
 });

@@ -211,5 +211,36 @@ describe('categories', () => {
 				input({ name: 'Mit fremdem Schlüssel', allocationKeyId: key.id })
 			)
 		).toEqual({ ok: false, reason: 'unknown-key' });
+		const own = await create(contextA, { name: 'Eigene' });
+		expect(
+			await updateCategory(db, contextA, own, input({ name: 'Eigene', allocationKeyId: key.id }))
+		).toEqual({
+			ok: false,
+			reason: 'unknown-key'
+		});
+		// Nor can a billing circle of the other account.
+		const { propertyId, unitId } = await seedUnit(db, 'b');
+		const circle = await createCircle(db, contextB, propertyId, {
+			name: 'Fremder Kreis',
+			unitIds: [unitId]
+		});
+		if (!circle.ok) throw new Error('setup failed');
+		expect(
+			await createCategory(
+				db,
+				contextA,
+				input({ name: 'Mit fremdem Kreis', billingCircleId: circle.id })
+			)
+		).toEqual({ ok: false, reason: 'unknown-circle' });
+		expect(
+			await updateCategory(db, contextA, own, input({ name: 'Eigene', billingCircleId: circle.id }))
+		).toEqual({
+			ok: false,
+			reason: 'unknown-circle'
+		});
+		expect(await getCategory(db, 'a', own)).toMatchObject({
+			allocationKeyId: null,
+			billingCircleId: null
+		});
 	});
 });

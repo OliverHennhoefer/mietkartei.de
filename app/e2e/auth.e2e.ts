@@ -58,3 +58,16 @@ test('gives a later user an own, empty account on the hosted variant', async ({ 
 	await expect(page).toHaveURL(/\/objekte$/);
 	await expect(page.getByText('Du hast noch keine Objekte angelegt.')).toBeVisible();
 });
+
+test('sends the security headers and a CSP with a nonce', async ({ request }) => {
+	const response = await request.get('/anmelden');
+	const headers = response.headers();
+	const csp = headers['content-security-policy'];
+	expect(csp).toContain("default-src 'self'");
+	expect(csp).toContain("frame-ancestors 'none'");
+	expect(csp).toContain("form-action 'self'");
+	expect(csp).toMatch(/script-src 'self' 'nonce-[^']+'/);
+	expect(headers['x-frame-options']).toBe('DENY');
+	expect(headers['referrer-policy']).toBe('same-origin');
+	expect(headers['x-content-type-options']).toBe('nosniff');
+});

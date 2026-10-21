@@ -142,6 +142,25 @@ describe('FormParser for ids, money, dates, email and flags', () => {
 	});
 });
 
+describe('FormParser.ids', () => {
+	it('accepts up to 1000 ids and refuses more', () => {
+		const parse = (count: number) => {
+			const parser = new FormParser<{ unitIds: string[] }>(
+				formDataOf({ unitIds: Array.from({ length: count }, (_, index) => `u${index}`) })
+			);
+			const unitIds = parser.ids('unitIds');
+			return parser.result(() => ({ unitIds }));
+		};
+		const limit = parse(1000);
+		expect(limit.ok && limit.data.unitIds).toHaveLength(1000);
+		expect(parse(1001)).toEqual({
+			ok: false,
+			errors: { unitIds: 'Höchstens 1000 Einträge.' },
+			values: { unitIds: '' }
+		});
+	});
+});
+
 describe('FormParser.month', () => {
 	it('reads YYYY-MM, refuses other values and may be optional', () => {
 		const parse = (entries: Record<string, string>, required?: boolean) => {

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "2f40bf8c-de5b-4d8f-bb8d-c377ff01e1ce",
-  "prevId": "cb010c5a-c2d7-4129-93da-9e19c3d3f3a6",
+  "id": "97aa9976-71f5-491c-ad6a-250f536b97f0",
+  "prevId": "1be04be8-9030-4341-a99b-ff4f3eb9631d",
   "tables": {
     "accounts": {
       "name": "accounts",
@@ -1731,19 +1731,6 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "documents_cost_item_id_cost_items_id_fk": {
-          "name": "documents_cost_item_id_cost_items_id_fk",
-          "tableFrom": "documents",
-          "tableTo": "cost_items",
-          "columnsFrom": [
-            "cost_item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
         "documents_uploaded_by_users_id_fk": {
           "name": "documents_uploaded_by_users_id_fk",
           "tableFrom": "documents",
@@ -3194,6 +3181,14 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch('subsec') * 1000)"
         }
       },
       "indexes": {
