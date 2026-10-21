@@ -17,12 +17,17 @@ const publicPaths = new Set([
 	'/api/webhooks/stripe',
 	'/health'
 ]);
-const publicPrefixes = ['/passwort-zuruecksetzen/', '/einladung/', '/e-mail-bestaetigen/'];
+const publicPrefixes = [
+	'/registrieren/',
+	'/passwort-zuruecksetzen/',
+	'/einladung/',
+	'/e-mail-bestaetigen/'
+];
 
 /**
  * Paths whose posts check a password, hash a new one, create an account or send a reset mail,
- * counted per client address: the forms above, the pages of reset and invitation links, and the
- * account deletion, which asks for the password again.
+ * counted per client address: the forms above, the pages of registration, reset and invitation
+ * links, and the account deletion, which asks for the password again.
  */
 const authPaths = new Set([
 	'/anmelden',
@@ -30,7 +35,7 @@ const authPaths = new Set([
 	'/passwort-vergessen',
 	'/einstellungen/konto'
 ]);
-const authPrefixes = ['/passwort-zuruecksetzen/', '/einladung/'];
+const authPrefixes = ['/registrieren/', '/passwort-zuruecksetzen/', '/einladung/'];
 
 function isAuthPath(pathname: string): boolean {
 	return authPaths.has(pathname) || authPrefixes.some((prefix) => pathname.startsWith(prefix));

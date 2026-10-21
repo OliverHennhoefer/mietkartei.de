@@ -1046,6 +1046,23 @@ export const emailChanges = sqliteTable(
 	]
 );
 
+/**
+ * A registration waiting for the link sent to its address. The id is the SHA-256 hash of the
+ * token in the link; valid for one day. The password is chosen and the account created only on
+ * the page of the link, so whoever requested it cannot set the password of someone else's address.
+ */
+export const registrationRequests = sqliteTable(
+	'registration_requests',
+	{
+		id: text('id').primaryKey(),
+		/** Stored trimmed and in lower case, like users.email. */
+		email: text('email').notNull(),
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+		createdAt: createdAt()
+	},
+	(table) => [index('registration_requests_email_idx').on(table.email)]
+);
+
 /** Failed sign-ins per address; five within fifteen minutes lock the address for fifteen minutes. */
 export const loginAttempts = sqliteTable('login_attempts', {
 	email: text('email').primaryKey(),

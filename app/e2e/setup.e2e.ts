@@ -1,17 +1,35 @@
 import { expect, test } from '@playwright/test';
 import { watchCspViolations } from './csp';
+import { linkInMailTo } from './outbox';
 import { owner } from './owner';
 import { clearTables, seedRows } from './seed';
 
-test('the first visitor registers and becomes the owner', async ({ page }) => {
-	// The only run of the open registration form, so it is also checked against the CSP.
+test('the first visitor registers and becomes the owner', async ({ page, request }) => {
+	// The only run of the open registration form (and on the hosted variant of the page of its
+	// link), so it is also checked against the CSP.
 	const violations = watchCspViolations(page);
 	await page.goto('/');
 	await expect(page).toHaveURL(/\/registrieren$/);
 
 	await page.getByLabel('E-Mail-Adresse').fill(owner.email);
-	await page.getByLabel('Passwort').fill(owner.password);
-	await page.getByRole('button', { name: 'Konto anlegen' }).click();
+	if (process.env.DEPLOY_TARGET === 'cloudflare') {
+		// The hosted variant lists the owner in REGISTRATION_EMAILS. A listed address asks for a
+		// link here and chooses the password on the page the mail leads to.
+		await page.getByRole('button', { name: 'Link anfordern' }).click();
+		await expect(page.getByRole('status')).toContainText('E-Mail mit einem Link');
+		const link = await linkInMailTo(page.request, owner.email, '/registrieren/');
+		await page.goto(link);
+		await expect(page.getByText(`Konto mit ${owner.email}`)).toBeVisible();
+		await page.locator('input[name="password"]').fill(owner.password);
+		await page.locator('input[name="passwordConfirm"]').fill(owner.password);
+		await page.getByRole('button', { name: 'Konto anlegen' }).click();
+		await expect(page).toHaveURL(/\/$/);
+		// The link is used up (asked signed out: a signed-in visit is sent to the start page).
+		expect((await request.get(link)).status()).toBe(404);
+	} else {
+		await page.getByLabel('Passwort').fill(owner.password);
+		await page.getByRole('button', { name: 'Konto anlegen' }).click();
+	}
 
 	await expect(page).toHaveURL(/\/$/);
 	await expect(page.getByRole('navigation')).toContainText(owner.email);

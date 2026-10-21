@@ -13,7 +13,8 @@ export const variables = defineEnvVars({
 	},
 	REGISTRATION_EMAILS: {
 		description:
-			'Email addresses that may register, separated by commas. Set, only they can. Unset, a ' +
+			'Email addresses that may register, separated by commas. Set, only they can, each through ' +
+			'a link mailed to it. Unset, a ' +
 			'self-hosted instance lets only the first person register, who takes over the existing ' +
 			'data, and the hosted variant lets nobody. Keep it a secret on the hosted variant.',
 		schema: (value) => value || ''

@@ -24,11 +24,18 @@
 
 	{#if !data.open || form?.closed}
 		<p>Auf dieser Instanz können sich keine weiteren Personen registrieren.</p>
+	{:else if form?.sent}
+		<p role="status">
+			Wir haben dir eine E-Mail mit einem Link geschickt. Öffne ihn innerhalb eines Tages, um dein
+			Konto anzulegen. Hast du schon ein Konto, kommt keine E-Mail: Melde dich dann an oder setze
+			dein Passwort zurück.
+		</p>
 	{:else}
 		{#if data.restricted}
 			<p>
 				mietkartei ist noch nicht öffentlich. Ein Konto anlegen können nur freigeschaltete
-				E-Mail-Adressen.
+				E-Mail-Adressen. Du bekommst einen Link, mit dem du die Adresse bestätigst und dein Passwort
+				wählst.
 			</p>
 		{/if}
 		<form
@@ -53,19 +60,21 @@
 				/>
 				{#if form?.errors?.email}<span class="error">{form.errors.email}</span>{/if}
 			</label>
-			<label>
-				Passwort
-				<input
-					name="password"
-					type="password"
-					autocomplete="new-password"
-					minlength={MIN_PASSWORD_LENGTH}
-					aria-invalid={form?.errors?.password ? 'true' : undefined}
-					required
-				/>
-				<span class="muted">Mindestens {MIN_PASSWORD_LENGTH} Zeichen.</span>
-				{#if form?.errors?.password}<span class="error">{form.errors.password}</span>{/if}
-			</label>
+			{#if !data.restricted}
+				<label>
+					Passwort
+					<input
+						name="password"
+						type="password"
+						autocomplete="new-password"
+						minlength={MIN_PASSWORD_LENGTH}
+						aria-invalid={form?.errors?.password ? 'true' : undefined}
+						required
+					/>
+					<span class="muted">Mindestens {MIN_PASSWORD_LENGTH} Zeichen.</span>
+					{#if form?.errors?.password}<span class="error">{form.errors.password}</span>{/if}
+				</label>
+			{/if}
 			{#if data.turnstileSiteKey}
 				<div class="cf-turnstile" data-sitekey={data.turnstileSiteKey} data-language="de"></div>
 			{/if}
@@ -74,6 +83,9 @@
 					Diese E-Mail-Adresse ist nicht für eine Registrierung freigeschaltet.
 				</p>
 			{/if}
+			{#if form?.unavailable}
+				<p class="error" role="alert">{form.unavailable}</p>
+			{/if}
 			{#if form?.botCheckFailed}
 				<p class="error" role="alert">
 					Die Prüfung, ob hier ein Mensch registriert, hat nicht geklappt. Bitte versuche es noch
@@ -81,7 +93,7 @@
 				</p>
 			{/if}
 			<div class="form-actions">
-				<button type="submit">Konto anlegen</button>
+				<button type="submit">{data.restricted ? 'Link anfordern' : 'Konto anlegen'}</button>
 			</div>
 		</form>
 	{/if}
