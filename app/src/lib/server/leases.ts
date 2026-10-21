@@ -160,7 +160,7 @@ async function decorate(db: Database, accountId: string, rows: Lease[]): Promise
 export async function listLeases(
 	db: Database,
 	accountId: string,
-	filter: { unitId?: string; tenantId?: string; propertyId?: string } = {}
+	filter: { unitId?: string; tenantId?: string } = {}
 ): Promise<LeaseSummary[]> {
 	let rows = await db
 		.select()
@@ -183,10 +183,7 @@ export async function listLeases(
 		const ids = new Set(links.map((row) => row.leaseId));
 		rows = rows.filter((row) => ids.has(row.id));
 	}
-	const summaries = await decorate(db, accountId, rows);
-	return filter.propertyId
-		? summaries.filter((lease) => lease.property.id === filter.propertyId)
-		: summaries;
+	return decorate(db, accountId, rows);
 }
 
 export async function getLease(
@@ -209,19 +206,27 @@ async function checkReferences(
 	accountId: string,
 	input: LeaseInput
 ): Promise<LeaseError | undefined> {
-	const unitIds = [input.unitId, ...input.extraUnitIds];
-	const ownUnits = await db
-		.select({ id: units.id })
-		.from(units)
-		.where(and(eq(units.accountId, accountId), inArray(units.id, unitIds)));
-	if (ownUnits.length !== new Set(unitIds).size) return 'unknown-unit';
-	if (input.tenantIds.length > 0) {
-		const ownTenants = await db
+	// The form does not cap the number of ids, so they go in groups (D1 binds at most 100).
+	const unitIds = [...new Set([input.unitId, ...input.extraUnitIds])];
+	let ownUnits = 0;
+	for (const ids of chunkIds(unitIds)) {
+		const rows = await db
+			.select({ id: units.id })
+			.from(units)
+			.where(and(eq(units.accountId, accountId), inArray(units.id, ids)));
+		ownUnits += rows.length;
+	}
+	if (ownUnits !== unitIds.length) return 'unknown-unit';
+	const tenantIds = [...new Set(input.tenantIds)];
+	let ownTenants = 0;
+	for (const ids of chunkIds(tenantIds)) {
+		const rows = await db
 			.select({ id: tenants.id })
 			.from(tenants)
-			.where(and(eq(tenants.accountId, accountId), inArray(tenants.id, input.tenantIds)));
-		if (ownTenants.length !== new Set(input.tenantIds).size) return 'unknown-tenant';
+			.where(and(eq(tenants.accountId, accountId), inArray(tenants.id, ids)));
+		ownTenants += rows.length;
 	}
+	if (ownTenants !== tenantIds.length) return 'unknown-tenant';
 	return undefined;
 }
 

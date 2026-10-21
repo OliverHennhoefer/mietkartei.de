@@ -130,8 +130,8 @@ describe('listLeases and getLease', () => {
 		]);
 	});
 
-	it('filters by unit (including extra units), tenant and property', async () => {
-		const { unitId: flat, propertyId } = await seedUnit(db, 'a', { name: 'Wohnung' });
+	it('filters by unit (including extra units) and tenant', async () => {
+		const { unitId: flat } = await seedUnit(db, 'a', { name: 'Wohnung' });
 		const { unitId: parking } = await seedUnit(db, 'a', {
 			name: 'Stellplatz',
 			propertyName: 'Garage'
@@ -151,7 +151,6 @@ describe('listLeases and getLease', () => {
 		);
 		expect(ids(await listLeases(db, 'a', { unitId: flat }))).toEqual([withParking.id]);
 		expect(ids(await listLeases(db, 'a', { tenantId }))).toEqual([withParking.id]);
-		expect(ids(await listLeases(db, 'a', { propertyId }))).toEqual([withParking.id]);
 	});
 
 	it('does not return a lease of another account', async () => {

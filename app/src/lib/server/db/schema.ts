@@ -224,7 +224,6 @@ export const rentChangeReasons = [
 	'indexed',
 	'statement'
 ] as const;
-export type RentChangeReason = (typeof rentChangeReasons)[number];
 
 export const rentChangeStatuses = ['approved', 'proposed'] as const;
 

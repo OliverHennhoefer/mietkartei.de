@@ -68,7 +68,7 @@
 		<a href="/objekte/{lease.property.id}/einheiten/{lease.unit.id}">{lease.unit.name}</a> ·
 		<a href="/objekte/{lease.property.id}">{lease.property.name}</a>
 		{#each lease.extraUnits as unit (unit.id)}
-			, <a href="/objekte/{lease.property.id}/einheiten/{unit.id}">{unit.name}</a>
+			, <a href="/objekte/{unit.propertyId}/einheiten/{unit.id}">{unit.name}</a>
 		{/each}
 	</dd>
 	<dt>Mieter</dt>

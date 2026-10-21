@@ -1,8 +1,7 @@
 import type { TenantInput } from '../server/tenants';
 import { FormParser, type ParseResult } from './fields';
 
-// Parses the tenant form. The CSV import builds one FormData per row and uses the same parser,
-// so a tenant from a file is checked exactly like one typed in.
+// Parses the tenant form.
 
 export function parseTenant(form: FormData): ParseResult<TenantInput> {
 	const parser = new FormParser<TenantInput>(form);
