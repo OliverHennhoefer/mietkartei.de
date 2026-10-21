@@ -90,6 +90,8 @@ Viele Begriffe des Mietrechts haben keine genaue englische Entsprechung. Verwend
 | Mietsicherheit (Kaution) | `securityDeposit` | Sicherheitsleistung des Mieters |
 | Zählerstand | `meterReading` | Ablesewert eines Zählers zu einem Stichtag |
 | CO₂-Kostenaufteilung | `co2CostSplit` | Aufteilung der CO₂-Kosten des Heizens zwischen Vermieter und Mieter nach dem CO2KostAufG |
+| Frist | `deadline` | Termin, der sich aus den Daten ergibt, etwa die Abrechnungsfrist oder das Vertragsende; wird berechnet, nicht gespeichert |
+| Aufgabe | `task` | Was sich der Vermieter selbst vornimmt, optional mit Fälligkeit und Bezug zu Objekt oder Mietvertrag |
 
 ### Pfade
 
