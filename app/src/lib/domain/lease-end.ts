@@ -10,6 +10,7 @@ import {
 	type IsoMonth
 } from '../dates';
 import type { LeaseKind, TerminatedBy } from '../server/db/schema';
+import { isPublicHoliday, isWorkingDay } from '../working-days';
 
 // The end of a lease after a notice (Kündigung), § 573c BGB for dwellings and § 580a BGB for
 // commercial premises and parking, and the deadlines that follow from the end date. Pure
@@ -47,18 +48,20 @@ export function noticePeriodMonths(input: LeaseEndInput): number {
 
 /**
  * The last day a notice counts for the month: the third Werktag. For § 573c and § 580a BGB
- * Saturday is a Werktag (BGH VIII ZR 206/04), unlike for the rent due day; when the third
- * Werktag is a Saturday, the deadline moves to the next Monday (§ 193 BGB). Public holidays are
- * not modelled.
+ * Saturday is a Werktag (BGH VIII ZR 206/04), unlike for the rent due day; Sundays and the
+ * nationwide public holidays are not. When the third Werktag is a Saturday, the deadline moves to
+ * the next working day (§ 193 BGB), past a holiday on the Monday too.
  */
 export function noticeDeadline(month: IsoMonth): IsoDate {
 	let date = firstOfMonth(month);
 	let seen = 0;
 	for (;;) {
-		if (weekday(date) !== 0) seen += 1;
-		if (seen === 3) return weekday(date) === 6 ? addDays(date, 2) : date;
+		if (weekday(date) !== 0 && !isPublicHoliday(date)) seen += 1;
+		if (seen === 3) break;
 		date = addDays(date, 1);
 	}
+	while (!isWorkingDay(date)) date = addDays(date, 1);
+	return date;
 }
 
 /**
