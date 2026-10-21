@@ -18,6 +18,7 @@ import {
 } from '#lib/server/operating-costs.ts';
 import { listProperties, listUnits } from '#lib/server/properties.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
+import { pluralize } from '#lib/format.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
@@ -89,8 +90,15 @@ export const actions: Actions = {
 		return { form: 'shares' as const, saved: true };
 	},
 	delete: async ({ locals, params }) => {
+		const key = await getKey(locals.db, requireAccount(locals), params.id);
+		if (!key) error(404, keyMessages.missing);
 		const outcome = await deleteKey(locals.db, auditContext(locals), params.id);
-		if (outcome === 'missing') error(404, keyMessages.missing);
+		if (outcome === 'in-use') {
+			return fail(400, {
+				form: 'delete' as const,
+				refused: `Der Umlageschlüssel wird von ${pluralize(key.costItemCount, 'Beleg', 'Belegen')} verwendet und kann nicht gelöscht werden. Ordne den Belegen zuerst einen anderen Schlüssel zu.`
+			});
+		}
 		redirect(303, '/betriebskosten/schluessel');
 	}
 };

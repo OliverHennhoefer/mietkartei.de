@@ -1,0 +1,220 @@
+<script lang="ts">
+	import { enhance } from '$app/forms';
+	import { today } from '../dates';
+	import { CIRCLE_FROM_CATEGORY, defaultCostPeriod } from '../domain/operating-costs';
+	import type { FieldErrors } from '../forms/fields';
+	import type { CostItemForm } from '../forms/operating-costs';
+	import { formatCentsPlain } from '../money';
+	import type { CostItemSummary } from '../server/operating-costs/cost-items';
+
+	// The one form of a Beleg, for creating (/belege/neu) and editing (/belege/[id]). The key and
+	// circle selects offer "Standard der Kostenart", which the action resolves to the category's
+	// defaults. Keys and circles are narrowed to the chosen property.
+	let {
+		action,
+		properties,
+		categories,
+		keys,
+		circles,
+		item,
+		prefill,
+		errors,
+		values,
+		withNext = false
+	}: {
+		action: string;
+		properties: { id: string; name: string }[];
+		categories: { id: string; name: string; betrkvItem: number | null; allocable: boolean }[];
+		keys: { id: string; name: string; propertyId: string | null }[];
+		circles: { id: string; name: string; propertyId: string; propertyName: string }[];
+		item?: CostItemSummary;
+		prefill?: { propertyId?: string; periodStart?: string; periodEnd?: string };
+		errors?: FieldErrors<CostItemForm>;
+		values?: Record<string, string>;
+		/** Show "Speichern und nächsten Beleg" (creating only). */
+		withNext?: boolean;
+	} = $props();
+
+	const value = (name: string, fallback: string) => values?.[name] ?? fallback;
+	// Without a year from the list, the period is last year's: most receipts entered now, such as
+	// an annual bill, belong to the statement of the year before. The hint says so.
+	const period = defaultCostPeriod(null, today());
+	const periodDefaulted = $derived(!values && !item && !prefill?.periodStart);
+
+	// The selects start from the typed values, the item or the prefill, then follow the user.
+	// svelte-ignore state_referenced_locally
+	let propertyId = $state(
+		values?.propertyId ?? item?.propertyId ?? prefill?.propertyId ?? properties[0]?.id ?? ''
+	);
+	// svelte-ignore state_referenced_locally
+	let categoryId = $state(values?.categoryId ?? item?.categoryId ?? categories[0]?.id ?? '');
+	// svelte-ignore state_referenced_locally
+	let allocable = $state(
+		values ? values.allocable === 'on' : (item?.allocable ?? categories[0]?.allocable ?? true)
+	);
+
+	const propertyKeys = $derived(
+		keys.filter((key) => key.propertyId === null || key.propertyId === propertyId)
+	);
+	const propertyCircles = $derived(circles.filter((circle) => circle.propertyId === propertyId));
+
+	/** The allocable checkbox follows the category until the user ticks it. */
+	function categoryChanged() {
+		const category = categories.find((candidate) => candidate.id === categoryId);
+		if (category) allocable = category.allocable;
+	}
+
+	const keyChoice = $derived(value('allocationKeyId', item?.allocationKeyId ?? ''));
+	const circleChoice = $derived(
+		value('billingCircleId', item ? (item.billingCircleId ?? '') : CIRCLE_FROM_CATEGORY)
+	);
+</script>
+
+<form method="POST" {action} class="card" enctype="multipart/form-data" use:enhance>
+	<label>
+		Objekt
+		<select
+			name="propertyId"
+			bind:value={propertyId}
+			aria-invalid={errors?.propertyId ? 'true' : undefined}
+			required
+		>
+			{#each properties as property (property.id)}
+				<option value={property.id}>{property.name}</option>
+			{/each}
+		</select>
+		{#if errors?.propertyId}<span class="error">{errors.propertyId}</span>{/if}
+	</label>
+	<label>
+		Kostenart
+		<select
+			name="categoryId"
+			bind:value={categoryId}
+			onchange={categoryChanged}
+			aria-invalid={errors?.categoryId ? 'true' : undefined}
+			required
+		>
+			{#each categories as category (category.id)}
+				<option value={category.id}>
+					{category.betrkvItem ? `${category.betrkvItem} ` : ''}{category.name}
+				</option>
+			{/each}
+		</select>
+		{#if errors?.categoryId}<span class="error">{errors.categoryId}</span>{/if}
+	</label>
+	<label>
+		Umlageschlüssel
+		<select name="allocationKeyId" aria-invalid={errors?.allocationKeyId ? 'true' : undefined}>
+			<option value="" selected={keyChoice === ''}>Standard der Kostenart</option>
+			{#each propertyKeys as key (key.id)}
+				<option value={key.id} selected={keyChoice === key.id}>{key.name}</option>
+			{/each}
+		</select>
+		{#if errors?.allocationKeyId}<span class="error">{errors.allocationKeyId}</span>{/if}
+	</label>
+	<label>
+		Abrechnungskreis
+		<select name="billingCircleId" aria-invalid={errors?.billingCircleId ? 'true' : undefined}>
+			<option value={CIRCLE_FROM_CATEGORY} selected={circleChoice === CIRCLE_FROM_CATEGORY}>
+				Standard der Kostenart
+			</option>
+			<option value="" selected={circleChoice === ''}>Alle Einheiten des Objekts</option>
+			{#each propertyCircles as circle (circle.id)}
+				<option value={circle.id} selected={circleChoice === circle.id}>
+					{circle.propertyName} – {circle.name}
+				</option>
+			{/each}
+		</select>
+		{#if errors?.billingCircleId}<span class="error">{errors.billingCircleId}</span>{/if}
+	</label>
+	<label class="form-wide">
+		Beschreibung
+		<input
+			name="description"
+			defaultValue={value('description', item?.description ?? '')}
+			placeholder="z. B. Grundsteuer 2025"
+			aria-invalid={errors?.description ? 'true' : undefined}
+			required
+		/>
+		{#if errors?.description}<span class="error">{errors.description}</span>{/if}
+	</label>
+	<label>
+		Lieferant (optional)
+		<input
+			name="supplier"
+			defaultValue={value('supplier', item?.supplier ?? '')}
+			aria-invalid={errors?.supplier ? 'true' : undefined}
+		/>
+		{#if errors?.supplier}<span class="error">{errors.supplier}</span>{/if}
+	</label>
+	<label>
+		Rechnungsdatum
+		<input
+			type="date"
+			name="invoiceDate"
+			defaultValue={value('invoiceDate', item?.invoiceDate ?? today())}
+			aria-invalid={errors?.invoiceDate ? 'true' : undefined}
+		/>
+		{#if errors?.invoiceDate}<span class="error">{errors.invoiceDate}</span>{/if}
+	</label>
+	<label>
+		Zeitraum von
+		<input
+			type="date"
+			name="periodStart"
+			defaultValue={value(
+				'periodStart',
+				item?.periodStart ?? prefill?.periodStart ?? period.periodStart
+			)}
+			aria-invalid={errors?.periodStart ? 'true' : undefined}
+			required
+		/>
+		{#if errors?.periodStart}<span class="error">{errors.periodStart}</span
+			>{:else if periodDefaulted}
+			<span class="hint muted"
+				>Vorbelegt mit dem Vorjahr, für die Abrechnung des letzten Jahres.</span
+			>
+		{/if}
+	</label>
+	<label>
+		Zeitraum bis
+		<input
+			type="date"
+			name="periodEnd"
+			defaultValue={value('periodEnd', item?.periodEnd ?? prefill?.periodEnd ?? period.periodEnd)}
+			aria-invalid={errors?.periodEnd ? 'true' : undefined}
+			required
+		/>
+		{#if errors?.periodEnd}<span class="error">{errors.periodEnd}</span>{/if}
+	</label>
+	<label>
+		Betrag in €
+		<input
+			name="amount"
+			inputmode="decimal"
+			defaultValue={value('amount', item ? formatCentsPlain(item.amount) : '')}
+			aria-invalid={errors?.amount ? 'true' : undefined}
+			required
+		/>
+		{#if errors?.amount}<span class="error">{errors.amount}</span>{/if}
+	</label>
+	<label class="inline">
+		<input type="checkbox" name="allocable" bind:checked={allocable} />
+		umlagefähig
+	</label>
+
+	<label class="form-wide">
+		Beleg als Datei (optional, höchstens 10 MB)
+		<input type="file" name="receipt" aria-invalid={errors?.receipt ? 'true' : undefined} />
+		{#if errors?.receipt}<span class="error">{errors.receipt}</span>{/if}
+	</label>
+
+	<div class="form-actions">
+		<button type="submit">Speichern</button>
+		{#if withNext}
+			<button type="submit" name="next" value="1" class="secondary"
+				>Speichern und nächsten Beleg</button
+			>
+		{/if}
+	</div>
+</form>

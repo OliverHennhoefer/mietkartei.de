@@ -1,4 +1,5 @@
 import { error, fail, type ActionFailure } from '@sveltejs/kit';
+import { asc, eq } from 'drizzle-orm';
 import type { DocumentLinkIds, DocumentLinkOptions } from '#lib/domain/documents.ts';
 import { personName } from '#lib/format.ts';
 import {
@@ -9,6 +10,7 @@ import {
 } from '#lib/forms/documents.ts';
 import type { FieldErrors } from '#lib/forms/fields.ts';
 import type { Database } from '#lib/server/db/index.ts';
+import { costItems } from '#lib/server/db/schema.ts';
 import {
 	deleteDocument,
 	storeDocument,
@@ -42,7 +44,8 @@ export function documentRow(document: Document): DocumentRow {
 		propertyId: document.propertyId,
 		unitId: document.unitId,
 		leaseId: document.leaseId,
-		tenantId: document.tenantId
+		tenantId: document.tenantId,
+		costItemId: document.costItemId
 	};
 }
 
@@ -54,11 +57,16 @@ export async function loadDocumentLinkOptions(
 	db: Database,
 	accountId: string
 ): Promise<DocumentLinkOptions> {
-	const [propertyRows, unitRows, leaseRows, tenantRows] = await Promise.all([
+	const [propertyRows, unitRows, leaseRows, tenantRows, costItemRows] = await Promise.all([
 		listProperties(db, accountId),
 		listUnitsWithProperty(db, accountId),
 		listLeases(db, accountId),
-		listTenants(db, accountId)
+		listTenants(db, accountId),
+		db
+			.select({ id: costItems.id, description: costItems.description })
+			.from(costItems)
+			.where(eq(costItems.accountId, accountId))
+			.orderBy(asc(costItems.description), asc(costItems.createdAt))
 	]);
 	return {
 		properties: propertyRows.map((property) => ({ id: property.id, label: property.name })),
@@ -71,7 +79,8 @@ export async function loadDocumentLinkOptions(
 			const names = lease.tenants.map(personName).join(', ');
 			return { id: lease.id, label: names ? `${leaseLabel(lease)} · ${names}` : leaseLabel(lease) };
 		}),
-		tenants: tenantRows.map((tenant) => ({ id: tenant.id, label: personName(tenant) }))
+		tenants: tenantRows.map((tenant) => ({ id: tenant.id, label: personName(tenant) })),
+		costItems: costItemRows.map((item) => ({ id: item.id, label: item.description }))
 	};
 }
 

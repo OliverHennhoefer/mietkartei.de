@@ -631,6 +631,108 @@ export const billingCircleUnits = sqliteTable(
 	(table) => [primaryKey({ columns: [table.circleId, table.unitId] })]
 );
 
+/** Beleg: an invoice or cost of a property for a period. The receipt is a document with costItemId. */
+export const costItems = sqliteTable(
+	'cost_items',
+	{
+		id: id(),
+		accountId: accountId(),
+		propertyId: text('property_id')
+			.notNull()
+			.references(() => properties.id, { onDelete: 'cascade' }),
+		categoryId: text('category_id')
+			.notNull()
+			.references(() => costCategories.id, { onDelete: 'restrict' }),
+		allocationKeyId: text('allocation_key_id')
+			.notNull()
+			.references(() => allocationKeys.id, { onDelete: 'restrict' }),
+		billingCircleId: text('billing_circle_id').references(() => billingCircles.id, {
+			onDelete: 'set null'
+		}),
+		description: text('description').notNull(),
+		supplier: text('supplier'),
+		invoiceDate: text('invoice_date'),
+		/** The period the cost covers; prorated by days into a statement period. */
+		periodStart: text('period_start').notNull(),
+		periodEnd: text('period_end').notNull(),
+		amount: integer('amount').notNull(),
+		allocable: bool('allocable', true),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('cost_items_account_id_idx').on(table.accountId),
+		index('cost_items_property_id_period_idx').on(table.propertyId, table.periodStart)
+	]
+);
+
+/** Amounts per unit for a cost item with a `direct` key, e.g. from a Messdienstleister. */
+export const costItemUnitAmounts = sqliteTable(
+	'cost_item_unit_amounts',
+	{
+		accountId: accountId(),
+		costItemId: text('cost_item_id')
+			.notNull()
+			.references(() => costItems.id, { onDelete: 'cascade' }),
+		unitId: text('unit_id')
+			.notNull()
+			.references(() => units.id, { onDelete: 'cascade' }),
+		amount: integer('amount').notNull()
+	},
+	(table) => [
+		primaryKey({ columns: [table.costItemId, table.unitId] }),
+		index('cost_item_unit_amounts_account_id_idx').on(table.accountId)
+	]
+);
+
+/**
+ * Zähler: a meter of the building (unitId null) or of one unit. A replaced meter is closed with
+ * removedAt and the new one opened with installedAt; consumption is clipped to that lifetime.
+ */
+export const meters = sqliteTable(
+	'meters',
+	{
+		id: id(),
+		accountId: accountId(),
+		propertyId: text('property_id')
+			.notNull()
+			.references(() => properties.id, { onDelete: 'cascade' }),
+		unitId: text('unit_id').references(() => units.id, { onDelete: 'cascade' }),
+		kind: text('kind', { enum: meterKinds }).notNull(),
+		serialNumber: text('serial_number'),
+		/** m³, kWh or Einheiten (heat cost allocators). */
+		unit: text('unit').notNull(),
+		location: text('location'),
+		installedAt: text('installed_at'),
+		removedAt: text('removed_at'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('meters_account_id_idx').on(table.accountId),
+		index('meters_property_id_idx').on(table.propertyId)
+	]
+);
+
+/** Zählerstand on a date. An estimated reading stands in for a missing one (§ 9a HeizKV). */
+export const meterReadings = sqliteTable(
+	'meter_readings',
+	{
+		id: id(),
+		accountId: accountId(),
+		meterId: text('meter_id')
+			.notNull()
+			.references(() => meters.id, { onDelete: 'cascade' }),
+		readAt: text('read_at').notNull(),
+		value: real('value').notNull(),
+		estimated: bool('estimated', false),
+		note: text('note'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('meter_readings_account_id_idx').on(table.accountId),
+		uniqueIndex('meter_readings_unique').on(table.meterId, table.readAt)
+	]
+);
+
 // Documents
 
 /** An uploaded file, stored via the storage adapter under `<accountId>/<id>`. */
@@ -647,6 +749,7 @@ export const documents = sqliteTable(
 		unitId: text('unit_id').references(() => units.id, { onDelete: 'set null' }),
 		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
 		tenantId: text('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+		costItemId: text('cost_item_id').references(() => costItems.id, { onDelete: 'set null' }),
 		uploadedBy: text('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
 		createdAt: createdAt()
 	},

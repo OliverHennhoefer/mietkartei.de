@@ -11,6 +11,7 @@
 
 	const tabs = [
 		{ href: '/betriebskosten', label: 'Übersicht' },
+		{ href: '/betriebskosten/belege', label: 'Belege' },
 		{ href: '/betriebskosten/kostenarten', label: 'Kostenarten' },
 		{ href: '/betriebskosten/schluessel', label: 'Umlageschlüssel' }
 	];
@@ -18,7 +19,7 @@
 
 <PageHeader
 	title="Betriebskosten"
-	lead="Kostenarten, Umlageschlüssel und Abrechnungskreise für die Abrechnung festlegen."
+	lead="Belege sammeln und Kostenarten, Umlageschlüssel und Abrechnungskreise für die Abrechnung festlegen."
 />
 
 <Tabs {tabs} />

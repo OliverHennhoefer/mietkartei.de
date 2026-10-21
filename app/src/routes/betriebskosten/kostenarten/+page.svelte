@@ -27,6 +27,7 @@
 				<th>verbrauchsabhängig</th>
 				<th>Standardschlüssel</th>
 				<th>Standardkreis</th>
+				<th class="num">Belege</th>
 			</tr>
 		</thead>
 		<tbody>
@@ -38,6 +39,7 @@
 					<td>{category.consumptionBased ? 'ja' : 'nein'}</td>
 					<td>{category.allocable ? keyName(category.allocationKeyId) : '–'}</td>
 					<td>{category.allocable ? circleName(category.billingCircleId) : '–'}</td>
+					<td class="num">{category.costItemCount}</td>
 				</tr>
 			{/each}
 		</tbody>

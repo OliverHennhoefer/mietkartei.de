@@ -122,9 +122,10 @@ export type DocumentLinkOptions = {
 	units: UnitOption[];
 	leases: LinkOption[];
 	tenants: LinkOption[];
+	costItems: LinkOption[];
 };
 
-export type LinkKind = 'propertyId' | 'unitId' | 'leaseId' | 'tenantId';
+export type LinkKind = 'propertyId' | 'unitId' | 'leaseId' | 'tenantId' | 'costItemId';
 
 export type DocumentLinkIds = Record<LinkKind, string | null>;
 
@@ -134,7 +135,8 @@ export const linkKindLabels: Record<LinkKind, string> = {
 	propertyId: 'Objekt',
 	unitId: 'Einheit',
 	leaseId: 'Mietvertrag',
-	tenantId: 'Mieter'
+	tenantId: 'Mieter',
+	costItemId: 'Beleg'
 };
 
 function option<T extends LinkOption>(list: T[], id: string | null): T | undefined {
@@ -143,8 +145,8 @@ function option<T extends LinkOption>(list: T[], id: string | null): T | undefin
 
 /**
  * The links of a document as texts with the page they lead to, in the order property, unit,
- * lease, tenant. A link whose row is not among the options (gone, or of another account) is
- * left out; `omit` drops kinds the page already shows, such as the lease on its tab.
+ * lease, tenant, cost item. A link whose row is not among the options (gone, or of another
+ * account) is left out; `omit` drops kinds the page already shows, such as the lease on its tab.
  */
 export function describeDocumentLinks(
 	document: DocumentLinkIds,
@@ -171,6 +173,14 @@ export function describeDocumentLinks(
 	const tenant = option(options.tenants, document.tenantId);
 	if (tenant && !omit.includes('tenantId')) {
 		links.push({ kind: 'tenantId', label: tenant.label, href: `/mieter/${tenant.id}` });
+	}
+	const costItem = option(options.costItems, document.costItemId);
+	if (costItem && !omit.includes('costItemId')) {
+		links.push({
+			kind: 'costItemId',
+			label: costItem.label,
+			href: `/betriebskosten/belege/${costItem.id}`
+		});
 	}
 	return links;
 }
