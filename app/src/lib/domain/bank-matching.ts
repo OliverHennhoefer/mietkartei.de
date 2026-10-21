@@ -204,10 +204,29 @@ export function parseBankFile(
 	const detected = detectPreset(rows);
 	if (detected) {
 		const { preset, headerIndex } = detected;
+		// The header matched case-insensitively; spell its columns as the preset does, so the
+		// mapping's exact-key lookups find them (`BUCHUNGSTAG` → `Buchungstag`).
+		const names = [...Object.values(preset.mapping), preset.skip?.column];
+		const spelling = new Map(
+			names.filter((name): name is string => !!name).map((name) => [name.toLowerCase(), name])
+		);
+		const header = rows[headerIndex].map(
+			(cell) =>
+				spelling.get(
+					cell
+						.replace(/^\ufeff/, '')
+						.trim()
+						.toLowerCase()
+				) ?? cell
+		);
 		return {
 			columns: rows[headerIndex],
 			preset,
-			results: mapRecords(toRecords(rows, headerIndex), preset.mapping, preset.skip)
+			results: mapRecords(
+				toRecords([header, ...rows.slice(headerIndex + 1)], 0),
+				preset.mapping,
+				preset.skip
+			)
 		};
 	}
 	const headerIndex = genericHeaderRow(rows);

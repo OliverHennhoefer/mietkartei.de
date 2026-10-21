@@ -38,11 +38,20 @@ export async function getBankAccount(
 	return row;
 }
 
+/**
+ * Refused when the account already has a bank account with this IBAN: transactions are unique
+ * only per bank account, so the same statement imported into both would book every rent twice.
+ */
 export async function createBankAccount(
 	db: Database,
 	context: AuditContext,
 	input: BankAccountInput
-): Promise<string> {
+): Promise<{ ok: true; id: string } | { ok: false; reason: 'duplicate' }> {
+	const [existing] = await db
+		.select({ id: bankAccounts.id })
+		.from(bankAccounts)
+		.where(and(eq(bankAccounts.accountId, context.accountId), eq(bankAccounts.iban, input.iban)));
+	if (existing) return { ok: false, reason: 'duplicate' };
 	const id = crypto.randomUUID();
 	await runBatch(db, [
 		db.insert(bankAccounts).values({ id, accountId: context.accountId, ...input }),
@@ -55,7 +64,7 @@ export async function createBankAccount(
 			`Bankverbindung „${input.name}“ (${formatIban(input.iban)}) angelegt`
 		)
 	]);
-	return id;
+	return { ok: true, id };
 }
 
 /**

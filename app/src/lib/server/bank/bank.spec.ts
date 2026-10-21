@@ -71,8 +71,11 @@ beforeEach(async () => {
 	leaseId = own.id;
 	secondLeaseId = second.id;
 	foreignLeaseId = foreign.id;
-	bankAccountId = await createBankAccount(db, contextA, konto);
-	foreignBankAccountId = await createBankAccount(db, contextB, { ...konto, name: 'Fremd' });
+	const ownBank = await createBankAccount(db, contextA, konto);
+	const foreignBank = await createBankAccount(db, contextB, { ...konto, name: 'Fremd' });
+	if (!ownBank.ok || !foreignBank.ok) throw new Error('setup failed');
+	bankAccountId = ownBank.id;
+	foreignBankAccountId = foreignBank.id;
 });
 
 async function importSparkasse(text = sparkasse) {
@@ -107,6 +110,14 @@ describe('bank accounts', () => {
 		expect(await listBankAccounts(db, 'a')).toEqual([]);
 		// The transactions went with it (cascade).
 		expect((await listTransactions(db, 'a', { status: 'all' })).rows).toEqual([]);
+	});
+
+	it('refuses a second bank account with the same IBAN in one account', async () => {
+		expect(await createBankAccount(db, contextA, { ...konto, name: 'Nochmal' })).toEqual({
+			ok: false,
+			reason: 'duplicate'
+		});
+		expect(await listBankAccounts(db, 'a')).toHaveLength(1);
 	});
 
 	it('does not leak into another account', async () => {

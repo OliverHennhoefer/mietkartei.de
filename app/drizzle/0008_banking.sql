@@ -9,7 +9,7 @@ CREATE TABLE `bank_accounts` (
 	FOREIGN KEY (`account_id`) REFERENCES `accounts`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `bank_accounts_account_id_idx` ON `bank_accounts` (`account_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `bank_accounts_iban_unique` ON `bank_accounts` (`account_id`,`iban`);--> statement-breakpoint
 CREATE TABLE `bank_imports` (
 	`id` text PRIMARY KEY NOT NULL,
 	`account_id` text NOT NULL,

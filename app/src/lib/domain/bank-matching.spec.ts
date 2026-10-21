@@ -12,6 +12,7 @@ import {
 	mapRecord,
 	mapRecords,
 	normalizeIban,
+	parseBankFile,
 	rememberedRule,
 	ruleMatches,
 	splitComdirectText,
@@ -218,6 +219,14 @@ describe('detectPreset and mapRecords', () => {
 				externalId: null
 			}
 		]);
+	});
+
+	it('maps a known header in other capitalization, including the skip column', () => {
+		const header = dkb.split('\n')[4];
+		const parsed = parseBankFile(dkb.replace(header, header.toUpperCase()));
+		expect(parsed?.preset?.id).toBe('dkb');
+		expect(parsed?.results.map((result) => result.ok)).toEqual([true, true, false]);
+		expect(row(parsed!.results[0])).toMatchObject({ amount: 85000, counterpartName: 'Max Müller' });
 	});
 
 	it('knows no preset for a spreadsheet of its own', () => {

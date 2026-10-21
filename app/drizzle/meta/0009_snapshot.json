@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f8526398-70d6-4a29-bd6e-787e2834eb14",
-  "prevId": "01f0f860-806b-4fa3-871c-3ae854a1a51a",
+  "id": "f7d5ed6f-ff7c-4dd8-8768-76e23efe8731",
+  "prevId": "25719408-8a45-4ef5-879b-594b4ddcc517",
   "tables": {
     "accounts": {
       "name": "accounts",
@@ -222,12 +222,13 @@
         }
       },
       "indexes": {
-        "bank_accounts_account_id_idx": {
-          "name": "bank_accounts_account_id_idx",
+        "bank_accounts_iban_unique": {
+          "name": "bank_accounts_iban_unique",
           "columns": [
-            "account_id"
+            "account_id",
+            "iban"
           ],
-          "isUnique": false
+          "isUnique": true
         }
       },
       "foreignKeys": {

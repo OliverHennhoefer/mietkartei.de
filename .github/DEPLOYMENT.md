@@ -70,7 +70,7 @@ If the domain does not point to Cloudflare yet, first check that the old `docs` 
 
 ## Deploying the app
 
-The job **Deploy app** in [app.yml](workflows/app.yml) runs after every push to `main` that changes `app/**`, once lint, type check, unit tests and both end-to-end runs have passed. Uploaded documents are kept in the R2 bucket `mietkartei-documents`. The job builds the cloudflare target, applies new D1 migrations with `wrangler d1 migrations apply DB --remote` and then runs `wrangler deploy`. Migrations only add to the schema, so the previous version keeps working between the two steps. Pull requests and releases deploy nothing. For a redeploy without a change, choose **Actions → App → Run workflow → Branch: main**.
+The job **Deploy app** in [app.yml](workflows/app.yml) runs after every push to `main` that changes `app/**`, once lint, type check, unit tests and both end-to-end runs have passed. Uploaded documents are kept in the R2 bucket `mietkartei-documents`. The job builds the cloudflare target, applies new D1 migrations with `wrangler d1 migrations apply DB --remote` and then runs `wrangler deploy`. While the app is in development, a migration may change or drop existing data, and the previous version can fail for the moments between the two steps. Pull requests and releases deploy nothing. For a redeploy without a change, choose **Actions → App → Run workflow → Branch: main**.
 
 The hosted app sets `OPEN_REGISTRATION=true` in `app/wrangler.jsonc`, so everyone who signs up gets an own, empty account.
 

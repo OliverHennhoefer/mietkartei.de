@@ -424,7 +424,7 @@ export const bankAccounts = sqliteTable(
 		holder: text('holder').notNull(),
 		createdAt: createdAt()
 	},
-	(table) => [index('bank_accounts_account_id_idx').on(table.accountId)]
+	(table) => [uniqueIndex('bank_accounts_iban_unique').on(table.accountId, table.iban)]
 );
 
 export const bankImports = sqliteTable(

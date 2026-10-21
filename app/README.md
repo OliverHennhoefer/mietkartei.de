@@ -48,6 +48,8 @@ Das Schema steht in `src/lib/server/db/schema.ts`. Nach einer Änderung erzeugt 
 
 Auf Node.js spielt die Anwendung neue Migrationen beim Start selbst ein. Für D1 übernimmt das `wrangler d1 migrations apply`.
 
+Solange mietkartei.de in Entwicklung ist, müssen Migrationen keine bestehenden Daten erhalten. Es gibt keine Kompatibilitätsschichten, keine Nachträge für alte Zeilen und keine Rücksicht auf ältere Versionen; eine Migration darf Spalten umbenennen oder Tabellen neu anlegen, wenn das den Code einfacher macht.
+
 Damit dieselben Abfragen auf SQLite und D1 funktionieren, laufen alle Datenbankzugriffe über Drizzle. D1 kennt keine interaktiven Transaktionen; Änderungen über mehrere Anweisungen laufen deshalb über `runBatch` aus `src/lib/server/db/batch.ts`, das auf D1 `db.batch` und auf SQLite eine Transaktion nutzt. D1 erlaubt außerdem höchstens 100 gebundene Parameter je Anweisung; lange Listen teilen `chunk`, `chunkIds` und `rowsPerStatement` auf.
 
 ## Mit Docker betreiben
