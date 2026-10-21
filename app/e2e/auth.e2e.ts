@@ -28,7 +28,7 @@ test('signs in and out', async ({ page }) => {
 	await page.getByLabel('E-Mail-Adresse').fill(owner.email);
 	await page.getByLabel('Passwort').fill(owner.password);
 	await page.getByRole('button', { name: 'Anmelden' }).click();
-	await expect(page).toHaveURL(/\/objekte$/);
+	await expect(page).toHaveURL(/\/$/);
 
 	await page.getByRole('button', { name: 'Abmelden' }).click();
 	await expect(page).toHaveURL(/\/anmelden$/);
@@ -55,8 +55,10 @@ test('gives a later user an own, empty account on the hosted variant', async ({ 
 	await page.getByLabel('Passwort').fill('noch-ein-sicheres-passwort');
 	await page.getByRole('button', { name: 'Konto anlegen' }).click();
 
-	await expect(page).toHaveURL(/\/objekte$/);
-	await expect(page.getByText('Du hast noch keine Objekte angelegt.')).toBeVisible();
+	await expect(page).toHaveURL(/\/$/);
+	await expect(page.getByRole('region', { name: 'Erste Schritte' })).toContainText(
+		'Dein Bestand ist noch leer.'
+	);
 });
 
 test('sends the security headers and a CSP with a nonce', async ({ request }) => {

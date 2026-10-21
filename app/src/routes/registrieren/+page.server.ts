@@ -13,7 +13,7 @@ async function registrationOpen(db: Database): Promise<boolean> {
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
-	if (locals.user) redirect(303, '/objekte');
+	if (locals.user) redirect(303, '/');
 	return { open: await registrationOpen(locals.db), turnstileSiteKey: turnstileSiteKey() };
 };
 
@@ -45,6 +45,6 @@ export const actions: Actions = {
 
 		const session = await createSession(db, registered.userId);
 		setSessionCookie(event, session.token, session.expiresAt);
-		redirect(303, '/objekte');
+		redirect(303, '/');
 	}
 };

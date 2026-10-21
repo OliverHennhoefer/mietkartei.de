@@ -5,6 +5,7 @@ import { seedLease, seedRows } from './seed';
 // or an inline script without nonce would be blocked in the browser, not in the build.
 
 const pages = [
+	'/',
 	'/objekte',
 	'/objekte/neu',
 	'/mieter',
