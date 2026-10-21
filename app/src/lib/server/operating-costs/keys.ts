@@ -10,6 +10,7 @@ import {
 	type AllocationKeyKind,
 	type MeterKind
 } from '../db/schema';
+import { assertQuota } from '../quotas';
 
 // Umlageschlüssel: how a cost is split over the units. The shares of a custom key are kept in
 // allocation_key_shares, one row per unit of the key's property; every other kind computes its
@@ -102,6 +103,7 @@ export async function createKey(
 	input: AllocationKeyInput
 ): Promise<{ ok: true; id: string } | { ok: false; reason: KeyError }> {
 	const { accountId } = context;
+	await assertQuota(db, accountId, 'allocationKeys');
 	const reason = await checkInput(db, accountId, input);
 	if (reason) return { ok: false, reason };
 	const id = crypto.randomUUID();

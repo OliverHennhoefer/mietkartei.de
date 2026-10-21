@@ -3,6 +3,7 @@ import type { LeaseInput } from '../server/leases';
 import { formDataOf } from './fields';
 import {
 	depositWarning,
+	MAX_LEASE_IDS,
 	parseLease,
 	parseLeaseEdit,
 	parseLeaseEnd,
@@ -156,6 +157,14 @@ describe('parseLease', () => {
 		});
 		expect(result.values.baseRent).toBe('abc');
 		expect(result.values.tenantIds).toBe('tenant-1');
+	});
+
+	it('takes at most MAX_LEASE_IDS tenants and extra units', () => {
+		const ids = Array.from({ length: MAX_LEASE_IDS + 1 }, (_, index) => `id-${index}`);
+		expect(errorsOf({ tenantIds: ids, extraUnitIds: ids })).toEqual({
+			tenantIds: `Höchstens ${MAX_LEASE_IDS} Einträge.`,
+			extraUnitIds: `Höchstens ${MAX_LEASE_IDS} Einträge.`
+		});
 	});
 
 	it('rejects an end date before the start', () => {

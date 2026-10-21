@@ -7,16 +7,31 @@ export type IsoMonth = string;
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const ISO_MONTH = /^(\d{4})-(\d{2})$/;
 
+/**
+ * Dates outside these years are refused. A lease from year 1 would make the ledger generate
+ * 24,000 monthly charges; no real lease, payment or index value lies outside this range.
+ */
+export const MIN_YEAR = 1900;
+export const MAX_YEAR = 2100;
+
+function inYearRange(year: number): boolean {
+	return year >= MIN_YEAR && year <= MAX_YEAR;
+}
+
 export function isIsoDate(value: string): boolean {
 	const match = ISO_DATE.exec(value);
 	if (!match) return false;
 	const [, year, month, day] = match.map(Number);
-	return month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth(year, month);
+	return (
+		inYearRange(year) && month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth(year, month)
+	);
 }
 
 export function isIsoMonth(value: string): boolean {
 	const match = ISO_MONTH.exec(value);
-	return !!match && Number(match[2]) >= 1 && Number(match[2]) <= 12;
+	return (
+		!!match && inYearRange(Number(match[1])) && Number(match[2]) >= 1 && Number(match[2]) <= 12
+	);
 }
 
 function parts(date: IsoDate): [number, number, number] {
