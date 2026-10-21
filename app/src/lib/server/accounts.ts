@@ -97,12 +97,14 @@ export function addressLines(address: LandlordAddress): string[] {
 }
 
 /**
- * Removes the account with everything in it: every row in one batch, in dependency order
- * (children before parents, because `restrict` keys would otherwise stop a cascade), then the
- * stored files. A failed batch leaves the account as it was. The files go by their key prefix,
- * not by the rows read before, so a file a manager stored meanwhile goes too; an upload that
- * comes after the batch finds no account, and storeDocument removes its file again. Returns
- * false when there is no such account.
+ * Removes the account with everything in it: first the stored files, then every row in one
+ * batch, in dependency order (children before parents, because `restrict` keys would otherwise
+ * stop a cascade). Files first, so a storage failure throws with the account still there and the
+ * deletion can be tried again; a failed batch leaves the rows, and a retry finishes the job. The
+ * files go by their key prefix, not by the rows, so a file a manager stored meanwhile goes too:
+ * an upload between the two steps is caught by a second sweep after the batch, and an upload
+ * after the batch finds no account and storeDocument removes its file again. Returns false when
+ * there is no such account.
  */
 export async function deleteAccount(
 	db: Database,
@@ -114,6 +116,11 @@ export async function deleteAccount(
 		.from(accounts)
 		.where(eq(accounts.id, accountId));
 	if (!account) return false;
+
+	// No storage given: the default adapter of the target.
+	const storage = options?.storage ?? (await getStorage());
+	const prefix = accountPrefix(accountId);
+	await storage.deletePrefix(prefix);
 
 	const accountLeases = db
 		.select({ id: leases.id })
@@ -173,9 +180,11 @@ export async function deleteAccount(
 		db.delete(users).where(eq(users.accountId, accountId)),
 		db.delete(accounts).where(eq(accounts.id, accountId))
 	]);
-	// No storage given: the default adapter of the target.
-	const storage = options?.storage ?? (await getStorage());
-	await storage.deletePrefix(accountPrefix(accountId));
+	// The account is gone, so a failure here must not report the deletion as failed. Left behind
+	// can only be the file of an upload that landed between the two sweeps.
+	await storage.deletePrefix(prefix).catch((error: unknown) => {
+		console.error('[storage] Files stored while the account was deleted remain:', error);
+	});
 	return true;
 }
 

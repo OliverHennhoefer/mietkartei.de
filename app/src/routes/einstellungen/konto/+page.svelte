@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import Alert from '#lib/components/Alert.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import type { PageProps } from './$types';
 
@@ -7,6 +8,10 @@
 </script>
 
 <PageHeader title="Konto" back={{ href: '/einstellungen', label: 'Einstellungen' }} />
+
+{#if form?.failed}
+	<Alert tone="danger"><p>{form.failed}</p></Alert>
+{/if}
 
 <section class="card danger-zone" aria-labelledby="konto-loeschen">
 	<h2 id="konto-loeschen">Konto löschen</h2>

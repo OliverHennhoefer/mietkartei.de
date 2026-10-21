@@ -31,8 +31,16 @@ export const actions: Actions = {
 					: 'Das Passwort stimmt nicht.';
 			return fail(400, { errors: { password } });
 		}
-		// No storage given: the default adapter of the target deletes the documents' files.
-		await deleteAccount(locals.db, user.accountId);
+		// No storage given: the default adapter of the target deletes the documents' files. A
+		// failure leaves the account (or at least its rows) in place, so the owner can try again.
+		try {
+			await deleteAccount(locals.db, user.accountId);
+		} catch (error) {
+			console.error('[account] The account was not deleted:', error);
+			return fail(503, {
+				failed: 'Das Konto konnte nicht gelöscht werden. Bitte versuche es erneut.'
+			});
+		}
 		deleteSessionCookie(event);
 		redirect(303, '/anmelden');
 	}

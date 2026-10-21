@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	addressLines,
 	deleteAccount,
@@ -224,7 +224,29 @@ describe('deleteAccount', () => {
 		expect(await readdir(root)).toEqual(['b']);
 	});
 
-	it('keeps every row and file when the batch fails', async () => {
+	it('keeps every row and file when the storage fails, so the deletion can be retried', async () => {
+		await seedAccount(contextA);
+		await seedAccount(contextB);
+		const rowsBefore = await db.select().from(documents);
+		const failing: Storage = {
+			...storage,
+			deletePrefix: () => Promise.reject(new Error('R2 nicht erreichbar'))
+		};
+
+		await expect(deleteAccount(db, 'a', { storage: failing })).rejects.toThrow(
+			'R2 nicht erreichbar'
+		);
+		expect(await db.select().from(accounts)).toHaveLength(2);
+		expect(await db.select().from(users)).toHaveLength(2);
+		expect(await db.select().from(documents)).toEqual(rowsBefore);
+		expect((await readdir(root)).sort()).toEqual(['a', 'b']);
+
+		expect(await deleteAccount(db, 'a', { storage })).toBe(true);
+		expect(await db.select().from(accounts)).toEqual([expect.objectContaining({ id: 'b' })]);
+		expect(await readdir(root)).toEqual(['b']);
+	});
+
+	it('keeps every row when the batch fails, so a retry finishes the deletion', async () => {
 		await seedAccount(contextA);
 		const leaseB = await seedAccount(contextB);
 		// A lease of account b on a unit of a: the restrict key stops the batch at a's units.
@@ -235,8 +257,51 @@ describe('deleteAccount', () => {
 		await expect(deleteAccount(db, 'a', { storage })).rejects.toThrow();
 		expect(await db.select().from(accounts)).toHaveLength(2);
 		expect(await db.select().from(documents)).toEqual(rowsBefore);
-		expect((await readdir(root)).sort()).toEqual(['a', 'b']);
-		expect(await readdir(join(root, 'a'))).toHaveLength(2);
+		// The files went first; the user wanted them gone, and b's stay.
+		expect(await readdir(root)).toEqual(['b']);
+	});
+
+	it('removes a file uploaded between the file sweep and the batch', async () => {
+		await seedAccount(contextA);
+		await seedAccount(contextB);
+		let sweeps = 0;
+		const racing: Storage = {
+			...storage,
+			deletePrefix: async (prefix) => {
+				await storage.deletePrefix(prefix);
+				sweeps += 1;
+				if (sweeps === 1) {
+					await storage.put(
+						'a/hochgeladen-dazwischen',
+						new TextEncoder().encode('x'),
+						'text/plain'
+					);
+				}
+			}
+		};
+
+		expect(await deleteAccount(db, 'a', { storage: racing })).toBe(true);
+		expect(sweeps).toBe(2);
+		expect(await readdir(root)).toEqual(['b']);
+	});
+
+	it('reports the deletion as done when only the second sweep fails', async () => {
+		await seedAccount(contextA);
+		let sweeps = 0;
+		const flaky: Storage = {
+			...storage,
+			deletePrefix: async (prefix) => {
+				sweeps += 1;
+				if (sweeps === 2) throw new Error('R2 nicht erreichbar');
+				await storage.deletePrefix(prefix);
+			}
+		};
+		const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+		expect(await deleteAccount(db, 'a', { storage: flaky })).toBe(true);
+		expect(await db.select().from(accounts)).toEqual([expect.objectContaining({ id: 'b' })]);
+		expect(logged).toHaveBeenCalledOnce();
+		logged.mockRestore();
 	});
 
 	it('reports a missing account', async () => {
