@@ -847,6 +847,44 @@ describe('computeStatement warnings', () => {
 		expect(over.leases.map((l) => l.costsTotal)).toEqual([-65000, -40000]);
 	});
 
+	it('takes the landlord CO₂ share of a credit note off its direct amounts in proportion', () => {
+		// An oil bill of 3.000 € (3.000 kg, 200 € CO₂ cost) and a credit note of −300 € (−300 kg,
+		// −20 € CO₂ cost), both by amounts per unit: the building emits 2.700 kg / 100 m² = 27 kg/m²
+		// → 40 %. The landlord bears 80 € of the bill's CO₂ cost (48 + 32 € off EG and OG) and gets
+		// −8 € of the credit's (−4,80 and −3,20 € off the credit amounts), 72 € in all.
+		const input = small({
+			items: [
+				item('i-oel', 'Heizöl', 'c-heizung', 'k-direct', 300000, {
+					fuel: 'oil',
+					co2Kg: 3000,
+					co2Cost: 20000,
+					unitAmounts: [
+						{ unitId: 'eg', amount: 180000 },
+						{ unitId: 'og', amount: 120000 }
+					]
+				}),
+				item('i-gutschrift', 'Gutschrift Heizöl', 'c-heizung', 'k-direct', -30000, {
+					fuel: 'oil',
+					co2Kg: -300,
+					co2Cost: -2000,
+					unitAmounts: [
+						{ unitId: 'eg', amount: -18000 },
+						{ unitId: 'og', amount: -12000 }
+					]
+				})
+			],
+			keys: [key('k-direct', 'Beträge je Einheit', 'direct')]
+		});
+		const result = computeStatement(input, options);
+		const credit = result.property.items.find((entry) => entry.itemId === 'i-gutschrift');
+		expect(credit).toMatchObject({ landlordCo2Share: -800, allocated: -29200 });
+		expect(result.property.landlordCo2Share).toBe(7200);
+		// EG 1.800 − 48 − (180 − 4,80) = 1.576,80 €; OG 1.200 − 32 − (120 − 3,20) = 1.051,20 €.
+		expect(result.leases.map((l) => l.costsTotal)).toEqual([157680, 105120]);
+		expect(result.property.unallocatedTotal).toBe(0);
+		expect(result.property.warnings).toEqual([]);
+	});
+
 	it('keeps the sum of direct amounts when the item is prorated', () => {
 		// 1.000 € for 1 October 2024 to 30 September 2025 (365 days, 273 in 2025) split as 333,33 +
 		// 666,67 €; the item's share is 1.000 × 273 / 365 = 747,945… → 747,95 €. Prorated one by
@@ -1133,6 +1171,34 @@ describe('computeStatement CO₂ split (CO2KostAufG)', () => {
 		const result = computeStatement(input, options);
 		const warning = result.property.warnings.find((entry) => entry.code === 'co2_missing_area');
 		expect(warning).toMatchObject({ blocking: true, itemId: 'i-heizung' });
+	});
+
+	it('blocks the approval when one unit lacks the floor area for the CO₂ tier', () => {
+		// Without the OG's 64 m² the building would have 120,5 m²: 5.025 / 120,5 = 41,7 kg/m² → 60 %
+		// instead of 40 %, taking too much from the tenants. A parking space needs no area.
+		const input = scenario();
+		input.units = [
+			...input.units.map((unit) => (unit.id === 'og' ? { ...unit, floorArea: null } : unit)),
+			{ id: 'sp', name: 'Stellplatz 1', kind: 'parking', floorArea: null }
+		];
+		const result = computeStatement(input, options);
+		expect(result.property.warnings.filter((entry) => entry.code === 'co2_missing_area')).toEqual([
+			{
+				code: 'co2_missing_area',
+				blocking: true,
+				itemId: 'i-heizung',
+				href: '/objekte/p/einheiten/og/bearbeiten',
+				message:
+					'Für die CO₂-Kostenaufteilung des Belegs „Gasrechnung“ fehlt die Wohnfläche der Einheit OG; ohne sie lässt sich der Anteil des Vermieters nicht bestimmen.'
+			}
+		]);
+
+		input.units = input.units.map((unit) => (unit.id === 'og' ? { ...unit, floorArea: 64 } : unit));
+		expect(
+			computeStatement(input, options).property.warnings.some(
+				(entry) => entry.code === 'co2_missing_area'
+			)
+		).toBe(false);
 	});
 });
 

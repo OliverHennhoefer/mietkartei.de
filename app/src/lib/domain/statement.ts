@@ -975,7 +975,12 @@ function componentsOf(
 				running += amount;
 				return proRata(running, itemOverlap, itemDays) - before;
 			});
-			const deduction = distributeCents(co2LandlordAmount, given);
+			// A credit note's amounts are negative: weigh by their size, so the landlord's (negative)
+			// share of the CO₂ credit comes off in proportion too.
+			const deduction = distributeCents(
+				co2LandlordAmount,
+				co2LandlordAmount < 0 ? given.map((amount) => -amount) : given
+			);
 			const direct = given.map((amount, index) => amount - deduction[index]);
 			const sum = direct.reduce((total, amount) => total + amount, 0);
 			if (running > item.amount) {
@@ -1282,8 +1287,25 @@ export function computeStatement(
 		let allocated = total;
 		let co2: Co2Disclosure | undefined;
 		if (item.fuel && item.co2Kg !== null && item.co2Cost !== null) {
-			const area = circleUnitsOf(item).reduce((sum, unit) => sum + (unit.floorArea ?? 0), 0);
-			if (area <= 0) {
+			const co2Units = circleUnitsOf(item);
+			const area = co2Units.reduce((sum, unit) => sum + (unit.floorArea ?? 0), 0);
+			// One unit without its area understates the building's area and so overstates the kg
+			// per m²: a higher tier would take too much from the tenants. Parking has no area.
+			const missingArea = co2Units.filter(
+				(unit) => unit.floorArea === null && unit.kind !== 'parking'
+			);
+			if (missingArea.length > 0) {
+				warn(ctx, {
+					code: 'co2_missing_area',
+					blocking: true,
+					itemId: item.id,
+					href:
+						missingArea.length === 1
+							? `/objekte/${input.property.id}/einheiten/${missingArea[0].id}/bearbeiten`
+							: `/objekte/${input.property.id}`,
+					message: `Für die CO₂-Kostenaufteilung des Belegs „${item.description}“ fehlt die Wohnfläche der ${missingArea.length === 1 ? 'Einheit' : 'Einheiten'} ${missingArea.map((unit) => unit.name).join(', ')}; ohne sie lässt sich der Anteil des Vermieters nicht bestimmen.`
+				});
+			} else if (area <= 0) {
 				warn(ctx, {
 					code: 'co2_missing_area',
 					blocking: true,
