@@ -30,6 +30,11 @@ body {
 	background: var(--color-background);
 }
 
+/* The wrapper around the app in app.html; a class, because the CSP forbids style attributes. */
+.app-root {
+	display: contents;
+}
+
 /* Layout: a top bar everywhere, plus a sidebar from 60rem up. */
 
 .site-header {

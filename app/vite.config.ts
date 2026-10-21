@@ -17,7 +17,27 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: target === 'cloudflare' ? cloudflare() : node()
+			adapter: target === 'cloudflare' ? cloudflare() : node(),
+			// Only the app's own scripts and styles run; SvelteKit adds a nonce to the inline ones it
+			// renders. Nothing may frame the app, and forms only post to it.
+			csp: {
+				mode: 'auto',
+				directives: {
+					'default-src': ['self'],
+					'script-src': ['self'],
+					'style-src': ['self'],
+					// SvelteKit's route announcer for screen readers is hidden with a style attribute.
+					// Style attributes cannot run scripts; <style> elements still need the nonce.
+					'style-src-attr': ['unsafe-inline'],
+					'img-src': ['self', 'data:'],
+					'font-src': ['self'],
+					'connect-src': ['self'],
+					'object-src': ['none'],
+					'base-uri': ['none'],
+					'form-action': ['self'],
+					'frame-ancestors': ['none']
+				}
+			}
 		})
 	],
 	define: {

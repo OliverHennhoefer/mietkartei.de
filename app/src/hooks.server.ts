@@ -2,6 +2,7 @@ import { redirect } from '@sveltejs/kit';
 import type { Handle } from '@sveltejs/kit/hooks';
 import { E2E } from '$app/env/private';
 import { SESSION_COOKIE, validateSession } from '#lib/server/auth.ts';
+import { applySecurityHeaders } from '#lib/server/security-headers.ts';
 import { setSessionCookie } from '#lib/server/session.ts';
 import { getDatabase } from '#lib/server/db/index.ts';
 
@@ -30,5 +31,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	if (!event.locals.user && !isPublic(event.url.pathname)) redirect(303, '/anmelden');
-	return resolve(event);
+	const response = await resolve(event);
+	applySecurityHeaders(response.headers, {
+		https: event.url.protocol === 'https:',
+		signedIn: Boolean(event.locals.user)
+	});
+	return response;
 };
