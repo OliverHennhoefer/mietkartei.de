@@ -388,6 +388,150 @@ describe('listLedger', () => {
 		});
 		expect(await rentRows(foreignLeaseId)).toEqual([]);
 	});
+
+	/** Pays every month's 800 € rent of `months` in full on the 10th. */
+	async function payRents(id: string, months: string[]) {
+		for (const month of months) {
+			await createPayment(db, contextA, {
+				leaseId: id,
+				date: `${month}-10`,
+				amount: 80000,
+				source: 'manual'
+			});
+		}
+	}
+
+	const months2025 = Array.from(
+		{ length: 12 },
+		(_, index) => `2025-${String(index + 1).padStart(2, '0')}`
+	);
+
+	it('reference scenario: EG of Lindenstraße 4 pays 11 of 12 rents, Teilzahlung in December', async () => {
+		// EG: 600 + 150 + 50 = 800 € a month all year 2025. Paid January to November in full and
+		// 500 € in December. Charged 12 × 800 = 9.600 €, paid 11 × 800 + 500 = 9.300 €, so
+		// 300 € are open, all of them from December (FIFO).
+		const { unitId: eg } = await seedUnit(db, 'a', { name: 'EG' });
+		const lease = await createLease(db, contextA, leaseInput(eg));
+		if (!lease.ok) throw new Error('setup failed');
+		await payRents(lease.id, months2025.slice(0, 11));
+		await createPayment(db, contextA, {
+			leaseId: lease.id,
+			date: '2025-12-10',
+			amount: 50000,
+			source: 'manual',
+			note: 'Teilzahlung'
+		});
+
+		const balances = await listBalances(db, 'a', { untilMonth: '2025-12', asOf: '2025-12-31' });
+		expect(balances.find((row) => row.leaseId === lease.id)).toEqual({
+			leaseId: lease.id,
+			charged: 960000,
+			paid: 930000,
+			balance: 30000,
+			overdue: 30000,
+			lastPaymentDate: '2025-12-10',
+			openSince: '2025-12'
+		});
+
+		const ledger = await listLedger(db, 'a', lease.id, { to: '2025-12-31' });
+		expect(ledger).toMatchObject({ charged: 960000, paid: 930000, balance: 30000 });
+		expect(ledger.lines).toHaveLength(24);
+		// December: the rent (due 03.12.) brings the balance to 800 €, the Teilzahlung to 300 €.
+		expect(ledger.lines.slice(-2).map((line) => [line.date, line.label, line.balance])).toEqual([
+			['2025-12-03', 'Miete Dezember 2025', 80000],
+			['2025-12-10', 'Teilzahlung', 30000]
+		]);
+	});
+
+	it('counts a Nachzahlung as Rückstand only from its due date', async () => {
+		// The 2025 statement is approved on 02.03.2026: a Nachzahlung of 200 € for period 2025-12,
+		// due 30 days later on 01.04.2026. Every rent from January 2025 to March 2026 is paid.
+		await payRents(leaseId, [...months2025, '2026-01', '2026-02', '2026-03']);
+		await postCharge(db, contextA, {
+			leaseId,
+			kind: 'statement_balance',
+			period: '2025-12',
+			dueDate: '2026-04-01',
+			amount: 20000,
+			referenceId: 'statement-2025'
+		});
+
+		// On 20.03.2026: 15 × 800 + 200 = 12.200 € charged, 15 × 800 = 12.000 € paid. The 200 € are
+		// owed but not due: no Rückstand, nothing open (not "offen seit Dezember 2025").
+		const [march] = (
+			await listBalances(db, 'a', { untilMonth: '2026-03', asOf: '2026-03-20' })
+		).filter((row) => row.leaseId === leaseId);
+		expect(march).toMatchObject({
+			charged: 1220000,
+			paid: 1200000,
+			balance: 20000,
+			overdue: 0,
+			openSince: null
+		});
+
+		// On 02.04.2026 the Nachzahlung is due, April's rent (due 03.04.) not yet: 200 € overdue
+		// since April 2026, the month it fell due.
+		const [april] = (
+			await listBalances(db, 'a', { untilMonth: '2026-04', asOf: '2026-04-02' })
+		).filter((row) => row.leaseId === leaseId);
+		expect(april).toMatchObject({
+			charged: 1300000,
+			paid: 1200000,
+			balance: 100000,
+			overdue: 20000,
+			openSince: '2026-04'
+		});
+	});
+
+	it('counts the rent of the month only from its due day', async () => {
+		// January 2025: rent due on Friday 03.01. Paid nothing. On 02.01. it is owed but not due.
+		await db.update(leases).set({ endDate: '2025-01-31' }).where(eq(leases.id, leaseId));
+		const before = await listBalances(db, 'a', { untilMonth: '2025-01', asOf: '2025-01-02' });
+		expect(before.find((row) => row.leaseId === leaseId)).toMatchObject({
+			balance: 80000,
+			overdue: 0,
+			openSince: null
+		});
+		const after = await listBalances(db, 'a', { untilMonth: '2025-01', asOf: '2025-01-03' });
+		expect(after.find((row) => row.leaseId === leaseId)).toMatchObject({
+			balance: 80000,
+			overdue: 80000,
+			openSince: '2025-01'
+		});
+	});
+
+	it('moves "offen seit" on when a credit settles the oldest open charge', async () => {
+		// January: rent 800 € (due 03.01.) paid; a correction of +300 € due 20.01. not paid.
+		// February: a credit of −300 € (due 01.02.) and the rent of 800 € (due 05.02.), not paid.
+		// The credit settles January's 300 €, so February's rent is the oldest open charge:
+		// overdue = 800 + 300 − 300 + 800 − 800 = 800 €, open since February.
+		await db.update(leases).set({ endDate: '2025-02-28' }).where(eq(leases.id, leaseId));
+		await payRents(leaseId, ['2025-01']);
+		await postCharge(db, contextA, {
+			leaseId,
+			kind: 'adjustment',
+			period: '2025-01',
+			dueDate: '2025-01-20',
+			amount: 30000,
+			note: 'Nachberechnung'
+		});
+		await postCharge(db, contextA, {
+			leaseId,
+			kind: 'adjustment',
+			period: '2025-02',
+			dueDate: '2025-02-01',
+			amount: -30000,
+			note: 'Gutschrift'
+		});
+		const balances = await listBalances(db, 'a', { untilMonth: '2025-02', asOf: '2025-02-28' });
+		expect(balances.find((row) => row.leaseId === leaseId)).toMatchObject({
+			charged: 160000,
+			paid: 80000,
+			balance: 80000,
+			overdue: 80000,
+			openSince: '2025-02'
+		});
+	});
 });
 
 describe('listBalances', () => {
@@ -430,6 +574,7 @@ describe('listBalances', () => {
 				charged: 160000,
 				paid: 0,
 				balance: 160000,
+				overdue: 160000,
 				lastPaymentDate: null,
 				openSince: '2025-01'
 			},
@@ -438,6 +583,7 @@ describe('listBalances', () => {
 				charged: 240000,
 				paid: 130000,
 				balance: 110000,
+				overdue: 110000,
 				lastPaymentDate: '2025-02-10',
 				openSince: '2025-02'
 			},
@@ -446,6 +592,7 @@ describe('listBalances', () => {
 				charged: 80000,
 				paid: 100000,
 				balance: -20000,
+				overdue: 0,
 				lastPaymentDate: '2025-01-02',
 				openSince: null
 			}
@@ -453,18 +600,142 @@ describe('listBalances', () => {
 		expect(await rentRows(foreignLeaseId)).toEqual([]);
 	});
 
-	it('settles the EG lease of the reference scenario: 11 of 12 rents and a part payment', async () => {
-		// PROTOTYPE.md "Reference scenario": EG pays 600 + 150 + 50 € a month in 2025, eleven
-		// rents in full (January to November) and 500 € in December. The 2025 statement posts its
-		// Guthaben of 105,67 € (see domain/statement.spec.ts) for December.
-		for (let month = 1; month <= 11; month += 1) {
+	/** Pays every month's 800 € rent of `months` in full on the 10th. */
+	async function payRents(id: string, months: string[]) {
+		for (const month of months) {
 			await createPayment(db, contextA, {
-				leaseId,
-				date: `2025-${String(month).padStart(2, '0')}-05`,
+				leaseId: id,
+				date: `${month}-10`,
 				amount: 80000,
 				source: 'manual'
 			});
 		}
+	}
+
+	const months2025 = Array.from(
+		{ length: 12 },
+		(_, index) => `2025-${String(index + 1).padStart(2, '0')}`
+	);
+
+	it('reference scenario: EG of Lindenstraße 4 pays 11 of 12 rents, Teilzahlung in December', async () => {
+		// EG: 600 + 150 + 50 = 800 € a month all year 2025. Paid January to November in full and
+		// 500 € in December. Charged 12 × 800 = 9.600 €, paid 11 × 800 + 500 = 9.300 €, so
+		// 300 € are open, all of them from December (FIFO).
+		const { unitId: eg } = await seedUnit(db, 'a', { name: 'EG' });
+		const lease = await createLease(db, contextA, leaseInput(eg));
+		if (!lease.ok) throw new Error('setup failed');
+		await payRents(lease.id, months2025.slice(0, 11));
+		await createPayment(db, contextA, {
+			leaseId: lease.id,
+			date: '2025-12-10',
+			amount: 50000,
+			source: 'manual',
+			note: 'Teilzahlung'
+		});
+
+		const balances = await listBalances(db, 'a', { untilMonth: '2025-12', asOf: '2025-12-31' });
+		expect(balances.find((row) => row.leaseId === lease.id)).toEqual({
+			leaseId: lease.id,
+			charged: 960000,
+			paid: 930000,
+			balance: 30000,
+			overdue: 30000,
+			lastPaymentDate: '2025-12-10',
+			openSince: '2025-12'
+		});
+
+		const ledger = await listLedger(db, 'a', lease.id, { to: '2025-12-31' });
+		expect(ledger).toMatchObject({ charged: 960000, paid: 930000, balance: 30000 });
+		expect(ledger.lines).toHaveLength(24);
+		// December: the rent (due 03.12.) brings the balance to 800 €, the Teilzahlung to 300 €.
+		expect(ledger.lines.slice(-2).map((line) => [line.date, line.label, line.balance])).toEqual([
+			['2025-12-03', 'Miete Dezember 2025', 80000],
+			['2025-12-10', 'Teilzahlung', 30000]
+		]);
+	});
+
+	it('counts a Nachzahlung as Rückstand only from its due date', async () => {
+		// The 2025 statement is approved on 02.03.2026: a Nachzahlung of 200 € for period 2025-12,
+		// due 30 days later on 01.04.2026. Every rent from January 2025 to April 2026 is paid.
+		await payRents(leaseId, [...months2025, '2026-01', '2026-02', '2026-03', '2026-04']);
+		await postCharge(db, contextA, {
+			leaseId,
+			kind: 'statement_balance',
+			period: '2025-12',
+			dueDate: '2026-04-01',
+			amount: 20000,
+			referenceId: 'statement-2025'
+		});
+
+		// On 20.03.2026 (rents up to March): 15 × 800 + 200 € charged, 15 × 800 € paid. The 200 €
+		// are owed but not due, so nothing is overdue and nothing is open.
+		const [march] = (
+			await listBalances(db, 'a', { untilMonth: '2026-03', asOf: '2026-03-20' })
+		).filter((row) => row.leaseId === leaseId);
+		expect(march).toMatchObject({
+			charged: 1220000,
+			paid: 1280000,
+			balance: -60000,
+			overdue: 0,
+			openSince: null
+		});
+	});
+
+	it('counts the rent of the month only from its due day', async () => {
+		// January 2025: rent due on Friday 03.01. Paid nothing. On 02.01. it is owed but not due.
+		await db.update(leases).set({ endDate: '2025-01-31' }).where(eq(leases.id, leaseId));
+		const before = await listBalances(db, 'a', { untilMonth: '2025-01', asOf: '2025-01-02' });
+		expect(before.find((row) => row.leaseId === leaseId)).toMatchObject({
+			balance: 80000,
+			overdue: 0,
+			openSince: null
+		});
+		const after = await listBalances(db, 'a', { untilMonth: '2025-01', asOf: '2025-01-03' });
+		expect(after.find((row) => row.leaseId === leaseId)).toMatchObject({
+			balance: 80000,
+			overdue: 80000,
+			openSince: '2025-01'
+		});
+	});
+
+	it('moves "offen seit" on when a credit settles the oldest open charge', async () => {
+		// January: rent 800 € (due 03.01.) paid; a correction of +300 € due 20.01. not paid.
+		// February: a credit of −300 € (due 01.02.) and the rent of 800 € (due 05.02.), not paid.
+		// The credit settles January's 300 €, so February's rent is the oldest open charge:
+		// overdue = 800 + 300 − 300 + 800 − 800 = 800 €, open since February.
+		await db.update(leases).set({ endDate: '2025-02-28' }).where(eq(leases.id, leaseId));
+		await payRents(leaseId, ['2025-01']);
+		await postCharge(db, contextA, {
+			leaseId,
+			kind: 'adjustment',
+			period: '2025-01',
+			dueDate: '2025-01-20',
+			amount: 30000,
+			note: 'Nachberechnung'
+		});
+		await postCharge(db, contextA, {
+			leaseId,
+			kind: 'adjustment',
+			period: '2025-02',
+			dueDate: '2025-02-01',
+			amount: -30000,
+			note: 'Gutschrift'
+		});
+		const balances = await listBalances(db, 'a', { untilMonth: '2025-02', asOf: '2025-02-28' });
+		expect(balances.find((row) => row.leaseId === leaseId)).toMatchObject({
+			charged: 160000,
+			paid: 80000,
+			balance: 80000,
+			overdue: 80000,
+			openSince: '2025-02'
+		});
+	});
+	it('settles the EG lease of the reference scenario with the statement Guthaben', async () => {
+		// PROTOTYPE.md "Reference scenario": EG pays 600 + 150 + 50 € a month in 2025, eleven
+		// rents in full (January to November) and 500 € in December. The 2025 statement posts its
+		// Guthaben of 105,67 € (see domain/statement.spec.ts) for December, due 14.04.2026.
+		await db.update(leases).set({ endDate: '2025-12-31' }).where(eq(leases.id, leaseId));
+		await payRents(leaseId, months2025.slice(0, 11));
 		await createPayment(db, contextA, {
 			leaseId,
 			date: '2025-12-05',
@@ -483,16 +754,17 @@ describe('listBalances', () => {
 			}).statement
 		]);
 
-		const [own] = (await listBalances(db, 'a', { untilMonth: '2025-12' })).filter(
-			(entry) => entry.leaseId === leaseId
-		);
+		const [own] = (
+			await listBalances(db, 'a', { untilMonth: '2025-12', asOf: '2026-05-01' })
+		).filter((entry) => entry.leaseId === leaseId);
 		// Charged 12 × 800 € − 105,67 € = 9.494,33 €; paid 11 × 800 + 500 = 9.300 €; Rückstand
-		// 194,33 €, the December rent is the first month not paid in full.
+		// 194,33 €, all due by May 2026; the December rent is the first month not paid in full.
 		expect(own).toEqual({
 			leaseId,
 			charged: 949433,
 			paid: 930000,
 			balance: 19433,
+			overdue: 19433,
 			lastPaymentDate: '2025-12-05',
 			openSince: '2025-12'
 		});

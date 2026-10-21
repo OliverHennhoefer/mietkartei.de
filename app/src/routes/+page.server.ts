@@ -35,7 +35,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			listBankAccounts(locals.db, accountId)
 		]);
 
-	const arrears = balances.filter((balance) => balance.balance > 0);
+	// Rückstand is what is overdue today, not this month's rent before its due day.
+	const arrears = balances.filter((balance) => balance.overdue > 0);
 	const occupied = new Set(
 		leases
 			.filter((lease) => lease.active)
@@ -52,7 +53,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		firstRun: properties.length === 0 ? firstRun : null,
 		tiles: {
-			arrearsTotal: arrears.reduce((sum, balance) => sum + balance.balance, 0),
+			arrearsTotal: arrears.reduce((sum, balance) => sum + balance.overdue, 0),
 			arrearsCount: arrears.length,
 			vacantCount: vacant.length,
 			unitCount: units.length,

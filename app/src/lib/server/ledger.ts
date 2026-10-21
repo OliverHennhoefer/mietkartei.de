@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { formatDate, formatMonth, monthOf, today, type IsoDate, type IsoMonth } from '../dates';
 import { diffCharges, expectedRentCharges, type ExpectedCharge } from '../domain/charges';
@@ -454,23 +454,58 @@ export type LeaseBalance = {
 	leaseId: string;
 	charged: number;
 	paid: number;
-	/** charged − paid; positive = Rückstand, negative = Guthaben. */
+	/** charged − paid, including charges not due yet; positive = owed, negative = Guthaben. */
 	balance: number;
+	/**
+	 * The Rückstand: charges due by `asOf` minus all payments, at least 0. A month's rent before its
+	 * due day, a Nachzahlung within its 30 days and a CO₂ credit before its date do not count yet.
+	 */
+	overdue: number;
 	/** The last day money came in, null when nothing was paid yet. */
 	lastPaymentDate: IsoDate | null;
-	/** The first month not covered by the payments so far (oldest charges are paid first). */
+	/**
+	 * The month (of the due date) of the oldest due charge the payments do not cover: payments and
+	 * due credits pay the oldest due charges first. Null when nothing is overdue.
+	 */
 	openSince: IsoMonth | null;
 };
 
+type BalanceCharge = { amount: number; dueDate: IsoDate };
+
+/** What is overdue on `asOf` and since when, by FIFO over the due charges in due-date order. */
+export function overdueSince(
+	charges: readonly BalanceCharge[],
+	paid: number,
+	asOf: IsoDate
+): { overdue: number; openSince: IsoMonth | null } {
+	const due = charges
+		.filter((charge) => charge.dueDate <= asOf)
+		.sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0));
+	// Credits (negative charges) count like payments: they settle the oldest debts.
+	const available = due.reduce((sum, charge) => sum + Math.max(-charge.amount, 0), paid);
+	let covered = 0;
+	for (const charge of due) {
+		if (charge.amount <= 0) continue;
+		covered += charge.amount;
+		if (covered > available) {
+			const owed = due.reduce((sum, row) => sum + row.amount, 0) - paid;
+			return { overdue: owed, openSince: monthOf(charge.dueDate) };
+		}
+	}
+	return { overdue: 0, openSince: null };
+}
+
 /**
- * The balance of every lease of the account, largest arrears first. Charges are synced up to
- * `untilMonth` (default: the current month) before the sums are taken.
+ * The balance of every lease of the account, largest balance first. Charges are synced up to
+ * `untilMonth` (default: the current month) before the sums are taken; `asOf` (default: today)
+ * decides which charges are due for `overdue` and `openSince`.
  */
 export async function listBalances(
 	db: Database,
 	accountId: string,
-	options: { untilMonth?: IsoMonth } = {}
+	options: { untilMonth?: IsoMonth; asOf?: IsoDate } = {}
 ): Promise<LeaseBalance[]> {
+	const asOf = options.asOf ?? today();
 	const leaseRows = await db
 		.select({ id: leases.id })
 		.from(leases)
@@ -482,12 +517,11 @@ export async function listBalances(
 		db
 			.select({
 				leaseId: rentCharges.leaseId,
-				period: rentCharges.period,
+				dueDate: rentCharges.dueDate,
 				amount: rentCharges.amount
 			})
 			.from(rentCharges)
-			.where(eq(rentCharges.accountId, accountId))
-			.orderBy(asc(rentCharges.period), asc(rentCharges.dueDate)),
+			.where(eq(rentCharges.accountId, accountId)),
 		db
 			.select({ leaseId: payments.leaseId, date: payments.date, amount: payments.amount })
 			.from(payments)
@@ -505,21 +539,15 @@ export async function listBalances(
 				lastPaymentDate = payment.date;
 			}
 		}
-		// Payments cover the oldest charges first; the first month they do not reach is open.
-		let charged = 0;
-		let openSince: IsoMonth | null = null;
-		for (const charge of chargesByLease.get(leaseId) ?? []) {
-			charged += charge.amount;
-			if (openSince === null && charged > paid) openSince = charge.period;
-		}
-		const balance = charged - paid;
+		const charges = chargesByLease.get(leaseId) ?? [];
+		const charged = charges.reduce((sum, charge) => sum + charge.amount, 0);
 		return {
 			leaseId,
 			charged,
 			paid,
-			balance,
-			lastPaymentDate,
-			openSince: balance > 0 ? openSince : null
+			balance: charged - paid,
+			...overdueSince(charges, paid, asOf),
+			lastPaymentDate
 		};
 	});
 	return balances.sort((a, b) => b.balance - a.balance || a.leaseId.localeCompare(b.leaseId));

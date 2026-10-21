@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import { page } from '$app/state';
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
@@ -14,6 +14,22 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+
+	// The row whose form is on its way: its buttons are disabled, so a double click sends one
+	// request (the server refuses a second assignment anyway).
+	let pending = $state<string | null>(null);
+	function submitting(id: string): SubmitFunction {
+		return () => {
+			pending = id;
+			return async ({ update }) => {
+				try {
+					await update();
+				} finally {
+					pending = null;
+				}
+			};
+		};
+	}
 
 	// Actions keep the filter: a submission lands on the page it was sent from, query and all.
 	function action(name: string): string {
@@ -153,7 +169,12 @@
 				</div>
 
 				{#if transaction.status === 'unmatched'}
-					<form method="POST" action={action('assign')} class="assign" use:enhance>
+					<form
+						method="POST"
+						action={action('assign')}
+						class="assign"
+						use:enhance={submitting(transaction.id)}
+					>
 						<input type="hidden" name="id" value={transaction.id} />
 						<label>
 							Mietvertrag
@@ -256,8 +277,13 @@
 							<span class="error">{errors.remember}</span>
 						{/if}
 						<div class="row">
-							<button type="submit">Zuordnen</button>
-							<button type="submit" class="secondary" formaction={action('ignore')}>
+							<button type="submit" disabled={pending === transaction.id}>Zuordnen</button>
+							<button
+								type="submit"
+								class="secondary"
+								formaction={action('ignore')}
+								disabled={pending === transaction.id}
+							>
 								Ignorieren
 							</button>
 						</div>
@@ -283,9 +309,11 @@
 						</ConfirmButton>
 					</div>
 				{:else}
-					<form method="POST" action={action('reopen')} use:enhance>
+					<form method="POST" action={action('reopen')} use:enhance={submitting(transaction.id)}>
 						<input type="hidden" name="id" value={transaction.id} />
-						<button type="submit" class="secondary small">Wieder öffnen</button>
+						<button type="submit" class="secondary small" disabled={pending === transaction.id}>
+							Wieder öffnen
+						</button>
 					</form>
 				{/if}
 			</li>

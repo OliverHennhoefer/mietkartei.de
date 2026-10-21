@@ -1,5 +1,5 @@
 import { asc, eq } from 'drizzle-orm';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseBankFile, type RowResult } from '../../domain/bank-matching';
 import { auditLog, bankTransactions, depositTransactions, payments } from '../db/schema';
 import type { Database } from '../db';
@@ -18,6 +18,20 @@ import {
 	reopenTransaction,
 	undoAssignment
 } from './transactions';
+
+// Lets a test hold every import after its analysis (listLeases is its last read) until the next
+// macrotask, so two commits of one file both analyse before either writes, as two requests do.
+const slowAnalysis = vi.hoisted(() => ({ on: false }));
+vi.mock('../leases', async (original) => {
+	const actual = await original<typeof import('../leases')>();
+	return {
+		...actual,
+		listLeases: async (...args: Parameters<typeof actual.listLeases>) => {
+			if (slowAnalysis.on) await new Promise((resolve) => setTimeout(resolve, 0));
+			return actual.listLeases(...args);
+		}
+	};
+});
 
 // A Sparkasse CAMT export with three lines: Müller pays 850 € twice on 1 October (two identical
 // lines, occurrence 0 and 1) and the janitor is paid 120,50 € on 2 October.
@@ -44,6 +58,7 @@ let bankAccountId: string;
 let foreignBankAccountId: string;
 
 beforeEach(async () => {
+	slowAnalysis.on = false;
 	db = await testDatabase();
 	const { unitId } = await seedUnit(db, 'a');
 	const { unitId: secondUnit } = await seedUnit(db, 'a', { name: 'Stellplatz 1' });
@@ -168,6 +183,49 @@ describe('import', () => {
 		).toEqual([85000, 85000]);
 	});
 
+	it('answers a double commit with duplicates instead of failing, and books each hit once', async () => {
+		await createRule(db, contextA, {
+			leaseId,
+			field: 'counterpartIban',
+			pattern: 'DE12500105175407324931',
+			confirmed: true
+		});
+		// Both commits analyse the file before either writes, as two clicks on "Importieren" do.
+		slowAnalysis.on = true;
+		const [first, second] = await Promise.all([importSparkasse(), importSparkasse()]).finally(
+			() => (slowAnalysis.on = false)
+		);
+		expect(first).toMatchObject({ imported: 3, duplicates: 0, assigned: 2 });
+		expect(second).toMatchObject({ imported: 0, duplicates: 3, assigned: 0 });
+		const paid = await db.select().from(payments).where(eq(payments.accountId, 'a'));
+		expect(paid.map((row) => row.amount)).toEqual([85000, 85000]);
+		expect(await db.select().from(bankTransactions)).toHaveLength(3);
+	});
+
+	it('books many rule hits with one audit line each', async () => {
+		await createRule(db, contextA, {
+			leaseId,
+			field: 'counterpartIban',
+			pattern: 'DE12500105175407324931',
+			confirmed: true
+		});
+		// 30 transfers of 1,00 € to 30,00 €: 30 payments, more than one insert's worth of rows.
+		const [header, line] = sparkasse.split('\n');
+		const lines = Array.from({ length: 30 }, (_, index) =>
+			line.replace('850,00', `${index + 1},00`)
+		);
+		const result = await importSparkasse([header, ...lines].join('\n'));
+		expect(result).toMatchObject({ imported: 30, assigned: 30 });
+		const paid = await db.select().from(payments).where(eq(payments.leaseId, leaseId));
+		// 1 + 2 + … + 30 = 465 €.
+		expect(paid.reduce((sum, row) => sum + row.amount, 0)).toBe(46500);
+		const hits = await db.select().from(auditLog).where(eq(auditLog.action, 'assign'));
+		expect(hits).toHaveLength(30);
+		expect(hits[0].summary).toBe(
+			'Zahlung 1,00\u00a0€ vom 01.10.2026 (Max Müller) per Regel zugeordnet'
+		);
+	});
+
 	it('counts invalid rows and leaves them out', async () => {
 		const broken = `${sparkasse}\nDE02;gestern;;;Zinsen;;;;;;;Bank;;;1,00;EUR;`;
 		const preview = await previewImport(db, 'a', bankAccountId, rows(broken));
@@ -184,7 +242,7 @@ describe('import', () => {
 		const entries = await db.select().from(auditLog).where(eq(auditLog.entity, 'bankImport'));
 		expect(entries).toHaveLength(1);
 		expect(entries[0].summary).toBe(
-			'Kontoauszug „umsatz.csv“ importiert: 3 neue Umsätze, 0 Duplikate, 0 per Regel zugeordnet'
+			'Kontoauszug „umsatz.csv“ importiert: 3\u00a0neue Umsätze, 0\u00a0Duplikate, 0 per Regel zugeordnet'
 		);
 	});
 
@@ -245,6 +303,86 @@ describe('transactions', () => {
 		expect(await db.select().from(payments).where(eq(payments.accountId, 'a'))).toEqual([]);
 		expect(await countUnmatched(db, 'a')).toBe(3);
 		expect(await undoAssignment(db, contextA, incoming.id)).toBe('not-matched');
+		const actions = (
+			await db.select().from(auditLog).where(eq(auditLog.entity, 'bankTransaction'))
+		).map((entry) => entry.action);
+		expect(actions).toEqual(['assign', 'undo']);
+	});
+
+	it('books a double submit once: the second of two overlapping assignments is refused', async () => {
+		await importSparkasse();
+		const [incoming] = (await openTransactions()).filter((row) => row.amount > 0);
+		const input = { target: 'rent' as const, parts: [{ leaseId, amount: 85000 }], remember: true };
+		// Both calls read the status 'unmatched' before either batch runs (each awaits its reads
+		// first), as two requests from a double click do.
+		const outcomes = await Promise.all([
+			assignTransaction(db, contextA, incoming.id, input),
+			assignTransaction(db, contextA, incoming.id, input)
+		]);
+		expect(outcomes.sort()).toEqual(['assigned', 'not-open']);
+		const paid = await db.select().from(payments).where(eq(payments.accountId, 'a'));
+		expect(paid.map((row) => row.amount)).toEqual([85000]);
+		expect(await listRules(db, 'a')).toHaveLength(1);
+		const actions = (
+			await db.select().from(auditLog).where(eq(auditLog.entity, 'bankTransaction'))
+		).map((entry) => entry.action);
+		expect(actions).toEqual(['assign']);
+	});
+
+	it('refuses a rent and a deposit assignment of the same transaction at once', async () => {
+		await importSparkasse();
+		const [incoming] = (await openTransactions()).filter((row) => row.amount > 0);
+		const outcomes = await Promise.all([
+			assignTransaction(db, contextA, incoming.id, {
+				target: 'rent',
+				parts: [{ leaseId, amount: 85000 }],
+				remember: false
+			}),
+			assignTransaction(db, contextA, incoming.id, {
+				target: 'deposit',
+				parts: [{ leaseId, amount: 85000 }],
+				remember: false
+			})
+		]);
+		expect(outcomes).toEqual(['assigned', 'not-open']);
+		expect(await db.select().from(payments).where(eq(payments.accountId, 'a'))).toHaveLength(1);
+		expect(await db.select().from(depositTransactions)).toEqual([]);
+	});
+
+	it('does not assign a transaction that an overlapping request ignores', async () => {
+		await importSparkasse();
+		const [incoming] = (await openTransactions()).filter((row) => row.amount > 0);
+		const outcomes = await Promise.all([
+			assignTransaction(db, contextA, incoming.id, {
+				target: 'rent',
+				parts: [{ leaseId, amount: 85000 }],
+				remember: false
+			}),
+			ignoreTransaction(db, contextA, incoming.id)
+		]);
+		// The ignore reads less and so writes first; the assignment then finds it closed.
+		expect(outcomes).toEqual(['not-open', 'ignored']);
+		const [stored] = await db
+			.select()
+			.from(bankTransactions)
+			.where(eq(bankTransactions.id, incoming.id));
+		expect(stored.status).toBe('ignored');
+		expect(await db.select().from(payments).where(eq(payments.accountId, 'a'))).toEqual([]);
+	});
+
+	it('undoes an assignment once when undo is submitted twice', async () => {
+		await importSparkasse();
+		const [incoming] = (await openTransactions()).filter((row) => row.amount > 0);
+		await assignTransaction(db, contextA, incoming.id, {
+			target: 'rent',
+			parts: [{ leaseId, amount: 85000 }],
+			remember: false
+		});
+		const outcomes = await Promise.all([
+			undoAssignment(db, contextA, incoming.id),
+			undoAssignment(db, contextA, incoming.id)
+		]);
+		expect(outcomes.sort()).toEqual(['not-matched', 'undone']);
 		const actions = (
 			await db.select().from(auditLog).where(eq(auditLog.entity, 'bankTransaction'))
 		).map((entry) => entry.action);
