@@ -33,17 +33,26 @@
 	.page-header {
 		display: flex;
 		flex-wrap: wrap;
-		align-items: flex-end;
+		align-items: center;
 		justify-content: space-between;
 		gap: 0.75rem 1.5rem;
-		margin-bottom: 1.5rem;
+		margin-bottom: 2.25rem;
 	}
 	.back {
-		margin: 0 0 0.25rem;
-		font-size: 0.9rem;
+		margin: 0 0 1rem;
+		font-size: 0.8rem;
+		color: var(--color-muted);
+	}
+	.back a {
+		text-decoration: none;
+	}
+	.back a:hover {
+		color: var(--color-text);
 	}
 	.lead {
-		margin: 0.25rem 0 0;
+		margin: 0.65rem 0 0;
+		font-size: 0.9rem;
+		max-width: 45rem;
 	}
 	.page-actions {
 		display: flex;

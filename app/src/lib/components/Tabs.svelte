@@ -27,13 +27,14 @@
 <style>
 	.tabs {
 		display: flex;
-		gap: 0.25rem;
+		gap: 1.5rem;
 		overflow-x: auto;
 		border-bottom: 1px solid var(--color-border);
-		margin: 0 0 1.5rem;
+		margin: 0 0 2rem;
 	}
 	.tabs a {
-		padding: 0.5rem 0.75rem;
+		padding: 0.75rem 0 1rem;
+		font-size: 0.85rem;
 		white-space: nowrap;
 		text-decoration: none;
 		color: var(--color-muted);
@@ -44,5 +45,8 @@
 		color: var(--color-text);
 		border-bottom-color: var(--color-accent);
 		font-weight: 500;
+	}
+	.tabs a:hover {
+		color: var(--color-text);
 	}
 </style>
