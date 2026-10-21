@@ -39,9 +39,9 @@
 		color: var(--color-text);
 	}
 	.danger {
-		background: var(--color-accent);
-		border-color: var(--color-accent);
-		color: var(--color-accent-text);
+		background: var(--color-danger-subtle);
+		border-color: var(--color-danger-border);
+		color: var(--color-danger);
 	}
 	.info {
 		color: var(--color-text);

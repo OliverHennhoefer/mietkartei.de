@@ -45,13 +45,12 @@
 		return path === href || path.startsWith(`${href}/`) ? 'page' : undefined;
 	}
 
-	const section = $derived(
-		[
-			...groups.flatMap((group) => group.sections),
-			{ href: '/einstellungen', label: 'Einstellungen' }
-		].find((item) => current(item.href))?.label ?? 'Arbeitsbereich'
-	);
-	const initials = $derived((data.name ?? data.email)?.slice(0, 2).toUpperCase());
+	// First letters of the first and last name ("Max Muster" → "MM"), else of the email address.
+	const initials = $derived.by(() => {
+		const words = (data.name ?? '').trim().split(/\s+/).filter(Boolean);
+		if (words.length > 1) return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+		return (words[0] ?? data.email ?? '').slice(0, 2).toUpperCase();
+	});
 
 	function closeMenu() {
 		open = false;
@@ -103,11 +102,6 @@
 		</div>
 		{#if data.email}
 			<div class="workspace-bar">
-				<div class="breadcrumb">
-					<span>Mein Arbeitsbereich</span><span class="divider">/</span><span
-						class="current-section">{section}</span
-					>
-				</div>
 				<a
 					class="help-link"
 					href="https://docs.mietkartei.de/"
@@ -126,11 +120,6 @@
 				></button>
 			{/if}
 			<nav id="site-nav" class="site-nav" class:open aria-label="Hauptnavigation">
-				<div class="workspace-label">
-					<span class="workspace-symbol"><Icon name="home" size={16} /></span><span
-						>Mein Arbeitsbereich<small>Hausverwaltung</small></span
-					>
-				</div>
 				{#each groups as group (group.label)}
 					<div class="nav-group">
 						<p class="nav-label">{group.label}</p>

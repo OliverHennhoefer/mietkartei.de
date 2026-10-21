@@ -17,7 +17,10 @@
 	--color-hover: #f0f0f0;
 	--color-accent: #202020;
 	--color-accent-text: #fff;
-	--color-error: #202020;
+	/* The one colour: a muted brick red, only for errors, debts and destructive actions. */
+	--color-danger: #b4332a;
+	--color-danger-subtle: #fbf1f0;
+	--color-danger-border: #ecc9c5;
 	--radius: 10px;
 	--sidebar-width: 15.5rem;
 	--header-height: 4rem;
@@ -149,30 +152,6 @@ textarea {
 }
 .nav-backdrop:hover {
 	background: rgb(0 0 0 / 20%);
-}
-.workspace-label {
-	display: flex;
-	align-items: center;
-	gap: 0.75rem;
-	padding: 0.25rem 0.75rem 0.5rem;
-	font-size: 0.85rem;
-	font-weight: 500;
-	line-height: 1.5;
-}
-.workspace-label small {
-	display: block;
-	color: var(--color-muted);
-	font-size: 0.75rem;
-	font-weight: 400;
-}
-.workspace-symbol {
-	display: grid;
-	place-items: center;
-	width: 2.25rem;
-	height: 2.25rem;
-	background: var(--color-surface);
-	border: 1px solid var(--color-border);
-	border-radius: 8px;
 }
 .nav-label {
 	margin: 0 0 0.5rem;
@@ -307,7 +286,7 @@ a:hover {
 	font-size: 0.85rem;
 }
 .error {
-	color: var(--color-error);
+	color: var(--color-danger);
 	font-weight: 500;
 	font-size: 0.8rem;
 }
@@ -510,8 +489,7 @@ textarea {
 input[aria-invalid='true'],
 select[aria-invalid='true'],
 textarea[aria-invalid='true'] {
-	border-color: var(--color-error);
-	border-style: dashed;
+	border-color: var(--color-danger);
 }
 button,
 .button {
@@ -560,13 +538,14 @@ button.secondary:hover,
 button.danger,
 .button.danger {
 	background: var(--color-surface);
-	color: var(--color-error);
+	color: var(--color-danger);
 	border-color: var(--color-border);
 }
 button.danger:hover,
 .button.danger:hover {
-	background: var(--color-accent);
-	color: var(--color-accent-text);
+	background: var(--color-danger-subtle);
+	border-color: var(--color-danger-border);
+	color: var(--color-danger);
 }
 button.link {
 	min-height: auto;
@@ -703,22 +682,9 @@ dl.details dd {
 	.workspace-bar {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		justify-content: flex-end;
 		gap: 1rem;
 		padding: 0 2.5rem;
-	}
-	.breadcrumb {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
-		color: var(--color-muted);
-		font-size: 0.8rem;
-	}
-	.breadcrumb .divider {
-		color: var(--color-border);
-	}
-	.current-section {
-		color: var(--color-text);
 	}
 	.help-link {
 		display: inline-flex;
@@ -798,7 +764,9 @@ dl.details dd {
 		--color-hover: #2c2c2c;
 		--color-accent: #ededed;
 		--color-accent-text: #181818;
-		--color-error: #ededed;
+		--color-danger: #f0857b;
+		--color-danger-subtle: #2a1d1c;
+		--color-danger-border: #5a2f2b;
 		--shadow: none;
 	}
 }
@@ -823,7 +791,9 @@ dl.details dd {
 		--color-hover: #eee;
 		--color-accent: #111;
 		--color-accent-text: #fff;
-		--color-error: #111;
+		--color-danger: #b4332a;
+		--color-danger-subtle: #fff;
+		--color-danger-border: #b4332a;
 		color-scheme: light;
 	}
 	.site-header,

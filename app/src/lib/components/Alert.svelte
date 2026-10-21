@@ -35,8 +35,15 @@
 	.alert :global(p) {
 		margin: 0;
 	}
-	.warning,
-	.danger {
+	.warning {
 		border-left: 3px solid var(--color-text);
+	}
+	.danger {
+		border-color: var(--color-danger-border);
+		border-left: 3px solid var(--color-danger);
+		background: var(--color-danger-subtle);
+	}
+	.danger :global(.icon) {
+		color: var(--color-danger);
 	}
 </style>

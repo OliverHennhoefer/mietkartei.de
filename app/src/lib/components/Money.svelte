@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { formatCents, formatCentsSigned } from '../money';
 
-	// Signed amounts keep their sign and use weight for emphasis in the monochrome interface.
+	// Signed amounts keep their sign; debts are the one place amounts turn red.
 	let { cents, signed = false }: { cents: number; signed?: boolean } = $props();
 </script>
 
@@ -18,7 +18,7 @@
 		color: var(--color-text);
 	}
 	.negative {
-		color: var(--color-text);
+		color: var(--color-danger);
 		font-weight: 600;
 	}
 </style>
