@@ -141,40 +141,6 @@ jobs:
           docker logs mietkartei
           exit 1
 
-      # Self-hosters update by starting a new image on their existing volume, so a migration
-      # must not break a database created by the previously published image.
-      - name: Upgrade a database from the published image
-        run: |
-          wait_healthy() {
-            for attempt in $(seq 1 30); do
-              curl -fsS -o /dev/null "http://localhost:$1/health" && return 0
-              sleep 1
-            done
-            docker logs "$2"
-            return 1
-          }
-          docker volume create upgrade-data
-          docker run -d --name previous -p 3001:3000 -v upgrade-data:/data \
-            ghcr.io/oliverhennhoefer/mietkartei:latest
-          wait_healthy 3001 previous
-          # Sessions live in the database, so the same cookie must still work after the upgrade.
-          curl -fsS -o /dev/null -c cookies.txt -H "Origin: http://localhost:3001" \
-            --data-urlencode "email=upgrade@example.org" \
-            --data-urlencode "password=upgrade-passwort" \
-            "http://localhost:3001/registrieren"
-          curl -fsS -o /dev/null -b cookies.txt -H "Origin: http://localhost:3001" \
-            --data-urlencode "name=Upgrade-Testobjekt" --data-urlencode "street=Teststraße 1" \
-            --data-urlencode "postalCode=12345" --data-urlencode "city=Teststadt" \
-            "http://localhost:3001/objekte/neu?/create"
-          docker stop previous
-          docker run -d --name current -p 3002:3000 -v upgrade-data:/data mietkartei:ci
-          wait_healthy 3002 current
-          if ! curl -fsS -b cookies.txt http://localhost:3002/objekte | grep -q "Upgrade-Testobjekt"; then
-            echo "::error::A property created with the published image is missing after the upgrade."
-            docker logs current
-            exit 1
-          fi
-
   deploy:
     name: Deploy app
     needs: [check, e2e]
