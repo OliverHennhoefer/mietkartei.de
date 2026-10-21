@@ -35,11 +35,14 @@ const bool = (name: string, fallback: boolean) =>
 export const accounts = sqliteTable('accounts', {
 	id: id(),
 	name: text('name').notNull(),
-	/** The landlord as sender of letters (Vermieter), all optional. */
+	/** The landlord as sender of letters and statements (Vermieter), all optional. */
 	landlordName: text('landlord_name'),
 	street: text('street'),
 	postalCode: text('postal_code'),
 	city: text('city'),
+	/** Where tenants transfer a Nachzahlung to; printed on the statement. */
+	iban: text('iban'),
+	bankName: text('bank_name'),
 	/** Set once the standard cost categories and keys are seeded, so they are seeded only once. */
 	operatingCostDefaultsSeeded: bool('operating_cost_defaults_seeded', false),
 	createdAt: createdAt()
@@ -350,13 +353,13 @@ export const consumerPriceIndex = sqliteTable(
 
 // Rent ledger (Mietkonto)
 
-export const rentChargeKinds = ['rent', 'adjustment'] as const;
+export const rentChargeKinds = ['rent', 'statement_balance', 'adjustment'] as const;
 export type RentChargeKind = (typeof rentChargeKinds)[number];
 
 /**
  * Sollstellung: what the tenant owes for a month (kind `rent`, derived from the rent history and
- * kept in sync by the ledger module) or from a manual adjustment. Positive = the tenant owes,
- * negative = a credit to the tenant.
+ * kept in sync by the ledger module), from a statement or from a manual adjustment. Positive =
+ * the tenant owes, negative = a credit to the tenant.
  */
 export const rentCharges = sqliteTable(
 	'rent_charges',
@@ -368,13 +371,21 @@ export const rentCharges = sqliteTable(
 			.references(() => leases.id, { onDelete: 'cascade' }),
 		/** YYYY-MM */
 		period: text('period').notNull(),
-		dueDate: text('due_date').notNull(),
+		/**
+		 * Null while the charge is not due yet: a statement's Nachzahlung is due 30 days after the
+		 * statement reached the tenant, which is not known before the delivery date is recorded.
+		 */
+		dueDate: text('due_date'),
 		baseRent: integer('base_rent').notNull().default(0),
 		operatingCostPrepayment: integer('operating_cost_prepayment').notNull().default(0),
 		heatingCostPrepayment: integer('heating_cost_prepayment').notNull().default(0),
 		/** The total of the charge. */
 		amount: integer('amount').notNull(),
 		kind: text('kind', { enum: rentChargeKinds }).notNull(),
+		/** The statement this charge comes from. */
+		referenceId: text('reference_id'),
+		/** A correction or a late delivery reverses a statement's charge: a row of its own. */
+		reversesChargeId: text('reverses_charge_id'),
 		note: text('note'),
 		createdAt: createdAt()
 	},
@@ -384,7 +395,14 @@ export const rentCharges = sqliteTable(
 		// One rent charge per month, so generating charges is idempotent.
 		uniqueIndex('rent_charges_rent_unique')
 			.on(table.leaseId, table.period)
-			.where(sql`${table.kind} = 'rent'`)
+			.where(sql`${table.kind} = 'rent'`),
+		// A statement is posted once per lease, and reverses a charge at most once.
+		uniqueIndex('rent_charges_reference_unique')
+			.on(table.leaseId, table.referenceId)
+			.where(sql`${table.referenceId} is not null and ${table.reversesChargeId} is null`),
+		uniqueIndex('rent_charges_reversal_unique')
+			.on(table.reversesChargeId, table.referenceId)
+			.where(sql`${table.reversesChargeId} is not null`)
 	]
 );
 
@@ -733,6 +751,77 @@ export const meterReadings = sqliteTable(
 	]
 );
 
+export const statementStatuses = ['draft', 'approved'] as const;
+export type StatementStatus = (typeof statementStatuses)[number];
+
+/**
+ * Betriebskostenabrechnung for a property and period. Drafts are recomputed on every view; an
+ * approved statement keeps its computed result frozen in `result` and is never changed again.
+ * A correction is a new version with `correctsId` pointing at the version it replaces; "superseded"
+ * is derived from the existence of an approved correction.
+ */
+export const operatingCostStatements = sqliteTable(
+	'operating_cost_statements',
+	{
+		id: id(),
+		accountId: accountId(),
+		propertyId: text('property_id')
+			.notNull()
+			.references(() => properties.id, { onDelete: 'cascade' }),
+		periodStart: text('period_start').notNull(),
+		periodEnd: text('period_end').notNull(),
+		version: integer('version').notNull().default(1),
+		status: text('status', { enum: statementStatuses }).notNull().default('draft'),
+		correctsId: text('corrects_id'),
+		/** JSON of the computed StatementResult (property level): stored on creation, frozen on approval. */
+		result: text('result'),
+		/** Approval after the 12-month deadline with "Verspätung nicht zu vertreten" (§ 556 Abs. 3). */
+		lateApprovalJustified: bool('late_approval_justified', false),
+		approvedAt: integer('approved_at', { mode: 'timestamp_ms' }),
+		approvedBy: text('approved_by').references(() => users.id, { onDelete: 'set null' }),
+		note: text('note'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('operating_cost_statements_account_id_idx').on(table.accountId),
+		uniqueIndex('operating_cost_statements_version_unique').on(
+			table.propertyId,
+			table.periodStart,
+			table.periodEnd,
+			table.version
+		)
+	]
+);
+
+/**
+ * One lease's part of an approved statement: the frozen per-lease result the PDF is printed
+ * from, its balance, and when the statement reached the tenant (starts the Einwendungsfrist and
+ * makes a Nachzahlung due).
+ */
+export const statementResults = sqliteTable(
+	'statement_results',
+	{
+		id: id(),
+		accountId: accountId(),
+		statementId: text('statement_id')
+			.notNull()
+			.references(() => operatingCostStatements.id, { onDelete: 'cascade' }),
+		leaseId: text('lease_id')
+			.notNull()
+			.references(() => leases.id, { onDelete: 'restrict' }),
+		/** Positive = Nachzahlung, negative = Guthaben. */
+		balance: integer('balance').notNull(),
+		/** JSON of the frozen per-lease result (LeaseStatement). */
+		result: text('result').notNull(),
+		deliveredOn: text('delivered_on'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('statement_results_account_id_idx').on(table.accountId),
+		uniqueIndex('statement_results_unique').on(table.statementId, table.leaseId)
+	]
+);
+
 // Documents
 
 /** An uploaded file, stored via the storage adapter under `<accountId>/<id>`. */
@@ -805,6 +894,7 @@ export type AuditAction =
 	| 'delete'
 	| 'post'
 	| 'approve'
+	| 'correct'
 	| 'import'
 	| 'assign'
 	| 'undo'

@@ -1,6 +1,14 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
-import { formatDate, formatMonth, monthOf, today, type IsoDate, type IsoMonth } from '../dates';
+import {
+	dayOf,
+	formatDate,
+	formatMonth,
+	monthOf,
+	today,
+	type IsoDate,
+	type IsoMonth
+} from '../dates';
 import { diffCharges, expectedRentCharges, type ExpectedCharge } from '../domain/charges';
 import type { RentChange } from '../domain/rents';
 import { rentChargeKindLabels } from '../labels';
@@ -21,7 +29,8 @@ import { assertQuota } from './quotas';
 // The rent ledger (Mietkonto): what a lease owes (rent_charges, Soll) against what was paid
 // (payments, Ist). Monthly rent charges are derived from the lease term and the rent history and
 // synced on demand by ensureCharges; everything else on the ledger is posted explicitly, by the
-// landlord (adjustments, payments) or by the banking feature (payments from bank transactions).
+// landlord (adjustments, payments), by the banking feature (payments from bank transactions) or
+// by the statement feature through chargeEntry.
 
 type Statement = BatchItem<'sqlite'>;
 
@@ -121,7 +130,10 @@ export async function ensureCharges(
 	]);
 
 	const changesByLease: Map<string, RentChange[]> = groupByLease(changeRows);
-	const chargesByLease = groupByLease(chargeRows);
+	// Rent charges always have a due date; only a statement's Nachzahlung waits for one.
+	const chargesByLease = groupByLease(
+		chargeRows.map((row) => ({ ...row, dueDate: row.dueDate ?? '' }))
+	);
 
 	const inserts: (typeof rentCharges.$inferInsert)[] = [];
 	const updates: (ExpectedCharge & { id: string })[] = [];
@@ -195,9 +207,14 @@ export type ChargeInput = {
 	/** Rent charges are derived; see ensureCharges. */
 	kind: Exclude<RentChargeKind, 'rent'>;
 	period: IsoMonth;
-	dueDate: IsoDate;
+	/** Null while not due: a statement's Nachzahlung before the statement reached the tenant. */
+	dueDate: IsoDate | null;
 	/** Positive = the tenant owes, negative = a credit to the tenant. */
 	amount: number;
+	/** The statement the charge comes from; posted once per lease (unique index). */
+	referenceId?: string | null;
+	/** The charge this one reverses, for a corrected or late delivered statement. */
+	reversesChargeId?: string | null;
 	note?: string | null;
 };
 
@@ -212,6 +229,32 @@ function chargeSummary(
 }
 
 /**
+ * The insert statement for a charge, with its id, so a feature can post the charge inside its
+ * own runBatch together with the records it belongs to and its audit entry. The lease must
+ * already be checked against the account.
+ */
+export function chargeEntry(
+	db: Database,
+	context: AuditContext,
+	input: ChargeInput,
+	id: string = crypto.randomUUID()
+): { id: string; statement: Statement } {
+	const statement = db.insert(rentCharges).values({
+		id,
+		accountId: context.accountId,
+		leaseId: input.leaseId,
+		period: input.period,
+		dueDate: input.dueDate,
+		amount: input.amount,
+		kind: input.kind,
+		referenceId: input.referenceId ?? null,
+		reversesChargeId: input.reversesChargeId ?? null,
+		note: input.note ?? null
+	});
+	return { id, statement };
+}
+
+/**
  * The insert of a charge with its audit entry, for a caller's batch (createLease posts the opening
  * balance with the new lease). The lease must already be checked against the account.
  */
@@ -222,16 +265,7 @@ export function chargeStatements(
 	input: ChargeInput
 ): BatchItem<'sqlite'>[] {
 	return [
-		db.insert(rentCharges).values({
-			id,
-			accountId: context.accountId,
-			leaseId: input.leaseId,
-			period: input.period,
-			dueDate: input.dueDate,
-			amount: input.amount,
-			kind: input.kind,
-			note: input.note ?? null
-		}),
+		chargeEntry(db, context, input, id).statement,
 		auditEntry(db, context, 'lease', input.leaseId, 'post', chargeSummary(input, 'gebucht'))
 	];
 }
@@ -249,7 +283,10 @@ export async function postCharge(
 	return id;
 }
 
-/** Deletes a manual posting. Rent rows are derived and would come back with the next sync. */
+/**
+ * Deletes a manual posting. Rent rows are derived and would come back with the next sync;
+ * statement postings are reversed by a correction, never deleted.
+ */
 export async function deleteCharge(
 	db: Database,
 	context: AuditContext,
@@ -342,7 +379,7 @@ export async function deletePayment(
 }
 
 export type LedgerLine = {
-	/** Due date of a charge, date of a payment. */
+	/** Due date of a charge (the day it was posted while it is not due), date of a payment. */
 	date: IsoDate;
 	kind: 'charge' | 'payment';
 	id: string;
@@ -405,7 +442,7 @@ export async function listLedger(
 	]);
 	const entries: LedgerEntry[] = [
 		...chargeRows.map((row) => ({
-			date: row.dueDate,
+			date: row.dueDate ?? dayOf(row.createdAt),
 			kind: 'charge' as const,
 			id: row.id,
 			label: chargeLabel(row),
@@ -452,7 +489,8 @@ export type LeaseBalance = {
 	balance: number;
 	/**
 	 * The Rückstand: charges due by `asOf` minus the payments made by `asOf`, at least 0. A month's
-	 * rent before its due day, a correction dated later and a payment dated later do not count yet.
+	 * rent before its due day, a correction dated later, a Nachzahlung before it is due (30 days
+	 * after the statement reached the tenant) and a payment dated later do not count yet.
 	 */
 	overdue: number;
 	/** The last day by `asOf` money came in, null when nothing was paid by then. */
@@ -464,7 +502,7 @@ export type LeaseBalance = {
 	openSince: IsoMonth | null;
 };
 
-type BalanceCharge = { amount: number; dueDate: IsoDate };
+type BalanceCharge = { amount: number; dueDate: IsoDate | null };
 
 /** What is overdue on `asOf` and since when, by FIFO over the due charges in due-date order. */
 function overdueSince(
@@ -473,7 +511,9 @@ function overdueSince(
 	asOf: IsoDate
 ): { overdue: number; openSince: IsoMonth | null } {
 	const due = charges
-		.filter((charge) => charge.dueDate <= asOf)
+		.filter((charge): charge is { amount: number; dueDate: IsoDate } =>
+			Boolean(charge.dueDate && charge.dueDate <= asOf)
+		)
 		.sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0));
 	// Credits (negative charges) count like payments: they settle the oldest debts.
 	const available = due.reduce((sum, charge) => sum + Math.max(-charge.amount, 0), paid);

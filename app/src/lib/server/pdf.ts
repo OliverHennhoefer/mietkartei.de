@@ -1,4 +1,4 @@
-// PDF letters, such as the index rent increase. Built with
+// PDF letters: the operating cost statement per lease and the index rent increase. Built with
 // pdf-lib and the standard Helvetica fonts, which every viewer ships, so nothing is embedded and
 // the renderer runs on Node and on Cloudflare Workers alike. The layout follows DIN 5008 form B,
 // so the recipient block shows in the window of a DIN lang envelope.
@@ -16,7 +16,13 @@ export type PdfColumn = {
 export type PdfTable = {
 	columns: PdfColumn[];
 	rows: string[][];
+	/** A sum row, bold under a rule. */
+	footer?: string[];
+	/** Bold line above the header row. */
+	title?: string;
 };
+
+export type LetterBlock = { paragraph: string } | { table: PdfTable };
 
 export type Letter = {
 	/** Name and address of the landlord; the first line is also the small sender line above the window. */
@@ -29,6 +35,8 @@ export type Letter = {
 	paragraphs: string[];
 	/** Rendered after the paragraphs, in order. */
 	tables?: PdfTable[];
+	/** Paragraphs and tables in an explicit order; replaces `paragraphs` and `tables` when given. */
+	blocks?: LetterBlock[];
 	/** E.g. `['Mit freundlichen Grüßen', '', 'Erika Vermieter']`. */
 	closing?: string[];
 };
@@ -289,14 +297,17 @@ function writeTable(ctx: Context, table: PdfTable): void {
 	const labels = table.columns.map((column) => column.label);
 	const header = layoutRow(labels, widths, ctx.bold);
 	const rows = table.rows.map((cells) => layoutRow(cells, widths, ctx.regular));
+	const footer = table.footer ? layoutRow(table.footer, widths, ctx.bold) : undefined;
 
 	const drawHeader = () => {
 		drawRow(ctx, header, table.columns, widths, ctx.bold);
 		drawRule(ctx.cursor.page, ctx.cursor.y);
 	};
 
-	// The header and the first row stay together.
-	ensureSpace(ctx, header.height + (rows[0]?.height ?? 0));
+	// The title, the header and the first row stay together.
+	const titleHeight = table.title ? LINE_HEIGHT : 0;
+	ensureSpace(ctx, titleHeight + header.height + (rows[0]?.height ?? footer?.height ?? 0));
+	if (table.title) writeLine(ctx, table.title, ctx.bold);
 	drawHeader();
 
 	for (const row of rows) {
@@ -305,6 +316,15 @@ function writeTable(ctx: Context, table: PdfTable): void {
 			drawHeader();
 		}
 		drawRow(ctx, row, table.columns, widths, ctx.regular);
+	}
+
+	if (footer) {
+		if (!fits(ctx, footer.height)) {
+			newPage(ctx);
+			drawHeader();
+		}
+		drawRule(ctx.cursor.page, ctx.cursor.y);
+		drawRow(ctx, footer, table.columns, widths, ctx.bold);
 	}
 	ctx.cursor.y -= LINE_HEIGHT;
 }
@@ -370,6 +390,14 @@ function writeFooters(ctx: Context): void {
 	});
 }
 
+function blocksOf(letter: Letter): LetterBlock[] {
+	if (letter.blocks) return letter.blocks;
+	return [
+		...letter.paragraphs.map((paragraph) => ({ paragraph })),
+		...(letter.tables ?? []).map((table) => ({ table }))
+	];
+}
+
 /** Renders the letter as A4 pages and returns the PDF bytes. */
 export async function renderLetter(letter: Letter): Promise<Uint8Array> {
 	const doc = await PDFDocument.create();
@@ -384,8 +412,10 @@ export async function renderLetter(letter: Letter): Promise<Uint8Array> {
 	const ctx: Context = { doc, regular, bold, cursor: { page, y: 0, top: 0 } };
 	writeLetterhead(ctx, letter);
 
-	for (const paragraph of letter.paragraphs) writeParagraph(ctx, paragraph, regular);
-	for (const table of letter.tables ?? []) writeTable(ctx, table);
+	for (const block of blocksOf(letter)) {
+		if ('paragraph' in block) writeParagraph(ctx, block.paragraph, regular);
+		else writeTable(ctx, block.table);
+	}
 
 	if (letter.closing?.length) {
 		// The greeting and the signature are not torn apart by a page break.
@@ -408,7 +438,7 @@ const TRANSLITERATIONS: Record<string, string> = {
 	ß: 'ss'
 };
 
-/** `Mieterhöhung Müller.pdf` → `Mieterhoehung Mueller.pdf`; anything else non-ASCII becomes `_`. */
+/** `Abrechnung Müller 2025.pdf` → `Abrechnung Mueller 2025.pdf`; anything else non-ASCII becomes `_`. */
 function asciiFilename(filename: string): string {
 	return filename
 		.replace(/[äöüÄÖÜß]/g, (char) => TRANSLITERATIONS[char])

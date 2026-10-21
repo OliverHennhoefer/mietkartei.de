@@ -480,8 +480,8 @@ function updateSummary(existing: Lease, input: LeaseInput, later: LaterRows): st
 
 /**
  * Deletes the lease with its rent history, persons history and generated rent charges. A lease
- * with money on it (payments, corrections, deposit movements) is ended, not deleted, so the
- * history stays; the page offers "Vertrag beenden" instead.
+ * with money on it (payments, corrections, deposit movements, statement balances) is ended, not
+ * deleted, so the history stays; the page offers "Vertrag beenden" instead.
  */
 export async function deleteLease(
 	db: Database,
@@ -505,7 +505,10 @@ export async function deleteLease(
 	return 'deleted';
 }
 
-/** Whether payments, deposit movements or postings other than the monthly rent exist. */
+/**
+ * Whether payments, deposit movements or postings other than the monthly rent exist; an approved
+ * operating cost statement always posts its balance, so it counts too.
+ */
 async function hasMoney(db: Database, leaseId: string): Promise<boolean> {
 	const [[paid], [deposit], [posted]] = await Promise.all([
 		db.select({ value: count() }).from(payments).where(eq(payments.leaseId, leaseId)),

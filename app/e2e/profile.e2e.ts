@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test';
 import { pdfText } from './pdf-text';
 import { seedLease, seedRows } from './seed';
 
-// The landlord sender block under /einstellungen/profil, which every letter prints.
+// The landlord sender block under /einstellungen/profil, which every letter and statement
+// prints.
 
 test('saves the landlord sender block, which the letters print', async ({ page }) => {
 	// Reached through the settings in the main navigation.
@@ -20,6 +21,8 @@ test('saves the landlord sender block, which the letters print', async ({ page }
 	await form.getByLabel('Straße und Hausnummer').fill('Lindenstraße 4');
 	await form.getByLabel('Postleitzahl').fill('1234');
 	await form.getByLabel('Ort').fill('Leipzig');
+	await form.getByLabel('IBAN').fill('DE89 3704 0044 0532 0130 00');
+	await form.getByLabel('Bank').fill('Commerzbank');
 	await form.getByRole('button', { name: 'Absender speichern' }).click();
 	await expect(form.getByText('Die Postleitzahl hat fünf Ziffern.')).toBeVisible();
 	await expect(form.getByLabel('Straße und Hausnummer')).toHaveValue('Lindenstraße 4');
@@ -33,6 +36,8 @@ test('saves the landlord sender block, which the letters print', async ({ page }
 	await expect(form.getByLabel('Name des Vermieters')).toHaveValue('Vera Vermieterin');
 	await expect(form.getByLabel('Postleitzahl')).toHaveValue('04109');
 	await expect(form.getByLabel('Ort')).toHaveValue('Leipzig');
+	await expect(form.getByLabel('IBAN')).toHaveValue('DE89370400440532013000');
+	await expect(form.getByLabel('Bank')).toHaveValue('Commerzbank');
 
 	// An index rent letter (seeded, the rent feature writes it) prints the block as sender and
 	// the place in the date line.

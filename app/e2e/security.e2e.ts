@@ -79,6 +79,11 @@ test('no detail page violates the Content-Security-Policy', async ({ page }) => 
 			amount: 120000
 		}
 	]);
+	const {
+		ids: [statementId]
+	} = await seedRows(page.request, 'operatingCostStatements', [
+		{ propertyId, periodStart: '2025-01-01', periodEnd: '2025-12-31' }
+	]);
 	const violations = watchCspViolations(page);
 	const property = `/objekte/${propertyId}`;
 	const lease = `/vertraege/${leaseId}`;
@@ -100,6 +105,7 @@ test('no detail page violates the Content-Security-Policy', async ({ page }) => 
 		`${lease}/mietkonto`,
 		// The standard categories and keys are seeded on the first visit of the list.
 		`/betriebskosten/belege/${costItemId}`,
+		`/betriebskosten/abrechnungen/${statementId}`,
 		await firstEntry(page, '/betriebskosten/kostenarten'),
 		await firstEntry(page, '/betriebskosten/schluessel')
 	];

@@ -162,7 +162,7 @@ export const actions: Actions = {
 		if (outcome === 'in-use') {
 			return fail(400, {
 				message:
-					'Auf diesem Mietvertrag wurden schon Zahlungen, Korrekturen oder Kautionsbewegungen gebucht; er lässt sich nicht löschen, damit die Historie bleibt. Beende den Vertrag stattdessen mit „Vertrag beenden“.'
+					'Auf diesem Mietvertrag wurden schon Zahlungen, Korrekturen, Kautionsbewegungen oder Abrechnungen gebucht; er lässt sich nicht löschen, damit die Historie bleibt. Beende den Vertrag stattdessen mit „Vertrag beenden“.'
 			});
 		}
 		redirect(303, '/vertraege');
