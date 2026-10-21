@@ -1049,7 +1049,8 @@ export type AuditAction =
 	| 'ignore'
 	| 'upload'
 	| 'invite'
-	| 'reset';
+	| 'reset'
+	| 'export';
 
 /** Who changed what, as one German sentence per change. */
 export const auditLog = sqliteTable(

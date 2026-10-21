@@ -129,7 +129,8 @@ export const auditActionLabels: Record<string, string> = {
 	undo: 'Rückgängig gemacht',
 	ignore: 'Ignoriert',
 	upload: 'Hochgeladen',
-	reset: 'Zurückgesetzt'
+	reset: 'Zurückgesetzt',
+	export: 'Exportiert'
 };
 
 /** The entities of the audit log, as the features name them, for /einstellungen/protokoll. */
