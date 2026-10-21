@@ -12,7 +12,7 @@ Welcher Weg gebaut wird, bestimmt die Umgebungsvariable `DEPLOY_TARGET` (`node` 
 
 ## Anmeldung
 
-Beim ersten Aufruf legst du ein Konto mit E-Mail-Adresse und Passwort an. Die erste Person übernimmt dabei alle Daten, die vorher schon eingegeben wurden. Danach ist die Registrierung geschlossen. Ist `REGISTRATION_EMAILS` gesetzt, können sich stattdessen nur die dort genannten E-Mail-Adressen registrieren. Auch dann übernimmt die erste Person alle vorhandenen Daten, jede weitere bekommt ein eigenes, leeres Konto.
+Beim ersten Aufruf legst du ein Konto mit E-Mail-Adresse und Passwort an. Die erste Person übernimmt dabei alle Daten, die vorher schon eingegeben wurden. Danach ist die Registrierung geschlossen. Ist `REGISTRATION_EMAILS` gesetzt, können sich stattdessen nur die dort genannten E-Mail-Adressen registrieren, und zwar über einen Link, der an die Adresse geschickt wird. Dafür muss der Mailversand eingerichtet sein. Auch dann übernimmt die erste Person alle vorhandenen Daten, jede weitere bekommt ein eigenes, leeres Konto.
 
 Unter **Einstellungen → Mitverwalter** lädst du weitere Personen in dein Konto ein, auch wenn die Registrierung geschlossen ist. Sie bekommen eine E-Mail mit einem Link, der sieben Tage gilt. Mitverwalter bearbeiten alles außer Einladungen und Bankverbindungen; Vermieter ist nur, wer das Konto angelegt hat. Ein Konto verschickt höchstens 20 Einladungen am Tag.
 

@@ -56,8 +56,8 @@ test('refuses an address that is not listed on the hosted variant', async ({ pag
 	await page.goto('/registrieren');
 	await expect(page.getByText('mietkartei ist noch nicht öffentlich.')).toBeVisible();
 	await page.getByLabel('E-Mail-Adresse').fill('fremd@example.org');
-	await page.getByLabel('Passwort').fill('noch-ein-sicheres-passwort');
-	await page.getByRole('button', { name: 'Konto anlegen' }).click();
+	await expect(page.getByLabel('Passwort')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Link anfordern' }).click();
 
 	await expect(
 		page.getByText('Diese E-Mail-Adresse ist nicht für eine Registrierung freigeschaltet.')
@@ -161,10 +161,12 @@ test('locks an address after five wrong passwords', async ({ page }) => {
 	);
 });
 
-test('answers unknown reset and invitation links with 404', async ({ page }) => {
+test('answers unknown reset, invitation and registration links with 404', async ({ page }) => {
 	const reset = await page.goto('/passwort-zuruecksetzen/does-not-exist');
 	expect(reset?.status()).toBe(404);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Nicht gefunden');
 	const invitation = await page.goto('/einladung/does-not-exist');
 	expect(invitation?.status()).toBe(404);
+	const registration = await page.goto('/registrieren/does-not-exist');
+	expect(registration?.status()).toBe(404);
 });
