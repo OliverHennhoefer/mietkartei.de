@@ -6,7 +6,9 @@ import type { RequestHandler } from './$types';
 
 // Streams a document of the signed-in account through the storage adapter (no node:fs here,
 // the route runs on Workers too). Saved under its name by default; `?inline=1` lets the
-// browser show a PDF or image instead.
+// browser show a PDF or image instead. Only types whose bytes were checked on upload are shown
+// inline (storedMimeType). Everything else runs in a CSP sandbox; an inline PDF does not,
+// because Chrome refuses to open a PDF in a sandboxed document.
 export const GET: RequestHandler = async ({ locals, params, url }) => {
 	const accountId = requireAccount(locals);
 	const opened = await openDocument(locals.db, accountId, params.id);
@@ -21,7 +23,10 @@ export const GET: RequestHandler = async ({ locals, params, url }) => {
 			// Workers would gzip a text file on the fly, chunked and without Content-Length; the
 			// explicit identity encoding keeps a download byte for byte as it was uploaded.
 			'Content-Encoding': 'identity',
-			'X-Content-Type-Options': 'nosniff'
+			'X-Content-Type-Options': 'nosniff',
+			...(inline && opened.contentType.startsWith('application/pdf')
+				? {}
+				: { 'Content-Security-Policy': "sandbox; default-src 'none'; img-src 'self'" })
 		}
 	});
 };

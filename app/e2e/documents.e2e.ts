@@ -59,6 +59,7 @@ test('uploads a document, shows it on the lease, downloads, filters and deletes 
 	// A text file is never shown inline, whatever the query says.
 	const inline = await page.request.get(`${href}?inline=1`);
 	expect(inline.headers()['content-disposition']).toMatch(/^attachment;/);
+	expect(inline.headers()['content-security-policy']).toMatch(/^sandbox;/);
 
 	// The filter narrows the list to one lease.
 	await page.goto('/dokumente');
@@ -111,6 +112,8 @@ test('uploads a PDF on the lease tab with a typed name and shows it inline', asy
 	const response = await page.request.get(href!);
 	expect(response.status()).toBe(200);
 	expect(response.headers()['content-type']).toBe('application/pdf');
+	// Chrome opens no PDF in a sandboxed document; the bytes were checked on upload instead.
+	expect(response.headers()['content-security-policy']).toBeUndefined();
 	expect(response.headers()['content-disposition']).toBe(
 		`inline; filename="Mietvertrag ${tag}.pdf"; filename*=UTF-8''${encodeURIComponent(name)}`
 	);
