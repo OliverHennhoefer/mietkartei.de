@@ -57,6 +57,8 @@ export type ImportInput = {
 };
 
 const MAX_CSV_BYTES = 2 * 1024 * 1024;
+/** Rows of one file; a year of a landlord's account is a few hundred. */
+export const MAX_IMPORT_ROWS = 10_000;
 
 export function parseImport(form: FormData): ParseResult<ImportInput> {
 	const parser = new FormParser<ImportInput>(form);

@@ -5,6 +5,7 @@ import type { PropertyInput, UnitInput } from '../validation';
 import type { AuditContext } from './audit';
 import { auditEntry } from './audit';
 import { chunkIds, runBatch } from './db/batch';
+import { assertQuota } from './quotas';
 
 // All queries take the account explicitly, so data of one account can never leak into another.
 // Changes write their audit line in the same batch as the change itself.
@@ -51,6 +52,7 @@ export async function addProperty(
 	context: AuditContext,
 	input: PropertyInput
 ): Promise<{ id: string }> {
+	await assertQuota(db, context.accountId, 'properties');
 	const id = crypto.randomUUID();
 	await runBatch(db, [
 		db.insert(properties).values({ ...input, id, accountId: context.accountId }),
@@ -149,6 +151,7 @@ export async function addUnit(
 	propertyId: string,
 	input: UnitInput
 ): Promise<{ id: string } | undefined> {
+	await assertQuota(db, context.accountId, 'units');
 	const property = await getProperty(db, context.accountId, propertyId);
 	if (!property) return undefined;
 	const id = crypto.randomUUID();

@@ -27,6 +27,7 @@ import { ensureCharges } from './ledger';
 import type { Letter } from './pdf';
 import { laterRows, laterRowsNote } from './rent-history';
 import { listRentChanges, type RentChangeRow } from './rents';
+import { assertQuota } from './quotas';
 
 // Changes of the rent beyond the initial one: manual changes, Staffel steps, index proposals with
 // their approval and letter, and the VPI table the proposals are computed from. Every write
@@ -63,6 +64,7 @@ export async function addIndexValue(
 	context: AuditContext,
 	input: IndexValueInput
 ): Promise<AdjustmentResult> {
+	await assertQuota(db, context.accountId, 'consumerPriceIndex');
 	const [existing] = await db
 		.select({ id: consumerPriceIndex.id })
 		.from(consumerPriceIndex)
@@ -169,6 +171,7 @@ export async function manualChange(
 	leaseId: string,
 	input: ManualChangeInput
 ): Promise<AdjustmentResult | undefined> {
+	await assertQuota(db, context.accountId, 'rentChanges');
 	const lease = await getLease(db, context.accountId, leaseId);
 	if (!lease) return undefined;
 	if (input.validFrom < lease.startDate) {
@@ -242,6 +245,7 @@ export async function addGraduatedStep(
 	leaseId: string,
 	input: GraduatedStepInput
 ): Promise<AdjustmentResult | undefined> {
+	await assertQuota(db, context.accountId, 'rentChanges');
 	const lease = await getLease(db, context.accountId, leaseId);
 	if (!lease) return undefined;
 	if (lease.rentModel !== 'graduated') return refuse('Dieser Mietvertrag hat keine Staffelmiete.');
@@ -307,6 +311,7 @@ export async function proposeIndexChange(
 	context: AuditContext,
 	leaseId: string
 ): Promise<AdjustmentResult | undefined> {
+	await assertQuota(db, context.accountId, 'rentChanges');
 	const lease = await getLease(db, context.accountId, leaseId);
 	if (!lease) return undefined;
 	const [changes, values] = await Promise.all([

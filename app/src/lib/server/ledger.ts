@@ -16,6 +16,7 @@ import {
 	type PaymentSource,
 	type RentChargeKind
 } from './db/schema';
+import { assertQuota } from './quotas';
 
 // The rent ledger (Mietkonto): what a lease owes (rent_charges, Soll) against what was paid
 // (payments, Ist). Monthly rent charges are derived from the lease term and the rent history and
@@ -240,6 +241,7 @@ export async function postCharge(
 	context: AuditContext,
 	input: ChargeInput
 ): Promise<string | undefined> {
+	await assertQuota(db, context.accountId, 'rentCharges');
 	if (!(await ownsLease(db, context.accountId, input.leaseId))) return undefined;
 	const id = crypto.randomUUID();
 	await runBatch(db, chargeStatements(db, context, id, input));
@@ -308,6 +310,7 @@ export async function createPayment(
 	context: AuditContext,
 	input: PaymentInput
 ): Promise<string | undefined> {
+	await assertQuota(db, context.accountId, 'payments');
 	if (!(await ownsLease(db, context.accountId, input.leaseId))) return undefined;
 	const { id, statement } = paymentEntry(db, context, input);
 	await runBatch(db, [
