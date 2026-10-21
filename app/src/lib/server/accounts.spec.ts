@@ -15,6 +15,7 @@ import {
 	accounts,
 	auditLog,
 	costCategories,
+	documents,
 	emailChanges,
 	invitations,
 	leaseTenants,
@@ -188,8 +189,10 @@ describe('deleteAccount', () => {
 	it('removes every row and file of the account and nothing of another account', async () => {
 		await seedAccount(contextA);
 		const leaseB = await seedAccount(contextB);
+		// A file without a row, as a manager's upload that lands while the account is deleted.
+		await storage.put('a/hochgeladen-waehrenddessen', new TextEncoder().encode('x'), 'text/plain');
 
-		expect(await deleteAccount(db, 'a', { storage })).toBe(1);
+		expect(await deleteAccount(db, 'a', { storage })).toBe(true);
 
 		expect(await db.select().from(accounts)).toEqual([expect.objectContaining({ id: 'b' })]);
 		expect(await db.select().from(users)).toEqual([expect.objectContaining({ id: 'user-b' })]);
@@ -208,7 +211,8 @@ describe('deleteAccount', () => {
 			payments,
 			auditLog,
 			invitations,
-			emailChanges
+			emailChanges,
+			documents
 		]) {
 			const rows = await db.select({ accountId: table.accountId }).from(table);
 			expect(rows.length).toBeGreaterThan(0);
@@ -220,8 +224,23 @@ describe('deleteAccount', () => {
 		expect(await readdir(root)).toEqual(['b']);
 	});
 
+	it('keeps every row and file when the batch fails', async () => {
+		await seedAccount(contextA);
+		const leaseB = await seedAccount(contextB);
+		// A lease of account b on a unit of a: the restrict key stops the batch at a's units.
+		const [unitA] = await db.select({ id: units.id }).from(units).where(eq(units.accountId, 'a'));
+		await db.update(leases).set({ unitId: unitA.id }).where(eq(leases.id, leaseB));
+		const rowsBefore = await db.select().from(documents);
+
+		await expect(deleteAccount(db, 'a', { storage })).rejects.toThrow();
+		expect(await db.select().from(accounts)).toHaveLength(2);
+		expect(await db.select().from(documents)).toEqual(rowsBefore);
+		expect((await readdir(root)).sort()).toEqual(['a', 'b']);
+		expect(await readdir(join(root, 'a'))).toHaveLength(2);
+	});
+
 	it('reports a missing account', async () => {
-		expect(await deleteAccount(db, 'nobody', { storage })).toBeUndefined();
+		expect(await deleteAccount(db, 'nobody', { storage })).toBe(false);
 		expect((await db.select().from(accounts)).length).toBe(2);
 	});
 });

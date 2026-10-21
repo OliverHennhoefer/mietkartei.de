@@ -1,6 +1,6 @@
 import { createReadStream } from 'node:fs';
 import { mkdir, readFile, rm, rmdir, stat, writeFile } from 'node:fs/promises';
-import { dirname, join, normalize } from 'node:path';
+import { dirname, join, normalize, resolve } from 'node:path';
 import { Readable } from 'node:stream';
 import { DATABASE_PATH, DATA_DIR } from '$app/env/private';
 import type { Storage } from './index';
@@ -19,7 +19,7 @@ export function openFileStorage(root = documentsDirectory()): Storage {
 		return join(root, safe);
 	}
 
-	const storage: Storage = {
+	return {
 		async put(key, body, contentType) {
 			const file = path(key);
 			await mkdir(dirname(file), { recursive: true });
@@ -48,11 +48,15 @@ export function openFileStorage(root = documentsDirectory()): Storage {
 			const directory = dirname(file);
 			if (directory !== root) await rmdir(directory).catch(() => undefined);
 		},
-		async deleteMany(keys) {
-			for (const key of keys) await storage.delete(key);
+		async deletePrefix(prefix) {
+			// A prefix is a directory of keys, so the directory goes with everything in it.
+			if (!prefix.endsWith('/')) throw new Error(`Invalid storage prefix: ${prefix}`);
+			const directory = path(prefix);
+			if (resolve(directory) === resolve(root))
+				throw new Error(`Invalid storage prefix: ${prefix}`);
+			await rm(directory, { recursive: true, force: true });
 		}
 	};
-	return storage;
 }
 
 async function readType(file: string): Promise<string> {

@@ -10,15 +10,11 @@ export interface Storage {
 	/** Missing keys are fine. */
 	delete(key: string): Promise<void>;
 	/**
-	 * Deletes up to MAX_DELETE_KEYS keys in one call (one R2 subrequest); missing keys are fine.
-	 * Account deletion uses it, so an account with many documents stays within the Workers
-	 * subrequest limit.
+	 * Deletes every object whose key starts with `prefix`, which ends in `/` (see accountPrefix).
+	 * Account deletion uses it: it finds what was stored, not only what the rows knew of.
 	 */
-	deleteMany(keys: string[]): Promise<void>;
+	deletePrefix(prefix: string): Promise<void>;
 }
-
-/** R2's limit for one bulk delete. */
-export const MAX_DELETE_KEYS = 1000;
 
 let storage: Promise<Storage> | undefined;
 
@@ -36,4 +32,9 @@ export function getStorage(): Promise<Storage> {
 
 export function storageKey(accountId: string, documentId: string): string {
 	return `${accountId}/${documentId}`;
+}
+
+/** The start of every key of the account. */
+export function accountPrefix(accountId: string): string {
+	return `${accountId}/`;
 }

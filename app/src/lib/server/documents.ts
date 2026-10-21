@@ -1,11 +1,11 @@
-import { and, asc, count, desc, eq, inArray, sum } from 'drizzle-orm';
+import { and, asc, count, desc, eq, sum } from 'drizzle-orm';
 import type { SQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { storedMimeType } from '../domain/documents';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
-import { chunk, chunkIds, runBatch } from './db/batch';
+import { runBatch } from './db/batch';
 import { costItems, documents, leases, properties, tenants, units } from './db/schema';
-import { MAX_DELETE_KEYS, getStorage, storageKey, type Storage } from './storage';
+import { getStorage, storageKey, type Storage } from './storage';
 
 // Documents (Dokumente): uploaded files such as the signed lease, a receipt or a letter. The
 // bytes live in the storage adapter under `<accountId>/<documentId>`, the row in `documents`
@@ -212,35 +212,4 @@ export async function deleteDocument(
 		auditEntry(db, context, 'document', documentId, 'delete', `Dokument ${document.name} gelöscht`)
 	]);
 	return true;
-}
-
-/**
- * Removes every document of the account, objects and rows, for account deletion. The objects go
- * in bulk deletes of up to 1000 keys. Both adapters treat deleting a missing object as done, so
- * an object that is already gone does not stop the rest. Returns how many documents there were.
- * Not logged: the account's audit log goes with it.
- */
-export async function deleteAllDocuments(
-	db: Database,
-	accountId: string,
-	options?: StorageOptions
-): Promise<number> {
-	const rows = await db
-		.select({ id: documents.id, storageKey: documents.storageKey })
-		.from(documents)
-		.where(eq(documents.accountId, accountId));
-	if (rows.length === 0) return 0;
-	const storage = await resolveStorage(options);
-	// One bulk delete per 1000 objects, not one call per document: each call is a subrequest.
-	const keys = rows.map((row) => row.storageKey);
-	for (const group of chunk(keys, MAX_DELETE_KEYS)) await storage.deleteMany(group);
-	await runBatch(
-		db,
-		chunkIds(rows.map((row) => row.id)).map((ids) =>
-			db
-				.delete(documents)
-				.where(and(eq(documents.accountId, accountId), inArray(documents.id, ids)))
-		)
-	);
-	return rows.length;
 }

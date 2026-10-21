@@ -18,6 +18,7 @@ import {
 	costItemUnitAmounts,
 	costItems,
 	depositTransactions,
+	documents,
 	emailChanges,
 	invitations,
 	leasePersons,
@@ -41,8 +42,7 @@ import {
 	units,
 	users
 } from './db/schema';
-import { deleteAllDocuments } from './documents';
-import type { Storage } from './storage';
+import { accountPrefix, getStorage, type Storage } from './storage';
 
 /**
  * The account that existed before sign-in. The first user to register takes it over, so data
@@ -97,24 +97,23 @@ export function addressLines(address: LandlordAddress): string[] {
 }
 
 /**
- * Removes the account with everything in it: documents and their files first, then every row in
- * dependency order (children before parents, because `restrict` keys would otherwise stop a
- * cascade), then the users and the account itself. The rows go in one batch, so a failure leaves
- * the account complete except for the files already removed. Returns the number of documents
- * deleted, or `undefined` when there is no such account.
+ * Removes the account with everything in it: every row in one batch, in dependency order
+ * (children before parents, because `restrict` keys would otherwise stop a cascade), then the
+ * stored files. A failed batch leaves the account as it was. The files go by their key prefix,
+ * not by the rows read before, so a file a manager stored meanwhile goes too; an upload that
+ * comes after the batch finds no account, and storeDocument removes its file again. Returns
+ * false when there is no such account.
  */
 export async function deleteAccount(
 	db: Database,
 	accountId: string,
 	options?: { storage?: Storage }
-): Promise<number | undefined> {
+): Promise<boolean> {
 	const [account] = await db
 		.select({ id: accounts.id })
 		.from(accounts)
 		.where(eq(accounts.id, accountId));
-	if (!account) return undefined;
-
-	const documentCount = await deleteAllDocuments(db, accountId, options);
+	if (!account) return false;
 
 	const accountLeases = db
 		.select({ id: leases.id })
@@ -132,6 +131,7 @@ export async function deleteAccount(
 	// Children before parents. Tables with `accountId` are deleted by it; the tables without one
 	// go by their parent's ids, the failed sign-ins by the users' addresses.
 	const scoped = [
+		documents,
 		tasks,
 		co2CostSplits,
 		statementResults,
@@ -173,7 +173,10 @@ export async function deleteAccount(
 		db.delete(users).where(eq(users.accountId, accountId)),
 		db.delete(accounts).where(eq(accounts.id, accountId))
 	]);
-	return documentCount;
+	// No storage given: the default adapter of the target.
+	const storage = options?.storage ?? (await getStorage());
+	await storage.deletePrefix(accountPrefix(accountId));
+	return true;
 }
 
 /** The landlord sender block as edited under /einstellungen/profil; empty fields are null. */
