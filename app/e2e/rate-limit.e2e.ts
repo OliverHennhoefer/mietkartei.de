@@ -8,11 +8,16 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
 
 const MAX_ATTEMPTS = 25;
 
-async function attemptsUntilRefused(request: APIRequestContext, baseURL: string) {
+async function attemptsUntilRefused(
+	request: APIRequestContext,
+	baseURL: string,
+	path = '/anmelden',
+	form: Record<string, string> = { email: 'niemand@example.org', password: 'falsches-passwort' }
+) {
 	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-		const response = await request.post('/anmelden', {
+		const response = await request.post(path, {
 			headers: { origin: baseURL },
-			form: { email: 'niemand@example.org', password: 'falsches-passwort' },
+			form,
 			maxRedirects: 0
 		});
 		if (response.status() === 429) return attempt;
@@ -37,4 +42,24 @@ test('slows down repeated sign-in attempts from one address, signed in or not', 
 	const signedOut = await playwright.request.newContext({ baseURL, extraHTTPHeaders });
 	expect(await attemptsUntilRefused(signedOut, baseURL!)).not.toBeNull();
 	await signedOut.dispose();
+});
+
+test('slows down repeated attempts to delete the account', async ({
+	playwright,
+	baseURL,
+	extraHTTPHeaders
+}) => {
+	// The deletion checks the password as well. Posted without one, so the owner's failed
+	// sign-ins do not grow and the account project can still delete the account.
+	const signedIn = await playwright.request.newContext({
+		baseURL,
+		extraHTTPHeaders,
+		storageState: '.e2e/owner.json'
+	});
+	expect(
+		await attemptsUntilRefused(signedIn, baseURL!, '/einstellungen/konto?/delete', {
+			password: ''
+		})
+	).not.toBeNull();
+	await signedIn.dispose();
 });
