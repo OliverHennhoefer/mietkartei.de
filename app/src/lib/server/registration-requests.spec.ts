@@ -9,7 +9,8 @@ import {
 	completeRegistration,
 	findRegistrationRequest,
 	registrationMail,
-	requestRegistration
+	requestRegistration,
+	withdrawRegistrationRequest
 } from './registration-requests';
 import { testDatabase } from './testing';
 
@@ -61,6 +62,16 @@ describe('findRegistrationRequest', () => {
 			await findRegistrationRequest(db, token, now + REGISTRATION_REQUEST_LIFETIME)
 		).toBeUndefined();
 		expect(await findRegistrationRequest(db, 'unbekannt', now)).toBeUndefined();
+	});
+});
+
+describe('withdrawRegistrationRequest', () => {
+	it('deletes the request, so it no longer counts toward the limit', async () => {
+		const { token } = (await requestRegistration(db, 'neu@example.org', now))!;
+		const other = (await requestRegistration(db, 'neu@example.org', now))!;
+		await withdrawRegistrationRequest(db, token);
+		expect(await findRegistrationRequest(db, token, now)).toBeUndefined();
+		expect(await findRegistrationRequest(db, other.token, now)).toBeDefined();
 	});
 });
 

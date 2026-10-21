@@ -4,7 +4,11 @@ import { parseEmailForm } from '#lib/forms/auth.ts';
 import { createSession, registerUser } from '#lib/server/auth.ts';
 import { sendMailInBackground } from '#lib/server/mail.ts';
 import { MAIL_LINKS_UNAVAILABLE, mailLinkOrigin } from '#lib/server/mail-links.ts';
-import { registrationMail, requestRegistration } from '#lib/server/registration-requests.ts';
+import {
+	registrationMail,
+	requestRegistration,
+	withdrawRegistrationRequest
+} from '#lib/server/registration-requests.ts';
 import { mayRegister, registrationOffered, registrationRule } from '#lib/server/registration.ts';
 import { setSessionCookie } from '#lib/server/session.ts';
 import { TURNSTILE_FIELD, turnstileSiteKey, verifyTurnstile } from '#lib/server/turnstile.ts';
@@ -55,7 +59,10 @@ export const actions: Actions = {
 			const request = await requestRegistration(db, email);
 			if (request) {
 				const link = `${origin}/registrieren/${request.token}`;
-				await sendMailInBackground(db, registrationMail(request.email, link));
+				// A link that never arrived must not count toward the open requests of the address.
+				await sendMailInBackground(db, registrationMail(request.email, link), () =>
+					withdrawRegistrationRequest(db, request.token)
+				);
 			}
 			return { sent: true };
 		}

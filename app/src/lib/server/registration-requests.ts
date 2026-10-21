@@ -55,6 +55,11 @@ export async function requestRegistration(
 	return { token, email };
 }
 
+/** Deletes the request behind a token, e.g. when its mail could not be sent. */
+export async function withdrawRegistrationRequest(db: Database, token: string): Promise<void> {
+	await db.delete(registrationRequests).where(eq(registrationRequests.id, await hashToken(token)));
+}
+
 /** The request behind a token, when it exists and has not expired. */
 export async function findRegistrationRequest(
 	db: Database,
