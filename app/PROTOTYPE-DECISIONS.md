@@ -48,7 +48,7 @@ feature. When a feature is ported to main, its section is the checklist of what 
 - `listLedger` window: lines before `from` are left out but still feed the running balance; `charged`/`paid` are sums of the returned lines; `balance` is the balance at the end of the window (carry-over + charged − paid); lines after `to` are ignored.
 - Labels: charges `"<kind label> <Monat JJJJ>"` plus `": <note>"` when a note is set; payments: note, else `"Zahlung"` (`"Rückzahlung"` for negative amounts). Audit summaries (entity `lease`, id = leaseId): `"Korrektur Mai 2025 über 50,00 € gebucht"` / `"… als Gutschrift über 50,00 € gebucht"` (action `post`), `"… gelöscht"` (`delete`), `"Zahlung 650,00 € vom 03.04.2025 gebucht"` / `"Rückzahlung …"` (`create`), `"Zahlung … gelöscht"` (`delete`).
 - `deletePayment` deletes any payment of the account including `bank`-sourced ones and does not touch `bank_transactions.status`; the banking undo should reset the status in its own batch.
-- `listBalances` returns every lease of the account (zeros when nothing is booked), sorted by balance descending then leaseId; `lastPaymentDate` only counts positive amounts; `openSince` runs over all charge kinds in period order.
+- `listBalances` returns every lease of the account (zeros when nothing is booked), sorted by balance descending then leaseId; `lastPaymentDate` only counts positive amounts. `overdue` and `openSince` count only charges with `dueDate <= asOf` (default today), sorted by due date; payments and due credits settle the oldest due charges first, and `openSince` is the month of the due date of the first charge they do not cover (a Nachzahlung for period 2025-12 due in April 2026 is "offen seit April 2026"). `balance` still includes charges not due yet.
 
 ### Properties and units
 
@@ -88,7 +88,8 @@ feature. When a feature is ported to main, its section is the checklist of what 
 
 - `/mietkonto` sorts leases in arrears first, then everything by label (`unit · property`, German collation); ended leases stay in the list with a Badge "beendet".
 - The arrears filter is the query parameter `?filter=rueckstaende`, rendered as two links (Alle / nur Rückstände) in the toolbar.
-- The stats block shows the sum and count of leases in arrears and with credit.
+- The stats block shows the sum and count of leases in arrears and with credit. Arrears (stats, sort, filter, dashboard tile) use `overdue`, not `balance`: a lease that only owes charges not due yet shows its balance with the badge "noch nicht fällig"; when only part of a balance is due, "davon fällig …" is shown under it. The "Offen seit" column shows the month only.
+- The adjustment form is headed "Korrektur oder Anfangssaldo" (button "Korrektur buchen", messages "Korrektur gebucht/gelöscht.").
 - The lease tab reads the ledger once from the range start without an upper bound, so the headline "Saldo" sentence is the lease's full balance (incl. postings after the range); the table footer shows Soll/Haben sums of the shown months and the balance at the range end.
 - A manual payment may be negative (refund); zero is refused. An adjustment requires a note ("Anfangssaldo", "Mietminderung …"); its period is the month of its date and the due date is the date.
 - Deleting a bank-sourced payment or a non-adjustment charge from the ledger tab is refused with a German sentence that points to /bank or to the posting feature; the buttons are not rendered for those rows.
@@ -106,6 +107,8 @@ feature. When a feature is ported to main, its section is the checklist of what 
 - Generic files: the header is the first row as wide as the widest row; the mapping needs at least the booking date and amount columns; the hidden base64 field carries the file (CSV limit 2 MB).
 - The preview table shows at most 500 rows (counts cover all); the Umsätze list shows the newest 200 with a hint.
 - Invalid rows are counted in the audit/import summary as skipped, not stored.
+- A double commit of one file: the second batch's payments point at transactions the first one stored, so it fails on the foreign key; the import then runs once more and reports the rows as duplicates (with its own bank_imports row). Rule-hit payments and their audit lines are bulk inserts (per 100 parameters).
+- The status guard of assign/undo/ignore/reopen is `INSERT INTO bank_transactions SELECT * … WHERE id = ? AND status <> ?`: when the status differs it copies the row onto its own primary key, which fails the batch; the function then re-reads the status and answers "nicht mehr offen" instead of a 500. The /bank buttons of a row are disabled while its form is on its way.
 
 ### Documents
 
@@ -235,7 +238,7 @@ feature. When a feature is ported to main, its section is the checklist of what 
 
 ### Bank import and matching
 
-- No e2e for the deposit target, the split, or the rule-hit-on-import path through the UI (covered by unit tests only); the manager view of /bank/konten is not e2e-tested (manager project belongs to auth).
+- The manager view of /bank/konten is not e2e-tested (manager project belongs to auth). The rule hit on import, the split, the deposit target and a double submit are e2e-tested; a real overlap of the two requests is not guaranteed there, the unit spec forces it.
 - No pagination beyond the 200-row cap; no per-import listing page (bank_imports rows are written but not shown).
 - The ING preset carries no counterpart IBAN (the export has none), so suggestions for ING rely on name/purpose.
 

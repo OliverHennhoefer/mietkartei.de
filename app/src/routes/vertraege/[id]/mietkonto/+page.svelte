@@ -41,11 +41,11 @@
 	<Alert tone="danger"><p>{form.message}</p></Alert>
 {:else if form && 'booked' in form}
 	<Alert tone="success">
-		<p>{form.booked === 'payment' ? 'Zahlung gebucht.' : 'Buchung gebucht.'}</p>
+		<p>{form.booked === 'payment' ? 'Zahlung gebucht.' : 'Korrektur gebucht.'}</p>
 	</Alert>
 {:else if form && 'deleted' in form}
 	<Alert tone="success">
-		<p>{form.deleted === 'payment' ? 'Zahlung gelöscht.' : 'Buchung gelöscht.'}</p>
+		<p>{form.deleted === 'payment' ? 'Zahlung gelöscht.' : 'Korrektur gelöscht.'}</p>
 	</Alert>
 {/if}
 
@@ -165,13 +165,19 @@
 	</div>
 </form>
 
-<h2>Buchung</h2>
+<h2>Korrektur oder Anfangssaldo</h2>
 <p class="muted">
 	Für Korrekturen und den Anfangssaldo. Führst du das Mietkonto erst ab einem späteren Datum
-	(„Mietkonto führen ab“), buchst du den Stand an diesem Tag als Buchung mit dem Vermerk
-	„Anfangssaldo“: einen Rückstand positiv, ein Guthaben negativ.
+	(„Mietkonto führen ab“), buchst du den Stand an diesem Tag hier mit dem Vermerk „Anfangssaldo“:
+	einen Rückstand positiv, ein Guthaben negativ.
 </p>
-<form method="POST" action="?/adjustment" class="card" aria-label="Buchung" use:enhance>
+<form
+	method="POST"
+	action="?/adjustment"
+	class="card"
+	aria-label="Korrektur oder Anfangssaldo"
+	use:enhance
+>
 	<Field label="Datum" error={adjustmentErrors?.date}>
 		<input
 			type="date"
@@ -205,7 +211,7 @@
 		/>
 	</Field>
 	<div class="form-actions">
-		<button type="submit">Buchen</button>
+		<button type="submit">Korrektur buchen</button>
 	</div>
 </form>
 

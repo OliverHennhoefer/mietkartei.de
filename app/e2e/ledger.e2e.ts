@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addMonths, firstOfMonth, formatMonth, monthOf, today } from '../src/lib/dates';
-import { seedLease } from './seed';
+import { addDays, addMonths, firstOfMonth, formatMonth, monthOf, today } from '../src/lib/dates';
+import { seedLease, seedRows } from './seed';
 
 // The ledger pages: /mietkonto with every lease's balance and the Mietkonto tab of one lease.
 // The lease is seeded four months back at 600 € + 150 € + 50 €, so five rents of 800 € are due
@@ -30,7 +30,7 @@ test('shows arrears, books and deletes a payment and a correction', async ({ pag
 	const row = page.getByRole('table', { name: 'Salden' }).locator('tr', { hasText: lastName });
 	await expect(row).toContainText('4.000,00 €');
 	await expect(row).toContainText('Rückstand');
-	await expect(row).toContainText(`offen seit ${formatMonth(startMonth)}`);
+	await expect(row.getByRole('cell').nth(3)).toHaveText(formatMonth(startMonth));
 
 	await page.goto('/mietkonto?filter=rueckstaende');
 	await expect(
@@ -68,11 +68,11 @@ test('shows arrears, books and deletes a payment and a correction', async ({ pag
 	await expect(paymentForm.getByLabel('Betrag in €')).toHaveValue('3.200,00');
 
 	// A credit of 200 € as a correction.
-	const adjustmentForm = page.getByRole('form', { name: 'Buchung' });
+	const adjustmentForm = page.getByRole('form', { name: 'Korrektur oder Anfangssaldo' });
 	await adjustmentForm.getByLabel('Betrag in €').fill('-200');
 	await adjustmentForm.getByLabel('Vermerk').fill(`Mietminderung ${suffix}`);
-	await adjustmentForm.getByRole('button', { name: 'Buchen' }).click();
-	await expect(page.getByText('Buchung gebucht.')).toBeVisible();
+	await adjustmentForm.getByRole('button', { name: 'Korrektur buchen' }).click();
+	await expect(page.getByText('Korrektur gebucht.')).toBeVisible();
 	await expect(await balance(page)).toHaveText('Saldo: Rückstand 3.000,00 €');
 	const adjustmentRow = ledger.locator('tr', { hasText: `Mietminderung ${suffix}` });
 	await expect(adjustmentRow).toContainText(`Korrektur ${formatMonth(monthOf(today()))}`);
@@ -91,7 +91,7 @@ test('shows arrears, books and deletes a payment and a correction', async ({ pag
 	await page.goto(`/vertraege/${leaseId}/mietkonto`);
 	confirmNextDialog(page);
 	await adjustmentRow.getByRole('button', { name: 'Löschen' }).click();
-	await expect(page.getByText('Buchung gelöscht.')).toBeVisible();
+	await expect(page.getByText('Korrektur gelöscht.')).toBeVisible();
 	await expect(await balance(page)).toHaveText('Saldo: Rückstand 3.200,00 €');
 	await expect(adjustmentRow).toHaveCount(0);
 
@@ -100,6 +100,31 @@ test('shows arrears, books and deletes a payment and a correction', async ({ pag
 	await expect(page.getByText('Zahlung gelöscht.')).toBeVisible();
 	await expect(await balance(page)).toHaveText('Saldo: Rückstand 4.000,00 €');
 	await expect(paymentRow).toHaveCount(0);
+});
+
+test('shows a charge that is not due yet without counting it as Rückstand', async ({ page }) => {
+	// A lease that starts next month has no rent yet; a posting due in 30 days is all it owes.
+	const later = `Spaeter-${suffix}`;
+	const { leaseId } = await seedLease(page.request, {
+		tenant: { lastName: later },
+		lease: { startDate: firstOfMonth(monthOf(addMonths(firstOfMonth(monthOf(today())), 1))) }
+	});
+	const dueDate = addDays(today(), 30);
+	await seedRows(page.request, 'rentCharges', [
+		{ leaseId, kind: 'adjustment', period: monthOf(dueDate), dueDate, amount: 12500, note: 'Test' }
+	]);
+
+	await page.goto('/mietkonto');
+	const row = page.getByRole('table', { name: 'Salden' }).locator('tr', { hasText: later });
+	await expect(row).toContainText('125,00 €');
+	await expect(row).toContainText('noch nicht fällig');
+	await expect(row).not.toContainText('Rückstand');
+	await expect(row.getByRole('cell').nth(3)).toHaveText('–');
+
+	await page.goto('/mietkonto?filter=rueckstaende');
+	await expect(
+		page.getByRole('table', { name: 'Salden' }).locator('tr', { hasText: later })
+	).toHaveCount(0);
 });
 
 test('answers an unknown lease with 404', async ({ page }) => {

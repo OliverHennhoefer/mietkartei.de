@@ -69,14 +69,21 @@
 							<td>{row.tenants}</td>
 							<td class="num">
 								<Money cents={Math.abs(row.balance)} />
-								{#if row.balance > 0}
+								{#if row.overdue > 0}
 									<Badge tone="danger">Rückstand</Badge>
+								{:else if row.balance > 0}
+									<Badge>noch nicht fällig</Badge>
 								{:else if row.balance < 0}
 									<Badge tone="success">Guthaben</Badge>
 								{/if}
+								{#if row.overdue > 0 && row.overdue !== row.balance}
+									<span class="muted small due">
+										davon fällig <Money cents={row.overdue} />
+									</span>
+								{/if}
 							</td>
 							<td>
-								{#if row.openSince}offen seit {formatMonth(row.openSince)}{:else}–{/if}
+								{#if row.openSince}{formatMonth(row.openSince)}{:else}–{/if}
 							</td>
 							<td>{row.lastPaymentDate ? formatDate(row.lastPaymentDate) : '–'}</td>
 							<td class="actions">
@@ -91,6 +98,9 @@
 {/if}
 
 <style>
+	.due {
+		display: block;
+	}
 	.toolbar a[aria-current='page'] {
 		font-weight: 600;
 		text-decoration: none;

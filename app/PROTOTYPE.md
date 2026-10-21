@@ -256,7 +256,10 @@ leaseIds, untilMonth)` recomputes every month from `max(startDate, ledgerStart)`
   split over two leases of the same tenant), note.
 - Balance of a lease = sum(charges) − sum(payments); positive = Rückstand, negative = Guthaben.
   `listLedger` interleaves charges (by due date) and payments (by date) with a running balance;
-  `listBalances` gives every lease's balance and the earliest month not fully paid (FIFO).
+  `listBalances` gives every lease's balance, the overdue part (charges due by today minus
+  payments, at least 0: the Rückstand of the dashboard and `/mietkonto`, so a month's rent before
+  its due day or a fresh Nachzahlung is owed but not yet Rückstand) and the month of the oldest
+  due charge the payments do not cover (FIFO by due date; credits count like payments).
   Manual postings (`postCharge` kind `adjustment`) are for corrections and opening balances;
   statement balances and CO₂ credits are posted by their owners with `chargeEntry` inside their
   own batch.
@@ -484,7 +487,9 @@ unconfirmed rules, the IBAN of an earlier assignment, a tenant's last name or th
 contained in counterpart or purpose. Assigning chooses a lease and a target `rent` (payment) or
 `deposit` (deposit movement, kind by sign), optionally split over several leases with amounts that
 must sum to the transaction, and "Zuordnung merken" turns it into a confirmed rule. Undo deletes
-the payments or deposit movements and sets the status back to `unmatched`. One transfer that pays
+the payments or deposit movements and sets the status back to `unmatched`. Assign, undo, ignore
+and reopen check the status first and start their batch with a guard statement that fails the
+batch when another request changed the status in between, so a double submit books once. One transfer that pays
 flat and parking space is one payment on one lease when the parking space is an extra unit of that
 lease (hint under "Weitere Einheiten" on the lease form); otherwise it is split.
 
