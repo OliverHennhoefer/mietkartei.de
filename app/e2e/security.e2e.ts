@@ -25,10 +25,13 @@ const pages = [
 	'/einstellungen/vpi'
 ];
 
-/** Pages below a seeded property: its meters (with a reading), a cost item and a statement. */
+/**
+ * Pages below a seeded lease and property: the lease's CO₂ tab, the property's meters (with a
+ * reading), a cost item and a statement.
+ */
 async function seededPages(request: Parameters<typeof seedLease>[0]): Promise<string[]> {
 	const suffix = crypto.randomUUID().slice(0, 6);
-	const { propertyId } = await seedLease(request);
+	const { propertyId, leaseId } = await seedLease(request);
 	const {
 		ids: [meterId]
 	} = await seedRows(request, 'meters', [{ propertyId, kind: 'cold_water', unit: 'm³' }]);
@@ -58,6 +61,7 @@ async function seededPages(request: Parameters<typeof seedLease>[0]): Promise<st
 		{ propertyId, periodStart: '2025-01-01', periodEnd: '2025-12-31' }
 	]);
 	return [
+		`/vertraege/${leaseId}/co2`,
 		`/objekte/${propertyId}/zaehler`,
 		`/betriebskosten/belege/${costItemId}`,
 		`/betriebskosten/abrechnungen/${statementId}`
