@@ -8,6 +8,7 @@
 	import { formatDate } from '#lib/dates.ts';
 	import { GENERIC_PRESET_ID } from '#lib/domain/bank-matching.ts';
 	import { mappingFieldNames } from '#lib/forms/bank.ts';
+	import { pluralize } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -43,9 +44,13 @@
 {#if result}
 	<Alert tone="success">
 		<p>
-			Import abgeschlossen: {result.imported} neue Umsätze, {result.duplicates} Duplikate,
-			{result.assigned} per Regel zugeordnet{#if result.invalid > 0}, {result.invalid} ungültige Zeilen
-				übersprungen{/if}.
+			Import abgeschlossen: {pluralize(result.imported, 'neuer Umsatz', 'neue Umsätze')},
+			{pluralize(result.duplicates, 'Duplikat', 'Duplikate')},
+			{result.assigned} per Regel zugeordnet{#if result.invalid > 0}, {pluralize(
+					result.invalid,
+					'ungültige Zeile',
+					'ungültige Zeilen'
+				)} übersprungen{/if}.
 			<a href="/bank">Zu den offenen Umsätzen</a>
 		</p>
 	</Alert>
@@ -107,8 +112,10 @@
 
 		{#if !preview.mappingError}
 			<p class="counts" role="status">
-				{preview.counts.total} Zeilen: <strong>{preview.counts.new} neu</strong>,
-				{preview.counts.duplicates} Duplikate, {preview.counts.rules} per Regel zugeordnet,
+				{pluralize(preview.counts.total, 'Zeile', 'Zeilen')}:
+				<strong>{preview.counts.new} neu</strong>,
+				{pluralize(preview.counts.duplicates, 'Duplikat', 'Duplikate')},
+				{preview.counts.rules} per Regel zugeordnet,
 				{preview.counts.invalid} ungültig.
 			</p>
 			<div class="table-wrap">

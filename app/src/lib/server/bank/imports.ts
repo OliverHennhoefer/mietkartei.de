@@ -1,5 +1,4 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import type { BatchItem } from 'drizzle-orm/batch';
 import {
 	applyRules,
 	fingerprintRows,
@@ -8,12 +7,12 @@ import {
 	type RowResult
 } from '../../domain/bank-matching';
 import { formatDate } from '../../dates';
+import { pluralize } from '../../format';
 import { formatCents } from '../../money';
 import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
 import { chunk, chunkIds, rowsPerStatement, runBatch } from '../db/batch';
-import { bankImports, bankTransactions } from '../db/schema';
-import { paymentEntry } from '../ledger';
+import { auditLog, bankImports, bankTransactions, payments } from '../db/schema';
 import { leaseLabel, listLeases } from '../leases';
 import { getBankAccount } from './accounts';
 import { listConfirmedRules } from './rules';
@@ -167,7 +166,12 @@ export type ImportResult = ImportCounts & { importId: string; imported: number; 
 /**
  * Writes the import, its new transactions (onConflictDoNothing on the fingerprint, so a file
  * imported twice at once still adds nothing twice), the payments of the rule hits and the audit
- * entries in one batch. Undefined when the bank account is not in the account.
+ * entries in one batch, bulk inserts split per 100 parameters. Undefined when the bank account is
+ * not in the account.
+ *
+ * When the same file is committed twice at once, both requests see the rows as new; the second
+ * batch skips the transactions but its payments point at ids that were never stored, so the batch
+ * fails. Then the import runs once more and reports the rows as duplicates.
  */
 export async function commitImport(
 	db: Database,
@@ -176,6 +180,20 @@ export async function commitImport(
 	fileName: string,
 	results: RowResult[]
 ): Promise<ImportResult | undefined> {
+	const first = await commitOnce(db, context, bankAccountId, fileName, results);
+	if (first !== 'conflict') return first;
+	const second = await commitOnce(db, context, bankAccountId, fileName, results);
+	if (second === 'conflict') throw new Error('bank import conflicted twice');
+	return second;
+}
+
+async function commitOnce(
+	db: Database,
+	context: AuditContext,
+	bankAccountId: string,
+	fileName: string,
+	results: RowResult[]
+): Promise<ImportResult | undefined | 'conflict'> {
 	const { accountId } = context;
 	const analyzed = await analyze(db, accountId, bankAccountId, results);
 	if (!analyzed) return undefined;
@@ -183,7 +201,8 @@ export async function commitImport(
 	const importId = crypto.randomUUID();
 
 	const transactionRows: (typeof bankTransactions.$inferInsert)[] = [];
-	const statements: BatchItem<'sqlite'>[] = [];
+	const paymentRows: (typeof payments.$inferInsert)[] = [];
+	const auditRows: (typeof auditLog.$inferInsert)[] = [];
 	for (const entry of analyzed) {
 		const row = entry.fingerprinted;
 		if (!row || entry.status === 'duplicate') continue;
@@ -205,7 +224,9 @@ export async function commitImport(
 			status: entry.status === 'rule' ? 'matched' : 'unmatched'
 		});
 		if (entry.status === 'rule' && entry.leaseId) {
-			const payment = paymentEntry(db, context, {
+			paymentRows.push({
+				id: crypto.randomUUID(),
+				accountId,
 				leaseId: entry.leaseId,
 				date: row.bookingDate,
 				amount: row.amount,
@@ -213,44 +234,76 @@ export async function commitImport(
 				bankTransactionId: id,
 				note: row.purpose || null
 			});
-			statements.push(
-				payment.statement,
-				auditEntry(
-					db,
-					context,
-					'lease',
-					entry.leaseId,
-					'assign',
-					`Zahlung ${formatCents(row.amount)} vom ${formatDate(row.bookingDate)} (${row.counterpartName || 'ohne Namen'}) per Regel zugeordnet`
-				)
-			);
+			auditRows.push({
+				accountId,
+				userId: context.userId,
+				entity: 'lease',
+				entityId: entry.leaseId,
+				action: 'assign',
+				summary: `Zahlung ${formatCents(row.amount)} vom ${formatDate(row.bookingDate)} (${row.counterpartName || 'ohne Namen'}) per Regel zugeordnet`
+			});
 		}
 	}
 
 	const imported = counts.new + counts.rules;
-	await runBatch(db, [
-		db.insert(bankImports).values({
-			id: importId,
-			accountId,
-			bankAccountId,
-			fileName,
-			rowCount: counts.total,
-			importedCount: imported,
-			duplicateCount: counts.duplicates,
-			importedBy: context.userId
-		}),
-		...chunk(transactionRows, rowsPerStatement(bankTransactions)).map((rows) =>
-			db.insert(bankTransactions).values(rows).onConflictDoNothing()
-		),
-		...statements,
-		auditEntry(
-			db,
-			context,
-			'bankImport',
-			importId,
-			'import',
-			`Kontoauszug „${fileName}“ importiert: ${imported} neue Umsätze, ${counts.duplicates} Duplikate, ${counts.rules} per Regel zugeordnet`
-		)
-	]);
+	try {
+		await runBatch(db, [
+			db.insert(bankImports).values({
+				id: importId,
+				accountId,
+				bankAccountId,
+				fileName,
+				rowCount: counts.total,
+				importedCount: imported,
+				duplicateCount: counts.duplicates,
+				importedBy: context.userId
+			}),
+			...chunk(transactionRows, rowsPerStatement(bankTransactions)).map((rows) =>
+				db.insert(bankTransactions).values(rows).onConflictDoNothing()
+			),
+			...chunk(paymentRows, rowsPerStatement(payments)).map((rows) =>
+				db.insert(payments).values(rows)
+			),
+			...chunk(auditRows, rowsPerStatement(auditLog)).map((rows) =>
+				db.insert(auditLog).values(rows)
+			),
+			auditEntry(
+				db,
+				context,
+				'bankImport',
+				importId,
+				'import',
+				`Kontoauszug „${fileName}“ importiert: ${pluralize(imported, 'neuer Umsatz', 'neue Umsätze')}, ${pluralize(counts.duplicates, 'Duplikat', 'Duplikate')}, ${counts.rules} per Regel zugeordnet`
+			)
+		]);
+	} catch (cause) {
+		if (await anyStored(db, accountId, bankAccountId, transactionRows)) return 'conflict';
+		throw cause;
+	}
 	return { ...counts, importId, imported, assigned: counts.rules };
+}
+
+/** Whether another request stored one of these rows (by fingerprint) in the meantime. */
+async function anyStored(
+	db: Database,
+	accountId: string,
+	bankAccountId: string,
+	rows: readonly { fingerprint: string }[]
+): Promise<boolean> {
+	const found = await Promise.all(
+		chunkIds(rows.map((row) => row.fingerprint)).map((fingerprints) =>
+			db
+				.select({ id: bankTransactions.id })
+				.from(bankTransactions)
+				.where(
+					and(
+						eq(bankTransactions.accountId, accountId),
+						eq(bankTransactions.bankAccountId, bankAccountId),
+						inArray(bankTransactions.fingerprint, fingerprints)
+					)
+				)
+				.limit(1)
+		)
+	);
+	return found.some((group) => group.length > 0);
 }

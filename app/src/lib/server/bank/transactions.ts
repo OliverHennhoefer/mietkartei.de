@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { formatDate } from '../../dates';
 import { rememberedRule, type LeaseHints } from '../../domain/bank-matching';
@@ -192,6 +192,54 @@ export function transactionLabel(
 	return `Umsatz ${formatCents(transaction.amount)} vom ${formatDate(transaction.bookingDate)} (${who})`;
 }
 
+/**
+ * A batch statement that fails the whole batch unless the transaction still has `status`: when
+ * the status differs it copies the row onto its own primary key, which the key refuses. The
+ * status check before a batch is only a read, so two requests (a double click, two tabs) can both
+ * pass it; their batches run one after the other, and the second one fails here instead of
+ * booking the money twice. It goes first in the batch.
+ */
+function statusGuard(
+	db: Database,
+	accountId: string,
+	transactionId: string,
+	status: BankTransactionStatus
+) {
+	return db.insert(bankTransactions).select(
+		db
+			.select()
+			.from(bankTransactions)
+			.where(
+				and(
+					eq(bankTransactions.accountId, accountId),
+					eq(bankTransactions.id, transactionId),
+					ne(bankTransactions.status, status)
+				)
+			)
+	);
+}
+
+/**
+ * Runs a batch that starts with statusGuard. False when the guard failed because another request
+ * changed the status first; any other error is thrown.
+ */
+async function runGuarded(
+	db: Database,
+	accountId: string,
+	transactionId: string,
+	status: BankTransactionStatus,
+	statements: BatchItem<'sqlite'>[]
+): Promise<boolean> {
+	try {
+		await runBatch(db, [statusGuard(db, accountId, transactionId, status), ...statements]);
+		return true;
+	} catch (cause) {
+		const current = await getTransaction(db, accountId, transactionId);
+		if (current && current.status !== status) return false;
+		throw cause;
+	}
+}
+
 export type AssignOutcome =
 	'assigned' | 'missing' | 'not-open' | 'unknown-lease' | 'amount-mismatch';
 
@@ -260,7 +308,7 @@ export async function assignTransaction(
 	const what = input.target === 'rent' ? 'als Zahlung' : 'auf die Kaution';
 	const parts =
 		input.parts.length > 1 ? ` (aufgeteilt auf ${input.parts.length} Mietverträge)` : '';
-	await runBatch(db, [
+	const done = await runGuarded(db, accountId, transaction.id, 'unmatched', [
 		...statements,
 		db
 			.update(bankTransactions)
@@ -277,7 +325,7 @@ export async function assignTransaction(
 			`${transactionLabel(transaction)} ${what} zugeordnet${parts}`
 		)
 	]);
-	return 'assigned';
+	return done ? 'assigned' : 'not-open';
 }
 
 /** Deletes the payments and deposit movements of the transaction and reopens it. */
@@ -290,7 +338,7 @@ export async function undoAssignment(
 	const transaction = await getTransaction(db, accountId, transactionId);
 	if (!transaction) return 'missing';
 	if (transaction.status !== 'matched') return 'not-matched';
-	await runBatch(db, [
+	const done = await runGuarded(db, accountId, transaction.id, 'matched', [
 		db
 			.delete(payments)
 			.where(
@@ -319,18 +367,20 @@ export async function undoAssignment(
 			`Zuordnung von ${transactionLabel(transaction)} aufgehoben`
 		)
 	]);
-	return 'undone';
+	return done ? 'undone' : 'not-matched';
 }
 
+/** Moves the transaction from `from` to `status`; false when another request moved it first. */
 async function setStatus(
 	db: Database,
 	context: AuditContext,
 	transaction: BankTransaction,
+	from: BankTransactionStatus,
 	status: BankTransactionStatus,
 	action: 'ignore' | 'update',
 	summary: string
-): Promise<void> {
-	await runBatch(db, [
+): Promise<boolean> {
+	return runGuarded(db, context.accountId, transaction.id, from, [
 		db
 			.update(bankTransactions)
 			.set({ status })
@@ -353,15 +403,16 @@ export async function ignoreTransaction(
 	const transaction = await getTransaction(db, context.accountId, transactionId);
 	if (!transaction) return 'missing';
 	if (transaction.status !== 'unmatched') return 'not-open';
-	await setStatus(
+	const done = await setStatus(
 		db,
 		context,
 		transaction,
+		'unmatched',
 		'ignored',
 		'ignore',
 		`${transactionLabel(transaction)} ignoriert`
 	);
-	return 'ignored';
+	return done ? 'ignored' : 'not-open';
 }
 
 export async function reopenTransaction(
@@ -372,15 +423,16 @@ export async function reopenTransaction(
 	const transaction = await getTransaction(db, context.accountId, transactionId);
 	if (!transaction) return 'missing';
 	if (transaction.status !== 'ignored') return 'not-ignored';
-	await setStatus(
+	const done = await setStatus(
 		db,
 		context,
 		transaction,
+		'ignored',
 		'unmatched',
 		'update',
 		`${transactionLabel(transaction)} wieder geöffnet`
 	);
-	return 'reopened';
+	return done ? 'reopened' : 'not-ignored';
 }
 
 export type LeaseOption = { id: string; label: string; active: boolean };
