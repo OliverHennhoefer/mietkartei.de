@@ -23,4 +23,4 @@ python -m pip install -r scripts/requirements-brand.txt
 python scripts/generate_brand_logos.py
 ```
 
-`python scripts/prepare_docs_assets.py` kopiert ausschließlich die beiden ausgewählten Logos und das Favicon nach `docs/assets/brand/`. Diese erzeugten Kopien werden nicht eingecheckt. Die Dokumentationsgestaltung bleibt in `docs/assets/stylesheets/`. Die künftige Anwendung kann dieselben Originale über ihren eigenen Build einbinden.
+`python scripts/prepare_docs_assets.py` kopiert die beiden ausgewählten Logos, das Favicon und Geist mit der OFL-Lizenz nach `docs/assets/brand/`. Diese erzeugten Kopien werden nicht eingecheckt. Die Dokumentationsgestaltung bleibt in `docs/assets/stylesheets/`. Startseite, Dokumentation und Anwendung verwenden dieselbe lokale Originalschrift über ihren jeweiligen Build.
