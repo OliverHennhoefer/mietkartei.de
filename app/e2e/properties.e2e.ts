@@ -11,8 +11,7 @@ function acceptNextDialog(page: Page) {
 
 test('creates a property and adds units to it', async ({ page }) => {
 	const name = `Mehrfamilienhaus Lindenstraße ${suffix()}`;
-	await page.goto('/');
-	await expect(page).toHaveURL(/\/objekte$/);
+	await page.goto('/objekte');
 	await expect(page.getByRole('heading', { level: 1, name: 'Objekte' })).toBeVisible();
 	await expect(
 		page.getByRole('navigation', { name: 'Hauptnavigation' }).getByRole('link', { name: 'Objekte' })

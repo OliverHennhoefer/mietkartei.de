@@ -899,6 +899,24 @@ export const documents = sqliteTable(
 	]
 );
 
+/** Aufgabe with an optional due date. Deadlines derived from the data are computed, not stored. */
+export const tasks = sqliteTable(
+	'tasks',
+	{
+		id: id(),
+		accountId: accountId(),
+		title: text('title').notNull(),
+		dueDate: text('due_date'),
+		done: bool('done', false),
+		doneAt: integer('done_at', { mode: 'timestamp_ms' }),
+		propertyId: text('property_id').references(() => properties.id, { onDelete: 'set null' }),
+		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
+		note: text('note'),
+		createdAt: createdAt()
+	},
+	(table) => [index('tasks_account_id_idx').on(table.accountId)]
+);
+
 /** A person who signs in. Each user works in exactly one account. */
 export const users = sqliteTable(
 	'users',

@@ -7,7 +7,7 @@ import { parseCredentials, type CredentialsInput, type FieldErrors } from '#lib/
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	if (locals.user) redirect(303, '/objekte');
+	if (locals.user) redirect(303, '/');
 	const rule = await registrationRule(locals.db);
 	return {
 		open: registrationOffered(rule),
@@ -49,6 +49,6 @@ export const actions: Actions = {
 
 		const session = await createSession(db, registered.userId);
 		setSessionCookie(event, session.token, session.expiresAt);
-		redirect(303, '/objekte');
+		redirect(303, '/');
 	}
 };

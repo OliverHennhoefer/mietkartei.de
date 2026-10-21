@@ -7,6 +7,7 @@ import { seedLease, seedRows } from './seed';
 // page goes into this list.
 
 const pages = [
+	'/',
 	'/objekte',
 	'/objekte/neu',
 	'/mieter',
@@ -18,6 +19,7 @@ const pages = [
 	'/bank/konten',
 	'/bank/import',
 	'/bank/regeln',
+	'/aufgaben',
 	'/betriebskosten',
 	'/betriebskosten/kostenarten',
 	'/betriebskosten/schluessel',
@@ -84,6 +86,9 @@ test('no detail page violates the Content-Security-Policy', async ({ page }) => 
 	} = await seedRows(page.request, 'operatingCostStatements', [
 		{ propertyId, periodStart: '2025-01-01', periodEnd: '2025-12-31' }
 	]);
+	const {
+		ids: [taskId]
+	} = await seedRows(page.request, 'tasks', [{ title: `Aufgabe ${suffix}`, leaseId }]);
 	const violations = watchCspViolations(page);
 	const property = `/objekte/${propertyId}`;
 	const lease = `/vertraege/${leaseId}`;
@@ -107,6 +112,7 @@ test('no detail page violates the Content-Security-Policy', async ({ page }) => 
 		// The standard categories and keys are seeded on the first visit of the list.
 		`/betriebskosten/belege/${costItemId}`,
 		`/betriebskosten/abrechnungen/${statementId}`,
+		`/aufgaben/${taskId}`,
 		await firstEntry(page, '/betriebskosten/kostenarten'),
 		await firstEntry(page, '/betriebskosten/schluessel')
 	];

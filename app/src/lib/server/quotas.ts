@@ -23,6 +23,7 @@ import {
 	rentChanges,
 	rentCharges,
 	statementResults,
+	tasks,
 	tenants,
 	units
 } from './db/schema';
@@ -65,7 +66,8 @@ export const QUOTAS = {
 	/** One per lease and approved statement. */
 	statementResults: { table: statementResults, max: 200_000, label: 'Abrechnungsergebnisse' },
 	/** One per lease and year. */
-	co2CostSplits: { table: co2CostSplits, max: 50_000, label: 'CO₂-Kostenaufteilungen' }
+	co2CostSplits: { table: co2CostSplits, max: 50_000, label: 'CO₂-Kostenaufteilungen' },
+	tasks: { table: tasks, max: 20_000, label: 'Aufgaben' }
 } satisfies Record<string, Quota>;
 
 export type QuotaKind = keyof typeof QUOTAS;

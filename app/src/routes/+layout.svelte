@@ -11,17 +11,20 @@
 	let open = $state(false);
 
 	const sections = [
+		{ href: '/', label: 'Übersicht' },
 		{ href: '/objekte', label: 'Objekte' },
 		{ href: '/mieter', label: 'Mieter' },
 		{ href: '/vertraege', label: 'Mietverträge' },
 		{ href: '/mietkonto', label: 'Mietkonto' },
 		{ href: '/bank', label: 'Bank' },
 		{ href: '/betriebskosten', label: 'Betriebskosten' },
-		{ href: '/dokumente', label: 'Dokumente' }
+		{ href: '/dokumente', label: 'Dokumente' },
+		{ href: '/aufgaben', label: 'Aufgaben' }
 	];
 
 	function current(href: string): 'page' | undefined {
 		const path = page.url.pathname;
+		if (href === '/') return path === '/' ? 'page' : undefined;
 		return path === href || path.startsWith(`${href}/`) ? 'page' : undefined;
 	}
 
@@ -38,7 +41,7 @@
 
 <header class="site-header">
 	<div class="bar">
-		<a href={resolve('/objekte')} class="brand"><img src={logo} alt="mietkartei" height="20" /></a>
+		<a href={resolve('/')} class="brand"><img src={logo} alt="mietkartei" height="20" /></a>
 		{#if data.email}
 			<button
 				type="button"

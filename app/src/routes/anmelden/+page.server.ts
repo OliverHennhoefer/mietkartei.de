@@ -4,7 +4,7 @@ import { setSessionCookie } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	if (locals.user) redirect(303, '/objekte');
+	if (locals.user) redirect(303, '/');
 	// A new instance has no users yet; the first one has to register.
 	if (!(await hasUsers(locals.db))) redirect(303, '/registrieren');
 };
@@ -23,6 +23,6 @@ export const actions: Actions = {
 
 		const session = await createSession(event.locals.db, userId);
 		setSessionCookie(event, session.token, session.expiresAt);
-		redirect(303, '/objekte');
+		redirect(303, '/');
 	}
 };
