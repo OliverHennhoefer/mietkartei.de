@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
+	import Icon from '#lib/components/Icon.svelte';
 	import { MIN_PASSWORD_LENGTH } from '#lib/validation.ts';
 	import type { PageProps } from './$types';
 
@@ -15,7 +16,11 @@
 </svelte:head>
 
 <div class="narrow">
+	<div class="auth-icon"><Icon name="home" size={25} /></div>
 	<h1>Registrieren</h1>
+	{#if data.open && !form?.closed}<p class="auth-lead">
+			Dein Konto für eine übersichtliche Hausverwaltung.
+		</p>{/if}
 
 	{#if !data.open || form?.closed}
 		<p>Auf dieser Instanz können sich keine weiteren Personen registrieren.</p>
