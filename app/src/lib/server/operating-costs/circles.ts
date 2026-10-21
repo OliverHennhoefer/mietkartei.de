@@ -3,6 +3,7 @@ import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
 import { chunk, chunkIds, rowsPerStatement, runBatch } from '../db/batch';
 import { billingCircleUnits, billingCircles, properties, units } from '../db/schema';
+import { assertQuota } from '../quotas';
 
 // Abrechnungskreise: the subset of a property's units that shares a cost, e.g. the parking
 // spaces that pay nothing towards the staircase, or one of several entrances. A cost item
@@ -116,6 +117,7 @@ export async function createCircle(
 	input: BillingCircleInput
 ): Promise<{ ok: true; id: string } | { ok: false; reason: CircleError }> {
 	const { accountId } = context;
+	await assertQuota(db, accountId, 'billingCircles');
 	const [property] = await db
 		.select({ id: properties.id })
 		.from(properties)

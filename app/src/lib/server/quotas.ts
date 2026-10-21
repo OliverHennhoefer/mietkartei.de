@@ -3,9 +3,12 @@ import { count, eq } from 'drizzle-orm';
 import type { SQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import type { Database } from './db';
 import {
+	allocationKeys,
 	bankAccounts,
+	billingCircles,
 	bankTransactions,
 	consumerPriceIndex,
+	costCategories,
 	depositTransactions,
 	leasePersons,
 	leases,
@@ -38,7 +41,12 @@ export const QUOTAS = {
 	consumerPriceIndex: { table: consumerPriceIndex, max: 2_000, label: 'VPI-Werte' },
 	bankAccounts: { table: bankAccounts, max: 50, label: 'Bankverbindungen' },
 	matchingRules: { table: matchingRules, max: 2_000, label: 'Zuordnungsregeln' },
-	bankTransactions: { table: bankTransactions, max: 100_000, label: 'Bankumsätze' }
+	bankTransactions: { table: bankTransactions, max: 100_000, label: 'Bankumsätze' },
+	costCategories: { table: costCategories, max: 200, label: 'Kostenarten' },
+	/** Also bounds the shares: one per unit of the key's property. */
+	allocationKeys: { table: allocationKeys, max: 200, label: 'Umlageschlüssel' },
+	/** Also bounds the circle units: at most the units of the circle's property. */
+	billingCircles: { table: billingCircles, max: 200, label: 'Abrechnungskreise' }
 } satisfies Record<string, Quota>;
 
 export type QuotaKind = keyof typeof QUOTAS;

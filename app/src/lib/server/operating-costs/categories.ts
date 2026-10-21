@@ -3,6 +3,7 @@ import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
 import { runBatch } from '../db/batch';
 import { allocationKeys, billingCircles, costCategories } from '../db/schema';
+import { assertQuota } from '../quotas';
 
 // Kostenarten: which costs exist, whether they may be passed on, and the key and circle a new
 // cost item of the category starts with. The standard list is seeded by defaults.ts.
@@ -90,6 +91,7 @@ export async function createCategory(
 	input: CostCategoryInput
 ): Promise<{ ok: true; id: string } | { ok: false; reason: CategoryError }> {
 	const { accountId } = context;
+	await assertQuota(db, accountId, 'costCategories');
 	const reason = await checkInput(db, accountId, input);
 	if (reason) return { ok: false, reason };
 	const id = crypto.randomUUID();
