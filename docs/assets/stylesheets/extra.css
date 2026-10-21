@@ -1,30 +1,54 @@
+@font-face {
+  font-family: Geist;
+  src: url("../brand/fonts/geist/Geist.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 :root {
-  --md-text-font: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --md-text-font: Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --md-code-font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
 }
 
 body[data-md-color-scheme="default"][data-md-color-primary] {
   --md-default-bg-color: #fff;
-  --md-default-fg-color: #171717;
-  --md-default-fg-color--light: #595959;
+  --md-default-fg-color: #202020;
+  --md-default-fg-color--light: #6b6b6b;
   --md-primary-fg-color: #fff;
-  --md-primary-bg-color: #171717;
-  --md-accent-fg-color: #171717;
-  --md-accent-fg-color--transparent: #1717170d;
-  --md-typeset-a-color: #171717;
-  --mk-border-color: #e5e5e5;
+  --md-primary-bg-color: #202020;
+  --md-accent-fg-color: #202020;
+  --md-accent-fg-color--transparent: #2020200d;
+  --md-typeset-a-color: #202020;
+  --mk-border-color: #e8e8e8;
 }
 
 body[data-md-color-scheme="slate"][data-md-color-primary] {
-  --md-default-bg-color: #141414;
-  --md-default-fg-color: #f5f5f5;
-  --md-default-fg-color--light: #b5b5b5;
-  --md-primary-fg-color: #141414;
-  --md-primary-bg-color: #f5f5f5;
-  --md-accent-fg-color: #f5f5f5;
+  --md-default-bg-color: #1e1e1e;
+  --md-default-fg-color: #ededed;
+  --md-default-fg-color--light: #a0a0a0;
+  --md-primary-fg-color: #1e1e1e;
+  --md-primary-bg-color: #ededed;
+  --md-accent-fg-color: #ededed;
   --md-accent-fg-color--transparent: #ffffff0d;
-  --md-typeset-a-color: #f5f5f5;
-  --mk-border-color: #343434;
+  --md-typeset-a-color: #ededed;
+  --mk-border-color: #303030;
+}
+
+::selection {
+  background: var(--md-default-fg-color);
+  color: var(--md-default-bg-color);
+}
+
+:focus-visible {
+  outline: 2px solid var(--md-default-fg-color);
+  outline-offset: 4px;
+}
+
+.md-header__button {
+  border-radius: 8px;
 }
 
 .md-header {
