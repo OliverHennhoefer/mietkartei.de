@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, ne } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { formatDate, today, type IsoDate } from '../dates';
 import { rentOn, type RentChange as RentHistoryEntry } from '../domain/rents';
@@ -16,7 +16,9 @@ import {
 	leaseTenants,
 	leaseUnits,
 	leases,
+	payments,
 	properties,
+	rentCharges,
 	rentChanges,
 	tenants,
 	units,
@@ -45,6 +47,8 @@ export type LeaseInput = {
 	heatingCostPrepayment: number;
 	securityDeposit: number;
 	persons: number;
+	rentDueDay: number;
+	ledgerStart: string | null;
 	terminatedAt: string | null;
 	terminatedBy: TerminatedBy | null;
 	notes: string | null;
@@ -244,6 +248,8 @@ function leaseColumns(input: LeaseInput) {
 		heatingCostPrepayment: input.heatingCostPrepayment,
 		securityDeposit: input.securityDeposit,
 		persons: input.persons,
+		rentDueDay: input.rentDueDay,
+		ledgerStart: input.ledgerStart,
 		terminatedAt: input.terminatedAt,
 		terminatedBy: input.terminatedBy,
 		notes: input.notes
@@ -336,7 +342,8 @@ export async function createLease(
  * the new start date and initial values; later rows that carried an initial amount unchanged
  * follow it too (see laterRows). A start date on or after a later rent change or persons row is
  * refused ('start-after-changes'), since those rows would then come first or collide with the
- * initial ones.
+ * initial ones. The rent charges are not touched here; the caller syncs them through the ledger
+ * module.
  */
 export async function updateLease(
 	db: Database,
@@ -445,9 +452,9 @@ function updateSummary(existing: Lease, input: LeaseInput, later: LaterRows): st
 }
 
 /**
- * Deletes the lease with its rent history and persons history. A lease with money on it (deposit
- * movements) is ended, not deleted, so the history stays; the page offers "Vertrag beenden"
- * instead.
+ * Deletes the lease with its rent history, persons history and generated rent charges. A lease
+ * with money on it (payments, corrections, deposit movements) is ended, not deleted, so the
+ * history stays; the page offers "Vertrag beenden" instead.
  */
 export async function deleteLease(
 	db: Database,
@@ -471,13 +478,20 @@ export async function deleteLease(
 	return 'deleted';
 }
 
-/** Whether deposit movements exist. */
+/** Whether payments, deposit movements or postings other than the monthly rent exist. */
 async function hasMoney(db: Database, leaseId: string): Promise<boolean> {
-	const [deposit] = await db
-		.select({ value: count() })
-		.from(depositTransactions)
-		.where(eq(depositTransactions.leaseId, leaseId));
-	return deposit.value > 0;
+	const [[paid], [deposit], [posted]] = await Promise.all([
+		db.select({ value: count() }).from(payments).where(eq(payments.leaseId, leaseId)),
+		db
+			.select({ value: count() })
+			.from(depositTransactions)
+			.where(eq(depositTransactions.leaseId, leaseId)),
+		db
+			.select({ value: count() })
+			.from(rentCharges)
+			.where(and(eq(rentCharges.leaseId, leaseId), ne(rentCharges.kind, 'rent')))
+	]);
+	return paid.value + deposit.value + posted.value > 0;
 }
 
 /** The units of the account with their property, for selects. */
@@ -507,6 +521,8 @@ export function leaseInputOf(lease: LeaseSummary): LeaseInput {
 		heatingCostPrepayment: lease.heatingCostPrepayment,
 		securityDeposit: lease.securityDeposit,
 		persons: lease.persons,
+		rentDueDay: lease.rentDueDay,
+		ledgerStart: lease.ledgerStart,
 		terminatedAt: lease.terminatedAt,
 		terminatedBy: lease.terminatedBy,
 		notes: lease.notes
@@ -522,7 +538,10 @@ export type LeaseEndInput = {
 	earlyEndAgreed?: boolean;
 };
 
-/** Records the notice and the end date ("Vertrag beenden"). */
+/**
+ * Records the notice and the end date ("Vertrag beenden"). The caller syncs the rent charges
+ * through the ledger module afterwards, so months after the end disappear from the ledger.
+ */
 export async function endLease(
 	db: Database,
 	context: AuditContext,

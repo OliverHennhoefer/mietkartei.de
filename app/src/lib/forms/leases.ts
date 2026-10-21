@@ -38,6 +38,19 @@ export function parseLease(form: FormData): ParseResult<LeaseInput> {
 	const persons =
 		parser.number('persons', { required: false, integer: true, min: 0, max: 20 }) ?? 1;
 
+	// The n-th working day of the month; § 556b BGB makes the third the default.
+	const rentDueDay =
+		parser.number('rentDueDay', { required: false, integer: true, min: 1, max: 20 }) ?? 3;
+
+	const ledgerStart = parser.date('ledgerStart', { required: false });
+	if (
+		ledgerStart &&
+		startDate &&
+		(ledgerStart < startDate || (endDate !== null && ledgerStart > endDate))
+	) {
+		parser.fail('ledgerStart', 'Der Beginn des Mietkontos liegt außerhalb der Vertragslaufzeit.');
+	}
+
 	const terminatedAt = parser.date('terminatedAt', { required: false });
 	const terminatedBy = parser.oneOf('terminatedBy', terminatedByParties, { required: false });
 	if (terminatedAt && !terminatedBy) {
@@ -63,6 +76,8 @@ export function parseLease(form: FormData): ParseResult<LeaseInput> {
 		heatingCostPrepayment,
 		securityDeposit,
 		persons,
+		rentDueDay,
+		ledgerStart,
 		terminatedAt,
 		terminatedBy,
 		notes
@@ -94,6 +109,18 @@ export function parseLeaseEdit(form: FormData, current: LeaseInput): ParseResult
 	merged.delete('extraUnitIds');
 	for (const unitId of current.extraUnitIds) merged.append('extraUnitIds', unitId);
 	return parseLease(merged);
+}
+
+/** The opening balance of the ledger (Anfangssaldo), a signed amount; empty means none. */
+export function parseOpeningBalance(
+	form: FormData
+): ParseResult<{ openingBalance: number | null }> {
+	const parser = new FormParser<{ openingBalance: number | null }>(form);
+	const openingBalance = parser.money('openingBalance', {
+		required: false,
+		min: -100_000_000_00
+	});
+	return parser.result(() => ({ openingBalance }));
 }
 
 /** "Personen ab Datum" on the lease overview. */

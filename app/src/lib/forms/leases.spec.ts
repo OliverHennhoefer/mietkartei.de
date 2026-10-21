@@ -6,7 +6,8 @@ import {
 	parseLease,
 	parseLeaseEdit,
 	parseLeaseEnd,
-	parseLeasePersons
+	parseLeasePersons,
+	parseOpeningBalance
 } from './leases';
 
 /** A plain residential lease with every optional field left empty. */
@@ -46,6 +47,8 @@ describe('parseLease', () => {
 			heatingCostPrepayment: '70',
 			securityDeposit: '3.750,00',
 			persons: '3',
+			rentDueDay: '1',
+			ledgerStart: '2026-06-01',
 			terminatedAt: '2027-09-30',
 			terminatedBy: 'tenant',
 			notes: 'Büro im EG, Stellplätze inklusive.'
@@ -67,6 +70,8 @@ describe('parseLease', () => {
 				heatingCostPrepayment: 7000,
 				securityDeposit: 375000,
 				persons: 3,
+				rentDueDay: 1,
+				ledgerStart: '2026-06-01',
 				terminatedAt: '2027-09-30',
 				terminatedBy: 'tenant',
 				notes: 'Büro im EG, Stellplätze inklusive.'
@@ -92,6 +97,8 @@ describe('parseLease', () => {
 				heatingCostPrepayment: 0,
 				securityDeposit: 0,
 				persons: 1,
+				rentDueDay: 3,
+				ledgerStart: null,
 				terminatedAt: null,
 				terminatedBy: null,
 				notes: null
@@ -141,17 +148,30 @@ describe('parseLease', () => {
 		expect(parse({ endDate: '2026-01-01' }).ok).toBe(true);
 	});
 
-	it('limits persons to whole numbers in range', () => {
-		expect(errorsOf({ persons: '21' })).toEqual({
-			persons: 'Der Wert darf nicht über 20 liegen.'
+	it('keeps the ledger start within the lease term', () => {
+		const message = 'Der Beginn des Mietkontos liegt außerhalb der Vertragslaufzeit.';
+		expect(errorsOf({ ledgerStart: '2025-12-31' })).toEqual({ ledgerStart: message });
+		expect(errorsOf({ endDate: '2026-12-31', ledgerStart: '2027-01-01' })).toEqual({
+			ledgerStart: message
 		});
-		expect(errorsOf({ persons: '1,5' })).toEqual({
-			persons: 'Bitte gib eine ganze Zahl an.'
+		expect(parse({ endDate: '2026-12-31', ledgerStart: '2026-12-31' }).ok).toBe(true);
+		expect(parse({ ledgerStart: '2030-01-01' }).ok).toBe(true);
+	});
+
+	it('limits persons and the due day to whole numbers in range', () => {
+		expect(errorsOf({ persons: '21', rentDueDay: '0' })).toEqual({
+			persons: 'Der Wert darf nicht über 20 liegen.',
+			rentDueDay: 'Der Wert darf nicht unter 1 liegen.'
 		});
-		const result = parse({ persons: '0' });
+		expect(errorsOf({ persons: '1,5', rentDueDay: '21' })).toEqual({
+			persons: 'Bitte gib eine ganze Zahl an.',
+			rentDueDay: 'Der Wert darf nicht über 20 liegen.'
+		});
+		const result = parse({ persons: '0', rentDueDay: '20' });
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.data.persons).toBe(0);
+		expect(result.data.rentDueDay).toBe(20);
 	});
 
 	it('needs both the date and the party of a termination', () => {
@@ -209,6 +229,8 @@ const current: LeaseInput = {
 	heatingCostPrepayment: 5000,
 	securityDeposit: 180000,
 	persons: 2,
+	rentDueDay: 3,
+	ledgerStart: null,
 	terminatedAt: null,
 	terminatedBy: null,
 	notes: null
@@ -233,6 +255,8 @@ describe('parseLeaseEdit', () => {
 				rentModel: 'fixed',
 				operatingCostModel: 'flat',
 				heatingCostModel: 'flat',
+				rentDueDay: '1',
+				ledgerStart: '2026-01-01',
 				notes: 'geändert'
 			}),
 			current
@@ -252,6 +276,8 @@ describe('parseLeaseEdit', () => {
 				kind: 'commercial',
 				operatingCostModel: 'flat',
 				heatingCostModel: 'flat',
+				rentDueDay: 1,
+				ledgerStart: '2026-01-01',
 				notes: 'geändert'
 			}
 		});
@@ -262,6 +288,21 @@ describe('parseLeaseEdit', () => {
 		expect(result.ok).toBe(false);
 		if (result.ok) return;
 		expect(result.errors.startDate).toBe('Bitte gib ein Datum an.');
+	});
+});
+
+describe('parseOpeningBalance', () => {
+	it('accepts a signed amount and nothing at all', () => {
+		expect(parseOpeningBalance(formDataOf({ openingBalance: '-120,00' }))).toEqual({
+			ok: true,
+			data: { openingBalance: -12000 }
+		});
+		expect(parseOpeningBalance(formDataOf({}))).toEqual({
+			ok: true,
+			data: { openingBalance: null }
+		});
+		const bad = parseOpeningBalance(formDataOf({ openingBalance: 'viel' }));
+		expect(bad.ok).toBe(false);
 	});
 });
 
