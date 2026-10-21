@@ -25,7 +25,7 @@ import {
 	type StatementResult,
 	type StatementWarning
 } from '../domain/statement';
-import { formatArea, personName, pluralize } from '../format';
+import { formatArea, formatNumber, personName, pluralize } from '../format';
 import { formatCents } from '../money';
 import { landlordAddress } from './accounts';
 import { auditEntry, type AuditContext } from './audit';
@@ -345,7 +345,8 @@ export async function loadStatementInput(
 			street: property.street,
 			postalCode: property.postalCode,
 			city: property.city,
-			vacancyPersons: property.vacancyPersons
+			vacancyPersons: property.vacancyPersons,
+			buildingUse: property.buildingUse
 		},
 		period,
 		units: unitRows.map((unit) => ({
@@ -366,6 +367,10 @@ export async function loadStatementInput(
 			periodEnd: item.periodEnd,
 			amount: item.amount,
 			allocable: item.allocable,
+			fuel: item.fuel,
+			fuelKwh: item.fuelKwh,
+			co2Kg: item.co2Kg,
+			co2Cost: item.co2Cost,
 			unitAmounts: unitAmountRows
 				.filter((row) => row.costItemId === item.id)
 				.map((row) => ({ unitId: row.unitId, amount: row.amount }))
@@ -1312,8 +1317,9 @@ export function statementFilename(statement: LeaseStatement): string {
 
 /**
  * The letter for one lease, built from the frozen result alone: sender, recipient, the cost table
- * with Gesamtkosten, Umlageschlüssel and the tenant's share, the paid prepayments and the balance
- * with when it is due.
+ * with Gesamtkosten, Umlageschlüssel and the tenant's share, the CO2 disclosure, the paid
+ * prepayments and the balance with when it is due. PDFs write "CO2", the renderer has no
+ * subscript glyph.
  */
 export function statementLetter(statement: LeaseStatement): Letter {
 	const { landlord, property } = statement;
@@ -1359,12 +1365,26 @@ export function statementLetter(statement: LeaseStatement): Letter {
 				line.betrkvItem ? `§ 2 Nr. ${line.betrkvItem} BetrKV` : null,
 				line.description !== line.categoryName ? line.description : null
 			).join('\n'),
-			formatCents(line.itemTotal),
+			line.allocated !== line.itemTotal
+				? `${formatCents(line.itemTotal)}\nabzüglich CO2-Anteil Vermieter ${formatCents(line.itemTotal - line.allocated)}\numgelegt ${formatCents(line.allocated)}`
+				: formatCents(line.itemTotal),
 			`${line.keyName}: ${line.keyTotal}\n${line.share}`,
 			formatCents(line.amount)
 		]),
 		footer: ['Summe', '', '', formatCents(statement.costsTotal)]
 	};
+
+	const co2 = statement.lines
+		.filter((line) => line.co2)
+		.map((line) => {
+			const data = line.co2!;
+			return (
+				`CO2-Kostenaufteilung (CO2KostAufG) für ${line.description}: ${formatNumber(data.co2Kg)} kg CO2 laut Beleg; ` +
+				`das Gebäude stößt ${formatNumber(data.buildingCo2Kg)} kg CO2 im Jahr aus, bei ${formatArea(data.area)} Gebäudefläche ` +
+				`${formatNumber(data.kgPerSquareMetre)} kg CO2 je m² und Jahr. Vermieteranteil ${data.landlordPercent} %: ` +
+				`vom CO2-Preis ${formatCents(data.co2Cost)} trägt der Vermieter ${formatCents(data.landlordAmount)}; dieser Betrag ist von den Gesamtkosten abgezogen.`
+			);
+		});
 
 	const chargedTotal = statement.prepayments.reduce((sum, month) => sum + month.charged, 0);
 	const prepaymentTable: PdfTable = {
@@ -1448,6 +1468,7 @@ export function statementLetter(statement: LeaseStatement): Letter {
 		blocks: [
 			...intro.map((paragraph) => ({ paragraph })),
 			{ table: costTable },
+			...co2.map((paragraph) => ({ paragraph })),
 			{ table: prepaymentTable },
 			...(unpaid ? [{ paragraph: unpaid }] : []),
 			{ paragraph: result },

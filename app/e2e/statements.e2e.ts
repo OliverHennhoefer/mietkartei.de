@@ -265,9 +265,9 @@ async function seedRawLease(
 // The reference scenario hand-computed in src/lib/domain/statement.spec.ts: Lindenstraße 4 with
 // EG (72,5 m², 2 persons, all year), OG (64 m², tenant change on 30 June with a heat meter
 // reading) and DG (48 m², vacant from 1 September), Grundsteuer 1.200 € by area, Müll 600 € by
-// persons, Hausmeister 900 € by units, Heizung 3.000 € 70/30, Verwaltung 500 € not allocable;
-// every rent paid. EG's statement: costs 2.346,66 € against 2.400 € prepayments, a Guthaben of
-// 53,34 €. The figures do not depend on today: a Guthaben is posted whether or not the 2025
+// persons, Hausmeister 900 € by units, Heizung 3.000 € 70/30 with 5.025 kg CO₂ and 300 € CO₂
+// cost, Verwaltung 500 € not allocable; every rent paid. EG's statement: costs 2.294,33 € against
+// 2.400 € prepayments, a Guthaben of 105,67 €. The figures do not depend on today: a Guthaben is posted whether or not the 2025
 // deadline has passed.
 test('prints the reference scenario with the four elements of a valid statement', async ({
 	page
@@ -353,7 +353,8 @@ test('prints the reference scenario with the four elements of a valid statement'
 		description: string,
 		categoryId: string,
 		allocationKeyId: string,
-		amount: number
+		amount: number,
+		extra: Record<string, unknown> = {}
 	) => ({
 		propertyId,
 		categoryId,
@@ -361,13 +362,19 @@ test('prints the reference scenario with the four elements of a valid statement'
 		description,
 		periodStart: '2025-01-01',
 		periodEnd: '2025-12-31',
-		amount
+		amount,
+		...extra
 	});
 	await seedRows(request, 'costItems', [
 		item('Grundsteuer 2025', grundsteuer, area, 120000),
 		item('Müllabfuhr', muell, persons, 60000),
 		item('Hausmeister', hauswart, unitsKey, 90000),
-		item('Gasrechnung', heizung, heat, 300000),
+		item('Gasrechnung', heizung, heat, 300000, {
+			fuel: 'gas',
+			fuelKwh: 25000,
+			co2Kg: 5025,
+			co2Cost: 30000
+		}),
 		item('Hausverwaltung', verwaltung, unitsKey, 50000)
 	]);
 	const {
@@ -389,15 +396,16 @@ test('prints the reference scenario with the four elements of a valid statement'
 
 	const statementId = await createDraft(page, propertyId, '2025-01-01', '2025-12-31');
 	const lease = page.getByRole('region', { name: `Mietvertrag EG ${suffix}` });
-	await expect(lease).toContainText('Guthaben 53,34 € (Kosten 2.346,66 €');
-	// The vacant DG from September: the landlord's share.
-	await expect(page.locator('.stats')).toContainText('401,94 €');
+	await expect(lease).toContainText('Guthaben 105,67 € (Kosten 2.294,33 €');
+	// The landlord's CO₂ share and the vacant DG from September.
+	await expect(page.locator('.stats')).toContainText('120,00 €');
+	await expect(page.locator('.stats')).toContainText('395,84 €');
 	await approve(page);
 
-	// § 560 Abs. 4 BGB: operating 1.038,45 / 12 = 86,54 € and heating 1.308,21 / 12 = 109,02 €.
+	// § 560 Abs. 4 BGB: operating 1.038,45 / 12 = 86,54 € and heating 1.255,88 / 12 = 104,66 €.
 	await expect(lease.getByRole('link', { name: 'Vorauszahlung anpassen' })).toHaveAttribute(
 		'href',
-		`/vertraege/${egLease}/miethoehe?prepayment=8654&heating=10902`
+		`/vertraege/${egLease}/miethoehe?prepayment=8654&heating=10466`
 	);
 	// The DG lease has ended: nothing to adjust there.
 	await expect(
@@ -409,9 +417,9 @@ test('prints the reference scenario with the four elements of a valid statement'
 	const text = await pdfOf(page, `/betriebskosten/abrechnungen/${statementId}/pdf/${egLease}`);
 	expect(text).toContain(`Lindenstraße 4 ${suffix}`);
 	expect(text).toContain('Herr Max Müller');
-	// Gesamtkosten.
+	// Gesamtkosten, with the landlord's CO₂ share and the allocated rest apart.
 	expect(text).toContain('1.200,00 €');
-	expect(text).toContain('3.000,00 €');
+	expect(text).toContain('3.000,00 € abzüglich CO2-Anteil Vermieter 120,00 € umgelegt 2.880,00 €');
 	// Umlageschlüssel with the key total and the lease's share of it.
 	expect(text).toContain(`Wohnfläche ${suffix}: 184,5 m²`);
 	expect(text).toContain('72,5 m² von 184,5 m² · 365 von 365 Tagen');
@@ -422,19 +430,21 @@ test('prints the reference scenario with the four elements of a valid statement'
 	// Dein Anteil per line and in sum.
 	expect(text).toContain('471,54 €');
 	expect(text).toContain('266,91 €');
-	expect(text).toContain('1.308,21 €');
-	expect(text).toContain('Summe 2.346,66 €');
+	expect(text).toContain('1.255,88 €');
+	expect(text).toContain('Summe 2.294,33 €');
+	// The CO₂ disclosure: 5.025 kg over 184,5 m² = 27,24 kg/m², tier 40 %.
+	expect(text).toContain('Vermieteranteil 40 %');
 	// The paid prepayments (January from the rent history) and the result.
 	expect(text).toContain('Summe 2.400,00 € 2.400,00 €');
 	expect(text).toContain(
-		'Kosten gesamt 2.346,66 €, geleistete Vorauszahlungen 2.400,00 €: Guthaben 53,34 €.'
+		'Kosten gesamt 2.294,33 €, geleistete Vorauszahlungen 2.400,00 €: Guthaben 105,67 €.'
 	);
-	expect(text).toContain('Das Guthaben von 53,34 €');
+	expect(text).toContain('Das Guthaben von 105,67 €');
 
 	// The prepayment link fills both fields of the Miethöhe form.
 	await lease.getByRole('link', { name: 'Vorauszahlung anpassen' }).click();
 	await expect(page.getByLabel('Betriebskostenvorauszahlung')).toHaveValue('86,54');
-	await expect(page.getByLabel('Heizkostenvorauszahlung')).toHaveValue('109,02');
+	await expect(page.getByLabel('Heizkostenvorauszahlung')).toHaveValue('104,66');
 });
 
 test('answers unknown statements with 404 and refuses a property of another account', async ({

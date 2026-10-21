@@ -18,6 +18,8 @@ import { meterKindLabels } from '../labels';
 import { distributeCents, formatCents, proRata } from '../money';
 import type {
 	AllocationKeyKind,
+	BuildingUse,
+	Fuel,
 	HeatingCostModel,
 	LeaseKind,
 	MeterKind,
@@ -25,13 +27,14 @@ import type {
 	RentChargeKind
 } from '../server/db/schema';
 import type { UnitKind } from '../units';
+import { splitCo2Cost } from './co2';
 import { hasReadingNear, meterConsumption, unitConsumption, type Meter } from './consumption';
 import { degreeDays } from './degree-days';
 import { monthlyAmounts, type RentChange } from './rents';
 
 // The operating cost statement (Betriebskostenabrechnung), pure: everything the computation
 // needs is passed in, nothing is read from the database. Step 1 takes each cost item's share of
-// the period, steps 2–4 weigh the units by the allocation key and split each unit's share between
+// the period less the landlord's CO₂ share (CO2KostAufG), steps 2–4 weigh the units by the allocation key and split each unit's share between
 // the leases that occupied it in turn, step 5 sets the paid prepayments against each lease's
 // costs and step 6 checks the deadline and the HeizKV. The server module freezes the result on
 // approval and the PDF prints the per-lease part.
@@ -56,6 +59,7 @@ export type StatementProperty = {
 	postalCode: string;
 	city: string;
 	vacancyPersons: number;
+	buildingUse: BuildingUse;
 };
 
 export type StatementUnit = {
@@ -144,6 +148,10 @@ export type StatementItem = {
 	periodEnd: IsoDate;
 	amount: number;
 	allocable: boolean;
+	fuel: Fuel | null;
+	fuelKwh: number | null;
+	co2Kg: number | null;
+	co2Cost: number | null;
 	/** For a `direct` key: the amount of each unit. */
 	unitAmounts: { unitId: string; amount: number }[];
 };
@@ -179,6 +187,7 @@ export type StatementOptions = {
 
 export type WarningCode =
 	| 'missing_area'
+	| 'co2_missing_area'
 	| 'missing_meter'
 	| 'missing_reading'
 	| 'estimated_reading'
@@ -206,6 +215,26 @@ export type StatementWarning = {
 	itemId?: string;
 };
 
+export type Co2Disclosure = {
+	fuel: Fuel;
+	fuelKwh: number | null;
+	/** The kg printed on this bill. */
+	co2Kg: number;
+	/**
+	 * The emissions per year of the circle (or property) the tier is computed from: the kg of all
+	 * its fuel bills in the period, scaled to the twelve months from the period start.
+	 */
+	buildingCo2Kg: number;
+	/** The CO₂ cost in the period, cents. */
+	co2Cost: number;
+	/** Floor area the emissions are measured against (the circle's or the property's), m². */
+	area: number;
+	kgPerSquareMetre: number;
+	landlordPercent: number;
+	landlordAmount: number;
+	tenantAmount: number;
+};
+
 /** How a unit's consumption was split between the leases that occupied it in turn. */
 export type SplitMethod = 'readings' | 'degree_days' | 'days';
 
@@ -221,6 +250,8 @@ export type CostLine = {
 	heating: boolean;
 	/** The item's cost in the period (Gesamtkosten). */
 	itemTotal: number;
+	/** What is allocated to the units: the total after the landlord's CO₂ share. */
+	allocated: number;
 	/** The key's total, e.g. `184,5 m²`, `1.641 Personentage`, `3 Einheiten`, `2.200 kWh`. */
 	keyTotal: string;
 	/** The lease's share of the key, e.g. `72,5 m² von 184,5 m² · 365 von 365 Tagen`. */
@@ -229,6 +260,7 @@ export type CostLine = {
 	method?: SplitMethod;
 	/** The lease's share in cents (Dein Anteil). */
 	amount: number;
+	co2?: Co2Disclosure;
 };
 
 /** A share the lease would have had, kept by the landlord because of a Pauschale. */
@@ -311,12 +343,17 @@ export type PropertyItem = {
 	/** Cost in the period. */
 	total: number;
 	allocable: boolean;
-	/** Distributed over the units: the total, or what the amounts of a `direct` key add up to. */
+	/**
+	 * Distributed over the units: the total less the landlord's CO₂ share, or what the amounts of a
+	 * `direct` key add up to.
+	 */
 	allocated: number;
+	landlordCo2Share: number;
 	vacancyShare: number;
 	excludedShare: number;
 	/** A `direct` key whose unit amounts do not add up to the item. */
 	unallocated: number;
+	co2?: Co2Disclosure;
 };
 
 export type LeaseTotals = {
@@ -338,6 +375,7 @@ export type PropertyResult = {
 	costsTotal: number;
 	allocableTotal: number;
 	nonAllocableTotal: number;
+	landlordCo2Share: number;
 	vacancyShare: number;
 	/** Shares kept by the landlord because of Pauschale and Inklusivmiete leases. */
 	excludedTotal: number;
@@ -802,6 +840,7 @@ function componentsOf(
 	item: StatementItem,
 	key: StatementKey,
 	allocated: number,
+	co2LandlordAmount: number,
 	circleUnits: StatementUnit[],
 	itemOverlap: number,
 	itemDays: number
@@ -899,16 +938,19 @@ function componentsOf(
 		}
 		case 'direct': {
 			// The amounts of the Messdienst, prorated like the item (rounded on the running sum, so
-			// amounts that add up to the bill still add up to its share of the period).
+			// amounts that add up to the bill still add up to its share of the period); the
+			// landlord's CO₂ share is taken off in proportion.
 			const entered = circleUnits.map(
 				(unit) => item.unitAmounts.find((candidate) => candidate.unitId === unit.id)?.amount ?? 0
 			);
 			let running = 0;
-			const direct = entered.map((amount) => {
+			const given = entered.map((amount) => {
 				const before = proRata(running, itemOverlap, itemDays);
 				running += amount;
 				return proRata(running, itemOverlap, itemDays) - before;
 			});
+			const deduction = distributeCents(co2LandlordAmount, given);
+			const direct = given.map((amount, index) => amount - deduction[index]);
 			const sum = direct.reduce((total, amount) => total + amount, 0);
 			if (running > item.amount) {
 				// The tenants would pay more than the bill.
@@ -933,7 +975,7 @@ function componentsOf(
 					amount: sum,
 					label: '',
 					keyTotal: 'laut Beleg',
-					weights: direct,
+					weights: given,
 					direct,
 					unitShare: () => 'Betrag laut Beleg',
 					splitBy: 'days'
@@ -1111,15 +1153,40 @@ export function computeStatement(
 	const items: PropertyItem[] = [];
 	let nonAllocableTotal = 0;
 	let allocableTotal = 0;
+	let landlordCo2Share = 0;
 	let vacancyShare = 0;
 	let excludedTotal = 0;
 	let unallocatedTotal = 0;
 	let costsTotal = 0;
 
+	// Step 1, CO₂: the tier follows the building's emissions per m² and year, so the kg of every
+	// fuel bill of a circle (or of the property) are added up first, each prorated to the period.
 	const circleUnitsOf = (item: StatementItem): StatementUnit[] => {
 		const circle = item.billingCircleId ? circleById.get(item.billingCircleId) : undefined;
 		return circle ? input.units.filter((unit) => circle.unitIds.includes(unit.id)) : input.units;
 	};
+	const co2GroupOf = (item: StatementItem): string =>
+		item.billingCircleId && circleById.has(item.billingCircleId) ? item.billingCircleId : '';
+	const hasCo2 = (item: StatementItem) =>
+		Boolean(item.fuel) && item.co2Kg !== null && item.co2Cost !== null;
+	const co2KgByGroup = new Map<string, number>();
+	for (const item of input.items) {
+		const category = categoryById.get(item.categoryId);
+		if (!hasCo2(item) || !category || !keyById.has(item.allocationKeyId)) continue;
+		if (!item.allocable || !category.allocable) continue;
+		const itemOverlap = overlapDays(period, { start: item.periodStart, end: item.periodEnd });
+		if (itemOverlap === 0) continue;
+		const itemDays = daysInclusive(item.periodStart, item.periodEnd);
+		const group = co2GroupOf(item);
+		co2KgByGroup.set(
+			group,
+			(co2KgByGroup.get(group) ?? 0) + (item.co2Kg! * itemOverlap) / itemDays
+		);
+	}
+	// A period shorter than twelve months is scaled to the twelve months from its start.
+	const yearDays = daysInclusive(period.start, addDays(addMonths(period.start, 12), -1));
+	const annualCo2Kg = (item: StatementItem) =>
+		Math.round((((co2KgByGroup.get(co2GroupOf(item)) ?? 0) * yearDays) / periodDays) * 10) / 10;
 
 	for (const item of input.items) {
 		const itemOverlap = overlapDays(period, { start: item.periodStart, end: item.periodEnd });
@@ -1139,6 +1206,7 @@ export function computeStatement(
 			total,
 			allocable: item.allocable && (category?.allocable ?? true),
 			allocated: 0,
+			landlordCo2Share: 0,
 			vacancyShare: 0,
 			excludedShare: 0,
 			unallocated: 0
@@ -1176,6 +1244,46 @@ export function computeStatement(
 				? input.units.filter((unit) => item.unitAmounts.some((entry) => entry.unitId === unit.id))
 				: circleUnitsOf(item);
 
+		// Step 1, CO₂: the landlord's share of the CO₂ cost comes off before anything is allocated.
+		let allocated = total;
+		let co2: Co2Disclosure | undefined;
+		if (item.fuel && item.co2Kg !== null && item.co2Cost !== null) {
+			const area = circleUnitsOf(item).reduce((sum, unit) => sum + (unit.floorArea ?? 0), 0);
+			if (area <= 0) {
+				warn(ctx, {
+					code: 'co2_missing_area',
+					blocking: true,
+					itemId: item.id,
+					href: `/objekte/${input.property.id}`,
+					message: `Für die CO₂-Kostenaufteilung des Belegs „${item.description}“ fehlt die Wohnfläche der Einheiten; ohne sie lässt sich der Anteil des Vermieters nicht bestimmen.`
+				});
+			}
+			const co2Cost = proRata(item.co2Cost, itemOverlap, itemDays);
+			const buildingCo2Kg = annualCo2Kg(item);
+			const split = splitCo2Cost({
+				co2Kg: buildingCo2Kg,
+				co2Cost,
+				area,
+				use: input.property.buildingUse
+			});
+			co2 = {
+				fuel: item.fuel,
+				fuelKwh: item.fuelKwh,
+				co2Kg: item.co2Kg,
+				buildingCo2Kg,
+				co2Cost,
+				area,
+				kgPerSquareMetre: split.kgPerSquareMetre,
+				landlordPercent: split.landlordPercent,
+				landlordAmount: split.landlordAmount,
+				tenantAmount: split.tenantAmount
+			};
+			allocated -= split.landlordAmount;
+			landlordCo2Share += split.landlordAmount;
+			summary.landlordCo2Share = split.landlordAmount;
+			summary.co2 = co2;
+		}
+
 		// Step 6: §§ 7, 8 HeizKV want 50–70 % of heating and hot water cost by consumption.
 		if (heating) {
 			const consumptionKey =
@@ -1196,9 +1304,18 @@ export function computeStatement(
 		}
 
 		// Steps 2–4: weights per unit, distribution, split over the leases of each unit.
-		const components = componentsOf(ctx, item, key, total, circleUnits, itemOverlap, itemDays);
+		const components = componentsOf(
+			ctx,
+			item,
+			key,
+			allocated,
+			co2?.landlordAmount ?? 0,
+			circleUnits,
+			itemOverlap,
+			itemDays
+		);
 		summary.allocated = components.reduce((sum, component) => sum + component.amount, 0);
-		summary.unallocated = total - summary.allocated;
+		summary.unallocated = allocated - summary.allocated;
 		unallocatedTotal += summary.unallocated;
 
 		type LeasePart = { amount: number; shares: string[]; method?: SplitMethod };
@@ -1271,10 +1388,12 @@ export function computeStatement(
 				keyKind: key.kind,
 				heating,
 				itemTotal: total,
+				allocated,
 				keyTotal: components.map((c) => `${c.label}${c.keyTotal}`).join(' · '),
 				share: part.shares.join(' · '),
 				method: part.method,
-				amount: part.amount
+				amount: part.amount,
+				co2
 			});
 		}
 	}
@@ -1385,6 +1504,7 @@ export function computeStatement(
 		costsTotal,
 		allocableTotal,
 		nonAllocableTotal,
+		landlordCo2Share,
 		vacancyShare,
 		excludedTotal,
 		unallocatedTotal,

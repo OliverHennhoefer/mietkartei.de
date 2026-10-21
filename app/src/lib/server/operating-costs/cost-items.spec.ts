@@ -65,6 +65,10 @@ function input(overrides: Partial<CostItemInput> = {}): CostItemInput {
 		periodEnd: '2025-12-31',
 		amount: 120000,
 		allocable: true,
+		fuel: null,
+		fuelKwh: null,
+		co2Kg: null,
+		co2Cost: null,
 		...overrides
 	};
 }
@@ -101,7 +105,11 @@ describe('cost items', () => {
 			categoryId: categoryId.Heizung,
 			allocationKeyId: keyId['Heizung 70/30'],
 			description: 'Gas 2025',
-			amount: 300000
+			amount: 300000,
+			fuel: 'gas',
+			fuelKwh: 25000,
+			co2Kg: 5025,
+			co2Cost: 30000
 		});
 		expect(await getCostItem(db, 'a', id)).toMatchObject({
 			accountId: 'a',
@@ -116,6 +124,10 @@ describe('cost items', () => {
 			invoiceDate: '2025-02-10',
 			amount: 300000,
 			allocable: true,
+			fuel: 'gas',
+			fuelKwh: 25000,
+			co2Kg: 5025,
+			co2Cost: 30000,
 			receipts: []
 		});
 		const audit = await db.select().from(auditLog).where(eq(auditLog.entity, 'cost_item'));

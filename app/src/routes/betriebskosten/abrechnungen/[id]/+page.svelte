@@ -143,6 +143,10 @@
 		<span class="value"><Money cents={property.vacancyShare} /></span>
 		<span class="label">Leerstand (Vermieter)</span>
 	</div>
+	<div class="stat card">
+		<span class="value"><Money cents={property.landlordCo2Share} /></span>
+		<span class="label">CO₂-Anteil Vermieter</span>
+	</div>
 	{#if property.excludedTotal > 0}
 		<div class="stat card">
 			<span class="value"><Money cents={property.excludedTotal} /></span>
@@ -239,6 +243,13 @@
 							</td>
 							<td class="num">
 								<Money cents={line.itemTotal} />
+								{#if line.co2}
+									<br /><span class="muted small">
+										CO₂-Anteil Vermieter {line.co2.landlordPercent} %: −<Money
+											cents={line.co2.landlordAmount}
+										/>
+									</span>
+								{/if}
 							</td>
 							<td>
 								{line.keyName}: {line.keyTotal}

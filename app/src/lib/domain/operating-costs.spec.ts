@@ -56,20 +56,33 @@ describe('applyCategoryDefaults', () => {
 		allocationKeyId: null,
 		billingCircleId: null,
 		circleFromCategory: true,
-		description: 'Hausreinigung 2025'
+		fuel: 'gas',
+		fuelKwh: 25000,
+		co2Kg: null,
+		description: 'Gas 2025'
 	};
 
-	it('takes the key and circle of the category', () => {
+	it('takes the key and circle of the category and the kg from the kWh', () => {
 		expect(applyCategoryDefaults(choice, category)).toEqual({
 			...choice,
 			allocationKeyId: 'key-area',
-			billingCircleId: 'circle-house'
+			billingCircleId: 'circle-house',
+			co2Kg: 5025
 		});
 	});
 
-	it('keeps what the form chose: own key, no circle', () => {
-		const own = { ...choice, allocationKeyId: 'key-persons', circleFromCategory: false };
-		expect(applyCategoryDefaults(own, category)).toEqual({ ...own, billingCircleId: null });
+	it('keeps what the form chose: own key, no circle, printed kg', () => {
+		const own = {
+			...choice,
+			allocationKeyId: 'key-persons',
+			circleFromCategory: false,
+			co2Kg: 5100
+		};
+		expect(applyCategoryDefaults(own, category)).toEqual({
+			...own,
+			billingCircleId: null,
+			co2Kg: 5100
+		});
 	});
 
 	it('has no result when neither the form nor the category names a key', () => {

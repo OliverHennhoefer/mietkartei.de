@@ -23,7 +23,8 @@ import {
 	documents,
 	properties,
 	units,
-	type AllocationKeyKind
+	type AllocationKeyKind,
+	type Fuel
 } from '../db/schema';
 import { MAX_YEAR, MIN_YEAR } from '../../dates';
 import { deleteDocument } from '../documents';
@@ -49,6 +50,10 @@ export type CostItemInput = {
 	periodEnd: string;
 	amount: number;
 	allocable: boolean;
+	fuel: Fuel | null;
+	fuelKwh: number | null;
+	co2Kg: number | null;
+	co2Cost: number | null;
 };
 
 export type Receipt = { id: string; name: string };
