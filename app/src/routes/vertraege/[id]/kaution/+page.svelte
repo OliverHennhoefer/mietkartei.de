@@ -95,7 +95,11 @@
 							{#if movement.bankTransactionId}<Badge tone="info">aus Umsatz</Badge>{/if}
 						</td>
 						<td class="actions">
-							{#if !movement.bankTransactionId}
+							{#if movement.bankTransactionId}
+								<span class="muted small">
+									Zuordnung beim <a href="/bank?umsatz={movement.bankTransactionId}">Umsatz</a> aufheben
+								</span>
+							{:else}
 								<ConfirmButton
 									action="?/delete"
 									label="Löschen"

@@ -39,12 +39,15 @@ function statusOf(value: string | null): StatusFilter {
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const accountId = requireAccount(locals);
-	const status = statusOf(url.searchParams.get('status'));
-	const bankAccountId = url.searchParams.get('konto') || null;
+	// ?umsatz= shows the one transaction a payment or deposit movement links to, whatever its
+	// status, so its assignment can be undone without searching the list.
+	const transactionId = url.searchParams.get('umsatz') || null;
+	const status = transactionId ? 'all' : statusOf(url.searchParams.get('status'));
+	const bankAccountId = transactionId ? null : url.searchParams.get('konto') || null;
 
 	const [bankAccounts, listed, openCount, leases, rules, byIban] = await Promise.all([
 		listBankAccounts(locals.db, accountId),
-		listTransactions(locals.db, accountId, { status, bankAccountId }),
+		listTransactions(locals.db, accountId, { status, bankAccountId, transactionId }),
 		countUnmatched(locals.db, accountId),
 		listLeases(locals.db, accountId),
 		listRules(locals.db, accountId),
@@ -67,6 +70,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	return {
 		status,
 		bankAccountId,
+		transactionId,
 		bankAccounts,
 		transactions,
 		more: listed.more,

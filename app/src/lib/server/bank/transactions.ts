@@ -28,6 +28,8 @@ export type TransactionRow = BankTransaction & { bankAccountName: string };
 export type TransactionFilter = {
 	status: BankTransactionStatus | 'all';
 	bankAccountId?: string | null;
+	/** Only this one transaction (the link from a payment or deposit movement), whatever its status. */
+	transactionId?: string | null;
 	/** How many rows the page shows at most; one more is fetched to know whether there are more. */
 	limit?: number;
 };
@@ -49,7 +51,8 @@ export async function listTransactions(
 			and(
 				eq(bankTransactions.accountId, accountId),
 				filter.status === 'all' ? undefined : eq(bankTransactions.status, filter.status),
-				filter.bankAccountId ? eq(bankTransactions.bankAccountId, filter.bankAccountId) : undefined
+				filter.bankAccountId ? eq(bankTransactions.bankAccountId, filter.bankAccountId) : undefined,
+				filter.transactionId ? eq(bankTransactions.id, filter.transactionId) : undefined
 			)
 		)
 		.orderBy(

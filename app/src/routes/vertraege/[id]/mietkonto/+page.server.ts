@@ -23,6 +23,8 @@ export type LedgerRow = LedgerLine & {
 	deletable: boolean;
 	/** A payment assigned from a bank transaction: undone under /bank, not here. */
 	fromBank: boolean;
+	/** The bank transaction of such a payment, for the link to it on /bank. */
+	bankTransactionId: string | null;
 };
 
 export const load: PageServerLoad = async ({ locals, parent, url }) => {
@@ -51,7 +53,9 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 		const deletable =
 			(detail?.kind === 'payment' && detail.source === 'manual') ||
 			(detail?.kind === 'charge' && detail.chargeKind === 'adjustment');
-		return { ...line, deletable, fromBank };
+		const bankTransactionId =
+			detail?.kind === 'payment' && fromBank ? detail.bankTransactionId : null;
+		return { ...line, deletable, fromBank, bankTransactionId };
 	});
 
 	const currentDate = today();
@@ -71,7 +75,7 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 };
 
 const bankPaymentMessage =
-	'Diese Zahlung stammt aus einem Umsatz. Hebe die Zuordnung unter Bank auf, dann verschwindet sie auch hier.';
+	'Diese Zahlung stammt aus einem Umsatz. Hebe die Zuordnung unter Bank beim Umsatz auf (Status „Zugeordnet“), dann verschwindet sie auch hier.';
 const chargeMessage =
 	'Nur Korrekturen lassen sich hier löschen. Mieten folgen aus dem Vertrag, Abrechnungen und CO₂-Erstattungen werden dort zurückgenommen, wo sie gebucht wurden.';
 
