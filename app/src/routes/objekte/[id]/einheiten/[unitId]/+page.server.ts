@@ -1,0 +1,30 @@
+import { error, fail, redirect } from '@sveltejs/kit';
+import { today } from '#lib/dates.ts';
+import { deleteUnit, getUnit, listUnitLeases } from '#lib/server/properties.ts';
+import { auditContext, requireAccount } from '#lib/server/session.ts';
+import type { Actions, PageServerLoad } from './$types';
+
+// The property comes from +layout.server.ts; the unit must belong to it, else 404.
+export const load: PageServerLoad = async ({ locals, params }) => {
+	const accountId = requireAccount(locals);
+	const unit = await getUnit(locals.db, accountId, params.unitId);
+	if (!unit || unit.propertyId !== params.id) error(404, 'Diese Einheit gibt es nicht.');
+	return { unit, leases: await listUnitLeases(locals.db, accountId, { unitId: unit.id }, today()) };
+};
+
+export const actions: Actions = {
+	delete: async ({ locals, params }) => {
+		const accountId = requireAccount(locals);
+		const unit = await getUnit(locals.db, accountId, params.unitId);
+		if (!unit || unit.propertyId !== params.id) error(404, 'Diese Einheit gibt es nicht.');
+		const outcome = await deleteUnit(locals.db, auditContext(locals), unit.id);
+		if (outcome === 'missing') error(404, 'Diese Einheit gibt es nicht.');
+		if (outcome === 'in-use') {
+			return fail(400, {
+				deleteError:
+					'Die Einheit kann nicht gelöscht werden, solange ein Mietvertrag auf ihr liegt, auch ein beendeter: Er bleibt mit seiner Geschichte erhalten. Die Mietverträge der Einheit stehen oben.'
+			});
+		}
+		redirect(303, `/objekte/${params.id}`);
+	}
+};
