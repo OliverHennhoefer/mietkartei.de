@@ -111,7 +111,7 @@ describe('statement deadline (§ 556 Abs. 3 BGB)', () => {
 });
 
 describe('Einwendungsfrist', () => {
-	it('is twelve months after delivery and disappears once passed', async () => {
+	it('runs to the end of the twelfth month after delivery and disappears once passed', async () => {
 		const { leaseId, propertyId } = await lease('a', {}, { name: 'EG', propertyName: 'Haus' });
 		const [statement] = await db
 			.insert(operatingCostStatements)
@@ -142,7 +142,7 @@ describe('Einwendungsfrist', () => {
 				result: '{}',
 				deliveredOn: '2026-03-15'
 			},
-			// Delivered 2025-05-01: the objection period ended 2026-05-01, before today.
+			// Delivered 2025-05-01: the objection period ended 2026-05-31, before today.
 			{
 				accountId: 'a',
 				statementId: old.id,
@@ -155,7 +155,8 @@ describe('Einwendungsfrist', () => {
 
 		const rows = await list('objection');
 		expect(rows.map(brief)).toEqual([
-			['2027-03-15', 'Einwendungsfrist Betriebskostenabrechnung 2025', false]
+			// § 556 Abs. 3 Satz 5 BGB: received 15.03.2026, so objections run until 31.03.2027.
+			['2027-03-31', 'Einwendungsfrist Betriebskostenabrechnung 2025', false]
 		]);
 		expect(rows[0]).toMatchObject({
 			href: `/betriebskosten/abrechnungen/${statement.id}`,

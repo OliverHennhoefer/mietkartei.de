@@ -365,8 +365,11 @@ but the app refuses to delete a bank account with assigned transactions.
   `letterText`) states old index (month, value), new index, the percentage, old rent, new rent, the
   increase as an amount, the effective date, and the landlord sender block.
 - **Prepayment adjustment after a statement (§ 560 Abs. 4):** the approved statement page offers
-  "Vorauszahlung anpassen" per lease, linking to `/vertraege/[id]/miethoehe?prepayment=<costs/12>`
-  with reason `statement` preselected and valid-from the first of the month after next.
+  "Vorauszahlung anpassen" per lease that still runs, linking to
+  `/vertraege/[id]/miethoehe?prepayment=<operating/12>&heating=<heating/12>` (the non-heating and
+  the heating lines apart, a part-year lease scaled to 365 days; a kind without lines is left
+  out and keeps its current prepayment) with reason `statement` preselected and valid-from the
+  first of the month after next.
 - **Rent due date:** the n-th working day of the month (`rentDueDay`, default 3; Saturday does not
   count; public holidays are ignored).
 - **Deposit (§ 551 BGB):** warning (not an error) when a residential deposit exceeds three initial
@@ -393,7 +396,9 @@ readings, the prepayment charges per lease and month, the `today()` date.
 1. **Cost per item in the period:** amount × overlap days ÷ cost period days (`proRata`). Items
    whose category or item is not allocable go to the landlord list. For a heating cost item with
    CO₂ data (`co2Kg`, `co2Cost`, landlord-supplied fuel), compute the building's emissions per m²
-   of the circle's (or property's) total floor area, the landlord share per the CO2KostAufG tier
+   of the circle's (or property's) total floor area (the kg of all its fuel bills, each prorated
+   to the period, scaled to twelve months; a missing floor area blocks the approval), the
+   landlord share per the CO2KostAufG tier
    (`landlordSharePercent` in `src/lib/domain/co2.ts`; non-residential building: 50 %), subtract
    that share of the CO₂ cost from the allocable amount, and keep the disclosure figures
    (emissions, kg/m², tier, landlord share) for the result.
@@ -408,9 +413,10 @@ readings, the prepayment charges per lease and month, the `today()` date.
      the period end − reading interpolated at the period start (a reading within 3 days of a
      bound is used exactly). A unit without a usable value is a warning that blocks approval until
      an `estimated` reading exists (§ 9a HeizKV); when estimated units exceed 25 % of the area the
-     statement warns.
+     statement warns and splits that cost by floor area only (§ 9a Abs. 2 HeizKV).
    - `mixed`: `consumptionPercent` of the amount by consumption, the rest by area.
-   - `custom`: shares. `direct`: the amounts from `cost_item_unit_amounts` (no weights).
+   - `custom`: shares. `direct`: the amounts from `cost_item_unit_amounts` (no weights); amounts
+     above the bill block the approval, amounts below it leave the rest with the landlord.
 3. **Distribute** the item amount over the units with `distributeCents`.
 4. **Split each unit's amount over the leases** occupying it in the period and the vacancy:
    `area`, `units`, `custom`, `direct` → by occupancy days; `persons` → by person-days per lease;
@@ -430,8 +436,10 @@ heatingCostPrepayment` columns of the lease's `rent` charges in the period (`ens
 6. **Warnings** (shown on the draft as links to the fix): missing floor area, missing or estimated
    readings, no lease in the period, a heating/hot water item (category `consumptionBased`) whose
    key is not `consumption`/`mixed`/`direct` or whose `consumptionPercent` is outside 50–70
-   (§ 12 HeizKV: 15 % Kürzungsrecht), Pauschale leases excluded, period longer than 12 months
-   (validation error), 12-month deadline passed (residential leases only).
+   (§ 12 HeizKV: 15 % Kürzungsrecht), Pauschale leases excluded, period longer than 12 months or
+   not from the first to the last day of a month (validation error: prepayments are charged per
+   month), a period overlapping another statement of the property (refused), 12-month deadline
+   passed (residential leases only).
 7. **Approval** (`ConfirmButton` naming the number of leases and the totals of Nachzahlungen and
    Guthaben): freezes the per-lease results into `statement_results` and the property result into
    `result`, and posts one `statement_balance` charge per lease (period = month of `periodEnd`,
@@ -439,13 +447,19 @@ heatingCostPrepayment` columns of the lease's `rent` charges in the period (`ens
    entry. Residential lease and approval after the deadline: the Nachzahlung is posted only when
    "Verspätung nicht zu vertreten" is ticked (`lateApprovalJustified`, with a note), otherwise the
    posted charge is 0 and the computed amount stays in the result for information; a Guthaben is
-   always posted. Per lease the page asks "zugestellt am" later (`deliveredOn`), which starts the
-   tenant's Einwendungsfrist (12 months).
+   always posted. Per lease the page asks "zugestellt am" later (`deliveredOn`, not before the
+   approval, not in the future), which starts the tenant's Einwendungsfrist (to the end of the
+   twelfth month after it). A residential Nachzahlung delivered after the deadline is reversed in
+   the same batch (`reversesChargeId`, referenceId = the statement), unless the approval was
+   justified or the corrected version had reached the tenant in time.
 8. **Correction:** a new draft version with `correctsId`; approving it posts, in one batch, the
-   reversal rows (`reversesChargeId` = the old charge, amount negated, referenceId = correction id)
-   and its own balances.
-9. **Deadline (§ 556 Abs. 3 BGB):** the statement must reach the tenant within 12 months after the
-   period ends; `deadlines.ts` lists it per property with residential leases.
+   reversal rows (`reversesChargeId` = the old charge, amount negated, referenceId = correction id;
+   postings already reversed on a late delivery are skipped) and its own balances. A correction
+   approved after the deadline posts per residential lease at most what the corrected version
+   still claims (no higher Nachzahlung, no smaller Guthaben), unless the delay is justified.
+9. **Deadline (§ 556 Abs. 3 BGB):** the statement must reach the tenant by the end of the twelfth
+   month after the period ends (`statementDeadline`); `deadlines.ts` lists it per property with
+   residential leases.
 
 ### Statement result (frozen JSON, `resultVersion` 1)
 
@@ -492,7 +506,7 @@ lease (hint under "Weitere Einheiten" on the lease form); otherwise it is split.
 
 Per account, for `/aufgaben` and the dashboard: statement deadline (period end + 12 months, per
 property and year with residential leases, until an approved statement exists), Einwendungsfrist
-(`deliveredOn` + 12 months), lease end, deposit instalments, deposit return (6 months after the
+(end of the twelfth month after `deliveredOn`), lease end, deposit instalments, deposit return (6 months after the
 end), next Staffel step, earliest next index proposal, CO₂ reimbursement (`claimedOn` + 12
 months), lease end proposal from a notice, Zählerstände ablesen at a lease end.
 

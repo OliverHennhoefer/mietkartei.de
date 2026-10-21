@@ -8,6 +8,7 @@ import {
 	today as todayInBerlin,
 	type IsoDate
 } from '../dates';
+import { objectionDeadline, statementDeadline } from '../domain/statement';
 import { personName } from '../format';
 import { distributeCents, formatCents } from '../money';
 import type { Database } from './db';
@@ -175,16 +176,17 @@ export async function listDeadlines(
 			if (approved) continue;
 			push({
 				kind: 'statement',
-				date: addMonths(periodEnd, 12),
+				date: statementDeadline(periodEnd),
 				title: `Betriebskostenabrechnung ${year}`,
-				detail: `${property?.name ?? 'Objekt'}: die Abrechnung muss den Mietern bis zum ${formatDate(addMonths(periodEnd, 12))} zugehen.`,
+				detail: `${property?.name ?? 'Objekt'}: die Abrechnung muss den Mietern bis zum ${formatDate(statementDeadline(periodEnd))} zugehen.`,
 				href: '/betriebskosten',
 				propertyId
 			});
 		}
 	}
 
-	// Einwendungsfrist: the tenant may object within 12 months of receiving the statement.
+	// Einwendungsfrist: the tenant may object until the end of the twelfth month after receiving
+	// the statement.
 	const statementById = new Map(statementRows.map((row) => [row.id, row]));
 	for (const result of resultRows) {
 		const lease = leaseById.get(result.leaseId);
@@ -193,7 +195,7 @@ export async function listDeadlines(
 		push(
 			{
 				kind: 'objection',
-				date: addMonths(result.deliveredOn, 12),
+				date: objectionDeadline(result.deliveredOn),
 				title: `Einwendungsfrist Betriebskostenabrechnung ${yearOf(statement.periodEnd)}`,
 				detail: `${leaseDetail(lease)} · zugestellt am ${formatDate(result.deliveredOn)}`,
 				href: `/betriebskosten/abrechnungen/${statement.id}`,

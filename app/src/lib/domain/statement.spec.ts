@@ -4,8 +4,11 @@ import {
 	balanceLabel,
 	computeStatement,
 	leaseLabel,
+	objectionDeadline,
 	periodLabel,
 	personsOn,
+	statementDeadline,
+	suggestedPrepayments,
 	validatePeriod,
 	type LeaseStatement,
 	type PrepaymentCharge,
@@ -546,21 +549,42 @@ describe('computeStatement warnings', () => {
 
 		const estimated = computeStatement(
 			heat([
-				meter('m-eg', 'eg', [reading('2025-01-01', 0), reading('2025-12-31', 600, true)]),
+				meter('m-eg', 'eg', [reading('2025-01-01', 0), reading('2025-12-31', 900, true)]),
 				meter('m-og', 'og', [reading('2025-01-01', 0), reading('2025-12-31', 400)])
 			]),
 			options
 		);
-		// § 9a HeizKV: the estimate is reported, not blocking; EG's 600 of 1.000 kWh estimated for
-		// 60 % of the area also trips the 25 % check.
+		// § 9a HeizKV: the estimate is reported, not blocking. EG's estimate covers 60 of 100 m²,
+		// more than 25 % of the area, so § 9a Abs. 2 splits the cost by area alone: EG 60 % =
+		// 600 € instead of 900 / 1.300 kWh = 692,31 € by the estimated consumption.
 		expect(estimated.property.warnings.map((w) => [w.code, w.blocking])).toEqual([
 			['estimated_reading', false],
 			['estimated_share', false]
 		]);
+		expect(estimated.property.warnings[1].message).toContain('nur nach Fläche verteilt');
 		const eg = estimated.leases.find((l) => l.leaseId === 'l-eg')!;
 		expect(eg.costsTotal).toBe(60000);
-		expect(eg.lines[0].share).toBe('600 von 1.000 kWh (geschätzt)');
-		expect(eg.lines[0].keyTotal).toBe('1.000 kWh');
+		expect(eg.lines[0].share).toBe(
+			'nach Fläche statt Verbrauch (§ 9a Abs. 2 HeizKV): 60 m² von 100 m² · 365 von 365 Tagen'
+		);
+		expect(eg.lines[0].keyTotal).toBe('nach Fläche statt Verbrauch (§ 9a Abs. 2 HeizKV): 100 m²');
+
+		// Estimates on 40 of 100 m² (OG) under a 70/30 key: the 70 % part moves to the area too.
+		const mixed = computeStatement(
+			small({
+				items: [item('i-heizung', 'Fernwärme', 'c-heizung', 'k-mixed', 100000)],
+				keys: [
+					key('k-mixed', 'Heizung 70/30', 'mixed', { meterKind: 'heat', consumptionPercent: 70 })
+				],
+				meters: [
+					meter('m-eg', 'eg', [reading('2025-01-01', 0), reading('2025-12-31', 600)]),
+					meter('m-og', 'og', [reading('2025-01-01', 0), reading('2025-12-31', 400, true)])
+				]
+			}),
+			options
+		);
+		// 700 € × 60 % + 300 € × 60 % = 600 €.
+		expect(mixed.leases.find((l) => l.leaseId === 'l-eg')?.costsTotal).toBe(60000);
 	});
 
 	it('warns about a unit without a meter of the kind, but not for a parking space', () => {
@@ -645,8 +669,48 @@ describe('computeStatement warnings', () => {
 		const short = computeStatement(input, options);
 		expect(short.property.unallocatedTotal).toBe(5000);
 		expect(short.property.warnings).toMatchObject([
-			{ code: 'direct_mismatch', itemId: 'i-messdienst' }
+			{ code: 'direct_mismatch', itemId: 'i-messdienst', blocking: false }
 		]);
+
+		// Amounts above the bill (650 + 380 = 1.030 € of 1.000 €) would bill the tenants for more
+		// than the landlord paid: that blocks the approval.
+		input.items[0].unitAmounts[1].amount = 38000;
+		const over = computeStatement(input, options);
+		expect(over.property.warnings).toMatchObject([
+			{
+				code: 'direct_mismatch',
+				itemId: 'i-messdienst',
+				blocking: true,
+				message: expect.stringContaining(
+					'ergeben 1.030,00\u00a0€, mehr als der Beleg über 1.000,00\u00a0€'
+				)
+			}
+		]);
+	});
+
+	it('keeps the sum of direct amounts when the item is prorated', () => {
+		// 1.000 € for 1 October 2024 to 30 September 2025 (365 days, 273 in 2025) split as 333,33 +
+		// 666,67 €; the item's share is 1.000 × 273 / 365 = 747,945… → 747,95 €. Prorated one by
+		// one, 249,314… → 249,31 and 498,630… → 498,63 € miss a cent; rounded on the running sum,
+		// 249,31 and 747,95 − 249,31 = 498,64 € add up to the item.
+		const input = small({
+			items: [
+				item('i-messdienst', 'Abrechnung Messdienst', 'c-heizung', 'k-direct', 100000, {
+					periodStart: '2024-10-01',
+					periodEnd: '2025-09-30',
+					unitAmounts: [
+						{ unitId: 'eg', amount: 33333 },
+						{ unitId: 'og', amount: 66667 }
+					]
+				})
+			],
+			keys: [key('k-direct', 'Beträge je Einheit', 'direct')]
+		});
+		const result = computeStatement(input, options);
+		expect(result.property.items[0].total).toBe(74795);
+		expect(result.leases.map((l) => l.costsTotal)).toEqual([24931, 49864]);
+		expect(result.property.unallocatedTotal).toBe(0);
+		expect(result.property.warnings).toEqual([]);
 	});
 
 	it('distributes by the shares of a custom key', () => {
@@ -734,12 +798,22 @@ describe('computeStatement warnings', () => {
 		expect(result.property.costsTotal).toBe(27300);
 	});
 
-	it('refuses a period longer than twelve months', () => {
+	it('refuses a period longer than twelve months or one that cuts a month', () => {
 		expect(validatePeriod('2025-01-01', '2025-12-31')).toBeUndefined();
 		expect(validatePeriod('2025-07-01', '2026-06-30')).toBeUndefined();
-		expect(validatePeriod('2025-01-01', '2026-01-01')).toBe(
+		expect(validatePeriod('2025-01-01', '2026-01-31')).toBe(
 			'Der Abrechnungszeitraum darf höchstens 12 Monate umfassen (§ 556 Abs. 3 BGB).'
 		);
+		// 15.01.2025–14.01.2026 would count January 2025 and January 2026 in full: 13 months of
+		// prepayments against 365 days of costs.
+		const cut =
+			'Der Abrechnungszeitraum muss am Ersten eines Monats beginnen und am Letzten eines Monats enden.';
+		expect(validatePeriod('2025-01-15', '2026-01-14')).toBe(cut);
+		expect(validatePeriod('2025-01-01', '2025-12-30')).toBe(cut);
+		expect(validatePeriod('2024-03-01', '2025-02-28')).toBeUndefined();
+		expect(() =>
+			computeStatement(small({ period: { start: '2025-01-15', end: '2026-01-14' } }), options)
+		).toThrow('am Ersten eines Monats');
 		expect(validatePeriod('2025-12-31', '2025-01-01')).toBe(
 			'Das Ende des Zeitraums liegt vor dem Beginn.'
 		);
@@ -749,7 +823,91 @@ describe('computeStatement warnings', () => {
 	});
 });
 
+describe('computeStatement CO₂ split (CO2KostAufG)', () => {
+	const scenarioWith = (items: StatementItem[]) => {
+		const input = scenario();
+		input.items = [...input.items.filter((entry) => entry.id !== 'i-heizung'), ...items];
+		return computeStatement(input, options);
+	};
+	const heating = (id: string, overrides: Partial<StatementItem>) =>
+		item(id, 'Heizöl', 'c-heizung', 'k-heat', 150000, { fuel: 'oil', ...overrides });
+
+	it('takes the tier from the emissions of all fuel bills of the year', () => {
+		// The year's fuel as two oil deliveries of 1.500 € with 2.512,5 kg and 150 € CO₂ cost each.
+		// Each alone gives 2.512,5 / 184,5 = 13,6 kg/m² (10 %); the building emits 5.025 kg =
+		// 27,24 kg/m² → 40 %: 60 € of each delivery's CO₂ cost, 120 € in all, as with one bill.
+		const result = scenarioWith([
+			heating('i-oel-1', { co2Kg: 2512.5, co2Cost: 15000 }),
+			heating('i-oel-2', { co2Kg: 2512.5, co2Cost: 15000 })
+		]);
+		expect(result.property.landlordCo2Share).toBe(12000);
+		for (const id of ['i-oel-1', 'i-oel-2']) {
+			expect(result.property.items.find((entry) => entry.itemId === id)?.co2).toMatchObject({
+				co2Kg: 2512.5,
+				buildingCo2Kg: 5025,
+				area: 184.5,
+				landlordPercent: 40,
+				landlordAmount: 6000,
+				tenantAmount: 9000
+			});
+		}
+	});
+
+	it('prorates the kg of a bill that covers more than the period', () => {
+		// One bill for 2024 and 2025 (731 days): 10.050 kg, 600 € CO₂ cost. In 2025 (365 days):
+		// 10.050 × 365 / 731 = 5.018,1 kg = 27,2 kg/m² → 40 % of 600 × 365 / 731 = 299,59 € =
+		// 119,84 €; the whole bill's kg would give 54,5 kg/m² → 95 %.
+		const result = scenarioWith([
+			heating('i-oel', {
+				periodStart: '2024-01-01',
+				periodEnd: '2025-12-31',
+				amount: 600000,
+				co2Kg: 10050,
+				co2Cost: 60000
+			})
+		]);
+		expect(result.property.items.find((entry) => entry.itemId === 'i-oel')?.co2).toMatchObject({
+			co2Kg: 10050,
+			buildingCo2Kg: 5018.1,
+			co2Cost: 29959,
+			landlordPercent: 40,
+			landlordAmount: 11984
+		});
+	});
+
+	it('blocks the approval when the floor area for the CO₂ tier is missing', () => {
+		const input = scenario();
+		input.units = input.units.map((unit) => ({ ...unit, floorArea: null }));
+		const result = computeStatement(input, options);
+		const warning = result.property.warnings.find((entry) => entry.code === 'co2_missing_area');
+		expect(warning).toMatchObject({ blocking: true, itemId: 'i-heizung' });
+	});
+});
+
 describe('helpers', () => {
+	it('counts the § 556 Abs. 3 deadlines to the end of the twelfth month', () => {
+		expect(statementDeadline('2025-12-31')).toBe('2026-12-31');
+		expect(statementDeadline('2025-06-30')).toBe('2026-06-30');
+		expect(statementDeadline('2025-06-15')).toBe('2026-06-30');
+		// Received on 15.03.2026: objections until 31.03.2027, not 15.03.2027.
+		expect(objectionDeadline('2026-03-15')).toBe('2027-03-31');
+		expect(objectionDeadline('2026-02-01')).toBe('2027-02-28');
+	});
+
+	it('suggests the new prepayments per kind, scaled to a year', () => {
+		const result = computeStatement(scenario(), options);
+		const byLease = Object.fromEntries(result.leases.map((lease) => [lease.leaseId, lease]));
+		// EG, all year: operating 471,54 + 266,91 + 300,00 = 1.038,45 € / 12 = 86,54 €; heating
+		// 1.255,88 € / 12 = 104,656… → 104,66 €. Not 2.294,33 / 12 = 191,19 € into one field.
+		expect(suggestedPrepayments(byLease['l-eg'])).toEqual({ operating: 8654, heating: 10466 });
+		// OG B, 184 days: operating 209,84 + 67,27 + 151,23 = 428,34 € × 365 / 184 / 12 = 70,808… →
+		// 70,81 €; heating 517,63 € × 365 / 184 / 12 = 85,568… → 85,57 €.
+		expect(suggestedPrepayments(byLease['l-og-b'])).toEqual({ operating: 7081, heating: 8557 });
+		// Without heating lines (a Heizkostenpauschale) the heating prepayment is left alone.
+		const flat = { ...byLease['l-eg'], lines: byLease['l-eg'].lines.filter((l) => !l.heating) };
+		expect(suggestedPrepayments(flat)).toEqual({ operating: 8654, heating: null });
+	});
+
 	it('labels periods, balances and leases', () => {
 		expect(periodLabel('2025-01-01', '2025-12-31')).toBe('2025');
 		expect(periodLabel('2025-07-01', '2026-06-30')).toBe('01.07.2025 – 30.06.2026');

@@ -1,6 +1,6 @@
 import { and, asc, eq } from 'drizzle-orm';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { addDays, addMonths, today } from '../dates';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { addDays, today } from '../dates';
 import { computeStatement, type LeaseStatement } from '../domain/statement';
 import type { Database } from './db';
 import {
@@ -39,6 +39,16 @@ let db: Database;
 beforeEach(async () => {
 	db = await testDatabase();
 });
+
+afterEach(() => {
+	vi.useRealTimers();
+});
+
+/** Lets `today()` (Berlin) return the given day; the database keeps working on real time. */
+function travelTo(day: string) {
+	vi.useFakeTimers({ toFake: ['Date'] });
+	vi.setSystemTime(new Date(`${day}T10:00:00Z`));
+}
 
 const period = { start: '2025-01-01', end: '2025-12-31' };
 
@@ -203,6 +213,21 @@ async function chargesOf(db: Database, leaseId: string) {
 		.orderBy(asc(rentCharges.createdAt), asc(rentCharges.id));
 }
 
+/**
+ * The statement_balance postings of a lease, statement by statement in the given order: for each
+ * one first its reversals, then its own posting (rows of one batch share their timestamp).
+ */
+async function postings(db: Database, leaseId: string, statementIds: string[]) {
+	const rows = await chargesOf(db, leaseId);
+	return statementIds.flatMap((statementId) => {
+		const own = rows.filter((row) => row.referenceId === statementId);
+		return [
+			...own.filter((row) => row.reversesChargeId !== null),
+			...own.filter((row) => row.reversesChargeId === null)
+		].map((row) => row.amount);
+	});
+}
+
 async function draft(db: Database, propertyId: string) {
 	const created = await createStatement(db, contextA, {
 		propertyId,
@@ -325,9 +350,62 @@ describe('createStatement and getStatement', () => {
 			await createStatement(db, contextA, {
 				propertyId,
 				periodStart: '2024-01-01',
-				periodEnd: '2025-01-01'
+				periodEnd: '2025-01-31'
 			})
 		).toMatchObject({ ok: false, message: expect.stringContaining('höchstens 12 Monate') });
+		expect(
+			await createStatement(db, contextA, {
+				propertyId,
+				periodStart: '2024-01-15',
+				periodEnd: '2025-01-14'
+			})
+		).toMatchObject({ ok: false, message: expect.stringContaining('am Ersten eines Monats') });
+	});
+
+	it('refuses a period that overlaps another statement of the property', async () => {
+		const { propertyId } = await seedScenario(db, 'a');
+		const id = await draft(db, propertyId);
+		const overlapping = {
+			propertyId,
+			periodStart: '2025-07-01',
+			periodEnd: '2026-06-30'
+		};
+		expect(await createStatement(db, contextA, overlapping)).toEqual({
+			ok: false,
+			message:
+				'Der Zeitraum überschneidet sich mit der Abrechnung 2025 (Entwurf); jeder Monat darf nur einmal abgerechnet werden.'
+		});
+		await approveStatement(db, contextA, id, { lateApprovalJustified: false, note: null });
+		expect(
+			await createStatement(db, contextA, {
+				propertyId,
+				periodStart: '2024-07-01',
+				periodEnd: '2025-01-31'
+			})
+		).toMatchObject({ ok: false, message: expect.stringContaining('2025 (freigegeben)') });
+		// The year before and the year after are fine, and so is the same year in another account.
+		expect(
+			(
+				await createStatement(db, contextA, {
+					propertyId,
+					periodStart: '2024-01-01',
+					periodEnd: '2024-12-31'
+				})
+			).ok
+		).toBe(true);
+		expect(
+			(
+				await createStatement(db, contextA, {
+					propertyId,
+					periodStart: '2026-01-01',
+					periodEnd: '2026-06-30'
+				})
+			).ok
+		).toBe(true);
+		const { propertyId: other } = await seedScenario(db, 'b');
+		expect((await createStatement(db, contextB, { ...overlapping, propertyId: other })).ok).toBe(
+			true
+		);
 	});
 });
 
@@ -513,6 +591,82 @@ describe('approveStatement', () => {
 	});
 });
 
+describe('approving a correction after the deadline', () => {
+	it('keeps the result that was claimed in time', async () => {
+		// The 2025 statement is approved on 15.06.2026, in time: EG −105,67, OG A +105,99,
+		// OG B +45,97, DG −202,13 are posted.
+		travelTo('2026-06-15');
+		const { propertyId, leaseIds, category, key } = await seedScenario(db, 'a');
+		const id = await draft(db, propertyId);
+		await approveStatement(db, contextA, id, { lateApprovalJustified: false, note: null });
+
+		// A forgotten Grundsteuer bill of 365 € by area, corrected on 10.02.2027 after the
+		// deadline of 31.12.2026: EG 143,43, OG 126,61 (A 62,78, B 63,83), DG 94,96 (lease 63,22,
+		// vacancy 31,74), so the balances become EG +37,76, OG A +168,77, OG B +109,80, DG −138,91.
+		travelTo('2027-02-10');
+		await db.insert(costItems).values({
+			accountId: 'a',
+			propertyId,
+			categoryId: category.Grundsteuer,
+			allocationKeyId: key.Wohnfläche,
+			description: 'Grundsteuer Nachveranlagung',
+			periodStart: '2025-01-01',
+			periodEnd: '2025-12-31',
+			amount: 36500
+		});
+		const correction = await createCorrection(db, contextA, id);
+		if (!correction.ok) throw new Error(correction.message);
+		expect(
+			(
+				await approveStatement(db, contextA, correction.id, {
+					lateApprovalJustified: false,
+					note: null
+				})
+			).ok
+		).toBe(true);
+
+		// Each lease: the old posting, its reversal, and the new posting, which § 556 Abs. 3 BGB
+		// holds to the old one: no Nachzahlung above it, no Guthaben below it.
+		const amounts = (leaseId: string) => postings(db, leaseId, [id, correction.id]);
+		expect(await amounts(leaseIds.eg)).toEqual([-10567, 10567, -10567]);
+		expect(await amounts(leaseIds.ogA)).toEqual([10599, -10599, 10599]);
+		expect(await amounts(leaseIds.ogB)).toEqual([4597, -4597, 4597]);
+		expect(await amounts(leaseIds.dg)).toEqual([-20213, 20213, -20213]);
+		const frozen = (await getLeaseResult(db, 'a', correction.id, leaseIds.ogA))!;
+		expect(frozen).toMatchObject({ balance: 16877, posted: 10599, late: true });
+		const posted = (await chargesOf(db, leaseIds.ogA)).find(
+			(row) => row.referenceId === correction.id && row.reversesChargeId === null
+		)!;
+		expect(posted.note).toContain('auf die rechtzeitig abgerechneten 105,99\u00a0€ begrenzt');
+		const paragraphs = statementLetter(frozen).blocks!.flatMap((block) =>
+			'paragraph' in block ? [block.paragraph] : []
+		);
+		expect(paragraphs).toContain(
+			`Nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB) gilt das rechtzeitig abgerechnete Ergebnis. Bitte überweise die Nachzahlung von 105,99\u00a0€ bis zum 12.03.2027.`
+		);
+
+		// A lower result still lowers the claim: a credit note of 730 € by area.
+		await db.insert(costItems).values({
+			accountId: 'a',
+			propertyId,
+			categoryId: category.Grundsteuer,
+			allocationKeyId: key.Wohnfläche,
+			description: 'Grundsteuer Erstattung',
+			periodStart: '2025-01-01',
+			periodEnd: '2025-12-31',
+			amount: -73000
+		});
+		const second = await createCorrection(db, contextA, correction.id);
+		if (!second.ok) throw new Error(second.message);
+		await approveStatement(db, contextA, second.id, { lateApprovalJustified: false, note: null });
+		// OG's share of −730 € is −253,22 €, A's −125,57 € (181 / 365 days, with the remainder):
+		// 105,99 + 62,78 − 125,57 = 43,20 €, below the 105,99 € claimed in time, so it is posted.
+		const ogA = (await getLeaseResult(db, 'a', second.id, leaseIds.ogA))!;
+		expect(ogA).toMatchObject({ balance: 4320, posted: 4320 });
+		expect(await postings(db, leaseIds.ogA, [second.id])).toEqual([-10599, 4320]);
+	});
+});
+
 describe('createCorrection', () => {
 	it('creates a new version whose approval reverses the old charges', async () => {
 		const { propertyId, leaseIds, category, key } = await seedScenario(db, 'a');
@@ -591,20 +745,119 @@ describe('createCorrection', () => {
 
 describe('setDelivered and deleteDraft', () => {
 	it('records the delivery date and the Einwendungsfrist', async () => {
+		travelTo('2026-03-10');
 		const { propertyId, leaseIds } = await seedScenario(db, 'a');
 		const id = await draft(db, propertyId);
-		expect(await setDelivered(db, contextA, id, leaseIds.eg, '2026-04-01')).toBe(false);
-		await approveStatement(db, contextA, id, { lateApprovalJustified: false, note: null });
-		expect(await setDelivered(db, contextA, id, leaseIds.eg, '2026-04-01')).toBe(true);
-		const view = (await getStatement(db, 'a', id))!;
-		expect(view.leaseResults.find((row) => row.leaseId === leaseIds.eg)).toMatchObject({
-			deliveredOn: '2026-04-01',
-			objectionDeadline: addMonths('2026-04-01', 12)
+		expect(await setDelivered(db, contextA, id, leaseIds.eg, '2026-03-15')).toEqual({
+			ok: false,
+			message: 'Zu diesem Mietvertrag gibt es kein Ergebnis.'
 		});
+		await approveStatement(db, contextA, id, { lateApprovalJustified: false, note: null });
+		travelTo('2026-03-20');
+		expect(await setDelivered(db, contextA, id, leaseIds.eg, '2026-03-15')).toEqual({
+			ok: true,
+			reversed: 0
+		});
+		const view = (await getStatement(db, 'a', id))!;
+		// § 556 Abs. 3 Satz 5 BGB: received 15.03.2026, objections until the end of March 2027.
+		expect(view.leaseResults.find((row) => row.leaseId === leaseIds.eg)).toMatchObject({
+			deliveredOn: '2026-03-15',
+			objectionDeadline: '2027-03-31',
+			reversedOnDelivery: 0,
+			active: true
+		});
+		// The DG lease ended in August 2025: no prepayment adjustment for it.
+		expect(view.leaseResults.find((row) => row.leaseId === leaseIds.dg)?.active).toBe(false);
 		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'update'));
 		expect(audit[0].summary).toBe(
-			'Betriebskostenabrechnung 2025 für EG · Max Müller am 01.04.2026 zugestellt'
+			'Betriebskostenabrechnung 2025 für EG · Max Müller am 15.03.2026 zugestellt'
 		);
+	});
+
+	it('refuses a delivery before the approval or in the future', async () => {
+		travelTo('2026-03-10');
+		const { propertyId, leaseIds } = await seedScenario(db, 'a');
+		const id = await draft(db, propertyId);
+		await approveStatement(db, contextA, id, { lateApprovalJustified: false, note: null });
+		expect(await setDelivered(db, contextA, id, leaseIds.eg, '2026-03-09')).toEqual({
+			ok: false,
+			message:
+				'Die Abrechnung wurde am 10.03.2026 freigegeben; sie kann nicht vorher zugestellt worden sein.'
+		});
+		expect(await setDelivered(db, contextA, id, leaseIds.eg, '2026-03-11')).toEqual({
+			ok: false,
+			message: 'Das Datum der Zustellung liegt in der Zukunft.'
+		});
+		expect((await getStatement(db, 'a', id))!.leaseResults[0].deliveredOn).toBeNull();
+	});
+
+	it('reverses a Nachzahlung that reaches the tenant after the deadline', async () => {
+		// Approved on 15.12.2026, before the deadline of 31.12.2026: OG A +105,99 and OG B +45,97
+		// are posted. OG A receives it on 20.12.2026, OG B only on 05.01.2027, too late.
+		travelTo('2026-12-15');
+		const { propertyId, leaseIds } = await seedScenario(db, 'a');
+		const id = await draft(db, propertyId);
+		await approveStatement(db, contextA, id, { lateApprovalJustified: false, note: null });
+		travelTo('2027-01-10');
+		expect(await setDelivered(db, contextA, id, leaseIds.ogA, '2026-12-20')).toEqual({
+			ok: true,
+			reversed: 0
+		});
+		expect(await setDelivered(db, contextA, id, leaseIds.ogB, '2027-01-05')).toEqual({
+			ok: true,
+			reversed: 4597
+		});
+		// A Guthaben stays, however late it arrives.
+		expect(await setDelivered(db, contextA, id, leaseIds.eg, '2027-01-05')).toEqual({
+			ok: true,
+			reversed: 0
+		});
+		const ogB = await chargesOf(db, leaseIds.ogB);
+		const original = ogB.find((row) => row.reversesChargeId === null)!;
+		const reversal = ogB.find((row) => row.reversesChargeId !== null)!;
+		expect(original.amount).toBe(4597);
+		expect(reversal).toMatchObject({
+			amount: -4597,
+			reversesChargeId: original.id,
+			referenceId: id
+		});
+		expect(reversal.note).toContain('nach Ablauf der Abrechnungsfrist am 31.12.2026');
+		expect((await chargesOf(db, leaseIds.ogA)).map((row) => row.amount)).toEqual([10599]);
+		const view = (await getStatement(db, 'a', id))!;
+		expect(view.leaseResults.find((row) => row.leaseId === leaseIds.ogB)).toMatchObject({
+			deliveredOn: '2027-01-05',
+			reversedOnDelivery: 4597
+		});
+		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'update'));
+		expect(audit.map((entry) => entry.summary)).toContain(
+			'Betriebskostenabrechnung 2025 für OG · Bernd Neu am 05.01.2027 zugestellt; Nachzahlung 45,97\u00a0€ nach Ablauf der Abrechnungsfrist storniert'
+		);
+		// Saving the date again reverses nothing twice; an earlier date cannot undo the reversal.
+		expect(await setDelivered(db, contextA, id, leaseIds.ogB, '2027-01-06')).toEqual({
+			ok: true,
+			reversed: 0
+		});
+		expect(await setDelivered(db, contextA, id, leaseIds.ogB, '2026-12-30')).toMatchObject({
+			ok: false,
+			message: expect.stringContaining('schon storniert')
+		});
+		expect(await chargesOf(db, leaseIds.ogB)).toHaveLength(2);
+
+		// A correction approved now (late) keeps the claims that reached the tenants in time: OG A
+		// its 105,99 €, OG B nothing; the reversed posting is not reversed again.
+		const correction = await createCorrection(db, contextA, id);
+		if (!correction.ok) throw new Error(correction.message);
+		expect(
+			(
+				await approveStatement(db, contextA, correction.id, {
+					lateApprovalJustified: false,
+					note: null
+				})
+			).ok
+		).toBe(true);
+		// Statement 1: its reversal on delivery, then its posting; the correction: its new posting.
+		expect(await postings(db, leaseIds.ogB, [id, correction.id])).toEqual([-4597, 4597, 0]);
+		expect(await postings(db, leaseIds.ogA, [id, correction.id])).toEqual([10599, -10599, 10599]);
 	});
 
 	it('deletes a draft with an audit line', async () => {
@@ -643,7 +896,9 @@ describe('account isolation', () => {
 		expect(await deleteDraft(db, contextB, id)).toBe(false);
 		await approveStatement(db, contextA, id, { lateApprovalJustified: false, note: null });
 		expect(await createCorrection(db, contextB, id)).toMatchObject({ ok: false });
-		expect(await setDelivered(db, contextB, id, leaseIds.eg, '2026-04-01')).toBe(false);
+		expect(await setDelivered(db, contextB, id, leaseIds.eg, today())).toMatchObject({
+			ok: false
+		});
 		expect(await getLeaseResult(db, 'b', id, leaseIds.eg)).toBeUndefined();
 		expect(
 			await db.select().from(statementResults).where(eq(statementResults.accountId, 'b'))
@@ -672,8 +927,9 @@ describe('statementLetter', () => {
 			'Dein Anteil'
 		]);
 		expect(tables[0].rows).toHaveLength(4);
+		// The deducted CO₂ share and the allocated rest, each under its own label.
 		expect(tables[0].rows[3][1]).toBe(
-			'3.000,00\u00a0€\nabzüglich CO2-Anteil Vermieter: 2.880,00\u00a0€'
+			'3.000,00\u00a0€\nabzüglich CO2-Anteil Vermieter 120,00\u00a0€\numgelegt 2.880,00\u00a0€'
 		);
 		expect(tables[0].rows[3][3]).toBe('698,44\u00a0€');
 		expect(tables[0].footer).toEqual(['Summe', '', '', '1.185,99\u00a0€']);

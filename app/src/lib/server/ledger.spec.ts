@@ -452,4 +452,49 @@ describe('listBalances', () => {
 		]);
 		expect(await rentRows(foreignLeaseId)).toEqual([]);
 	});
+
+	it('settles the EG lease of the reference scenario: 11 of 12 rents and a part payment', async () => {
+		// PROTOTYPE.md "Reference scenario": EG pays 600 + 150 + 50 € a month in 2025, eleven
+		// rents in full (January to November) and 500 € in December. The 2025 statement posts its
+		// Guthaben of 105,67 € (see domain/statement.spec.ts) for December.
+		for (let month = 1; month <= 11; month += 1) {
+			await createPayment(db, contextA, {
+				leaseId,
+				date: `2025-${String(month).padStart(2, '0')}-05`,
+				amount: 80000,
+				source: 'manual'
+			});
+		}
+		await createPayment(db, contextA, {
+			leaseId,
+			date: '2025-12-05',
+			amount: 50000,
+			source: 'manual',
+			note: 'Teilzahlung'
+		});
+		await runBatch(db, [
+			chargeEntry(db, contextA, {
+				leaseId,
+				kind: 'statement_balance',
+				period: '2025-12',
+				dueDate: '2026-04-14',
+				amount: -10567,
+				referenceId: 'statement-2025'
+			}).statement
+		]);
+
+		const [own] = (await listBalances(db, 'a', { untilMonth: '2025-12' })).filter(
+			(entry) => entry.leaseId === leaseId
+		);
+		// Charged 12 × 800 € − 105,67 € = 9.494,33 €; paid 11 × 800 + 500 = 9.300 €; Rückstand
+		// 194,33 €, the December rent is the first month not paid in full.
+		expect(own).toEqual({
+			leaseId,
+			charged: 949433,
+			paid: 930000,
+			balance: 19433,
+			lastPaymentDate: '2025-12-05',
+			openSince: '2025-12'
+		});
+	});
 });

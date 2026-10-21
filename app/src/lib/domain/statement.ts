@@ -3,6 +3,7 @@ import {
 	addMonths,
 	daysInclusive,
 	formatDate,
+	lastOfMonth,
 	monthOf,
 	monthsInRange,
 	overlap,
@@ -182,6 +183,7 @@ export type WarningCode =
 	| 'direct_mismatch'
 	| 'flat_lease'
 	| 'deadline_passed'
+	| 'co2_missing_area'
 	| 'unknown_key'
 	| 'unknown_category';
 
@@ -204,7 +206,14 @@ export type SplitMethod = 'readings' | 'degree_days' | 'days';
 export type Co2Disclosure = {
 	fuel: Fuel;
 	fuelKwh: number | null;
+	/** The kg printed on this bill. */
 	co2Kg: number;
+	/**
+	 * The emissions per year of the circle (or property) the tier is computed from: the kg of all
+	 * its fuel bills in the period, scaled to 365 days. Missing in results frozen before it existed
+	 * (there it equals co2Kg).
+	 */
+	buildingCo2Kg?: number;
 	/** The CO₂ cost in the period, cents. */
 	co2Cost: number;
 	/** Floor area the emissions are measured against (the circle's or the property's), m². */
@@ -356,10 +365,33 @@ export type StatementResult = { property: PropertyResult; leases: LeaseStatement
 /** The German message when the period is not a valid statement period, else undefined. */
 export function validatePeriod(start: IsoDate, end: IsoDate): string | undefined {
 	if (end < start) return 'Das Ende des Zeitraums liegt vor dem Beginn.';
+	// Prepayments are charged per month; a period that cuts a month would count it in full.
+	if (!start.endsWith('-01') || end !== lastOfMonth(monthOf(end))) {
+		return 'Der Abrechnungszeitraum muss am Ersten eines Monats beginnen und am Letzten eines Monats enden.';
+	}
 	if (addMonths(start, MAX_PERIOD_MONTHS) <= end) {
 		return `Der Abrechnungszeitraum darf höchstens ${MAX_PERIOD_MONTHS} Monate umfassen (§ 556 Abs. 3 BGB).`;
 	}
 	return undefined;
+}
+
+/**
+ * The end of the twelfth month after the day: § 556 Abs. 3 BGB counts both the statement
+ * deadline (after the period end) and the Einwendungsfrist (after the receipt) to the end of
+ * that month ("bis zum Ablauf des zwölften Monats").
+ */
+function endOfTwelfthMonth(day: IsoDate, months: number): IsoDate {
+	return lastOfMonth(monthOf(addMonths(day, months)));
+}
+
+/** § 556 Abs. 3 Satz 2 BGB: the statement must reach the tenant by this day. */
+export function statementDeadline(periodEnd: IsoDate): IsoDate {
+	return endOfTwelfthMonth(periodEnd, DEADLINE_MONTHS);
+}
+
+/** § 556 Abs. 3 Satz 5 BGB: the tenant may object until this day. */
+export function objectionDeadline(deliveredOn: IsoDate): IsoDate {
+	return endOfTwelfthMonth(deliveredOn, OBJECTION_MONTHS);
 }
 
 /** `2025` for a calendar year, else `01.07.2025 – 30.06.2026`. */
@@ -370,6 +402,26 @@ export function periodLabel(start: IsoDate, end: IsoDate): string {
 
 export function balanceLabel(balance: number): 'Nachzahlung' | 'Guthaben' | 'ausgeglichen' {
 	return balance > 0 ? 'Nachzahlung' : balance < 0 ? 'Guthaben' : 'ausgeglichen';
+}
+
+/**
+ * § 560 Abs. 4 BGB: the monthly prepayments the statement suggests, a twelfth of the year's
+ * costs, split into operating and heating cost like the two prepayment columns. A lease that ran
+ * only part of the period is scaled to a full year. Null for a kind without a line (a Pauschale,
+ * or no such cost), so the current prepayment stays.
+ */
+export function suggestedPrepayments(lease: LeaseStatement): {
+	operating: number | null;
+	heating: number | null;
+} {
+	const days = Math.min(Math.max(lease.occupancy.days, 1), 365);
+	const monthly = (heating: boolean) => {
+		const lines = lease.lines.filter((line) => line.heating === heating);
+		if (lines.length === 0) return null;
+		const total = lines.reduce((sum, line) => sum + line.amount, 0);
+		return Math.max(0, proRata(total, 365, days * 12));
+	};
+	return { operating: monthly(false), heating: monthly(true) };
 }
 
 /** The lease's label in the statement: unit names, then the tenants. */
@@ -709,7 +761,9 @@ function consumptionComponent(
 	amount: number,
 	circleUnits: StatementUnit[],
 	key: StatementKey,
-	label: string
+	label: string,
+	/** The label when § 9a Abs. 2 HeizKV moves the component to the floor area. */
+	fallbackLabel: string
 ): Component {
 	const kind = key.meterKind ?? 'heat';
 	const usages = circleUnits.map((unit) => usageOf(ctx, unit, kind));
@@ -718,7 +772,8 @@ function consumptionComponent(
 	const total = weights.reduce((sum, weight) => sum + weight, 0);
 	const unitOfMeasure = usages.find((usage) => usage.unit)?.unit ?? '';
 
-	// § 9a Abs. 2 HeizKV: estimates for more than a quarter of the area call for a check.
+	// § 9a Abs. 2 HeizKV: when estimates cover more than a quarter of the area, the cost is split
+	// by the fixed-cost key (the floor area) alone.
 	const area = (filter: (index: number) => boolean) =>
 		circleUnits.reduce((sum, unit, index) => sum + (filter(index) ? (unit.floorArea ?? 0) : 0), 0);
 	const estimatedArea = area((index) => usages[index].estimated);
@@ -728,8 +783,9 @@ function consumptionComponent(
 			code: 'estimated_share',
 			blocking: false,
 			href: zaehlerHref(ctx),
-			message: `Geschätzte Verbräuche (${meterKindLabels[kind]}) betreffen mehr als 25 % der Fläche (§ 9a Abs. 2 HeizKV); prüfe die Zählerstände.`
+			message: `Geschätzte Verbräuche (${meterKindLabels[kind]}) betreffen mehr als 25 % der Fläche; deshalb werden diese Kosten nur nach Fläche verteilt (§ 9a Abs. 2 HeizKV). Prüfe die Zählerstände.`
 		});
+		return areaComponent(ctx, amount, circleUnits, fallbackLabel);
 	}
 
 	return {
@@ -789,12 +845,28 @@ function componentsOf(
 				}
 			];
 		case 'consumption':
-			return [consumptionComponent(ctx, allocated, circleUnits, key, '')];
+			return [
+				consumptionComponent(
+					ctx,
+					allocated,
+					circleUnits,
+					key,
+					'',
+					'nach Fläche statt Verbrauch (§ 9a Abs. 2 HeizKV): '
+				)
+			];
 		case 'mixed': {
 			const percent = key.consumptionPercent ?? HEIZKV_CONSUMPTION_PERCENT.max;
 			const byConsumption = proRata(allocated, percent, 100);
 			return [
-				consumptionComponent(ctx, byConsumption, circleUnits, key, `${percent} % nach Verbrauch: `),
+				consumptionComponent(
+					ctx,
+					byConsumption,
+					circleUnits,
+					key,
+					`${percent} % nach Verbrauch: `,
+					`${percent} % nach Fläche statt Verbrauch (§ 9a Abs. 2 HeizKV): `
+				),
 				areaComponent(
 					ctx,
 					allocated - byConsumption,
@@ -831,16 +903,31 @@ function componentsOf(
 			];
 		}
 		case 'direct': {
-			// The amounts of the Messdienst, prorated like the item; the landlord's CO₂ share is
-			// taken off in proportion.
-			const given = circleUnits.map((unit) => {
-				const entry = item.unitAmounts.find((candidate) => candidate.unitId === unit.id);
-				return entry ? proRata(entry.amount, itemOverlap, itemDays) : 0;
+			// The amounts of the Messdienst, prorated like the item (rounded on the running sum, so
+			// amounts that add up to the bill still add up to its share of the period); the
+			// landlord's CO₂ share is taken off in proportion.
+			const entered = circleUnits.map(
+				(unit) => item.unitAmounts.find((candidate) => candidate.unitId === unit.id)?.amount ?? 0
+			);
+			let running = 0;
+			const given = entered.map((amount) => {
+				const before = proRata(running, itemOverlap, itemDays);
+				running += amount;
+				return proRata(running, itemOverlap, itemDays) - before;
 			});
 			const deduction = distributeCents(co2LandlordAmount, given);
 			const direct = given.map((amount, index) => amount - deduction[index]);
 			const sum = direct.reduce((total, amount) => total + amount, 0);
-			if (sum !== allocated) {
+			if (running > item.amount) {
+				// The tenants would pay more than the bill.
+				warn(ctx, {
+					code: 'direct_mismatch',
+					blocking: true,
+					itemId: item.id,
+					href: `/betriebskosten/belege/${item.id}`,
+					message: `Die Beträge je Einheit des Belegs „${item.description}“ ergeben ${formatCents(running)}, mehr als der Beleg über ${formatCents(item.amount)}; korrigiere die Beträge, bevor du die Abrechnung freigibst.`
+				});
+			} else if (sum !== allocated) {
 				warn(ctx, {
 					code: 'direct_mismatch',
 					blocking: false,
@@ -987,6 +1074,35 @@ export function computeStatement(
 	let unallocatedTotal = 0;
 	let costsTotal = 0;
 
+	// Step 1, CO₂: the tier follows the building's emissions per m² and year, so the kg of every
+	// fuel bill of a circle (or of the property) are added up first, each prorated to the period.
+	const circleUnitsOf = (item: StatementItem): StatementUnit[] => {
+		const circle = item.billingCircleId ? circleById.get(item.billingCircleId) : undefined;
+		return circle ? input.units.filter((unit) => circle.unitIds.includes(unit.id)) : input.units;
+	};
+	const co2GroupOf = (item: StatementItem): string =>
+		item.billingCircleId && circleById.has(item.billingCircleId) ? item.billingCircleId : '';
+	const hasCo2 = (item: StatementItem) =>
+		Boolean(item.fuel) && item.co2Kg !== null && item.co2Cost !== null;
+	const co2KgByGroup = new Map<string, number>();
+	for (const item of input.items) {
+		const category = categoryById.get(item.categoryId);
+		if (!hasCo2(item) || !category || !keyById.has(item.allocationKeyId)) continue;
+		if (!item.allocable || !category.allocable) continue;
+		const itemOverlap = overlapDays(period, { start: item.periodStart, end: item.periodEnd });
+		if (itemOverlap === 0) continue;
+		const itemDays = daysInclusive(item.periodStart, item.periodEnd);
+		const group = co2GroupOf(item);
+		co2KgByGroup.set(
+			group,
+			(co2KgByGroup.get(group) ?? 0) + (item.co2Kg! * itemOverlap) / itemDays
+		);
+	}
+	// A period shorter than twelve months is scaled to the twelve months from its start.
+	const yearDays = daysInclusive(period.start, addDays(addMonths(period.start, 12), -1));
+	const annualCo2Kg = (item: StatementItem) =>
+		Math.round((((co2KgByGroup.get(co2GroupOf(item)) ?? 0) * yearDays) / periodDays) * 10) / 10;
+
 	for (const item of input.items) {
 		const itemOverlap = overlapDays(period, { start: item.periodStart, end: item.periodEnd });
 		if (itemOverlap === 0) continue;
@@ -1038,22 +1154,29 @@ export function computeStatement(
 		allocableTotal += total;
 		const heating = category.consumptionBased;
 
-		const circle = item.billingCircleId ? circleById.get(item.billingCircleId) : undefined;
 		const circleUnits =
 			key.kind === 'direct'
 				? input.units.filter((unit) => item.unitAmounts.some((entry) => entry.unitId === unit.id))
-				: circle
-					? input.units.filter((unit) => circle.unitIds.includes(unit.id))
-					: input.units;
+				: circleUnitsOf(item);
 
 		// Step 1, CO₂: the landlord's share of the CO₂ cost comes off before anything is allocated.
 		let allocated = total;
 		let co2: Co2Disclosure | undefined;
 		if (item.fuel && item.co2Kg !== null && item.co2Cost !== null) {
-			const area = circleUnits.reduce((sum, unit) => sum + (unit.floorArea ?? 0), 0);
+			const area = circleUnitsOf(item).reduce((sum, unit) => sum + (unit.floorArea ?? 0), 0);
+			if (area <= 0) {
+				warn(ctx, {
+					code: 'co2_missing_area',
+					blocking: true,
+					itemId: item.id,
+					href: `/objekte/${input.property.id}`,
+					message: `Für die CO₂-Kostenaufteilung des Belegs „${item.description}“ fehlt die Wohnfläche der Einheiten; ohne sie lässt sich der Anteil des Vermieters nicht bestimmen.`
+				});
+			}
 			const co2Cost = proRata(item.co2Cost, itemOverlap, itemDays);
+			const buildingCo2Kg = annualCo2Kg(item);
 			const split = splitCo2Cost({
-				co2Kg: item.co2Kg,
+				co2Kg: buildingCo2Kg,
 				co2Cost,
 				area,
 				use: input.property.buildingUse
@@ -1062,6 +1185,7 @@ export function computeStatement(
 				fuel: item.fuel,
 				fuelKwh: item.fuelKwh,
 				co2Kg: item.co2Kg,
+				buildingCo2Kg,
 				co2Cost,
 				area,
 				kgPerSquareMetre: split.kgPerSquareMetre,
@@ -1190,7 +1314,7 @@ export function computeStatement(
 	}
 
 	// Step 6: the deadline, for residential leases.
-	const deadline = addMonths(period.end, DEADLINE_MONTHS);
+	const deadline = statementDeadline(period.end);
 	const residential = [...accumulators.values()].some(
 		(accumulator) => accumulator.lease.kind === 'residential' && billsAnything(accumulator.lease)
 	);

@@ -29,15 +29,20 @@ export const load: PageServerLoad = async ({ locals, params, parent, url }) => {
 		landlordAddress(locals.db, accountId)
 	]);
 	const day = today();
-	// ?prepayment=<cents> comes from an approved statement ("Vorauszahlung anpassen").
-	const prepayment = url.searchParams.get('prepayment');
+	// ?prepayment=<cents>&heating=<cents> come from an approved statement ("Vorauszahlung
+	// anpassen"): the suggested operating and heating cost prepayments, each optional.
+	const cents = (name: string) => {
+		const value = url.searchParams.get(name);
+		return value && /^\d{1,12}$/.test(value) ? Number(value) : null;
+	};
 	return {
 		changes,
 		today: day,
 		situation: indexSituation(lease, changes, values, day),
 		nextStepAllowed:
 			lease.rentModel === 'graduated' ? nextGraduatedStepAllowed(changes) : undefined,
-		prepayment: prepayment && /^\d{1,12}$/.test(prepayment) ? Number(prepayment) : null,
+		prepayment: cents('prepayment'),
+		heatingPrepayment: cents('heating'),
 		/** The first day of the month after next, for a § 560 adjustment. */
 		afterNext: effectiveFrom(day),
 		nextMonth: firstOfMonth(addMonthsToMonth(monthOf(day), 1)),

@@ -1,8 +1,7 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import {
 	addDays,
-	addMonths,
 	formatDate,
 	formatMonth,
 	monthOf,
@@ -12,10 +11,10 @@ import {
 } from '../dates';
 import type { Meter, Reading } from '../domain/consumption';
 import {
-	OBJECTION_MONTHS,
 	balanceLabel,
 	computeStatement,
 	leaseLabel,
+	objectionDeadline,
 	periodLabel,
 	validatePeriod,
 	type LeaseStatement,
@@ -487,8 +486,12 @@ export type LeaseResultRow = {
 	leaseId: string;
 	balance: number;
 	deliveredOn: IsoDate | null;
-	/** § 556 Abs. 3 Satz 5 BGB: twelve months after the delivery. */
+	/** § 556 Abs. 3 Satz 5 BGB: the end of the twelfth month after the delivery. */
 	objectionDeadline: IsoDate | null;
+	/** The Nachzahlung taken back because the statement reached the tenant too late, cents. */
+	reversedOnDelivery: number;
+	/** The lease still runs (or ends in the future), so a prepayment adjustment makes sense. */
+	active: boolean;
 };
 
 export type StatementView = {
@@ -508,6 +511,15 @@ export type StatementView = {
 	superseded: boolean;
 };
 
+/** Whether the statement exists in the account; the page actions answer 404 otherwise. */
+export async function statementExists(
+	db: Database,
+	accountId: string,
+	id: string
+): Promise<boolean> {
+	return Boolean(await statementRow(db, accountId, id));
+}
+
 async function statementRow(db: Database, accountId: string, id: string) {
 	const [row] = await db
 		.select()
@@ -516,6 +528,52 @@ async function statementRow(db: Database, accountId: string, id: string) {
 			and(eq(operatingCostStatements.accountId, accountId), eq(operatingCostStatements.id, id))
 		);
 	return row;
+}
+
+type ChargeRow = typeof rentCharges.$inferSelect;
+
+/** Every ledger posting that carries the statement's id as its reference. */
+async function chargesOfStatement(
+	db: Database,
+	accountId: string,
+	statementId: string
+): Promise<ChargeRow[]> {
+	return db
+		.select()
+		.from(rentCharges)
+		.where(and(eq(rentCharges.accountId, accountId), eq(rentCharges.referenceId, statementId)));
+}
+
+/**
+ * The statement's own balance postings, and the reversals of them made because the statement
+ * reached the tenant after the deadline. A correction's reversals of its predecessor's postings
+ * carry the correction's id too, but reverse postings of another statement.
+ */
+function splitCharges(rows: readonly ChargeRow[]) {
+	const originals = rows.filter((row) => row.reversesChargeId === null);
+	const originalIds = new Set(originals.map((row) => row.id));
+	const deliveryReversals = rows.filter(
+		(row) => row.reversesChargeId !== null && originalIds.has(row.reversesChargeId)
+	);
+	return { originals, deliveryReversals };
+}
+
+async function deliveryReversals(
+	db: Database,
+	accountId: string,
+	statementId: string
+): Promise<ChargeRow[]> {
+	return splitCharges(await chargesOfStatement(db, accountId, statementId)).deliveryReversals;
+}
+
+/** What the statement still claims per lease: its postings net of the delivery reversals. */
+function netClaims(rows: readonly ChargeRow[]): Map<string, number> {
+	const { originals, deliveryReversals } = splitCharges(rows);
+	const claims = new Map<string, number>();
+	for (const row of [...originals, ...deliveryReversals]) {
+		claims.set(row.leaseId, (claims.get(row.leaseId) ?? 0) + row.amount);
+	}
+	return claims;
 }
 
 async function correctionOf(db: Database, accountId: string, id: string) {
@@ -576,12 +634,29 @@ export async function getStatement(
 			property: propertyResult,
 			leases: rows.map((entry) => JSON.parse(entry.result) as LeaseStatement)
 		};
-		leaseResults = rows.map((entry) => ({
-			leaseId: entry.leaseId,
-			balance: entry.balance,
-			deliveredOn: entry.deliveredOn,
-			objectionDeadline: entry.deliveredOn ? addMonths(entry.deliveredOn, OBJECTION_MONTHS) : null
-		}));
+		const leaseIds = rows.map((entry) => entry.leaseId);
+		const [reversals, leaseRows] = await Promise.all([
+			deliveryReversals(db, accountId, id),
+			chunked(leaseIds, (ids) =>
+				db
+					.select({ id: leases.id, endDate: leases.endDate })
+					.from(leases)
+					.where(and(eq(leases.accountId, accountId), inArray(leases.id, ids)))
+			)
+		]);
+		const day = today();
+		leaseResults = rows.map((entry) => {
+			const lease = leaseRows.find((candidate) => candidate.id === entry.leaseId);
+			return {
+				leaseId: entry.leaseId,
+				balance: entry.balance,
+				deliveredOn: entry.deliveredOn,
+				objectionDeadline: entry.deliveredOn ? objectionDeadline(entry.deliveredOn) : null,
+				reversedOnDelivery:
+					0 - (reversals.find((charge) => charge.leaseId === entry.leaseId)?.amount ?? 0),
+				active: Boolean(lease) && (lease!.endDate === null || lease!.endDate >= day)
+			};
+		});
 	} else {
 		result = await computeDraft(db, accountId, row);
 		if (!result) return undefined;
@@ -657,17 +732,28 @@ export async function createStatement(
 	const { accountId } = context;
 	const periodError = validatePeriod(input.periodStart, input.periodEnd);
 	if (periodError) return { ok: false, message: periodError };
-	const [existing] = await db
-		.select({ id: operatingCostStatements.id, status: operatingCostStatements.status })
+	// Every statement of the property whose period touches the new one: the same period is
+	// corrected instead, an overlapping one would settle the shared months twice.
+	const overlapping = await db
+		.select({
+			id: operatingCostStatements.id,
+			status: operatingCostStatements.status,
+			periodStart: operatingCostStatements.periodStart,
+			periodEnd: operatingCostStatements.periodEnd
+		})
 		.from(operatingCostStatements)
 		.where(
 			and(
 				eq(operatingCostStatements.accountId, accountId),
 				eq(operatingCostStatements.propertyId, input.propertyId),
-				eq(operatingCostStatements.periodStart, input.periodStart),
-				eq(operatingCostStatements.periodEnd, input.periodEnd)
+				lte(operatingCostStatements.periodStart, input.periodEnd),
+				gte(operatingCostStatements.periodEnd, input.periodStart)
 			)
-		);
+		)
+		.orderBy(asc(operatingCostStatements.periodStart));
+	const existing = overlapping.find(
+		(row) => row.periodStart === input.periodStart && row.periodEnd === input.periodEnd
+	);
 	if (existing) {
 		return {
 			ok: false,
@@ -675,6 +761,13 @@ export async function createStatement(
 				existing.status === 'draft'
 					? 'Für dieses Objekt und diesen Zeitraum gibt es schon einen Entwurf.'
 					: 'Für dieses Objekt und diesen Zeitraum gibt es schon eine freigegebene Abrechnung; erstelle dort eine Korrektur.'
+		};
+	}
+	if (overlapping.length > 0) {
+		const other = overlapping[0];
+		return {
+			ok: false,
+			message: `Der Zeitraum überschneidet sich mit der Abrechnung ${periodLabel(other.periodStart, other.periodEnd)} (${other.status === 'draft' ? 'Entwurf' : 'freigegeben'}); jeder Monat darf nur einmal abgerechnet werden.`
 		};
 	}
 	const period = { start: input.periodStart, end: input.periodEnd };
@@ -755,19 +848,16 @@ export async function approveStatement(
 	const name = statementName(label, result.property.propertyName);
 	const statements: Statement[] = [];
 
-	// A correction takes the corrected statement's charges back first.
+	// A correction takes the corrected statement's charges back first (those a late delivery has
+	// not taken back already) and remembers what that statement claimed per lease.
+	let previousClaims = new Map<string, number>();
 	if (row.correctsId) {
-		const previous = await db
-			.select()
-			.from(rentCharges)
-			.where(
-				and(
-					eq(rentCharges.accountId, accountId),
-					eq(rentCharges.referenceId, row.correctsId),
-					isNull(rentCharges.reversesChargeId)
-				)
-			);
-		for (const charge of previous) {
+		const previous = await chargesOfStatement(db, accountId, row.correctsId);
+		previousClaims = netClaims(previous);
+		const { originals, deliveryReversals: reversed } = splitCharges(previous);
+		const reversedIds = new Set(reversed.map((charge) => charge.reversesChargeId));
+		for (const charge of originals) {
+			if (reversedIds.has(charge.id)) continue;
 			statements.push(
 				chargeEntry(db, context, {
 					leaseId: charge.leaseId,
@@ -783,13 +873,19 @@ export async function approveStatement(
 		}
 	}
 
+	// § 556 Abs. 3 BGB: after the deadline a residential Nachzahlung is excluded. A correction
+	// may still claim what the corrected statement claimed in time, but nothing beyond it: not a
+	// higher Nachzahlung, not a smaller Guthaben.
 	const frozen: LeaseStatement[] = result.leases.map((lease) => {
-		const withheld =
-			lease.late &&
-			lease.leaseKind === 'residential' &&
-			lease.balance > 0 &&
-			!input.lateApprovalJustified;
-		return { ...lease, approvedOn, dueDate, posted: withheld ? 0 : lease.balance };
+		const excluded =
+			lease.late && lease.leaseKind === 'residential' && !input.lateApprovalJustified;
+		const claimedInTime = previousClaims.get(lease.leaseId);
+		const posted = !excluded
+			? lease.balance
+			: claimedInTime !== undefined
+				? Math.min(lease.balance, claimedInTime)
+				: Math.min(lease.balance, 0);
+		return { ...lease, approvedOn, dueDate, posted };
 	});
 	const propertyResult: PropertyResult = { ...result.property, approvedOn, dueDate };
 
@@ -813,7 +909,9 @@ export async function approveStatement(
 				note:
 					lease.posted === 0 && lease.balance > 0
 						? `Nachzahlung ${formatCents(lease.balance)} nach Ablauf der Abrechnungsfrist nicht verlangt (§ 556 Abs. 3 BGB)`
-						: `Betriebskostenabrechnung ${label}`
+						: lease.posted !== null && lease.posted !== lease.balance
+							? `Betriebskostenabrechnung ${label}: Ergebnis ${formatCents(lease.balance)} nach Ablauf der Abrechnungsfrist auf die rechtzeitig abgerechneten ${formatCents(lease.posted)} begrenzt (§ 556 Abs. 3 BGB)`
+							: `Betriebskostenabrechnung ${label}`
 			}).statement
 		);
 	}
@@ -917,21 +1015,35 @@ export async function createCorrection(
 	return { ok: true, id: correctionId };
 }
 
-/** Records when the statement reached the tenant; starts the Einwendungsfrist. */
+export type DeliveryOutcome =
+	| {
+			ok: true;
+			/** The Nachzahlung taken back because of a late delivery, cents. */ reversed: number;
+	  }
+	| { ok: false; message: string };
+
+/**
+ * Records when the statement reached the tenant; starts the Einwendungsfrist. § 556 Abs. 3 BGB
+ * turns on the receipt: a residential Nachzahlung that reaches the tenant after the deadline is
+ * excluded, so its posting is reversed in the same batch (unless the landlord declared the delay
+ * not his fault on approval, or a corrected version had reached the tenant in time).
+ */
 export async function setDelivered(
 	db: Database,
 	context: AuditContext,
 	statementId: string,
 	leaseId: string,
 	date: IsoDate
-): Promise<boolean> {
+): Promise<DeliveryOutcome> {
 	const { accountId } = context;
 	const [row] = await db
 		.select({
 			id: statementResults.id,
 			result: statementResults.result,
 			periodStart: operatingCostStatements.periodStart,
-			periodEnd: operatingCostStatements.periodEnd
+			periodEnd: operatingCostStatements.periodEnd,
+			correctsId: operatingCostStatements.correctsId,
+			lateApprovalJustified: operatingCostStatements.lateApprovalJustified
 		})
 		.from(statementResults)
 		.innerJoin(
@@ -945,24 +1057,102 @@ export async function setDelivered(
 				eq(statementResults.leaseId, leaseId)
 			)
 		);
-	if (!row) return false;
+	if (!row) return { ok: false, message: 'Zu diesem Mietvertrag gibt es kein Ergebnis.' };
 	const lease = JSON.parse(row.result) as LeaseStatement;
+	if (lease.approvedOn && date < lease.approvedOn) {
+		return {
+			ok: false,
+			message: `Die Abrechnung wurde am ${formatDate(lease.approvedOn)} freigegeben; sie kann nicht vorher zugestellt worden sein.`
+		};
+	}
+	if (date > today()) {
+		return { ok: false, message: 'Das Datum der Zustellung liegt in der Zukunft.' };
+	}
+
 	const label = periodLabel(row.periodStart, row.periodEnd);
+	const [own, corrected] = await Promise.all([
+		chargesOfStatement(db, accountId, statementId),
+		row.correctsId
+			? db
+					.select({ deliveredOn: statementResults.deliveredOn })
+					.from(statementResults)
+					.where(
+						and(
+							eq(statementResults.accountId, accountId),
+							eq(statementResults.statementId, row.correctsId),
+							eq(statementResults.leaseId, leaseId)
+						)
+					)
+			: Promise.resolve([])
+	]);
+	const charges = own.filter((charge) => charge.leaseId === leaseId);
+	const { originals, deliveryReversals: reversals } = splitCharges(charges);
+	const posting = originals[0];
+	if (reversals.length > 0 && date <= lease.deadline) {
+		return {
+			ok: false,
+			message: `Die Nachzahlung wurde wegen der Zustellung nach dem ${formatDate(lease.deadline)} schon storniert; ein früheres Zustelldatum lässt sich nicht mehr eintragen.`
+		};
+	}
+
+	// A correction may claim in time what its corrected version claimed, once that reached the
+	// tenant in time; only the original claim decides then.
+	const correctedInTime = corrected.some(
+		(entry) => entry.deliveredOn !== null && entry.deliveredOn <= lease.deadline
+	);
+	const excluded =
+		lease.leaseKind === 'residential' &&
+		date > lease.deadline &&
+		!row.lateApprovalJustified &&
+		!correctedInTime &&
+		posting !== undefined &&
+		posting.amount > 0 &&
+		lease.balance > 0 &&
+		reversals.length === 0;
+	const statements: Statement[] = [];
+	if (excluded) {
+		// Not for a posting an approved correction has reversed already.
+		const [taken] = await db
+			.select({ id: rentCharges.id })
+			.from(rentCharges)
+			.where(
+				and(eq(rentCharges.accountId, accountId), eq(rentCharges.reversesChargeId, posting.id))
+			);
+		if (!taken) {
+			statements.push(
+				chargeEntry(db, context, {
+					leaseId,
+					kind: 'statement_balance',
+					period: posting.period,
+					dueDate: posting.dueDate,
+					amount: -posting.amount,
+					referenceId: statementId,
+					reversesChargeId: posting.id,
+					note: `Storno: Betriebskostenabrechnung ${label} erst am ${formatDate(date)} zugestellt, nach Ablauf der Abrechnungsfrist am ${formatDate(lease.deadline)}; die Nachzahlung ist ausgeschlossen (§ 556 Abs. 3 BGB)`
+				}).statement
+			);
+		}
+	}
+	const reversed = statements.length > 0 ? posting.amount : 0;
 	await runBatch(db, [
 		db
 			.update(statementResults)
 			.set({ deliveredOn: date })
 			.where(and(eq(statementResults.accountId, accountId), eq(statementResults.id, row.id))),
+		...statements,
 		auditEntry(
 			db,
 			context,
 			'statement',
 			statementId,
 			'update',
-			`Betriebskostenabrechnung ${label} für ${leaseLabel(lease.units, lease.tenants)} am ${formatDate(date)} zugestellt`
+			`Betriebskostenabrechnung ${label} für ${leaseLabel(lease.units, lease.tenants)} am ${formatDate(date)} zugestellt` +
+				(reversed > 0
+					? `; Nachzahlung ${formatCents(reversed)} nach Ablauf der Abrechnungsfrist storniert`
+					: '')
 		)
 	]);
-	return true;
+	return { ok: true, reversed };
 }
 
 /** Deletes a draft. Approved statements stay; they are corrected instead. */
@@ -1075,7 +1265,7 @@ export function statementLetter(statement: LeaseStatement): Letter {
 				line.description !== line.categoryName ? line.description : null
 			).join('\n'),
 			line.allocated !== line.itemTotal
-				? `${formatCents(line.itemTotal)}\nabzüglich CO2-Anteil Vermieter: ${formatCents(line.allocated)}`
+				? `${formatCents(line.itemTotal)}\nabzüglich CO2-Anteil Vermieter ${formatCents(line.itemTotal - line.allocated)}\numgelegt ${formatCents(line.allocated)}`
 				: formatCents(line.itemTotal),
 			`${line.keyName}: ${line.keyTotal}\n${line.share}`,
 			formatCents(line.amount)
@@ -1088,7 +1278,8 @@ export function statementLetter(statement: LeaseStatement): Letter {
 		.map((line) => {
 			const data = line.co2!;
 			return (
-				`CO2-Kostenaufteilung (CO2KostAufG) für ${line.description}: ${formatNumber(data.co2Kg)} kg CO2 bei ${formatArea(data.area)} Gebäudefläche, ` +
+				`CO2-Kostenaufteilung (CO2KostAufG) für ${line.description}: ${formatNumber(data.co2Kg)} kg CO2 laut Beleg; ` +
+				`das Gebäude stößt ${formatNumber(data.buildingCo2Kg ?? data.co2Kg)} kg CO2 im Jahr aus, bei ${formatArea(data.area)} Gebäudefläche ` +
 				`${formatNumber(data.kgPerSquareMetre)} kg CO2 je m² und Jahr. Vermieteranteil ${data.landlordPercent} %: ` +
 				`vom CO2-Preis ${formatCents(data.co2Cost)} trägt der Vermieter ${formatCents(data.landlordAmount)}; dieser Betrag ist von den Gesamtkosten abgezogen.`
 			);
@@ -1115,22 +1306,31 @@ export function statementLetter(statement: LeaseStatement): Letter {
 	const amount = formatCents(Math.abs(statement.balance));
 	const result = `Kosten gesamt ${formatCents(statement.costsTotal)}, Vorauszahlungen ${formatCents(statement.prepaymentsTotal)}: ${label === 'ausgeglichen' ? 'Kosten und Vorauszahlungen gleichen sich aus.' : `${label} ${amount}.`}`;
 	const dueDate = statement.dueDate ? formatDate(statement.dueDate) : null;
+	// After the deadline (§ 556 Abs. 3 BGB) the posted amount can be less than the balance: a
+	// Nachzahlung that is not claimed, or a late correction held to what was claimed in time.
+	const claimed = statement.posted ?? statement.balance;
+	const limited =
+		claimed < statement.balance
+			? statement.balance > 0 && claimed === 0
+				? `Die Abrechnung erreicht dich nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB); die Nachzahlung von ${amount} wird nicht verlangt.`
+				: 'Nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB) gilt das rechtzeitig abgerechnete Ergebnis.'
+			: null;
+	const claimedAmount = formatCents(Math.abs(claimed));
 	let settlement: string;
-	if (statement.balance > 0 && statement.posted === 0) {
-		settlement = `Die Abrechnung erreicht dich nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB); die Nachzahlung von ${amount} wird nicht verlangt.`;
-	} else if (statement.balance > 0) {
+	if (claimed > 0) {
 		const account = lines(
 			landlord.iban ? `IBAN ${landlord.iban}` : null,
 			landlord.bankName ? `bei der ${landlord.bankName}` : null
 		).join(' ');
 		settlement =
-			`Bitte überweise die Nachzahlung von ${amount}${dueDate ? ` bis zum ${dueDate}` : ''}` +
+			`Bitte überweise die Nachzahlung von ${claimedAmount}${dueDate ? ` bis zum ${dueDate}` : ''}` +
 			(account ? ` auf das Konto ${account}.` : '.');
-	} else if (statement.balance < 0) {
-		settlement = `Das Guthaben von ${amount} erstatten wir dir${dueDate ? ` bis zum ${dueDate}` : ''} oder verrechnen es mit der nächsten Miete.`;
+	} else if (claimed < 0) {
+		settlement = `Das Guthaben von ${claimedAmount} erstatten wir dir${dueDate ? ` bis zum ${dueDate}` : ''} oder verrechnen es mit der nächsten Miete.`;
 	} else {
-		settlement = 'Es ist nichts zu zahlen und nichts zu erstatten.';
+		settlement = limited ? '' : 'Es ist nichts zu zahlen und nichts zu erstatten.';
 	}
+	settlement = [limited, settlement].filter(Boolean).join(' ');
 
 	const excluded =
 		statement.excluded.length > 0

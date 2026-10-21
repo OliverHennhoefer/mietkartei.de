@@ -21,6 +21,8 @@
 	const pending = $derived(data.changes.find((change) => change.status === 'proposed'));
 	// § 557a Abs. 2 / § 557b Abs. 2 BGB: no § 558 increase on a residential Staffel or index rent.
 	const restricted = $derived(lease.kind === 'residential' && lease.rentModel !== 'fixed');
+	/** Opened from a statement's "Vorauszahlung anpassen" (§ 560 Abs. 4 BGB). */
+	const fromStatement = $derived(data.prepayment !== null || data.heatingPrepayment !== null);
 
 	// Every action answers with its source, so each form shows only its own errors and values.
 	type FieldErrors = Partial<Record<string, string>>;
@@ -328,8 +330,7 @@
 		<input
 			type="date"
 			name="validFrom"
-			defaultValue={changeValues?.validFrom ??
-				(data.prepayment !== null ? data.afterNext : data.nextMonth)}
+			defaultValue={changeValues?.validFrom ?? (fromStatement ? data.afterNext : data.nextMonth)}
 			aria-invalid={changeErrors?.validFrom ? 'true' : undefined}
 			required
 		/>
@@ -357,7 +358,7 @@
 			name="heatingCostPrepayment"
 			inputmode="decimal"
 			defaultValue={changeValues?.heatingCostPrepayment ??
-				formatCentsPlain(lease.currentRent.heatingCostPrepayment)}
+				formatCentsPlain(data.heatingPrepayment ?? lease.currentRent.heatingCostPrepayment)}
 			aria-invalid={changeErrors?.heatingCostPrepayment ? 'true' : undefined}
 		/>
 	</Field>
@@ -366,8 +367,7 @@
 			{#each ['manual', 'statement'] as const as reason (reason)}
 				<option
 					value={reason}
-					selected={(changeValues?.reason ??
-						(data.prepayment !== null ? 'statement' : 'manual')) === reason}
+					selected={(changeValues?.reason ?? (fromStatement ? 'statement' : 'manual')) === reason}
 				>
 					{rentChangeReasonLabels[reason]}
 				</option>

@@ -145,6 +145,14 @@ feature. When a feature is ported to main, its section is the checklist of what 
 - Deleting a draft is allowed any time; approved statements are never deleted.
 - The PDF addresses the tenants at the first tenant address found, else the property address; the greeting uses "Frau/Herr Nachname" when the salutation is one of those; filename "Betriebskostenabrechnung <period> <unit names>.pdf".
 - Statement list rows show the stored property totals (also for drafts, from creation time).
+- A period runs from the first to the last day of a month (prepayments are charged per month, so a cut month would count in full), and it may not overlap another statement of the property (draft or approved); the same period is corrected instead.
+- The CO₂ tier is taken once per circle (or property) from the kg of all its fuel bills, each prorated to the period and the sum scaled to the twelve months from the period start; each bill's prorated CO₂ cost gets that percent. The disclosure keeps the bill's kg (`co2Kg`) and the building's (`buildingCo2Kg`).
+- Estimates on more than 25 % of the area move the consumption part of that cost item to the floor area (§ 9a Abs. 2 HeizKV); the share text says so.
+- `direct` amounts are prorated on the running sum, so amounts that add up to the bill still add up to its share of the period; amounts above the bill block the approval.
+- Lateness (§ 556 Abs. 3 BGB) is judged on the approval and again on the delivery date. A late correction posts min(balance, what the corrected version still claims); a Nachzahlung delivered after the deadline is reversed when the date is saved, and the date can then no longer be moved before the deadline. A correction of a version that reached the tenant in time is not reversed on its own late delivery.
+- Both deadlines run to the end of the twelfth month ("bis zum Ablauf des zwölften Monats"): the statement deadline after the period end, the Einwendungsfrist after the delivery.
+- "Vorauszahlung anpassen" passes operating and heating suggestions apart (`?prepayment=&heating=`), each a twelfth of the year's lines of that kind (a part-year lease scaled to 365 days), and is offered only for leases that still run on a statement that is not superseded.
+- The statement actions answer 404 for an id of another account before reading the form.
 
 ### CO₂ cost split
 
@@ -253,7 +261,8 @@ feature. When a feature is ported to main, its section is the checklist of what 
 
 ### Operating cost statements
 
-- Tested in unit tests but not in e2e: consumption/mixed keys, CO₂ disclosure in the PDF, late approval with justification, delete draft, Pauschale exclusions.
+- Tested in unit tests but not in e2e: late approval with justification, late corrections and late deliveries (they need a fake today), delete draft, Pauschale exclusions. The reference scenario e2e covers consumption/mixed keys and the CO₂ lines of the PDF.
+- A correction approved before the deadline that raises the Nachzahlung and reaches the tenant after it is not capped at the corrected version's amount (the reversal on delivery is all or nothing, one per posting).
 - The e2e lease has ledgerStart null; prepayments in the test come from the rent history or charges depending on the ledger start rule of createLease (both give 2.400 €).
 - svelte-check could only be run through a private tsconfig (see above), not through `npm run check`.
 

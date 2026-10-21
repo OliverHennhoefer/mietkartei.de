@@ -4,8 +4,12 @@
 	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import Money from '#lib/components/Money.svelte';
-	import { formatDate, formatMonth } from '#lib/dates.ts';
-	import { balanceLabel, type LeaseStatement } from '#lib/domain/statement.ts';
+	import { formatDate, formatDateTime, formatMonth } from '#lib/dates.ts';
+	import {
+		balanceLabel,
+		suggestedPrepayments,
+		type LeaseStatement
+	} from '#lib/domain/statement.ts';
 	import { formatArea, personName, pluralize } from '#lib/format.ts';
 	import { allocationKeyKindLabels, statementStatusLabels } from '#lib/labels.ts';
 	import { formatCents } from '#lib/money.ts';
@@ -28,8 +32,18 @@
 	const tenantNames = (lease: LeaseStatement) => lease.tenants.map(personName).join(', ');
 	const leaseArea = (lease: LeaseStatement) =>
 		lease.units.reduce((sum, unit) => sum + (unit.floorArea ?? 0), 0);
-	/** § 560 Abs. 4 BGB: a twelfth of the costs as the new monthly prepayment. */
-	const suggestedPrepayment = (lease: LeaseStatement) => Math.round(lease.costsTotal / 12);
+	/** § 560 Abs. 4 BGB: a twelfth of the year's costs, operating and heating cost apart. */
+	const prepaymentHref = (lease: LeaseStatement) => {
+		const { operating, heating } = suggestedPrepayments(lease);
+		const query = [
+			operating !== null ? `prepayment=${operating}` : null,
+			heating !== null ? `heating=${heating}` : null
+		].filter(Boolean);
+		return query.length > 0 ? `/vertraege/${lease.leaseId}/miethoehe?${query.join('&')}` : null;
+	};
+	const reversedOnDelivery = $derived(
+		form && 'reversed' in form && typeof form.reversed === 'number' ? form.reversed : 0
+	);
 
 	const approvalMessage = $derived(
 		`Abrechnung ${view.periodLabel} für ${pluralize(property.leaseCount, 'Mietvertrag', 'Mietverträge')} freigeben? ` +
@@ -60,7 +74,9 @@
 	{formatDate(statement.periodStart)} – {formatDate(statement.periodEnd)}
 	({property.period.days} Tage)
 	{#if statement.approvedAt}
-		· freigegeben am {formatDate(property.approvedOn ?? statement.periodEnd)}
+		· freigegeben am {property.approvedOn
+			? formatDate(property.approvedOn)
+			: formatDateTime(statement.approvedAt)}
 	{/if}
 	{#if view.corrects}
 		· korrigiert <a href="/betriebskosten/abrechnungen/{view.corrects.id}"
@@ -77,6 +93,15 @@
 
 {#if message}
 	<Alert tone="danger"><p>{message}</p></Alert>
+{/if}
+{#if reversedOnDelivery > 0}
+	<Alert tone="warning">
+		<p>
+			Die Abrechnung hat den Mieter erst nach Ablauf der Abrechnungsfrist erreicht; die Nachzahlung
+			von {formatCents(reversedOnDelivery)} ist ausgeschlossen (§ 556 Abs. 3 BGB) und wurde auf dem Mietkonto
+			storniert.
+		</p>
+	</Alert>
 {/if}
 {#if form && 'approved' in form}
 	<Alert tone="success"><p>Die Abrechnung ist freigegeben und auf den Mietkonten gebucht.</p></Alert
@@ -290,6 +315,17 @@
 				<br /><span class="muted small">
 					Nicht gebucht: Die Abrechnungsfrist war abgelaufen (§ 556 Abs. 3 BGB).
 				</span>
+			{:else if lease.posted !== null && lease.posted !== lease.balance}
+				<br /><span class="muted small">
+					Gebucht: <Money cents={lease.posted} />; nach Ablauf der Abrechnungsfrist gilt das
+					rechtzeitig abgerechnete Ergebnis (§ 556 Abs. 3 BGB).
+				</span>
+			{/if}
+			{#if frozen && frozen.reversedOnDelivery > 0}
+				<br /><span class="muted small">
+					Storniert: <Money cents={frozen.reversedOnDelivery} />, die Abrechnung hat den Mieter erst
+					nach dem {formatDate(lease.deadline)} erreicht (§ 556 Abs. 3 BGB).
+				</span>
 			{/if}
 		</p>
 
@@ -303,6 +339,7 @@
 		{/if}
 
 		{#if !draft && frozen}
+			{@const adjustHref = frozen.active && !view.superseded ? prepaymentHref(lease) : null}
 			<div class="row between lease-actions">
 				<span class="row">
 					<a
@@ -311,12 +348,9 @@
 					>
 						PDF
 					</a>
-					<a
-						class="button secondary small"
-						href="/vertraege/{lease.leaseId}/miethoehe?prepayment={suggestedPrepayment(lease)}"
-					>
-						Vorauszahlung anpassen
-					</a>
+					{#if adjustHref}
+						<a class="button secondary small" href={adjustHref}>Vorauszahlung anpassen</a>
+					{/if}
 					{#if lease.dueDate}
 						<span class="muted small">fällig am {formatDate(lease.dueDate)}</span>
 					{/if}
