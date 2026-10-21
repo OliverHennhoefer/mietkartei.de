@@ -22,8 +22,7 @@
 
 <h2>Abrechnungskreis löschen</h2>
 <p class="muted">
-	Kostenarten, die diesen Kreis als Standard verwenden, gelten danach für alle Einheiten des
-	Objekts.
+	Belege und Kostenarten, die diesen Kreis verwenden, gelten danach für alle Einheiten des Objekts.
 </p>
 <ConfirmButton
 	action="?/delete"

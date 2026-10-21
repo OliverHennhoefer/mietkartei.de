@@ -106,13 +106,14 @@ describe('describeDocumentLinks', () => {
 		properties: [{ id: 'p1', label: 'Lindenstraße 4' }],
 		units: [{ id: 'u1', label: 'EG links · Lindenstraße 4', propertyId: 'p1' }],
 		leases: [{ id: 'l1', label: 'EG links · Lindenstraße 4 · Erika Mustermann' }],
-		tenants: [{ id: 't1', label: 'Erika Mustermann' }]
+		tenants: [{ id: 't1', label: 'Erika Mustermann' }],
+		costItems: [{ id: 'c1', label: 'Grundsteuer 2025' }]
 	};
 
 	it('lists every known link with its page, in a fixed order', () => {
 		expect(
 			describeDocumentLinks(
-				{ propertyId: 'p1', unitId: 'u1', leaseId: 'l1', tenantId: 't1' },
+				{ propertyId: 'p1', unitId: 'u1', leaseId: 'l1', tenantId: 't1', costItemId: 'c1' },
 				options
 			)
 		).toEqual([
@@ -123,21 +124,22 @@ describe('describeDocumentLinks', () => {
 				label: 'EG links · Lindenstraße 4 · Erika Mustermann',
 				href: '/vertraege/l1'
 			},
-			{ kind: 'tenantId', label: 'Erika Mustermann', href: '/mieter/t1' }
+			{ kind: 'tenantId', label: 'Erika Mustermann', href: '/mieter/t1' },
+			{ kind: 'costItemId', label: 'Grundsteuer 2025', href: '/betriebskosten/belege/c1' }
 		]);
 	});
 
 	it('skips null links, unknown ids and omitted kinds', () => {
 		expect(
 			describeDocumentLinks(
-				{ propertyId: null, unitId: 'gone', leaseId: 'l1', tenantId: null },
+				{ propertyId: null, unitId: 'gone', leaseId: 'l1', tenantId: null, costItemId: null },
 				options,
 				['leaseId']
 			)
 		).toEqual([]);
 		expect(
 			describeDocumentLinks(
-				{ propertyId: 'p1', unitId: null, leaseId: 'l1', tenantId: null },
+				{ propertyId: 'p1', unitId: null, leaseId: 'l1', tenantId: null, costItemId: null },
 				options,
 				['leaseId']
 			)

@@ -31,6 +31,9 @@
 </div>
 
 <h2>{data.key.name}</h2>
+<p class="muted">
+	{data.key.costItemCount === 1 ? '1 Beleg' : `${data.key.costItemCount} Belege`} mit diesem Schlüssel
+</p>
 
 {#if refused}
 	<Alert tone="danger"><p>{refused}</p></Alert>
@@ -78,6 +81,7 @@
 {/if}
 
 <h2>Umlageschlüssel löschen</h2>
+<p class="muted">Ein Schlüssel, den Belege verwenden, kann nicht gelöscht werden.</p>
 <ConfirmButton
 	action="?/delete"
 	label="Umlageschlüssel löschen"

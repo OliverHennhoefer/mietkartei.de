@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from './db';
-import { auditLog, documents } from './db/schema';
+import { allocationKeys, auditLog, costCategories, costItems, documents } from './db/schema';
 import {
 	MAX_ACCOUNT_DOCUMENTS,
 	MAX_ACCOUNT_DOCUMENT_BYTES,
@@ -63,12 +63,39 @@ async function store(context: typeof contextA, input: Partial<typeof pdf> & { li
 	return result.id;
 }
 
+/** A cost item with the category and key it needs; returns its id. */
+async function seedCostItem(db: Database, accountId: string, propertyId: string) {
+	const [category] = await db
+		.insert(costCategories)
+		.values({ accountId, name: 'Grundsteuer', betrkvItem: 1 })
+		.returning({ id: costCategories.id });
+	const [key] = await db
+		.insert(allocationKeys)
+		.values({ accountId, name: 'Wohnfläche', kind: 'area' })
+		.returning({ id: allocationKeys.id });
+	const [item] = await db
+		.insert(costItems)
+		.values({
+			accountId,
+			propertyId,
+			categoryId: category.id,
+			allocationKeyId: key.id,
+			description: 'Grundsteuer 2025',
+			periodStart: '2025-01-01',
+			periodEnd: '2025-12-31',
+			amount: 48000
+		})
+		.returning({ id: costItems.id });
+	return item.id;
+}
+
 describe('storeDocument', () => {
 	it('stores the bytes, the row with its links and an audit line', async () => {
 		const { propertyId, unitId } = await seedUnit(db, 'a');
 		const tenantId = await seedTenant(db, 'a');
 		const lease = await createLease(db, contextA, leaseInput(unitId, { tenantIds: [tenantId] }));
 		if (!lease.ok) throw new Error('setup failed');
+		const costItemId = await seedCostItem(db, 'a', propertyId);
 
 		const result = await storeDocument(
 			db,
@@ -76,7 +103,7 @@ describe('storeDocument', () => {
 			{
 				...pdf,
 				name: '  Mietvertrag.pdf ',
-				links: { propertyId, unitId, leaseId: lease.id, tenantId }
+				links: { propertyId, unitId, leaseId: lease.id, tenantId, costItemId }
 			},
 			{ storage }
 		);
@@ -93,6 +120,7 @@ describe('storeDocument', () => {
 			unitId,
 			leaseId: lease.id,
 			tenantId,
+			costItemId,
 			uploadedBy: 'user-a'
 		});
 		expect(await storedFiles()).toEqual([`a/${result.id}`, `a/${result.id}.type`]);
@@ -178,8 +206,15 @@ describe('storeDocument', () => {
 		const tenantId = await seedTenant(db, 'b');
 		const lease = await createLease(db, contextB, leaseInput(unitId));
 		if (!lease.ok) throw new Error('setup failed');
+		const costItemId = await seedCostItem(db, 'b', propertyId);
 
-		for (const links of [{ propertyId }, { unitId }, { leaseId: lease.id }, { tenantId }]) {
+		for (const links of [
+			{ propertyId },
+			{ unitId },
+			{ leaseId: lease.id },
+			{ tenantId },
+			{ costItemId }
+		]) {
 			expect(await storeDocument(db, contextA, { ...pdf, links }, { storage })).toEqual({
 				ok: false,
 				reason: 'unknown-link'
@@ -231,11 +266,12 @@ describe('listDocuments', () => {
 		const tenantId = await seedTenant(db, 'a');
 		const lease = await createLease(db, contextA, leaseInput(unitId, { tenantIds: [tenantId] }));
 		if (!lease.ok) throw new Error('setup failed');
+		const costItemId = await seedCostItem(db, 'a', propertyId);
 
 		const older = await store(contextA, { name: 'Alt.pdf', links: { propertyId, unitId } });
 		const newer = await store(contextA, {
 			name: 'Neu.pdf',
-			links: { leaseId: lease.id, tenantId }
+			links: { leaseId: lease.id, tenantId, costItemId }
 		});
 		const loose = await store(contextA, { name: 'Lose.pdf' });
 		await db
@@ -257,6 +293,7 @@ describe('listDocuments', () => {
 		expect(ids(await listDocuments(db, 'a', { unitId }))).toEqual([older]);
 		expect(ids(await listDocuments(db, 'a', { leaseId: lease.id }))).toEqual([newer]);
 		expect(ids(await listDocuments(db, 'a', { tenantId }))).toEqual([newer]);
+		expect(ids(await listDocuments(db, 'a', { costItemId }))).toEqual([newer]);
 		expect(ids(await listDocuments(db, 'a', { propertyId, leaseId: lease.id }))).toEqual([]);
 	});
 

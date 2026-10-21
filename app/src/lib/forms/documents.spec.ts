@@ -113,17 +113,19 @@ describe('documentErrorMessage', () => {
 });
 
 describe('parseDocumentFilter', () => {
-	it('takes the four link parameters and ignores empty, overlong and unknown ones', () => {
+	it('takes the five link parameters and ignores empty, overlong and unknown ones', () => {
 		const params = new URLSearchParams({
 			propertyId: ' p1 ',
 			unitId: '',
 			leaseId: 'l1',
 			tenantId: 'x'.repeat(65),
+			costItemId: 'c1',
 			other: 'ignored'
 		});
 		expect(parseDocumentFilter(params)).toEqual({
 			propertyId: 'p1',
-			leaseId: 'l1'
+			leaseId: 'l1',
+			costItemId: 'c1'
 		});
 		expect(parseDocumentFilter(new URLSearchParams())).toEqual({});
 	});

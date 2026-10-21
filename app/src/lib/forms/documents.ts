@@ -68,7 +68,7 @@ export function documentErrorMessage(reason: DocumentError): string {
 	return errorMessages[reason];
 }
 
-const filterKeys = ['propertyId', 'unitId', 'leaseId', 'tenantId'] as const;
+const filterKeys = ['propertyId', 'unitId', 'leaseId', 'tenantId', 'costItemId'] as const;
 
 /** The filter of /dokumente from its query parameters; empty or overlong values are ignored. */
 export function parseDocumentFilter(params: URLSearchParams): DocumentFilter {

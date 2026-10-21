@@ -17,13 +17,14 @@
 		{ kind: 'propertyId', options: data.options.properties },
 		{ kind: 'unitId', options: data.options.units },
 		{ kind: 'leaseId', options: data.options.leases },
-		{ kind: 'tenantId', options: data.options.tenants }
+		{ kind: 'tenantId', options: data.options.tenants },
+		{ kind: 'costItemId', options: data.options.costItems }
 	]);
 </script>
 
 <PageHeader
 	title="Dokumente"
-	lead="Mietverträge, Protokolle und Schreiben, verknüpft mit Objekt, Mietvertrag oder Mieter."
+	lead="Mietverträge, Belege, Protokolle und Schreiben, verknüpft mit Objekt, Mietvertrag oder Mieter."
 />
 
 <form method="GET" class="card filter" aria-label="Filter">

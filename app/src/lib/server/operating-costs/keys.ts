@@ -1,10 +1,11 @@
-import { and, asc, eq, getTableColumns, inArray, ne } from 'drizzle-orm';
+import { and, asc, count, eq, getTableColumns, inArray, ne } from 'drizzle-orm';
 import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
 import { chunk, chunkIds, rowsPerStatement, runBatch } from '../db/batch';
 import {
 	allocationKeyShares,
 	allocationKeys,
+	costItems,
 	properties,
 	units,
 	type AllocationKeyKind,
@@ -27,37 +28,45 @@ export type AllocationKeyInput = {
 	consumptionPercent: number | null;
 };
 
-export type AllocationKeyWithProperty = AllocationKey & { propertyName: string | null };
+export type AllocationKeyWithUsage = AllocationKey & {
+	propertyName: string | null;
+	/** How many cost items use the key; they block its deletion. */
+	costItemCount: number;
+};
 
 export type KeyShare = { unitId: string; share: number };
 
-export type KeyError = 'missing' | 'duplicate-name' | 'unknown-property';
+export type KeyError =
+	'missing' | 'duplicate-name' | 'unknown-property' | 'property-in-use' | 'kind-in-use';
 
-function query(db: Database, accountId: string, keyId?: string) {
+function withUsage(db: Database, accountId: string, keyId?: string) {
 	const conditions = [eq(allocationKeys.accountId, accountId)];
 	if (keyId !== undefined) conditions.push(eq(allocationKeys.id, keyId));
 	return db
-		.select({ ...getTableColumns(allocationKeys), propertyName: properties.name })
+		.select({
+			...getTableColumns(allocationKeys),
+			propertyName: properties.name,
+			costItemCount: count(costItems.id)
+		})
 		.from(allocationKeys)
 		.leftJoin(properties, eq(properties.id, allocationKeys.propertyId))
+		.leftJoin(costItems, eq(costItems.allocationKeyId, allocationKeys.id))
 		.where(and(...conditions))
+		.groupBy(allocationKeys.id)
 		.orderBy(asc(allocationKeys.createdAt), asc(allocationKeys.name));
 }
 
-/** The keys of the account, oldest first (the seeded ones come first), with their property. */
-export async function listKeys(
-	db: Database,
-	accountId: string
-): Promise<AllocationKeyWithProperty[]> {
-	return query(db, accountId);
+/** The keys of the account, oldest first (the seeded ones come first), with their usage. */
+export async function listKeys(db: Database, accountId: string): Promise<AllocationKeyWithUsage[]> {
+	return withUsage(db, accountId);
 }
 
 export async function getKey(
 	db: Database,
 	accountId: string,
 	keyId: string
-): Promise<AllocationKeyWithProperty | undefined> {
-	const [row] = await query(db, accountId, keyId);
+): Promise<AllocationKeyWithUsage | undefined> {
+	const [row] = await withUsage(db, accountId, keyId);
 	return row;
 }
 
@@ -123,7 +132,9 @@ export async function createKey(
 
 /**
  * Updates the key. Shares only make sense for a custom key of one property, so they go when the
- * kind or the property changes.
+ * kind or the property changes. While cost items use the key, its property stays (an item of
+ * another property would split by units it does not concern) and it neither becomes nor stops
+ * being a direct key (the items' per-unit amounts would be hidden or missing).
  */
 export async function updateKey(
 	db: Database,
@@ -134,6 +145,12 @@ export async function updateKey(
 	const { accountId } = context;
 	const existing = await getKey(db, accountId, keyId);
 	if (!existing) return { ok: false, reason: 'missing' };
+	if (existing.costItemCount > 0) {
+		if (input.propertyId !== existing.propertyId) return { ok: false, reason: 'property-in-use' };
+		if ((input.kind === 'direct') !== (existing.kind === 'direct')) {
+			return { ok: false, reason: 'kind-in-use' };
+		}
+	}
 	const reason = await checkInput(db, accountId, input, keyId);
 	if (reason) return { ok: false, reason };
 	const sharesStay = input.kind === 'custom' && input.propertyId === existing.propertyId;
@@ -157,14 +174,16 @@ export async function updateKey(
 	return { ok: true };
 }
 
+/** A key that cost items use stays; the items would lose their split. */
 export async function deleteKey(
 	db: Database,
 	context: AuditContext,
 	keyId: string
-): Promise<'deleted' | 'missing'> {
+): Promise<'deleted' | 'in-use' | 'missing'> {
 	const { accountId } = context;
 	const existing = await getKey(db, accountId, keyId);
 	if (!existing) return 'missing';
+	if (existing.costItemCount > 0) return 'in-use';
 	await runBatch(db, [
 		db
 			.delete(allocationKeys)

@@ -21,6 +21,8 @@ const pages = [
 	'/betriebskosten',
 	'/betriebskosten/kostenarten',
 	'/betriebskosten/schluessel',
+	'/betriebskosten/belege',
+	'/betriebskosten/belege/neu',
 	'/dokumente',
 	'/einstellungen',
 	'/einstellungen/profil',
@@ -28,7 +30,9 @@ const pages = [
 ];
 
 async function visit(page: Page, path: string) {
-	await page.goto(path);
+	// An error page has a heading too, so a seeded page that 404s would pass unchecked.
+	const response = await page.goto(path);
+	expect(response?.status(), path).toBe(200);
 	await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 }
 
@@ -51,6 +55,30 @@ test('no detail page violates the Content-Security-Policy', async ({ page }) => 
 	const {
 		ids: [circleId]
 	} = await seedRows(page.request, 'billingCircles', [{ propertyId, name: 'CSP-Kreis' }]);
+	const {
+		ids: [meterId]
+	} = await seedRows(page.request, 'meters', [{ propertyId, kind: 'cold_water', unit: 'm³' }]);
+	await seedRows(page.request, 'meterReadings', [{ meterId, readAt: '2025-01-01', value: 12.5 }]);
+	const suffix = crypto.randomUUID().slice(0, 6);
+	const {
+		ids: [categoryId]
+	} = await seedRows(page.request, 'costCategories', [{ name: `Hauswart ${suffix}` }]);
+	const {
+		ids: [allocationKeyId]
+	} = await seedRows(page.request, 'allocationKeys', [{ name: `Fläche ${suffix}`, kind: 'area' }]);
+	const {
+		ids: [costItemId]
+	} = await seedRows(page.request, 'costItems', [
+		{
+			propertyId,
+			categoryId,
+			allocationKeyId,
+			description: 'Hauswart 2025',
+			periodStart: '2025-01-01',
+			periodEnd: '2025-12-31',
+			amount: 120000
+		}
+	]);
 	const violations = watchCspViolations(page);
 	const property = `/objekte/${propertyId}`;
 	const lease = `/vertraege/${leaseId}`;
@@ -61,6 +89,7 @@ test('no detail page violates the Content-Security-Policy', async ({ page }) => 
 		`${property}/einheiten/${unitId}/bearbeiten`,
 		`${property}/abrechnungskreise`,
 		`${property}/abrechnungskreise/${circleId}`,
+		`${property}/zaehler`,
 		`/mieter/${tenantId}`,
 		`/mieter/${tenantId}/bearbeiten`,
 		lease,
@@ -70,6 +99,7 @@ test('no detail page violates the Content-Security-Policy', async ({ page }) => 
 		`${lease}/miethoehe`,
 		`${lease}/mietkonto`,
 		// The standard categories and keys are seeded on the first visit of the list.
+		`/betriebskosten/belege/${costItemId}`,
 		await firstEntry(page, '/betriebskosten/kostenarten'),
 		await firstEntry(page, '/betriebskosten/schluessel')
 	];
