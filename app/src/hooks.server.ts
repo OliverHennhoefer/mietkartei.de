@@ -9,14 +9,20 @@ import { getAuthLimiter } from '#lib/server/rate-limit/index.ts';
 
 /** Paths that work without signing in. Everything else redirects to the sign-in page. */
 const publicPaths = new Set(['/anmelden', '/registrieren', '/passwort-vergessen', '/health']);
-const publicPrefixes = ['/passwort-zuruecksetzen/', '/einladung/', '/e-mail-bestaetigen/'];
+const publicPrefixes = [
+	'/registrieren/',
+	'/passwort-zuruecksetzen/',
+	'/einladung/',
+	'/e-mail-bestaetigen/'
+];
 
 /**
  * Paths whose posts check a password, hash a new one, create an account or send a reset mail,
- * counted per client address: the forms above and the pages of reset and invitation links.
+ * counted per client address: the forms above and the pages of registration, reset and
+ * invitation links.
  */
 const authPaths = new Set(['/anmelden', '/registrieren', '/passwort-vergessen']);
-const authPrefixes = ['/passwort-zuruecksetzen/', '/einladung/'];
+const authPrefixes = ['/registrieren/', '/passwort-zuruecksetzen/', '/einladung/'];
 
 function isAuthPath(pathname: string): boolean {
 	return authPaths.has(pathname) || authPrefixes.some((prefix) => pathname.startsWith(prefix));

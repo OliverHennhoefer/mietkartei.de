@@ -100,11 +100,19 @@ export async function registerUser(
 	email: string,
 	password: string
 ): Promise<RegisterResult> {
+	return createUser(db, email, await hashPassword(password));
+}
+
+/** registerUser with a password hashed before, e.g. when the registration was requested. */
+export async function createUser(
+	db: Database,
+	email: string,
+	passwordHash: string
+): Promise<RegisterResult> {
 	email = normalizeEmail(email);
 	const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
 	if (existing) return { ok: false, reason: 'email-taken' };
 
-	const passwordHash = await hashPassword(password);
 	const first = !(await hasUsers(db));
 	let accountId: string;
 	if (first) {

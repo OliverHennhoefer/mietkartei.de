@@ -19,11 +19,17 @@
 
 	{#if !data.open || form?.closed}
 		<p>Auf dieser Instanz können sich keine weiteren Personen registrieren.</p>
+	{:else if form?.sent}
+		<p role="status">
+			Wir haben dir eine E-Mail mit einem Link geschickt. Öffne ihn innerhalb eines Tages, um dein
+			Konto anzulegen. Hast du schon ein Konto, kommt keine E-Mail: Melde dich dann an oder setze
+			dein Passwort zurück.
+		</p>
 	{:else}
 		{#if data.restricted}
 			<p>
 				mietkartei ist noch nicht öffentlich. Ein Konto anlegen können nur freigeschaltete
-				E-Mail-Adressen.
+				E-Mail-Adressen. Du bekommst einen Link, mit dem du die Adresse bestätigst.
 			</p>
 		{/if}
 		<form
@@ -68,6 +74,9 @@
 				<p class="error" role="alert">
 					Diese E-Mail-Adresse ist nicht für eine Registrierung freigeschaltet.
 				</p>
+			{/if}
+			{#if form?.unavailable}
+				<p class="error" role="alert">{form.unavailable}</p>
 			{/if}
 			{#if form?.botCheckFailed}
 				<p class="error" role="alert">
