@@ -53,9 +53,9 @@ describe('chunk', () => {
 
 describe('rowsPerStatement', () => {
 	it('keeps rows × columns below the 100 bound parameters of D1', async () => {
-		const { leaseTenants, units } = await import('./schema');
-		const columns = Object.keys(units).length;
-		expect(rowsPerStatement(units) * columns).toBeLessThanOrEqual(100);
+		const { bankTransactions, leaseTenants } = await import('./schema');
+		const columns = Object.keys(bankTransactions).length;
+		expect(rowsPerStatement(bankTransactions) * columns).toBeLessThanOrEqual(100);
 		expect(rowsPerStatement(leaseTenants)).toBe(50);
 	});
 });
