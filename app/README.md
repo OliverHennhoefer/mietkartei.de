@@ -20,6 +20,21 @@ Fünf falsche Passwörter in 15 Minuten sperren eine E-Mail-Adresse für 15 Minu
 
 Unter **Einstellungen → Export** lädst du alle Daten deines Kontos als ZIP-Datei herunter: `export.json` mit allen Einträgen (ohne Passwörter) und die hochgeladenen Dokumente im Ordner `documents/`. Unter **Einstellungen → Konto** löschst du dein Konto endgültig, nachdem du dein Passwort noch einmal eingegeben hast. Dabei gehen alle Daten, Dokumente und die Zugänge der Mitverwalter verloren.
 
+## Abo
+
+Die gehostete Variante auf app.mietkartei.de kostet ein monatliches Abo, das über Stripe läuft. Jedes neue Konto kann mietkartei 30 Tage kostenlos testen; über jeder Seite steht, wann die Testphase endet. Unter **Abo** schließt der Vermieter das Abo über Stripe Checkout ab, ohne die restlichen Testtage zu verlieren, und verwaltet danach Zahlungsart, Rechnungen und Kündigung im Kundenportal von Stripe. Den Preis legt Stripe fest, nicht der Code. Das Abo verwaltet nur der Vermieter, nicht die Mitverwalter. Wer sein Konto löscht, beendet damit auch das Abo; antwortet Stripe gerade nicht, bleibt das Konto, bis die Kündigung klappt.
+
+Eingeschaltet wird das Abo mit diesen Variablen; ohne `STRIPE_SECRET_KEY` und `STRIPE_PRICE_ID` gibt es kein Abo, und eine selbst gehostete Installation sieht davon nichts:
+
+| Variable                | Bedeutung                                                                                                                                                                                                                            |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `STRIPE_SECRET_KEY`     | API-Schlüssel von Stripe (`sk_test_…` oder ein eingeschränkter Schlüssel `rk_test_…`), geheim                                                                                                                                        |
+| `STRIPE_PRICE_ID`       | der monatliche Preis in Stripe (`price_…`)                                                                                                                                                                                           |
+| `STRIPE_WEBHOOK_SECRET` | Signaturschlüssel des Webhooks `/api/webhooks/stripe` (`whsec_…`), geheim. Ohne ihn lehnt die Anwendung jede Lieferung ab.                                                                                                           |
+| `BILLING_REQUIRED`      | `true`: Nach der Testphase kann ein Konto ohne laufendes Abo nur noch lesen und exportieren. Das Konto löschen, sich abmelden und Name, E-Mail-Adresse oder Passwort ändern geht weiterhin. Ohne Angabe bleibt es bei einem Hinweis. |
+
+Was in Stripe einzurichten ist und welche Secrets der Worker braucht, steht in [.github/DEPLOYMENT.md](../.github/DEPLOYMENT.md#subscription-stripe).
+
 ## Entwickeln
 
 Voraussetzung ist Node.js 22.12 oder neuer.
@@ -46,7 +61,7 @@ DEPLOY_TARGET=cloudflare npm run test:e2e   # dieselben Tests in workerd mit lok
 
 Vor den End-to-End-Tests installiert `npx playwright install chromium` einmalig den Browser. Der Testserver läuft auf Port 4173; mit `E2E_PORT` wählst du einen anderen, etwa um beide Ziele gleichzeitig in zwei Arbeitskopien zu testen.
 
-Der Testserver startet mit `E2E=true`. Damit ist der Endpunkt `/api/e2e/seed` aktiv, über den ein Test anlegt, was er braucht, aber nicht selbst prüft, etwa einen Mietvertrag mit Objekt, Einheit und Mieter (siehe `e2e/seed.ts`). Mails speichert der Testserver mit `MAIL_TRANSPORT=outbox` in der Datenbank, die Tests lesen sie unter `/api/e2e/outbox`. Setze `E2E` nie in einer echten Installation.
+Der Testserver startet mit `E2E=true`. Damit ist der Endpunkt `/api/e2e/seed` aktiv, über den ein Test anlegt, was er braucht, aber nicht selbst prüft, etwa einen Mietvertrag mit Objekt, Einheit und Mieter (siehe `e2e/seed.ts`). Mails speichert der Testserver mit `MAIL_TRANSPORT=outbox` in der Datenbank, die Tests lesen sie unter `/api/e2e/outbox`. Setze `E2E` nie in einer echten Installation. Statt Stripe beantwortet ein kleiner Server aus `e2e/stripe-fake.ts` die Anfragen des Abos; er läuft auf Port 4299, mit `STRIPE_FAKE_PORT` auf einem anderen.
 
 ## Datenbankschema ändern
 
