@@ -780,6 +780,49 @@ describe('computeStatement warnings', () => {
 		]);
 	});
 
+	it('blocks a credit note whose direct amounts pass on less than the credit', () => {
+		// A credit note of −1.000 €: amounts of −650 and −350 € pass it on in full.
+		const input = small({
+			items: [
+				item('i-gutschrift', 'Gutschrift Messdienst', 'c-heizung', 'k-direct', -100000, {
+					unitAmounts: [
+						{ unitId: 'eg', amount: -65000 },
+						{ unitId: 'og', amount: -35000 }
+					]
+				})
+			],
+			keys: [key('k-direct', 'Beträge je Einheit', 'direct')]
+		});
+		const full = computeStatement(input, options);
+		expect(full.leases.map((l) => l.costsTotal)).toEqual([-65000, -35000]);
+		expect(full.property.warnings).toEqual([]);
+
+		// −650 − 300 = −950 €: the landlord would keep 50 € of the credit, so the tenants would pay
+		// more than the bill. That blocks, like amounts above a bill.
+		input.items[0].unitAmounts[1].amount = -30000;
+		const short = computeStatement(input, options);
+		expect(short.property.warnings).toEqual([
+			{
+				code: 'direct_mismatch',
+				blocking: true,
+				itemId: 'i-gutschrift',
+				href: '/betriebskosten/belege/i-gutschrift',
+				message:
+					'Die Beträge je Einheit der Gutschrift „Gutschrift Messdienst“ ergeben -950,00 €, die Gutschrift -1.000,00 €; die Mieter erhielten weniger als die Gutschrift. Korrigiere die Beträge, bevor du die Abrechnung freigibst.'
+			}
+		]);
+
+		// −650 − 400 = −1.050 €: the tenants get 50 € more than the credit, which the landlord
+		// bears, like amounts below a bill.
+		input.items[0].unitAmounts[1].amount = -40000;
+		const over = computeStatement(input, options);
+		expect(over.property.warnings).toMatchObject([
+			{ code: 'direct_mismatch', itemId: 'i-gutschrift', blocking: false }
+		]);
+		expect(over.property.unallocatedTotal).toBe(5000);
+		expect(over.leases.map((l) => l.costsTotal)).toEqual([-65000, -40000]);
+	});
+
 	it('keeps the sum of direct amounts when the item is prorated', () => {
 		// 1.000 € for 1 October 2024 to 30 September 2025 (365 days, 273 in 2025) split as 333,33 +
 		// 666,67 €; the item's share is 1.000 × 273 / 365 = 747,945… → 747,95 €. Prorated one by
@@ -888,6 +931,99 @@ describe('computeStatement warnings', () => {
 		});
 		const result = computeStatement(input, options);
 		expect(result.property.costsTotal).toBe(27300);
+	});
+
+	it('shares a cost item that covers part of the period by the occupancy within it', () => {
+		// Grundsteuer (area) and Müll (persons) for January to September 2025, 273 days, 273 € each.
+		// OG changes tenants on 1 July (A: 2 persons until 30 June, B: 1 person until 30 November)
+		// and is vacant in December, after the items end.
+		const input = small({
+			leases: [
+				small().leases[0],
+				lease(
+					'l-og-a',
+					['og'],
+					{ start: '2024-01-01', end: '2025-06-30' },
+					2,
+					{ operating: 10000, heating: 5000, months: months(1, 6) },
+					{ salutation: 'Frau', firstName: 'Anna', lastName: 'Alt' }
+				),
+				lease(
+					'l-og-b',
+					['og'],
+					{ start: '2025-07-01', end: '2025-11-30' },
+					1,
+					{ operating: 10000, heating: 5000, months: months(7, 11) },
+					{ salutation: 'Herr', firstName: 'Bernd', lastName: 'Neu' }
+				)
+			],
+			items: [
+				item('i-grundsteuer', 'Grundsteuer', 'c-grundsteuer', 'k-area', 27300, {
+					periodEnd: '2025-09-30'
+				}),
+				item('i-muell', 'Müllabfuhr', 'c-muell', 'k-persons', 27300, { periodEnd: '2025-09-30' })
+			]
+		});
+		const result = computeStatement(input, options);
+		const byLease = Object.fromEntries(result.leases.map((l) => [l.leaseId, l]));
+		// OG's 40 % of the Grundsteuer, 109,20 €, by the days of January to September: A 181 and
+		// B 92 of 273, not 181 and 153 of 365 with 31 days of vacancy.
+		expect(lineAmounts(byLease['l-og-a']).Grundsteuer).toBe(7240);
+		expect(lineAmounts(byLease['l-og-b']).Grundsteuer).toBe(3680);
+		expect(byLease['l-og-b'].lines[0].share).toBe('40\u00a0m² von 100\u00a0m² · 92 von 273 Tagen');
+		// Person-days of January to September: EG 2 × 273 = 546, OG 2 × 181 + 1 × 92 = 454, no
+		// vacancy. OG 273 € × 454 / 1.000 = 123,942 → 123,94 €; A 362 / 454 = 98,824… → 98,82 €, B 92 / 454 = 25,115… →
+		// 25,12 € (the remaining cent goes to the larger remainder).
+		expect(lineAmounts(byLease['l-eg']).Müllbeseitigung).toBe(14906);
+		expect(lineAmounts(byLease['l-og-a']).Müllbeseitigung).toBe(9882);
+		expect(lineAmounts(byLease['l-og-b']).Müllbeseitigung).toBe(2512);
+		expect(byLease['l-og-b'].lines[1]).toMatchObject({
+			keyTotal: '1.000 Personentage',
+			share: '454 von 1.000 Personentagen · davon 92 Personentage'
+		});
+		// The December vacancy lies outside both items.
+		expect(result.property.vacancyShare).toBe(0);
+		const leaseSum = result.leases.reduce((sum, l) => sum + l.costsTotal, 0);
+		expect(leaseSum).toBe(2 * 27300);
+	});
+
+	it('blocks an item that no weight of its key carries', () => {
+		// No unit has a floor area: by area, the 1.000 € would reach nobody.
+		const input = small();
+		for (const unit of input.units) unit.floorArea = null;
+		const result = computeStatement(input, options);
+		expect(result.leases.map((l) => l.costsTotal)).toEqual([0, 0]);
+		expect(result.property.items[0]).toMatchObject({
+			total: 100000,
+			allocated: 0,
+			unallocated: 100000
+		});
+		expect(result.property.unallocatedTotal).toBe(100000);
+		expect(result.property.warnings.filter((w) => w.blocking)).toEqual([
+			{
+				code: 'no_weight',
+				blocking: true,
+				itemId: 'i-grundsteuer',
+				href: '/betriebskosten/belege/i-grundsteuer',
+				message:
+					'Der Beleg „Grundsteuer“ lässt sich nach dem Umlageschlüssel „Wohnfläche“ nicht verteilen, weil danach niemand einen Anteil hat (1.000,00 €); ergänze die Angaben oder wähle einen anderen Schlüssel, bevor du die Abrechnung freigibst.'
+			}
+		]);
+
+		// Under a 70/30 key the consumption part still reaches the tenants; the 30 % by area do not.
+		const mixed = small({
+			items: [item('i-heizung', 'Fernwärme', 'c-heizung', 'k-mixed', 100000)],
+			keys: [
+				key('k-mixed', 'Heizung 70/30', 'mixed', { meterKind: 'heat', consumptionPercent: 70 })
+			]
+		});
+		for (const unit of mixed.units) unit.floorArea = null;
+		const heating = computeStatement(mixed, options);
+		expect(heating.leases.map((l) => l.costsTotal)).toEqual([42000, 28000]);
+		expect(heating.property.unallocatedTotal).toBe(30000);
+		expect(heating.property.warnings.filter((w) => w.blocking).map((w) => w.code)).toEqual([
+			'no_weight'
+		]);
 	});
 
 	it('refuses a period longer than twelve months or one that cuts a month', () => {

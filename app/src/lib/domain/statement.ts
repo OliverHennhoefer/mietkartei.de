@@ -188,6 +188,7 @@ export type WarningCode =
 	| 'heizkv_key'
 	| 'missing_share'
 	| 'direct_mismatch'
+	| 'no_weight'
 	| 'flat_lease'
 	| 'deadline_passed'
 	| 'unknown_key'
@@ -315,7 +316,10 @@ export type PropertyItem = {
 	allocated: number;
 	vacancyShare: number;
 	excludedShare: number;
-	/** A `direct` key whose unit amounts do not add up to the item. */
+	/**
+	 * Not distributed: a `direct` key whose unit amounts do not add up to the item, or a key that
+	 * gives no unit (or no lease of a unit) a weight.
+	 */
 	unallocated: number;
 };
 
@@ -618,10 +622,14 @@ type Component = {
 type Context = {
 	input: StatementInput;
 	period: DateRange;
-	periodDays: number;
 	today: IsoDate;
 	warnings: StatementWarning[];
+	/** The leases that ran in the period. */
+	leases: StatementLease[];
+	/** Over the whole period, by unit. */
 	occupancies: Map<string, UnitOccupancy>;
+	/** Over the part of the period an item covers, by unit and range. */
+	rangeOccupancies: Map<string, UnitOccupancy>;
 	metersByUnit: Map<string, Meter[]>;
 	usageCache: Map<string, UnitUsage>;
 	splitCache: Map<string, UsageSplit>;
@@ -719,8 +727,25 @@ function splitOf(ctx: Context, unit: StatementUnit, kind: MeterKind, usage: Unit
 	return split;
 }
 
-function daysText(ctx: Context, occupant: Occupant): string {
-	return `${occupant.days} von ${ctx.periodDays} Tagen`;
+/**
+ * The unit's occupancy over the part of the period a cost item covers: an item for January to
+ * September is shared by the leases (and the vacancy) of those months only, by their days or
+ * person-days within them.
+ */
+function occupancyIn(ctx: Context, unit: StatementUnit, range: DateRange): UnitOccupancy {
+	if (range.start === ctx.period.start && range.end === ctx.period.end) {
+		return ctx.occupancies.get(unit.id)!;
+	}
+	const cacheKey = `${unit.id}:${range.start}:${range.end}`;
+	const cached = ctx.rangeOccupancies.get(cacheKey);
+	if (cached) return cached;
+	const occupancy = occupancyOf(unit, ctx.leases, range, ctx.input.property.vacancyPersons);
+	ctx.rangeOccupancies.set(cacheKey, occupancy);
+	return occupancy;
+}
+
+function daysText(occupant: Occupant, rangeDays: number): string {
+	return `${occupant.days} von ${rangeDays} Tagen`;
 }
 
 function areaComponent(
@@ -803,10 +828,11 @@ function componentsOf(
 	key: StatementKey,
 	allocated: number,
 	circleUnits: StatementUnit[],
-	itemOverlap: number,
+	range: DateRange,
 	itemDays: number
 ): Component[] {
-	const occupancy = (unit: StatementUnit) => ctx.occupancies.get(unit.id)!;
+	const itemOverlap = daysInclusive(range.start, range.end);
+	const occupancy = (unit: StatementUnit) => occupancyIn(ctx, unit, range);
 	switch (key.kind) {
 		case 'area':
 			return [areaComponent(ctx, allocated, circleUnits, '')];
@@ -911,13 +937,18 @@ function componentsOf(
 			});
 			const sum = direct.reduce((total, amount) => total + amount, 0);
 			if (running > item.amount) {
-				// The tenants would pay more than the bill.
+				// The tenants would pay more than the bill: for a credit note (negative), they would
+				// get less of the credit than the landlord received. Amounts beyond a credit only
+				// cost the landlord, like amounts below a bill.
 				warn(ctx, {
 					code: 'direct_mismatch',
 					blocking: true,
 					itemId: item.id,
 					href: `/betriebskosten/belege/${item.id}`,
-					message: `Die Beträge je Einheit des Belegs „${item.description}“ ergeben ${formatCents(running)}, mehr als der Beleg über ${formatCents(item.amount)}; korrigiere die Beträge, bevor du die Abrechnung freigibst.`
+					message:
+						item.amount < 0
+							? `Die Beträge je Einheit der Gutschrift „${item.description}“ ergeben ${formatCents(running)}, die Gutschrift ${formatCents(item.amount)}; die Mieter erhielten weniger als die Gutschrift. Korrigiere die Beträge, bevor du die Abrechnung freigibst.`
+							: `Die Beträge je Einheit des Belegs „${item.description}“ ergeben ${formatCents(running)}, mehr als der Beleg über ${formatCents(item.amount)}; korrigiere die Beträge, bevor du die Abrechnung freigibst.`
 				});
 			} else if (sum !== allocated) {
 				warn(ctx, {
@@ -1079,10 +1110,11 @@ export function computeStatement(
 	const ctx: Context = {
 		input,
 		period,
-		periodDays,
 		today,
 		warnings: [],
+		leases,
 		occupancies,
+		rangeOccupancies: new Map(),
 		metersByUnit,
 		usageCache: new Map(),
 		splitCache: new Map()
@@ -1124,6 +1156,8 @@ export function computeStatement(
 	for (const item of input.items) {
 		const itemOverlap = overlapDays(period, { start: item.periodStart, end: item.periodEnd });
 		if (itemOverlap === 0) continue;
+		// The part of the period the item covers: its cost is shared by who occupied the units then.
+		const range = overlap(period, { start: item.periodStart, end: item.periodEnd })!;
 		const itemDays = daysInclusive(item.periodStart, item.periodEnd);
 		// Step 1: the cost in the period.
 		const total = proRata(item.amount, itemOverlap, itemDays);
@@ -1196,24 +1230,31 @@ export function computeStatement(
 		}
 
 		// Steps 2–4: weights per unit, distribution, split over the leases of each unit.
-		const components = componentsOf(ctx, item, key, total, circleUnits, itemOverlap, itemDays);
+		const components = componentsOf(ctx, item, key, total, circleUnits, range, itemDays);
 		summary.allocated = components.reduce((sum, component) => sum + component.amount, 0);
-		summary.unallocated = total - summary.allocated;
-		unallocatedTotal += summary.unallocated;
+		// What no weight carries: distributeCents gives all zeros when every weight is 0.
+		let undistributed = 0;
+		const sumOf = (amounts: number[]) => amounts.reduce((sum, amount) => sum + amount, 0);
 
 		type LeasePart = { amount: number; shares: string[]; method?: SplitMethod };
 		const partsByLease = new Map<string, LeasePart>();
 		for (const component of components) {
 			const unitAmounts = component.direct ?? distributeCents(component.amount, component.weights);
+			undistributed += component.amount - sumOf(unitAmounts);
 			circleUnits.forEach((unit, unitIndex) => {
-				const occupancy = occupancies.get(unit.id)!;
+				// HeizKV: consumption is recorded and split at a tenant change over the whole period;
+				// the shares by time follow the leases within the part of the period the item covers.
+				const occupancy =
+					component.splitBy === 'consumption'
+						? occupancies.get(unit.id)!
+						: occupancyIn(ctx, unit, range);
 				const unitAmount = unitAmounts[unitIndex];
 				let weights: number[];
 				let method: SplitMethod | undefined;
 				let details: string[] = [];
 				if (component.splitBy === 'days') {
 					weights = [...occupancy.leases.map((o) => o.days), occupancy.vacancyDays];
-					details = occupancy.leases.map((o) => daysText(ctx, o));
+					details = occupancy.leases.map((o) => daysText(o, itemOverlap));
 				} else if (component.splitBy === 'persons') {
 					weights = [...occupancy.leases.map((o) => o.personDays), occupancy.vacancyPersonDays];
 					// The detail matters only when the unit's person-days are shared.
@@ -1229,6 +1270,7 @@ export function computeStatement(
 					details = split.detail;
 				}
 				const parts = distributeCents(unitAmount, weights);
+				undistributed += unitAmount - sumOf(parts);
 				occupancy.leases.forEach((occupant, i) => {
 					const part = partsByLease.get(occupant.lease.id) ?? { amount: 0, shares: [] };
 					part.amount += parts[i];
@@ -1244,6 +1286,19 @@ export function computeStatement(
 				summary.vacancyShare += vacancy;
 			});
 		}
+		if (undistributed !== 0) {
+			// The cost would vanish from every balance while the item counts as allocated.
+			warn(ctx, {
+				code: 'no_weight',
+				blocking: true,
+				itemId: item.id,
+				href: `/betriebskosten/belege/${item.id}`,
+				message: `Der Beleg „${item.description}“ lässt sich nach dem Umlageschlüssel „${key.name}“ nicht verteilen, weil danach niemand einen Anteil hat (${formatCents(undistributed)}); ergänze die Angaben oder wähle einen anderen Schlüssel, bevor du die Abrechnung freigibst.`
+			});
+			summary.allocated -= undistributed;
+		}
+		summary.unallocated = total - summary.allocated;
+		unallocatedTotal += summary.unallocated;
 
 		for (const [leaseId, part] of partsByLease) {
 			const accumulator = accumulators.get(leaseId);
