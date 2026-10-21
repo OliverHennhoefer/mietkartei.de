@@ -5,6 +5,7 @@ import {
 	addMonthsToMonth,
 	dayOf,
 	formatDate,
+	formatDateTime,
 	formatMonth,
 	isIsoDate,
 	isIsoMonth,
@@ -69,6 +70,9 @@ describe('formatting', () => {
 		expect(formatDate('2026-03-05')).toBe('05.03.2026');
 		expect(() => formatDate('05.03.2026')).toThrow();
 		expect(formatMonth('2026-03')).toBe('März 2026');
+		// Summer time: UTC+2; winter time: UTC+1.
+		expect(formatDateTime(new Date('2026-10-20T10:00:00Z'))).toBe('20.10.2026, 12:00');
+		expect(formatDateTime(new Date('2026-12-31T23:30:00Z'))).toBe('01.01.2027, 00:30');
 	});
 });
 

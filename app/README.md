@@ -2,8 +2,8 @@
 
 Die Webanwendung von mietkartei.de, gebaut mit SvelteKit, Drizzle ORM und SQLite. Derselbe Code läuft auf zwei Wegen:
 
-- **Selbst gehostet** mit Node.js oder als Docker-Container. Die Daten liegen in einer einzigen SQLite-Datei.
-- **Gehostet** auf Cloudflare Workers mit einer D1-Datenbank.
+- **Selbst gehostet** mit Node.js oder als Docker-Container. Die Daten liegen in einer einzigen SQLite-Datei, hochgeladene Dokumente als Dateien daneben.
+- **Gehostet** auf Cloudflare Workers mit einer D1-Datenbank und den Dokumenten in R2.
 
 Welcher Weg gebaut wird, bestimmt die Umgebungsvariable `DEPLOY_TARGET` (`node` oder `cloudflare`, Standard ist `node`).
 
@@ -24,9 +24,9 @@ npm ci
 npm run dev
 ```
 
-Die Anwendung läuft dann unter <http://localhost:5173>. Die Datenbank liegt in `data/mietkartei.db` und erhält beim Start automatisch alle Migrationen.
+Die Anwendung läuft dann unter <http://localhost:5173>. Die Datenbank liegt in `data/mietkartei.db` und erhält beim Start automatisch alle Migrationen, hochgeladene Dokumente liegen in `data/documents`.
 
-Mit `npm run dev:cloudflare` läuft die Entwicklungsumgebung stattdessen gegen eine lokale D1-Datenbank.
+Mit `npm run dev:cloudflare` läuft die Entwicklungsumgebung stattdessen gegen eine lokale D1-Datenbank und einen lokalen R2-Bucket.
 
 ## Prüfen
 
@@ -63,14 +63,15 @@ docker run -d --name mietkartei -p 3000:3000 \
   mietkartei
 ```
 
-Die Anwendung ist dann unter <http://localhost:3000> erreichbar. Die Daten liegen im Volume `mietkartei-daten`. Zum Sichern hältst du den Container mit `docker stop mietkartei` an und kopierst den Inhalt von `/data`. Im laufenden Betrieb ist eine Dateikopie nicht zuverlässig, weil SQLite einen Teil der Änderungen in `mietkartei.db-wal` zwischenspeichert.
+Die Anwendung ist dann unter <http://localhost:3000> erreichbar. Die Daten liegen im Volume `mietkartei-daten`, die Dokumente darin im Ordner `/data/documents`. Zum Sichern hältst du den Container mit `docker stop mietkartei` an und kopierst den Inhalt von `/data`. Im laufenden Betrieb ist eine Dateikopie nicht zuverlässig, weil SQLite einen Teil der Änderungen in `mietkartei.db-wal` zwischenspeichert.
 
 | Variable            | Bedeutung                                                                                                                                                                                                                                                           | Standard              |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
 | `ORIGIN`            | Öffentliche Adresse, unter der die Anwendung aufgerufen wird, etwa `https://mietkartei.example.de` hinter einem Reverse Proxy mit HTTPS. Ohne Angabe gilt `http` mit der aufgerufenen Adresse, zum Beispiel `http://localhost:3000` oder `http://192.168.1.5:3000`. | –                     |
 | `DATABASE_PATH`     | Pfad der SQLite-Datei                                                                                                                                                                                                                                               | `/data/mietkartei.db` |
+| `DATA_DIR`          | Ordner der hochgeladenen Dokumente                                                                                                                                                                                                                                  | `/data/documents`     |
 | `OPEN_REGISTRATION` | `true` erlaubt allen, ein neues Konto anzulegen. Sonst kann sich nur die erste Person registrieren.                                                                                                                                                                 | –                     |
 | `PORT`              | Port des Servers                                                                                                                                                                                                                                                    | `3000`                |
-| `BODY_SIZE_LIMIT`   | Größte erlaubte Anfrage, etwa für den Import von Kontoauszügen                                                                                                                                                                                                      | `3M`                  |
+| `BODY_SIZE_LIMIT`   | Größte erlaubte Anfrage, etwa für Dokumente bis 10 MB                                                                                                                                                                                                               | `12M`                 |
 
 Ohne Docker startet `npm run build && npm start` denselben Server.

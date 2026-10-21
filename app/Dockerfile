@@ -15,7 +15,8 @@ RUN DEPLOY_TARGET=node npm run build && npm prune --omit=dev
 FROM node:26-slim
 ENV NODE_ENV=production \
 	PORT=3000 \
-	DATABASE_PATH=/data/mietkartei.db
+	DATABASE_PATH=/data/mietkartei.db \
+	DATA_DIR=/data/documents
 WORKDIR /app
 COPY --from=build /src/app/package.json /src/app/server.js ./
 COPY --from=build /src/app/node_modules ./node_modules

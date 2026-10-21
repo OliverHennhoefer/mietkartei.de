@@ -10,7 +10,7 @@ const commands = {
 	node: [
 		'rm -rf .e2e',
 		'npm run build',
-		`DATABASE_PATH=.e2e/node.db E2E=true PORT=${port} node server.js`
+		`DATABASE_PATH=.e2e/node.db DATA_DIR=.e2e/documents E2E=true PORT=${port} node server.js`
 	],
 	cloudflare: [
 		'rm -rf .e2e',
