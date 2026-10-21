@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	diffCharges,
 	expectedRentCharges,
+	type ChargeTerm,
 	type ExpectedCharge,
 	type StoredCharge
 } from './charges';
@@ -31,8 +32,8 @@ const changes: RentChange[] = [
 // rounded up); 50 × 17/31 = 27,42 (27,419). Together 438,71.
 const january: ExpectedCharge = {
 	period: '2025-01',
-	// Wed 1 is Neujahr: Thu 2, Fri 3, Mon 6
-	dueDate: '2025-01-06',
+	// The third working day is Mon 6 (Wed 1 is Neujahr), before the lease starts: due on the 15th.
+	dueDate: '2025-01-15',
 	baseRent: 32903,
 	operatingCostPrepayment: 8226,
 	heatingCostPrepayment: 2742,
@@ -79,7 +80,8 @@ describe('expectedRentCharges', () => {
 		).toEqual([
 			{
 				period: '2025-03',
-				dueDate: '2025-03-05',
+				// The third working day, Wed 5, lies before the ledger start.
+				dueDate: '2025-03-10',
 				baseRent: 42581,
 				operatingCostPrepayment: 10645,
 				heatingCostPrepayment: 3548,
@@ -145,8 +147,25 @@ describe('expectedRentCharges', () => {
 	it('uses the n-th working day of the lease as due date', () => {
 		// January: Neujahr, so Thu 2. February: Sat 1, Sun 2, Mon 3.
 		expect(
-			expectedRentCharges({ ...lease, rentDueDay: 1 }, changes, '2025-02').map((c) => c.dueDate)
+			expectedRentCharges(
+				{ ...lease, startDate: '2025-01-01', rentDueDay: 1 },
+				[{ ...changes[0], validFrom: '2025-01-01' }],
+				'2025-02'
+			).map((c) => c.dueDate)
 		).toEqual(['2025-01-02', '2025-02-03']);
+	});
+
+	it('makes the first rent due no earlier than the start of the lease or the ledger', () => {
+		// The lease starts on Wed 15 January, after the third working day (Mon 6): due on the 15th.
+		// A start before the due day keeps the working day: from Fri 3 January, due Mon 6.
+		const dueDates = (term: ChargeTerm) =>
+			expectedRentCharges(term, [{ ...changes[0], validFrom: '2025-01-01' }], '2025-02').map(
+				(c) => c.dueDate
+			);
+		expect(dueDates(lease)).toEqual(['2025-01-15', '2025-02-05']);
+		expect(dueDates({ ...lease, startDate: '2025-01-03' })).toEqual(['2025-01-06', '2025-02-05']);
+		// Same for a ledger start in the middle of a month: from 20 February, due on the 20th.
+		expect(dueDates({ ...lease, ledgerStart: '2025-02-20' })).toEqual(['2025-02-20']);
 	});
 
 	it('moves the due date past a public holiday', () => {

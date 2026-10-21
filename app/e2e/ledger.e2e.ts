@@ -1,5 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addDays, addMonths, firstOfMonth, formatMonth, monthOf, today } from '../src/lib/dates';
+import {
+	addDays,
+	addMonths,
+	addMonthsToMonth,
+	firstOfMonth,
+	formatMonth,
+	lastOfMonth,
+	monthOf,
+	today
+} from '../src/lib/dates';
 import { seedLease, seedRows } from './seed';
 
 // The ledger pages: /mietkonto with every lease's balance and the Mietkonto tab of one lease.
@@ -133,6 +142,34 @@ test('shows a charge that is not due yet without counting it as Rückstand', asy
 	await expect(
 		page.getByRole('table', { name: 'Salden' }).locator('tr', { hasText: later })
 	).toHaveCount(0);
+});
+
+test('shows a Guthaben and the Rückstand side by side when a later payment overpays', async ({
+	page
+}) => {
+	// Two months that ended last month, 1.600 € due and unpaid; 2.000 € are booked for a date in
+	// ten days. The balance is a Guthaben of 400 €, yet 1.600 € are overdue today.
+	const ahead = `Vorab-${suffix}`;
+	const current = monthOf(today());
+	const { leaseId } = await seedLease(page.request, {
+		tenant: { lastName: ahead },
+		lease: {
+			startDate: firstOfMonth(addMonthsToMonth(current, -2)),
+			endDate: lastOfMonth(addMonthsToMonth(current, -1))
+		}
+	});
+	await seedRows(page.request, 'payments', [
+		{ leaseId, date: addDays(today(), 10), amount: 200000, note: 'Vorauszahlung' }
+	]);
+
+	await page.goto('/mietkonto?filter=rueckstaende');
+	const row = page.getByRole('table', { name: 'Salden' }).locator('tr', { hasText: ahead });
+	const saldo = row.getByRole('cell').nth(2);
+	await expect(saldo).toContainText('400,00 €');
+	await expect(saldo).toContainText('Guthaben');
+	await expect(saldo).toContainText('Rückstand');
+	await expect(saldo).toContainText('fällig 1.600,00 €');
+	await expect(saldo).not.toContainText('davon');
 });
 
 test('makes the rent due on the third working day after a public holiday', async ({ page }) => {

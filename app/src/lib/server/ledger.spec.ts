@@ -509,6 +509,23 @@ describe('listBalances', () => {
 		});
 	});
 
+	it('does not let a payment dated after asOf settle what is overdue on asOf', async () => {
+		// January and February 2025, nothing paid by 28.02.; 2.000 € arrive on 10.03. The balance
+		// counts the payment (a Guthaben of 400 €), the Rückstand on 28.02. does not.
+		await db.update(leases).set({ endDate: '2025-02-28' }).where(eq(leases.id, leaseId));
+		await createPayment(db, contextA, { leaseId, date: '2025-03-10', amount: 200000 });
+		const balances = await listBalances(db, 'a', { untilMonth: '2025-02', asOf: '2025-02-28' });
+		expect(balances.find((row) => row.leaseId === leaseId)).toEqual({
+			leaseId,
+			charged: 160000,
+			paid: 200000,
+			balance: -40000,
+			overdue: 160000,
+			lastPaymentDate: null,
+			openSince: '2025-01'
+		});
+	});
+
 	it('moves "offen seit" on when a credit settles the oldest open charge', async () => {
 		// January: rent 800 € (due 06.01.) paid; a correction of +300 € due 20.01. not paid.
 		// February: a credit of −300 € (due 01.02.) and the rent of 800 € (due 05.02.), not paid.

@@ -68,17 +68,25 @@
 							</td>
 							<td>{row.tenants}</td>
 							<td class="num">
+								<!-- The sign of the balance and the Rückstand are separate: a payment dated later can
+								     turn the balance into a Guthaben while rent due today is still unpaid. -->
 								<Money cents={Math.abs(row.balance)} />
-								{#if row.overdue > 0}
-									<Badge tone="danger">Rückstand</Badge>
-								{:else if row.balance > 0}
-									<Badge>noch nicht fällig</Badge>
+								{#if row.balance > 0}
+									{#if row.overdue > 0}
+										<Badge tone="danger">Rückstand</Badge>
+									{:else}
+										<Badge>noch nicht fällig</Badge>
+									{/if}
 								{:else if row.balance < 0}
 									<Badge tone="success">Guthaben</Badge>
 								{/if}
 								{#if row.overdue > 0 && row.overdue !== row.balance}
 									<span class="muted small due">
-										davon fällig <Money cents={row.overdue} />
+										{#if row.balance <= 0}
+											<Badge tone="danger">Rückstand</Badge>
+										{/if}
+										{row.overdue < row.balance ? 'davon fällig' : 'fällig'}
+										<Money cents={row.overdue} />
 									</span>
 								{/if}
 							</td>
