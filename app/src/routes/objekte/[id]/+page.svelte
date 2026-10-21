@@ -36,13 +36,15 @@
 				<div class="occupancy">
 					{#if unit.occupancies.length === 0}
 						<Badge tone="warning">Leerstand</Badge>
+						<a href="/vertraege/neu?unitId={unit.id}">Mietvertrag anlegen</a>
 					{:else}
 						{#each unit.occupancies as occupancy (occupancy.leaseId)}
-							<span>
+							<a href="/vertraege/{occupancy.leaseId}">
 								{occupancy.tenants.length > 0
 									? occupancy.tenants.map(personName).join(', ')
 									: 'Mietvertrag ohne Mieter'}
-							</span>
+							</a>
+							{#if !occupancy.main}<span class="muted small">(mitvermietet)</span>{/if}
 						{/each}
 					{/if}
 				</div>

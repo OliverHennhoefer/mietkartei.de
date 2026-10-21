@@ -1,6 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { today } from '#lib/dates.ts';
-import { deleteUnit, getUnit, listUnitLeases } from '#lib/server/properties.ts';
+import { listLeases } from '#lib/server/leases.ts';
+import { deleteUnit, getUnit } from '#lib/server/properties.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -9,7 +9,19 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const accountId = requireAccount(locals);
 	const unit = await getUnit(locals.db, accountId, params.unitId);
 	if (!unit || unit.propertyId !== params.id) error(404, 'Diese Einheit gibt es nicht.');
-	return { unit, leases: await listUnitLeases(locals.db, accountId, { unitId: unit.id }, today()) };
+	const leases = await listLeases(locals.db, accountId, { unitId: unit.id });
+	return {
+		unit,
+		leases: leases.map((lease) => ({
+			id: lease.id,
+			startDate: lease.startDate,
+			endDate: lease.endDate,
+			active: lease.active,
+			upcoming: lease.upcoming,
+			main: lease.unitId === unit.id,
+			tenants: lease.tenants
+		}))
+	};
 };
 
 export const actions: Actions = {
@@ -22,7 +34,7 @@ export const actions: Actions = {
 		if (outcome === 'in-use') {
 			return fail(400, {
 				deleteError:
-					'Die Einheit kann nicht gelöscht werden, solange ein Mietvertrag auf ihr liegt, auch ein beendeter: Er bleibt mit seiner Geschichte erhalten. Die Mietverträge der Einheit stehen oben.'
+					'Die Einheit kann nicht gelöscht werden, solange ein Mietvertrag auf ihr liegt, auch ein beendeter: Er bleibt mit seiner Geschichte erhalten. Die Mietverträge der Einheit stehen oben; einen Mietvertrag ohne Kautionsbewegungen kannst du auf seiner Seite löschen.'
 			});
 		}
 		redirect(303, `/objekte/${params.id}`);

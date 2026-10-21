@@ -11,7 +11,6 @@ import {
 	getProperty,
 	getUnit,
 	listProperties,
-	listUnitLeases,
 	listUnits,
 	propertyOverview,
 	unitsWithOccupancy,
@@ -142,6 +141,22 @@ describe('properties', () => {
 		expect(await auditSummaries('a')).not.toContain('Objekt Haus gelöscht');
 	});
 
+	it('refuses to delete a property whose unit is an extra unit of a lease elsewhere', async () => {
+		const { id: houseId } = await addProperty(db, contextA, propertyInput({ name: 'Haus' }));
+		const flat = await addUnit(db, contextA, houseId, unitInput());
+		const { id: garageId } = await addProperty(db, contextA, propertyInput({ name: 'Garagen' }));
+		const parking = await addUnit(
+			db,
+			contextA,
+			garageId,
+			unitInput({ name: 'Stellplatz 1', kind: 'parking', floorArea: null })
+		);
+		await seedLease(db, 'a', flat!.id, { extraUnitIds: [parking!.id] });
+
+		expect(await deleteProperty(db, contextA, garageId)).toBe('in-use');
+		expect(await deleteUnit(db, contextA, parking!.id)).toBe('in-use');
+	});
+
 	it('does not delete a property of another account', async () => {
 		const { id } = await addProperty(db, contextB, propertyInput({ name: 'Fremdes Haus' }));
 		expect(await deleteProperty(db, contextA, id)).toBe('missing');
@@ -227,30 +242,45 @@ describe('units', () => {
 });
 
 describe('unitsWithOccupancy', () => {
-	it('names the leases running on the date with their tenants', async () => {
+	it('names the leases running on the date, as main unit or extra unit, with tenants', async () => {
 		const { id: propertyId } = await addProperty(db, contextA, propertyInput());
 		const flat = await addUnit(db, contextA, propertyId, unitInput({ name: 'EG' }));
+		const parking = await addUnit(
+			db,
+			contextA,
+			propertyId,
+			unitInput({ name: 'Stellplatz', kind: 'parking', floorArea: null })
+		);
 		const vacant = await addUnit(db, contextA, propertyId, unitInput({ name: 'OG' }));
 		const erika = await seedTenant(db, 'a');
 		const max = await seedTenant(db, 'a', { firstName: 'Max', lastName: 'Beispiel' });
-		// Lease A ended, lease B runs.
+		// Lease A ended, lease B runs; B rents the parking space along with the flat.
 		await seedLease(db, 'a', flat!.id, {
 			startDate: '2024-01-01',
 			endDate: '2024-12-31',
 			tenantIds: [max]
 		});
-		const leaseId = await seedLease(db, 'a', flat!.id, { tenantIds: [erika, max] });
+		const leaseId = await seedLease(db, 'a', flat!.id, {
+			tenantIds: [erika, max],
+			extraUnitIds: [parking!.id]
+		});
 
 		const rows = await unitsWithOccupancy(db, 'a', propertyId, '2025-06-15');
-		expect(rows.map((unit) => unit.name)).toEqual(['EG', 'OG']);
-		const [eg, og] = rows;
+		expect(rows.map((unit) => unit.name)).toEqual(['EG', 'OG', 'Stellplatz']);
+		const [eg, og, stellplatz] = rows;
 		expect(eg.occupancies).toHaveLength(1);
-		expect(eg.occupancies[0]).toMatchObject({ leaseId, startDate: '2025-01-01', endDate: null });
+		expect(eg.occupancies[0]).toMatchObject({
+			leaseId,
+			main: true,
+			startDate: '2025-01-01',
+			endDate: null
+		});
 		expect(eg.occupancies[0].tenants.map((tenant) => tenant.lastName)).toEqual([
 			'Beispiel',
 			'Mustermann'
 		]);
 		expect(og.occupancies).toEqual([]);
+		expect(stellplatz.occupancies).toMatchObject([{ leaseId, main: false }]);
 		expect(vacant!.id).toBe(og.id);
 
 		// Before the current lease started, the ended lease occupied the flat.
@@ -258,6 +288,7 @@ describe('unitsWithOccupancy', () => {
 		expect(earlier[0].occupancies[0].tenants.map((tenant) => tenant.lastName)).toEqual([
 			'Beispiel'
 		]);
+		expect(earlier[2].occupancies).toEqual([]);
 	});
 
 	it('does not leak units or leases of another account', async () => {
@@ -270,50 +301,6 @@ describe('unitsWithOccupancy', () => {
 	});
 });
 
-describe('listUnitLeases', () => {
-	it('lists running, upcoming and ended leases of a unit or a property, newest first', async () => {
-		const { id: propertyId } = await addProperty(db, contextA, propertyInput());
-		const eg = await addUnit(db, contextA, propertyId, unitInput({ name: 'EG' }));
-		const og = await addUnit(db, contextA, propertyId, unitInput({ name: 'OG' }));
-		const erika = await seedTenant(db, 'a');
-		const ended = await seedLease(db, 'a', eg!.id, {
-			startDate: '2024-01-01',
-			endDate: '2024-12-31'
-		});
-		const running = await seedLease(db, 'a', eg!.id, { tenantIds: [erika] });
-		const upcoming = await seedLease(db, 'a', og!.id, { startDate: '2026-01-01' });
-		// Another property's lease is not listed.
-		const { id: otherId } = await addProperty(db, contextA, propertyInput({ name: 'Anderes' }));
-		const other = await addUnit(db, contextA, otherId, unitInput());
-		await seedLease(db, 'a', other!.id);
-
-		const onUnit = await listUnitLeases(db, 'a', { unitId: eg!.id }, '2025-06-15');
-		expect(onUnit.map((lease) => [lease.id, lease.active, lease.upcoming])).toEqual([
-			[running, true, false],
-			[ended, false, false]
-		]);
-		expect(onUnit[0]).toMatchObject({ unitId: eg!.id, unitName: 'EG', endDate: null });
-		expect(onUnit[0].tenants.map((tenant) => tenant.firstName)).toEqual(['Erika']);
-		expect(onUnit[1].tenants).toEqual([]);
-
-		const onProperty = await listUnitLeases(db, 'a', { propertyId }, '2025-06-15');
-		expect(onProperty.map((lease) => [lease.unitName, lease.upcoming])).toEqual([
-			['OG', true],
-			['EG', false],
-			['EG', false]
-		]);
-		expect(onProperty[0].id).toBe(upcoming);
-	});
-
-	it('does not list leases of another account', async () => {
-		const { id: propertyId } = await addProperty(db, contextB, propertyInput());
-		const unit = await addUnit(db, contextB, propertyId, unitInput());
-		await seedLease(db, 'b', unit!.id);
-		expect(await listUnitLeases(db, 'a', { propertyId }, '2025-06-15')).toEqual([]);
-		expect(await listUnitLeases(db, 'a', { unitId: unit!.id }, '2025-06-15')).toEqual([]);
-	});
-});
-
 describe('propertyOverview', () => {
 	it('counts units, running leases and vacant units per property', async () => {
 		const { id: houseId } = await addProperty(db, contextA, propertyInput({ name: 'Haus' }));
@@ -321,15 +308,16 @@ describe('propertyOverview', () => {
 		const og = await addUnit(db, contextA, houseId, unitInput({ name: 'OG' }));
 		await addUnit(db, contextA, houseId, unitInput({ name: 'DG' }));
 		const { id: garageId } = await addProperty(db, contextA, propertyInput({ name: 'Garagen' }));
-		await addUnit(
+		const parking = await addUnit(
 			db,
 			contextA,
 			garageId,
 			unitInput({ name: 'Stellplatz 1', kind: 'parking', floorArea: null })
 		);
+		await addUnit(db, contextA, garageId, unitInput({ name: 'Stellplatz 2', kind: 'parking' }));
 		await addProperty(db, contextA, propertyInput({ name: 'Leer' }));
-		// EG runs; OG ended last year; DG never rented.
-		await seedLease(db, 'a', eg!.id);
+		// EG runs with the parking space as extra unit; OG ended last year; DG never rented.
+		await seedLease(db, 'a', eg!.id, { extraUnitIds: [parking!.id] });
 		await seedLease(db, 'a', og!.id, { startDate: '2024-01-01', endDate: '2024-12-31' });
 		// Another account's data must not count.
 		const { id: foreignId } = await addProperty(db, contextB, propertyInput({ name: 'Fremd' }));
@@ -340,7 +328,8 @@ describe('propertyOverview', () => {
 		expect(
 			overview.map((row) => [row.name, row.unitCount, row.activeLeases, row.vacantUnits])
 		).toEqual([
-			['Garagen', 1, 0, 1],
+			// Garagen: 2 units, no lease has its main unit here, Stellplatz 1 is occupied as extra unit.
+			['Garagen', 2, 0, 1],
 			// Haus: 3 units, one running lease (EG), OG's lease ended, so OG and DG are vacant.
 			['Haus', 3, 1, 2],
 			['Leer', 0, 0, 0]

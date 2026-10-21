@@ -17,6 +17,9 @@
 <div class="toolbar">
 	<a class="button secondary" href="{base}/bearbeiten">Bearbeiten</a>
 	<a href="/objekte/{data.property.id}">Alle Einheiten</a>
+	{#if vacant}
+		<a href="/vertraege/neu?unitId={data.unit.id}">Mietvertrag anlegen</a>
+	{/if}
 </div>
 
 <h2>Einheit {data.unit.name}</h2>
@@ -53,6 +56,7 @@
 				<tr>
 					<th>Mieter</th>
 					<th>Zeitraum</th>
+					<th>Rolle</th>
 					<th>Status</th>
 				</tr>
 			</thead>
@@ -60,14 +64,17 @@
 				{#each data.leases as lease (lease.id)}
 					<tr>
 						<td>
-							{lease.tenants.length > 0
-								? lease.tenants.map(personName).join(', ')
-								: 'Mietvertrag ohne Mieter'}
+							<a href="/vertraege/{lease.id}">
+								{lease.tenants.length > 0
+									? lease.tenants.map(personName).join(', ')
+									: 'Mietvertrag ohne Mieter'}
+							</a>
 						</td>
 						<td>
 							seit {formatDate(lease.startDate)}{#if lease.endDate}
 								bis {formatDate(lease.endDate)}{/if}
 						</td>
+						<td>{lease.main ? 'Haupteinheit' : 'Mitvermietet'}</td>
 						<td>
 							{#if lease.active}<Badge tone="success">Aktiv</Badge>{:else if lease.upcoming}<Badge
 									tone="info">Beginnt später</Badge
