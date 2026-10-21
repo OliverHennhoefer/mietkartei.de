@@ -198,7 +198,10 @@ export const leasePersons = sqliteTable(
 		note: text('note'),
 		createdAt: createdAt()
 	},
-	(table) => [uniqueIndex('lease_persons_unique').on(table.leaseId, table.validFrom)]
+	(table) => [
+		index('lease_persons_account_id_idx').on(table.accountId),
+		uniqueIndex('lease_persons_unique').on(table.leaseId, table.validFrom)
+	]
 );
 
 /** A lease can have several tenants, and a tenant can have several leases. */
@@ -235,6 +238,7 @@ export const leaseUnits = sqliteTable(
 	},
 	(table) => [
 		primaryKey({ columns: [table.leaseId, table.unitId] }),
+		index('lease_units_account_id_idx').on(table.accountId),
 		index('lease_units_unit_id_idx').on(table.unitId)
 	]
 );
@@ -319,6 +323,7 @@ export const depositTransactions = sqliteTable(
 		createdAt: createdAt()
 	},
 	(table) => [
+		index('deposit_transactions_account_id_idx').on(table.accountId),
 		index('deposit_transactions_lease_id_idx').on(table.leaseId),
 		uniqueIndex('deposit_transactions_bank_transaction_unique')
 			.on(table.bankTransactionId)
@@ -680,7 +685,9 @@ export const sessions = sqliteTable(
 		userId: text('user_id')
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
-		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull()
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+		/** Sign-in time; renewals never extend a session past SESSION_MAX_AGE from here. */
+		createdAt: createdAt()
 	},
 	(table) => [index('sessions_user_id_idx').on(table.userId)]
 );

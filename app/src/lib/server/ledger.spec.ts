@@ -1,3 +1,4 @@
+import { isHttpError } from '@sveltejs/kit';
 import { asc, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { formatCents } from '../money';
@@ -15,6 +16,7 @@ import {
 	paymentEntry,
 	postCharge
 } from './ledger';
+import { QUOTAS } from './quotas';
 import { contextA, contextB, leaseInput, seedUnit, testDatabase } from './testing';
 
 let db: Database;
@@ -52,6 +54,18 @@ const adjustment = {
 };
 
 describe('ensureCharges', () => {
+	it('stops generating charges at the quota of the account', async () => {
+		const max = QUOTAS.rentCharges.max;
+		QUOTAS.rentCharges.max = 3;
+		try {
+			const refusal = await ensureCharges(db, 'a', [leaseId], '2025-04').catch((e) => e);
+			expect(isHttpError(refusal, 409)).toBe(true);
+			expect(await rentRows(leaseId)).toHaveLength(0);
+		} finally {
+			QUOTAS.rentCharges.max = max;
+		}
+	});
+
 	it('inserts one rent charge per month up to untilMonth, and nothing twice', async () => {
 		expect(await ensureCharges(db, 'a', [leaseId], '2025-04')).toEqual({
 			inserted: 4,

@@ -5,6 +5,7 @@ import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
 import { runBatch } from '../db/batch';
 import { bankAccounts, bankTransactions } from '../db/schema';
+import { assertQuota } from '../quotas';
 
 // Bankverbindungen: the landlord's accounts rent comes in on.
 
@@ -47,6 +48,7 @@ export async function createBankAccount(
 	context: AuditContext,
 	input: BankAccountInput
 ): Promise<{ ok: true; id: string } | { ok: false; reason: 'duplicate' }> {
+	await assertQuota(db, context.accountId, 'bankAccounts');
 	const [existing] = await db
 		.select({ id: bankAccounts.id })
 		.from(bankAccounts)

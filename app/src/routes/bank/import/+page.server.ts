@@ -7,7 +7,13 @@ import {
 	parseBankFile,
 	type ColumnMapping
 } from '#lib/domain/bank-matching.ts';
-import { mappingError, parseImport, toColumnMapping, type ImportInput } from '#lib/forms/bank.ts';
+import {
+	MAX_IMPORT_ROWS,
+	mappingError,
+	parseImport,
+	toColumnMapping,
+	type ImportInput
+} from '#lib/forms/bank.ts';
 import type { FieldErrors } from '#lib/forms/fields.ts';
 import { listBankAccounts } from '#lib/server/bank/accounts.ts';
 import { commitImport, previewImport, type PreviewRow } from '#lib/server/bank/imports.ts';
@@ -64,6 +70,8 @@ export type Preview = {
 
 const emptyCounts = { total: 0, new: 0, duplicates: 0, rules: 0, invalid: 0 };
 
+const TOO_MANY_ROWS = `Eine Datei darf höchstens ${MAX_IMPORT_ROWS.toLocaleString('de-DE')} Zeilen haben. Bitte teile den Zeitraum auf.`;
+
 function failed(message: string, values: Record<string, string>) {
 	const errors: FieldErrors<ImportInput> = { file: message };
 	return fail(400, { errors, values });
@@ -84,6 +92,7 @@ export const actions: Actions = {
 				: null;
 		const parsed = parseBankFile(decodeCsv(file.bytes), generic);
 		if (!parsed) return failed('Die Datei enthält keine Tabelle mit Spalten.', {});
+		if (parsed.results.length > MAX_IMPORT_ROWS) return failed(TOO_MANY_ROWS, {});
 
 		const preview: Preview = {
 			bankAccountId: input.bankAccountId,
@@ -122,6 +131,7 @@ export const actions: Actions = {
 		}
 		const parsed = parseBankFile(decodeCsv(file.bytes), generic);
 		if (!parsed) return failed('Die Datei enthält keine Tabelle mit Spalten.', {});
+		if (parsed.results.length > MAX_IMPORT_ROWS) return failed(TOO_MANY_ROWS, {});
 		if (!parsed.preset && !generic) return failed('Bitte ordne die Spalten zu.', {});
 
 		const imported = await commitImport(
