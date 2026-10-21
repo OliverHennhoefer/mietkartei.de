@@ -8,13 +8,19 @@ import { getDatabase } from '#lib/server/db/index.ts';
 import { getAuthLimiter } from '#lib/server/rate-limit/index.ts';
 
 /** Paths that work without signing in. Everything else redirects to the sign-in page. */
-const publicPaths = new Set(['/anmelden', '/registrieren', '/health']);
+const publicPaths = new Set(['/anmelden', '/registrieren', '/passwort-vergessen', '/health']);
+const publicPrefixes = ['/passwort-zuruecksetzen/', '/einladung/'];
 
-/** Paths whose posts check a password or create an account, counted per client address. */
-const authPaths = new Set(['/anmelden', '/registrieren']);
+/**
+ * Paths whose posts check a password, create an account or send a reset mail, counted per client
+ * address. A reset request also writes a row for the address, so unthrottled it could fill the
+ * database.
+ */
+const authPaths = new Set(['/anmelden', '/registrieren', '/passwort-vergessen']);
 
 function isPublic(pathname: string): boolean {
 	if (publicPaths.has(pathname)) return true;
+	if (publicPrefixes.some((prefix) => pathname.startsWith(prefix))) return true;
 	// Test-only endpoints, e.g. the seed. Only enabled by the end-to-end test server.
 	return E2E && pathname.startsWith('/api/e2e/');
 }

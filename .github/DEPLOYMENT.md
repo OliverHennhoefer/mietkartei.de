@@ -98,3 +98,14 @@ The registration form shows a Turnstile check once both keys are configured; wit
 2. Enter the site key as `TURNSTILE_SITE_KEY` under `vars` in `app/wrangler.jsonc`. The site key is public.
 3. Store the secret key as a Worker secret: run `npx wrangler secret put TURNSTILE_SECRET_KEY` in `app/` and paste the key, or add it under **Workers & Pages → mietkartei-app → Settings → Variables and Secrets** as type **Secret**.
 4. After the next deploy, open `https://app.mietkartei.de/registrieren` in a private window and check that the widget appears.
+
+### Mails (Resend)
+
+The app sends password reset links and invitations through [Resend](https://resend.com). `MAIL_TRANSPORT=resend` and the sender `MAIL_FROM=noreply@mietkartei.de` are plain `vars` in `app/wrangler.jsonc`; the API key is a Worker secret. Until the key is set, requesting a reset link or inviting someone fails with an error page.
+
+1. In Resend, open **Domains → Add Domain**, enter `mietkartei.de` and choose the region **Ireland (eu-west-1)**. Add the DNS records Resend shows in the Cloudflare DNS of `mietkartei.de` and wait until Resend marks the domain as verified.
+2. Open **API Keys → Create API Key**, name it `mietkartei-app`, choose the permission **Sending access** and restrict it to the domain `mietkartei.de`. Resend shows the key only once.
+3. Store the key as a Worker secret: run `npx wrangler secret put MAIL_API_KEY` in `app/` and paste the key, or add it under **Workers & Pages → mietkartei-app → Settings → Variables and Secrets** as type **Secret**.
+4. After the next deploy, request a reset link for your own address at `https://app.mietkartei.de/passwort-vergessen` and check that the mail arrives.
+
+Links in reset mails point to the host Cloudflare routed the request to, so the hosted app needs no `ORIGIN`.

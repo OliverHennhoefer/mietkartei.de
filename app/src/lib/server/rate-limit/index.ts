@@ -8,8 +8,9 @@ export interface RateLimiter {
 }
 
 /**
- * Sign-in and registration posts per client address and minute. A person who mistypes their
- * password a few times stays well below it; a script guessing passwords is slowed to a crawl.
+ * Sign-in, registration and password reset posts per client address and minute. A person who
+ * mistypes their password a few times stays well below it; a script guessing passwords is slowed
+ * to a crawl.
  */
 export const AUTH_LIMIT = 10;
 export const AUTH_PERIOD_SECONDS = 60;

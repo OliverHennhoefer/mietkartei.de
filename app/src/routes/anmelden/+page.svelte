@@ -13,7 +13,9 @@
 	<h1>Anmelden</h1>
 
 	<form method="POST" class="card" use:enhance>
-		{#if form?.invalid}
+		{#if form && 'locked' in form && form.locked}
+			<p class="error" role="alert">Zu viele Fehlversuche. Bitte warte 15 Minuten.</p>
+		{:else if form?.invalid}
 			<p class="error" role="alert">E-Mail-Adresse oder Passwort stimmen nicht.</p>
 		{/if}
 		<label>
@@ -32,6 +34,7 @@
 		</label>
 		<div class="form-actions">
 			<button type="submit">Anmelden</button>
+			<a href="/passwort-vergessen" class="small">Passwort vergessen?</a>
 		</div>
 	</form>
 </div>

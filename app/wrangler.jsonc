@@ -9,6 +9,12 @@
 	"routes": [{ "pattern": "app.mietkartei.de", "custom_domain": true }],
 	// Registration is closed: only the addresses of the secret REGISTRATION_EMAILS may register.
 	// See src/lib/server/registration.ts and .github/DEPLOYMENT.md.
+	// Mails (password reset, invitations) go out through Resend; the API key is the secret
+	// MAIL_API_KEY, see .github/DEPLOYMENT.md.
+	"vars": {
+		"MAIL_TRANSPORT": "resend",
+		"MAIL_FROM": "noreply@mietkartei.de"
+	},
 	"assets": {
 		"binding": "ASSETS",
 		"directory": ".svelte-kit/cloudflare"
@@ -16,7 +22,8 @@
 	// A request may use at most 10 s of CPU instead of the default 30 s. The slowest real path, a
 	// bank import of a 2 MB file (~27,000 rows), takes about 1 s each for preview and commit.
 	"limits": { "cpu_ms": 10000 },
-	// Sign-in and registration posts per client address; see src/lib/server/rate-limit.
+	// Sign-in, registration and password reset posts per client address; see
+	// src/lib/server/rate-limit.
 	"ratelimits": [
 		{ "name": "AUTH_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }
 	],

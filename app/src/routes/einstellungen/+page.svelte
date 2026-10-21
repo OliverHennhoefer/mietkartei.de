@@ -1,11 +1,21 @@
 <script lang="ts">
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import type { PageProps } from './$types';
 
-	const entries = [
+	let { data }: PageProps = $props();
+
+	// Entries a manager may not open (requireOwner answers 403) are left out for them.
+	const allEntries = [
 		{
 			href: '/einstellungen/profil',
 			label: 'Profil',
-			text: 'Der Absender (Vermieter) auf deinen Briefen.'
+			text: 'Name, E-Mail-Adresse, Passwort und der Absender (Vermieter) auf deinen Briefen.'
+		},
+		{
+			href: '/einstellungen/mitverwalter',
+			label: 'Mitverwalter',
+			text: 'Weitere Personen einladen, die deinen Bestand mit verwalten.',
+			ownerOnly: true
 		},
 		{
 			href: '/bank/konten',
@@ -26,8 +36,16 @@
 			href: '/einstellungen/vpi',
 			label: 'Verbraucherpreisindex',
 			text: 'Indexwerte für Indexmietverträge.'
+		},
+		{
+			href: '/einstellungen/protokoll',
+			label: 'Protokoll',
+			text: 'Wer wann was geändert hat.'
 		}
 	];
+	const entries = $derived(
+		data.role === 'owner' ? allEntries : allEntries.filter((entry) => !entry.ownerOnly)
+	);
 </script>
 
 <PageHeader title="Einstellungen" />

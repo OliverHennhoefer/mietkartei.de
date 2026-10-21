@@ -6,16 +6,20 @@ import {
 	deleteBankAccount,
 	listBankAccounts
 } from '#lib/server/bank/accounts.ts';
-import { auditContext, requireAccount } from '#lib/server/session.ts';
+import { auditContext, requireOwner, requireUser } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
+// Bankverbindungen are an owner's business: a manager sees a short note instead of the list, and
+// every action insists on the owner role.
 export const load: PageServerLoad = async ({ locals }) => {
-	const accountId = requireAccount(locals);
-	return { bankAccounts: await listBankAccounts(locals.db, accountId) };
+	const user = requireUser(locals);
+	if (user.role !== 'owner') return { ownerOnly: true, bankAccounts: [] };
+	return { ownerOnly: false, bankAccounts: await listBankAccounts(locals.db, user.accountId) };
 };
 
 export const actions: Actions = {
 	create: async ({ request, locals }) => {
+		requireOwner(locals);
 		const result = parseBankAccount(await request.formData());
 		if (!result.ok) return fail(400, { errors: result.errors, values: result.values });
 		const created = await createBankAccount(locals.db, auditContext(locals), result.data);
@@ -32,6 +36,7 @@ export const actions: Actions = {
 	},
 
 	delete: async ({ request, locals }) => {
+		requireOwner(locals);
 		const form = await request.formData();
 		const id = String(form.get('id') ?? '');
 		const outcome = await deleteBankAccount(locals.db, auditContext(locals), id);

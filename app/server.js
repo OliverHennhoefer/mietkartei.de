@@ -31,6 +31,9 @@ server.listen(port, host, () => {
 	console.log(
 		`Listening on http://${host}:${port}${origin ? ` (public origin ${origin.origin})` : ''}`
 	);
+	// Without ORIGIN the Host header of each request names the app, and anyone can send any Host,
+	// so password reset mails only go out for requests to localhost.
+	if (!origin) console.warn('ORIGIN is not set: password reset mails only work at localhost.');
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
