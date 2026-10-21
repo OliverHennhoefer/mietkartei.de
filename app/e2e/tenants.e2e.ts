@@ -65,6 +65,10 @@ test('refuses to delete a tenant on a lease and lists the lease on the tenant pa
 	await expect(leases.getByRole('listitem')).toHaveCount(1);
 	await expect(leases).toContainText('seit 01.01.2025');
 	await expect(leases).toContainText('Aktiv');
+	await expect(page.getByRole('link', { name: 'Dokumente dieses Mieters' })).toHaveAttribute(
+		'href',
+		`/dokumente?tenantId=${tenantId}`
+	);
 
 	await page.getByRole('button', { name: 'Mieter löschen' }).click();
 	await expect(page.getByRole('alert')).toContainText('steht auf einem Mietvertrag');

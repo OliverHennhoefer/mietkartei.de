@@ -150,3 +150,12 @@ export function formatMonth(month: IsoMonth): string {
 	const [year, monthNumber] = month.split('-').map(Number);
 	return `${monthNames[monthNumber - 1]} ${year}`;
 }
+
+/** A moment in Berlin time, e.g. `20.10.2026, 12:00` for 10:00 UTC. */
+export function formatDateTime(date: Date): string {
+	return new Intl.DateTimeFormat('de-DE', {
+		dateStyle: 'medium',
+		timeStyle: 'short',
+		timeZone: 'Europe/Berlin'
+	}).format(date);
+}
