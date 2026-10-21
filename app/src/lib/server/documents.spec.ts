@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from './db';
+import { chunk, rowsPerStatement } from './db/batch';
 import { allocationKeys, auditLog, costCategories, costItems, documents } from './db/schema';
 import {
 	MAX_DOCUMENT_BYTES,
@@ -303,5 +304,40 @@ describe('deleteAllDocuments', () => {
 		expect(await storedFiles()).toEqual([`b/${foreign}`, `b/${foreign}.type`]);
 
 		expect(await deleteAllDocuments(db, 'a', { storage })).toBe(0);
+	});
+
+	it('deletes the objects in bulk calls of at most 1000 keys, not one call per document', async () => {
+		// 2.001 documents of account a and one of b, inserted as rows; their objects do not exist,
+		// which the adapters treat as already deleted.
+		const rows = Array.from({ length: 2001 }, (_, index) => ({
+			id: `doc-${index}`,
+			accountId: 'a',
+			name: `Beleg ${index}.pdf`,
+			mimeType: 'application/pdf',
+			size: 1,
+			storageKey: `a/doc-${index}`
+		}));
+		rows.push({ ...rows[0], id: 'doc-b', accountId: 'b', storageKey: 'b/doc-b' });
+		for (const group of chunk(rows, rowsPerStatement(documents))) {
+			await db.insert(documents).values(group);
+		}
+		const calls: string[][] = [];
+		const counting: Storage = {
+			...storage,
+			async delete() {
+				throw new Error('one call per document');
+			},
+			async deleteMany(keys) {
+				calls.push(keys);
+			}
+		};
+
+		expect(await deleteAllDocuments(db, 'a', { storage: counting })).toBe(2001);
+		// 2.001 keys = 1.000 + 1.000 + 1, all of account a.
+		expect(calls.map((keys) => keys.length)).toEqual([1000, 1000, 1]);
+		expect(new Set(calls.flat()).size).toBe(2001);
+		expect(calls.flat().every((key) => key.startsWith('a/doc-'))).toBe(true);
+		expect(await listDocuments(db, 'a')).toEqual([]);
+		expect((await listDocuments(db, 'b')).map((row) => row.id)).toEqual(['doc-b']);
 	});
 });

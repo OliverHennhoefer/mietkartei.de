@@ -2,9 +2,9 @@ import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import type { SQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
-import { chunkIds, runBatch } from './db/batch';
+import { chunk, chunkIds, runBatch } from './db/batch';
 import { costItems, documents, leases, properties, tenants, units } from './db/schema';
-import { getStorage, storageKey, type Storage } from './storage';
+import { MAX_DELETE_KEYS, getStorage, storageKey, type Storage } from './storage';
 
 // Documents (Dokumente): uploaded files such as the signed lease, a receipt or a letter. The
 // bytes live in the storage adapter under `<accountId>/<documentId>`, the row in `documents`
@@ -209,8 +209,8 @@ export async function deleteDocument(
 }
 
 /**
- * Removes every document of the account, objects and rows, for account deletion. Both adapters
- * treat deleting a missing object as done, so an object that is already gone does not stop the
+ * Removes every document of the account, objects and rows, for account deletion. The objects go
+ * in bulk deletes of up to 1000 keys. Both adapters treat deleting a missing object as done, so an object that is already gone does not stop the
  * rest. Returns how many documents there were. Not logged: the account's audit log goes with it.
  */
 export async function deleteAllDocuments(
@@ -224,7 +224,9 @@ export async function deleteAllDocuments(
 		.where(eq(documents.accountId, accountId));
 	if (rows.length === 0) return 0;
 	const storage = await resolveStorage(options);
-	for (const row of rows) await storage.delete(row.storageKey);
+	// One bulk delete per 1000 objects, not one call per document: each call is a subrequest.
+	const keys = rows.map((row) => row.storageKey);
+	for (const group of chunk(keys, MAX_DELETE_KEYS)) await storage.deleteMany(group);
 	await runBatch(
 		db,
 		chunkIds(rows.map((row) => row.id)).map((ids) =>

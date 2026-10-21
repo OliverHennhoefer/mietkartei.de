@@ -8,7 +8,16 @@ export interface Storage {
 		key: string
 	): Promise<{ body: ReadableStream; contentType: string; size: number } | undefined>;
 	delete(key: string): Promise<void>;
+	/**
+	 * Deletes up to MAX_DELETE_KEYS keys in one call (one R2 subrequest); missing keys are fine.
+	 * Account deletion uses it, so an account with many documents stays within the Workers
+	 * subrequest limit.
+	 */
+	deleteMany(keys: string[]): Promise<void>;
 }
+
+/** R2's limit for one bulk delete. */
+export const MAX_DELETE_KEYS = 1000;
 
 let storage: Promise<Storage> | undefined;
 
