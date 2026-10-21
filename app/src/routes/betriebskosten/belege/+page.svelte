@@ -73,7 +73,7 @@
 					<th>Abrechnungskreis</th>
 					<th>Zeitraum</th>
 					<th class="num">Betrag</th>
-					<th>Beleg</th>
+					<th>Datei</th>
 				</tr>
 			</thead>
 			<tbody>

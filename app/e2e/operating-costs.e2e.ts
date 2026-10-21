@@ -132,10 +132,10 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 	await expect(details).toContainText('Wohnfläche');
 	await expect(details).toContainText(circleName);
 	await expect(details).toContainText('1.200,00 €');
-	await expect(page.getByRole('link', { name: 'grundsteuer.txt' })).toHaveAttribute(
-		'href',
-		/\/dokumente\/[0-9a-f-]+\/download$/
-	);
+	const receipt = page.getByRole('link', { name: 'grundsteuer.txt' });
+	await expect(receipt).toHaveAttribute('href', /\/dokumente\/[0-9a-f-]+\/download$/);
+	const receiptHref = (await receipt.getAttribute('href'))!;
+	expect((await page.request.get(receiptHref)).status()).toBe(200);
 
 	// The list, filtered by the property and the year, with the sum per category.
 	await page.goto(`/betriebskosten/belege?property=${propertyId}&year=2025`);
@@ -143,6 +143,9 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 	await expect(items.getByRole('row').filter({ hasText: description })).toContainText('15.02.2025');
 	await expect(items).toContainText('Stadt Berlin');
 	await expect(items).toContainText('grundsteuer.txt');
+	// The column of the uploaded file is not called "Beleg": a Beleg is the cost item itself.
+	await expect(items.getByRole('columnheader', { name: 'Datei' })).toBeVisible();
+	await expect(items.getByRole('columnheader', { name: 'Beleg', exact: true })).toHaveCount(0);
 	const totals = page.getByRole('table', { name: 'Summe je Kostenart' });
 	await expect(totals.getByRole('row').filter({ hasText: 'Grundsteuer' })).toContainText(
 		'1.200,00 €'
@@ -154,6 +157,7 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 	await page.getByRole('button', { name: 'Beleg löschen' }).click();
 	await expect(page).toHaveURL(/\/betriebskosten\/belege\?property=.*&year=2025$/);
 	await expect(page.getByText('Für 2025 sind noch keine Belege erfasst.')).toBeVisible();
+	expect((await page.request.get(receiptHref)).status()).toBe(404);
 });
 
 test('answers an unknown cost item with 404', async ({ page }) => {

@@ -51,11 +51,25 @@ test('splits the CO₂ cost of a tenant with an own fuel contract and credits th
 	).toBeVisible();
 	await expect(table.getByRole('row').filter({ hasText: 'Erdgas' })).toHaveCount(1);
 
+	// The credit is on the Mietkonto (due within 12 months of the claim).
+	const ledger = `/vertraege/${leaseId}/mietkonto?from=2025-01&to=2099-12`;
+	const credits = page
+		.getByRole('table', { name: 'Buchungen' })
+		.getByRole('row')
+		.filter({ hasText: 'CO₂-Erstattung' });
+	await page.goto(ledger);
+	await expect(credits).toHaveCount(1);
+	await expect(credits).toContainText('285,00 €');
+
 	// Deleting removes the split and its credit.
+	await page.goto(`/vertraege/${leaseId}/co2`);
 	page.once('dialog', (dialog) => dialog.accept());
 	await row.getByRole('button', { name: 'Löschen' }).click();
 	await expect(page.getByText('Noch keine CO₂-Kostenaufteilung')).toBeVisible();
 	await expect(table).toHaveCount(0);
+	await page.goto(ledger);
+	await expect(page.getByRole('heading', { level: 2, name: 'Mietkonto' })).toBeVisible();
+	await expect(credits).toHaveCount(0);
 });
 
 test('answers the CO₂ tab of an unknown lease with 404', async ({ page }) => {
