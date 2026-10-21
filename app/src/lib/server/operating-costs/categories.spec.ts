@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '../db';
-import { auditLog } from '../db/schema';
+import { auditLog, costItems } from '../db/schema';
 import { contextA, contextB, seedUnit, testDatabase } from '../testing';
 import {
 	createCategory,
@@ -65,7 +65,8 @@ describe('categories', () => {
 			consumptionBased: false,
 			allocationKeyId: key.id,
 			billingCircleId: circle.id,
-			sortOrder: 7
+			sortOrder: 7,
+			costItemCount: 0
 		});
 		const audit = await db.select().from(auditLog).where(eq(auditLog.entity, 'cost_category'));
 		expect(audit.map((entry) => [entry.accountId, entry.action, entry.summary])).toEqual([
@@ -87,9 +88,34 @@ describe('categories', () => {
 		).toEqual({ ok: false, reason: 'unknown-circle' });
 	});
 
-	it('lists the categories in sort order', async () => {
+	it('lists the categories in sort order with their cost item counts', async () => {
 		await ensureDefaults(db, 'a');
-		await create(contextA, { name: 'Zwischen 1 und 2', sortOrder: 1 });
+		const { propertyId } = await seedUnit(db, 'a');
+		const categories = await listCategories(db, 'a');
+		const grundsteuer = categories.find((row) => row.name === 'Grundsteuer')!;
+		await db.insert(costItems).values([
+			{
+				accountId: 'a',
+				propertyId,
+				categoryId: grundsteuer.id,
+				allocationKeyId: grundsteuer.allocationKeyId!,
+				description: 'Grundsteuer 2025',
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				amount: 120000
+			},
+			{
+				accountId: 'a',
+				propertyId,
+				categoryId: grundsteuer.id,
+				allocationKeyId: grundsteuer.allocationKeyId!,
+				description: 'Grundsteuer 2024',
+				periodStart: '2024-01-01',
+				periodEnd: '2024-12-31',
+				amount: 110000
+			}
+		]);
+		const custom = await create(contextA, { name: 'Zwischen 1 und 2', sortOrder: 1 });
 
 		const listed = await listCategories(db, 'a');
 		expect(listed.map((row) => row.name).slice(0, 3)).toEqual([
@@ -97,6 +123,8 @@ describe('categories', () => {
 			'Zwischen 1 und 2',
 			'Wasserversorgung'
 		]);
+		expect(listed.find((row) => row.id === grundsteuer.id)!.costItemCount).toBe(2);
+		expect(listed.find((row) => row.id === custom)!.costItemCount).toBe(0);
 		expect(listed).toHaveLength(20);
 	});
 
@@ -122,7 +150,32 @@ describe('categories', () => {
 		});
 	});
 
-	it('deletes a category and logs it', async () => {
+	it('refuses to delete a category that cost items use', async () => {
+		const { propertyId } = await seedUnit(db, 'a');
+		const id = await create(contextA);
+		const key = await createKey(db, contextA, {
+			name: 'Fläche',
+			kind: 'area',
+			propertyId: null,
+			meterKind: null,
+			consumptionPercent: null
+		});
+		if (!key.ok) throw new Error('setup failed');
+		await db.insert(costItems).values({
+			accountId: 'a',
+			propertyId,
+			categoryId: id,
+			allocationKeyId: key.id,
+			description: 'Wartung',
+			periodStart: '2025-01-01',
+			periodEnd: '2025-12-31',
+			amount: 50000
+		});
+		expect(await deleteCategory(db, contextA, id)).toBe('in-use');
+		expect(await getCategory(db, 'a', id)).toBeDefined();
+	});
+
+	it('deletes an unused category and logs it', async () => {
 		const id = await create(contextA);
 		expect(await deleteCategory(db, contextA, id)).toBe('deleted');
 		expect(await getCategory(db, 'a', id)).toBeUndefined();

@@ -9,10 +9,13 @@ import {
 	bankTransactions,
 	consumerPriceIndex,
 	costCategories,
+	costItems,
 	depositTransactions,
 	leasePersons,
 	leases,
 	matchingRules,
+	meterReadings,
+	meters,
 	payments,
 	properties,
 	rentChanges,
@@ -46,7 +49,11 @@ export const QUOTAS = {
 	/** Also bounds the shares: one per unit of the key's property. */
 	allocationKeys: { table: allocationKeys, max: 200, label: 'Umlageschlüssel' },
 	/** Also bounds the circle units: at most the units of the circle's property. */
-	billingCircles: { table: billingCircles, max: 200, label: 'Abrechnungskreise' }
+	billingCircles: { table: billingCircles, max: 200, label: 'Abrechnungskreise' },
+	meters: { table: meters, max: 20_000, label: 'Zähler' },
+	meterReadings: { table: meterReadings, max: 500_000, label: 'Zählerstände' },
+	/** Also bounds the unit amounts: one per unit of the item's property. */
+	costItems: { table: costItems, max: 100_000, label: 'Belege' }
 } satisfies Record<string, Quota>;
 
 export type QuotaKind = keyof typeof QUOTAS;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { documents } from '#lib/server/db/schema.ts';
+import { allocationKeys, costCategories, costItems, documents } from '#lib/server/db/schema.ts';
 import { createLease } from '#lib/server/leases.ts';
 import {
 	contextA,
@@ -11,8 +11,38 @@ import {
 } from '#lib/server/testing.ts';
 import { documentRow, loadDocumentLinkOptions } from './helpers.server';
 
+async function seedCostItem(
+	db: Awaited<ReturnType<typeof testDatabase>>,
+	accountId: string,
+	propertyId: string,
+	description: string
+) {
+	const [category] = await db
+		.insert(costCategories)
+		.values({ accountId, name: 'Grundsteuer', betrkvItem: 1 })
+		.returning({ id: costCategories.id });
+	const [key] = await db
+		.insert(allocationKeys)
+		.values({ accountId, name: 'Wohnfläche', kind: 'area' })
+		.returning({ id: allocationKeys.id });
+	const [item] = await db
+		.insert(costItems)
+		.values({
+			accountId,
+			propertyId,
+			categoryId: category.id,
+			allocationKeyId: key.id,
+			description,
+			periodStart: '2025-01-01',
+			periodEnd: '2025-12-31',
+			amount: 48000
+		})
+		.returning({ id: costItems.id });
+	return item.id;
+}
+
 describe('loadDocumentLinkOptions', () => {
-	it('lists properties, units, leases with tenants and tenants as labels', async () => {
+	it('lists properties, units, leases with tenants, tenants and cost items as labels', async () => {
 		const db = await testDatabase();
 		const { propertyId, unitId } = await seedUnit(db, 'a', {
 			propertyName: 'Lindenstraße 4',
@@ -21,12 +51,14 @@ describe('loadDocumentLinkOptions', () => {
 		const tenantId = await seedTenant(db, 'a', { firstName: 'Erika', lastName: 'Mustermann' });
 		const lease = await createLease(db, contextA, leaseInput(unitId, { tenantIds: [tenantId] }));
 		if (!lease.ok) throw new Error('setup failed');
+		const costItemId = await seedCostItem(db, 'a', propertyId, 'Grundsteuer 2025');
 
 		expect(await loadDocumentLinkOptions(db, 'a')).toEqual({
 			properties: [{ id: propertyId, label: 'Lindenstraße 4' }],
 			units: [{ id: unitId, label: 'EG links · Lindenstraße 4', propertyId }],
 			leases: [{ id: lease.id, label: 'EG links · Lindenstraße 4 · Erika Mustermann' }],
-			tenants: [{ id: tenantId, label: 'Erika Mustermann' }]
+			tenants: [{ id: tenantId, label: 'Erika Mustermann' }],
+			costItems: [{ id: costItemId, label: 'Grundsteuer 2025' }]
 		});
 	});
 
@@ -42,20 +74,23 @@ describe('loadDocumentLinkOptions', () => {
 
 	it('does not leak into another account', async () => {
 		const db = await testDatabase();
-		const { unitId } = await seedUnit(db, 'b');
+		const { propertyId, unitId } = await seedUnit(db, 'b');
 		const tenantId = await seedTenant(db, 'b');
 		const lease = await createLease(db, contextB, leaseInput(unitId, { tenantIds: [tenantId] }));
 		if (!lease.ok) throw new Error('setup failed');
+		await seedCostItem(db, 'b', propertyId, 'Fremd');
 
 		expect(await loadDocumentLinkOptions(db, 'a')).toEqual({
 			properties: [],
 			units: [],
 			leases: [],
-			tenants: []
+			tenants: [],
+			costItems: []
 		});
 		const own = await loadDocumentLinkOptions(db, 'b');
 		expect(own.properties).toHaveLength(1);
 		expect(own.leases).toHaveLength(1);
+		expect(own.costItems).toEqual([{ id: expect.any(String), label: 'Fremd' }]);
 	});
 });
 
@@ -73,6 +108,7 @@ describe('documentRow', () => {
 			unitId: null,
 			leaseId: 'l1',
 			tenantId: null,
+			costItemId: null,
 			uploadedBy: 'user-a',
 			createdAt
 		};
@@ -85,7 +121,8 @@ describe('documentRow', () => {
 			propertyId: 'p1',
 			unitId: null,
 			leaseId: 'l1',
-			tenantId: null
+			tenantId: null,
+			costItemId: null
 		});
 	});
 });

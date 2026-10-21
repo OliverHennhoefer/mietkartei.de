@@ -16,6 +16,7 @@
 			label: 'Einheiten',
 			also: [`/objekte/${data.property.id}/einheiten`]
 		},
+		{ href: `/objekte/${data.property.id}/zaehler`, label: 'Zähler' },
 		{ href: `/objekte/${data.property.id}/abrechnungskreise`, label: 'Abrechnungskreise' }
 	]);
 </script>

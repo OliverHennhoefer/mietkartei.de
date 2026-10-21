@@ -16,10 +16,11 @@
 <!-- The heading, address and tab bar come from +layout.svelte; this page lives under "Einheiten". -->
 <div class="toolbar">
 	<a class="button secondary" href="{base}/bearbeiten">Bearbeiten</a>
-	<a href="/objekte/{data.property.id}">Alle Einheiten</a>
+	<a href="/objekte/{data.property.id}/zaehler?unit={data.unit.id}">Zähler</a>
 	{#if vacant}
 		<a href="/vertraege/neu?unitId={data.unit.id}">Mietvertrag anlegen</a>
 	{/if}
+	<a href="/objekte/{data.property.id}">Alle Einheiten</a>
 </div>
 
 <h2>Einheit {data.unit.name}</h2>
@@ -92,12 +93,14 @@
 	<Alert tone="danger"><p>{form.deleteError}</p></Alert>
 {/if}
 <p class="muted">
-	Eine Einheit, auf der ein Mietvertrag liegt, auch ein beendeter, kann nicht gelöscht werden.
+	Löscht die Einheit mit ihren Zählern. Eine Einheit, auf der ein Mietvertrag liegt, auch ein
+	beendeter, kann nicht gelöscht werden.
 </p>
 <ConfirmButton
 	action="?/delete"
 	label="Einheit löschen"
-	message="Einheit „{data.unit.name}“ löschen? Das lässt sich nicht rückgängig machen."
+	message="Einheit „{data.unit
+		.name}“ mit ihren Zählern löschen? Das lässt sich nicht rückgängig machen."
 />
 
 <style>

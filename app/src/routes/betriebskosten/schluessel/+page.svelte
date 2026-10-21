@@ -21,6 +21,7 @@
 				<th>Objekt</th>
 				<th>Zählerart</th>
 				<th class="num">Verbrauchsanteil</th>
+				<th class="num">Belege</th>
 			</tr>
 		</thead>
 		<tbody>
@@ -33,6 +34,7 @@
 					<td class="num">
 						{key.consumptionPercent !== null ? `${key.consumptionPercent} %` : '–'}
 					</td>
+					<td class="num">{key.costItemCount}</td>
 				</tr>
 			{/each}
 		</tbody>
