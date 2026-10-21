@@ -680,7 +680,9 @@ export const sessions = sqliteTable(
 		userId: text('user_id')
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
-		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull()
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+		/** Sign-in time; renewals never extend a session past SESSION_MAX_AGE from here. */
+		createdAt: createdAt()
 	},
 	(table) => [index('sessions_user_id_idx').on(table.userId)]
 );

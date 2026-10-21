@@ -5,12 +5,21 @@ import { DEFAULT_ACCOUNT_ID, ensureDefaultAccount } from './accounts';
 
 // Sign-in uses only WebCrypto, which Node and Workers both provide, so both targets behave the same.
 
-export const SESSION_COOKIE = 'session';
+/**
+ * The cookie name over https has the __Host- prefix: browsers then accept it only with Secure,
+ * Path=/ and no Domain, so no other site on a subdomain can set or overwrite it. Self-hosted
+ * instances on plain http keep the bare name, which the prefix would not allow.
+ */
+export function sessionCookieName(url: URL): string {
+	return url.protocol === 'https:' ? '__Host-session' : 'session';
+}
 
 const DAY = 24 * 60 * 60 * 1000;
 const SESSION_LIFETIME = 30 * DAY;
 /** A session used within its last 15 days is extended, so active users stay signed in. */
 const SESSION_RENEWAL = 15 * DAY;
+/** However active, a session ends this long after sign-in, so a stolen cookie stops working. */
+export const SESSION_MAX_AGE = 90 * DAY;
 
 // Workers cap PBKDF2 at 100,000 iterations.
 const PBKDF2_ITERATIONS = 100_000;
@@ -155,7 +164,8 @@ export type SessionUser = { id: string; email: string; accountId: string };
 
 /**
  * Looks up the user of a session token. Expired sessions are deleted; sessions close to expiry
- * are extended, in which case `expiresAt` is set and the cookie must be renewed.
+ * are extended up to SESSION_MAX_AGE after sign-in, in which case `expiresAt` is set and the
+ * cookie must be renewed.
  */
 export async function validateSession(
 	db: Database,
@@ -165,6 +175,7 @@ export async function validateSession(
 	const [row] = await db
 		.select({
 			expiresAt: sessions.expiresAt,
+			createdAt: sessions.createdAt,
 			user: { id: users.id, email: users.email, accountId: users.accountId }
 		})
 		.from(sessions)
@@ -177,8 +188,9 @@ export async function validateSession(
 		await db.delete(sessions).where(eq(sessions.id, id));
 		return undefined;
 	}
-	if (row.expiresAt.getTime() - now < SESSION_RENEWAL) {
-		const expiresAt = new Date(now + SESSION_LIFETIME);
+	const maxExpiry = row.createdAt.getTime() + SESSION_MAX_AGE;
+	if (row.expiresAt.getTime() - now < SESSION_RENEWAL && row.expiresAt.getTime() < maxExpiry) {
+		const expiresAt = new Date(Math.min(now + SESSION_LIFETIME, maxExpiry));
 		await db.update(sessions).set({ expiresAt }).where(eq(sessions.id, id));
 		return { user: row.user, expiresAt };
 	}
