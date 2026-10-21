@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import Icon from './Icon.svelte';
 
 	// A small status label: "Entwurf", "Freigegeben", "Rückstand".
 	let {
@@ -8,33 +9,41 @@
 	}: { tone?: 'neutral' | 'success' | 'warning' | 'danger' | 'info'; children: Snippet } = $props();
 </script>
 
-<span class="badge {tone}">{@render children()}</span>
+<span class="badge {tone}">
+	{#if tone === 'success'}<Icon
+			name="check"
+			size={11}
+		/>{:else if tone === 'warning' || tone === 'danger'}<Icon name="alert" size={11} />{/if}
+	{@render children()}
+</span>
 
 <style>
 	.badge {
-		display: inline-block;
-		padding: 0.1rem 0.5rem;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		padding: 0.2rem 0.6rem;
+		border: 1px solid var(--color-border);
 		border-radius: 999px;
-		font-size: 0.8rem;
+		font-size: 0.72rem;
 		font-weight: 500;
 		white-space: nowrap;
-		background: #ececea;
-		color: var(--color-text);
+		background: var(--color-subtle);
+		color: var(--color-muted);
 	}
 	.success {
-		background: #dcf3e4;
-		color: #14532d;
+		color: var(--color-text);
 	}
 	.warning {
-		background: #fdecc8;
-		color: #7c3e00;
+		background: var(--color-hover);
+		color: var(--color-text);
 	}
 	.danger {
-		background: #fbe0dd;
-		color: #8a1c13;
+		background: var(--color-accent);
+		border-color: var(--color-accent);
+		color: var(--color-accent-text);
 	}
 	.info {
-		background: #dfeafc;
-		color: #1e3a8a;
+		color: var(--color-text);
 	}
 </style>

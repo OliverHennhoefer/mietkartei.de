@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { formatCents, formatCentsSigned } from '../money';
 
-	// An amount in cents, right-aligned in tables, coloured when `signed` (credit green, debt red).
+	// Signed amounts keep their sign and use weight for emphasis in the monochrome interface.
 	let { cents, signed = false }: { cents: number; signed?: boolean } = $props();
 </script>
 
@@ -15,9 +15,10 @@
 		white-space: nowrap;
 	}
 	.positive {
-		color: #14532d;
+		color: var(--color-text);
 	}
 	.negative {
-		color: var(--color-error);
+		color: var(--color-text);
+		font-weight: 600;
 	}
 </style>
