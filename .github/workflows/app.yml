@@ -147,7 +147,10 @@ jobs:
 
       - name: Start container and check health
         run: |
-          docker run -d --name mietkartei -p 3000:3000 mietkartei:ci
+          # The same restrictions as app/compose.yml, so the image is known to work under them.
+          docker run -d --name mietkartei -p 3000:3000 \
+            --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true \
+            -v mietkartei-data:/data mietkartei:ci
           for attempt in $(seq 1 30); do
             if curl -fsS http://localhost:3000/health; then
               echo
