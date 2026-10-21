@@ -108,9 +108,12 @@ test('sets up categories, keys and circles', async ({ page }) => {
 		.selectOption({ label: `${propertyName} – ${circleName}` });
 	await page.getByRole('button', { name: 'Kostenart anlegen' }).click();
 	await expect(page).toHaveURL(/\/betriebskosten\/kostenarten$/);
-	await expect(categories.getByRole('row').filter({ hasText: categoryName })).toContainText(
-		`${propertyName} – ${circleName}`
-	);
+	const categoryRow = categories.getByRole('row').filter({ hasText: categoryName });
+	await expect(categoryRow).toContainText(`${propertyName} – ${circleName}`);
+	// Created without a default key, it keeps none on the next load of the list.
+	await page.reload();
+	await expect(categoryRow).toContainText(`${propertyName} – ${circleName}`);
+	await expect(categoryRow).not.toContainText('Wohnfläche');
 });
 
 test('edits and deletes categories, keys and circles', async ({ page }) => {

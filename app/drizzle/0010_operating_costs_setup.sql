@@ -62,4 +62,5 @@ CREATE TABLE `cost_categories` (
 );
 --> statement-breakpoint
 CREATE INDEX `cost_categories_account_id_idx` ON `cost_categories` (`account_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `cost_categories_name_unique` ON `cost_categories` (`account_id`,`name`);
+CREATE UNIQUE INDEX `cost_categories_name_unique` ON `cost_categories` (`account_id`,`name`);--> statement-breakpoint
+ALTER TABLE `accounts` ADD `operating_cost_defaults_seeded` integer DEFAULT false NOT NULL;

@@ -40,6 +40,8 @@ export const accounts = sqliteTable('accounts', {
 	street: text('street'),
 	postalCode: text('postal_code'),
 	city: text('city'),
+	/** Set once the standard cost categories and keys are seeded, so they are seeded only once. */
+	operatingCostDefaultsSeeded: bool('operating_cost_defaults_seeded', false),
 	createdAt: createdAt()
 });
 

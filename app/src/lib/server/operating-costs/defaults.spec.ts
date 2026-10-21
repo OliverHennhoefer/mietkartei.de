@@ -30,11 +30,7 @@ async function keysOf(accountId: string) {
 
 describe('ensureDefaults', () => {
 	it('seeds the 17 BetrKV items, two landlord categories and six keys, in order', async () => {
-		expect(await ensureDefaults(db, 'a')).toEqual({
-			categoriesInserted: 19,
-			keysInserted: 6,
-			categoriesDefaulted: 17
-		});
+		expect(await ensureDefaults(db, 'a')).toBe(true);
 
 		const categories = await categoriesOf('a');
 		expect(categories.map((row) => [row.betrkvItem, row.name])).toEqual([
@@ -110,36 +106,42 @@ describe('ensureDefaults', () => {
 		]);
 	});
 
-	it('is idempotent and only fills in what is missing', async () => {
+	it('seeds only once, so changes the landlord makes to the standard list stay', async () => {
 		await ensureDefaults(db, 'a');
-		expect(await ensureDefaults(db, 'a')).toEqual({
-			categoriesInserted: 0,
-			keysInserted: 0,
-			categoriesDefaulted: 0
-		});
+		expect(await ensureDefaults(db, 'a')).toBe(false);
 		expect(await categoriesOf('a')).toHaveLength(19);
 		expect(await keysOf('a')).toHaveLength(6);
 
-		// A category that existed before (e.g. imported) keeps its row and gets a default key;
-		// a key the user removed comes back.
+		// A renamed category, a deleted category and key, and a category set to no key.
 		await db
-			.delete(allocationKeys)
-			.where(eq(allocationKeys.name, 'Einheiten'))
-			.then(() =>
-				db
-					.update(costCategories)
-					.set({ allocationKeyId: null })
-					.where(eq(costCategories.name, 'Aufzug'))
-			);
-		expect(await ensureDefaults(db, 'a')).toEqual({
-			categoriesInserted: 0,
-			keysInserted: 1,
-			categoriesDefaulted: 1
-		});
-		const keyName = new Map((await keysOf('a')).map((row) => [row.id, row.name]));
-		const [aufzug] = (await categoriesOf('a')).filter((row) => row.name === 'Aufzug');
-		expect(keyName.get(aufzug.allocationKeyId!)).toBe('Wohnfläche');
-		expect(await keysOf('a')).toHaveLength(6);
+			.update(costCategories)
+			.set({ name: 'Sonstige: Dachrinnenreinigung' })
+			.where(eq(costCategories.name, 'Sonstige Betriebskosten'));
+		await db.delete(costCategories).where(eq(costCategories.name, 'Aufzug'));
+		await db
+			.update(costCategories)
+			.set({ allocationKeyId: null })
+			.where(eq(costCategories.name, 'Grundsteuer'));
+		await db.delete(allocationKeys).where(eq(allocationKeys.name, 'Einheiten'));
+		const before = await categoriesOf('a');
+
+		expect(await ensureDefaults(db, 'a')).toBe(false);
+		const after = await categoriesOf('a');
+		expect(after).toEqual(before);
+		expect(after.map((row) => row.name)).not.toContain('Sonstige Betriebskosten');
+		expect(after.map((row) => row.name)).not.toContain('Aufzug');
+		expect(after.find((row) => row.name === 'Grundsteuer')?.allocationKeyId).toBeNull();
+		expect((await keysOf('a')).map((row) => row.name)).not.toContain('Einheiten');
+	});
+
+	it('does not seed again when the landlord removed every category and key', async () => {
+		await ensureDefaults(db, 'a');
+		await db.delete(costCategories).where(eq(costCategories.accountId, 'a'));
+		await db.delete(allocationKeys).where(eq(allocationKeys.accountId, 'a'));
+
+		expect(await ensureDefaults(db, 'a')).toBe(false);
+		expect(await categoriesOf('a')).toEqual([]);
+		expect(await keysOf('a')).toEqual([]);
 	});
 
 	it('writes no audit lines: the standard list is not a change the landlord made', async () => {

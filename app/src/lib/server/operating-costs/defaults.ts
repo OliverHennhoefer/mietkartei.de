@@ -1,7 +1,8 @@
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { Database } from '../db';
-import { chunk, chunkIds, rowsPerStatement, runBatch } from '../db/batch';
+import { chunk, rowsPerStatement, runBatch } from '../db/batch';
 import {
+	accounts,
 	allocationKeys,
 	costCategories,
 	type AllocationKeyKind,
@@ -9,9 +10,9 @@ import {
 } from '../db/schema';
 
 // The categories and keys every account starts with: the 17 items of § 2 BetrKV, two landlord
-// categories that are never allocated, and the keys the BetrKV and the HeizKV name. Seeded on
-// first use of any operating costs page; `onConflictDoNothing` on the unique (account, name)
-// indexes keeps the call idempotent and harmless when two requests race.
+// categories that are never allocated, and the keys the BetrKV and the HeizKV name. Seeded once,
+// on first use of any operating costs page, and marked on the account; `onConflictDoNothing` on
+// the unique (account, name) indexes keeps two racing first requests harmless.
 
 export type DefaultCategory = {
 	name: string;
@@ -85,7 +86,7 @@ export const defaultKeys: readonly DefaultKey[] = [
 	{ name: 'Beträge je Einheit', kind: 'direct', meterKind: null, consumptionPercent: null }
 ];
 
-/** The key an allocable category without one gets; everything not listed gets Wohnfläche. */
+/** The key a seeded allocable category gets; everything not listed gets Wohnfläche. */
 const defaultKeyByCategory: Record<string, string> = {
 	Heizung: 'Heizung 70/30',
 	'Verbundene Heizungs- und Warmwasserversorgung': 'Heizung 70/30',
@@ -93,88 +94,47 @@ const defaultKeyByCategory: Record<string, string> = {
 	'Straßenreinigung und Müllbeseitigung': 'Personen'
 };
 
-export function defaultKeyNameFor(categoryName: string): string {
+function defaultKeyNameFor(categoryName: string): string {
 	return defaultKeyByCategory[categoryName] ?? 'Wohnfläche';
 }
 
-export type EnsureDefaultsResult = {
-	categoriesInserted: number;
-	keysInserted: number;
-	categoriesDefaulted: number;
-};
-
 /**
- * Inserts the missing standard categories and keys of the account and gives every allocable
- * category without a default key the one the BetrKV suggests. Two selects when everything
- * exists; one batch otherwise. Every page of the feature calls this first.
+ * Seeds the standard categories and keys of the account, each allocable category with the key
+ * the BetrKV suggests, unless that happened before. Once seeded, the landlord owns the list:
+ * renamed, deleted or keyless entries stay as they are. One select when seeded; one batch
+ * otherwise. Every page of the feature calls this first; returns whether this call seeded.
  */
-export async function ensureDefaults(
-	db: Database,
-	accountId: string
-): Promise<EnsureDefaultsResult> {
-	const existingCategories = await db
-		.select({
-			id: costCategories.id,
-			name: costCategories.name,
-			allocable: costCategories.allocable,
-			allocationKeyId: costCategories.allocationKeyId
-		})
-		.from(costCategories)
-		.where(eq(costCategories.accountId, accountId));
-	const existingKeys = await db
-		.select({ id: allocationKeys.id, name: allocationKeys.name })
-		.from(allocationKeys)
-		.where(eq(allocationKeys.accountId, accountId));
+export async function ensureDefaults(db: Database, accountId: string): Promise<boolean> {
+	const [account] = await db
+		.select({ seeded: accounts.operatingCostDefaultsSeeded })
+		.from(accounts)
+		.where(eq(accounts.id, accountId));
+	if (!account || account.seeded) return false;
 
-	const categoryNames = new Set(existingCategories.map((row) => row.name));
-	const missingCategories = [...defaultCategories, ...defaultLandlordCategories]
-		.filter((category) => !categoryNames.has(category.name))
-		.map((category) => ({ id: crypto.randomUUID(), accountId, ...category }));
+	const keys = defaultKeys.map((key) => ({
+		id: crypto.randomUUID(),
+		accountId,
+		propertyId: null,
+		...key
+	}));
+	const keyIdByName = new Map(keys.map((key) => [key.name, key.id]));
+	const categories = [...defaultCategories, ...defaultLandlordCategories].map((category) => ({
+		id: crypto.randomUUID(),
+		accountId,
+		...category,
+		allocationKeyId: category.allocable
+			? (keyIdByName.get(defaultKeyNameFor(category.name)) ?? null)
+			: null
+	}));
 
-	const keyIdByName = new Map(existingKeys.map((row) => [row.name, row.id]));
-	const missingKeys = defaultKeys
-		.filter((key) => !keyIdByName.has(key.name))
-		.map((key) => ({ id: crypto.randomUUID(), accountId, propertyId: null, ...key }));
-	for (const key of missingKeys) keyIdByName.set(key.name, key.id);
-
-	// Categories that need a default key, grouped by the key, so it is one update per key.
-	const categoryIdsByKey = new Map<string, string[]>();
-	const needingKey = [
-		...existingCategories.filter((row) => row.allocable && row.allocationKeyId === null),
-		...missingCategories.filter((row) => row.allocable)
-	];
-	for (const category of needingKey) {
-		const keyId = keyIdByName.get(defaultKeyNameFor(category.name));
-		if (!keyId) continue;
-		categoryIdsByKey.set(keyId, [...(categoryIdsByKey.get(keyId) ?? []), category.id]);
-	}
-
-	const statements = [
-		...chunk(missingCategories, rowsPerStatement(costCategories)).map((rows) =>
-			db.insert(costCategories).values(rows).onConflictDoNothing()
-		),
-		...chunk(missingKeys, rowsPerStatement(allocationKeys)).map((rows) =>
+	await runBatch(db, [
+		...chunk(keys, rowsPerStatement(allocationKeys)).map((rows) =>
 			db.insert(allocationKeys).values(rows).onConflictDoNothing()
 		),
-		...[...categoryIdsByKey].flatMap(([keyId, categoryIds]) =>
-			chunkIds(categoryIds).map((ids) =>
-				db
-					.update(costCategories)
-					.set({ allocationKeyId: keyId })
-					.where(
-						and(
-							eq(costCategories.accountId, accountId),
-							isNull(costCategories.allocationKeyId),
-							inArray(costCategories.id, ids)
-						)
-					)
-			)
-		)
-	];
-	await runBatch(db, statements);
-	return {
-		categoriesInserted: missingCategories.length,
-		keysInserted: missingKeys.length,
-		categoriesDefaulted: needingKey.length
-	};
+		...chunk(categories, rowsPerStatement(costCategories)).map((rows) =>
+			db.insert(costCategories).values(rows).onConflictDoNothing()
+		),
+		db.update(accounts).set({ operatingCostDefaultsSeeded: true }).where(eq(accounts.id, accountId))
+	]);
+	return true;
 }
