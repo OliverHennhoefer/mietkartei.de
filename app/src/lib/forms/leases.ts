@@ -11,12 +11,16 @@ import { FormParser, type ParseResult } from './fields';
 // Parses the lease forms. Whether the unit and tenants belong to the account is checked by the
 // server module, not here.
 
+/** How many tenants, and how many extra units, one lease takes. */
+export const MAX_LEASE_IDS = 50;
+
 export function parseLease(form: FormData): ParseResult<LeaseInput> {
 	const parser = new FormParser<LeaseInput>(form);
 
 	const unitId = parser.id('unitId');
-	const extraUnitIds = parser.ids('extraUnitIds');
-	const tenantIds = parser.ids('tenantIds');
+	// Bounded per lease, so that the lease_units and lease_tenants rows stay within the quotas.
+	const extraUnitIds = parser.ids('extraUnitIds', MAX_LEASE_IDS);
+	const tenantIds = parser.ids('tenantIds', MAX_LEASE_IDS);
 	if (tenantIds.length === 0) parser.fail('tenantIds', 'Bitte wähle mindestens einen Mieter aus.');
 
 	const startDate = parser.date('startDate');

@@ -148,6 +148,7 @@ export async function ensureCharges(
 		removals.push(...diff.remove);
 	}
 
+	if (inserts.length > 0) await assertQuota(db, accountId, 'rentCharges', inserts.length);
 	const statements: Statement[] = [
 		// Two requests may sync the same lease at once; the unique index lets the second one lose.
 		...chunk(inserts, rowsPerStatement(rentCharges)).map((rows) =>
