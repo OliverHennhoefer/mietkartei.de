@@ -1,12 +1,15 @@
+import { CIRCLE_FROM_CATEGORY } from '../domain/operating-costs';
 import { allocationKeyKinds, meterKinds } from '../server/db/schema';
 import type { CostCategoryInput } from '../server/operating-costs/categories';
 import type { BillingCircleInput } from '../server/operating-costs/circles';
+import type { CostItemInput, UnitAmount } from '../server/operating-costs/cost-items';
 import type { AllocationKeyInput, KeyShare } from '../server/operating-costs/keys';
+import type { MeterInput, ReadingInput } from '../server/operating-costs/meters';
 import { FormParser, type ParseResult } from './fields';
 
 // Parsers of the operating costs setup forms. Whether the ids belong to the account is checked
 // by the server module; the parsers only check shape and the rules a form can check on its own
-// (the HeizKV range of a mixed key, at least one unit in a circle).
+// (the HeizKV range of a mixed key, period order, at least one unit in a circle).
 
 export function parseCategory(form: FormData): ParseResult<CostCategoryInput> {
 	const parser = new FormParser<CostCategoryInput>(form);
@@ -117,6 +120,110 @@ export function parseCircle(form: FormData): ParseResult<BillingCircleInput> {
 	return parser.result(() => ({ name, unitIds }));
 }
 
+export function parseMeter(form: FormData): ParseResult<MeterInput> {
+	const parser = new FormParser<MeterInput>(form);
+	// The empty option is the building itself.
+	const unitId = parser.id('unitId', { required: false });
+	const kind = parser.oneOf('kind', meterKinds);
+	const serialNumber = parser.optionalText('serialNumber', 100);
+	const unit = parser.text('unit', { max: 20 });
+	const location = parser.optionalText('location', 200);
+	const installedAt = parser.date('installedAt', { required: false });
+	return parser.result(() => ({
+		unitId,
+		kind: kind!,
+		serialNumber,
+		unit,
+		location,
+		installedAt
+	}));
+}
+
+export function parseReading(form: FormData): ParseResult<ReadingInput> {
+	const parser = new FormParser<ReadingInput>(form);
+	const readAt = parser.date('readAt');
+	const value = parser.number('value', { min: 0, max: 1_000_000_000 });
+	const estimated = parser.flag('estimated');
+	const note = parser.optionalText('note', 200);
+	return parser.result(() => ({ readAt: readAt!, value: value!, estimated, note }));
+}
+
+export function parseRemoval(form: FormData): ParseResult<{ removedAt: string }> {
+	const parser = new FormParser<{ removedAt: string }>(form);
+	const removedAt = parser.date('removedAt');
+	return parser.result(() => ({ removedAt: removedAt! }));
+}
+
+/** The cost item form; the key and circle may be left to the category (see applyCategoryDefaults). */
+export type CostItemForm = Omit<CostItemInput, 'allocationKeyId' | 'billingCircleId'> & {
+	/** Null: the default key of the category. */
+	allocationKeyId: string | null;
+	/** Null: all units of the property, unless `circleFromCategory`. */
+	billingCircleId: string | null;
+	/** The circle select was left on "Standard der Kostenart". */
+	circleFromCategory: boolean;
+	receipt: File | null;
+};
+
+export function parseCostItem(form: FormData): ParseResult<CostItemForm> {
+	const parser = new FormParser<CostItemForm>(form);
+	const propertyId = parser.id('propertyId');
+	const categoryId = parser.id('categoryId');
+	const allocationKeyId = parser.id('allocationKeyId', { required: false });
+	const circleRaw = parser.raw('billingCircleId');
+	const circleFromCategory = circleRaw === CIRCLE_FROM_CATEGORY;
+	const billingCircleId = circleFromCategory || !circleRaw ? null : circleRaw;
+	if (billingCircleId && billingCircleId.length > 64)
+		parser.fail('billingCircleId', 'Ungültige Auswahl.');
+	const description = parser.text('description', { max: 200 });
+	const supplier = parser.optionalText('supplier', 200);
+	const invoiceDate = parser.date('invoiceDate', { required: false });
+	const periodStart = parser.date('periodStart');
+	const periodEnd = parser.date('periodEnd');
+	if (periodStart && periodEnd && periodEnd < periodStart) {
+		parser.fail('periodEnd', 'Das Ende des Zeitraums liegt vor dem Beginn.');
+	}
+	// Credit notes are negative amounts.
+	const amount = parser.money('amount', { min: -100_000_000_00 });
+	const allocable = parser.flag('allocable');
+	const receipt = parser.file('receipt');
+	return parser.result(() => ({
+		propertyId: propertyId!,
+		categoryId: categoryId!,
+		allocationKeyId,
+		billingCircleId,
+		circleFromCategory,
+		description,
+		supplier,
+		invoiceDate,
+		periodStart: periodStart!,
+		periodEnd: periodEnd!,
+		amount: amount!,
+		allocable,
+		receipt
+	}));
+}
+
+/** One input `amount-<unitId>` per unit; empty means 0. */
+export function parseUnitAmounts(
+	form: FormData,
+	unitIds: readonly string[]
+): PerUnitResult<{ amounts: UnitAmount[] }> {
+	const parser = new FormParser<Record<string, number>>(form);
+	const amounts: UnitAmount[] = [];
+	for (const unitId of unitIds) {
+		const amount = parser.money(`amount-${unitId}`, { required: false, min: -100_000_000_00 });
+		if (amount !== null && amount !== 0) amounts.push({ unitId, amount });
+	}
+	return perUnit(parser, { amounts });
+}
+
+export function parseReceipt(form: FormData): ParseResult<{ receipt: File }> {
+	const parser = new FormParser<{ receipt: File }>(form);
+	const receipt = parser.file('receipt', { required: true });
+	return parser.result(() => ({ receipt: receipt! }));
+}
+
 // The German sentences for the refusals of the server module, and the field each belongs to.
 
 export const categoryMessages = {
@@ -140,4 +247,29 @@ export const keyMessages = {
 
 export function keyErrorField(reason: keyof typeof keyMessages): keyof AllocationKeyInput {
 	return reason === 'unknown-property' ? 'propertyId' : 'name';
+}
+
+export const costItemMessages = {
+	missing: 'Diesen Beleg gibt es nicht.',
+	'unknown-property': 'Dieses Objekt gibt es nicht.',
+	'unknown-category': 'Diese Kostenart gibt es nicht.',
+	'unknown-key': 'Dieser Umlageschlüssel gilt nicht für das gewählte Objekt.',
+	'unknown-circle': 'Dieser Abrechnungskreis gehört nicht zum gewählten Objekt.',
+	'no-key': 'Die Kostenart hat keinen Standard-Umlageschlüssel; bitte wähle einen aus.'
+} as const;
+
+export function costItemErrorField(reason: keyof typeof costItemMessages): keyof CostItemForm {
+	switch (reason) {
+		case 'unknown-property':
+			return 'propertyId';
+		case 'unknown-category':
+			return 'categoryId';
+		case 'unknown-key':
+		case 'no-key':
+			return 'allocationKeyId';
+		case 'unknown-circle':
+			return 'billingCircleId';
+		default:
+			return 'description';
+	}
 }

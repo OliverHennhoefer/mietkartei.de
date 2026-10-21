@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '../db';
-import { allocationKeyShares, auditLog, costCategories, units } from '../db/schema';
+import { allocationKeyShares, auditLog, costCategories, costItems, units } from '../db/schema';
 import { contextA, contextB, seedUnit, testDatabase } from '../testing';
 import {
 	createKey,
@@ -57,7 +57,8 @@ describe('keys', () => {
 			propertyId,
 			propertyName: 'Haus',
 			meterKind: null,
-			consumptionPercent: null
+			consumptionPercent: null,
+			costItemCount: 0
 		});
 		const audit = await db.select().from(auditLog).where(eq(auditLog.entity, 'allocation_key'));
 		expect(audit.map((entry) => [entry.accountId, entry.action, entry.summary])).toEqual([
@@ -108,14 +109,28 @@ describe('keys', () => {
 		});
 	});
 
-	it('lists the keys oldest first with their property', async () => {
+	it('lists the keys oldest first with their property and cost item counts', async () => {
 		const { propertyId } = await seedUnit(db, 'a');
 		const first = await create(contextA, { name: 'Erster', kind: 'area' });
 		const second = await create(contextA, { name: 'Zweiter', kind: 'units', propertyId });
+		const [category] = await db
+			.insert(costCategories)
+			.values({ accountId: 'a', name: 'Grundsteuer' })
+			.returning({ id: costCategories.id });
+		await db.insert(costItems).values({
+			accountId: 'a',
+			propertyId,
+			categoryId: category.id,
+			allocationKeyId: second,
+			description: 'Grundsteuer 2025',
+			periodStart: '2025-01-01',
+			periodEnd: '2025-12-31',
+			amount: 120000
+		});
 		const keys = await listKeys(db, 'a');
-		expect(keys.map((key) => [key.id, key.propertyName])).toEqual([
-			[first, null],
-			[second, 'Haus']
+		expect(keys.map((key) => [key.id, key.propertyName, key.costItemCount])).toEqual([
+			[first, null, 0],
+			[second, 'Haus', 1]
 		]);
 	});
 
@@ -196,6 +211,29 @@ describe('keys', () => {
 		expect(audit.map((entry) => entry.summary)).toEqual([
 			'Umlageschlüssel Miteigentumsanteile gelöscht'
 		]);
+	});
+
+	it('refuses to delete a key that cost items use and deletes an unused one', async () => {
+		const { propertyId } = await seedUnit(db, 'a');
+		const used = await create(contextA, { name: 'Benutzt', kind: 'area' });
+		const unused = await create(contextA, { name: 'Unbenutzt', kind: 'area' });
+		const [category] = await db
+			.insert(costCategories)
+			.values({ accountId: 'a', name: 'Grundsteuer' })
+			.returning({ id: costCategories.id });
+		await db.insert(costItems).values({
+			accountId: 'a',
+			propertyId,
+			categoryId: category.id,
+			allocationKeyId: used,
+			description: 'Grundsteuer 2025',
+			periodStart: '2025-01-01',
+			periodEnd: '2025-12-31',
+			amount: 120000
+		});
+		expect(await deleteKey(db, contextA, used)).toBe('in-use');
+		expect(await deleteKey(db, contextA, unused)).toBe('deleted');
+		expect(await getKey(db, 'a', unused)).toBeUndefined();
 	});
 
 	it('does not leak into another account', async () => {

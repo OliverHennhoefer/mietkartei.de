@@ -4,10 +4,10 @@ import { storedMimeType } from '../domain/documents';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import { documents, leases, properties, tenants, units } from './db/schema';
+import { costItems, documents, leases, properties, tenants, units } from './db/schema';
 import { getStorage, storageKey, type Storage } from './storage';
 
-// Documents (Dokumente): uploaded files such as the signed lease, a protocol or a letter. The
+// Documents (Dokumente): uploaded files such as the signed lease, a receipt or a letter. The
 // bytes live in the storage adapter under `<accountId>/<documentId>`, the row in `documents`
 // says what they are and what they belong to. A document is only ever served to a signed-in
 // user of the account that uploaded it.
@@ -27,6 +27,7 @@ export type DocumentLinks = {
 	unitId?: string | null;
 	leaseId?: string | null;
 	tenantId?: string | null;
+	costItemId?: string | null;
 };
 
 export type DocumentFilter = {
@@ -34,6 +35,7 @@ export type DocumentFilter = {
 	unitId?: string;
 	leaseId?: string;
 	tenantId?: string;
+	costItemId?: string;
 };
 
 export type DocumentError = 'too-large' | 'empty' | 'unknown-link' | 'quota';
@@ -51,7 +53,8 @@ const linkTables: [keyof DocumentLinks, LinkedTable][] = [
 	['propertyId', properties],
 	['unitId', units],
 	['leaseId', leases],
-	['tenantId', tenants]
+	['tenantId', tenants],
+	['costItemId', costItems]
 ];
 
 /** Whether every given link points at a row of the account; one query per given link kind. */
@@ -122,6 +125,7 @@ export async function storeDocument(
 				unitId: links.unitId ?? null,
 				leaseId: links.leaseId ?? null,
 				tenantId: links.tenantId ?? null,
+				costItemId: links.costItemId ?? null,
 				uploadedBy: context.userId
 			}),
 			auditEntry(db, context, 'document', id, 'upload', `Dokument ${name} hochgeladen`)
@@ -178,6 +182,7 @@ export async function listDocuments(
 	if (filter.unitId) conditions.push(eq(documents.unitId, filter.unitId));
 	if (filter.leaseId) conditions.push(eq(documents.leaseId, filter.leaseId));
 	if (filter.tenantId) conditions.push(eq(documents.tenantId, filter.tenantId));
+	if (filter.costItemId) conditions.push(eq(documents.costItemId, filter.costItemId));
 	return db
 		.select()
 		.from(documents)

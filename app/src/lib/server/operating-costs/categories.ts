@@ -1,8 +1,8 @@
-import { and, asc, eq, ne } from 'drizzle-orm';
+import { and, asc, count, eq, getTableColumns, ne } from 'drizzle-orm';
 import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
 import { runBatch } from '../db/batch';
-import { allocationKeys, billingCircles, costCategories } from '../db/schema';
+import { allocationKeys, billingCircles, costCategories, costItems } from '../db/schema';
 
 // Kostenarten: which costs exist, whether they may be passed on, and the key and circle a new
 // cost item of the category starts with. The standard list is seeded by defaults.ts.
@@ -19,15 +19,22 @@ export type CostCategoryInput = {
 	sortOrder: number;
 };
 
+export type CostCategoryWithUsage = CostCategory & {
+	/** How many cost items use the category; they block its deletion. */
+	costItemCount: number;
+};
+
 export type CategoryError = 'missing' | 'duplicate-name' | 'unknown-key' | 'unknown-circle';
 
-function query(db: Database, accountId: string, categoryId?: string) {
+function withUsage(db: Database, accountId: string, categoryId?: string) {
 	const conditions = [eq(costCategories.accountId, accountId)];
 	if (categoryId !== undefined) conditions.push(eq(costCategories.id, categoryId));
 	return db
-		.select()
+		.select({ ...getTableColumns(costCategories), costItemCount: count(costItems.id) })
 		.from(costCategories)
+		.leftJoin(costItems, eq(costItems.categoryId, costCategories.id))
 		.where(and(...conditions))
+		.groupBy(costCategories.id)
 		.orderBy(
 			asc(costCategories.sortOrder),
 			asc(costCategories.name),
@@ -35,17 +42,20 @@ function query(db: Database, accountId: string, categoryId?: string) {
 		);
 }
 
-/** The categories of the account in their sort order. */
-export async function listCategories(db: Database, accountId: string): Promise<CostCategory[]> {
-	return query(db, accountId);
+/** The categories of the account in their sort order, each with its cost item count. */
+export async function listCategories(
+	db: Database,
+	accountId: string
+): Promise<CostCategoryWithUsage[]> {
+	return withUsage(db, accountId);
 }
 
 export async function getCategory(
 	db: Database,
 	accountId: string,
 	categoryId: string
-): Promise<CostCategory | undefined> {
-	const [row] = await query(db, accountId, categoryId);
+): Promise<CostCategoryWithUsage | undefined> {
+	const [row] = await withUsage(db, accountId, categoryId);
 	return row;
 }
 
@@ -128,14 +138,16 @@ export async function updateCategory(
 	return { ok: true };
 }
 
+/** A category with cost items stays: the items keep their history. */
 export async function deleteCategory(
 	db: Database,
 	context: AuditContext,
 	categoryId: string
-): Promise<'deleted' | 'missing'> {
+): Promise<'deleted' | 'in-use' | 'missing'> {
 	const { accountId } = context;
 	const existing = await getCategory(db, accountId, categoryId);
 	if (!existing) return 'missing';
+	if (existing.costItemCount > 0) return 'in-use';
 	await runBatch(db, [
 		db
 			.delete(costCategories)

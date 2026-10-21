@@ -175,8 +175,8 @@ export async function updateCircle(
 }
 
 /**
- * Deletes the circle. Categories that named it fall back to all units of the property (the
- * column is set to null by the schema).
+ * Deletes the circle. Cost items and categories that named it fall back to all units of the
+ * property (the columns are set to null by the schema).
  */
 export async function deleteCircle(
 	db: Database,

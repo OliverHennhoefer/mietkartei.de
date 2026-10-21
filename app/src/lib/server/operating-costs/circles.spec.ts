@@ -1,7 +1,14 @@
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '../db';
-import { auditLog, billingCircleUnits, costCategories, units } from '../db/schema';
+import {
+	allocationKeys,
+	auditLog,
+	billingCircleUnits,
+	costCategories,
+	costItems,
+	units
+} from '../db/schema';
 import { contextA, contextB, seedUnit, testDatabase } from '../testing';
 import { createCircle, deleteCircle, getCircle, listCircles, updateCircle } from './circles';
 
@@ -97,7 +104,7 @@ describe('circles', () => {
 		expect(await db.select().from(billingCircleUnits)).toHaveLength(1);
 	});
 
-	it('deletes a circle; categories that used it fall back to all units', async () => {
+	it('deletes a circle; cost items that used it fall back to all units', async () => {
 		const { propertyId, unitId } = await seedUnit(db, 'a');
 		const created = await createCircle(db, contextA, propertyId, {
 			name: 'Wohnungen',
@@ -108,10 +115,30 @@ describe('circles', () => {
 			.insert(costCategories)
 			.values({ accountId: 'a', name: 'Grundsteuer', billingCircleId: created.id })
 			.returning({ id: costCategories.id });
+		const [{ id: keyId }] = await db
+			.insert(allocationKeys)
+			.values({ accountId: 'a', name: 'Fläche', kind: 'area' })
+			.returning({ id: allocationKeys.id });
+		const [item] = await db
+			.insert(costItems)
+			.values({
+				accountId: 'a',
+				propertyId,
+				categoryId: category.id,
+				allocationKeyId: keyId,
+				billingCircleId: created.id,
+				description: 'Grundsteuer 2025',
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				amount: 120000
+			})
+			.returning({ id: costItems.id });
 
 		expect(await deleteCircle(db, contextA, created.id)).toBe('deleted');
 		expect(await getCircle(db, 'a', created.id)).toBeUndefined();
 		expect(await db.select().from(billingCircleUnits)).toEqual([]);
+		const [after] = await db.select().from(costItems).where(eq(costItems.id, item.id));
+		expect(after.billingCircleId).toBeNull();
 		const [categoryAfter] = await db
 			.select()
 			.from(costCategories)
