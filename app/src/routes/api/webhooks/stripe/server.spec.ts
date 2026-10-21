@@ -75,6 +75,35 @@ describe('POST /api/webhooks/stripe', () => {
 		expect((await account('b')).subscriptionStatus).toBe('none');
 	});
 
+	it('ends the pending Checkout with the completed session', async () => {
+		await db.update(accounts).set({ stripeCheckoutSessionId: 'cs_1' }).where(eq(accounts.id, 'a'));
+		current = { status: 'active', current_period_end: 1_894_665_600 };
+		const object = { id: 'cs_1', mode: 'subscription', subscription: 'sub_a', customer: 'cus_a' };
+		const payload = JSON.stringify({
+			id: 'evt_completed',
+			type: 'checkout.session.completed',
+			data: { object }
+		});
+		const signature = await signWebhookPayload(
+			payload,
+			'whsec_unit',
+			Math.floor(Date.now() / 1000)
+		);
+		const request = new Request('http://localhost/api/webhooks/stripe', {
+			method: 'POST',
+			body: payload,
+			headers: { 'stripe-signature': signature }
+		});
+		const response = await POST({ request, locals: { db } } as unknown as Parameters<
+			typeof POST
+		>[0]);
+		expect(response.status).toBe(200);
+		expect(await account('a')).toMatchObject({
+			subscriptionStatus: 'active',
+			stripeCheckoutSessionId: null
+		});
+	});
+
 	it('follows a change Stripe reports', async () => {
 		current = { status: 'past_due', current_period_end: 1_894_665_600 };
 		await deliver('evt_1', 'customer.subscription.updated', 'past_due');

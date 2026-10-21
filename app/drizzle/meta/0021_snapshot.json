@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b61929d7-434e-47a1-9377-a1552ed06637",
+  "id": "62cf5cab-e2de-4b0d-8080-f109e12835b5",
   "prevId": "b2fe3c4f-bed4-49fa-9f2a-1e217ec0fe00",
   "tables": {
     "accounts": {
@@ -103,6 +103,13 @@
         "current_period_end": {
           "name": "current_period_end",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "stripe_checkout_session_id": {
+          "name": "stripe_checkout_session_id",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

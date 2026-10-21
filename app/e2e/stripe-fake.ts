@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
  * A stand-in for the Stripe API, just enough for the billing pages: the app reaches it because
  * the Playwright web servers set STRIPE_API_BASE=http://localhost:4299 (STRIPE_FAKE_PORT changes
  * it). Checkout and portal sessions answer with the URL the app passed in, so the browser lands
- * back in the app.
+ * back in the app. Checkout sessions are kept, so the app can read them back and expire them.
  * Every request is recorded, so a test can check what the app sent. The subscription is state
  * a test changes before it posts a webhook, because the app reads it back from the API.
  */
@@ -26,6 +26,27 @@ export const requests: RecordedRequest[] = [];
 
 /** The state of sub_fake as GET /v1/subscriptions/sub_fake answers it; start() resets it. */
 export const subscription = { status: 'active', current_period_end: FAKE_PERIOD_END };
+
+export type FakeCheckoutSession = {
+	id: string;
+	status: 'open' | 'complete' | 'expired';
+	url: string | null;
+	subscription: string | null;
+};
+
+/** The Checkout sessions the app created, by id; start() empties it. */
+export const checkoutSessions = new Map<string, FakeCheckoutSession>();
+
+/** Completes a session the way paying on Stripe's page does; the webhook is the test's to send. */
+export function completeCheckout(id: string): void {
+	const session = checkoutSessions.get(id);
+	if (!session) throw new Error(`No Checkout session ${id}`);
+	Object.assign(session, { status: 'complete', url: null, subscription: FAKE_SUBSCRIPTION_ID });
+}
+
+function checkoutSessionObject(session: FakeCheckoutSession) {
+	return { object: 'checkout.session', mode: 'subscription', ...session };
+}
 
 function subscriptionObject() {
 	return {
@@ -75,11 +96,31 @@ async function handle(request: IncomingMessage, response: ServerResponse): Promi
 		});
 	}
 	if (method === 'POST' && url.pathname === '/v1/checkout/sessions') {
-		return answer(response, 200, {
-			id: 'cs_fake',
-			object: 'checkout.session',
-			url: params.get('success_url')
-		});
+		const session: FakeCheckoutSession = {
+			id: `cs_fake_${checkoutSessions.size + 1}`,
+			status: 'open',
+			url: params.get('success_url'),
+			subscription: null
+		};
+		checkoutSessions.set(session.id, session);
+		return answer(response, 200, checkoutSessionObject(session));
+	}
+	const checkout = /^\/v1\/checkout\/sessions\/([^/]+)(\/expire)?$/.exec(url.pathname);
+	if (checkout) {
+		const session = checkoutSessions.get(decodeURIComponent(checkout[1]));
+		if (!session) {
+			return answer(response, 404, { error: { message: 'No such checkout.session' } });
+		}
+		if (method === 'GET' && !checkout[2])
+			return answer(response, 200, checkoutSessionObject(session));
+		if (method === 'POST' && checkout[2]) {
+			// Like Stripe: only an open session can be expired.
+			if (session.status !== 'open') {
+				return answer(response, 400, { error: { message: 'Session is not open' } });
+			}
+			Object.assign(session, { status: 'expired', url: null });
+			return answer(response, 200, checkoutSessionObject(session));
+		}
 	}
 	if (method === 'POST' && url.pathname === '/v1/billing_portal/sessions') {
 		return answer(response, 200, {
@@ -120,6 +161,7 @@ async function handle(request: IncomingMessage, response: ServerResponse): Promi
 export async function start(): Promise<void> {
 	if (server) return;
 	requests.length = 0;
+	checkoutSessions.clear();
 	Object.assign(subscription, { status: 'active', current_period_end: FAKE_PERIOD_END });
 	const instance = createServer((request, response) => {
 		handle(request, response).catch((cause) => {

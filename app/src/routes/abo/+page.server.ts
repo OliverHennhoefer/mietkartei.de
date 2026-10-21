@@ -6,6 +6,7 @@ import {
 	billingEnabled,
 	billingState,
 	getBillingAccount,
+	replaceCheckoutSession,
 	setStripeCustomer,
 	subscriptionRuns,
 	trialDaysLeft,
@@ -17,8 +18,13 @@ import {
 	createCheckoutSession,
 	createCustomer,
 	createPortalSession,
+	expireCheckoutSession,
+	getCheckoutSession,
 	getPrice,
-	StripeError
+	isStripeRedirect,
+	STRIPE_REDIRECT_ORIGINS,
+	StripeError,
+	type StripeCheckoutSession
 } from '#lib/server/stripe.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -35,6 +41,37 @@ function returnOrigin(url: URL): string | undefined {
 	const origin = mailLinkOrigin(url, ORIGIN, __DEPLOY_TARGET__);
 	if (!origin) console.warn('Stripe redirect refused: set ORIGIN to the public URL of mietkartei.');
 	return origin;
+}
+
+const SETTING_UP = 'Dein Abo wird gerade eingerichtet. Lade die Seite in einer Minute noch einmal.';
+
+/**
+ * Sends the browser to a URL Stripe answered with. Only Stripe's hosted pages and the app itself
+ * are followed; anything else is answered like a failed call, so the page is never an open
+ * redirect.
+ */
+function toStripe(location: string, origin: string) {
+	if (!isStripeRedirect(location, origin)) {
+		console.error(`Stripe answered with an unexpected redirect: ${location}`);
+		return fail(502, { message: STRIPE_DOWN });
+	}
+	redirect(303, location, { external: STRIPE_REDIRECT_ORIGINS });
+}
+
+/** The pending Checkout session of the account; undefined when there is none or Stripe lost it. */
+async function pendingCheckout(id: string | null): Promise<StripeCheckoutSession | undefined> {
+	if (!id) return undefined;
+	try {
+		return await getCheckoutSession(id);
+	} catch (cause) {
+		if (cause instanceof StripeError && cause.status === 404) return undefined;
+		throw cause;
+	}
+}
+
+/** Stripe sends related objects as ids, or expanded as objects with an id. */
+function idOf(value: string | { id: string } | null | undefined): string | undefined {
+	return typeof value === 'string' ? value : (value?.id ?? undefined);
 }
 
 /** The monthly price as text, read from Stripe; "monatlich" when Stripe does not answer. */
@@ -70,7 +107,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 };
 
 export const actions: Actions = {
-	/** Creates the Stripe customer when missing and sends the owner to Checkout. */
+	/**
+	 * Creates the Stripe customer when missing and sends the owner to Checkout. One Checkout
+	 * session per account at a time: while the stored one is open it is reused, so two tabs or a
+	 * double click cannot open two sessions that would both start a subscription.
+	 */
 	checkout: async ({ locals, url }) => {
 		if (!billingEnabled()) error(404, 'Auf dieser Instanz gibt es kein Abo.');
 		const user = requireOwner(locals);
@@ -88,17 +129,42 @@ export const actions: Actions = {
 				customerId = (await createCustomer(user.email, user.accountId)).id;
 				await setStripeCustomer(locals.db, auditContext(locals), customerId);
 			}
-			// The rest of the free trial carries over; after it, the subscription starts at once.
-			const trialDays =
-				account.subscriptionStatus === 'none' ? trialDaysLeft(account, new Date()) : 0;
-			const session = await createCheckoutSession({
-				customerId,
-				priceId: STRIPE_PRICE_ID,
-				successUrl: `${origin}/abo?erfolg=1`,
-				cancelUrl: `${origin}/abo`,
-				trialDays
-			});
-			checkoutUrl = session.url;
+			const pending = await pendingCheckout(account.stripeCheckoutSessionId);
+			if (pending?.status === 'open' && pending.url) {
+				checkoutUrl = pending.url;
+			} else {
+				// Completed, but its webhook has not arrived: the subscription exists already.
+				// Once the webhook has stored it, the session is no longer pending.
+				const completed =
+					pending?.status === 'complete' &&
+					idOf(pending.subscription) !== account.stripeSubscriptionId;
+				if (completed) return fail(409, { message: SETTING_UP });
+				// The rest of the free trial carries over; after it, the subscription starts at once.
+				const trialDays =
+					account.subscriptionStatus === 'none' ? trialDaysLeft(account, new Date()) : 0;
+				const session = await createCheckoutSession({
+					customerId,
+					priceId: STRIPE_PRICE_ID,
+					successUrl: `${origin}/abo?erfolg=1`,
+					cancelUrl: `${origin}/abo`,
+					trialDays
+				});
+				const stored = await replaceCheckoutSession(
+					locals.db,
+					user.accountId,
+					account.stripeCheckoutSessionId,
+					session.id
+				);
+				if (!stored) {
+					// Another request stored its session in the meantime; this one must not stay
+					// open next to it.
+					await expireCheckoutSession(session.id);
+					return fail(409, {
+						message: 'Der Checkout wurde gerade schon geöffnet. Bitte lade die Seite neu.'
+					});
+				}
+				checkoutUrl = session.url;
+			}
 		} catch (cause) {
 			if (cause instanceof StripeError) {
 				console.error(cause.message);
@@ -106,7 +172,7 @@ export const actions: Actions = {
 			}
 			throw cause;
 		}
-		redirect(303, checkoutUrl);
+		return toStripe(checkoutUrl, origin);
 	},
 
 	/** Sends the owner to the Customer Portal (payment method, invoices, cancellation). */
@@ -127,6 +193,6 @@ export const actions: Actions = {
 			}
 			throw cause;
 		}
-		redirect(303, portalUrl);
+		return toStripe(portalUrl, origin);
 	}
 };

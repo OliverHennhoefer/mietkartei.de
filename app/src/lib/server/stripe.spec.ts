@@ -4,6 +4,7 @@ import {
 	createCheckoutSession,
 	encodeForm,
 	getSubscription,
+	isStripeRedirect,
 	signWebhookPayload,
 	StripeError,
 	stripeRequest,
@@ -123,6 +124,26 @@ describe('stripeRequest', () => {
 			trialDays: 0
 		});
 		expect(String(calls[0].init.body)).not.toContain('trial_period_days');
+	});
+});
+
+describe('isStripeRedirect', () => {
+	const app = 'https://app.mietkartei.de';
+
+	it('accepts the hosted Checkout page, the Customer Portal and the app itself', () => {
+		expect(isStripeRedirect('https://checkout.stripe.com/c/pay/cs_test_a1b2#fid', app)).toBe(true);
+		expect(isStripeRedirect('https://billing.stripe.com/p/session/test_YWNjdA', app)).toBe(true);
+		expect(isStripeRedirect('https://app.mietkartei.de/abo?erfolg=1', app)).toBe(true);
+	});
+
+	it('refuses every other host, scheme and relative or broken URL', () => {
+		expect(isStripeRedirect('https://evil.example/c/pay/cs_test', app)).toBe(false);
+		expect(isStripeRedirect('http://checkout.stripe.com/c/pay/cs_test', app)).toBe(false);
+		expect(isStripeRedirect('https://checkout.stripe.com.evil.example/', app)).toBe(false);
+		expect(isStripeRedirect('https://stripe.com/', app)).toBe(false);
+		expect(isStripeRedirect('javascript:alert(1)', app)).toBe(false);
+		expect(isStripeRedirect('/abo', app)).toBe(false);
+		expect(isStripeRedirect('', app)).toBe(false);
 	});
 });
 

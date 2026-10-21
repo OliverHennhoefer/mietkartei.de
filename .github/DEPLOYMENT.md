@@ -125,4 +125,4 @@ The hosted app charges a monthly subscription through Stripe Checkout and the St
 
 Deleting an account cancels every subscription of its Stripe customer first. If Stripe does not answer, the account is not deleted and the owner is asked to try again.
 
-Checkout and the Customer Portal send the owner back to the host Cloudflare routed the request to, so the hosted app needs no `ORIGIN` for them either. The app keeps the id of every webhook event it processed for 30 days, well past Stripe's three days of retries, and then deletes it.
+Checkout and the Customer Portal send the owner back to the host Cloudflare routed the request to, so the hosted app needs no `ORIGIN` for them either. The app keeps the id of every webhook event it processed for 30 days, well past Stripe's three days of retries, and then deletes it. An account has one Checkout session at a time: opening Checkout again reuses the open one. Should a second subscription reach the webhook all the same while the first still bills, the app cancels the second at once and notes it in the account's change log; a payment already taken for it has to be refunded in the Stripe dashboard.

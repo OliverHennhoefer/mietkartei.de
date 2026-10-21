@@ -11,6 +11,7 @@ import {
 	noticeFor,
 	recordStripeEvent,
 	refusesWrite,
+	replaceCheckoutSession,
 	setStripeCustomer,
 	stripeEventSeen,
 	trialDaysLeft,
@@ -399,6 +400,119 @@ describe('with a database', () => {
 			);
 			expect(await cancelSubscriptionOf(db, 'a')).toBe(false);
 		});
+	});
+
+	describe('a second subscription', () => {
+		afterEach(() => {
+			vi.unstubAllGlobals();
+		});
+
+		/** Account a with the running sub_a and the Checkout cs_2 still pending. */
+		async function subscribed() {
+			await setStripeCustomer(db, contextA, 'cus_a');
+			await db
+				.update(accounts)
+				.set({
+					stripeSubscriptionId: 'sub_a',
+					subscriptionStatus: 'active',
+					stripeCheckoutSessionId: 'cs_2'
+				})
+				.where(eq(accounts.id, 'a'));
+		}
+
+		const completedB = {
+			customerId: 'cus_a',
+			subscriptionId: 'sub_b',
+			status: 'active',
+			currentPeriodEnd: null,
+			checkoutSessionId: 'cs_2'
+		};
+
+		it('is canceled at once while the stored one still bills, with an audit entry', async () => {
+			await subscribed();
+			const calls = stripeAnswers(
+				{ status: 200, body: { id: 'sub_a', status: 'active' } },
+				{ status: 200, body: { id: 'sub_b', status: 'canceled' } }
+			);
+			const event = { id: 'evt_b', type: 'checkout.session.completed' };
+			expect(await applySubscriptionUpdate(db, event, completedB)).toBe('a');
+			expect(calls).toEqual([
+				'GET http://stripe.test/v1/subscriptions/sub_a',
+				'DELETE http://stripe.test/v1/subscriptions/sub_b'
+			]);
+			// The account keeps the subscription it pays for; the Checkout is no longer pending.
+			expect(await row('a')).toMatchObject({
+				stripeSubscriptionId: 'sub_a',
+				subscriptionStatus: 'active',
+				stripeCheckoutSessionId: null
+			});
+			expect(await stripeEventSeen(db, 'evt_b')).toBe(true);
+			const summaries = (await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'))).map(
+				(entry) => entry.summary
+			);
+			expect(summaries).toContain('Zweites Abo bei Stripe sofort gekündigt: sub_b');
+		});
+
+		it('takes the place of a stored one that has ended at Stripe', async () => {
+			await subscribed();
+			// sub_a ended, but its webhook has not arrived yet.
+			const calls = stripeAnswers({ status: 200, body: { id: 'sub_a', status: 'canceled' } });
+			await applySubscriptionUpdate(
+				db,
+				{ id: 'evt_b', type: 'checkout.session.completed' },
+				completedB
+			);
+			expect(calls).toEqual(['GET http://stripe.test/v1/subscriptions/sub_a']);
+			expect(await row('a')).toMatchObject({
+				stripeSubscriptionId: 'sub_b',
+				subscriptionStatus: 'active',
+				stripeCheckoutSessionId: null
+			});
+		});
+
+		it('throws while Stripe cannot cancel it, so Stripe delivers the event again', async () => {
+			await subscribed();
+			stripeAnswers(
+				{ status: 200, body: { id: 'sub_a', status: 'active' } },
+				{ status: 500, body: {} },
+				{ status: 200, body: { id: 'sub_b', status: 'active' } }
+			);
+			await expect(
+				applySubscriptionUpdate(
+					db,
+					{ id: 'evt_b', type: 'customer.subscription.updated' },
+					completedB
+				)
+			).rejects.toThrow(/sub_b/);
+			expect(await stripeEventSeen(db, 'evt_b')).toBe(false);
+			expect(await row('a')).toMatchObject({
+				stripeSubscriptionId: 'sub_a',
+				stripeCheckoutSessionId: 'cs_2'
+			});
+		});
+
+		it('leaves a pending Checkout alone when another session completes', async () => {
+			await subscribed();
+			const calls = stripeAnswers();
+			await applySubscriptionUpdate(
+				db,
+				{ id: 'evt_a', type: 'checkout.session.completed' },
+				{ ...completedB, subscriptionId: 'sub_a', checkoutSessionId: 'cs_1' }
+			);
+			expect(calls).toEqual([]);
+			expect((await row('a')).stripeCheckoutSessionId).toBe('cs_2');
+		});
+	});
+
+	it('stores a Checkout session only over the one the request read', async () => {
+		expect(await replaceCheckoutSession(db, 'a', null, 'cs_1')).toBe(true);
+		// A second request that also read "none" loses.
+		expect(await replaceCheckoutSession(db, 'a', null, 'cs_2')).toBe(false);
+		expect(await replaceCheckoutSession(db, 'a', 'cs_0', 'cs_2')).toBe(false);
+		expect((await row('a')).stripeCheckoutSessionId).toBe('cs_1');
+		expect(await replaceCheckoutSession(db, 'a', 'cs_1', 'cs_2')).toBe(true);
+		expect(await row('a')).toMatchObject({ stripeCheckoutSessionId: 'cs_2' });
+		expect((await row('b')).stripeCheckoutSessionId).toBeNull();
 	});
 
 	it('records an event once', async () => {

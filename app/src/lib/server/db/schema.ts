@@ -58,6 +58,11 @@ export const accounts = sqliteTable(
 			.notNull()
 			.default('none'),
 		currentPeriodEnd: integer('current_period_end', { mode: 'timestamp_ms' }),
+		/**
+		 * The Checkout session last opened for the account, until its webhook arrives. Another
+		 * Checkout reuses it while it is open, so two sessions cannot both start a subscription.
+		 */
+		stripeCheckoutSessionId: text('stripe_checkout_session_id'),
 		createdAt: createdAt()
 	},
 	(table) => [

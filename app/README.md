@@ -22,7 +22,7 @@ Unter **Einstellungen → Export** lädst du alle Daten deines Kontos als ZIP-Da
 
 ## Abo
 
-Die gehostete Variante auf app.mietkartei.de kostet ein monatliches Abo, das über Stripe läuft. Jedes neue Konto kann mietkartei 30 Tage kostenlos testen; über jeder Seite steht, wann die Testphase endet. Unter **Abo** schließt der Vermieter das Abo über Stripe Checkout ab, ohne die restlichen Testtage zu verlieren, und verwaltet danach Zahlungsart, Rechnungen und Kündigung im Kundenportal von Stripe. Den Preis legt Stripe fest, nicht der Code. Das Abo verwaltet nur der Vermieter, nicht die Mitverwalter. Wer sein Konto löscht, beendet damit auch das Abo; antwortet Stripe gerade nicht, bleibt das Konto, bis die Kündigung klappt.
+Die gehostete Variante auf app.mietkartei.de kostet ein monatliches Abo, das über Stripe läuft. Jedes neue Konto kann mietkartei 30 Tage kostenlos testen; über jeder Seite steht, wann die Testphase endet. Unter **Abo** schließt der Vermieter das Abo über Stripe Checkout ab, ohne die restlichen Testtage zu verlieren, und verwaltet danach Zahlungsart, Rechnungen und Kündigung im Kundenportal von Stripe. Den Preis legt Stripe fest, nicht der Code. Das Abo verwaltet nur der Vermieter, nicht die Mitverwalter. Zwei Checkouts zugleich führen nicht zu zwei Abos: ein offener Checkout wird wiederverwendet, und ein trotzdem entstandenes zweites Abo kündigt mietkartei sofort. Wer sein Konto löscht, beendet damit auch das Abo; antwortet Stripe gerade nicht, bleibt das Konto, bis die Kündigung klappt.
 
 Eingeschaltet wird das Abo mit diesen Variablen; ohne `STRIPE_SECRET_KEY` und `STRIPE_PRICE_ID` gibt es kein Abo, und eine selbst gehostete Installation sieht davon nichts:
 

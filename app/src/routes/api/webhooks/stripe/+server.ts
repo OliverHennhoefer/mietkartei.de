@@ -97,7 +97,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			customerId,
 			subscriptionId: subscription.id,
 			status: subscription.status,
-			currentPeriodEnd: subscriptionPeriodEnd(subscription)
+			currentPeriodEnd: subscriptionPeriodEnd(subscription),
+			checkoutSessionId: event.type === 'checkout.session.completed' ? idOf(object.id) : undefined
 		}));
 	if (!applied) await recordStripeEvent(db, event.id, event.type);
 	return json({ received: true });

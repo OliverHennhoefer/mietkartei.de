@@ -1,5 +1,5 @@
 import { error, type RequestEvent } from '@sveltejs/kit';
-import { eq, lt } from 'drizzle-orm';
+import { and, eq, isNull, lt } from 'drizzle-orm';
 import { BILLING_REQUIRED, STRIPE_PRICE_ID, STRIPE_SECRET_KEY } from '$app/env/private';
 import { dayOf, formatDate } from '../dates';
 import { subscriptionStatusLabels } from '../labels';
@@ -160,11 +160,34 @@ export async function getBillingAccount(db: Database, accountId: string) {
 			currentPeriodEnd: accounts.currentPeriodEnd,
 			stripeCustomerId: accounts.stripeCustomerId,
 			stripeSubscriptionId: accounts.stripeSubscriptionId,
+			stripeCheckoutSessionId: accounts.stripeCheckoutSessionId,
 			createdAt: accounts.createdAt
 		})
 		.from(accounts)
 		.where(eq(accounts.id, accountId));
 	return account;
+}
+
+/**
+ * Stores a new Checkout session for the account, but only while the stored one is still
+ * `previous`: of two Checkouts opened at the same time only one is kept. False when another
+ * request stored its session first; that request's session is then the one to use.
+ */
+export async function replaceCheckoutSession(
+	db: Database,
+	accountId: string,
+	previous: string | null,
+	next: string
+): Promise<boolean> {
+	const stored = previous
+		? eq(accounts.stripeCheckoutSessionId, previous)
+		: isNull(accounts.stripeCheckoutSessionId);
+	const rows = await db
+		.update(accounts)
+		.set({ stripeCheckoutSessionId: next })
+		.where(and(eq(accounts.id, accountId), stored))
+		.returning({ id: accounts.id });
+	return rows.length > 0;
 }
 
 /**
@@ -233,7 +256,24 @@ export type SubscriptionUpdate = {
 	subscriptionId: string;
 	status: string;
 	currentPeriodEnd: Date | null;
+	/** The Checkout session of a `checkout.session.completed` event; it is no longer pending. */
+	checkoutSessionId?: string;
 };
+
+/** The mapped statuses of a subscription that bills the account. */
+function bills(status: SubscriptionStatus): boolean {
+	return status === 'trialing' || status === 'active' || status === 'past_due';
+}
+
+/** Whether the subscription still bills at Stripe; false when Stripe does not know it. */
+async function stillBills(subscriptionId: string): Promise<boolean> {
+	try {
+		return bills(mapSubscriptionStatus((await getSubscription(subscriptionId)).status));
+	} catch (cause) {
+		if (cause instanceof StripeError && cause.status === 404) return false;
+		throw cause;
+	}
+}
 
 /**
  * Stripe retries a delivery for three days, so an event row only has to outlive that. Older rows
@@ -264,30 +304,77 @@ export async function applySubscriptionUpdate(
 		.select({
 			id: accounts.id,
 			subscriptionStatus: accounts.subscriptionStatus,
-			stripeSubscriptionId: accounts.stripeSubscriptionId
+			stripeSubscriptionId: accounts.stripeSubscriptionId,
+			stripeCheckoutSessionId: accounts.stripeCheckoutSessionId
 		})
 		.from(accounts)
 		.where(eq(accounts.stripeCustomerId, update.customerId));
 	if (!account) return undefined;
 
+	const context: AuditContext = { accountId: account.id, userId: null };
+	// The pending Checkout is done once its completion arrives, whatever becomes of it below.
+	const checkoutSessionId = update.checkoutSessionId;
+	const clearCheckout =
+		checkoutSessionId !== undefined && account.stripeCheckoutSessionId === checkoutSessionId
+			? [
+					db
+						.update(accounts)
+						.set({ stripeCheckoutSessionId: null })
+						.where(
+							and(
+								eq(accounts.id, account.id),
+								eq(accounts.stripeCheckoutSessionId, checkoutSessionId)
+							)
+						)
+				]
+			: [];
 	const mapped = mapSubscriptionStatus(update.status);
 	// A customer can have an older, ended subscription besides the running one. An event about
 	// that one (a late retry, say) must not replace the running subscription, or the account
 	// would turn read-only and its deletion would not cancel what still bills it.
-	const other =
-		account.stripeSubscriptionId !== null && account.stripeSubscriptionId !== update.subscriptionId;
+	const stored = account.stripeSubscriptionId;
+	const other = stored !== null && stored !== update.subscriptionId;
 	if (other && subscriptionRuns(account) && (mapped === 'canceled' || mapped === 'none')) {
-		await recordStripeEvent(db, event.id, event.type);
+		await runBatch(db, [
+			insertStripeEvent(db, event.id, event.type),
+			pruneStripeEvents(db),
+			...clearCheckout
+		]);
+		return account.id;
+	}
+	// A second subscription that bills while the stored one still does: two Checkouts completed
+	// before the first webhook arrived. The account pays for one, so the newer one ends at once.
+	// A failure throws, the webhook answers 500, and Stripe delivers the event again.
+	if (other && subscriptionRuns(account) && bills(mapped) && (await stillBills(stored))) {
+		if (!(await cancelOne(update.subscriptionId))) {
+			throw new StripeError(
+				502,
+				`Could not cancel duplicate subscription ${update.subscriptionId}`
+			);
+		}
+		await runBatch(db, [
+			insertStripeEvent(db, event.id, event.type),
+			pruneStripeEvents(db),
+			...clearCheckout,
+			auditEntry(
+				db,
+				context,
+				'account',
+				account.id,
+				'update',
+				`Zweites Abo bei Stripe sofort gekündigt: ${update.subscriptionId}`
+			)
+		]);
 		return account.id;
 	}
 	const status = mapped === 'none' ? account.subscriptionStatus : mapped;
 	const until = update.currentPeriodEnd
 		? ` (bis ${formatDate(dayOf(update.currentPeriodEnd))})`
 		: '';
-	const context: AuditContext = { accountId: account.id, userId: null };
 	await runBatch(db, [
 		insertStripeEvent(db, event.id, event.type),
 		pruneStripeEvents(db),
+		...clearCheckout,
 		db
 			.update(accounts)
 			.set({

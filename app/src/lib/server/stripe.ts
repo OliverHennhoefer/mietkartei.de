@@ -124,6 +124,51 @@ export async function createCheckoutSession(input: {
 	});
 }
 
+export type StripeCheckoutSession = {
+	id: string;
+	/** `open` until it is completed or expires (after 24 hours, or when expired through the API). */
+	status: 'open' | 'complete' | 'expired' | null;
+	/** Only while the session is open. */
+	url: string | null;
+	subscription?: string | { id: string } | null;
+};
+
+export async function getCheckoutSession(id: string): Promise<StripeCheckoutSession> {
+	return stripeRequest<StripeCheckoutSession>(
+		`/v1/checkout/sessions/${encodeURIComponent(id)}`,
+		{},
+		{ method: 'GET' }
+	);
+}
+
+/** Expires an open Checkout session, so it can no longer be completed. */
+export async function expireCheckoutSession(id: string): Promise<StripeCheckoutSession> {
+	return stripeRequest<StripeCheckoutSession>(
+		`/v1/checkout/sessions/${encodeURIComponent(id)}/expire`
+	);
+}
+
+/** Where Stripe sends the owner: the hosted Checkout page and the Customer Portal. */
+export const STRIPE_REDIRECT_ORIGINS = [
+	'https://checkout.stripe.com',
+	'https://billing.stripe.com'
+];
+
+/**
+ * Whether a URL Stripe answered with may be redirected to: one of STRIPE_REDIRECT_ORIGINS, or the
+ * app's own origin (where the end-to-end fake sends the browser). Anything else would make the
+ * subscription page an open redirect for whoever controls the answer.
+ */
+export function isStripeRedirect(location: string, appOrigin: string): boolean {
+	let url: URL;
+	try {
+		url = new URL(location);
+	} catch {
+		return false;
+	}
+	return url.origin === appOrigin || STRIPE_REDIRECT_ORIGINS.includes(url.origin);
+}
+
 export async function createPortalSession(
 	customerId: string,
 	returnUrl: string

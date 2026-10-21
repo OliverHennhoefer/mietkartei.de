@@ -1,6 +1,8 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 import { createHmac, randomUUID } from 'node:crypto';
 import {
+	checkoutSessions,
+	completeCheckout,
 	FAKE_CUSTOMER_ID,
 	FAKE_PERIOD_END,
 	FAKE_SUBSCRIPTION_ID,
@@ -71,11 +73,24 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	await expect(notice.getByRole('link', { name: 'Zum Abo' })).toHaveAttribute('href', '/abo');
 
 	// Checkout: the app creates the customer, then the session, and the browser follows its URL
-	// (the fake answers with the success URL).
+	// (the fake answers with the success URL). Opened twice before paying, from a second tab
+	// say, the second post reuses the open session, so only one subscription can come of it.
 	requests.length = 0;
+	const first = await page.request.post('/abo?/checkout', {
+		form: {},
+		headers: { origin: baseURL!, accept: 'text/html' },
+		maxRedirects: 0
+	});
+	expect(first.status()).toBe(303);
+	expect(first.headers().location).toMatch(/\/abo\?erfolg=1$/);
 	await page.getByRole('button', { name: 'Abo abschließen' }).click();
 	await expect(page).toHaveURL(/\/abo\?erfolg=1$/);
 	await expect(page.getByRole('status').filter({ hasText: 'Danke!' })).toBeVisible();
+	const created = () =>
+		requests.filter((entry) => entry.method === 'POST' && entry.path === '/v1/checkout/sessions');
+	expect(created()).toHaveLength(1);
+	expect([...checkoutSessions.values()].map((entry) => entry.status)).toEqual(['open']);
+	const [checkoutId] = checkoutSessions.keys();
 	const customer = requests.find((entry) => entry.path === '/v1/customers');
 	expect(customer?.method).toBe('POST');
 	expect(customer?.authorization).toBe('Bearer sk_test_fake');
@@ -89,13 +104,23 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	expect(trialDays).toBeGreaterThanOrEqual(1);
 	expect(trialDays).toBeLessThanOrEqual(30);
 
+	// Paid, but the webhook has not arrived yet: another Checkout is refused, since the
+	// subscription exists at Stripe already.
+	completeCheckout(checkoutId);
+	const early = await page.request.post('/abo?/checkout', {
+		form: {},
+		headers: { origin: baseURL! }
+	});
+	expect(early.status()).toBe(409);
+	expect(created()).toHaveLength(1);
+
 	// Stripe reports the completed Checkout; the app fetches the subscription from the API.
 	const completed = await postEvent(page.request, {
 		id: eventId(),
 		type: 'checkout.session.completed',
 		data: {
 			object: {
-				id: 'cs_fake',
+				id: checkoutId,
 				object: 'checkout.session',
 				mode: 'subscription',
 				customer: FAKE_CUSTOMER_ID,
