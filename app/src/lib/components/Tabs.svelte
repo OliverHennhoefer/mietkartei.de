@@ -3,19 +3,22 @@
 
 	// Links styled as tabs. The tab whose href matches the current path (or is its prefix for
 	// nested pages) is marked current; the first tab only matches exactly, as it is the overview.
-	let { tabs, label = 'Bereiche' }: { tabs: { href: string; label: string }[]; label?: string } =
-		$props();
+	// `also` lists further path prefixes a tab owns, e.g. the unit pages below an overview tab.
+	type Tab = { href: string; label: string; also?: string[] };
+	let { tabs, label = 'Bereiche' }: { tabs: Tab[]; label?: string } = $props();
 
-	function isCurrent(href: string, index: number): boolean {
+	const within = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
+
+	function isCurrent(tab: Tab, index: number): boolean {
 		const path = page.url.pathname;
-		if (index === 0) return path === href;
-		return path === href || path.startsWith(`${href}/`);
+		if (tab.also?.some((prefix) => within(path, prefix))) return true;
+		return index === 0 ? path === tab.href : within(path, tab.href);
 	}
 </script>
 
 <nav class="tabs" aria-label={label}>
 	{#each tabs as tab, index (tab.href)}
-		<a href={tab.href} aria-current={isCurrent(tab.href, index) ? 'page' : undefined}>
+		<a href={tab.href} aria-current={isCurrent(tab, index) ? 'page' : undefined}>
 			{tab.label}
 		</a>
 	{/each}

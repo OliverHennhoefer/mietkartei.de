@@ -15,7 +15,7 @@
 	);
 </script>
 
-<!-- The heading and address come from +layout.svelte. -->
+<!-- The heading, address and tab bar come from +layout.svelte. -->
 <h2>Objekt bearbeiten</h2>
 <form method="POST" action="?/update" class="card" use:enhance>
 	<PortfolioPropertyFields {values} {errors} property={data.property} />
@@ -39,12 +39,12 @@
 	</Alert>
 {/if}
 <p class="muted">
-	Löscht das Objekt mit allen Einheiten. Ein Objekt, auf dessen Einheiten Mietverträge liegen, auch
-	beendete, kann nicht gelöscht werden.
+	Löscht das Objekt mit allen Einheiten, Umlageschlüsseln und Abrechnungskreisen. Ein Objekt, auf
+	dessen Einheiten Mietverträge liegen, auch beendete, kann nicht gelöscht werden.
 </p>
 <ConfirmButton
 	action="?/delete"
 	label="Objekt löschen"
 	message="Objekt „{data.property
-		.name}“ mit allen Einheiten löschen? Das lässt sich nicht rückgängig machen."
+		.name}“ mit allen Einheiten, Umlageschlüsseln und Abrechnungskreisen löschen? Das lässt sich nicht rückgängig machen."
 />

@@ -146,11 +146,17 @@ export class FormParser<T> {
 		return value;
 	}
 
-	/** All values of a multi-select or checkbox group. */
-	ids(name: keyof T & string): string[] {
-		const values = this.form
-			.getAll(name)
-			.filter((value): value is string => typeof value === 'string' && value.length <= 64);
+	/** All values of a multi-select or checkbox group, at most `max` of them. */
+	ids(name: keyof T & string, max = 1000): string[] {
+		const all = this.form.getAll(name);
+		if (all.length > max) {
+			this.values[name] = '';
+			this.fail(name, `Höchstens ${max} Einträge.`);
+			return [];
+		}
+		const values = all.filter(
+			(value): value is string => typeof value === 'string' && value.length <= 64
+		);
 		this.values[name] = values.join(',');
 		return values;
 	}
