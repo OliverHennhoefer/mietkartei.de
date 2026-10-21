@@ -1,5 +1,6 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq, sum } from 'drizzle-orm';
 import type { SQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core';
+import { storedMimeType } from '../domain/documents';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
@@ -12,6 +13,11 @@ import { getStorage, storageKey, type Storage } from './storage';
 // user of the account that uploaded it.
 
 export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+/** The longest document name that is stored. */
+export const MAX_DOCUMENT_NAME = 200;
+/** What one account may store in all, so a single account cannot fill the storage. */
+export const MAX_ACCOUNT_DOCUMENT_BYTES = 1024 * 1024 * 1024;
+export const MAX_ACCOUNT_DOCUMENTS = 2000;
 
 export type Document = typeof documents.$inferSelect;
 
@@ -30,7 +36,7 @@ export type DocumentFilter = {
 	tenantId?: string;
 };
 
-export type DocumentError = 'too-large' | 'empty' | 'unknown-link';
+export type DocumentError = 'too-large' | 'empty' | 'unknown-link' | 'quota';
 
 /** The storage adapter of the deployment, unless a test passes its own. */
 type StorageOptions = { storage?: Storage };
@@ -85,9 +91,19 @@ export async function storeDocument(
 	if (!(await linksBelongToAccount(db, accountId, links))) {
 		return { ok: false, reason: 'unknown-link' };
 	}
+	const [stored] = await db
+		.select({ documents: count(), bytes: sum(documents.size) })
+		.from(documents)
+		.where(eq(documents.accountId, accountId));
+	if (
+		stored.documents >= MAX_ACCOUNT_DOCUMENTS ||
+		Number(stored.bytes ?? 0) + size > MAX_ACCOUNT_DOCUMENT_BYTES
+	) {
+		return { ok: false, reason: 'quota' };
+	}
 
-	const name = input.name.trim().slice(0, 200).trim() || 'Dokument';
-	const mimeType = input.mimeType.trim() || 'application/octet-stream';
+	const name = input.name.trim().slice(0, MAX_DOCUMENT_NAME).trim() || 'Dokument';
+	const mimeType = storedMimeType(input.mimeType, input.bytes);
 	const id = crypto.randomUUID();
 	const key = storageKey(accountId, id);
 	const storage = await resolveStorage(options);

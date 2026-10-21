@@ -90,6 +90,16 @@ describe('documentName', () => {
 		expect(documentName('Notiz', 'ohne-endung')).toBe('Notiz');
 		expect(documentName('Notiz', 'punkt.am.ende.')).toBe('Notiz');
 	});
+
+	it('shortens a long name before the extension, so the extension stays', () => {
+		const typed = documentName('a'.repeat(200), 'scan.pdf');
+		expect(typed).toHaveLength(200);
+		expect(typed.endsWith('a.pdf')).toBe(true);
+		const fromFile = documentName(null, `${'b'.repeat(250)}.docx`);
+		expect(fromFile).toHaveLength(200);
+		expect(fromFile.endsWith('b.docx')).toBe(true);
+		expect(documentName(null, 'c'.repeat(250))).toHaveLength(200);
+	});
 });
 
 describe('documentErrorMessage', () => {

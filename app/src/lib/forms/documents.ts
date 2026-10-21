@@ -1,4 +1,11 @@
-import { MAX_DOCUMENT_BYTES, type DocumentError, type DocumentFilter } from '../server/documents';
+import {
+	MAX_ACCOUNT_DOCUMENT_BYTES,
+	MAX_ACCOUNT_DOCUMENTS,
+	MAX_DOCUMENT_BYTES,
+	MAX_DOCUMENT_NAME,
+	type DocumentError,
+	type DocumentFilter
+} from '../server/documents';
 import { FormParser, type ParseResult } from './fields';
 
 // Parses the upload form of /dokumente and the lease's Dokumente tab, the filter of the list
@@ -25,7 +32,7 @@ export function parseDocumentUpload(form: FormData): ParseResult<DocumentUploadI
 	} else {
 		file = parser.file('file', { required: true, maxBytes: MAX_DOCUMENT_BYTES });
 	}
-	const name = documentName(parser.optionalText('name', 200), file?.name ?? '');
+	const name = documentName(parser.optionalText('name', MAX_DOCUMENT_NAME), file?.name ?? '');
 	const propertyId = parser.id('propertyId', { required: false });
 	const leaseId = parser.id('leaseId', { required: false });
 	const tenantId = parser.id('tenantId', { required: false });
@@ -34,20 +41,26 @@ export function parseDocumentUpload(form: FormData): ParseResult<DocumentUploadI
 
 /**
  * The typed name, or the file name when none was typed. A typed name without the file's
- * extension gets it, so the download keeps opening with the right program.
+ * extension gets it, so the download keeps opening with the right program. A name longer
+ * than MAX_DOCUMENT_NAME is shortened before its extension, which stays.
  */
 export function documentName(typed: string | null, fileName: string): string {
 	const file = fileName.trim();
-	if (!typed) return file;
-	const extension = /\.[A-Za-z0-9]{1,8}$/.exec(file)?.[0] ?? '';
-	if (!extension || typed.toLowerCase().endsWith(extension.toLowerCase())) return typed;
-	return `${typed}${extension}`;
+	let name = typed ?? file;
+	let extension = /\.[A-Za-z0-9]{1,8}$/.exec(file)?.[0] ?? '';
+	if (extension && name.toLowerCase().endsWith(extension.toLowerCase())) {
+		// Keep the extension as it is written in the name.
+		extension = name.slice(-extension.length);
+		name = name.slice(0, -extension.length);
+	}
+	return `${name.slice(0, MAX_DOCUMENT_NAME - extension.length).trimEnd()}${extension}`;
 }
 
 const errorMessages: Record<DocumentError, string> = {
 	'too-large': `Die Datei ist zu groß (höchstens ${MAX_MEGABYTES} MB).`,
 	empty: 'Die Datei ist leer.',
-	'unknown-link': 'Die gewählte Verknüpfung gibt es nicht mehr.'
+	'unknown-link': 'Die gewählte Verknüpfung gibt es nicht mehr.',
+	quota: `Der Speicher dieses Kontos ist voll (höchstens ${Math.round(MAX_ACCOUNT_DOCUMENT_BYTES / 1024 / 1024 / 1024)} GB oder ${MAX_ACCOUNT_DOCUMENTS.toLocaleString('de-DE')} Dokumente). Lösche Dokumente, die du nicht mehr brauchst.`
 };
 
 /** The German sentence for a refusal of storeDocument. */

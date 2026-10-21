@@ -48,6 +48,37 @@ export function canInline(mimeType: string): boolean {
 	return inlineTypes.has(mimeType.toLowerCase().split(';')[0].trim());
 }
 
+// The first bytes each inline type starts with; null is any byte. WebP is RIFF....WEBP.
+const signatures: Record<string, (number | null)[][]> = {
+	'application/pdf': [[0x25, 0x50, 0x44, 0x46, 0x2d]],
+	'image/png': [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
+	'image/jpeg': [[0xff, 0xd8, 0xff]],
+	'image/gif': [
+		[0x47, 0x49, 0x46, 0x38, 0x37, 0x61],
+		[0x47, 0x49, 0x46, 0x38, 0x39, 0x61]
+	],
+	'image/webp': [[0x52, 0x49, 0x46, 0x46, null, null, null, null, 0x57, 0x45, 0x42, 0x50]]
+};
+
+/**
+ * The type a document is stored and served with. The browser sends the type it guesses from
+ * the file name, so a type the browser may show inline is kept only when the bytes start like
+ * such a file; otherwise the document is stored as `application/octet-stream` and only ever
+ * downloaded.
+ */
+export function storedMimeType(declared: string, bytes: Uint8Array): string {
+	const type = declared.toLowerCase().split(';')[0].trim();
+	if (!type) return 'application/octet-stream';
+	const candidates = signatures[type];
+	if (!candidates) return type;
+	const matches = candidates.some(
+		(signature) =>
+			bytes.length >= signature.length &&
+			signature.every((byte, index) => byte === null || bytes[index] === byte)
+	);
+	return matches ? type : 'application/octet-stream';
+}
+
 const transliterations: Record<string, string> = {
 	ä: 'ae',
 	ö: 'oe',
