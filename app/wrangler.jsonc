@@ -18,7 +18,7 @@
 			"binding": "DB",
 			"database_name": "mietkartei",
 			// The hosted database, created with jurisdiction "eu". See .github/DEPLOYMENT.md.
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			"database_id": "08298e4f-d84f-403b-acd0-5ca38c86c052",
 			"migrations_dir": "drizzle"
 		}
 	]
