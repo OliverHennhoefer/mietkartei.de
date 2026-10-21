@@ -22,6 +22,9 @@ export function openR2(): Storage {
 		},
 		async delete(key) {
 			await bucket.delete(key);
+		},
+		async deleteMany(keys) {
+			if (keys.length > 0) await bucket.delete(keys);
 		}
 	};
 }
