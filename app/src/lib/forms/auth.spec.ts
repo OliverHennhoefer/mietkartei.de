@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	parseAcceptInvitation,
+	parseDeleteAccount,
 	parseEmailForm,
 	parseInvitation,
 	parseLandlord,
@@ -197,6 +198,25 @@ describe('parseLandlord', () => {
 				iban: 'Bitte gib eine gültige IBAN an.'
 			},
 			values: { postalCode: '1011', city: 'Berlin' }
+		});
+	});
+});
+
+describe('parseDeleteAccount', () => {
+	it('needs the password and never echoes it', () => {
+		expect(parseDeleteAccount(formDataOf({ password: 'geheim' }))).toEqual({
+			ok: true,
+			data: { password: 'geheim' }
+		});
+		expect(parseDeleteAccount(formDataOf({}))).toEqual({
+			ok: false,
+			errors: { password: 'Bitte gib dein Passwort an.' },
+			values: {}
+		});
+		expect(parseDeleteAccount(formDataOf({ password: 'x'.repeat(201) }))).toEqual({
+			ok: false,
+			errors: { password: 'Das Passwort stimmt nicht.' },
+			values: {}
 		});
 	});
 });

@@ -17,6 +17,7 @@ import {
 	authenticate,
 	changePassword,
 	clearFailedAttempts,
+	confirmPassword,
 	createSession,
 	deleteSession,
 	generateToken,
@@ -382,6 +383,27 @@ describe('changePassword', () => {
 		expect(await attempt(password)).toEqual({ ok: false, reason: 'locked' });
 		expect(await isLockedOut(db, user.email)).toBe(true);
 		expect(await authenticate(db, user.email, password)).toBe(user.id);
+	});
+});
+
+describe('confirmPassword', () => {
+	it('confirms the password of the user in their account only and counts wrong ones', async () => {
+		const registered = await registerUser(db, 'erste@example.org', password);
+		if (!registered.ok) throw new Error('registration failed');
+		const [user] = await db.select().from(users).where(eq(users.id, registered.userId));
+		const context = { accountId: user.accountId, userId: user.id };
+		expect(await confirmPassword(db, context, password)).toBe('ok');
+		expect(
+			await confirmPassword(db, { accountId: 'other-account', userId: user.id }, password)
+		).toBe('missing');
+		expect(await confirmPassword(db, { accountId: user.accountId, userId: null }, password)).toBe(
+			'missing'
+		);
+		for (let failure = 1; failure <= 4; failure++) {
+			expect(await confirmPassword(db, context, 'falsch')).toBe('wrong-password');
+		}
+		expect(await confirmPassword(db, context, 'falsch')).toBe('locked');
+		expect(await confirmPassword(db, context, password)).toBe('locked');
 	});
 });
 

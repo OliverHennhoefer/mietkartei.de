@@ -313,6 +313,24 @@ export async function checkCurrentPassword(
 	return locked ? 'locked' : 'wrong-password';
 }
 
+/**
+ * checkCurrentPassword for the signed-in user, looked up in their account: the confirmation the
+ * account deletion asks for. 'missing' when the user is not in the account.
+ */
+export async function confirmPassword(
+	db: Database,
+	context: AuditContext,
+	password: string
+): Promise<'ok' | 'wrong-password' | 'locked' | 'missing'> {
+	if (!context.userId) return 'missing';
+	const [user] = await db
+		.select({ email: users.email, passwordHash: users.passwordHash })
+		.from(users)
+		.where(and(eq(users.id, context.userId), eq(users.accountId, context.accountId)));
+	if (!user) return 'missing';
+	return checkCurrentPassword(db, user, password);
+}
+
 /** The condition for the sessions of the user except the one of `keepToken`, to delete them. */
 export async function otherSessions(userId: string, keepToken: string | undefined) {
 	const keepId = keepToken ? await sessionId(keepToken) : undefined;

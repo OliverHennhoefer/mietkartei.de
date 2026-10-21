@@ -1,8 +1,48 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import { accounts } from './db/schema';
+import {
+	accounts,
+	allocationKeyShares,
+	allocationKeys,
+	auditLog,
+	bankAccounts,
+	bankImports,
+	bankTransactions,
+	billingCircleUnits,
+	billingCircles,
+	co2CostSplits,
+	consumerPriceIndex,
+	costCategories,
+	costItemUnitAmounts,
+	costItems,
+	depositTransactions,
+	emailChanges,
+	invitations,
+	leasePersons,
+	leaseTenants,
+	leaseUnits,
+	leases,
+	loginAttempts,
+	matchingRules,
+	meterReadings,
+	meters,
+	operatingCostStatements,
+	passwordResets,
+	payments,
+	properties,
+	rentCharges,
+	rentChanges,
+	sessions,
+	statementResults,
+	tasks,
+	tenants,
+	units,
+	users
+} from './db/schema';
+import { deleteAllDocuments } from './documents';
+import type { Storage } from './storage';
 
 /**
  * The account that existed before sign-in. The first user to register takes it over, so data
@@ -54,6 +94,86 @@ export function addressLines(address: LandlordAddress): string[] {
 	if (address.postalCode || address.city)
 		lines.push([address.postalCode, address.city].filter(Boolean).join(' '));
 	return lines;
+}
+
+/**
+ * Removes the account with everything in it: documents and their files first, then every row in
+ * dependency order (children before parents, because `restrict` keys would otherwise stop a
+ * cascade), then the users and the account itself. The rows go in one batch, so a failure leaves
+ * the account complete except for the files already removed. Returns the number of documents
+ * deleted, or `undefined` when there is no such account.
+ */
+export async function deleteAccount(
+	db: Database,
+	accountId: string,
+	options?: { storage?: Storage }
+): Promise<number | undefined> {
+	const [account] = await db
+		.select({ id: accounts.id })
+		.from(accounts)
+		.where(eq(accounts.id, accountId));
+	if (!account) return undefined;
+
+	const documentCount = await deleteAllDocuments(db, accountId, options);
+
+	const accountLeases = db
+		.select({ id: leases.id })
+		.from(leases)
+		.where(eq(leases.accountId, accountId));
+	const accountUsers = db
+		.select({ id: users.id })
+		.from(users)
+		.where(eq(users.accountId, accountId));
+	const accountEmails = db
+		.select({ email: users.email })
+		.from(users)
+		.where(eq(users.accountId, accountId));
+
+	// Children before parents. Tables with `accountId` are deleted by it; the tables without one
+	// go by their parent's ids, the failed sign-ins by the users' addresses.
+	const scoped = [
+		tasks,
+		co2CostSplits,
+		statementResults,
+		operatingCostStatements,
+		meterReadings,
+		meters,
+		costItemUnitAmounts,
+		costItems,
+		costCategories,
+		allocationKeyShares,
+		allocationKeys,
+		billingCircleUnits,
+		billingCircles,
+		matchingRules,
+		payments,
+		depositTransactions,
+		rentCharges,
+		bankTransactions,
+		bankImports,
+		bankAccounts,
+		rentChanges,
+		leasePersons,
+		leaseUnits
+	];
+	await runBatch(db, [
+		...scoped.map((table) => db.delete(table).where(eq(table.accountId, accountId))),
+		db.delete(leaseTenants).where(inArray(leaseTenants.leaseId, accountLeases)),
+		db.delete(leases).where(eq(leases.accountId, accountId)),
+		db.delete(tenants).where(eq(tenants.accountId, accountId)),
+		db.delete(units).where(eq(units.accountId, accountId)),
+		db.delete(properties).where(eq(properties.accountId, accountId)),
+		db.delete(consumerPriceIndex).where(eq(consumerPriceIndex.accountId, accountId)),
+		db.delete(auditLog).where(eq(auditLog.accountId, accountId)),
+		db.delete(invitations).where(eq(invitations.accountId, accountId)),
+		db.delete(emailChanges).where(eq(emailChanges.accountId, accountId)),
+		db.delete(sessions).where(inArray(sessions.userId, accountUsers)),
+		db.delete(passwordResets).where(inArray(passwordResets.userId, accountUsers)),
+		db.delete(loginAttempts).where(inArray(loginAttempts.email, accountEmails)),
+		db.delete(users).where(eq(users.accountId, accountId)),
+		db.delete(accounts).where(eq(accounts.id, accountId))
+	]);
+	return documentCount;
 }
 
 /** The landlord sender block as edited under /einstellungen/profil; empty fields are null. */
