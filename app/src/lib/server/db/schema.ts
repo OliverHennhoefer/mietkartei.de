@@ -150,6 +150,13 @@ export const leases = sqliteTable(
 			.default('prepayment'),
 		/** Occupants at the start, for the persons allocation key; later values in lease_persons. */
 		persons: integer('persons').notNull().default(1),
+		/** The rent is due on the n-th working day of the month (§ 556b BGB: the third). */
+		rentDueDay: integer('rent_due_day').notNull().default(3),
+		/**
+		 * The ledger starts here instead of at startDate when the lease is entered later, so a
+		 * lease from 2015 does not show ten years of arrears. Null = startDate.
+		 */
+		ledgerStart: text('ledger_start'),
 		/** ISO date notice was given and by whom, null while none. */
 		terminatedAt: text('terminated_at'),
 		terminatedBy: text('terminated_by', { enum: terminatedByParties }),
@@ -280,6 +287,66 @@ export const depositTransactions = sqliteTable(
 	(table) => [index('deposit_transactions_lease_id_idx').on(table.leaseId)]
 );
 
+// Rent ledger (Mietkonto)
+
+export const rentChargeKinds = ['rent', 'adjustment'] as const;
+export type RentChargeKind = (typeof rentChargeKinds)[number];
+
+/**
+ * Sollstellung: what the tenant owes for a month (kind `rent`, derived from the rent history and
+ * kept in sync by the ledger module) or from a manual adjustment. Positive = the tenant owes,
+ * negative = a credit to the tenant.
+ */
+export const rentCharges = sqliteTable(
+	'rent_charges',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		/** YYYY-MM */
+		period: text('period').notNull(),
+		dueDate: text('due_date').notNull(),
+		baseRent: integer('base_rent').notNull().default(0),
+		operatingCostPrepayment: integer('operating_cost_prepayment').notNull().default(0),
+		heatingCostPrepayment: integer('heating_cost_prepayment').notNull().default(0),
+		/** The total of the charge. */
+		amount: integer('amount').notNull(),
+		kind: text('kind', { enum: rentChargeKinds }).notNull(),
+		note: text('note'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('rent_charges_account_id_idx').on(table.accountId),
+		index('rent_charges_lease_id_period_idx').on(table.leaseId, table.period),
+		// One rent charge per month, so generating charges is idempotent.
+		uniqueIndex('rent_charges_rent_unique')
+			.on(table.leaseId, table.period)
+			.where(sql`${table.kind} = 'rent'`)
+	]
+);
+
+/** Zahlung: money received for a lease. Positive = received, negative = refunded. */
+export const payments = sqliteTable(
+	'payments',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		date: text('date').notNull(),
+		amount: integer('amount').notNull(),
+		note: text('note'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('payments_account_id_idx').on(table.accountId),
+		index('payments_lease_id_date_idx').on(table.leaseId, table.date)
+	]
+);
+
 /** A person who signs in. Each user works in exactly one account. */
 export const users = sqliteTable(
 	'users',
@@ -317,7 +384,7 @@ export const sessions = sqliteTable(
  * The verbs used in audit_log.action. The column is plain text so a feature can add a verb
  * without a schema change.
  */
-export type AuditAction = 'create' | 'update' | 'delete';
+export type AuditAction = 'create' | 'update' | 'delete' | 'post';
 
 /** Who changed what, as one German sentence per change. */
 export const auditLog = sqliteTable(

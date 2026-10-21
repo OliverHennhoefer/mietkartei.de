@@ -36,6 +36,20 @@
       "when": 1792577038396,
       "tag": "0004_backfill_lease_history",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1792579105195,
+      "tag": "0005_rent_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792579106260,
+      "tag": "0006_backfill_ledger_start",
+      "breakpoints": true
     }
   ]
 }
