@@ -7,8 +7,8 @@
 	"compatibility_date": "2026-10-01",
 	"compatibility_flags": ["nodejs_als"],
 	"routes": [{ "pattern": "app.mietkartei.de", "custom_domain": true }],
-	// The hosted variant serves everyone who signs up, each in an own account.
-	"vars": { "OPEN_REGISTRATION": "true" },
+	// Registration is closed: only the addresses of the secret REGISTRATION_EMAILS may register.
+	// See src/lib/server/registration.ts and .github/DEPLOYMENT.md.
 	"assets": {
 		"binding": "ASSETS",
 		"directory": ".svelte-kit/cloudflare"
