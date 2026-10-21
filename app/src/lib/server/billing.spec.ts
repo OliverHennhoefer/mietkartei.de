@@ -141,6 +141,8 @@ describe('refusesWrite', () => {
 		// The pages of reset and address confirmation links finish what the profile started.
 		expect(refusesWrite('expired', 'POST', '/passwort-zuruecksetzen/abc', true)).toBe(false);
 		expect(refusesWrite('canceled', 'POST', '/e-mail-bestaetigen/abc', true)).toBe(false);
+		// A registration link creates another account, which is not the read-only one.
+		expect(refusesWrite('expired', 'POST', '/registrieren/abc', true)).toBe(false);
 		// Everything else on those pages changes data and stays refused.
 		expect(refusesWrite('expired', 'POST', '/einstellungen/konto', true)).toBe(true);
 		expect(refusesWrite('canceled', 'POST', '/einstellungen/profil', true, 'landlord')).toBe(true);

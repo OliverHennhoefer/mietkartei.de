@@ -106,8 +106,11 @@ export function noticeFor(
 /** Paths that still accept every POST while the account is read-only. */
 const writablePaths = new Set(['/abo', '/abmelden', '/api/webhooks/stripe']);
 
-/** The pages of reset and address confirmation links, which secure the sign-in as well. */
-const writablePrefixes = ['/passwort-zuruecksetzen/', '/e-mail-bestaetigen/'];
+/**
+ * The pages of reset and address confirmation links, which secure the sign-in as well, and of
+ * registration links, which create a new account that has nothing to do with the signed-in one.
+ */
+const writablePrefixes = ['/passwort-zuruecksetzen/', '/e-mail-bestaetigen/', '/registrieren/'];
 
 /**
  * Form actions that still work while the account is read-only: leaving the service (deleting the
