@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "81163b64-1629-4e47-b3fd-0f874d4d436f",
-  "prevId": "4380bb47-f8c5-4f5a-ac1e-05aa39dd53bf",
+  "id": "91893d67-d74b-4729-8fb0-e5de038b926f",
+  "prevId": "6e9b7f1e-a6ff-4aea-97a2-5f9a7540d7b0",
   "tables": {
     "accounts": {
       "name": "accounts",
@@ -1170,7 +1170,15 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "cost_item_unit_amounts_account_id_idx": {
+          "name": "cost_item_unit_amounts_account_id_idx",
+          "columns": [
+            "account_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "cost_item_unit_amounts_account_id_accounts_id_fk": {
           "name": "cost_item_unit_amounts_account_id_accounts_id_fk",
@@ -2416,6 +2424,13 @@
         }
       },
       "indexes": {
+        "meter_readings_account_id_idx": {
+          "name": "meter_readings_account_id_idx",
+          "columns": [
+            "account_id"
+          ],
+          "isUnique": false
+        },
         "meter_readings_unique": {
           "name": "meter_readings_unique",
           "columns": [
@@ -2540,6 +2555,13 @@
         }
       },
       "indexes": {
+        "meters_account_id_idx": {
+          "name": "meters_account_id_idx",
+          "columns": [
+            "account_id"
+          ],
+          "isUnique": false
+        },
         "meters_property_id_idx": {
           "name": "meters_property_id_idx",
           "columns": [

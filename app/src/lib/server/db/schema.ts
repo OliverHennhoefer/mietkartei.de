@@ -678,7 +678,10 @@ export const costItemUnitAmounts = sqliteTable(
 			.references(() => units.id, { onDelete: 'cascade' }),
 		amount: integer('amount').notNull()
 	},
-	(table) => [primaryKey({ columns: [table.costItemId, table.unitId] })]
+	(table) => [
+		primaryKey({ columns: [table.costItemId, table.unitId] }),
+		index('cost_item_unit_amounts_account_id_idx').on(table.accountId)
+	]
 );
 
 /**
@@ -703,7 +706,10 @@ export const meters = sqliteTable(
 		removedAt: text('removed_at'),
 		createdAt: createdAt()
 	},
-	(table) => [index('meters_property_id_idx').on(table.propertyId)]
+	(table) => [
+		index('meters_account_id_idx').on(table.accountId),
+		index('meters_property_id_idx').on(table.propertyId)
+	]
 );
 
 /** Zählerstand on a date. An estimated reading stands in for a missing one (§ 9a HeizKV). */
@@ -721,7 +727,10 @@ export const meterReadings = sqliteTable(
 		note: text('note'),
 		createdAt: createdAt()
 	},
-	(table) => [uniqueIndex('meter_readings_unique').on(table.meterId, table.readAt)]
+	(table) => [
+		index('meter_readings_account_id_idx').on(table.accountId),
+		uniqueIndex('meter_readings_unique').on(table.meterId, table.readAt)
+	]
 );
 
 // Documents

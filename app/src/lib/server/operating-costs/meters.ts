@@ -3,6 +3,7 @@ import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
 import { runBatch } from '../db/batch';
 import { meterReadings, meters, properties, units, type MeterKind } from '../db/schema';
+import { assertQuota } from '../quotas';
 import { formatDate } from '../../dates';
 import { formatNumber } from '../../format';
 import { meterKindLabels } from '../../labels';
@@ -145,6 +146,7 @@ export async function createMeter(
 	input: MeterInput
 ): Promise<{ ok: true; id: string } | { ok: false; reason: MeterError }> {
 	const { accountId } = context;
+	await assertQuota(db, accountId, 'meters');
 	const reason = await checkPlace(db, accountId, propertyId, input.unitId);
 	if (reason) return { ok: false, reason };
 	const id = crypto.randomUUID();
@@ -234,6 +236,7 @@ export async function createReading(
 	input: ReadingInput
 ): Promise<{ ok: true; id: string } | { ok: false; reason: 'missing' | 'duplicate-date' }> {
 	const { accountId } = context;
+	await assertQuota(db, accountId, 'meterReadings');
 	const meter = await getMeter(db, accountId, meterId);
 	if (!meter) return { ok: false, reason: 'missing' };
 	const [taken] = await db

@@ -1,12 +1,14 @@
+import { isHttpError } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '../db';
-import { auditLog, costItemUnitAmounts, documents, units } from '../db/schema';
+import { auditLog, costItemUnitAmounts, costItems, documents, units } from '../db/schema';
 import { getDocument, storeDocument } from '../documents';
 import { deleteProperty } from '../properties';
+import { QUOTAS } from '../quotas';
 import { openFileStorage } from '../storage/fs';
 import type { Storage } from '../storage';
 import { contextA, contextB, seedUnit, testDatabase } from '../testing';
@@ -74,6 +76,20 @@ async function create(context: typeof contextA, overrides: Partial<CostItemInput
 }
 
 describe('cost items', () => {
+	it('refuses an item above the account limit with 409', async () => {
+		await create(contextA);
+		const limit = QUOTAS.costItems.max;
+		QUOTAS.costItems.max = 1;
+		try {
+			const refusal = await createCostItem(db, contextA, input()).catch((e) => e);
+			expect(isHttpError(refusal, 409)).toBe(true);
+			expect(refusal.body.message).toContain('höchstens 1 Belege');
+		} finally {
+			QUOTAS.costItems.max = limit;
+		}
+		expect(await db.select().from(costItems)).toHaveLength(1);
+	});
+
 	it('creates an item with the names of its category, key and circle, and logs the amount', async () => {
 		const circle = await createCircle(db, contextA, propertyId, {
 			name: 'Haus',

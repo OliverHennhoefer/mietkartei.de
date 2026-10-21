@@ -9,6 +9,7 @@ CREATE TABLE `cost_item_unit_amounts` (
 	FOREIGN KEY (`unit_id`) REFERENCES `units`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
+CREATE INDEX `cost_item_unit_amounts_account_id_idx` ON `cost_item_unit_amounts` (`account_id`);--> statement-breakpoint
 CREATE TABLE `cost_items` (
 	`id` text PRIMARY KEY NOT NULL,
 	`account_id` text NOT NULL,
@@ -46,6 +47,7 @@ CREATE TABLE `meter_readings` (
 	FOREIGN KEY (`meter_id`) REFERENCES `meters`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
+CREATE INDEX `meter_readings_account_id_idx` ON `meter_readings` (`account_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `meter_readings_unique` ON `meter_readings` (`meter_id`,`read_at`);--> statement-breakpoint
 CREATE TABLE `meters` (
 	`id` text PRIMARY KEY NOT NULL,
@@ -64,5 +66,6 @@ CREATE TABLE `meters` (
 	FOREIGN KEY (`unit_id`) REFERENCES `units`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
+CREATE INDEX `meters_account_id_idx` ON `meters` (`account_id`);--> statement-breakpoint
 CREATE INDEX `meters_property_id_idx` ON `meters` (`property_id`);--> statement-breakpoint
 ALTER TABLE `documents` ADD `cost_item_id` text;

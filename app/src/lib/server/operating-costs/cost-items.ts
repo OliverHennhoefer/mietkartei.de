@@ -26,6 +26,7 @@ import {
 	type AllocationKeyKind
 } from '../db/schema';
 import { deleteDocument } from '../documents';
+import { assertQuota } from '../quotas';
 import type { Storage } from '../storage';
 import { formatCents } from '../../money';
 
@@ -228,6 +229,7 @@ export async function createCostItem(
 	input: CostItemInput
 ): Promise<{ ok: true; id: string } | { ok: false; reason: CostItemError }> {
 	const { accountId } = context;
+	await assertQuota(db, accountId, 'costItems');
 	const checked = await checkReferences(db, accountId, input);
 	if ('reason' in checked) return { ok: false, reason: checked.reason };
 	const id = crypto.randomUUID();

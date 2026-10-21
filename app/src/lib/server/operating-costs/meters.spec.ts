@@ -1,7 +1,9 @@
+import { isHttpError } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '../db';
-import { auditLog, meterReadings, units } from '../db/schema';
+import { auditLog, meterReadings, meters, units } from '../db/schema';
+import { QUOTAS } from '../quotas';
 import { contextA, contextB, seedUnit, testDatabase } from '../testing';
 import {
 	createMeter,
@@ -59,6 +61,37 @@ async function read(meterId: string, readAt: string, value: number, estimated = 
 }
 
 describe('meters', () => {
+	it('refuses a meter or a reading above the account limit with 409', async () => {
+		const meterId = await create(contextA, propertyId);
+		await read(meterId, '2025-01-01', 1);
+		const limits = { meters: QUOTAS.meters.max, meterReadings: QUOTAS.meterReadings.max };
+		QUOTAS.meters.max = 1;
+		QUOTAS.meterReadings.max = 1;
+		try {
+			const meter = await createMeter(db, contextA, propertyId, input()).catch((e) => e);
+			expect(isHttpError(meter, 409)).toBe(true);
+			expect(meter.body.message).toContain('höchstens 1 Zähler');
+			const reading = await createReading(db, contextA, meterId, {
+				readAt: '2025-06-01',
+				value: 2,
+				estimated: false,
+				note: null
+			}).catch((e) => e);
+			expect(isHttpError(reading, 409)).toBe(true);
+			expect(reading.body.message).toContain('höchstens 1 Zählerstände');
+			// Another account's rows do not count.
+			const other = await seedUnit(db, 'b', { name: 'OG' });
+			await expect(
+				createMeter(db, contextB, other.propertyId, input({ unitId: other.unitId }))
+			).resolves.toMatchObject({ ok: true });
+		} finally {
+			QUOTAS.meters.max = limits.meters;
+			QUOTAS.meterReadings.max = limits.meterReadings;
+		}
+		expect(await db.select().from(meters)).toHaveLength(2);
+		expect(await db.select().from(meterReadings)).toHaveLength(1);
+	});
+
 	it('creates a meter of a unit and logs it with its label', async () => {
 		const id = await create(contextA, propertyId);
 		expect(await getMeter(db, 'a', id)).toMatchObject({
