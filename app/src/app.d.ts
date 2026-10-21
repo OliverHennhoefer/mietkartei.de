@@ -7,6 +7,11 @@ declare global {
 	/** Set by vite.config.ts from the DEPLOY_TARGET environment variable. */
 	const __DEPLOY_TARGET__: 'node' | 'cloudflare';
 
+	interface Window {
+		/** Cloudflare Turnstile, loaded by the registration page when the bot check is on. */
+		turnstile?: { reset(widget?: string): void };
+	}
+
 	namespace App {
 		// interface Error {}
 		interface Locals {

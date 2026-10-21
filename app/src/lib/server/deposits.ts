@@ -8,6 +8,7 @@ import type { Database } from './db';
 import { runBatch } from './db/batch';
 import { depositTransactions, type DepositTransactionKind } from './db/schema';
 import { getLease } from './leases';
+import { assertQuota } from './quotas';
 
 // The deposit ledger (Kaution) of a lease, kept apart from the rent. Amounts are signed from the
 // deposit's point of view: received and interest add to it (positive), returned and withheld
@@ -87,6 +88,7 @@ export async function addDepositMovement(
 	context: AuditContext,
 	input: DepositMovementInput
 ): Promise<string | undefined> {
+	await assertQuota(db, context.accountId, 'depositTransactions');
 	if (!(await getLease(db, context.accountId, input.leaseId))) return undefined;
 	const id = crypto.randomUUID();
 	await runBatch(db, [

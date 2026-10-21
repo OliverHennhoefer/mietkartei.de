@@ -16,6 +16,7 @@ import { auditLog, bankImports, bankTransactions, payments } from '../db/schema'
 import { leaseLabel, listLeases } from '../leases';
 import { getBankAccount } from './accounts';
 import { listConfirmedRules } from './rules';
+import { assertQuota } from '../quotas';
 
 // The CSV import: every row of the file is new, a duplicate (its fingerprint is already in the
 // bank account), a rule hit (a confirmed rule assigns the incoming amount on import) or invalid.
@@ -246,6 +247,8 @@ async function commitOnce(
 	}
 
 	const imported = counts.new + counts.rules;
+	await assertQuota(db, accountId, 'bankTransactions', transactionRows.length);
+	await assertQuota(db, accountId, 'payments', paymentRows.length);
 	try {
 		await runBatch(db, [
 			db.insert(bankImports).values({

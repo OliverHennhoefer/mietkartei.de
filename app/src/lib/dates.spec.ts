@@ -26,6 +26,15 @@ describe('validation', () => {
 		expect(isIsoMonth('2026-12')).toBe(true);
 		expect(isIsoMonth('2026-00')).toBe(false);
 	});
+
+	it('refuses years outside 1900 to 2100', () => {
+		expect(isIsoDate('1900-01-01')).toBe(true);
+		expect(isIsoDate('2100-12-31')).toBe(true);
+		expect(isIsoDate('0001-01-01')).toBe(false);
+		expect(isIsoDate('9999-12-31')).toBe(false);
+		expect(isIsoMonth('1899-12')).toBe(false);
+		expect(isIsoMonth('2101-01')).toBe(false);
+	});
 });
 
 describe('arithmetic', () => {

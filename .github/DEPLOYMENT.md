@@ -89,3 +89,12 @@ Complete these steps before merging the pull request that adds the R2 binding to
 
 1. **Create the bucket.** In Cloudflare, open **Storage & Databases → R2 → Create bucket**, name it `mietkartei-documents` and choose the location **Jurisdiction: European Union**. Alternatively run `npx wrangler r2 bucket create mietkartei-documents --jurisdiction eu` in `app/`. The binding names the jurisdiction, so the bucket must be the EU one.
 2. **Extend the token.** Edit the API token and add **Account → Workers R2 Storage → Edit**.
+
+### Bot check on registration (Cloudflare Turnstile)
+
+The registration form shows a Turnstile check once both keys are configured; without them it has none.
+
+1. In Cloudflare, open **Turnstile → Add widget**, name it `mietkartei-app`, add the hostname `app.mietkartei.de` and choose the widget mode **Managed**.
+2. Enter the site key as `TURNSTILE_SITE_KEY` under `vars` in `app/wrangler.jsonc`. The site key is public.
+3. Store the secret key as a Worker secret: run `npx wrangler secret put TURNSTILE_SECRET_KEY` in `app/` and paste the key, or add it under **Workers & Pages → mietkartei-app → Settings → Variables and Secrets** as type **Secret**.
+4. After the next deploy, open `https://app.mietkartei.de/registrieren` in a private window and check that the widget appears.

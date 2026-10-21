@@ -18,6 +18,7 @@ import {
 import { paymentEntry } from '../ledger';
 import { leaseLabel, type LeaseSummary } from '../leases';
 import { ruleEntry } from './rules';
+import { assertQuota } from '../quotas';
 
 // Umsätze: the imported statement lines and their assignment to leases. `matched` means a payment
 // or a deposit movement references the transaction; undo deletes those and reopens it.
@@ -270,6 +271,12 @@ export async function assignTransaction(
 	if (sum !== transaction.amount || input.parts.some((part) => part.amount === 0)) {
 		return 'amount-mismatch';
 	}
+	await assertQuota(
+		db,
+		accountId,
+		input.target === 'rent' ? 'payments' : 'depositTransactions',
+		input.parts.length
+	);
 
 	const statements: BatchItem<'sqlite'>[] = [];
 	for (const part of input.parts) {

@@ -29,6 +29,7 @@ import {
 	type RentModel,
 	type TerminatedBy
 } from './db/schema';
+import { assertQuota } from './quotas';
 
 // Leases: the main unit, extra units (parking), tenants, the initial rent and persons, the
 // persons history and the end of the lease. The rent history after creation is the business of
@@ -342,6 +343,7 @@ export async function createLease(
 	input: LeaseInput,
 	openingBalance: number | null = null
 ): Promise<{ ok: true; id: string } | { ok: false; reason: LeaseError }> {
+	await assertQuota(db, context.accountId, 'leases');
 	const reason = await checkReferences(db, context.accountId, input);
 	if (reason) return { ok: false, reason };
 	const id = crypto.randomUUID();
@@ -629,6 +631,7 @@ export async function addLeasePersons(
 ): Promise<
 	{ ok: true; id: string } | { ok: false; reason: 'missing' | 'duplicate' | 'before-start' }
 > {
+	await assertQuota(db, context.accountId, 'leasePersons');
 	const { accountId } = context;
 	const existing = await getLease(db, accountId, leaseId);
 	if (!existing) return { ok: false, reason: 'missing' };

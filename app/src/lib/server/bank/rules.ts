@@ -6,6 +6,7 @@ import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
 import { runBatch } from '../db/batch';
 import { leases, matchingRules } from '../db/schema';
+import { assertQuota } from '../quotas';
 
 // Zuordnungsregeln: "transactions whose <field> contains <pattern> belong to this lease". They
 // apply in creation order, first match wins; only confirmed rules assign on import.
@@ -52,6 +53,7 @@ export async function createRule(
 	context: AuditContext,
 	input: RuleInput
 ): Promise<{ ok: true; id: string } | { ok: false; reason: 'unknown-lease' }> {
+	await assertQuota(db, context.accountId, 'matchingRules');
 	const [lease] = await db
 		.select({ id: leases.id })
 		.from(leases)

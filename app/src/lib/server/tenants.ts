@@ -4,6 +4,7 @@ import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import { leaseTenants, tenants } from './db/schema';
+import { assertQuota } from './quotas';
 
 // All queries take the account explicitly, so data of one account can never leak into another.
 // Changes write their audit line in the same batch as the change itself.
@@ -42,6 +43,7 @@ export async function createTenant(
 	context: AuditContext,
 	input: TenantInput
 ): Promise<{ id: string }> {
+	await assertQuota(db, context.accountId, 'tenants');
 	const id = crypto.randomUUID();
 	await runBatch(db, [
 		db.insert(tenants).values({ ...input, id, accountId: context.accountId }),

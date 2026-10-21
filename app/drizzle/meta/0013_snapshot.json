@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ae71dec5-01f2-4b1d-8e34-f0181deba9be",
-  "prevId": "97aa9976-71f5-491c-ad6a-250f536b97f0",
+  "id": "4380bb47-f8c5-4f5a-ac1e-05aa39dd53bf",
+  "prevId": "b42b4575-c55c-4070-9ed2-c14bf959ef18",
   "tables": {
     "accounts": {
       "name": "accounts",
@@ -1485,6 +1485,13 @@
         }
       },
       "indexes": {
+        "deposit_transactions_account_id_idx": {
+          "name": "deposit_transactions_account_id_idx",
+          "columns": [
+            "account_id"
+          ],
+          "isUnique": false
+        },
         "deposit_transactions_lease_id_idx": {
           "name": "deposit_transactions_lease_id_idx",
           "columns": [
@@ -1731,19 +1738,6 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "documents_cost_item_id_cost_items_id_fk": {
-          "name": "documents_cost_item_id_cost_items_id_fk",
-          "tableFrom": "documents",
-          "tableTo": "cost_items",
-          "columnsFrom": [
-            "cost_item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
         "documents_uploaded_by_users_id_fk": {
           "name": "documents_uploaded_by_users_id_fk",
           "tableFrom": "documents",
@@ -1817,6 +1811,13 @@
         }
       },
       "indexes": {
+        "lease_persons_account_id_idx": {
+          "name": "lease_persons_account_id_idx",
+          "columns": [
+            "account_id"
+          ],
+          "isUnique": false
+        },
         "lease_persons_unique": {
           "name": "lease_persons_unique",
           "columns": [
@@ -1951,6 +1952,13 @@
         }
       },
       "indexes": {
+        "lease_units_account_id_idx": {
+          "name": "lease_units_account_id_idx",
+          "columns": [
+            "account_id"
+          ],
+          "isUnique": false
+        },
         "lease_units_unit_id_idx": {
           "name": "lease_units_unit_id_idx",
           "columns": [
