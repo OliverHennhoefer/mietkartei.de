@@ -36,11 +36,12 @@ test('signs in and out', async ({ page }) => {
 	await expect(page).toHaveURL(/\/anmelden$/);
 });
 
-// wrangler.jsonc opens registration for the hosted variant; self-hosted instances keep it closed.
-const openRegistration = process.env.DEPLOY_TARGET === 'cloudflare';
+// The hosted variant lets only the addresses of REGISTRATION_EMAILS register (playwright.config.ts
+// lists the owner); a self-hosted instance only its first person.
+const hosted = process.env.DEPLOY_TARGET === 'cloudflare';
 
 test('closes registration after the first user on a self-hosted instance', async ({ page }) => {
-	test.skip(openRegistration, 'The hosted variant has open registration.');
+	test.skip(hosted, 'The hosted variant registers listed addresses only.');
 	await page.goto('/registrieren');
 	await expect(
 		page.getByText('Auf dieser Instanz können sich keine weiteren Personen registrieren.')
@@ -48,17 +49,23 @@ test('closes registration after the first user on a self-hosted instance', async
 	await expect(page.getByRole('button', { name: 'Konto anlegen' })).toHaveCount(0);
 });
 
-test('gives a later user an own, empty account on the hosted variant', async ({ page }) => {
-	test.skip(!openRegistration, 'Self-hosted instances have closed registration.');
+test('refuses an address that is not listed on the hosted variant', async ({ page }) => {
+	test.skip(!hosted, 'Self-hosted instances have no list.');
 	await page.goto('/registrieren');
-	await page.getByLabel('E-Mail-Adresse').fill('zweite@example.org');
+	await expect(page.getByText('mietkartei ist noch nicht öffentlich.')).toBeVisible();
+	await page.getByLabel('E-Mail-Adresse').fill('fremd@example.org');
 	await page.getByLabel('Passwort').fill('noch-ein-sicheres-passwort');
 	await page.getByRole('button', { name: 'Konto anlegen' }).click();
 
-	await expect(page).toHaveURL(/\/$/);
-	await expect(page.getByRole('region', { name: 'Erste Schritte' })).toContainText(
-		'Dein Bestand ist noch leer.'
-	);
+	await expect(
+		page.getByText('Diese E-Mail-Adresse ist nicht für eine Registrierung freigeschaltet.')
+	).toBeVisible();
+	await expect(page).toHaveURL(/\/registrieren$/);
+});
+
+test('offers no registration link on the sign-in page', async ({ page }) => {
+	await page.goto('/anmelden');
+	await expect(page.getByRole('link', { name: 'Registrieren' })).toHaveCount(0);
 });
 
 test('sends the security headers and a CSP with a nonce', async ({ request }) => {
