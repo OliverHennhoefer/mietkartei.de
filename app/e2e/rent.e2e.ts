@@ -1,8 +1,13 @@
 import { expect, test } from '@playwright/test';
+import { addMonthsToMonth, firstOfMonth, formatDate, monthOf, today } from '../src/lib/dates';
 import { clearTables, seedForeignLease, seedLease } from './seed';
 
 // The rent feature: VPI values, the index proposal with its approval and letter, and a manual
-// change. The lease is seeded; only /einstellungen/vpi and the Miethöhe tab are driven.
+// change. The lease is seeded; only /einstellungen/vpi and the Miethöhe tab are driven. The
+// changes lie in the months after today, so the tests do not age.
+
+/** The first day of the n-th month after the current one. */
+const monthsAhead = (months: number) => firstOfMonth(addMonthsToMonth(monthOf(today()), months));
 
 test('adjusts an index rent from the VPI and writes the letter', async ({ page }) => {
 	// An indexed residential lease from 2024-01-01 at 600 € + 150 € + 50 €, base index
@@ -55,18 +60,20 @@ test('adjusts an index rent from the VPI and writes the letter', async ({ page }
 	await expect(proposal).toContainText('Indexanpassung');
 	await expect(proposal).toContainText('124,3 (Januar 2026)');
 
-	// Delivered on 15 October 2026: the new rent applies from 1 December 2026 (§ 557b Abs. 3 BGB).
-	await page.getByLabel('Schreiben zugestellt am').fill('2026-10-15');
-	await expect(page.getByText('Gilt ab 01.12.2026')).toBeVisible();
+	// Delivered today: the new rent applies from the first day of the second month after it
+	// (§ 557b Abs. 3 BGB).
+	const effective = formatDate(monthsAhead(2));
+	await page.getByLabel('Schreiben zugestellt am').fill(today());
+	await expect(page.getByText(`Gilt ab ${effective}`)).toBeVisible();
 	page.once('dialog', (dialog) => {
 		// formatCents joins amount and € with a no-break space.
-		expect(dialog.message().replace(/\u00a0/g, ' ')).toContain('630,96 € ab 01.12.2026');
+		expect(dialog.message().replace(/\u00a0/g, ' ')).toContain(`630,96 € ab ${effective}`);
 		void dialog.accept();
 	});
 	await page.getByRole('button', { name: 'Erhöhung freigeben' }).click();
 	await expect(page.getByText('Die Erhöhung wurde freigegeben')).toBeVisible();
 	const approved = history.getByRole('row').nth(2);
-	await expect(approved).toContainText('01.12.2026');
+	await expect(approved).toContainText(effective);
 	await expect(approved).toContainText('630,96 €');
 	await expect(approved).toContainText('830,96 €');
 	await expect(approved).toContainText('Freigegeben');
@@ -80,30 +87,37 @@ test('adjusts an index rent from the VPI and writes the letter', async ({ page }
 	expect(letter.headers()['content-type']).toContain('application/pdf');
 	expect((await letter.body()).subarray(0, 5).toString()).toBe('%PDF-');
 
-	// A manual change of the base rent on an indexed residential lease needs a reason.
-	await page.getByLabel('Gültig ab').fill('2027-01-01');
+	// A manual change of the base rent on an indexed residential lease needs a reason. It starts
+	// a month after the index change.
+	const manualFrom = monthsAhead(3);
+	await page.getByLabel('Gültig ab').fill(manualFrom);
 	await page.getByLabel('Kaltmiete', { exact: true }).fill('650,00');
 	await page.getByRole('button', { name: 'Änderung speichern' }).click();
 	await expect(page.getByText('Bitte begründe die Änderung der Kaltmiete')).toBeVisible();
 	await expect(page.getByLabel('Kaltmiete', { exact: true })).toHaveValue('650,00');
-	await page.getByLabel('Notiz').fill('Einvernehmlich vereinbart am 01.10.2026.');
+	await page.getByLabel('Notiz').fill('Einvernehmlich vereinbart.');
 	await page.getByRole('button', { name: 'Änderung speichern' }).click();
 	await expect(page.getByText('Die Änderung wurde gespeichert.')).toBeVisible();
 	await expect(history.getByRole('row')).toHaveCount(4);
 	const manual = history.getByRole('row').nth(3);
-	await expect(manual).toContainText('01.01.2027');
+	await expect(manual).toContainText(formatDate(manualFrom));
 	await expect(manual).toContainText('650,00 €');
-	await expect(manual).toContainText('Einvernehmlich vereinbart am 01.10.2026.');
+	await expect(manual).toContainText('Einvernehmlich vereinbart.');
 });
 
 test('adds a Staffel step after a confirmation and keeps a later prepayment change', async ({
 	page
 }) => {
-	// A graduated residential lease from 2025-01-01 at 600 € + 150 € + 50 €.
+	// A graduated residential lease from 2025-01-01 at 600 € + 150 € + 50 €. The step starts
+	// three months ahead, the § 560 change one month before it.
+	const stepDate = monthsAhead(3);
+	const statementFrom = monthsAhead(2);
 	const { leaseId } = await seedLease(page.request, {
 		lease: { rentModel: 'graduated', startDate: '2025-01-01' }
 	});
 	await page.goto(`/vertraege/${leaseId}/miethoehe`);
+	// The confirmation needs the enhanced form; a click before hydration posts natively.
+	await page.waitForLoadState('networkidle');
 	const history = page.getByRole('table', { name: 'Mietänderungen' });
 	await expect(history.getByRole('row')).toHaveCount(2);
 	const stepFrom = page.getByLabel('Beginn der Staffel');
@@ -117,9 +131,9 @@ test('adds a Staffel step after a confirmation and keeps a later prepayment chan
 		});
 
 	// Dismissed: nothing is saved.
-	await stepFrom.fill('2027-01-01');
+	await stepFrom.fill(stepDate);
 	await stepRent.fill('620,00');
-	answer(false, 'Staffel ab 01.01.2027 mit Kaltmiete 620,00 € anlegen?');
+	answer(false, `Staffel ab ${formatDate(stepDate)} mit Kaltmiete 620,00 € anlegen?`);
 	await addStep.click();
 	await expect(history.getByRole('row')).toHaveCount(2);
 
@@ -133,23 +147,25 @@ test('adds a Staffel step after a confirmation and keeps a later prepayment chan
 	await expect(history.getByRole('row')).toHaveCount(2);
 
 	// Confirmed: the step is approved at once.
-	await stepFrom.fill('2027-01-01');
-	answer(true, 'Staffel ab 01.01.2027 mit Kaltmiete 620,00 € anlegen?');
+	await stepFrom.fill(stepDate);
+	answer(true, `Staffel ab ${formatDate(stepDate)} mit Kaltmiete 620,00 € anlegen?`);
 	await addStep.click();
 	await expect(page.getByText('Die Staffel wurde angelegt.')).toBeVisible();
 	await expect(history.getByRole('row')).toHaveCount(3);
-	await expect(page.getByRole('list', { name: 'Staffeln' })).toContainText('ab 01.01.2027');
+	await expect(page.getByRole('list', { name: 'Staffeln' })).toContainText(
+		`ab ${formatDate(stepDate)}`
+	);
 
-	// A § 560 change of the operating prepayment to 200 € from 01.12.2026, entered after the step:
-	// the step keeps its Kaltmiete and takes the new prepayment, 620 + 200 + 50 = 870 €.
-	await page.getByLabel('Gültig ab').fill('2026-12-01');
+	// A § 560 change of the operating prepayment to 200 € from the month before the step, entered
+	// after it: the step keeps its Kaltmiete and takes the new prepayment, 620 + 200 + 50 = 870 €.
+	await page.getByLabel('Gültig ab').fill(statementFrom);
 	await page.getByLabel('Kaltmiete', { exact: true }).fill('600,00');
 	await page.getByLabel('Betriebskostenvorauszahlung').fill('200,00');
 	await page.getByLabel('Grund').selectOption('statement');
 	await page.getByRole('button', { name: 'Änderung speichern' }).click();
 	await expect(page.getByText('Die Änderung wurde gespeichert.')).toBeVisible();
 	await expect(history.getByRole('row')).toHaveCount(4);
-	const step = history.getByRole('row').filter({ hasText: '01.01.2027' });
+	const step = history.getByRole('row').filter({ hasText: formatDate(stepDate) });
 	await expect(step).toContainText(/620,00\s€/);
 	await expect(step).toContainText(/870,00\s€/);
 });
