@@ -6,6 +6,7 @@ import {
 	describeDocumentLinks,
 	documentTypeLabel,
 	formatFileSize,
+	storedMimeType,
 	type DocumentLinkOptions
 } from './documents';
 
@@ -53,6 +54,36 @@ describe('canInline', () => {
 		expect(canInline('image/svg+xml')).toBe(false);
 		expect(canInline('text/html')).toBe(false);
 		expect(canInline('text/plain')).toBe(false);
+	});
+});
+
+describe('storedMimeType', () => {
+	const bytes = (...values: number[]) => new Uint8Array([...values, 0, 0, 0, 0]);
+	const text = (value: string) => new TextEncoder().encode(value);
+
+	it('keeps an inline type only when the bytes start like such a file', () => {
+		expect(storedMimeType('application/pdf', text('%PDF-1.7\n'))).toBe('application/pdf');
+		expect(storedMimeType('image/png', bytes(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a))).toBe(
+			'image/png'
+		);
+		expect(storedMimeType('IMAGE/JPEG', bytes(0xff, 0xd8, 0xff, 0xe0))).toBe('image/jpeg');
+		expect(storedMimeType('image/gif', text('GIF89a...'))).toBe('image/gif');
+		expect(storedMimeType('image/webp', text('RIFF\x00\x00\x00\x00WEBPVP8 '))).toBe('image/webp');
+	});
+
+	it('stores a disguised file as a download only', () => {
+		expect(storedMimeType('application/pdf', text('<html><script>alert(1)</script>'))).toBe(
+			'application/octet-stream'
+		);
+		expect(storedMimeType('image/png', text('<svg onload="alert(1)">'))).toBe(
+			'application/octet-stream'
+		);
+		expect(storedMimeType('image/gif', text('GIF8'))).toBe('application/octet-stream');
+	});
+
+	it('keeps other types and falls back to octet-stream without one', () => {
+		expect(storedMimeType('text/plain; charset=utf-8', text('Hallo'))).toBe('text/plain');
+		expect(storedMimeType('', text('Hallo'))).toBe('application/octet-stream');
 	});
 });
 

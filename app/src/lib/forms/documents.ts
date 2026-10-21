@@ -1,4 +1,6 @@
 import {
+	MAX_ACCOUNT_DOCUMENT_BYTES,
+	MAX_ACCOUNT_DOCUMENTS,
 	MAX_DOCUMENT_BYTES,
 	MAX_DOCUMENT_NAME,
 	type DocumentError,
@@ -57,7 +59,8 @@ export function documentName(typed: string | null, fileName: string): string {
 const errorMessages: Record<DocumentError, string> = {
 	'too-large': `Die Datei ist zu groß (höchstens ${MAX_MEGABYTES} MB).`,
 	empty: 'Die Datei ist leer.',
-	'unknown-link': 'Die gewählte Verknüpfung gibt es nicht mehr.'
+	'unknown-link': 'Die gewählte Verknüpfung gibt es nicht mehr.',
+	quota: `Der Speicher dieses Kontos ist voll (höchstens ${Math.round(MAX_ACCOUNT_DOCUMENT_BYTES / 1024 / 1024 / 1024)} GB oder ${MAX_ACCOUNT_DOCUMENTS.toLocaleString('de-DE')} Dokumente). Lösche Dokumente, die du nicht mehr brauchst.`
 };
 
 /** The German sentence for a refusal of storeDocument. */

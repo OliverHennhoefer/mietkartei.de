@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from './db';
 import { auditLog, documents } from './db/schema';
 import {
+	MAX_ACCOUNT_DOCUMENTS,
+	MAX_ACCOUNT_DOCUMENT_BYTES,
 	MAX_DOCUMENT_BYTES,
 	deleteDocument,
 	getDocument,
@@ -129,6 +131,46 @@ describe('storeDocument', () => {
 		expect(await storedFiles()).toEqual([]);
 		expect(await db.select().from(documents)).toEqual([]);
 		expect(await db.select().from(auditLog)).toEqual([]);
+	});
+
+	it('stores a file whose bytes do not match its inline type as a download only', async () => {
+		const id = await store(contextA, {
+			name: 'bild.png',
+			mimeType: 'image/png',
+			bytes: bytes('<svg/>')
+		});
+		expect((await getDocument(db, 'a', id))!.mimeType).toBe('application/octet-stream');
+	});
+
+	it('refuses an upload beyond the account quota and counts only the own account', async () => {
+		// Rows stand in for stored files; the quota only reads the documents table.
+		const row = (accountId: string, index: number, size: number) => ({
+			id: `${accountId}-${index}`,
+			accountId,
+			name: `${index}.pdf`,
+			mimeType: 'application/pdf',
+			size,
+			storageKey: `${accountId}/${index}`
+		});
+		await db.insert(documents).values(row('b', 0, MAX_ACCOUNT_DOCUMENT_BYTES));
+		await db.insert(documents).values(row('a', 0, MAX_ACCOUNT_DOCUMENT_BYTES - 10));
+		expect(await storeDocument(db, contextA, pdf, { storage })).toEqual({
+			ok: false,
+			reason: 'quota'
+		});
+		await db.delete(documents).where(eq(documents.accountId, 'a'));
+		const many = Array.from({ length: MAX_ACCOUNT_DOCUMENTS }, (_, index) => row('a', index, 1));
+		for (let start = 0; start < many.length; start += 100) {
+			await db.insert(documents).values(many.slice(start, start + 100));
+		}
+		expect(await storeDocument(db, contextA, pdf, { storage })).toEqual({
+			ok: false,
+			reason: 'quota'
+		});
+		expect(await storedFiles()).toEqual([]);
+		// Account b is at its byte limit only; a small file still fits for a.
+		await db.delete(documents).where(eq(documents.accountId, 'a'));
+		expect((await storeDocument(db, contextA, pdf, { storage })).ok).toBe(true);
 	});
 
 	it('refuses a link to another account and writes no object', async () => {
