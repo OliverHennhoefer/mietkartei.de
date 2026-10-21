@@ -14,6 +14,15 @@ services:
       - ${MIETKARTEI_BIND:-127.0.0.1}:3000:3000
     volumes:
       - data:/data
+    # The app only writes to /data. Everything else is read-only, the process cannot gain
+    # privileges or use any Linux capability, so a compromised app cannot alter the image.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   data:
