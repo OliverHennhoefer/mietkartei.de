@@ -53,6 +53,12 @@ test('the owner invites a manager, who registers through the link', async ({ pag
 	await expect(invitee.getByText('Das dürfen nur Vermieter, keine Mitverwalter.')).toBeVisible();
 	await invitee.goto('/einstellungen/konto');
 	await expect(invitee.getByText('Nur der Vermieter kann das Konto löschen.')).toBeVisible();
+	// The settings hub does not send a manager to the owner-only pages.
+	await invitee.goto('/einstellungen');
+	const hub = invitee.getByRole('list', { name: 'Einstellungen' });
+	await expect(hub.getByRole('link', { name: 'Profil' })).toBeVisible();
+	await expect(hub.getByRole('link', { name: 'Mitverwalter' })).toHaveCount(0);
+	await expect(hub.getByRole('link', { name: 'Export' })).toHaveCount(0);
 
 	// The used link cannot be used again.
 	await invitee.goto(link!);

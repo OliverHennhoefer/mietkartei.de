@@ -53,7 +53,7 @@ feature. When a feature is ported to main, its section is the checklist of what 
 ### Properties and units
 
 - The create form moved from `/objekte` to `/objekte/neu`; `/objekte` keeps a toolbar link "Objekt anlegen" and the e2e test was adapted accordingly.
-- Deleting a unit or property is refused while any lease references it, including ended leases (restrict FK; the history must stay).
+- Deleting a unit or property is refused while any lease references it, including ended leases (restrict FK; the history must stay). The refusal says so instead of suggesting to end the lease; the property's refusal counts and links the leases on its units (main or extra unit), the unit page lists them already.
 - An ended lease still counts as "in use" for deletion, but vacancy/active counts use only leases running on `today()`.
 - Extra-unit occupancy is shown as "(mitvermietet)" in the units list and "Mitvermietet" on the unit detail; a vacant unit shows Badge "Leerstand" plus "Mietvertrag anlegen".
 - `vacancyPersons` is limited to 0–10 (integer); rooms 0–100 (decimal, e.g. 2,5); notes up to 2000 characters; floor is free text (50 chars).
@@ -205,8 +205,9 @@ feature. When a feature is ported to main, its section is the checklist of what 
 
 ### Integration (dashboard, demo data)
 
-- The dashboard has four tiles: Rückstände (sum and count, links to `/mietkonto?filter=rueckstaende`), Leerstand (units without an active lease, links to `/objekte`), offene Bankumsätze (links to `/bank`) and Fristen/Aufgaben (overdue deadlines plus open tasks, with the count of the next 12 months, links to `/aufgaben`). Up to five vacant units are listed below with a link into the lease form.
-- The first-run checklist shows while the account has no property: property, tenants, leases, bank account, each ticked when something exists, with links to the demo data and the CSV import.
+- The dashboard has four tiles: Rückstände (sum and count, links to `/mietkonto?filter=rueckstaende`), Leerstand (units without an active lease, links to `/objekte`), offene Bankumsätze (links to `/bank`) and Fristen/Aufgaben (the number to do: overdue deadlines plus open tasks; the label names both and the deadlines of the next 12 months, links to `/aufgaben`). Up to five vacant units are listed below with a link into the lease form.
+- The first-run checklist shows instead of the tiles until the account has a lease and a bank account: Objekt (`/objekte/neu`), Einheit (the first property's page, else `/objekte/neu`), Mieter (`/mieter/neu`), Mietvertrag (`/vertraege/neu`), Bankverbindung (`/bank/konten`), Kostenarten und Umlageschlüssel (`/betriebskosten/kostenarten`, ticked once the account has categories), each ticked when something exists. The link to the demo data shows only to the owner of an account without property (the only case the demo is offered); the CSV import is always linked.
+- The settings hub leaves out the owner-only pages (Mitverwalter, Export) for managers.
 - Demo data: two properties in Berlin and Potsdam, six units (one parking space), five tenants, four running leases (one indexed, one with the parking space as an extra unit) and one ended lease with its deposit returned, rent payments for the last 24 months (older leases get a ledger start there), one lease two months in arrears, a bank account with three open transactions this month, five cost items of last year and two tasks. Only offered to the owner of an account without any property; the account deletion is the way back.
 - The billing banner above every page is `role="note"`, not a live status, so a page's own status messages stay the only `status` region.
 
@@ -230,7 +231,7 @@ feature. When a feature is ported to main, its section is the checklist of what 
 
 ### Mietkonto pages
 
-- The "Umsatz" badge path (bank-sourced payment) is covered by the server spec, not by the e2e test (the banking feature's assignment lives in another worktree).
+- A bank-sourced payment (Mietkonto) and deposit movement (Kaution) link to `/bank?umsatz=<id>`, which lists that one transaction whatever its status, so its assignment can be undone there (e2e: navigation.e2e.ts).
 - The e2e test computes "four months ago" in Europe/Berlin like the server; a run in the last two hours UTC of a month end could see one month more or less of arrears.
 
 ### Bank import and matching
@@ -248,7 +249,7 @@ feature. When a feature is ported to main, its section is the checklist of what 
 ### Operating costs setup
 
 - Meter editing (changing kind/unit/serial number) exists in the server module (`updateMeter`, tested) but has no page; the Zähler tab offers create, readings, "ausbauen" and delete.
-- The e2e test does not exercise "Speichern und nächsten Beleg", the per-unit amounts form of a direct key, or the delete refusals of categories and keys (those are unit-tested).
+- The e2e test does not exercise "Speichern und nächsten Beleg"; `updateMeter` has no page, so no e2e either.
 - RouteId typings in the shared `node_modules/$app/types/index.d.ts` depend on whichever worktree synced last; nothing in this feature uses typed route ids.
 
 ### Operating cost statements
@@ -272,7 +273,7 @@ feature. When a feature is ported to main, its section is the checklist of what 
 
 - windows-1252 files and the `findHeaderRow` preamble handling are covered by unit tests only, not by the e2e fixtures (all UTF-8).
 - Lease import does not support extra units, graduated/indexed rents, index base values or termination fields; rent due day is always 3.
-- The e2e verifies results through the import page's summaries and duplicate detection only (other features' pages do not exist in this worktree).
+- The e2e verifies results through the import page's summaries, duplicate detection and the imported lease's Mietkonto (ledger start, opening balance, payment, balance).
 - The 404 check is for a path under /import (the feature has no id route).
 
 ### Accounts, managers, export, password reset

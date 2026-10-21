@@ -4,12 +4,14 @@
 
 	let { data }: PageProps = $props();
 
-	const entries = [
+	// Entries a manager may not open (requireOwner answers 403) are left out for them.
+	const allEntries = [
 		{ href: '/einstellungen/profil', label: 'Profil', text: 'Name, E-Mail-Adresse und Passwort.' },
 		{
 			href: '/einstellungen/mitverwalter',
 			label: 'Mitverwalter',
-			text: 'Weitere Personen einladen, die deinen Bestand mit verwalten.'
+			text: 'Weitere Personen einladen, die deinen Bestand mit verwalten.',
+			ownerOnly: true
 		},
 		{
 			href: '/bank/konten',
@@ -36,7 +38,12 @@
 			label: 'Datenübernahme',
 			text: 'Objekte, Mieter, Mietverträge und Zahlungen aus einer CSV-Datei übernehmen.'
 		},
-		{ href: '/einstellungen/export', label: 'Export', text: 'Alle Daten als Datei herunterladen.' },
+		{
+			href: '/einstellungen/export',
+			label: 'Export',
+			text: 'Alle Daten als Datei herunterladen.',
+			ownerOnly: true
+		},
 		{
 			href: '/einstellungen/protokoll',
 			label: 'Protokoll',
@@ -44,6 +51,9 @@
 		},
 		{ href: '/einstellungen/konto', label: 'Konto', text: 'Konto und alle Daten löschen.' }
 	];
+	const entries = $derived(
+		data.role === 'owner' ? allEntries : allEntries.filter((entry) => !entry.ownerOnly)
+	);
 </script>
 
 <PageHeader title="Einstellungen" />
