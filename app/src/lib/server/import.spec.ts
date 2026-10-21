@@ -120,19 +120,51 @@ describe('planImport: properties and units', () => {
 		expect(result.properties).toEqual([
 			{
 				key: 'rosenweg 7|rosenweg 7',
-				input: { name: 'Rosenweg 7', street: 'Rosenweg 7', postalCode: '10115', city: 'Berlin' }
+				input: {
+					name: 'Rosenweg 7',
+					street: 'Rosenweg 7',
+					postalCode: '10115',
+					city: 'Berlin',
+					buildingUse: 'residential',
+					vacancyPersons: 1,
+					notes: null
+				}
 			}
 		]);
 		expect(result.units).toEqual([
 			{
 				property: { key: 'rosenweg 7|rosenweg 7' },
-				input: { name: 'EG links', kind: 'apartment', floorArea: 72.5 }
+				input: {
+					name: 'EG links',
+					kind: 'apartment',
+					floorArea: 72.5,
+					floor: null,
+					rooms: null,
+					notes: null
+				}
 			},
 			{
 				property: { key: 'rosenweg 7|rosenweg 7' },
-				input: { name: 'OG rechts', kind: 'apartment', floorArea: 64 }
+				input: {
+					name: 'OG rechts',
+					kind: 'apartment',
+					floorArea: 64,
+					floor: null,
+					rooms: null,
+					notes: null
+				}
 			},
-			{ property: { id: 'p1' }, input: { name: 'Stellplatz 1', kind: 'parking', floorArea: null } }
+			{
+				property: { id: 'p1' },
+				input: {
+					name: 'Stellplatz 1',
+					kind: 'parking',
+					floorArea: null,
+					floor: null,
+					rooms: null,
+					notes: null
+				}
+			}
 		]);
 		expect(reasons(result)).toEqual([
 			[4, 'Die Einheit „EG links“ in „Rosenweg 7“ steht doppelt in der Datei.'],

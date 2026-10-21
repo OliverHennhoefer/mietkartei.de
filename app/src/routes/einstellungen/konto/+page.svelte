@@ -9,7 +9,19 @@
 
 <PageHeader title="Konto" back={{ href: '/einstellungen', label: 'Einstellungen' }} />
 
-<!-- <h2>Demodaten</h2>: the integration step adds the demo data button for an empty account here. -->
+{#if data.canLoadDemo}
+	<h2>Demodaten</h2>
+	<p>
+		Probier mietkartei mit einem kleinen Beispielbestand aus: zwei Objekte, fünf Mietverträge, zwei
+		Jahre Mietzahlungen, ein Bankkonto mit offenen Umsätzen, Belege des Vorjahres und zwei Aufgaben.
+		Das geht nur, solange dein Konto noch kein Objekt hat. Wenn du fertig bist, löschst du das Konto
+		unten und fängst neu an.
+	</p>
+	<form method="POST" action="?/demo" use:enhance>
+		{#if form?.demoError}<p class="error" role="alert">{form.demoError}</p>{/if}
+		<button type="submit">Demodaten anlegen</button>
+	</form>
+{/if}
 
 <h2>Konto löschen</h2>
 {#if data.isOwner}

@@ -60,3 +60,32 @@ test('deletes the account after the password is entered again', async ({ page, b
 	await page.goto('/objekte');
 	await expect(page).toHaveURL(/\/(anmelden|registrieren)$/);
 });
+
+test('fills a fresh account with demo data from the account page', async ({ page }) => {
+	// After the deletion above the instance is empty: register again, then load the demo.
+	await page.context().clearCookies();
+	await page.goto('/registrieren');
+	await page.getByLabel('E-Mail-Adresse').fill(owner.email);
+	await page.getByLabel('Passwort').fill(owner.password);
+	await page.getByRole('button', { name: 'Konto anlegen' }).click();
+	await expect(page).not.toHaveURL(/\/registrieren$/);
+
+	await page.goto('/');
+	await expect(page.getByRole('heading', { name: 'Erste Schritte' })).toBeVisible();
+	await page.getByRole('link', { name: 'Demodaten' }).click();
+	await expect(page).toHaveURL(/\/einstellungen\/konto$/);
+	await page.getByRole('button', { name: 'Demodaten anlegen' }).click();
+	await expect(page).toHaveURL(/\/$/);
+	await expect(page.getByRole('heading', { name: 'Erste Schritte' })).toHaveCount(0);
+	const tiles = page.getByRole('list', { name: 'Kennzahlen' }).getByRole('listitem');
+	await expect(tiles.nth(0).locator('.value')).not.toHaveText('0,00 €');
+	await expect(tiles.nth(2).locator('.value')).toHaveText('3');
+
+	await page.goto('/objekte');
+	await expect(page.getByText('Lindenstraße 12').first()).toBeVisible();
+	await expect(page.getByText('Gartenweg 3').first()).toBeVisible();
+
+	// The button is gone once the account holds data.
+	await page.goto('/einstellungen/konto');
+	await expect(page.getByRole('button', { name: 'Demodaten anlegen' })).toHaveCount(0);
+});

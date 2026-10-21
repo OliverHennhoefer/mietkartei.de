@@ -8,7 +8,24 @@ Die Webanwendung von mietkartei.de, gebaut mit SvelteKit, Drizzle ORM und SQLite
 Welcher Weg gebaut wird, bestimmt die Umgebungsvariable `DEPLOY_TARGET` (`node` oder `cloudflare`, Standard ist `node`).
 
 > [!IMPORTANT]
-> Die Anmeldung ist neu und noch einfach gehalten: Es gibt weder ein Zurücksetzen des Passworts noch einen Schutz gegen viele Anmeldeversuche. Betreibe die Anwendung deshalb vorerst nur auf deinem eigenen Rechner oder in einem geschützten Heimnetz.
+> Dieser Stand ist ein Prototyp und nicht für echte Daten gedacht. Betreibe ihn nur auf deinem eigenen Rechner oder in einem geschützten Heimnetz.
+
+## Prototyp
+
+Dieser Stand ist ein Prototyp, der die ganze Anwendung in einem Stück zeigt: Objekte, Mieter, Mietverträge, Mietkonto, Bankabgleich, Kaution, Miethöhe mit Index- und Staffelmiete, Betriebskosten mit Abrechnung, CO₂-Aufteilung, Dokumente, Aufgaben und Fristen, Datenübernahme, Mitverwalter, Export und das Abo. Er wird nicht als Ganzes übernommen, sondern in kleinen Schritten. Die Entwurfsentscheidungen und Annahmen stehen in [PROTOTYPE.md](PROTOTYPE.md).
+
+Am schnellsten probierst du ihn so aus: Konto anlegen, dann unter **Einstellungen → Konto** auf **Demodaten anlegen** klicken. Das geht, solange dein Konto noch kein Objekt hat.
+
+Diese Umgebungsvariablen kommen im Prototyp dazu (alle optional):
+
+| Variable                                                        | Wofür                                                                                                               |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `MAIL_TRANSPORT`                                                | `console` (Standard) schreibt Mails ins Log, `resend` verschickt sie über Resend mit `MAIL_API_KEY` und `MAIL_FROM` |
+| `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` | schalten das Abo der gehosteten Variante ein; im Prototyp nur mit Testschlüsseln (`sk_test_…`)                      |
+| `BILLING_REQUIRED`                                              | `true` sperrt das Konto nach der Testphase ohne Abo                                                                 |
+| `DATA_DIR`                                                      | Ablage der Dokumente bei Node.js (Standard: neben der Datenbank)                                                    |
+
+Ohne Stripe-Variablen gibt es kein Abo; eine selbst gehostete Installation sieht davon nichts.
 
 ## Anmeldung
 

@@ -46,8 +46,6 @@ test('shows the tiles with arrears, vacancy, open transactions and deadlines', a
 	await expect(vacant).toBeVisible();
 	await vacant.getByRole('link', { name: 'Mietvertrag anlegen' }).click();
 	await expect(page).toHaveURL(/\/vertraege\/neu\?unitId=/);
-	await expect(page.getByLabel('Einheit', { exact: true })).toHaveValue(/./);
-	await expect(page.getByLabel('Einheit', { exact: true }).locator('option:checked')).toHaveText(
-		new RegExp(`Leer-${suffix}`)
-	);
+	const unit = page.getByRole('combobox', { name: 'Einheit', exact: true });
+	await expect(unit.locator('option:checked')).toHaveText(new RegExp(`Leer-${suffix}`));
 });
