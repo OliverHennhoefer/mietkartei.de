@@ -32,6 +32,11 @@ const accountId = () =>
 export const accounts = sqliteTable('accounts', {
 	id: id(),
 	name: text('name').notNull(),
+	/** The landlord as sender of letters (Vermieter), all optional. */
+	landlordName: text('landlord_name'),
+	street: text('street'),
+	postalCode: text('postal_code'),
+	city: text('city'),
 	createdAt: createdAt()
 });
 
@@ -160,6 +165,11 @@ export const leases = sqliteTable(
 		/** ISO date notice was given and by whom, null while none. */
 		terminatedAt: text('terminated_at'),
 		terminatedBy: text('terminated_by', { enum: terminatedByParties }),
+		/** For indexed rents: the VPI month and value the current rent is based on. */
+		indexBaseMonth: text('index_base_month'),
+		indexBaseValue: real('index_base_value'),
+		/** The base year (= 100) of indexBaseValue; a proposal needs VPI values of the same year. */
+		indexBaseYear: text('index_base_year').notNull().default('2020'),
 		notes: text('notes'),
 		createdAt: createdAt()
 	},
@@ -231,6 +241,7 @@ export const rentChangeReasons = [
 	'indexed',
 	'statement'
 ] as const;
+export type RentChangeReason = (typeof rentChangeReasons)[number];
 
 export const rentChangeStatuses = ['approved', 'proposed'] as const;
 
@@ -253,6 +264,18 @@ export const rentChanges = sqliteTable(
 		reason: text('reason', { enum: rentChangeReasons }).notNull(),
 		status: text('status', { enum: rentChangeStatuses }).notNull().default('approved'),
 		note: text('note'),
+		/** For indexed changes: the VPI month and value the new rent is based on. */
+		indexMonth: text('index_month'),
+		indexValue: real('index_value'),
+		/** The base year (= 100) of indexValue. */
+		indexBaseYear: text('index_base_year').notNull().default('2020'),
+		/**
+		 * For indexed changes: the generated letter as approved, its paragraphs and the rows of its
+		 * old/new table, and when it was (or is to be) delivered.
+		 */
+		letterText: text('letter_text'),
+		letterTable: text('letter_table', { mode: 'json' }).$type<string[][]>(),
+		deliveredOn: text('delivered_on'),
 		createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
 		createdAt: createdAt()
 	},
@@ -285,6 +308,23 @@ export const depositTransactions = sqliteTable(
 		createdAt: createdAt()
 	},
 	(table) => [index('deposit_transactions_lease_id_idx').on(table.leaseId)]
+);
+
+/** Verbraucherpreisindex values entered per account, for indexed rents. */
+export const consumerPriceIndex = sqliteTable(
+	'consumer_price_index',
+	{
+		id: id(),
+		accountId: accountId(),
+		/** YYYY-MM */
+		month: text('month').notNull(),
+		value: real('value').notNull(),
+		baseYear: text('base_year').notNull().default('2020'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		uniqueIndex('consumer_price_index_unique').on(table.accountId, table.baseYear, table.month)
+	]
 );
 
 // Rent ledger (Mietkonto)
@@ -384,7 +424,7 @@ export const sessions = sqliteTable(
  * The verbs used in audit_log.action. The column is plain text so a feature can add a verb
  * without a schema change.
  */
-export type AuditAction = 'create' | 'update' | 'delete' | 'post';
+export type AuditAction = 'create' | 'update' | 'delete' | 'post' | 'approve';
 
 /** Who changed what, as one German sentence per change. */
 export const auditLog = sqliteTable(

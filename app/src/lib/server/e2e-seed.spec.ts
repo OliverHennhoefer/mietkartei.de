@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from './db';
 import {
+	consumerPriceIndex,
 	leasePersons,
 	leaseTenants,
 	leases,
@@ -203,6 +204,42 @@ describe('seed rows', () => {
 		const result = await seed(db, { op: 'rows', table: 'tenants', rows: [row, row] });
 		expect(result.status).toBe(500);
 		expect((result.body as { message: string }).message).toMatch(/UNIQUE/);
+	});
+});
+
+describe('seed clear', () => {
+	it('removes only the owner’s rows of the named tables', async () => {
+		await db.insert(consumerPriceIndex).values([
+			{ accountId: 'a', month: '2025-01', value: 121 },
+			{ accountId: 'a', month: '2026-01', value: 124.3 },
+			{ accountId: 'b', month: '2025-01', value: 121 }
+		]);
+		const lease = (await seed(db, { op: 'lease' })).body as SeedLeaseResult;
+
+		const result = await seed(db, {
+			op: 'clear',
+			tables: ['leases', 'consumer_price_index']
+		});
+		expect(result.status).toBe(200);
+		expect(await db.select().from(consumerPriceIndex)).toMatchObject([{ accountId: 'b' }]);
+		expect(await db.select().from(leases)).toEqual([]);
+		expect(await db.select().from(rentChanges)).toEqual([]);
+		// Tables not named stay as they are.
+		expect(await db.select().from(tenants).where(eq(tenants.id, lease.tenantId))).toHaveLength(1);
+	});
+
+	it('refuses tables without an account and unknown tables without deleting anything', async () => {
+		await db.insert(consumerPriceIndex).values({ accountId: 'a', month: '2025-01', value: 121 });
+		expect(
+			await seed(db, { op: 'clear', tables: ['consumerPriceIndex', 'sessions'] })
+		).toMatchObject({
+			status: 400,
+			body: { message: 'Die Tabelle „sessions“ gehört zu keinem Konto.' }
+		});
+		expect(await seed(db, { op: 'clear', tables: ['consumerPriceIndex', 'nope'] })).toMatchObject({
+			status: 400
+		});
+		expect(await db.select().from(consumerPriceIndex)).toHaveLength(1);
 	});
 });
 

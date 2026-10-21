@@ -149,7 +149,7 @@
 	<Field
 		label="Art des Mietverhältnisses"
 		error={errors.kind}
-		hint="Vorbelegt mit Wohnraum; für einen Stellplatz oder ein Gewerbe bitte anpassen. Die Kaution nach § 551 BGB gilt nur für Wohnraum, die Kündigungsfristen richten sich nach der Art."
+		hint="Vorbelegt mit Wohnraum; für einen Stellplatz oder ein Gewerbe bitte anpassen. Die Regeln zu Kaution, Staffel und Index gelten nur für Wohnraum, die Kündigungsfristen richten sich nach der Art."
 	>
 		<select name="kind" aria-invalid={invalid('kind')} required>
 			{#each leaseKinds as kind (kind)}
@@ -187,10 +187,12 @@
 		</select>
 	</Field>
 
-	{#if mode === 'edit'}
+	{#if mode === 'edit' && lease}
 		<p class="form-wide muted small">
-			Die Beträge und die Personenzahl hier gelten ab Vertragsbeginn. Den späteren Personenstand
-			pflegst du in der Übersicht.
+			Die Beträge und die Personenzahl hier gelten ab Vertragsbeginn. Spätere Änderungen der Miete
+			pflegst du im Reiter <a href="/vertraege/{lease.id}/miethoehe">Miethöhe</a>, den Personenstand
+			in der Übersicht. Eine Korrektur gilt auch für spätere Mietänderungen, die den bisherigen
+			Betrag übernommen hatten.
 		</p>
 	{/if}
 	<Field label={atStart('Kaltmiete')} error={errors.baseRent}>
@@ -292,6 +294,43 @@
 			/>
 		</Field>
 	{/if}
+
+	<Field
+		label="Basismonat des Index (optional)"
+		error={errors.indexBaseMonth}
+		hint="Nur bei Indexmiete: der Monat des Verbraucherpreisindex, auf dem die Miete beruht."
+	>
+		<input
+			name="indexBaseMonth"
+			type="month"
+			defaultValue={values.indexBaseMonth ?? ''}
+			aria-invalid={invalid('indexBaseMonth')}
+		/>
+	</Field>
+	<Field
+		label="Indexwert (optional)"
+		error={errors.indexBaseValue}
+		hint="Nur bei Indexmiete, z. B. 121,4."
+	>
+		<input
+			name="indexBaseValue"
+			defaultValue={values.indexBaseValue ?? ''}
+			inputmode="decimal"
+			aria-invalid={invalid('indexBaseValue')}
+		/>
+	</Field>
+	<Field
+		label="Basisjahr des Index"
+		error={errors.indexBaseYear}
+		hint="Nur bei Indexmiete: das Basisjahr (= 100), auf das sich der Indexwert bezieht."
+	>
+		<input
+			name="indexBaseYear"
+			defaultValue={values.indexBaseYear ?? '2020'}
+			inputmode="numeric"
+			aria-invalid={invalid('indexBaseYear')}
+		/>
+	</Field>
 
 	{#if mode === 'edit'}
 		<Field label="Kündigung erhalten am (optional)" error={errors.terminatedAt}>

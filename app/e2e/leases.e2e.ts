@@ -215,6 +215,7 @@ test('answers unknown leases and leases of another account with 404', async ({ p
 	for (const path of [
 		`/vertraege/${foreign.leaseId}`,
 		`/vertraege/${foreign.leaseId}/bearbeiten`,
+		`/vertraege/${foreign.leaseId}/miethoehe`,
 		`/vertraege/${foreign.leaseId}/mietkonto`,
 		`/vertraege/${foreign.leaseId}/kaution`,
 		`/mieter/${foreign.tenantId}`,

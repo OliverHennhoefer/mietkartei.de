@@ -1,4 +1,4 @@
-import { asc, getTableColumns, getTableName, is, sql } from 'drizzle-orm';
+import { asc, eq, getTableColumns, getTableName, is, sql } from 'drizzle-orm';
 import { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { DEFAULT_ACCOUNT_ID, ensureDefaultAccount } from './accounts';
 import type { AuditContext } from './audit';
@@ -116,6 +116,9 @@ async function seedLease(
 		persons: 2,
 		rentDueDay: 3,
 		ledgerStart: null,
+		indexBaseMonth: null,
+		indexBaseValue: null,
+		indexBaseYear: '2020',
 		terminatedAt: null,
 		terminatedBy: null,
 		notes: null,
@@ -188,11 +191,28 @@ async function seedRows(db: Database, accountId: string, body: Row): Promise<See
 	return { status: 200, body: { ids } };
 }
 
+async function clearTables(db: Database, accountId: string, body: Row): Promise<SeedResult> {
+	if (!Array.isArray(body.tables) || !body.tables.every((name) => typeof name === 'string')) {
+		return bad('Bitte gib die Tabellen als Liste von Namen an.');
+	}
+	// Every name is checked before anything is deleted, so a typo leaves the data as it was.
+	const statements = [];
+	for (const name of body.tables) {
+		const table = findTable(name);
+		if (!table) return bad(`Unbekannte Tabelle „${name}“.`);
+		const { accountId: column } = getTableColumns(table);
+		if (!column) return bad(`Die Tabelle „${name}“ gehört zu keinem Konto.`);
+		statements.push(db.delete(table).where(eq(column, accountId)));
+	}
+	await runBatch(db, statements);
+	return { status: 200, body: { cleared: body.tables } };
+}
+
 /**
  * Runs one seed operation, chosen by `body.op`: `lease` (property, unit, tenant and a lease with
  * its initial rent and persons), `foreignLease` (the same in a second account no e2e user belongs
- * to, for the 404 checks) or `rows` (raw rows of any table). Returns the HTTP status and body
- * for the route.
+ * to, for the 404 checks), `rows` (raw rows of any table) or `clear` (the owner's rows of the
+ * given tables). Returns the HTTP status and body for the route.
  */
 export async function seed(db: Database, body: unknown): Promise<SeedResult> {
 	if (!isPlainObject(body)) return bad('Der Körper ist ein JSON-Objekt mit „op“.');
@@ -214,8 +234,10 @@ export async function seed(db: Database, body: unknown): Promise<SeedResult> {
 				return await seedForeignLease(db);
 			case 'rows':
 				return await seedRows(db, context.accountId, body);
+			case 'clear':
+				return await clearTables(db, context.accountId, body);
 			default:
-				return bad('Unbekannte Operation; erlaubt sind lease, foreignLease und rows.');
+				return bad('Unbekannte Operation; erlaubt sind lease, foreignLease, rows und clear.');
 		}
 	} catch (error) {
 		// A constraint violation or a wrong value type; the message tells the test what went wrong.

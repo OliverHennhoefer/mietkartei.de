@@ -6,7 +6,8 @@
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
-	import { formatDate, isIsoDate } from '#lib/dates.ts';
+	import { formatDate, formatMonth, isIsoDate } from '#lib/dates.ts';
+	import { formatIndexValue } from '#lib/domain/index-rent.ts';
 	import { proposedEndDate } from '#lib/domain/lease-end.ts';
 	import { personName } from '#lib/format.ts';
 	import {
@@ -97,6 +98,14 @@
 	<dd>am {lease.rentDueDay}. Werktag des Monats</dd>
 	<dt>Mietkonto führen ab</dt>
 	<dd>{formatDate(lease.ledgerStart ?? lease.startDate)}</dd>
+	{#if lease.rentModel === 'indexed' && lease.indexBaseMonth}
+		<dt>Indexbasis</dt>
+		<dd>
+			{formatMonth(lease.indexBaseMonth)}{#if lease.indexBaseValue !== null}: {formatIndexValue(
+					lease.indexBaseValue
+				)} (Basisjahr {lease.indexBaseYear}){/if}
+		</dd>
+	{/if}
 	{#if lease.notes}
 		<dt>Notizen</dt>
 		<dd class="notes">{lease.notes}</dd>
@@ -114,6 +123,7 @@
 	<dt>Gesamtmiete</dt>
 	<dd><strong><Money cents={data.currentRent.total} /></strong></dd>
 </dl>
+<p><a href="/vertraege/{lease.id}/miethoehe">Miethöhe und Änderungen</a></p>
 
 <h2>Saldo</h2>
 <p aria-label="Saldo">
