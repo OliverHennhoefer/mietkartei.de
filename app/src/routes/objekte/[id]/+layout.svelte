@@ -12,6 +12,7 @@
 
 	const tabs = $derived([
 		{ href: `/objekte/${data.property.id}`, label: 'Einheiten' },
+		{ href: `/objekte/${data.property.id}/zaehler`, label: 'Zähler' },
 		{ href: `/objekte/${data.property.id}/abrechnungskreise`, label: 'Abrechnungskreise' }
 	]);
 </script>
