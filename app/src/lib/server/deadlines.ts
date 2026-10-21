@@ -129,7 +129,12 @@ export async function listDeadlines(
 				.from(co2CostSplits)
 				.where(eq(co2CostSplits.accountId, accountId)),
 			db
-				.select({ id: meters.id, unitId: meters.unitId })
+				.select({
+					id: meters.id,
+					unitId: meters.unitId,
+					installedAt: meters.installedAt,
+					removedAt: meters.removedAt
+				})
 				.from(meters)
 				.where(and(eq(meters.accountId, accountId), isNotNull(meters.unitId))),
 			db
@@ -252,12 +257,12 @@ export async function listDeadlines(
 	for (const list of changesByLease.values()) {
 		list.sort((a, b) => a.validFrom.localeCompare(b.validFrom));
 	}
-	const metersByUnit = new Map<string, string[]>();
+	const metersByUnit = new Map<string, typeof meterRows>();
 	for (const meter of meterRows) {
 		if (!meter.unitId) continue;
 		const list = metersByUnit.get(meter.unitId);
-		if (list) list.push(meter.id);
-		else metersByUnit.set(meter.unitId, [meter.id]);
+		if (list) list.push(meter);
+		else metersByUnit.set(meter.unitId, [meter]);
 	}
 
 	for (const lease of allLeases) {
@@ -294,12 +299,18 @@ export async function listDeadlines(
 				});
 			}
 
-			// Zählerstände ablesen at the end, when the unit has meters and no final reading yet.
-			const meterIds = [lease.unitId, ...lease.extraUnits.map((unit) => unit.id)].flatMap(
-				(unitId) => metersByUnit.get(unitId) ?? []
-			);
+			// Zählerstände ablesen at the end, when the unit has meters in place on that day and no
+			// final reading yet. A meter removed before the end or installed after it is not read.
+			const endDate = lease.endDate;
+			const meterIds = [lease.unitId, ...lease.extraUnits.map((unit) => unit.id)]
+				.flatMap((unitId) => metersByUnit.get(unitId) ?? [])
+				.filter(
+					(meter) =>
+						(meter.installedAt === null || meter.installedAt <= endDate) &&
+						(meter.removedAt === null || meter.removedAt >= endDate)
+				)
+				.map((meter) => meter.id);
 			if (meterIds.length > 0) {
-				const endDate = lease.endDate;
 				const read = meterIds.every((meterId) =>
 					readingRows.some(
 						(reading) =>

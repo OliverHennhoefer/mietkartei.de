@@ -5,7 +5,15 @@ import type { Database } from './db';
 import { auditLog, tasks } from './db/schema';
 import { createLease } from './leases';
 import { QUOTAS } from './quotas';
-import { createTask, deleteTask, getTask, listTasks, setDone, updateTask } from './tasks';
+import {
+	countOpenTasks,
+	createTask,
+	deleteTask,
+	getTask,
+	listTasks,
+	setDone,
+	updateTask
+} from './tasks';
 import { contextA, contextB, leaseInput, seedUnit, testDatabase } from './testing';
 
 let db: Database;
@@ -128,6 +136,21 @@ describe('listTasks', () => {
 		});
 		expect((await getTask(db, 'b', theirs.id))?.title).toBe('Fremde');
 		expect((await getTask(db, 'b', theirs.id))?.done).toBe(false);
+	});
+});
+
+describe('countOpenTasks', () => {
+	it("counts the open tasks of the account, not done ones or another account's", async () => {
+		expect(await countOpenTasks(db, 'a')).toBe(0);
+		await createTask(db, contextA, input({ title: 'Offen 1' }));
+		await createTask(db, contextA, input({ title: 'Offen 2', dueDate: '2026-11-30' }));
+		const done = await createTask(db, contextA, input({ title: 'Erledigt' }));
+		if (!done.ok) throw new Error('task');
+		await setDone(db, contextA, done.id, true);
+		await createTask(db, contextB, input({ title: 'Fremde' }));
+
+		expect(await countOpenTasks(db, 'a')).toBe(2);
+		expect(await countOpenTasks(db, 'b')).toBe(1);
 	});
 });
 

@@ -7,7 +7,7 @@ import { listLeases, listUnitsWithProperty } from '#lib/server/leases.ts';
 import { listBalances } from '#lib/server/ledger.ts';
 import { listProperties } from '#lib/server/properties.ts';
 import { requireAccount } from '#lib/server/session.ts';
-import { listTasks } from '#lib/server/tasks.ts';
+import { countOpenTasks } from '#lib/server/tasks.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import type { PageServerLoad } from './$types';
 
@@ -37,7 +37,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		balances,
 		unmatched,
 		deadlines,
-		tasks,
+		openTasks,
 		bankAccounts,
 		[categories]
 	] = await Promise.all([
@@ -48,7 +48,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		listBalances(locals.db, accountId),
 		countUnmatched(locals.db, accountId),
 		countDeadlines(locals.db, accountId),
-		listTasks(locals.db, accountId),
+		countOpenTasks(locals.db, accountId),
 		listBankAccounts(locals.db, accountId),
 		locals.db
 			.select({ value: count() })
@@ -84,7 +84,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			unmatched,
 			overdue: deadlines.overdue,
 			upcoming: deadlines.upcoming,
-			openTasks: tasks.open.length
+			openTasks
 		},
 		vacant: vacant.slice(0, 5).map((row) => ({
 			unitId: row.unit.id,
