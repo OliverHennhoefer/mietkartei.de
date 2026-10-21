@@ -60,7 +60,9 @@ test('no page violates the Content-Security-Policy', async ({ page }) => {
 		if (/Content Security Policy/i.test(message.text())) violations.push(message.text());
 	});
 	for (const path of [...pages, ...(await seededPages(page.request))]) {
-		await page.goto(path);
+		// An error page has a heading too, so a seeded page that 404s would pass unchecked.
+		const response = await page.goto(path);
+		expect(response?.status(), path).toBe(200);
 		await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 	}
 	expect(violations).toEqual([]);
