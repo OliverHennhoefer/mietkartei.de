@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { addMonths, firstOfMonth, monthOf, today } from '../src/lib/dates';
 import { parseCents } from '../src/lib/money';
+import { nthWorkingDay } from '../src/lib/working-days';
 import { seedLease, seedRows } from './seed';
 
 // The dashboard: the tiles link to their lists and count what the account holds. Other tests
@@ -13,6 +14,9 @@ const suffix = crypto.randomUUID().slice(0, 6);
 const currentMonth = firstOfMonth(monthOf(today()));
 const startDate = firstOfMonth(monthOf(addMonths(currentMonth, -2)));
 const nextMonth = firstOfMonth(monthOf(addMonths(currentMonth, 1)));
+// The seeded rent falls due on the third working day, so the current month's rent is overdue
+// only from then on.
+const dueRents = nthWorkingDay(monthOf(currentMonth), 3) <= today() ? 3 : 2;
 // Sorts before every other test's property, so its vacant unit is among the five listed.
 const propertyName = `AAA Übersicht ${suffix}`;
 
@@ -79,8 +83,8 @@ test('shows the tiles with arrears, vacancy, open transactions and deadlines', a
 			.getByRole('link', { name: 'Übersicht' })
 	).toHaveAttribute('aria-current', 'page');
 
-	// Two months back without a payment: three rents of 600 € + 150 € + 50 € are due (the month
-	// it started, the one after and the current one), 2.400 € in arrears. A statement's Nachzahlung
+	// Two months back without a payment: the rents of 600 € + 150 € + 50 € of the month it started
+	// and the one after are due, and the current one from its due date. A statement's Nachzahlung
 	// that has not reached the tenant yet has no due date and is no Rückstand. The property gets a
 	// second, empty unit, which is vacant. One open bank transaction and one open task.
 	const { propertyId, leaseId } = await seedLease(page.request, {
@@ -114,7 +118,7 @@ test('shows the tiles with arrears, vacancy, open transactions and deadlines', a
 
 	const after = await readTiles(page);
 	expect(after).toEqual({
-		arrears: before.arrears + 240000,
+		arrears: before.arrears + dueRents * 80000,
 		arrearsCount: before.arrearsCount + 1,
 		vacant: before.vacant + 1,
 		units: before.units + 2,
