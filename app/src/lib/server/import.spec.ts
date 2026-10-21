@@ -38,6 +38,8 @@ function plan(kind: ImportKind, csv: string, context: ImportContext = emptyImpor
 	return planImport(kind, rows, proposal.headerIndex, proposal.mapping, context);
 }
 
+const noAddress = { street: null, postalCode: null, city: null };
+
 function reasons(result: { rows: { row: number; reason?: string }[] }) {
 	return result.rows.filter((row) => row.reason !== undefined).map((row) => [row.row, row.reason]);
 }
@@ -114,14 +116,16 @@ describe('planImport: properties and units', () => {
 	it('creates one property per name and one unit per row, reusing existing properties', () => {
 		const context: ImportContext = {
 			...emptyImportContext,
-			properties: [{ id: 'p1', name: 'Haus', street: 'Lindenstraße 4' }],
+			properties: [
+				{ id: 'p1', name: 'Haus', street: 'Lindenstraße 4', postalCode: '10115', city: 'Berlin' }
+			],
 			units: [{ id: 'u1', propertyId: 'p1', name: 'EG links', kind: 'apartment' }]
 		};
 		const result = plan('properties', csv, context);
 		if (result.kind !== 'properties') throw new Error(result.kind);
 		expect(result.properties).toEqual([
 			{
-				key: 'rosenweg 7|rosenweg 7',
+				key: 'rosenweg 7|rosenweg7',
 				input: {
 					name: 'Rosenweg 7',
 					street: 'Rosenweg 7',
@@ -135,7 +139,7 @@ describe('planImport: properties and units', () => {
 		]);
 		expect(result.units).toEqual([
 			{
-				property: { key: 'rosenweg 7|rosenweg 7' },
+				property: { key: 'rosenweg 7|rosenweg7' },
 				input: {
 					name: 'EG links',
 					kind: 'apartment',
@@ -146,7 +150,7 @@ describe('planImport: properties and units', () => {
 				}
 			},
 			{
-				property: { key: 'rosenweg 7|rosenweg 7' },
+				property: { key: 'rosenweg 7|rosenweg7' },
 				input: {
 					name: 'OG rechts',
 					kind: 'apartment',
@@ -177,6 +181,60 @@ describe('planImport: properties and units', () => {
 			[9, 'Die Einheit „EG links“ gibt es in „Haus“ schon.']
 		]);
 	});
+
+	it('reuses an existing property only at its address and refuses to guess between namesakes', () => {
+		const at = (street: string, postalCode: string, city: string) => ({ street, postalCode, city });
+		const context: ImportContext = {
+			...emptyImportContext,
+			properties: [
+				{ id: 'p1', name: 'Haus', ...at('Lindenstraße 4', '10115', 'Berlin') },
+				{ id: 'p2', name: 'Haus', ...at('Parkweg 2', '10115', 'Berlin') },
+				{ id: 'p3', name: 'Villa', ...at('Seeweg 1', '14467', 'Potsdam') },
+				{ id: 'p4', name: 'Doppelhaus', ...at('Ring 1', '10115', 'Berlin') },
+				{ id: 'p5', name: 'Doppelhaus', ...at('Ring 1', '10115', 'Berlin') }
+			],
+			units: [{ id: 'u1', propertyId: 'p1', name: 'EG', kind: 'apartment' }]
+		};
+		const csv = [
+			'Objekt;Straße;PLZ;Ort;Einheit',
+			'Haus;Lindenstr. 4;10115;Berlin;OG',
+			'Haus;Parkweg 2;;;EG',
+			'Haus;Bergstraße 9;10117;Berlin;EG',
+			'Haus;;;;DG',
+			'Villa;;;;EG',
+			'Villa;Seeweg 1;14469;Potsdam;OG',
+			'Haus;Lindenstraße 4;10115;Berlin;EG',
+			'Doppelhaus;Ring 1;10115;Berlin;EG',
+			'Schloss;;;;EG'
+		].join('\n');
+		const result = plan('properties', csv, context);
+		if (result.kind !== 'properties') throw new Error(result.kind);
+		// A namesake at another address (or another postal code) is another building.
+		expect(result.properties.map((property) => [property.key, property.input.postalCode])).toEqual([
+			['haus|bergstraße9', '10117'],
+			['villa|seeweg1', '14469']
+		]);
+		expect(result.units.map((unit) => [unit.property, unit.input.name])).toEqual([
+			[{ id: 'p1' }, 'OG'],
+			[{ id: 'p2' }, 'EG'],
+			[{ key: 'haus|bergstraße9' }, 'EG'],
+			// Without an address the name picks the property only when it is unique.
+			[{ id: 'p3' }, 'EG'],
+			[{ key: 'villa|seeweg1' }, 'OG']
+		]);
+		expect(reasons(result)).toEqual([
+			[
+				5,
+				'Das Objekt „Haus“ gibt es mehrmals; gib Straße, PLZ und Ort an, damit klar ist, welches gemeint ist.'
+			],
+			[8, 'Die Einheit „EG“ gibt es in „Haus“ schon.'],
+			[
+				9,
+				'Das Objekt „Doppelhaus“ gibt es unter dieser Adresse mehrmals; benenne die Objekte eindeutig, damit klar ist, welches gemeint ist.'
+			],
+			[10, 'Straße: Bitte gib Straße und Hausnummer an.']
+		]);
+	});
 });
 
 describe('planImport: tenants', () => {
@@ -193,7 +251,7 @@ describe('planImport: tenants', () => {
 		].join('\n');
 		const context: ImportContext = {
 			...emptyImportContext,
-			tenants: [{ id: 't1', firstName: 'Erika', lastName: 'Mustermann', email: null }]
+			tenants: [{ id: 't1', ...noAddress, firstName: 'Erika', lastName: 'Mustermann', email: null }]
 		};
 		const result = plan('tenants', csv, context);
 		if (result.kind !== 'tenants') throw new Error(result.kind);
@@ -229,12 +287,67 @@ describe('planImport: tenants', () => {
 			[8, 'PLZ: Die Postleitzahl hat fünf Ziffern.']
 		]);
 	});
+
+	it('treats namesakes as one tenant only with the same e-mail address, else the same address', () => {
+		const context: ImportContext = {
+			...emptyImportContext,
+			tenants: [
+				{
+					id: 't1',
+					...noAddress,
+					firstName: 'Erika',
+					lastName: 'Mustermann',
+					email: 'erika@example.org'
+				},
+				{
+					id: 't2',
+					firstName: 'Max',
+					lastName: 'Mustermann',
+					email: null,
+					street: 'Lindenstraße 4',
+					postalCode: '10115',
+					city: 'Berlin'
+				}
+			]
+		};
+		const csv = [
+			'Vorname;Nachname;E-Mail;Straße;PLZ;Ort',
+			'Erika;Mustermann;ERIKA@example.org;;;',
+			'Erika;Mustermann;erika.zwei@example.org;;;',
+			'Max;Mustermann;;Lindenstr. 4;10115;Berlin',
+			'Max;Mustermann;;Parkweg 2;10115;Berlin',
+			'Max;Mustermann;max@example.org;Lindenstraße 4;10115;Berlin',
+			'Max;Mustermann;;Parkweg 2;10115;Berlin',
+			'Erika;Mustermann;erika.zwei@example.org;Seeweg 1;14467;Potsdam',
+			'Erika;Mustermann;erika.drei@example.org;;;'
+		].join('\n');
+		const result = plan('tenants', csv, context);
+		if (result.kind !== 'tenants') throw new Error(result.kind);
+		expect(result.tenants.map((tenant) => [tenant.firstName, tenant.email, tenant.street])).toEqual(
+			[
+				['Erika', 'erika.zwei@example.org', null],
+				['Max', null, 'Parkweg 2'],
+				['Erika', 'erika.drei@example.org', null]
+			]
+		);
+		expect(reasons(result)).toEqual([
+			[
+				2,
+				'Den Mieter „Erika Mustermann“ mit der E-Mail-Adresse „erika@example.org“ gibt es schon.'
+			],
+			[4, 'Den Mieter „Max Mustermann“ mit dieser Adresse gibt es schon.'],
+			// The existing Max has no e-mail address, so the postal address decides.
+			[6, 'Den Mieter „Max Mustermann“ mit dieser Adresse gibt es schon.'],
+			[7, 'Der Mieter „Max Mustermann“ steht doppelt in der Datei.'],
+			[8, 'Der Mieter „Erika Mustermann“ steht doppelt in der Datei.']
+		]);
+	});
 });
 
 const leaseContext: ImportContext = {
 	properties: [
-		{ id: 'p1', name: 'Haus', street: 'Lindenstraße 4' },
-		{ id: 'p2', name: 'Villa', street: 'Parkweg 2' }
+		{ id: 'p1', name: 'Haus', street: 'Lindenstraße 4', postalCode: '10115', city: 'Berlin' },
+		{ id: 'p2', name: 'Villa', street: 'Parkweg 2', postalCode: '14467', city: 'Potsdam' }
 	],
 	units: [
 		{ id: 'u1', propertyId: 'p1', name: 'EG links', kind: 'apartment' },
@@ -242,9 +355,15 @@ const leaseContext: ImportContext = {
 		{ id: 'u3', propertyId: 'p2', name: 'Haus', kind: 'apartment' }
 	],
 	tenants: [
-		{ id: 't1', firstName: 'Erika', lastName: 'Mustermann', email: 'erika@example.org' },
-		{ id: 't2', firstName: 'Max', lastName: 'Mustermann', email: null },
-		{ id: 't3', firstName: 'Jonas', lastName: 'Beispiel', email: null }
+		{
+			id: 't1',
+			...noAddress,
+			firstName: 'Erika',
+			lastName: 'Mustermann',
+			email: 'erika@example.org'
+		},
+		{ id: 't2', ...noAddress, firstName: 'Max', lastName: 'Mustermann', email: null },
+		{ id: 't3', ...noAddress, firstName: 'Jonas', lastName: 'Beispiel', email: null }
 	],
 	leases: [
 		{
@@ -345,6 +464,101 @@ describe('planImport: leases', () => {
 			[13, 'Anfangssaldo: Bitte gib einen Betrag an, z. B. 650,00.'],
 			[14, 'Mietkonto ab: Das Mietkonto kann nicht vor dem Vertragsbeginn beginnen.'],
 			[15, 'Anfangssaldo: Der Betrag ist zu hoch.']
+		]);
+	});
+
+	it('needs the e-mail address for namesakes and never takes the first match', () => {
+		const context: ImportContext = {
+			...leaseContext,
+			tenants: [
+				{
+					id: 't1',
+					...noAddress,
+					firstName: 'Max',
+					lastName: 'Mustermann',
+					email: 'max1@example.org'
+				},
+				{
+					id: 't2',
+					...noAddress,
+					firstName: 'Max',
+					lastName: 'Mustermann',
+					email: 'max2@example.org'
+				},
+				{ id: 't3', ...noAddress, firstName: 'Anna', lastName: 'Schmidt', email: null },
+				{ id: 't4', ...noAddress, firstName: 'Anna', lastName: 'Schmidt', email: null }
+			],
+			leases: []
+		};
+		const csv = [
+			'Objekt;Einheit;Mieter;Beginn;Kaltmiete',
+			'Haus;EG links;Mustermann, Max;01.01.2025;100',
+			'Haus;EG links;Max Mustermann;01.02.2025;100',
+			'Haus;EG links;MAX2@example.org;01.03.2025;100',
+			'Haus;EG links;Schmidt, Anna;01.04.2025;100',
+			'Haus;EG links;Schmidt;01.05.2025;100'
+		].join('\n');
+		const result = plan('leases', csv, context);
+		if (result.kind !== 'leases') throw new Error(result.kind);
+		expect(result.leases.map((lease) => [lease.row, lease.input.tenantIds])).toEqual([[4, ['t2']]]);
+		const askForEmail = 'gibt es mehrmals; gib statt des Namens die E-Mail-Adresse an.';
+		expect(reasons(result)).toEqual([
+			[2, `Den Mieter „Mustermann, Max“ ${askForEmail}`],
+			[3, `Den Mieter „Max Mustermann“ ${askForEmail}`],
+			[
+				5,
+				'Den Mieter „Schmidt, Anna“ gibt es mehrmals; hinterlege bei diesen Mietern verschiedene E-Mail-Adressen und gib statt des Namens die E-Mail-Adresse an.'
+			],
+			[
+				6,
+				'Der Mieter „Schmidt“ ist nicht eindeutig; gib „Nachname, Vorname“ oder die E-Mail-Adresse an.'
+			]
+		]);
+	});
+
+	it('finds the property of namesakes by the unit and refuses when the unit does not decide', () => {
+		const context: ImportContext = {
+			...leaseContext,
+			properties: [
+				{ id: 'p1', name: 'Haus', street: 'Lindenstraße 4', postalCode: '10115', city: 'Berlin' },
+				{ id: 'p2', name: 'Haus', street: 'Parkweg 2', postalCode: '10115', city: 'Berlin' }
+			],
+			units: [
+				{ id: 'u1', propertyId: 'p1', name: 'EG links', kind: 'apartment' },
+				{ id: 'u2', propertyId: 'p2', name: 'EG links', kind: 'apartment' },
+				{ id: 'u3', propertyId: 'p2', name: 'OG', kind: 'apartment' }
+			],
+			leases: [],
+			payments: []
+		};
+		const csv = [
+			'Objekt;Einheit;Mieter;Beginn;Kaltmiete',
+			'Haus;OG;Beispiel, Jonas;01.01.2025;100',
+			'Haus;EG links;Beispiel, Jonas;01.01.2025;100',
+			'Haus;Keller;Beispiel, Jonas;01.01.2025;100'
+		].join('\n');
+		const result = plan('leases', csv, context);
+		if (result.kind !== 'leases') throw new Error(result.kind);
+		expect(result.leases.map((lease) => [lease.row, lease.input.unitId])).toEqual([[2, 'u3']]);
+		expect(reasons(result)).toEqual([
+			[
+				3,
+				'Das Objekt „Haus“ mit der Einheit „EG links“ gibt es mehrmals; benenne die Objekte eindeutig, damit klar ist, welches gemeint ist.'
+			],
+			[4, 'Die Einheit „Keller“ gibt es in keinem der Objekte „Haus“.']
+		]);
+
+		// Payments locate the unit the same way.
+		const payments = plan(
+			'payments',
+			'Datum;Objekt;Einheit;Betrag\n03.01.2025;Haus;EG links;100\n',
+			context
+		);
+		expect(reasons(payments)).toEqual([
+			[
+				2,
+				'Das Objekt „Haus“ mit der Einheit „EG links“ gibt es mehrmals; benenne die Objekte eindeutig, damit klar ist, welches gemeint ist.'
+			]
 		]);
 	});
 });
@@ -499,6 +713,37 @@ describe('commitImport', () => {
 		);
 		expect(again).toMatchObject({ count: 0, skipped: [{ row: 2 }] });
 		expect(await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'))).toHaveLength(1);
+	});
+
+	it('creates a second property of the same name at another address', async () => {
+		const { propertyId } = await seedUnit(db, 'a', { name: 'EG links', propertyName: 'Haus' });
+		const summary = await run(
+			'properties',
+			'Objekt;Straße;PLZ;Ort;Einheit\nHaus;Parkweg 2;10115;Berlin;EG links\nHaus;Lindenstraße 4;10115;Berlin;OG\n'
+		);
+		expect(summary).toMatchObject({ count: 2, created: '1 Objekt und 2 Einheiten angelegt' });
+		const houses = await db.select().from(properties).where(eq(properties.accountId, 'a'));
+		expect(houses.map((house) => house.street).sort()).toEqual(['Lindenstraße 4', 'Parkweg 2']);
+		const other = houses.find((house) => house.id !== propertyId)!;
+		const unitRows = await db.select().from(units).where(eq(units.accountId, 'a'));
+		expect(unitRows.map((unit) => [unit.propertyId, unit.name]).sort()).toEqual(
+			[
+				[propertyId, 'EG links'],
+				[propertyId, 'OG'],
+				[other.id, 'EG links']
+			].sort()
+		);
+
+		// A lease of "Haus / EG links" could now be either building, so it is refused.
+		await seedTenant(db, 'a', { firstName: 'Lena', lastName: 'Importmann' });
+		const leasesOfA = await run(
+			'leases',
+			'Objekt;Einheit;Mieter;Beginn;Kaltmiete\nHaus;EG links;Importmann, Lena;01.01.2025;650,00\n'
+		);
+		expect(leasesOfA).toMatchObject({
+			count: 0,
+			skipped: [{ row: 2, reason: expect.stringContaining('gibt es mehrmals') }]
+		});
 	});
 
 	it('creates tenants', async () => {

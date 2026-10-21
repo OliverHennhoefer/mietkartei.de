@@ -460,11 +460,21 @@ export type ImportPlan =
 	| { kind: 'leases'; rows: RowResult[]; leases: NewLease[] }
 	| { kind: 'payments'; rows: RowResult[]; payments: PaymentInput[] };
 
+/** What tells two tenants of the same name apart: the e-mail address, else the postal address. */
+type TenantIdentity = {
+	firstName: string;
+	lastName: string;
+	email: string | null;
+	street: string | null;
+	postalCode: string | null;
+	city: string | null;
+};
+
 /** What the account already has, as far as the import needs it to resolve and deduplicate rows. */
 export type ImportContext = {
-	properties: { id: string; name: string; street: string }[];
+	properties: { id: string; name: string; street: string; postalCode: string; city: string }[];
 	units: { id: string; propertyId: string; name: string; kind: UnitKind }[];
-	tenants: { id: string; firstName: string; lastName: string; email: string | null }[];
+	tenants: ({ id: string } & TenantIdentity)[];
 	leases: {
 		id: string;
 		unitId: string;
@@ -506,7 +516,13 @@ export async function loadImportContext(
 	] = await Promise.all([
 		wantsProperties
 			? db
-					.select({ id: properties.id, name: properties.name, street: properties.street })
+					.select({
+						id: properties.id,
+						name: properties.name,
+						street: properties.street,
+						postalCode: properties.postalCode,
+						city: properties.city
+					})
 					.from(properties)
 					.where(eq(properties.accountId, accountId))
 			: [],
@@ -527,7 +543,10 @@ export async function loadImportContext(
 						id: tenants.id,
 						firstName: tenants.firstName,
 						lastName: tenants.lastName,
-						email: tenants.email
+						email: tenants.email,
+						street: tenants.street,
+						postalCode: tenants.postalCode,
+						city: tenants.city
 					})
 					.from(tenants)
 					.where(eq(tenants.accountId, accountId))
@@ -590,6 +609,17 @@ type DataRow = { row: number; values: Record<string, string> };
 /** Names compare trimmed, case-insensitively and with collapsed whitespace. */
 function norm(value: string): string {
 	return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/**
+ * Streets compare like names, without spaces and with „Str.“, „Str“ and „Strasse“ read as
+ * „Straße“, so „Lindenstr. 4“ is the same street as „Lindenstraße 4“.
+ */
+function normStreet(value: string): string {
+	return norm(value)
+		.replace(/strasse/g, 'straße')
+		.replace(/str\.?(?=\s|\d|$)/g, 'straße')
+		.replace(/\s/g, '');
 }
 
 function labelsOf(kind: ImportKind): Record<string, string> {
@@ -713,10 +743,41 @@ function dataRows(
 	});
 }
 
-function findProperty(context: ImportContext, name: string, street: string) {
-	const candidates = context.properties.filter((property) => norm(property.name) === norm(name));
-	if (candidates.length <= 1 || !street) return candidates[0];
-	return candidates.find((property) => norm(property.street) === norm(street)) ?? candidates[0];
+type ExistingProperty = ImportContext['properties'][number];
+
+/**
+ * The existing property a row of the properties import adds its unit to. The name alone picks
+ * a property only when no address is given and exactly one property has that name; with an
+ * address, only a property of that name at that address is reused, and none means a new
+ * property (a second "Haus" at another address is another building). Two candidates are a
+ * row error, never a guess.
+ */
+function matchProperty(
+	context: ImportContext,
+	values: Record<string, string>
+): ExistingProperty | { reason: string } | undefined {
+	const name = values.propertyName;
+	const named = context.properties.filter((property) => norm(property.name) === norm(name));
+	if (!values.street) {
+		if (named.length > 1) {
+			return {
+				reason: `Das Objekt „${name}“ gibt es mehrmals; gib Straße, PLZ und Ort an, damit klar ist, welches gemeint ist.`
+			};
+		}
+		return named[0];
+	}
+	const atAddress = named.filter(
+		(property) =>
+			normStreet(property.street) === normStreet(values.street) &&
+			(!values.postalCode || property.postalCode.trim() === values.postalCode.trim()) &&
+			(!values.city || norm(property.city) === norm(values.city))
+	);
+	if (atAddress.length > 1) {
+		return {
+			reason: `Das Objekt „${name}“ gibt es unter dieser Adresse mehrmals; benenne die Objekte eindeutig, damit klar ist, welches gemeint ist.`
+		};
+	}
+	return atAddress[0];
 }
 
 function findUnit(context: ImportContext, propertyId: string, name: string) {
@@ -726,11 +787,15 @@ function findUnit(context: ImportContext, propertyId: string, name: string) {
 }
 
 type Located = {
-	property: ImportContext['properties'][number];
+	property: ExistingProperty;
 	unit: ImportContext['units'][number];
 };
 
-/** The unit named by property and unit name, or the German reason why there is none. */
+/**
+ * The unit named by property and unit name, or the German reason why there is none. Lease and
+ * payment rows carry no address, so when several properties share the name, the unit name has
+ * to pick exactly one of them; otherwise the row is an error, never the first match.
+ */
 function locateUnit(
 	context: ImportContext,
 	propertyName: string,
@@ -738,22 +803,54 @@ function locateUnit(
 ): Located | string {
 	if (!propertyName) return 'Objekt: Bitte gib die Bezeichnung des Objekts an.';
 	if (!unitName) return 'Einheit: Bitte gib die Bezeichnung der Einheit an.';
-	const property = findProperty(context, propertyName, '');
-	if (!property) return `Das Objekt „${propertyName}“ gibt es nicht.`;
-	const unit = findUnit(context, property.id, unitName);
-	if (!unit) return `Die Einheit „${unitName}“ gibt es in „${property.name}“ nicht.`;
-	return { property, unit };
+	const named = context.properties.filter((property) => norm(property.name) === norm(propertyName));
+	if (named.length === 0) return `Das Objekt „${propertyName}“ gibt es nicht.`;
+	const located = named.flatMap((property) => {
+		const unit = findUnit(context, property.id, unitName);
+		return unit ? [{ property, unit }] : [];
+	});
+	if (located.length === 1) return located[0];
+	if (located.length === 0) {
+		return named.length === 1
+			? `Die Einheit „${unitName}“ gibt es in „${named[0].name}“ nicht.`
+			: `Die Einheit „${unitName}“ gibt es in keinem der Objekte „${propertyName}“.`;
+	}
+	return `Das Objekt „${propertyName}“ mit der Einheit „${unitName}“ gibt es mehrmals; benenne die Objekte eindeutig, damit klar ist, welches gemeint ist.`;
+}
+
+/** E-mail addresses compare trimmed and case-insensitively. */
+function normEmail(value: string | null): string {
+	return (value ?? '').trim().toLowerCase();
+}
+
+/**
+ * Two tenants are the same person when the names match and, if both have an e-mail address,
+ * the addresses match; without one on either side the postal address decides. So two tenants
+ * called "Max Mustermann" with different e-mail or postal addresses are two people.
+ */
+function sameTenant(a: TenantIdentity, b: TenantIdentity): boolean {
+	if (norm(a.firstName) !== norm(b.firstName) || norm(a.lastName) !== norm(b.lastName)) {
+		return false;
+	}
+	if (a.email && b.email) return normEmail(a.email) === normEmail(b.email);
+	return (
+		normStreet(a.street ?? '') === normStreet(b.street ?? '') &&
+		(a.postalCode ?? '').trim() === (b.postalCode ?? '').trim() &&
+		norm(a.city ?? '') === norm(b.city ?? '')
+	);
 }
 
 /**
  * A tenant named as "Nachname, Vorname", by e-mail address, by full name "Vorname Nachname" or
- * by last name alone, when that is unambiguous.
+ * by last name alone. A name that several tenants share is a row error that asks for the
+ * e-mail address, which tells them apart as it does in the tenant import; never the first match.
  */
 function findTenant(context: ImportContext, token: string): string | { reason: string } {
 	const wanted = norm(token);
 	let matches: ImportContext['tenants'];
+	let byLastName = false;
 	if (wanted.includes('@')) {
-		matches = context.tenants.filter((tenant) => tenant.email?.toLowerCase() === wanted);
+		matches = context.tenants.filter((tenant) => normEmail(tenant.email) === wanted);
 	} else if (wanted.includes(',')) {
 		const [lastName, firstName] = wanted.split(',').map((part) => part.trim());
 		matches = context.tenants.filter(
@@ -764,13 +861,28 @@ function findTenant(context: ImportContext, token: string): string | { reason: s
 			(tenant) => norm(`${tenant.firstName} ${tenant.lastName}`) === wanted
 		);
 		if (matches.length === 0) {
+			byLastName = true;
 			matches = context.tenants.filter((tenant) => norm(tenant.lastName) === wanted);
 		}
 	}
 	if (matches.length === 1) return matches[0].id;
 	if (matches.length === 0) return { reason: `Den Mieter „${token}“ gibt es nicht.` };
+	if (wanted.includes('@')) {
+		return {
+			reason: `Die E-Mail-Adresse „${token}“ haben mehrere Mieter; gib „Nachname, Vorname“ an.`
+		};
+	}
+	if (byLastName) {
+		return {
+			reason: `Der Mieter „${token}“ ist nicht eindeutig; gib „Nachname, Vorname“ oder die E-Mail-Adresse an.`
+		};
+	}
+	const emails = new Set(matches.map((tenant) => normEmail(tenant.email)));
+	const distinct = !emails.has('') && emails.size === matches.length;
 	return {
-		reason: `Der Mieter „${token}“ ist nicht eindeutig; gib „Nachname, Vorname“ oder die E-Mail-Adresse an.`
+		reason: distinct
+			? `Den Mieter „${token}“ gibt es mehrmals; gib statt des Namens die E-Mail-Adresse an.`
+			: `Den Mieter „${token}“ gibt es mehrmals; hinterlege bei diesen Mietern verschiedene E-Mail-Adressen und gib statt des Namens die E-Mail-Adresse an.`
 	};
 }
 
@@ -801,7 +913,11 @@ function planProperties(rows: DataRow[], context: ImportContext): ImportPlan {
 			result.reason = firstError(unit.errors, unitLabels);
 			continue;
 		}
-		const existing = findProperty(context, values.propertyName, values.street);
+		const existing = matchProperty(context, values);
+		if (existing && 'reason' in existing) {
+			result.reason = existing.reason;
+			continue;
+		}
 		let property: NewUnit['property'];
 		if (existing) {
 			if (findUnit(context, existing.id, unit.data.name)) {
@@ -810,7 +926,7 @@ function planProperties(rows: DataRow[], context: ImportContext): ImportPlan {
 			}
 			property = { id: existing.id };
 		} else {
-			const key = `${norm(values.propertyName)}|${norm(values.street)}`;
+			const key = `${norm(values.propertyName)}|${normStreet(values.street)}`;
 			if (!newProperties.has(key)) {
 				const parsed = parseProperty(
 					formDataOf({
@@ -847,7 +963,6 @@ function planProperties(rows: DataRow[], context: ImportContext): ImportPlan {
 function planTenants(rows: DataRow[], context: ImportContext): ImportPlan {
 	const results: RowResult[] = [];
 	const newTenants: TenantInput[] = [];
-	const seen = new Set<string>();
 	for (const { row, values } of rows) {
 		const result: RowResult = { row, values };
 		results.push(result);
@@ -860,20 +975,24 @@ function planTenants(rows: DataRow[], context: ImportContext): ImportPlan {
 			result.reason = firstError(parsed.errors, tenantLabels);
 			continue;
 		}
-		const { firstName, lastName } = parsed.data;
-		const key = `${norm(lastName)}|${norm(firstName)}`;
-		if (
-			context.tenants.some((tenant) => `${norm(tenant.lastName)}|${norm(tenant.firstName)}` === key)
-		) {
-			result.reason = `Den Mieter „${firstName} ${lastName}“ gibt es schon.`;
+		const tenant = parsed.data;
+		const name = `${tenant.firstName} ${tenant.lastName}`;
+		const existing = context.tenants.find((other) => sameTenant(other, tenant));
+		if (existing) {
+			const by =
+				existing.email && tenant.email
+					? ` mit der E-Mail-Adresse „${tenant.email}“`
+					: tenant.street || tenant.postalCode || tenant.city
+						? ' mit dieser Adresse'
+						: '';
+			result.reason = `Den Mieter „${name}“${by} gibt es schon.`;
 			continue;
 		}
-		if (seen.has(key)) {
-			result.reason = `Der Mieter „${firstName} ${lastName}“ steht doppelt in der Datei.`;
+		if (newTenants.some((other) => sameTenant(other, tenant))) {
+			result.reason = `Der Mieter „${name}“ steht doppelt in der Datei.`;
 			continue;
 		}
-		seen.add(key);
-		newTenants.push(parsed.data);
+		newTenants.push(tenant);
 	}
 	return { kind: 'tenants', rows: results, tenants: newTenants };
 }

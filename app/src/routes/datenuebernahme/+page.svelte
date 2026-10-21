@@ -32,8 +32,9 @@
 
 	const help: Record<string, string> = {
 		properties:
-			'Eine Zeile je Einheit mit Objekt, Straße, PLZ, Ort, Einheit, Art und Fläche. Zeilen mit demselben Objekt gehören zu einem Objekt; ein Objekt, das es schon gibt, wird wiederverwendet.',
-		tenants: 'Eine Zeile je Mieter mit Anrede, Vorname, Nachname, E-Mail, Telefon und Adresse.',
+			'Eine Zeile je Einheit mit Objekt, Straße, PLZ, Ort, Einheit, Art und Fläche. Zeilen mit demselben Objekt und derselben Straße gehören zu einem Objekt; ein Objekt wird nur wiederverwendet, wenn Name und Adresse übereinstimmen oder ohne Adresse genau ein Objekt so heißt.',
+		tenants:
+			'Eine Zeile je Mieter mit Anrede, Vorname, Nachname, E-Mail, Telefon und Adresse. Einen Mieter gibt es schon, wenn Name und E-Mail-Adresse übereinstimmen, ohne E-Mail-Adresse Name und Adresse.',
 		leases:
 			'Eine Zeile je Mietvertrag mit Objekt, Einheit, Mieter („Nachname, Vorname“ oder E-Mail-Adresse, mehrere mit „;“), Beginn, Ende, Kaltmiete, Betriebs- und Heizkostenvorauszahlung, Kaution, Personen, „Mietkonto ab“ und Anfangssaldo. Objekte, Einheiten und Mieter müssen schon angelegt sein.',
 		payments:
