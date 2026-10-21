@@ -1,14 +1,16 @@
 import { asc, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '../db';
-import { allocationKeys, auditLog, costCategories } from '../db/schema';
-import { testDatabase } from '../testing';
+import { accounts, allocationKeys, auditLog, costCategories } from '../db/schema';
+import { contextA, testDatabase } from '../testing';
+import { createCategory } from './categories';
 import {
 	defaultCategories,
 	defaultKeys,
 	defaultLandlordCategories,
 	ensureDefaults
 } from './defaults';
+import { createKey } from './keys';
 
 let db: Database;
 
@@ -76,7 +78,7 @@ describe('ensureDefaults', () => {
 		expect(defaultKeys).toHaveLength(6);
 	});
 
-	it('gives every allocable category its default key: heating, hot water, waste, area', async () => {
+	it('gives heating and hot water their HeizKV key, a combined system none, the rest area', async () => {
 		await ensureDefaults(db, 'a');
 		const keyName = new Map((await keysOf('a')).map((row) => [row.id, row.name]));
 		const defaults = (await categoriesOf('a')).map((row) => [
@@ -89,9 +91,9 @@ describe('ensureDefaults', () => {
 			['Entwässerung', 'Wohnfläche'],
 			['Heizung', 'Heizung 70/30'],
 			['Warmwasser', 'Warmwasser 70/30'],
-			['Verbundene Heizungs- und Warmwasserversorgung', 'Heizung 70/30'],
+			['Verbundene Heizungs- und Warmwasserversorgung', null],
 			['Aufzug', 'Wohnfläche'],
-			['Straßenreinigung und Müllbeseitigung', 'Personen'],
+			['Straßenreinigung und Müllbeseitigung', 'Wohnfläche'],
 			['Gebäudereinigung und Ungezieferbekämpfung', 'Wohnfläche'],
 			['Gartenpflege', 'Wohnfläche'],
 			['Beleuchtung', 'Wohnfläche'],
@@ -142,6 +144,53 @@ describe('ensureDefaults', () => {
 		expect(await ensureDefaults(db, 'a')).toBe(false);
 		expect(await categoriesOf('a')).toEqual([]);
 		expect(await keysOf('a')).toEqual([]);
+	});
+
+	it('seeds around a key and a category the landlord gave a default name before', async () => {
+		// The key and category pages create entries without seeding first.
+		const own = await createKey(db, contextA, {
+			name: 'Wohnfläche',
+			kind: 'units',
+			propertyId: null,
+			meterKind: null,
+			consumptionPercent: null
+		});
+		const grundsteuer = await createCategory(db, contextA, {
+			name: 'Grundsteuer',
+			betrkvItem: 1,
+			allocable: true,
+			consumptionBased: false,
+			allocationKeyId: null,
+			billingCircleId: null,
+			sortOrder: 1
+		});
+		if (!own.ok || !grundsteuer.ok) throw new Error('setup failed');
+
+		expect(await ensureDefaults(db, 'a')).toBe(true);
+		const [account] = await db
+			.select({ seeded: accounts.operatingCostDefaultsSeeded })
+			.from(accounts)
+			.where(eq(accounts.id, 'a'));
+		expect(account.seeded).toBe(true);
+		expect(await ensureDefaults(db, 'a')).toBe(false);
+
+		const keys = await keysOf('a');
+		expect(keys).toHaveLength(6);
+		expect(keys.find((row) => row.name === 'Wohnfläche')).toMatchObject({
+			id: own.id,
+			kind: 'units'
+		});
+		const keyIds = new Set(keys.map((row) => row.id));
+		const categories = await categoriesOf('a');
+		expect(categories).toHaveLength(19);
+		expect(
+			categories.every((row) => row.allocationKeyId === null || keyIds.has(row.allocationKeyId))
+		).toBe(true);
+		expect(categories.find((row) => row.name === 'Grundsteuer')).toMatchObject({
+			id: grundsteuer.id,
+			allocationKeyId: null
+		});
+		expect(categories.find((row) => row.name === 'Wasserversorgung')?.allocationKeyId).toBe(own.id);
 	});
 
 	it('writes no audit lines: the standard list is not a change the landlord made', async () => {

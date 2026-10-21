@@ -214,5 +214,12 @@ describe('keys', () => {
 		expect(await deleteKey(db, contextA, foreign)).toBe('missing');
 		expect(await getKey(db, 'b', foreign)).toBeDefined();
 		expect(await db.select().from(allocationKeyShares)).toHaveLength(1);
+		// A key of account a cannot be moved to a property of account b.
+		const own = await create(contextA);
+		expect(await updateKey(db, contextA, own, input({ propertyId }))).toEqual({
+			ok: false,
+			reason: 'unknown-property'
+		});
+		expect(await getKey(db, 'a', own)).toMatchObject({ propertyId: null });
 	});
 });

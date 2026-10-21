@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { Database } from '../db';
 import { chunk, rowsPerStatement, runBatch } from '../db/batch';
 import {
@@ -86,23 +86,28 @@ export const defaultKeys: readonly DefaultKey[] = [
 	{ name: 'Beträge je Einheit', kind: 'direct', meterKind: null, consumptionPercent: null }
 ];
 
-/** The key a seeded allocable category gets; everything not listed gets Wohnfläche. */
-const defaultKeyByCategory: Record<string, string> = {
+/**
+ * The key a seeded allocable category gets; everything not listed gets Wohnfläche, the fallback
+ * of § 556a (1) BGB. A combined heating and hot water system gets none: § 9 HeizKV splits its
+ * costs into heating and hot water first, and that split comes from the meter service.
+ */
+const defaultKeyByCategory: Record<string, string | null> = {
 	Heizung: 'Heizung 70/30',
-	'Verbundene Heizungs- und Warmwasserversorgung': 'Heizung 70/30',
 	Warmwasser: 'Warmwasser 70/30',
-	'Straßenreinigung und Müllbeseitigung': 'Personen'
+	'Verbundene Heizungs- und Warmwasserversorgung': null
 };
 
-function defaultKeyNameFor(categoryName: string): string {
-	return defaultKeyByCategory[categoryName] ?? 'Wohnfläche';
+function defaultKeyNameFor(categoryName: string): string | null {
+	const name = defaultKeyByCategory[categoryName];
+	return name === undefined ? 'Wohnfläche' : name;
 }
 
 /**
  * Seeds the standard categories and keys of the account, each allocable category with the key
  * the BetrKV suggests, unless that happened before. Once seeded, the landlord owns the list:
- * renamed, deleted or keyless entries stay as they are. One select when seeded; one batch
- * otherwise. Every page of the feature calls this first; returns whether this call seeded.
+ * renamed, deleted or keyless entries stay as they are. One select when seeded; otherwise one
+ * more select for keys the landlord already gave a default name, and one batch. Every page of the
+ * feature calls this first; returns whether this call seeded.
  */
 export async function ensureDefaults(db: Database, accountId: string): Promise<boolean> {
 	const [account] = await db
@@ -111,20 +116,34 @@ export async function ensureDefaults(db: Database, accountId: string): Promise<b
 		.where(eq(accounts.id, accountId));
 	if (!account || account.seeded) return false;
 
-	const keys = defaultKeys.map((key) => ({
-		id: crypto.randomUUID(),
-		accountId,
-		propertyId: null,
-		...key
-	}));
-	const keyIdByName = new Map(keys.map((key) => [key.name, key.id]));
+	// A key the landlord created before the first seeding keeps its name, so the insert below
+	// skips the default of that name; the categories must then point at the key that exists.
+	const existing = await db
+		.select({ id: allocationKeys.id, name: allocationKeys.name })
+		.from(allocationKeys)
+		.where(
+			and(
+				eq(allocationKeys.accountId, accountId),
+				inArray(
+					allocationKeys.name,
+					defaultKeys.map((key) => key.name)
+				)
+			)
+		);
+	const keyIdByName = new Map(existing.map((key) => [key.name, key.id]));
+	const keys = defaultKeys
+		.filter((key) => !keyIdByName.has(key.name))
+		.map((key) => ({ id: crypto.randomUUID(), accountId, propertyId: null, ...key }));
+	for (const key of keys) keyIdByName.set(key.name, key.id);
+	const keyIdFor = (category: DefaultCategory) => {
+		const keyName = category.allocable ? defaultKeyNameFor(category.name) : null;
+		return keyName === null ? null : (keyIdByName.get(keyName) ?? null);
+	};
 	const categories = [...defaultCategories, ...defaultLandlordCategories].map((category) => ({
 		id: crypto.randomUUID(),
 		accountId,
 		...category,
-		allocationKeyId: category.allocable
-			? (keyIdByName.get(defaultKeyNameFor(category.name)) ?? null)
-			: null
+		allocationKeyId: keyIdFor(category)
 	}));
 
 	await runBatch(db, [

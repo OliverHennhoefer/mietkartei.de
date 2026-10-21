@@ -11,7 +11,11 @@
 	let { data, children }: LayoutProps = $props();
 
 	const tabs = $derived([
-		{ href: `/objekte/${data.property.id}`, label: 'Einheiten' },
+		{
+			href: `/objekte/${data.property.id}`,
+			label: 'Einheiten',
+			also: [`/objekte/${data.property.id}/einheiten`]
+		},
 		{ href: `/objekte/${data.property.id}/abrechnungskreise`, label: 'Abrechnungskreise' }
 	]);
 </script>
