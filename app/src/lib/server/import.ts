@@ -23,7 +23,7 @@ import {
 	type LeaseKind,
 	type OperatingCostModel
 } from './db/schema';
-import { createLease, type LeaseInput } from './leases';
+import { newLeaseStatements, type LeaseInput } from './leases';
 import { ensureCharges, type PaymentInput } from './ledger';
 import type { TenantInput } from './tenants';
 
@@ -1127,17 +1127,11 @@ function auditSummary(created: string, skipped: number): string {
 	return `CSV-Import: ${created}${suffix}`;
 }
 
-const leaseErrorReasons = {
-	'unknown-unit': 'Die Einheit gibt es nicht mehr.',
-	'unknown-tenant': 'Den Mieter gibt es nicht mehr.',
-	missing: 'Den Mietvertrag gibt es nicht.'
-};
-
 /**
  * Creates everything the plan holds, inside the account of the context. Rows of one table go
- * into one batch in chunks; leases go through createLease (one batch each, as the lease form),
- * followed by one batch with the opening balances and the audit entry, then the rent charges are
- * generated. Writes nothing, not even an audit line, when the plan is empty.
+ * into one batch in chunks; leases go into one batch with their tenants, initial rent, persons,
+ * opening balances and the audit entry, then the rent charges are generated. Writes nothing, not
+ * even an audit line, when the plan is empty.
  */
 export async function commitImport(
 	db: Database,
@@ -1190,20 +1184,11 @@ export async function commitImport(
 			return { kind: plan.kind, count: rows.length, created, skipped };
 		}
 		case 'leases': {
-			const created: { id: string; lease: NewLease }[] = [];
-			for (const lease of plan.leases) {
-				const result = await createLease(db, context, lease.input);
-				if (result.ok) created.push({ id: result.id, lease });
-				else
-					skipped.push({
-						row: lease.row,
-						values: lease.values,
-						reason: leaseErrorReasons[result.reason]
-					});
-			}
-			skipped.sort((a, b) => a.row - b.row);
-			const text = `${countOf(created.length, 'Mietvertrag', 'Mietverträge')} angelegt`;
-			if (created.length === 0) return { kind: plan.kind, count: 0, created: text, skipped };
+			const text = `${countOf(plan.leases.length, 'Mietvertrag', 'Mietverträge')} angelegt`;
+			if (plan.leases.length === 0) return { kind: plan.kind, count: 0, created: text, skipped };
+			// The units and tenants of the plan come from the context loaded in this request, so
+			// they belong to the account; a row deleted since then fails the whole batch.
+			const created = plan.leases.map((lease) => ({ id: crypto.randomUUID(), lease }));
 			const openings = created
 				.filter(({ lease }) => lease.openingBalance !== 0)
 				.map(({ id, lease }) => {
@@ -1219,12 +1204,19 @@ export async function commitImport(
 						note: 'Anfangssaldo'
 					};
 				});
+			// One batch: every lease with its opening balance and the audit line, or nothing.
 			await runBatch(db, [
+				...newLeaseStatements(
+					db,
+					context,
+					created.map(({ id, lease }) => ({ id, input: lease.input }))
+				),
 				...chunk(openings, rowsPerStatement(rentCharges)).map((rows) =>
 					db.insert(rentCharges).values(rows)
 				),
 				auditEntry(db, context, 'import', importId, 'import', auditSummary(text, skipped.length))
 			]);
+			// Derived data: a page that shows balances recomputes them anyway.
 			await ensureCharges(
 				db,
 				accountId,

@@ -487,7 +487,7 @@ describe('commitImport', () => {
 		expect(rows.map((tenant) => tenant.lastName).sort()).toEqual(['Beispiel', 'Importmann']);
 	});
 
-	it('creates leases through createLease, posts the opening balance and generates the charges', async () => {
+	it('creates leases, posts the opening balance and generates the charges', async () => {
 		const { unitId } = await seedUnit(db, 'a', { name: 'EG links', propertyName: 'Haus' });
 		const tenantId = await seedTenant(db, 'a', { firstName: 'Lena', lastName: 'Importmann' });
 		const summary = await run(
@@ -534,6 +534,52 @@ describe('commitImport', () => {
 		expect(audit.map((entry) => entry.summary)).toEqual([
 			'Mietvertrag angelegt',
 			'CSV-Import: 1 Mietvertrag angelegt, 1 Zeile übersprungen'
+		]);
+	});
+
+	it('writes all leases with their opening balances in one batch, so a later failure loses none', async () => {
+		await seedUnit(db, 'a', { name: 'EG links', propertyName: 'Haus' });
+		await seedUnit(db, 'a', { name: 'OG', propertyName: 'Haus 2' });
+		await seedTenant(db, 'a', { firstName: 'Lena', lastName: 'Importmann' });
+		await seedTenant(db, 'a', { firstName: 'Jonas', lastName: 'Beispiel' });
+		const context = await loadImportContext(db, 'a', 'leases');
+		const leasePlan = plan(
+			'leases',
+			[
+				'Objekt;Einheit;Mieter;Beginn;Kaltmiete;Mietkonto ab;Anfangssaldo',
+				'Haus;EG links;Importmann, Lena;01.03.2024;650,00;01.01.2026;150,00',
+				'Haus 2;OG;Beispiel, Jonas;01.05.2024;500,00;01.01.2026;-75,50'
+			].join('\n'),
+			context
+		);
+		// The database accepts the first write and fails every later one, as D1 does once the
+		// invocation's query limit is reached.
+		const sqlite = db as unknown as { transaction(fn: () => void): void };
+		const transaction = sqlite.transaction.bind(db);
+		let writes = 0;
+		sqlite.transaction = (fn) => {
+			writes += 1;
+			if (writes > 1) throw new Error('D1_ERROR: too many queries');
+			transaction(fn);
+		};
+		await expect(commitImport(db, contextA, leasePlan)).rejects.toThrow('too many queries');
+
+		// Both leases exist and both carry their Anfangssaldo (150,00 € Rückstand, 75,50 €
+		// Guthaben) and the import line; only the derived rent charges are missing.
+		const created = await db.select().from(leases).where(eq(leases.accountId, 'a'));
+		expect(created).toHaveLength(2);
+		const charges = await db.select().from(rentCharges).where(eq(rentCharges.accountId, 'a'));
+		expect(charges.map((charge) => [charge.leaseId, charge.kind, charge.amount]).sort()).toEqual(
+			[
+				[created.find((lease) => lease.baseRent === 65000)!.id, 'adjustment', 15000],
+				[created.find((lease) => lease.baseRent === 50000)!.id, 'adjustment', -7550]
+			].sort()
+		);
+		const audit = await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'));
+		expect(audit.map((entry) => entry.summary)).toEqual([
+			'Mietvertrag angelegt',
+			'Mietvertrag angelegt',
+			'CSV-Import: 2 Mietverträge angelegt'
 		]);
 	});
 
