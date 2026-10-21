@@ -56,6 +56,16 @@ test('the owner invites a manager, who registers through the link', async ({
 		headers: { origin: baseURL! }
 	});
 	expect(invite.status()).toBe(403);
+	// The export and the account deletion are the owner's as well.
+	const download = await invitee.request.get('/einstellungen/export/herunterladen');
+	expect(download.status()).toBe(403);
+	await invitee.goto('/einstellungen/konto');
+	await expect(invitee.getByText('Nur der Vermieter kann das Konto löschen.')).toBeVisible();
+	const deleteAccount = await invitee.request.post('/einstellungen/konto?/delete', {
+		form: { password: manager.password },
+		headers: { origin: baseURL! }
+	});
+	expect(deleteAccount.status()).toBe(403);
 
 	// Bank accounts are the owner's too: the page says so, the actions answer 403.
 	await invitee.goto('/bank/konten');
@@ -72,7 +82,9 @@ test('the owner invites a manager, who registers through the link', async ({
 	const hub = invitee.getByRole('list', { name: 'Einstellungen' });
 	await expect(hub.getByRole('link', { name: 'Profil' })).toBeVisible();
 	await expect(hub.getByRole('link', { name: 'Protokoll' })).toBeVisible();
+	await expect(hub.getByRole('link', { name: 'Konto' })).toBeVisible();
 	await expect(hub.getByRole('link', { name: 'Mitverwalter' })).toHaveCount(0);
+	await expect(hub.getByRole('link', { name: 'Export' })).toHaveCount(0);
 
 	// The used link cannot be used again.
 	await invitee.goto(link);

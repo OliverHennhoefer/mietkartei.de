@@ -9,6 +9,11 @@ export interface Storage {
 	): Promise<{ body: ReadableStream; contentType: string; size: number } | undefined>;
 	/** Missing keys are fine. */
 	delete(key: string): Promise<void>;
+	/**
+	 * Deletes every object whose key starts with `prefix`, which ends in `/` (see accountPrefix).
+	 * Account deletion uses it: it finds what was stored, not only what the rows knew of.
+	 */
+	deletePrefix(prefix: string): Promise<void>;
 }
 
 let storage: Promise<Storage> | undefined;
@@ -27,4 +32,9 @@ export function getStorage(): Promise<Storage> {
 
 export function storageKey(accountId: string, documentId: string): string {
 	return `${accountId}/${documentId}`;
+}
+
+/** The start of every key of the account. */
+export function accountPrefix(accountId: string): string {
+	return `${accountId}/`;
 }

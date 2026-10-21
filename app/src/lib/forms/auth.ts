@@ -115,3 +115,15 @@ export function parseLandlord(form: FormData): ParseResult<LandlordInput> {
 	const bankName = parser.optionalText('bankName', 200);
 	return parser.result(() => ({ landlordName, street, postalCode, city, iban, bankName }));
 }
+
+export type DeleteAccountInput = { password: string };
+
+/** The "Konto löschen" form: the password again. */
+export function parseDeleteAccount(form: FormData): ParseResult<DeleteAccountInput> {
+	const parser = new FormParser<DeleteAccountInput>(form);
+	const value = password(form, 'password');
+	if (!value) parser.fail('password', 'Bitte gib dein Passwort an.');
+	// No account has a longer password; refused before it is hashed.
+	else if (value.length > 200) parser.fail('password', 'Das Passwort stimmt nicht.');
+	return parser.result(() => ({ password: value }));
+}

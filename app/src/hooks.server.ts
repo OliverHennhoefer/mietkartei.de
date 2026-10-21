@@ -18,10 +18,15 @@ const publicPrefixes = [
 
 /**
  * Paths whose posts check a password, hash a new one, create an account or send a reset mail,
- * counted per client address: the forms above and the pages of registration, reset and
- * invitation links.
+ * counted per client address: the forms above, the pages of registration, reset and invitation
+ * links, and the account deletion, which asks for the password again.
  */
-const authPaths = new Set(['/anmelden', '/registrieren', '/passwort-vergessen']);
+const authPaths = new Set([
+	'/anmelden',
+	'/registrieren',
+	'/passwort-vergessen',
+	'/einstellungen/konto'
+]);
 const authPrefixes = ['/registrieren/', '/passwort-zuruecksetzen/', '/einladung/'];
 
 function isAuthPath(pathname: string): boolean {
