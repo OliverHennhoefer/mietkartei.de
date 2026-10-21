@@ -175,7 +175,8 @@ feature. When a feature is ported to main, its section is the checklist of what 
 - Payments: candidate leases are those of the unit (main or extra unit) running on the date, else all leases of the unit; a last name narrows them; two candidates left refuse the row asking for the last name; a payment with the same lease, date, amount and note is a duplicate; source is `manual`.
 - Commit refusal: while a required field has no column (e.g. a file whose headers match nothing) or no row is valid, the commit returns a German sentence and the mapping stays on screen.
 - The file is limited to 2 MB and travels as a hidden base64 field; the preview shows the first 20 rows and only the mapped columns.
-- Per-row audit lines are not written; each import writes one `import` audit entry ("CSV-Import: 1 Objekt und 2 Einheiten angelegt, 1 Zeile übersprungen"); leases additionally carry createLease's own "Mietvertrag angelegt" line.
+- Per-row audit lines are not written; each import writes one `import` audit entry ("CSV-Import: 1 Objekt und 2 Einheiten angelegt, 1 Zeile übersprungen"); leases additionally carry the "Mietvertrag angelegt" line createLease writes.
+- A lease import is one batch: every lease with its tenants, initial rent, persons row, opening balance and the audit lines (`newLeaseStatements` in leases.ts, bulk inserts), so a failure leaves no lease without its Anfangssaldo. The units and tenants are not checked again: they come from the import context loaded in the same request. The rent charges are generated afterwards (derived data).
 
 ### Accounts, managers, export, password reset
 
@@ -185,7 +186,7 @@ feature. When a feature is ported to main, its section is the checklist of what 
 - An address with a user anywhere or an open invitation in the account cannot be invited again; revoking first allows re-inviting; expired invitations do not block.
 - Only other users can be removed ("Entfernen"), never oneself; removal deletes the user's sessions and resets; the accepted invitation row stays (invitedBy/acceptedAt keep the history).
 - Invitations may carry role owner or manager (select, default manager).
-- The export ZIP always contains an empty `documents/` directory entry; documents whose object is missing stay in export.json only; file names are `documents/<id>-<name>` with path/reserved characters replaced by `_`; timestamps serialize as ISO strings; accounts row included under key `accounts`.
+- The export ZIP is streamed (fflate `Zip`): export.json deflated, documents stored as they are, read chunk by chunk from the `listDocuments` rows while the browser downloads, so there is no Content-Length; the `export` audit entry is written when the last file is in, so it is not part of the exported log and an export that fails part-way is not logged. It always contains an empty `documents/` directory entry; documents whose object is missing stay in export.json only; file names are `documents/<id>-<name>` with path/reserved characters replaced by `_`; timestamps serialize as ISO strings; accounts row included under key `accounts`.
 - The export download is a GET at /einstellungen/export/download (a form action cannot stream); the page's button is a GET form.
 - After the last account is deleted the instance is empty, so /anmelden redirects to /registrieren; konto.e2e.ts proves the old credentials fail by posting the sign-in action with the use:enhance header and expecting a 400 failure.
 - Protokoll filter options are the distinct entities present in the account's log, labelled by auditEntityLabels (unknown entities shown raw).
@@ -207,7 +208,7 @@ feature. When a feature is ported to main, its section is the checklist of what 
 
 - The dashboard has four tiles: Rückstände (sum and count, links to `/mietkonto?filter=rueckstaende`), Leerstand (units without an active lease, links to `/objekte`), offene Bankumsätze (links to `/bank`) and Fristen/Aufgaben (overdue deadlines plus open tasks, with the count of the next 12 months, links to `/aufgaben`). Up to five vacant units are listed below with a link into the lease form.
 - The first-run checklist shows while the account has no property: property, tenants, leases, bank account, each ticked when something exists, with links to the demo data and the CSV import.
-- Demo data: two properties in Berlin and Potsdam, six units (one parking space), five tenants, four running leases (one indexed, one with the parking space as an extra unit) and one ended lease with its deposit returned, rent payments for the last 24 months (older leases get a ledger start there), one lease two months in arrears, a bank account with three open transactions this month, five cost items of last year and two tasks. Only offered to the owner of an account without any property; the account deletion is the way back.
+- Demo data: two properties in Berlin and Potsdam, six units (one parking space), five tenants, four running leases (one indexed, one with the parking space as an extra unit) and one ended lease with its deposit returned, rent payments for the last 24 months (older leases get a ledger start there), one lease two months in arrears, a bank account with three open transactions this month, five cost items of last year and two tasks. Only offered to the owner of an account without any property; the account deletion is the way back. Written in one batch after the default categories and keys are seeded (idempotent), so a failure leaves the account empty; the last audit line ("Demodaten angelegt") is the guard against a double click: its summary is NULL unless the account then holds exactly the two demo properties, so a second concurrent run is rolled back and answered as "nur für ein leeres Konto".
 - The billing banner above every page is `role="note"`, not a live status, so a page's own status messages stay the only `status` region.
 
 ## Known gaps per feature
@@ -278,7 +279,6 @@ feature. When a feature is ported to main, its section is the checklist of what 
 ### Accounts, managers, export, password reset
 
 - No e2e for revoking an invitation or removing a user (unit-tested in invitations.spec).
-- Export on Workers reads every document into memory (fine for ≤10 MB files, not for very large accounts); no streaming.
 - Lockout rows in login_attempts are never pruned.
 - The password reset mail and invitation mail are plain text only.
 
