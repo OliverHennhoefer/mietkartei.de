@@ -236,6 +236,68 @@ describe('keys', () => {
 		expect(await getKey(db, 'a', unused)).toBeUndefined();
 	});
 
+	it('keeps the property and the direct kind of a key that cost items use', async () => {
+		const { propertyId } = await seedUnit(db, 'a');
+		const other = await seedUnit(db, 'a', { propertyName: 'Anderes Haus' });
+		const global = await create(contextA, { name: 'Fläche', kind: 'area' });
+		const direct = await create(contextA, { name: 'Messdienst', kind: 'direct', propertyId });
+		const [category] = await db
+			.insert(costCategories)
+			.values({ accountId: 'a', name: 'Grundsteuer' })
+			.returning({ id: costCategories.id });
+		for (const allocationKeyId of [global, direct]) {
+			await db.insert(costItems).values({
+				accountId: 'a',
+				propertyId,
+				categoryId: category.id,
+				allocationKeyId,
+				description: 'Beleg 2025',
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				amount: 120000
+			});
+		}
+
+		// A global key used for one property cannot become a key of another one, and back.
+		expect(
+			await updateKey(
+				db,
+				contextA,
+				global,
+				input({ name: 'Fläche', kind: 'custom', propertyId: other.propertyId })
+			)
+		).toEqual({ ok: false, reason: 'property-in-use' });
+		expect(
+			await updateKey(db, contextA, direct, input({ name: 'Messdienst', kind: 'direct' }))
+		).toEqual({ ok: false, reason: 'property-in-use' });
+		// Becoming or stopping being a direct key would hide or miss the per-unit amounts.
+		expect(
+			await updateKey(db, contextA, global, input({ name: 'Fläche', kind: 'direct' }))
+		).toEqual({ ok: false, reason: 'kind-in-use' });
+		expect(
+			await updateKey(db, contextA, direct, input({ name: 'Messdienst', kind: 'area', propertyId }))
+		).toEqual({ ok: false, reason: 'kind-in-use' });
+		expect(await getKey(db, 'a', global)).toMatchObject({ kind: 'area', propertyId: null });
+		expect(await getKey(db, 'a', direct)).toMatchObject({ kind: 'direct', propertyId });
+
+		// The name and a change between the computed kinds stay open.
+		expect(
+			await updateKey(db, contextA, global, input({ name: 'Personen', kind: 'persons' }))
+		).toEqual({ ok: true });
+		expect(await getKey(db, 'a', global)).toMatchObject({ name: 'Personen', kind: 'persons' });
+
+		// An unused key may still move.
+		const unused = await create(contextA, { name: 'Frei', kind: 'area' });
+		expect(
+			await updateKey(
+				db,
+				contextA,
+				unused,
+				input({ name: 'Frei', kind: 'direct', propertyId: other.propertyId })
+			)
+		).toEqual({ ok: true });
+	});
+
 	it('does not leak into another account', async () => {
 		const { propertyId, unitId } = await seedUnit(db, 'b');
 		const foreign = await create(contextB, { propertyId });

@@ -203,6 +203,16 @@ describe('cost items', () => {
 		expect(await listCostItemYears(db, 'a')).toEqual([2026, 2025, 2024]);
 	});
 
+	it('offers every year a period overlaps, also the years in between', async () => {
+		const long = await create(contextA, {
+			description: 'Wartungsvertrag',
+			periodStart: '2020-07-01',
+			periodEnd: '2023-06-30'
+		});
+		expect(await listCostItemYears(db, 'a')).toEqual([2023, 2022, 2021, 2020]);
+		expect((await listCostItems(db, 'a', { year: 2022 })).map((row) => row.id)).toEqual([long]);
+	});
+
 	it('updates every field and drops per-unit amounts when the key is no longer direct', async () => {
 		const id = await create(contextA, { allocationKeyId: keyId['Beträge je Einheit'] });
 		expect(await replaceUnitAmounts(db, contextA, id, [{ unitId, amount: 50000 }])).toBe('updated');
@@ -291,6 +301,41 @@ describe('cost items', () => {
 			['document', 'Dokument Bescheid.pdf gelöscht'],
 			['cost_item', 'Beleg Grundsteuer 2025 (1.200,00\u00a0€) gelöscht']
 		]);
+	});
+
+	it('moves its receipts along when it moves to another property', async () => {
+		const other = await seedUnit(db, 'a', { propertyName: 'Anderes Haus' });
+		const id = await create(contextA);
+		const untouched = await create(contextA, { description: 'Bleibt' });
+		const receipt = async (costItemId: string) => {
+			const stored = await storeDocument(
+				db,
+				contextA,
+				{
+					name: 'Bescheid.pdf',
+					mimeType: 'application/pdf',
+					bytes: new TextEncoder().encode('%PDF-1.4'),
+					links: { costItemId, propertyId }
+				},
+				{ storage }
+			);
+			if (!stored.ok) throw new Error('setup failed');
+			return stored.id;
+		};
+		const moving = await receipt(id);
+		const staying = await receipt(untouched);
+
+		expect(await updateCostItem(db, contextA, id, input({ propertyId: other.propertyId }))).toEqual(
+			{ ok: true }
+		);
+		expect(await getDocument(db, 'a', moving)).toMatchObject({
+			propertyId: other.propertyId,
+			costItemId: id
+		});
+		expect(await getDocument(db, 'a', staying)).toMatchObject({
+			propertyId,
+			costItemId: untouched
+		});
 	});
 
 	it('goes with its property; the receipt stays as a document without the links', async () => {

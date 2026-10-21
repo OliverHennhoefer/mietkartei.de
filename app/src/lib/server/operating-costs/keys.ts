@@ -36,7 +36,8 @@ export type AllocationKeyWithUsage = AllocationKey & {
 
 export type KeyShare = { unitId: string; share: number };
 
-export type KeyError = 'missing' | 'duplicate-name' | 'unknown-property';
+export type KeyError =
+	'missing' | 'duplicate-name' | 'unknown-property' | 'property-in-use' | 'kind-in-use';
 
 function withUsage(db: Database, accountId: string, keyId?: string) {
 	const conditions = [eq(allocationKeys.accountId, accountId)];
@@ -131,7 +132,9 @@ export async function createKey(
 
 /**
  * Updates the key. Shares only make sense for a custom key of one property, so they go when the
- * kind or the property changes.
+ * kind or the property changes. While cost items use the key, its property stays (an item of
+ * another property would split by units it does not concern) and it neither becomes nor stops
+ * being a direct key (the items' per-unit amounts would be hidden or missing).
  */
 export async function updateKey(
 	db: Database,
@@ -142,6 +145,12 @@ export async function updateKey(
 	const { accountId } = context;
 	const existing = await getKey(db, accountId, keyId);
 	if (!existing) return { ok: false, reason: 'missing' };
+	if (existing.costItemCount > 0) {
+		if (input.propertyId !== existing.propertyId) return { ok: false, reason: 'property-in-use' };
+		if ((input.kind === 'direct') !== (existing.kind === 'direct')) {
+			return { ok: false, reason: 'kind-in-use' };
+		}
+	}
 	const reason = await checkInput(db, accountId, input, keyId);
 	if (reason) return { ok: false, reason };
 	const sharesStay = input.kind === 'custom' && input.propertyId === existing.propertyId;

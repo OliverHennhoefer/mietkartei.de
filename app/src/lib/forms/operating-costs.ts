@@ -242,11 +242,23 @@ export function categoryErrorField(reason: keyof typeof categoryMessages): keyof
 export const keyMessages = {
 	missing: 'Diesen Umlageschlüssel gibt es nicht.',
 	'duplicate-name': 'Einen Umlageschlüssel mit diesem Namen gibt es schon.',
-	'unknown-property': 'Dieses Objekt gibt es nicht.'
+	'unknown-property': 'Dieses Objekt gibt es nicht.',
+	'property-in-use':
+		'Der Umlageschlüssel wird von Belegen verwendet; sein Objekt kann nicht geändert werden. Ordne den Belegen zuerst einen anderen Schlüssel zu.',
+	'kind-in-use':
+		'Der Umlageschlüssel wird von Belegen verwendet; er kann nicht zu Beträgen je Einheit oder davon weg wechseln. Ordne den Belegen zuerst einen anderen Schlüssel zu.'
 } as const;
 
 export function keyErrorField(reason: keyof typeof keyMessages): keyof AllocationKeyInput {
-	return reason === 'unknown-property' ? 'propertyId' : 'name';
+	switch (reason) {
+		case 'unknown-property':
+		case 'property-in-use':
+			return 'propertyId';
+		case 'kind-in-use':
+			return 'kind';
+		default:
+			return 'name';
+	}
 }
 
 export const costItemMessages = {

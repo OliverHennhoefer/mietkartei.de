@@ -36,7 +36,10 @@
 	} = $props();
 
 	const value = (name: string, fallback: string) => values?.[name] ?? fallback;
+	// Without a year from the list, the period is last year's: most receipts entered now, such as
+	// an annual bill, belong to the statement of the year before. The hint says so.
 	const period = defaultCostPeriod(null, today());
+	const periodDefaulted = $derived(!values && !item && !prefill?.periodStart);
 
 	// The selects start from the typed values, the item or the prefill, then follow the user.
 	// svelte-ignore state_referenced_locally
@@ -166,7 +169,12 @@
 			aria-invalid={errors?.periodStart ? 'true' : undefined}
 			required
 		/>
-		{#if errors?.periodStart}<span class="error">{errors.periodStart}</span>{/if}
+		{#if errors?.periodStart}<span class="error">{errors.periodStart}</span
+			>{:else if periodDefaulted}
+			<span class="hint muted"
+				>Vorbelegt mit dem Vorjahr, für die Abrechnung des letzten Jahres.</span
+			>
+		{/if}
 	</label>
 	<label>
 		Zeitraum bis

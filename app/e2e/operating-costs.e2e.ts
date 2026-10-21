@@ -322,8 +322,16 @@ test('edits and deletes categories, keys, circles, cost items, meters and readin
 	await expect(page).toHaveURL(keyUrl);
 	await expect(page.getByRole('heading', { level: 2, name: keyName, exact: true })).toBeVisible();
 
+	// Without a year from the list, the period is last year's and the form says so.
+	await page.goto('/betriebskosten/belege/neu');
+	const lastYear = new Date().getUTCFullYear() - 1;
+	await expect(page.getByLabel('Zeitraum von')).toHaveValue(`${lastYear}-01-01`);
+	await expect(page.getByLabel('Zeitraum bis')).toHaveValue(`${lastYear}-12-31`);
+	await expect(page.getByText('Vorbelegt mit dem Vorjahr')).toBeVisible();
+
 	// A cost item with both.
 	await page.goto(`/betriebskosten/belege/neu?property=${propertyId}&year=2025`);
+	await expect(page.getByText('Vorbelegt mit dem Vorjahr')).toHaveCount(0);
 	await page.getByRole('combobox', { name: 'Kostenart' }).selectOption({ label: categoryName });
 	await page.getByRole('combobox', { name: 'Umlageschlüssel' }).selectOption({ label: keyName });
 	await page
@@ -348,6 +356,15 @@ test('edits and deletes categories, keys, circles, cost items, meters and readin
 	await expect(page.getByRole('alert')).toContainText(
 		/Der Umlageschlüssel wird von 1\sBeleg verwendet und kann nicht gelöscht werden\./
 	);
+	// Nor does the key turn into amounts per unit, which the item does not have.
+	await page.getByRole('combobox', { name: 'Art', exact: true }).selectOption('direct');
+	await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+	await expect(
+		page.getByText(
+			'Der Umlageschlüssel wird von Belegen verwendet; er kann nicht zu Beträgen je Einheit oder davon weg wechseln.',
+			{ exact: false }
+		)
+	).toBeVisible();
 
 	// The item is edited to amounts per unit, which are entered on its page.
 	await page.goto(itemUrl);

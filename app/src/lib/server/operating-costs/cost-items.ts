@@ -25,6 +25,7 @@ import {
 	units,
 	type AllocationKeyKind
 } from '../db/schema';
+import { MAX_YEAR, MIN_YEAR } from '../../dates';
 import { deleteDocument } from '../documents';
 import { assertQuota } from '../quotas';
 import type { Storage } from '../storage';
@@ -156,19 +157,25 @@ export async function getCostItem(
 	return item;
 }
 
-/** Every calendar year a period of the account starts or ends in, newest first. */
+/**
+ * Every calendar year a period of the account overlaps, newest first: the years the list filter
+ * finds items for. Periods are validated dates, so a range spans at most MIN_YEAR to MAX_YEAR.
+ */
 export async function listCostItemYears(db: Database, accountId: string): Promise<number[]> {
+	const start = sql<string>`substr(${costItems.periodStart}, 1, 4)`;
+	const end = sql<string>`substr(${costItems.periodEnd}, 1, 4)`;
+	const rows = await db
+		.select({ start, end })
+		.from(costItems)
+		.where(eq(costItems.accountId, accountId))
+		.groupBy(start, end);
 	const years = new Set<number>();
-	for (const column of [costItems.periodStart, costItems.periodEnd]) {
-		const year = sql<string>`substr(${column}, 1, 4)`;
-		const rows = await db
-			.select({ year })
-			.from(costItems)
-			.where(eq(costItems.accountId, accountId))
-			.groupBy(year);
-		for (const row of rows) years.add(Number(row.year));
+	for (const row of rows) {
+		const from = Math.max(Number(row.start), MIN_YEAR);
+		const to = Math.min(Number(row.end), MAX_YEAR);
+		for (let year = from; year <= to; year += 1) years.add(year);
 	}
-	return [...years].filter((year) => Number.isInteger(year)).sort((a, b) => b - a);
+	return [...years].sort((a, b) => b - a);
 }
 
 /**
@@ -242,7 +249,8 @@ export async function createCostItem(
 
 /**
  * Updates the item. Per-unit amounts belong to a direct key on one property, so they go when
- * the key is no longer direct or the property changes.
+ * the key is no longer direct or the property changes. Receipts move with the item to its new
+ * property, so /dokumente files them where the item now is.
  */
 export async function updateCostItem(
 	db: Database,
@@ -255,7 +263,8 @@ export async function updateCostItem(
 	if (!existing) return { ok: false, reason: 'missing' };
 	const checked = await checkReferences(db, accountId, input);
 	if ('reason' in checked) return { ok: false, reason: checked.reason };
-	const amountsStay = checked.keyKind === 'direct' && input.propertyId === existing.propertyId;
+	const moved = input.propertyId !== existing.propertyId;
+	const amountsStay = checked.keyKind === 'direct' && !moved;
 	await runBatch(db, [
 		db
 			.update(costItems)
@@ -264,6 +273,14 @@ export async function updateCostItem(
 		...(amountsStay
 			? []
 			: [db.delete(costItemUnitAmounts).where(eq(costItemUnitAmounts.costItemId, costItemId))]),
+		...(moved
+			? [
+					db
+						.update(documents)
+						.set({ propertyId: input.propertyId })
+						.where(and(eq(documents.accountId, accountId), eq(documents.costItemId, costItemId)))
+				]
+			: []),
 		auditEntry(db, context, 'cost_item', costItemId, 'update', `Beleg ${itemLabel(input)} geändert`)
 	]);
 	return { ok: true };
