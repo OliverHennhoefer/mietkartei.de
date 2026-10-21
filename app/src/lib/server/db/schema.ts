@@ -506,6 +506,124 @@ export const matchingRules = sqliteTable(
 	(table) => [index('matching_rules_account_id_idx').on(table.accountId)]
 );
 
+// Operating costs (Betriebskosten)
+
+/** Kostenart, usually one of the 17 items of § 2 BetrKV. */
+export const costCategories = sqliteTable(
+	'cost_categories',
+	{
+		id: id(),
+		accountId: accountId(),
+		name: text('name').notNull(),
+		/** Number in § 2 BetrKV, null for costs outside the list. */
+		betrkvItem: integer('betrkv_item'),
+		/** Whether the cost may be passed on to tenants at all. */
+		allocable: bool('allocable', true),
+		/** Heating, hot water and water are split by consumption. */
+		consumptionBased: bool('consumption_based', false),
+		/** Defaults copied into a new cost item of this category (the agreed key). */
+		allocationKeyId: text('allocation_key_id').references(() => allocationKeys.id, {
+			onDelete: 'set null'
+		}),
+		billingCircleId: text('billing_circle_id').references(() => billingCircles.id, {
+			onDelete: 'set null'
+		}),
+		sortOrder: integer('sort_order').notNull().default(0),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('cost_categories_account_id_idx').on(table.accountId),
+		// Seeding the standard categories is idempotent.
+		uniqueIndex('cost_categories_name_unique').on(table.accountId, table.name)
+	]
+);
+
+/**
+ * area = by floor area, persons = by person-days, units = equal per unit, consumption = by meter,
+ * mixed = consumption percent by meter and the rest by area (HeizKV), custom = fixed shares,
+ * direct = amounts per unit entered on the cost item (e.g. the result of a Messdienstleister).
+ */
+export const allocationKeyKinds = [
+	'area',
+	'persons',
+	'units',
+	'consumption',
+	'mixed',
+	'custom',
+	'direct'
+] as const;
+export type AllocationKeyKind = (typeof allocationKeyKinds)[number];
+
+export const meterKinds = ['cold_water', 'hot_water', 'heat', 'gas', 'electricity'] as const;
+export type MeterKind = (typeof meterKinds)[number];
+
+/** Umlageschlüssel: how a cost is split over the units. */
+export const allocationKeys = sqliteTable(
+	'allocation_keys',
+	{
+		id: id(),
+		accountId: accountId(),
+		/** Null: usable for every property of the account. */
+		propertyId: text('property_id').references(() => properties.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		kind: text('kind', { enum: allocationKeyKinds }).notNull(),
+		/** For consumption and mixed keys: which meters count. */
+		meterKind: text('meter_kind', { enum: meterKinds }),
+		/** For mixed keys: percent by consumption, the rest by area (§§ 7, 8 HeizKV: 50–70). */
+		consumptionPercent: integer('consumption_percent'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('allocation_keys_account_id_idx').on(table.accountId),
+		uniqueIndex('allocation_keys_name_unique').on(table.accountId, table.name)
+	]
+);
+
+/** Shares of a custom key, e.g. Miteigentumsanteile. */
+export const allocationKeyShares = sqliteTable(
+	'allocation_key_shares',
+	{
+		accountId: accountId(),
+		keyId: text('key_id')
+			.notNull()
+			.references(() => allocationKeys.id, { onDelete: 'cascade' }),
+		unitId: text('unit_id')
+			.notNull()
+			.references(() => units.id, { onDelete: 'cascade' }),
+		share: real('share').notNull()
+	},
+	(table) => [primaryKey({ columns: [table.keyId, table.unitId] })]
+);
+
+/** Abrechnungskreis: the subset of a property's units that shares a cost. */
+export const billingCircles = sqliteTable(
+	'billing_circles',
+	{
+		id: id(),
+		accountId: accountId(),
+		propertyId: text('property_id')
+			.notNull()
+			.references(() => properties.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		createdAt: createdAt()
+	},
+	(table) => [index('billing_circles_property_id_idx').on(table.propertyId)]
+);
+
+export const billingCircleUnits = sqliteTable(
+	'billing_circle_units',
+	{
+		accountId: accountId(),
+		circleId: text('circle_id')
+			.notNull()
+			.references(() => billingCircles.id, { onDelete: 'cascade' }),
+		unitId: text('unit_id')
+			.notNull()
+			.references(() => units.id, { onDelete: 'cascade' })
+	},
+	(table) => [primaryKey({ columns: [table.circleId, table.unitId] })]
+);
+
 // Documents
 
 /** An uploaded file, stored via the storage adapter under `<accountId>/<id>`. */
