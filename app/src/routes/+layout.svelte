@@ -81,7 +81,7 @@
 	{/if}
 	<main class="site-main">
 		{#if data.notice}
-			<Alert tone={data.notice.tone}>
+			<Alert tone={data.notice.tone} role="note">
 				<p>{data.notice.text} <a href={data.notice.href}>Zum Abo</a></p>
 			</Alert>
 		{/if}

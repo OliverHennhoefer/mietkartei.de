@@ -31,6 +31,11 @@
 			label: 'Verbraucherpreisindex',
 			text: 'Indexwerte für Indexmietverträge.'
 		},
+		{
+			href: '/import',
+			label: 'Datenübernahme',
+			text: 'Objekte, Mieter, Mietverträge und Zahlungen aus einer CSV-Datei übernehmen.'
+		},
 		{ href: '/einstellungen/export', label: 'Export', text: 'Alle Daten als Datei herunterladen.' },
 		{
 			href: '/einstellungen/protokoll',

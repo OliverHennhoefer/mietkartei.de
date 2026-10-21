@@ -51,7 +51,7 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	await expect(page.getByRole('heading', { level: 1, name: 'Abo' })).toBeVisible();
 	await expect(page.getByText('Testphase bis')).toBeVisible();
 	await expect(page.getByText('9,90 € pro Monat')).toBeVisible();
-	const notice = page.getByRole('status').filter({ hasText: 'Deine Testphase endet am' });
+	const notice = page.getByRole('note').filter({ hasText: 'Deine Testphase endet am' });
 	await expect(notice).toBeVisible();
 	await expect(notice.getByRole('link', { name: 'Zum Abo' })).toHaveAttribute('href', '/abo');
 
@@ -96,7 +96,7 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	await expect(page.getByText('Dein Abo ist aktiv.')).toBeVisible();
 	await expect(page.getByText('Aktiv', { exact: true })).toBeVisible();
 	await expect(page.getByText('15.01.2030')).toBeVisible();
-	await expect(page.getByRole('status').filter({ hasText: 'Testphase' })).toHaveCount(0);
+	await expect(page.getByRole('note').filter({ hasText: 'Testphase' })).toHaveCount(0);
 
 	// A failed payment shows a warning above every page …
 	const failed = await postEvent(page.request, {
@@ -115,7 +115,7 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	expect(failed.status()).toBe(200);
 	await page.goto('/objekte');
 	await expect(
-		page.getByRole('status').filter({ hasText: 'Die letzte Zahlung ist fehlgeschlagen.' })
+		page.getByRole('note').filter({ hasText: 'Die letzte Zahlung ist fehlgeschlagen.' })
 	).toBeVisible();
 
 	// … until the subscription is active again, with a new period end.
@@ -138,7 +138,7 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	await page.goto('/abo');
 	await expect(page.getByText('Dein Abo ist aktiv.')).toBeVisible();
 	await expect(page.getByText('15.02.2030')).toBeVisible();
-	await expect(page.getByRole('status')).toHaveCount(0);
+	await expect(page.getByRole('note')).toHaveCount(0);
 
 	// The same event delivered again is answered with 200 and changes nothing.
 	const again = await postEvent(page.request, recovered);

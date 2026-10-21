@@ -1,14 +1,20 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 
-	// A message box above a form or list. `status` for results, `alert` for errors.
+	// A message box above a form or list. `status` for results, `alert` for errors; a standing
+	// banner that is part of the page (not a live region) passes role="note".
 	let {
 		tone = 'info',
+		role,
 		children
-	}: { tone?: 'info' | 'success' | 'warning' | 'danger'; children: Snippet } = $props();
+	}: {
+		tone?: 'info' | 'success' | 'warning' | 'danger';
+		role?: 'status' | 'alert' | 'note';
+		children: Snippet;
+	} = $props();
 </script>
 
-<div class="alert {tone}" role={tone === 'danger' ? 'alert' : 'status'}>
+<div class="alert {tone}" role={role ?? (tone === 'danger' ? 'alert' : 'status')}>
 	{@render children()}
 </div>
 

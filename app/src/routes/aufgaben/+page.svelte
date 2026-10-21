@@ -38,7 +38,7 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.deadlines as deadline (deadline.kind + deadline.href + deadline.date)}
+				{#each data.deadlines as deadline, index (index)}
 					<tr>
 						<td class="date">
 							{formatDate(deadline.date)}
