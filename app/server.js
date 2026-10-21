@@ -10,6 +10,9 @@ const origin = process.env.ORIGIN ? new URL(process.env.ORIGIN) : undefined;
 // Read by build/handler.js when it is imported, so set them first.
 process.env.PROTOCOL_HEADER = 'x-mietkartei-protocol';
 if (origin) process.env.HOST_HEADER = 'x-mietkartei-host';
+// The bank import accepts CSV files up to 2 MB and its commit step re-posts them base64-encoded;
+// the adapter's default limit of 512K would refuse them with 413.
+process.env.BODY_SIZE_LIMIT ??= '3M';
 
 const { handler } = await import('./build/handler.js');
 
