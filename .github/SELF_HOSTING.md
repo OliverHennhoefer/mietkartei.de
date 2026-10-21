@@ -2,7 +2,7 @@
 
 This guide runs the app as a Docker container on a small VPS, for example a netcup VPS piko next to other containers. The app needs one Node process and one SQLite file; at idle it uses roughly 100 MB of RAM.
 
-The app has a basic email and password login, but no password reset or protection against repeated sign-in attempts yet. Until it has those, keep it reachable only through a private network such as Tailscale, never on a public port. The first person to register takes over the existing data; registration closes after that. With `REGISTRATION_EMAILS` set, only the listed addresses can register instead.
+The app has a basic email and password login, but no password reset or protection against repeated sign-in attempts yet. Until it has those, keep it reachable only through a private network such as Tailscale, never on a public port. The first person to register takes over the existing data; registration closes after that. With `REGISTRATION_EMAILS` set, only the listed addresses can register instead; the first of them still takes over the existing data, every later one gets an empty account.
 
 ## How it fits together
 

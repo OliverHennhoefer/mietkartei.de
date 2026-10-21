@@ -12,7 +12,7 @@ Welcher Weg gebaut wird, bestimmt die Umgebungsvariable `DEPLOY_TARGET` (`node` 
 
 ## Anmeldung
 
-Beim ersten Aufruf legst du ein Konto mit E-Mail-Adresse und Passwort an. Die erste Person übernimmt dabei alle Daten, die vorher schon eingegeben wurden. Danach ist die Registrierung geschlossen. Ist `REGISTRATION_EMAILS` gesetzt, können sich stattdessen nur die dort genannten E-Mail-Adressen registrieren, jede mit einem eigenen, leeren Konto.
+Beim ersten Aufruf legst du ein Konto mit E-Mail-Adresse und Passwort an. Die erste Person übernimmt dabei alle Daten, die vorher schon eingegeben wurden. Danach ist die Registrierung geschlossen. Ist `REGISTRATION_EMAILS` gesetzt, können sich stattdessen nur die dort genannten E-Mail-Adressen registrieren. Auch dann übernimmt die erste Person alle vorhandenen Daten, jede weitere bekommt ein eigenes, leeres Konto.
 
 ## Entwickeln
 
