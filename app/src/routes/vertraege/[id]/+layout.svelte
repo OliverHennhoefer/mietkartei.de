@@ -22,6 +22,7 @@
 
 	const tabs = $derived([
 		{ href: `/vertraege/${data.lease.id}`, label: 'Übersicht' },
+		{ href: `/vertraege/${data.lease.id}/mietkonto`, label: 'Mietkonto' },
 		{ href: `/vertraege/${data.lease.id}/kaution`, label: 'Kaution' }
 	]);
 </script>

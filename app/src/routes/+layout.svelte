@@ -13,7 +13,8 @@
 	const sections = [
 		{ href: '/objekte', label: 'Objekte' },
 		{ href: '/mieter', label: 'Mieter' },
-		{ href: '/vertraege', label: 'Mietverträge' }
+		{ href: '/vertraege', label: 'Mietverträge' },
+		{ href: '/mietkonto', label: 'Mietkonto' }
 	];
 
 	function current(href: string): 'page' | undefined {

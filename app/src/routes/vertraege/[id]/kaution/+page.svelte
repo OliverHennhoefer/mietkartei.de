@@ -4,7 +4,7 @@
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
-	import { formatDate, formatMonth } from '#lib/dates.ts';
+	import { formatDate } from '#lib/dates.ts';
 	import { depositTransactionKindLabels } from '#lib/labels.ts';
 	import type { PageProps } from './$types';
 
@@ -60,14 +60,9 @@
 		Mietverhältnisses, die beiden anderen mit den folgenden Mieten.
 	</p>
 	<ul class="instalments" aria-label="Raten">
-		{#each data.instalments as instalment, index (instalment.month)}
+		{#each data.instalments as instalment, index (instalment.dueDate)}
 			<li>
-				{index + 1}. Rate <Money cents={instalment.amount} />
-				{#if index === 0}
-					zu Beginn am {formatDate(lease.startDate)}
-				{:else}
-					mit der Miete für {formatMonth(instalment.month)}
-				{/if}
+				{index + 1}. Rate <Money cents={instalment.amount} /> bis {formatDate(instalment.dueDate)}
 			</li>
 		{/each}
 	</ul>

@@ -239,6 +239,12 @@ table.table {
 	border-bottom: 0;
 }
 
+.table tfoot td {
+	font-weight: 600;
+	border-top: 2px solid var(--color-border);
+	border-bottom: 0;
+}
+
 .table .num,
 .table th.num {
 	text-align: right;
@@ -349,6 +355,12 @@ button:disabled {
 	cursor: default;
 }
 
+button.small,
+.button.small {
+	padding: 0.3rem 0.6rem;
+	font-size: 0.85rem;
+}
+
 .form-actions {
 	grid-column: 1 / -1;
 	display: flex;
@@ -375,6 +387,13 @@ button:disabled {
 	align-items: center;
 	gap: 0.5rem 1rem;
 	margin: 0 0 1rem;
+}
+
+.row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem 1rem;
 }
 
 dl.details {

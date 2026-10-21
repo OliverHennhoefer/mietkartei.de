@@ -76,7 +76,7 @@
 			<legend>Weitere Einheiten (optional)</legend>
 			<p class="muted small">
 				Ein Stellplatz, der mit der Wohnung vermietet wird, gehört in denselben Mietvertrag: eine
-				Miete, eine Kaution, eine Kündigung.
+				Miete, eine Zahlung, ein Mietkonto.
 			</p>
 			<div class="choices">
 				{#each units as { unit, property } (unit.id)}
@@ -248,6 +248,50 @@
 			aria-invalid={invalid('persons')}
 		/>
 	</Field>
+
+	<Field
+		label="Fälligkeit (Werktag des Monats)"
+		error={errors.rentDueDay}
+		hint="Die Miete ist am n-ten Werktag fällig, nach § 556b BGB am dritten. Samstage und bundesweite Feiertage zählen nicht."
+	>
+		<input
+			name="rentDueDay"
+			type="number"
+			min="1"
+			max="20"
+			defaultValue={values.rentDueDay || '3'}
+			aria-invalid={invalid('rentDueDay')}
+		/>
+	</Field>
+	<Field
+		label="Mietkonto führen ab (optional)"
+		error={errors.ledgerStart}
+		hint={mode === 'create'
+			? 'Für Verträge, die schon länger laufen: Sollstellungen ab diesem Tag. Leer = der erste Tag des laufenden Monats, wenn der Beginn in der Vergangenheit liegt.'
+			: 'Sollstellungen ab diesem Tag; leer = ab Vertragsbeginn.'}
+	>
+		<input
+			name="ledgerStart"
+			type="date"
+			defaultValue={values.ledgerStart ?? ''}
+			aria-invalid={invalid('ledgerStart')}
+		/>
+	</Field>
+	{#if mode === 'create'}
+		<Field
+			label="Anfangssaldo (optional)"
+			error={errors.openingBalance}
+			hint="Der Stand des Mietkontos am Tag „Mietkonto führen ab“: positiv = Rückstand, negativ = Guthaben."
+		>
+			<input
+				name="openingBalance"
+				defaultValue={values.openingBalance ?? ''}
+				inputmode="decimal"
+				placeholder="0,00"
+				aria-invalid={invalid('openingBalance')}
+			/>
+		</Field>
+	{/if}
 
 	{#if mode === 'edit'}
 		<Field label="Kündigung erhalten am (optional)" error={errors.terminatedAt}>

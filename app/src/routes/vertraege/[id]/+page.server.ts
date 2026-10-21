@@ -11,20 +11,22 @@ import {
 	getLease,
 	listLeasePersons
 } from '#lib/server/leases.ts';
+import { ensureCharges, listLedger } from '#lib/server/ledger.ts';
 import { rentOnDate } from '#lib/server/rents.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
-// The "Übersicht" tab: the lease as the layout loaded it, plus the current rent and what the
-// Kaution tab sums up, and the persons history and the end of the lease, which are edited here.
-// A fixed number of queries whatever the lease's size.
+// The "Übersicht" tab: the lease as the layout loaded it, plus what the other tabs sum up
+// (current rent, balance, deposit) and the persons history and the end of the lease, which are
+// edited here. A fixed number of queries whatever the lease's size.
 export const load: PageServerLoad = async ({ locals, parent }) => {
 	const accountId = requireAccount(locals);
 	const { lease } = await parent();
 	const date = today();
-	const [persons, rent, movements] = await Promise.all([
+	const [persons, rent, ledger, movements] = await Promise.all([
 		listLeasePersons(locals.db, accountId, lease.id),
 		rentOnDate(locals.db, accountId, lease.id, date),
+		listLedger(locals.db, accountId, lease.id),
 		listDepositMovements(locals.db, accountId, lease.id)
 	]);
 	const current = rent ?? lease.currentRent;
@@ -36,6 +38,7 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 			heatingCostPrepayment: current.heatingCostPrepayment,
 			total: current.baseRent + current.operatingCostPrepayment + current.heatingCostPrepayment
 		},
+		balance: ledger.balance,
 		deposit: depositSummary(movements, lease.securityDeposit),
 		// Prefilled for a tenant's notice received today; the page recomputes the end date when the
 		// receipt date or the party changes, and the action checks it.
@@ -146,6 +149,8 @@ export const actions: Actions = {
 				values
 			});
 		}
+		// Months after the end leave the ledger with the next sync; do it now, so the tab is right.
+		await ensureCharges(locals.db, context.accountId, [params.id]);
 		return { which: 'end' as const };
 	},
 
@@ -157,7 +162,7 @@ export const actions: Actions = {
 		if (outcome === 'in-use') {
 			return fail(400, {
 				message:
-					'Auf diesem Mietvertrag wurden schon Kautionsbewegungen gebucht; er lässt sich nicht löschen, damit die Historie bleibt. Beende den Vertrag stattdessen mit „Vertrag beenden“.'
+					'Auf diesem Mietvertrag wurden schon Zahlungen, Korrekturen oder Kautionsbewegungen gebucht; er lässt sich nicht löschen, damit die Historie bleibt. Beende den Vertrag stattdessen mit „Vertrag beenden“.'
 			});
 		}
 		redirect(303, '/vertraege');
