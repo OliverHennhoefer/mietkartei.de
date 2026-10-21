@@ -291,7 +291,8 @@ describe('planImport: leases', () => {
 			'Haus;EG links;Beispiel;01.01.2025;;100;;;;;;;',
 			'Haus;EG links;Beispiel;01.06.2025;;abc;;;;;;;',
 			'Haus;EG links;Beispiel;01.06.2025;;100;;;;;;x;',
-			'Haus;EG links;Beispiel;01.06.2025;;100;;;;;01.01.2025;;'
+			'Haus;EG links;Beispiel;01.06.2025;;100;;;;;01.01.2025;;',
+			'Haus;EG links;Beispiel;01.06.2025;;100;;;;;;100.000.000,01;'
 		].join('\n');
 		const result = plan('leases', csv, leaseContext);
 		if (result.kind !== 'leases') throw new Error(result.kind);
@@ -342,7 +343,8 @@ describe('planImport: leases', () => {
 			[11, 'Den Mietvertrag für „EG links“ in „Haus“ ab 01.01.2025 gibt es schon.'],
 			[12, 'Kaltmiete: Bitte gib einen Betrag an, z. B. 650,00.'],
 			[13, 'Anfangssaldo: Bitte gib einen Betrag an, z. B. 650,00.'],
-			[14, 'Mietkonto ab: Das Mietkonto kann nicht vor dem Vertragsbeginn beginnen.']
+			[14, 'Mietkonto ab: Das Mietkonto kann nicht vor dem Vertragsbeginn beginnen.'],
+			[15, 'Anfangssaldo: Der Betrag ist zu hoch.']
 		]);
 	});
 });
@@ -384,11 +386,28 @@ describe('planImport: payments', () => {
 		expect(reasons(result)).toEqual([
 			[6, `Die Zahlung über ${formatCents(85000)} vom 03.01.2025 für „EG links“ gibt es schon.`],
 			[8, 'Die Einheit „Keller“ gibt es in „Haus“ nicht.'],
-			[9, 'Betrag: Bitte gib einen Betrag an, z. B. 850,00.'],
-			[10, 'Betrag: Bitte gib einen Betrag an, z. B. 850,00.'],
+			[9, 'Betrag: Der Betrag darf nicht 0 sein.'],
+			[10, 'Betrag: Bitte gib einen Betrag an, z. B. 650,00.'],
 			[11, 'Datum: Bitte gib ein gültiges Datum an, z. B. 03.01.2025.'],
 			[12, 'Datum: Bitte gib ein Datum an.'],
 			[13, 'Für „EG links“ in „Haus“ gibt es keinen Mietvertrag mit einem Mieter „Beispiel“.']
+		]);
+	});
+
+	it('keeps the limits of the payment form', () => {
+		const csv = [
+			'Datum;Objekt;Einheit;Mieter;Betrag;Verwendungszweck',
+			`03.01.2025;Haus;EG links;;850,00;${'x'.repeat(201)}`,
+			'03.01.2025;Haus;EG links;;100.000.000,01;',
+			'03.01.2025;Haus;EG links;;-100.000.000,01;'
+		].join('\n');
+		const result = plan('payments', csv, leaseContext);
+		if (result.kind !== 'payments') throw new Error(result.kind);
+		expect(result.payments).toEqual([]);
+		expect(reasons(result)).toEqual([
+			[2, 'Verwendungszweck: Höchstens 200 Zeichen.'],
+			[3, 'Betrag: Der Betrag ist zu hoch.'],
+			[4, 'Betrag: Der Betrag darf nicht unter -100000000 € liegen.']
 		]);
 	});
 

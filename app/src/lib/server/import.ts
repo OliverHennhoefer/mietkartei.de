@@ -2,9 +2,10 @@ import { eq } from 'drizzle-orm';
 import { findHeaderRow } from '../csv';
 import { firstOfMonth, formatDate, monthOf, parseGermanDate, today, type IsoDate } from '../dates';
 import { formDataOf } from '../forms/fields';
-import { parseLease } from '../forms/leases';
+import { parseLease, parseOpeningBalance } from '../forms/leases';
+import { parsePayment } from '../forms/ledger';
 import { parseTenant } from '../forms/tenants';
-import { formatCents, parseCents } from '../money';
+import { formatCents } from '../money';
 import type { UnitKind } from '../units';
 import { parseProperty, parseUnit, type PropertyInput, type UnitInput } from '../validation';
 import { auditEntry, type AuditContext } from './audit';
@@ -598,6 +599,7 @@ function labelsOf(kind: ImportKind): Record<string, string> {
 const propertyLabels = { name: 'Objekt', street: 'Straße', postalCode: 'PLZ', city: 'Ort' };
 const unitLabels = { name: 'Einheit', kind: 'Art', floorArea: 'Fläche' };
 const tenantLabels = labelsOf('tenants');
+const paymentLabels = labelsOf('payments');
 const leaseLabels = {
 	...labelsOf('leases'),
 	unitId: 'Einheit',
@@ -949,11 +951,12 @@ function planLeases(rows: DataRow[], context: ImportContext): ImportPlan {
 			result.reason = firstError(parsed.errors, leaseLabels);
 			continue;
 		}
-		const openingBalance = values.openingBalance ? parseCents(values.openingBalance) : 0;
-		if (openingBalance === undefined) {
-			result.reason = 'Anfangssaldo: Bitte gib einen Betrag an, z. B. 650,00.';
+		const balance = parseOpeningBalance(formDataOf({ openingBalance: values.openingBalance }));
+		if (!balance.ok) {
+			result.reason = firstError(balance.errors, leaseLabels);
 			continue;
 		}
+		const openingBalance = balance.data.openingBalance ?? 0;
 
 		const label = `„${unit.name}“ in „${property.name}“ ab ${formatDate(parsed.data.startDate)}`;
 		if (
@@ -1050,17 +1053,17 @@ function planPayments(rows: DataRow[], context: ImportContext): ImportPlan {
 			result.reason = 'Datum: Bitte gib ein gültiges Datum an, z. B. 03.01.2025.';
 			continue;
 		}
-		const amount = parseCents(values.amount);
-		if (amount === undefined || amount === 0) {
-			result.reason = 'Betrag: Bitte gib einen Betrag an, z. B. 850,00.';
+		const parsed = parsePayment(formDataOf({ date, amount: values.amount, note: values.note }));
+		if (!parsed.ok) {
+			result.reason = firstError(parsed.errors, paymentLabels);
 			continue;
 		}
+		const { amount, note } = parsed.data;
 		const lease = findLeaseForPayment(context, located, date, values.tenantLastName);
 		if (typeof lease !== 'string') {
 			result.reason = lease.reason;
 			continue;
 		}
-		const note = values.note || null;
 		if (existing.has(paymentKey(lease, date, amount, note))) {
 			result.reason = `Die Zahlung über ${formatCents(amount)} vom ${formatDate(date)} für „${located.unit.name}“ gibt es schon.`;
 			continue;

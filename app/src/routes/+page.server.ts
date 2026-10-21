@@ -21,7 +21,10 @@ export type FirstRun = {
 	tenants: boolean;
 	leases: boolean;
 	bankAccounts: boolean;
-	/** The default cost categories are created when a Betriebskosten page is first opened. */
+	/**
+	 * The default cost categories are created when a Betriebskosten page is first opened, or with
+	 * the demo data.
+	 */
 	categories: boolean;
 	/** Where "Einheit anlegen" leads: the first property's page, which has the unit form. */
 	firstPropertyId: string | null;

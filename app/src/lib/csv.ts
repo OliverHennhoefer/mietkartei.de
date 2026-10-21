@@ -1,6 +1,6 @@
-// CSV helpers for the bank import. German bank exports are usually semicolon-separated, often
-// windows-1252 encoded and sometimes start with preamble lines before the header; this module
-// reads such files into rows and records.
+// CSV helpers shared by the bank import and the data import. German bank exports are usually
+// semicolon-separated, often windows-1252 encoded and sometimes start with preamble lines before
+// the header; this module reads such files into rows and records.
 // Only web-standard APIs, so the code runs on Node and on Cloudflare Workers alike.
 
 export type Delimiter = ';' | ',' | '\t';
