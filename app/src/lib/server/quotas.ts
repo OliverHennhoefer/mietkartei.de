@@ -16,10 +16,12 @@ import {
 	matchingRules,
 	meterReadings,
 	meters,
+	operatingCostStatements,
 	payments,
 	properties,
 	rentChanges,
 	rentCharges,
+	statementResults,
 	tenants,
 	units
 } from './db/schema';
@@ -53,7 +55,14 @@ export const QUOTAS = {
 	meters: { table: meters, max: 20_000, label: 'Zähler' },
 	meterReadings: { table: meterReadings, max: 500_000, label: 'Zählerstände' },
 	/** Also bounds the unit amounts: one per unit of the item's property. */
-	costItems: { table: costItems, max: 100_000, label: 'Belege' }
+	costItems: { table: costItems, max: 100_000, label: 'Belege' },
+	operatingCostStatements: {
+		table: operatingCostStatements,
+		max: 10_000,
+		label: 'Betriebskostenabrechnungen'
+	},
+	/** One per lease and approved statement. */
+	statementResults: { table: statementResults, max: 200_000, label: 'Abrechnungsergebnisse' }
 } satisfies Record<string, Quota>;
 
 export type QuotaKind = keyof typeof QUOTAS;

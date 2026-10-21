@@ -39,12 +39,13 @@
 	</Alert>
 {/if}
 <p class="muted">
-	Löscht das Objekt mit allen Einheiten, Zählern, Umlageschlüsseln, Abrechnungskreisen und Belegen.
-	Ein Objekt, auf dessen Einheiten Mietverträge liegen, auch beendete, kann nicht gelöscht werden.
+	Löscht das Objekt mit allen Einheiten, Zählern, Umlageschlüsseln, Abrechnungskreisen, Belegen und
+	Betriebskostenabrechnungen. Ein Objekt, auf dessen Einheiten Mietverträge liegen, auch beendete,
+	kann nicht gelöscht werden.
 </p>
 <ConfirmButton
 	action="?/delete"
 	label="Objekt löschen"
 	message="Objekt „{data.property
-		.name}“ mit allen Einheiten, Zählern, Umlageschlüsseln, Abrechnungskreisen und Belegen löschen? Das lässt sich nicht rückgängig machen."
+		.name}“ mit allen Einheiten, Zählern, Umlageschlüsseln, Abrechnungskreisen, Belegen und Betriebskostenabrechnungen löschen? Das lässt sich nicht rückgängig machen."
 />

@@ -103,9 +103,9 @@ async function unitsInUse(db: Database, accountId: string, unitIds: string[]): P
 }
 
 /**
- * Deletes the property with its units, meters, keys, circles and cost items (database cascade).
- * Refused with 'in-use' while a lease references one of its units, because the lease and its
- * history must stay.
+ * Deletes the property with its units, meters, keys, circles, cost items and statements
+ * (database cascade). Refused with 'in-use' while a lease references one of its units, because
+ * the lease and its history must stay.
  */
 export async function deleteProperty(
 	db: Database,

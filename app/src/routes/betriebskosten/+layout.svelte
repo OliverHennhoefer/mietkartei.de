@@ -10,7 +10,7 @@
 	let { children }: LayoutProps = $props();
 
 	const tabs = [
-		{ href: '/betriebskosten', label: 'Übersicht' },
+		{ href: '/betriebskosten', label: 'Abrechnungen' },
 		{ href: '/betriebskosten/belege', label: 'Belege' },
 		{ href: '/betriebskosten/kostenarten', label: 'Kostenarten' },
 		{ href: '/betriebskosten/schluessel', label: 'Umlageschlüssel' }
@@ -19,7 +19,7 @@
 
 <PageHeader
 	title="Betriebskosten"
-	lead="Belege sammeln und Kostenarten, Umlageschlüssel und Abrechnungskreise für die Abrechnung festlegen."
+	lead="Belege sammeln, Zählerstände erfassen, Abrechnung erstellen."
 />
 
 <Tabs {tabs} />

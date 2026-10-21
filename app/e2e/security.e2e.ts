@@ -17,6 +17,7 @@ const pages = [
 	'/bank/import',
 	'/bank/regeln',
 	'/dokumente',
+	'/betriebskosten',
 	'/betriebskosten/belege',
 	'/betriebskosten/belege/neu',
 	'/einstellungen',
@@ -24,7 +25,7 @@ const pages = [
 	'/einstellungen/vpi'
 ];
 
-/** Pages below a seeded property: its meters (with a reading) and a cost item. */
+/** Pages below a seeded property: its meters (with a reading), a cost item and a statement. */
 async function seededPages(request: Parameters<typeof seedLease>[0]): Promise<string[]> {
 	const suffix = crypto.randomUUID().slice(0, 6);
 	const { propertyId } = await seedLease(request);
@@ -51,7 +52,16 @@ async function seededPages(request: Parameters<typeof seedLease>[0]): Promise<st
 			amount: 120000
 		}
 	]);
-	return [`/objekte/${propertyId}/zaehler`, `/betriebskosten/belege/${costItemId}`];
+	const {
+		ids: [statementId]
+	} = await seedRows(request, 'operatingCostStatements', [
+		{ propertyId, periodStart: '2025-01-01', periodEnd: '2025-12-31' }
+	]);
+	return [
+		`/objekte/${propertyId}/zaehler`,
+		`/betriebskosten/belege/${costItemId}`,
+		`/betriebskosten/abrechnungen/${statementId}`
+	];
 }
 
 test('no page violates the Content-Security-Policy', async ({ page }) => {
