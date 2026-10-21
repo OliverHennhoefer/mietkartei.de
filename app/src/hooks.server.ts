@@ -1,9 +1,10 @@
-import { redirect } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import type { Handle } from '@sveltejs/kit/hooks';
 import { E2E } from '$app/env/private';
 import { SESSION_COOKIE, validateSession } from '#lib/server/auth.ts';
 import { setSessionCookie } from '#lib/server/session.ts';
 import { getDatabase } from '#lib/server/db/index.ts';
+import { getAuthLimiter } from '#lib/server/rate-limit/index.ts';
 
 /** Paths that work without signing in. Everything else redirects to the sign-in page. */
 const publicPaths = new Set(['/anmelden', '/registrieren', '/health']);
@@ -30,5 +31,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	if (!event.locals.user && !isPublic(event.url.pathname)) redirect(303, '/anmelden');
+	// A post without a session can only be a sign-in or a registration; both are counted per client.
+	if (!event.locals.user && event.request.method === 'POST') {
+		const limiter = await getAuthLimiter();
+		if (!(await limiter.limit(`auth:${event.getClientAddress()}`))) {
+			error(429, 'Zu viele Versuche in kurzer Zeit. Bitte warte eine Minute.');
+		}
+	}
 	return resolve(event);
 };
