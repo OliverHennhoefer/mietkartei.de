@@ -39,10 +39,18 @@ export async function sendMail(db: Database, mail: Mail): Promise<void> {
 /**
  * Sends the mail without making the response wait for it. A failure is logged, never answered,
  * so a form that sends mail for some addresses only answers the same for every address.
+ * `onFailure` then withdraws what the mail was for, e.g. the request behind its link.
  */
-export async function sendMailInBackground(db: Database, mail: Mail): Promise<void> {
-	const sending = sendMail(db, mail).catch((error: unknown) => {
+export async function sendMailInBackground(
+	db: Database,
+	mail: Mail,
+	onFailure?: () => Promise<void>
+): Promise<void> {
+	const sending = sendMail(db, mail).catch(async (error: unknown) => {
 		console.error(`[mail] "${mail.subject}" was not sent:`, error);
+		await onFailure?.().catch((cleanup: unknown) =>
+			console.error('[mail] Cleanup failed:', cleanup)
+		);
 	});
 	// Workers stop a request's work with the response unless told to wait for it.
 	if (__DEPLOY_TARGET__ === 'cloudflare') {
