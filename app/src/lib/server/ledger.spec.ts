@@ -1,12 +1,15 @@
 import { isHttpError } from '@sveltejs/kit';
 import { asc, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { dayOf } from '../dates';
 import { formatCents } from '../money';
+import { auditEntry } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import { auditLog, leases, payments, rentCharges, rentChanges } from './db/schema';
 import { createLease } from './leases';
 import {
+	chargeEntry,
 	createPayment,
 	deleteCharge,
 	deletePayment,
@@ -206,6 +209,8 @@ describe('postCharge and deleteCharge', () => {
 			dueDate: '2025-05-05',
 			amount: -5000,
 			baseRent: 0,
+			referenceId: null,
+			reversesChargeId: null,
 			note: 'Mietminderung Heizung'
 		});
 
@@ -231,11 +236,53 @@ describe('postCharge and deleteCharge', () => {
 		expect(await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'))).toHaveLength(1);
 	});
 
-	it('never deletes rent rows', async () => {
+	it('never deletes rent rows or statement postings', async () => {
 		await ensureCharges(db, 'a', [leaseId], '2025-01');
 		const [rent] = await rentRows(leaseId);
+		const statement = await postCharge(db, contextA, {
+			leaseId,
+			kind: 'statement_balance',
+			period: '2025-06',
+			dueDate: '2025-06-30',
+			amount: 12345,
+			referenceId: 'statement-1'
+		});
 		expect(await deleteCharge(db, contextA, rent.id)).toBe(false);
-		expect(await rentRows(leaseId)).toHaveLength(1);
+		expect(await deleteCharge(db, contextA, statement!)).toBe(false);
+		expect(await rentRows(leaseId)).toHaveLength(2);
+	});
+
+	it('rejects a second posting with the same reference and leaves nothing behind', async () => {
+		const input = {
+			leaseId,
+			kind: 'statement_balance' as const,
+			period: '2025-06',
+			dueDate: null,
+			amount: 12345,
+			referenceId: 'statement-1'
+		};
+		const first = await postCharge(db, contextA, input);
+		const duplicate = chargeEntry(db, contextA, input);
+		await expect(
+			runBatch(db, [
+				duplicate.statement,
+				auditEntry(db, contextA, 'lease', leaseId, 'post', 'Doppelt gebucht')
+			])
+		).rejects.toThrow();
+
+		const rows = await db
+			.select()
+			.from(rentCharges)
+			.where(eq(rentCharges.referenceId, 'statement-1'));
+		expect(rows.map((row) => row.id)).toEqual([first]);
+		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'post'));
+		expect(audit).toHaveLength(1);
+
+		// A reversal of that posting may carry the same reference, but only one.
+		const reversal = { ...input, amount: -12345, reversesChargeId: first };
+		await runBatch(db, [chargeEntry(db, contextA, reversal).statement]);
+		expect(await rentRows(leaseId)).toHaveLength(2);
+		await expect(runBatch(db, [chargeEntry(db, contextA, reversal).statement])).rejects.toThrow();
 	});
 });
 
@@ -341,6 +388,27 @@ describe('listLedger', () => {
 		const ledger = await listLedger(db, 'a', endedLeaseId, { from: '2025-05-01' });
 		expect(ledger.lines.map((line) => [line.label, line.amount, line.balance])).toEqual([
 			['Korrektur März 2025: Mietminderung Heizung', -5000, 5000]
+		]);
+	});
+
+	it('dates a posting that is not due yet on the day it was posted', async () => {
+		const id = await postCharge(db, contextA, {
+			leaseId: endedLeaseId,
+			kind: 'statement_balance',
+			period: '2025-03',
+			dueDate: null,
+			amount: 20000,
+			referenceId: 'statement-2025',
+			note: 'Betriebskostenabrechnung 2025'
+		});
+		const [row] = await db.select().from(rentCharges).where(eq(rentCharges.id, id!));
+		const ledger = await listLedger(db, 'a', endedLeaseId, { from: '2025-04-01' });
+		expect(ledger.lines.map((line) => [line.date, line.label, line.amount])).toEqual([
+			[
+				dayOf(row.createdAt),
+				'Betriebskostenabrechnung März 2025: Betriebskostenabrechnung 2025',
+				20000
+			]
 		]);
 	});
 
@@ -521,6 +589,35 @@ describe('listBalances', () => {
 			await listBalances(db, 'a', { untilMonth: '2026-04', asOf: '2026-04-07' })
 		).filter((row) => row.leaseId === leaseId);
 		expect(due).toMatchObject({ overdue: 100000 });
+	});
+
+	it('never counts a Nachzahlung as Rückstand before its due date is known', async () => {
+		// A statement's Nachzahlung of 200 € is due 30 days after the statement reached the
+		// tenant. Every rent of 2025 is paid; the delivery date is not recorded yet.
+		await db.update(leases).set({ endDate: '2025-12-31' }).where(eq(leases.id, leaseId));
+		await payRents(leaseId, months2025);
+		const id = await postCharge(db, contextA, {
+			leaseId,
+			kind: 'statement_balance',
+			period: '2025-12',
+			dueDate: null,
+			amount: 20000,
+			referenceId: 'statement-2025'
+		});
+		const balanceOn = async (asOf: string) =>
+			(await listBalances(db, 'a', { untilMonth: '2025-12', asOf })).find(
+				(row) => row.leaseId === leaseId
+			);
+		// Owed, but not due however late it is.
+		expect(await balanceOn('2027-01-01')).toMatchObject({
+			balance: 20000,
+			overdue: 0,
+			openSince: null
+		});
+		// Delivered on 02.03.2026: due on 01.04.2026.
+		await db.update(rentCharges).set({ dueDate: '2026-04-01' }).where(eq(rentCharges.id, id!));
+		expect(await balanceOn('2026-03-31')).toMatchObject({ overdue: 0 });
+		expect(await balanceOn('2026-04-01')).toMatchObject({ overdue: 20000, openSince: '2026-04' });
 	});
 
 	it('counts the rent of the month only from its due day', async () => {
