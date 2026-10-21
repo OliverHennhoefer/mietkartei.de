@@ -202,15 +202,17 @@ function chargeSummary(
 		: `${what} über ${formatCents(charge.amount)} ${verb}`;
 }
 
-/** Posts a charge with its audit entry. Returns undefined when the lease is not in the account. */
-export async function postCharge(
+/**
+ * The insert of a charge with its audit entry, for a caller's batch (createLease posts the opening
+ * balance with the new lease). The lease must already be checked against the account.
+ */
+export function chargeStatements(
 	db: Database,
 	context: AuditContext,
+	id: string,
 	input: ChargeInput
-): Promise<string | undefined> {
-	if (!(await ownsLease(db, context.accountId, input.leaseId))) return undefined;
-	const id = crypto.randomUUID();
-	await runBatch(db, [
+): BatchItem<'sqlite'>[] {
+	return [
 		db.insert(rentCharges).values({
 			id,
 			accountId: context.accountId,
@@ -222,7 +224,18 @@ export async function postCharge(
 			note: input.note ?? null
 		}),
 		auditEntry(db, context, 'lease', input.leaseId, 'post', chargeSummary(input, 'gebucht'))
-	]);
+	];
+}
+
+/** Posts a charge with its audit entry. Returns undefined when the lease is not in the account. */
+export async function postCharge(
+	db: Database,
+	context: AuditContext,
+	input: ChargeInput
+): Promise<string | undefined> {
+	if (!(await ownsLease(db, context.accountId, input.leaseId))) return undefined;
+	const id = crypto.randomUUID();
+	await runBatch(db, chargeStatements(db, context, id, input));
 	return id;
 }
 

@@ -1,4 +1,4 @@
-import { addDays, firstOfMonth, weekday, type IsoDate, type IsoMonth } from './dates';
+import { addDays, firstOfMonth, lastOfMonth, weekday, type IsoDate, type IsoMonth } from './dates';
 
 // Public holidays and working days. Only the nine holidays that apply in every German state are
 // modelled; the state holidays (Heilige Drei Könige, Fronleichnam, Reformationstag …) would come
@@ -60,14 +60,20 @@ export function isWorkingDay(date: IsoDate): boolean {
 
 /**
  * The n-th working day of the month. § 556b BGB makes the rent due on the third working day;
- * Saturday does not count (BGH VIII ZR 291/09), and neither does a public holiday.
+ * Saturday does not count (BGH VIII ZR 291/09), and neither does a public holiday. A month with
+ * fewer than n working days (May 2026 has only 18) yields its last working day, so the due date
+ * never runs into the next month; n below 1 counts as the first working day.
  */
 export function nthWorkingDay(month: IsoMonth, n: number): IsoDate {
-	let date = firstOfMonth(month);
+	const last = lastOfMonth(month);
+	const wanted = Math.max(1, n);
+	let found = firstOfMonth(month);
 	let seen = 0;
-	for (;;) {
-		if (isWorkingDay(date)) seen += 1;
-		if (seen === n) return date;
-		date = addDays(date, 1);
+	for (let date = found; date <= last && seen < wanted; date = addDays(date, 1)) {
+		if (isWorkingDay(date)) {
+			found = date;
+			seen += 1;
+		}
 	}
+	return found;
 }

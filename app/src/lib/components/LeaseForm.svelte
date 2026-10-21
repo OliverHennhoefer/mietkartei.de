@@ -267,7 +267,7 @@
 		label="Mietkonto führen ab (optional)"
 		error={errors.ledgerStart}
 		hint={mode === 'create'
-			? 'Für Verträge, die schon länger laufen: Sollstellungen ab diesem Tag. Leer = der erste Tag des laufenden Monats, wenn der Beginn in der Vergangenheit liegt.'
+			? 'Für Verträge, die schon länger laufen: Sollstellungen ab diesem Tag. Leer = der erste Tag des laufenden Monats, wenn der Vertrag vor diesem Monat begonnen hat.'
 			: 'Sollstellungen ab diesem Tag; leer = ab Vertragsbeginn.'}
 	>
 		<input

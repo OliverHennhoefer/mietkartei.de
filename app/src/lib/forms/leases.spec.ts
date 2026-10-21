@@ -148,13 +148,13 @@ describe('parseLease', () => {
 		expect(parse({ endDate: '2026-01-01' }).ok).toBe(true);
 	});
 
-	it('keeps the ledger start within the lease term', () => {
-		const message = 'Der Beginn des Mietkontos liegt außerhalb der Vertragslaufzeit.';
-		expect(errorsOf({ ledgerStart: '2025-12-31' })).toEqual({ ledgerStart: message });
-		expect(errorsOf({ endDate: '2026-12-31', ledgerStart: '2027-01-01' })).toEqual({
-			ledgerStart: message
+	it('refuses a ledger start before the lease begins', () => {
+		expect(errorsOf({ ledgerStart: '2025-12-31' })).toEqual({
+			ledgerStart: 'Das Mietkonto kann nicht vor dem Vertragsbeginn beginnen.'
 		});
 		expect(parse({ endDate: '2026-12-31', ledgerStart: '2026-12-31' }).ok).toBe(true);
+		// A lease ended before its ledger start stays editable.
+		expect(parse({ endDate: '2026-12-31', ledgerStart: '2027-01-01' }).ok).toBe(true);
 		expect(parse({ ledgerStart: '2030-01-01' }).ok).toBe(true);
 	});
 

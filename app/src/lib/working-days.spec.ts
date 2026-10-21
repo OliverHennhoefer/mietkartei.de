@@ -87,4 +87,12 @@ describe('nthWorkingDay', () => {
 		expect(nthWorkingDay('2026-12', 18)).toBe('2026-12-24');
 		expect(nthWorkingDay('2026-12', 19)).toBe('2026-12-28');
 	});
+
+	it('stops at the last working day of a month with fewer working days', () => {
+		// May 2026 has 18 working days: Tag der Arbeit (Fri 1), Christi Himmelfahrt (Thu 14) and
+		// Pfingstmontag (Mon 25) fall on weekdays. The 18th is Fri 29.
+		expect(nthWorkingDay('2026-05', 18)).toBe('2026-05-29');
+		expect(nthWorkingDay('2026-05', 19)).toBe('2026-05-29');
+		expect(nthWorkingDay('2026-05', 20)).toBe('2026-05-29');
+	});
 });

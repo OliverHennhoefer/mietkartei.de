@@ -112,6 +112,35 @@ describe('createLease', () => {
 		expect(await listLeases(db, 'a')).toEqual([]);
 		expect(await db.select().from(auditLog)).toEqual([]);
 	});
+
+	it('posts the opening balance with the lease, due at the ledger start', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const result = await createLease(
+			db,
+			contextA,
+			leaseInput(unitId, { startDate: '2020-01-01', ledgerStart: '2025-03-01' }),
+			-4500
+		);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+
+		const charges = await db.select().from(rentCharges).where(eq(rentCharges.leaseId, result.id));
+		expect(charges).toEqual([
+			expect.objectContaining({
+				accountId: 'a',
+				kind: 'adjustment',
+				period: '2025-03',
+				dueDate: '2025-03-01',
+				amount: -4500,
+				note: 'Anfangssaldo'
+			})
+		]);
+		const audit = await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'));
+		expect(audit.map((entry) => [entry.entityId, entry.action])).toEqual([
+			[result.id, 'create'],
+			[result.id, 'post']
+		]);
+	});
 });
 
 describe('listLeases and getLease', () => {

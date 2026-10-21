@@ -3,7 +3,7 @@ import { firstOfMonth, monthOf, today } from '#lib/dates.ts';
 import { depositWarning, parseLease, parseOpeningBalance } from '#lib/forms/leases.ts';
 import { parseCents } from '#lib/money.ts';
 import { createLease, listUnitsWithProperty } from '#lib/server/leases.ts';
-import { ensureCharges, postCharge } from '#lib/server/ledger.ts';
+import { ensureCharges } from '#lib/server/ledger.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -60,15 +60,15 @@ export const actions: Actions = {
 		}
 
 		// A lease entered after it began keeps its old months out of the ledger: the account starts
-		// with the current month unless the form says otherwise.
+		// with the current month unless the form says otherwise. A lease that began within the current
+		// month keeps its start date; a ledger start before the lease began would be refused.
 		const input = { ...lease.data };
-		const date = today();
-		if (input.ledgerStart === null && input.startDate < date) {
-			const start = firstOfMonth(monthOf(date));
+		const start = firstOfMonth(monthOf(today()));
+		if (input.ledgerStart === null && input.startDate < start) {
 			if (input.endDate === null || start <= input.endDate) input.ledgerStart = start;
 		}
 
-		const result = await createLease(locals.db, context, input);
+		const result = await createLease(locals.db, context, input, opening.data.openingBalance);
 		if (!result.ok) {
 			const values = valuesOf(form);
 			const errors =
@@ -78,18 +78,6 @@ export const actions: Actions = {
 			return fail(400, { errors, values, depositWarning: warningFor(values) });
 		}
 
-		const openingBalance = opening.data.openingBalance;
-		if (openingBalance !== null && openingBalance !== 0) {
-			const ledgerStart = input.ledgerStart ?? input.startDate;
-			await postCharge(locals.db, context, {
-				leaseId: result.id,
-				kind: 'adjustment',
-				period: monthOf(ledgerStart),
-				dueDate: ledgerStart,
-				amount: openingBalance,
-				note: 'Anfangssaldo'
-			});
-		}
 		await ensureCharges(locals.db, context.accountId, [result.id]);
 		redirect(303, `/vertraege/${result.id}`);
 	}

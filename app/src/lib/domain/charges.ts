@@ -50,8 +50,6 @@ export function expectedRentCharges(
 	const term = { startDate: start, endDate: lease.endDate };
 	const endMonth = lease.endDate ? monthOf(lease.endDate) : untilMonth;
 	const lastMonth = endMonth < untilMonth ? endMonth : untilMonth;
-	// nthWorkingDay never returns for n = 0; a due day below 1 is treated as the first working day.
-	const dueDay = Math.max(1, lease.rentDueDay);
 
 	const charges: ExpectedCharge[] = [];
 	for (const period of monthsInRange(monthOf(start), lastMonth)) {
@@ -60,7 +58,7 @@ export function expectedRentCharges(
 		if (amounts.days === 0) continue;
 		charges.push({
 			period,
-			dueDate: nthWorkingDay(period, dueDay),
+			dueDate: nthWorkingDay(period, lease.rentDueDay),
 			baseRent: amounts.baseRent,
 			operatingCostPrepayment: amounts.operatingCostPrepayment,
 			heatingCostPrepayment: amounts.heatingCostPrepayment,

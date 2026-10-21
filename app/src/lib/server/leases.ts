@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, inArray, ne } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
-import { formatDate, today, type IsoDate } from '../dates';
+import { formatDate, monthOf, today, type IsoDate } from '../dates';
 import { rentOn, type RentChange as RentHistoryEntry } from '../domain/rents';
 import { terminatedByLabels } from '../labels';
 import { formatCents } from '../money';
@@ -8,6 +8,7 @@ import type { AuditContext } from './audit';
 import { auditEntry } from './audit';
 import type { Database } from './db';
 import { chunk, chunkIds, rowsPerStatement, runBatch } from './db/batch';
+import { chargeStatements } from './ledger';
 import { laterRows, laterRowsNote, type LaterRows } from './rent-history';
 import {
 	auditLog,
@@ -324,16 +325,33 @@ export function newLeaseStatements(
 	];
 }
 
-/** Creates the lease with its tenants, extra units, the initial rent and persons, atomically. */
+/**
+ * Creates the lease with its tenants, extra units, the initial rent and persons, atomically. A
+ * non-zero opening balance (Anfangssaldo) is posted in the same batch, due at the ledger start.
+ */
 export async function createLease(
 	db: Database,
 	context: AuditContext,
-	input: LeaseInput
+	input: LeaseInput,
+	openingBalance: number | null = null
 ): Promise<{ ok: true; id: string } | { ok: false; reason: LeaseError }> {
 	const reason = await checkReferences(db, context.accountId, input);
 	if (reason) return { ok: false, reason };
 	const id = crypto.randomUUID();
-	await runBatch(db, newLeaseStatements(db, context, [{ id, input }]));
+	const ledgerStart = input.ledgerStart ?? input.startDate;
+	await runBatch(db, [
+		...newLeaseStatements(db, context, [{ id, input }]),
+		...(openingBalance
+			? chargeStatements(db, context, crypto.randomUUID(), {
+					leaseId: id,
+					kind: 'adjustment',
+					period: monthOf(ledgerStart),
+					dueDate: ledgerStart,
+					amount: openingBalance,
+					note: 'Anfangssaldo'
+				})
+			: [])
+	]);
 	return { ok: true, id };
 }
 

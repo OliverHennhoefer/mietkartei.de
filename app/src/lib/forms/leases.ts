@@ -42,13 +42,11 @@ export function parseLease(form: FormData): ParseResult<LeaseInput> {
 	const rentDueDay =
 		parser.number('rentDueDay', { required: false, integer: true, min: 1, max: 20 }) ?? 3;
 
+	// A ledger start after the end is allowed: no rent is charged then, and an opening balance holds
+	// what was still owed. Ending a lease before its ledger start must not lock the edit form.
 	const ledgerStart = parser.date('ledgerStart', { required: false });
-	if (
-		ledgerStart &&
-		startDate &&
-		(ledgerStart < startDate || (endDate !== null && ledgerStart > endDate))
-	) {
-		parser.fail('ledgerStart', 'Der Beginn des Mietkontos liegt außerhalb der Vertragslaufzeit.');
+	if (ledgerStart && startDate && ledgerStart < startDate) {
+		parser.fail('ledgerStart', 'Das Mietkonto kann nicht vor dem Vertragsbeginn beginnen.');
 	}
 
 	const terminatedAt = parser.date('terminatedAt', { required: false });

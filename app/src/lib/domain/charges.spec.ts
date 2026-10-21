@@ -90,6 +90,14 @@ describe('expectedRentCharges', () => {
 		expect(
 			expectedRentCharges({ ...lease, ledgerStart: '2024-06-01' }, changes, '2025-02')
 		).toEqual([january, february]);
+		// A ledger start after the end charges nothing.
+		expect(
+			expectedRentCharges(
+				{ ...lease, endDate: '2025-05-31', ledgerStart: '2025-06-01' },
+				changes,
+				'2025-08'
+			)
+		).toEqual([]);
 	});
 
 	it('ends with a prorated last month and nothing after the end date', () => {
