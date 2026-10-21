@@ -2,6 +2,7 @@
 	import favicon from '../../../assets/brand/favicon.svg';
 	import logo from '../../../assets/brand/logo.svg';
 	import logoWhite from '../../../assets/brand/logo-white.svg';
+	import Alert from '#lib/components/Alert.svelte';
 	import Icon, { type IconName } from '#lib/components/Icon.svelte';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -134,6 +135,9 @@
 					<a href={resolve('/einstellungen')} aria-current={current('/einstellungen')}
 						><Icon name="settings" />Einstellungen</a
 					>
+					{#if data.billingEnabled}
+						<a href={resolve('/abo')} aria-current={current('/abo')}><Icon name="card" />Abo</a>
+					{/if}
 					<div class="nav-account">
 						<span class="avatar" aria-hidden="true">{initials}</span>
 						<div class="nav-user">
@@ -151,6 +155,11 @@
 			</nav>
 		{/if}
 		<main id="main-content" class="site-main" tabindex="-1" inert={open}>
+			{#if data.notice}
+				<Alert tone={data.notice.tone} role="note">
+					<p>{data.notice.text} <a href={data.notice.href}>Zum Abo</a></p>
+				</Alert>
+			{/if}
 			{@render children()}
 		</main>
 	</div>

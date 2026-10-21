@@ -77,6 +77,16 @@ test('the owner invites a manager, who registers through the link', async ({
 		headers: { origin: baseURL! }
 	});
 	expect(createBankAccount.status()).toBe(403);
+	// So is the subscription: the page says who manages it, the actions answer 403.
+	await invitee.goto('/abo');
+	await expect(
+		invitee.getByText('Das Abo verwaltet der Vermieter des Kontos, nicht die Mitverwalter.')
+	).toBeVisible();
+	const checkout = await invitee.request.post('/abo?/checkout', {
+		form: {},
+		headers: { origin: baseURL! }
+	});
+	expect(checkout.status()).toBe(403);
 	// The settings hub does not send a manager to the owner-only pages.
 	await invitee.goto('/einstellungen');
 	const hub = invitee.getByRole('list', { name: 'Einstellungen' });

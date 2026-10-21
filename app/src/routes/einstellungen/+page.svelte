@@ -4,7 +4,8 @@
 
 	let { data }: PageProps = $props();
 
-	// Entries a manager may not open (requireOwner answers 403) are left out for them.
+	// Entries a manager may not open (requireOwner answers 403) are left out for them, the
+	// subscription where the instance has none.
 	const allEntries = [
 		{
 			href: '/einstellungen/profil',
@@ -48,10 +49,19 @@
 			label: 'Protokoll',
 			text: 'Wer wann was geändert hat.'
 		},
+		{
+			href: '/abo',
+			label: 'Abo',
+			text: 'Testphase, Abo und Zahlung der gehosteten Variante.',
+			billingOnly: true
+		},
 		{ href: '/einstellungen/konto', label: 'Konto', text: 'Konto und alle Daten löschen.' }
 	];
 	const entries = $derived(
-		data.role === 'owner' ? allEntries : allEntries.filter((entry) => !entry.ownerOnly)
+		allEntries.filter(
+			(entry) =>
+				(data.role === 'owner' || !entry.ownerOnly) && (data.billingEnabled || !entry.billingOnly)
+		)
 	);
 </script>
 
