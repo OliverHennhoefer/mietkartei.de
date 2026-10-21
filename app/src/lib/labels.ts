@@ -4,6 +4,7 @@ import type {
 	HeatingCostModel,
 	LeaseKind,
 	OperatingCostModel,
+	RentChangeReason,
 	RentChargeKind,
 	RentModel,
 	TerminatedBy
@@ -42,6 +43,14 @@ export const terminatedByLabels: Record<TerminatedBy, string> = {
 export const buildingUseLabels: Record<BuildingUse, string> = {
 	residential: 'Wohngebäude',
 	non_residential: 'Nichtwohngebäude'
+};
+
+export const rentChangeReasonLabels: Record<RentChangeReason, string> = {
+	initial: 'Vertragsbeginn',
+	manual: 'Änderung',
+	graduated: 'Staffel',
+	indexed: 'Indexanpassung',
+	statement: 'Anpassung nach Abrechnung'
 };
 
 export const depositTransactionKindLabels: Record<DepositTransactionKind, string> = {

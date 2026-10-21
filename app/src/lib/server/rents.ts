@@ -4,7 +4,10 @@ import { rentOn, type RentChange } from '../domain/rents';
 import type { Database } from './db';
 import { rentChanges } from './db/schema';
 
-// The rent history of a lease. Creating and editing a lease writes its initial row (leases.ts).
+// The rent history of a lease. Creating and editing a lease writes its initial row (leases.ts);
+// the changes after it come from rent-adjustments.ts.
+
+export type RentChangeRow = typeof rentChanges.$inferSelect;
 
 export async function listRentChanges(db: Database, accountId: string, leaseId: string) {
 	return db

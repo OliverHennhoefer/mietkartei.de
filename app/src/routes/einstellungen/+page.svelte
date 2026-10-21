@@ -6,6 +6,11 @@
 			href: '/einstellungen/profil',
 			label: 'Profil',
 			text: 'Der Absender (Vermieter) auf deinen Briefen.'
+		},
+		{
+			href: '/einstellungen/vpi',
+			label: 'Verbraucherpreisindex',
+			text: 'Indexwerte für Indexmietverträge.'
 		}
 	];
 </script>
