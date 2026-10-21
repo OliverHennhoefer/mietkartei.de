@@ -9,8 +9,8 @@ import { listTenants } from '#lib/server/tenants.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 // Edits everything but the units (end the lease and start a new one), including the amounts,
-// deposit and persons at the start of the lease (later persons: the persons history on the
-// overview). The lease itself comes from the layout.
+// deposit and persons at the start of the lease (later changes: the Miethöhe tab and the persons
+// history). The lease itself comes from the layout.
 export const load: PageServerLoad = async ({ locals, parent }) => {
 	const accountId = requireAccount(locals);
 	const { lease } = await parent();
@@ -31,6 +31,8 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 		securityDeposit: formatCentsPlain(input.securityDeposit),
 		persons: String(input.persons),
 		ledgerStart: input.ledgerStart ?? '',
+		indexBaseMonth: input.indexBaseMonth ?? '',
+		indexBaseValue: input.indexBaseValue === null ? '' : String(input.indexBaseValue),
 		terminatedAt: input.terminatedAt ?? '',
 		terminatedBy: input.terminatedBy ?? '',
 		notes: input.notes ?? ''

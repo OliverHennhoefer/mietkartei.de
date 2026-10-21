@@ -31,7 +31,8 @@ import {
 } from './db/schema';
 
 // Leases: the main unit, extra units (parking), tenants, the initial rent and persons, the
-// persons history and the end of the lease. The rent history is read through rents.ts.
+// persons history and the end of the lease. The rent history after creation is the business of
+// rent-adjustments.ts; this file only reads it through rents.ts.
 
 export type LeaseInput = {
 	unitId: string;
@@ -50,6 +51,8 @@ export type LeaseInput = {
 	persons: number;
 	rentDueDay: number;
 	ledgerStart: string | null;
+	indexBaseMonth: string | null;
+	indexBaseValue: number | null;
 	terminatedAt: string | null;
 	terminatedBy: TerminatedBy | null;
 	notes: string | null;
@@ -251,6 +254,8 @@ function leaseColumns(input: LeaseInput) {
 		persons: input.persons,
 		rentDueDay: input.rentDueDay,
 		ledgerStart: input.ledgerStart,
+		indexBaseMonth: input.indexBaseMonth,
+		indexBaseValue: input.indexBaseValue,
 		terminatedAt: input.terminatedAt,
 		terminatedBy: input.terminatedBy,
 		notes: input.notes
@@ -541,6 +546,8 @@ export function leaseInputOf(lease: LeaseSummary): LeaseInput {
 		persons: lease.persons,
 		rentDueDay: lease.rentDueDay,
 		ledgerStart: lease.ledgerStart,
+		indexBaseMonth: lease.indexBaseMonth,
+		indexBaseValue: lease.indexBaseValue,
 		terminatedAt: lease.terminatedAt,
 		terminatedBy: lease.terminatedBy,
 		notes: lease.notes

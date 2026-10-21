@@ -49,6 +49,18 @@ export function parseLease(form: FormData): ParseResult<LeaseInput> {
 		parser.fail('ledgerStart', 'Das Mietkonto kann nicht vor dem Vertragsbeginn beginnen.');
 	}
 
+	// The index base is only stored for an indexed rent; a value typed in and then forgotten by
+	// switching the model back is dropped, but still has to be well-formed.
+	const indexBaseMonth = parser.month('indexBaseMonth', { required: false });
+	const indexBaseValue = parser.number('indexBaseValue', { required: false, min: 0 });
+	if (indexBaseValue === 0) parser.fail('indexBaseValue', 'Der Indexwert muss größer als 0 sein.');
+	const indexed = rentModel === 'indexed';
+	if (indexed && (indexBaseMonth === null || indexBaseValue === null)) {
+		const message = 'Für eine Indexmiete brauchst du den Basismonat und den Indexwert.';
+		if (indexBaseMonth === null) parser.fail('indexBaseMonth', message);
+		if (indexBaseValue === null) parser.fail('indexBaseValue', message);
+	}
+
 	const terminatedAt = parser.date('terminatedAt', { required: false });
 	const terminatedBy = parser.oneOf('terminatedBy', terminatedByParties, { required: false });
 	if (terminatedAt && !terminatedBy) {
@@ -76,6 +88,8 @@ export function parseLease(form: FormData): ParseResult<LeaseInput> {
 		persons,
 		rentDueDay,
 		ledgerStart,
+		indexBaseMonth: indexed ? indexBaseMonth : null,
+		indexBaseValue: indexed ? indexBaseValue : null,
 		terminatedAt,
 		terminatedBy,
 		notes
@@ -96,9 +110,9 @@ export function depositWarning(
 
 /**
  * The edit form changes everything but the units (end the lease and start a new one). The
- * amounts, deposit and persons it edits are the ones at the start of the lease; later persons
- * live in the persons history. The current units are put into the form data, so parseLease
- * checks the whole lease as on creation.
+ * amounts, deposit and persons it edits are the ones at the start of the lease; the changes after
+ * it live on the Miethöhe tab and in the persons history. The current units are put into the form
+ * data, so parseLease checks the whole lease as on creation.
  */
 export function parseLeaseEdit(form: FormData, current: LeaseInput): ParseResult<LeaseInput> {
 	const merged = new FormData();

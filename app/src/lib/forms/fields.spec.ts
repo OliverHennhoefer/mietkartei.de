@@ -141,3 +141,20 @@ describe('FormParser for ids, money, dates, email and flags', () => {
 		expect(missing.ok || missing.errors).toEqual({ rent: 'Bitte gib einen Betrag an.' });
 	});
 });
+
+describe('FormParser.month', () => {
+	it('reads YYYY-MM, refuses other values and may be optional', () => {
+		const parse = (entries: Record<string, string>, required?: boolean) => {
+			const parser = new FormParser<{ month: string }>(formDataOf(entries));
+			const month = parser.month('month', { required });
+			return parser.result(() => ({ month: month! }));
+		};
+		expect(parse({ month: '2026-01' })).toEqual({ ok: true, data: { month: '2026-01' } });
+		expect(parse({ month: '2026-13' })).toMatchObject({
+			ok: false,
+			errors: { month: 'Bitte gib einen gültigen Monat an.' }
+		});
+		expect(parse({})).toMatchObject({ ok: false, errors: { month: 'Bitte gib einen Monat an.' } });
+		expect(parse({}, false)).toEqual({ ok: true, data: { month: null } });
+	});
+});

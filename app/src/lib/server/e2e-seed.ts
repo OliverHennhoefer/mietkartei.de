@@ -116,6 +116,8 @@ async function seedLease(
 		persons: 2,
 		rentDueDay: 3,
 		ledgerStart: null,
+		indexBaseMonth: null,
+		indexBaseValue: null,
 		terminatedAt: null,
 		terminatedBy: null,
 		notes: null,

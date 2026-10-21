@@ -33,13 +33,13 @@ function errorsOf(overrides: Record<string, string | string[]>) {
 }
 
 describe('parseLease', () => {
-	it('parses a complete lease with German decimal amounts', () => {
+	it('parses a complete indexed lease with German decimal amounts', () => {
 		const result = parse({
 			extraUnitIds: ['parking-1', 'parking-2'],
 			tenantIds: ['tenant-1', 'tenant-2'],
 			endDate: '2027-12-31',
 			kind: 'commercial',
-			rentModel: 'graduated',
+			rentModel: 'indexed',
 			operatingCostModel: 'flat',
 			heatingCostModel: 'flat',
 			baseRent: '1.250,00',
@@ -49,6 +49,8 @@ describe('parseLease', () => {
 			persons: '3',
 			rentDueDay: '1',
 			ledgerStart: '2026-06-01',
+			indexBaseMonth: '2025-12',
+			indexBaseValue: '121,4',
 			terminatedAt: '2027-09-30',
 			terminatedBy: 'tenant',
 			notes: 'Büro im EG, Stellplätze inklusive.'
@@ -62,7 +64,7 @@ describe('parseLease', () => {
 				startDate: '2026-01-01',
 				endDate: '2027-12-31',
 				kind: 'commercial',
-				rentModel: 'graduated',
+				rentModel: 'indexed',
 				operatingCostModel: 'flat',
 				heatingCostModel: 'flat',
 				baseRent: 125000,
@@ -72,6 +74,8 @@ describe('parseLease', () => {
 				persons: 3,
 				rentDueDay: 1,
 				ledgerStart: '2026-06-01',
+				indexBaseMonth: '2025-12',
+				indexBaseValue: 121.4,
 				terminatedAt: '2027-09-30',
 				terminatedBy: 'tenant',
 				notes: 'Büro im EG, Stellplätze inklusive.'
@@ -99,11 +103,21 @@ describe('parseLease', () => {
 				persons: 1,
 				rentDueDay: 3,
 				ledgerStart: null,
+				indexBaseMonth: null,
+				indexBaseValue: null,
 				terminatedAt: null,
 				terminatedBy: null,
 				notes: null
 			}
 		});
+	});
+
+	it('keeps the index base only for an indexed rent', () => {
+		const result = parse({ indexBaseMonth: '2025-12', indexBaseValue: '121,4' });
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data.indexBaseMonth).toBeNull();
+		expect(result.data.indexBaseValue).toBeNull();
 	});
 
 	it('requires a unit, a tenant, a start date, the models and the base rent', () => {
@@ -186,6 +200,23 @@ describe('parseLease', () => {
 		});
 	});
 
+	it('needs the index base for an indexed rent, and a positive index value', () => {
+		const message = 'Für eine Indexmiete brauchst du den Basismonat und den Indexwert.';
+		expect(errorsOf({ rentModel: 'indexed' })).toEqual({
+			indexBaseMonth: message,
+			indexBaseValue: message
+		});
+		expect(errorsOf({ rentModel: 'indexed', indexBaseMonth: '2025-12' })).toEqual({
+			indexBaseValue: message
+		});
+		expect(
+			errorsOf({ rentModel: 'indexed', indexBaseMonth: '2025-13', indexBaseValue: '0' })
+		).toEqual({
+			indexBaseMonth: 'Bitte gib einen gültigen Monat an.',
+			indexBaseValue: 'Der Indexwert muss größer als 0 sein.'
+		});
+	});
+
 	it('limits the notes', () => {
 		expect(errorsOf({ notes: 'n'.repeat(2001) })).toEqual({ notes: 'Höchstens 2000 Zeichen.' });
 	});
@@ -231,6 +262,8 @@ const current: LeaseInput = {
 	persons: 2,
 	rentDueDay: 3,
 	ledgerStart: null,
+	indexBaseMonth: null,
+	indexBaseValue: null,
 	terminatedAt: null,
 	terminatedBy: null,
 	notes: null
