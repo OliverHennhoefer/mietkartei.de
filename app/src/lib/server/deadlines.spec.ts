@@ -81,6 +81,61 @@ describe('statement deadline (§ 556 Abs. 3 BGB)', () => {
 		]);
 	});
 
+	it('stays per lease after the approval until the delivery is recorded', async () => {
+		const { leaseId, propertyId } = await lease(
+			'a',
+			{ startDate: '2024-01-01', endDate: '2024-12-31' },
+			{ name: 'EG', propertyName: 'Haus' }
+		);
+		const [first, correction] = await db
+			.insert(operatingCostStatements)
+			.values([
+				{
+					accountId: 'a',
+					propertyId,
+					periodStart: '2024-01-01',
+					periodEnd: '2024-12-31',
+					status: 'approved'
+				},
+				{
+					accountId: 'a',
+					propertyId,
+					periodStart: '2024-01-01',
+					periodEnd: '2024-12-31',
+					version: 2,
+					status: 'approved'
+				}
+			])
+			.returning({ id: operatingCostStatements.id });
+		const [result] = await db
+			.insert(statementResults)
+			.values([
+				{ accountId: 'a', statementId: first.id, leaseId, balance: 1000, result: '{}' },
+				{ accountId: 'a', statementId: correction.id, leaseId, balance: 800, result: '{}' }
+			])
+			.returning({ id: statementResults.id });
+
+		// Approved but not delivered: the deadline passed on 31.12.2025, still to do.
+		const rows = await list('statement');
+		expect(rows.map(brief)).toEqual([
+			['2025-12-31', 'Betriebskostenabrechnung 2024 zustellen', true]
+		]);
+		expect(rows[0]).toMatchObject({
+			href: `/betriebskosten/abrechnungen/${correction.id}`,
+			leaseId,
+			propertyId,
+			detail:
+				'Erika Muster · EG · Haus: die Abrechnung muss bis zum 31.12.2025 zugehen; trag die Zustellung ein.'
+		});
+
+		// The delivery of either version settles it.
+		await db
+			.update(statementResults)
+			.set({ deliveredOn: '2025-06-01' })
+			.where(eq(statementResults.id, result.id));
+		expect(await list('statement')).toEqual([]);
+	});
+
 	it('skips commercial leases, years before the ledger start and years after the lease end', async () => {
 		await lease('a', { startDate: '2024-01-01', kind: 'commercial' });
 		await lease('a', { startDate: '2022-01-01', ledgerStart: '2025-03-01' });

@@ -106,6 +106,7 @@ export async function listDeadlines(
 					propertyId: operatingCostStatements.propertyId,
 					periodStart: operatingCostStatements.periodStart,
 					periodEnd: operatingCostStatements.periodEnd,
+					version: operatingCostStatements.version,
 					status: operatingCostStatements.status
 				})
 				.from(operatingCostStatements)
@@ -145,8 +146,9 @@ export async function listDeadlines(
 	};
 
 	// Betriebskostenabrechnung (§ 556 Abs. 3 BGB): per property and ended calendar year with a
-	// residential lease, until an approved statement covers the end of that year. Years before a
-	// lease's ledger start are not the app's business.
+	// residential lease, until an approved statement covers the end of that year; then per residential
+	// lease of that statement until its delivery is recorded, since the deadline is about the statement
+	// reaching the tenant. Years before a lease's ledger start are not the app's business.
 	const yearsByProperty = new Map<string, Set<number>>();
 	for (const lease of allLeases) {
 		if (lease.kind !== 'residential') continue;
@@ -172,22 +174,50 @@ export async function listDeadlines(
 		const property = allLeases.find((lease) => lease.property.id === propertyId)?.property;
 		for (const year of years) {
 			const periodEnd = `${year}-12-31`;
-			const approved = statementRows.some(
+			const deadline = statementDeadline(periodEnd);
+			const approved = statementRows.filter(
 				(row) =>
 					row.propertyId === propertyId &&
 					row.status === 'approved' &&
 					row.periodStart <= periodEnd &&
 					row.periodEnd >= periodEnd
 			);
-			if (approved) continue;
-			push({
-				kind: 'statement',
-				date: statementDeadline(periodEnd),
-				title: `Betriebskostenabrechnung ${year}`,
-				detail: `${property?.name ?? 'Objekt'}: die Abrechnung muss den Mietern bis zum ${formatDate(statementDeadline(periodEnd))} zugehen.`,
-				href: '/betriebskosten',
-				propertyId
-			});
+			if (approved.length === 0) {
+				push({
+					kind: 'statement',
+					date: deadline,
+					title: `Betriebskostenabrechnung ${year}`,
+					detail: `${property?.name ?? 'Objekt'}: die Abrechnung muss den Mietern bis zum ${formatDate(deadline)} zugehen.`,
+					href: '/betriebskosten',
+					propertyId
+				});
+				continue;
+			}
+			// A delivery of any version (the original or a correction) meets the deadline; an
+			// undelivered lease links to the latest version.
+			approved.sort((a, b) => b.version - a.version);
+			const results = approved.flatMap((statement) =>
+				resultRows.filter((row) => row.statementId === statement.id)
+			);
+			const delivered = new Set(results.filter((row) => row.deliveredOn).map((row) => row.leaseId));
+			const pending = new Map<string, string>();
+			for (const result of results) {
+				if (delivered.has(result.leaseId) || pending.has(result.leaseId)) continue;
+				pending.set(result.leaseId, result.statementId);
+			}
+			for (const [leaseId, statementId] of pending) {
+				const lease = leaseById.get(leaseId);
+				if (!lease || lease.kind !== 'residential') continue;
+				push({
+					kind: 'statement',
+					date: deadline,
+					title: `Betriebskostenabrechnung ${year} zustellen`,
+					detail: `${leaseDetail(lease)}: die Abrechnung muss bis zum ${formatDate(deadline)} zugehen; trag die Zustellung ein.`,
+					href: `/betriebskosten/abrechnungen/${statementId}`,
+					leaseId,
+					propertyId
+				});
+			}
 		}
 	}
 
