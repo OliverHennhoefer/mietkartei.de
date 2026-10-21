@@ -11,7 +11,8 @@ import {
 import { unitKinds } from '../../units';
 
 // Every record belongs to an account. The hosted variant serves many accounts from one database;
-// a self-hosted instance simply has a single account.
+// a self-hosted instance simply has a single account. Amounts are integer euro cents, dates are
+// ISO strings (YYYY-MM-DD).
 
 const id = () =>
 	text('id')
@@ -34,6 +35,9 @@ export const accounts = sqliteTable('accounts', {
 	createdAt: createdAt()
 });
 
+export const buildingUses = ['residential', 'non_residential'] as const;
+export type BuildingUse = (typeof buildingUses)[number];
+
 /** Objekt: a building or plot with one or more units. */
 export const properties = sqliteTable(
 	'properties',
@@ -44,6 +48,11 @@ export const properties = sqliteTable(
 		street: text('street').notNull(),
 		postalCode: text('postal_code').notNull(),
 		city: text('city').notNull(),
+		/** Wohngebäude or Nichtwohngebäude (§ 8 CO2KostAufG: 50/50 split for the latter). */
+		buildingUse: text('building_use', { enum: buildingUses }).notNull().default('residential'),
+		/** Persons a vacant unit counts with in the persons key; that share stays with the landlord. */
+		vacancyPersons: integer('vacancy_persons').notNull().default(1),
+		notes: text('notes'),
 		createdAt: createdAt()
 	},
 	(table) => [index('properties_account_id_idx').on(table.accountId)]
@@ -62,6 +71,9 @@ export const units = sqliteTable(
 		kind: text('kind', { enum: unitKinds }).notNull(),
 		/** Floor area in square metres. */
 		floorArea: real('floor_area'),
+		floor: text('floor'),
+		rooms: real('rooms'),
+		notes: text('notes'),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -157,4 +169,26 @@ export const sessions = sqliteTable(
 		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull()
 	},
 	(table) => [index('sessions_user_id_idx').on(table.userId)]
+);
+
+/**
+ * The verbs used in audit_log.action. The column is plain text so a feature can add a verb
+ * without a schema change.
+ */
+export type AuditAction = 'create' | 'update' | 'delete';
+
+/** Who changed what, as one German sentence per change. */
+export const auditLog = sqliteTable(
+	'audit_log',
+	{
+		id: id(),
+		accountId: accountId(),
+		userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+		at: createdAt(),
+		entity: text('entity').notNull(),
+		entityId: text('entity_id').notNull(),
+		action: text('action').notNull(),
+		summary: text('summary').notNull()
+	},
+	(table) => [index('audit_log_account_id_at_idx').on(table.accountId, table.at)]
 );

@@ -38,7 +38,9 @@ npm run test:e2e      # End-to-End-Tests mit Playwright gegen einen Produktions-
 DEPLOY_TARGET=cloudflare npm run test:e2e   # dieselben Tests in workerd mit lokaler D1
 ```
 
-Vor den End-to-End-Tests installiert `npx playwright install chromium` einmalig den Browser.
+Vor den End-to-End-Tests installiert `npx playwright install chromium` einmalig den Browser. Der Testserver läuft auf Port 4173; mit `E2E_PORT` wählst du einen anderen, etwa um beide Ziele gleichzeitig in zwei Arbeitskopien zu testen.
+
+Der Testserver startet mit `E2E=true`. Damit ist der Endpunkt `/api/e2e/seed` aktiv, über den ein Test anlegt, was er braucht, aber nicht selbst prüft, etwa einen Mietvertrag mit Objekt, Einheit und Mieter (siehe `e2e/seed.ts`). Setze `E2E` nie in einer echten Installation.
 
 ## Datenbankschema ändern
 
@@ -46,7 +48,7 @@ Das Schema steht in `src/lib/server/db/schema.ts`. Nach einer Änderung erzeugt 
 
 Auf Node.js spielt die Anwendung neue Migrationen beim Start selbst ein. Für D1 übernimmt das `wrangler d1 migrations apply`.
 
-Damit dieselben Abfragen auf SQLite und D1 funktionieren, laufen alle Datenbankzugriffe über Drizzle. D1 kennt keine interaktiven Transaktionen; Änderungen über mehrere Anweisungen nutzen deshalb `db.batch`.
+Damit dieselben Abfragen auf SQLite und D1 funktionieren, laufen alle Datenbankzugriffe über Drizzle. D1 kennt keine interaktiven Transaktionen; Änderungen über mehrere Anweisungen laufen deshalb über `runBatch` aus `src/lib/server/db/batch.ts`, das auf D1 `db.batch` und auf SQLite eine Transaktion nutzt. D1 erlaubt außerdem höchstens 100 gebundene Parameter je Anweisung; lange Listen teilen `chunk`, `chunkIds` und `rowsPerStatement` auf.
 
 ## Mit Docker betreiben
 

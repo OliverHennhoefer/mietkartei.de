@@ -3,10 +3,25 @@
 	import favicon from '../../../assets/brand/favicon.svg';
 	import logo from '../../../assets/brand/logo.svg';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import '../app.css';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
+	let open = $state(false);
+
+	const sections = [{ href: '/objekte', label: 'Objekte' }];
+
+	function current(href: string): 'page' | undefined {
+		const path = page.url.pathname;
+		return path === href || path.startsWith(`${href}/`) ? 'page' : undefined;
+	}
+
+	// Close the menu after navigating on a phone.
+	$effect(() => {
+		void page.url.pathname;
+		open = false;
+	});
 </script>
 
 <svelte:head>
@@ -14,20 +29,37 @@
 </svelte:head>
 
 <header class="site-header">
-	<div class="container">
+	<div class="bar">
 		<a href={resolve('/objekte')} class="brand"><img src={logo} alt="mietkartei" height="20" /></a>
 		{#if data.email}
-			<nav aria-label="Hauptnavigation">
-				<a href={resolve('/objekte')}>Objekte</a>
-				<form method="POST" action={resolve('/abmelden')}>
-					<span class="muted">{data.email}</span>
-					<button type="submit" class="link">Abmelden</button>
-				</form>
-			</nav>
+			<button
+				type="button"
+				class="nav-toggle"
+				aria-expanded={open}
+				aria-controls="site-nav"
+				onclick={() => (open = !open)}
+			>
+				Menü
+			</button>
 		{/if}
 	</div>
 </header>
 
-<main class="container">
-	{@render children()}
-</main>
+<div class="site-layout">
+	{#if data.email}
+		<nav id="site-nav" class="site-nav" class:open aria-label="Hauptnavigation">
+			{#each sections as section (section.href)}
+				<a href={section.href} aria-current={current(section.href)}>{section.label}</a>
+			{/each}
+			<div class="nav-group">
+				<p class="nav-user muted">{data.email}</p>
+				<form method="POST" action={resolve('/abmelden')}>
+					<button type="submit" class="link">Abmelden</button>
+				</form>
+			</div>
+		</nav>
+	{/if}
+	<main class="site-main">
+		{@render children()}
+	</main>
+</div>

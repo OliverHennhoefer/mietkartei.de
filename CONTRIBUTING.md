@@ -90,6 +90,12 @@ Viele Begriffe des Mietrechts haben keine genaue englische Entsprechung. Verwend
 | Mietsicherheit (Kaution) | `securityDeposit` | Sicherheitsleistung des Mieters |
 | Zählerstand | `meterReading` | Ablesewert eines Zählers zu einem Stichtag |
 
+### Pfade
+
+Die Pfade der Seiten sieht man in der Adresszeile, deshalb sind sie deutsch: klein geschrieben, Wörter mit Bindestrich getrennt und ohne Umlaute oder ß (`ae`, `oe`, `ue`, `ss`), etwa `/objekte/neu`, `/passwort-vergessen` oder `/dokumente/[id]/herunterladen`. Endpunkte, die keine Seite sind, liegen unter `/api/` und sind englisch, etwa `/api/webhooks/stripe` oder `/api/e2e/seed`. Bezeichner im Code bleiben englisch, auch wenn sie zu einem deutschen Pfad gehören.
+
+Ausnahme ist `/health`: Docker, die CI und Überwachungsdienste fragen diesen Pfad ab, und er heißt in fast allen Anwendungen so.
+
 ## Rechte und Quellen
 
 Die Projektlizenz steht in [LICENSE](LICENSE). Stelle sicher, dass du die eingebrachten Inhalte beitragen darfst. Kennzeichne übernommene Inhalte und ergänze gegebenenfalls die zugehörigen Quellen und Lizenzhinweise.

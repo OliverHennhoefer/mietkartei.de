@@ -3,15 +3,20 @@ import { defineConfig } from '@playwright/test';
 // The end-to-end tests run against a production build of either target, each with a fresh
 // database: DEPLOY_TARGET=node (default) or DEPLOY_TARGET=cloudflare (workerd with a local D1).
 const target = process.env.DEPLOY_TARGET === 'cloudflare' ? 'cloudflare' : 'node';
-const port = 4173;
+const port = Number(process.env.E2E_PORT || 4173);
 
+// E2E=true enables /api/e2e/seed, through which the tests create what they do not own.
 const commands = {
-	node: ['rm -rf .e2e', 'npm run build', `DATABASE_PATH=.e2e/node.db PORT=${port} node server.js`],
+	node: [
+		'rm -rf .e2e',
+		'npm run build',
+		`DATABASE_PATH=.e2e/node.db E2E=true PORT=${port} node server.js`
+	],
 	cloudflare: [
 		'rm -rf .e2e',
 		'npm run build:cloudflare',
 		'wrangler d1 migrations apply DB --local --persist-to .e2e/wrangler',
-		`wrangler dev --port ${port} --persist-to .e2e/wrangler`
+		`wrangler dev --port ${port} --inspector-port 0 --persist-to .e2e/wrangler --var E2E:true`
 	]
 };
 
@@ -30,9 +35,11 @@ export default defineConfig({
 		// Registers the first user of the fresh database; the other projects build on it.
 		{ name: 'setup', testMatch: 'setup.e2e.ts' },
 		{ name: 'signed out', testMatch: 'auth.e2e.ts', dependencies: ['setup'] },
+		// Every feature's tests, as the owner. They seed what they do not own through e2e/seed.ts.
 		{
 			name: 'signed in',
-			testMatch: 'properties.e2e.ts',
+			testMatch: /\.e2e\.ts$/,
+			testIgnore: ['setup.e2e.ts', 'auth.e2e.ts'],
 			dependencies: ['setup'],
 			use: { storageState: '.e2e/owner.json' }
 		}
