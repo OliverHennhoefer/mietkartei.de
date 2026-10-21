@@ -5,6 +5,8 @@ describe('format', () => {
 	it('writes numbers and areas the German way', () => {
 		expect(formatNumber(2.5)).toBe('2,5');
 		expect(formatNumber(1234.567)).toBe('1.234,57');
+		expect(formatNumber(61.04, 1)).toBe('61');
+		expect(formatNumber(27.236, 1)).toBe('27,2');
 		expect(formatArea(72.5)).toBe('72,5 m²');
 	});
 

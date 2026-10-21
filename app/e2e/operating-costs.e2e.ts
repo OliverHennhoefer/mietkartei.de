@@ -23,7 +23,7 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 		unit: { name: unitName }
 	});
 
-	// The overview lists what is set up; the BetrKV list is seeded on first use.
+	// The first tab lists the statements; the BetrKV list is seeded on first use.
 	await page.goto('/objekte');
 	await page
 		.getByRole('navigation', { name: 'Hauptnavigation' })
@@ -32,15 +32,7 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 	await expect(page).toHaveURL(/\/betriebskosten$/);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Betriebskosten');
 	await expect(page).toHaveTitle('Betriebskosten · mietkartei');
-	const overview = page.getByRole('list', { name: 'Stammdaten' });
-	await expect(overview).toContainText(/\d+\sKostenarten, davon \d+ umlagefähig/);
-	await expect(overview).toContainText(/\d+\sUmlageschlüssel/);
-	await expect(
-		page
-			.getByRole('list', { name: 'Abrechnungskreise je Objekt' })
-			.getByRole('listitem')
-			.filter({ hasText: propertyName })
-	).toContainText('keine Abrechnungskreise');
+	await expect(page.getByRole('heading', { level: 2, name: 'Neue Abrechnung' })).toBeVisible();
 
 	// Categories: heating and hot water start with their HeizKV key, a combined system with none
 	// (§ 9 HeizKV splits it first), everything else allocable with floor area (§ 556a BGB).

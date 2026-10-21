@@ -78,7 +78,7 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 const bankPaymentMessage =
 	'Diese Zahlung stammt aus einem Umsatz. Hebe die Zuordnung unter Bank beim Umsatz auf (Status „Zugeordnet“), dann verschwindet sie auch hier.';
 const chargeMessage =
-	'Nur Korrekturen lassen sich hier löschen. Mieten folgen aus dem Vertrag; ändere dazu den Vertrag oder buche eine Korrektur.';
+	'Nur Korrekturen lassen sich hier löschen. Mieten folgen aus dem Vertrag, Abrechnungen werden dort zurückgenommen, wo sie gebucht wurden.';
 
 function idOf(form: FormData): string {
 	const value = form.get('id');

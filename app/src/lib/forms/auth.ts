@@ -13,5 +13,7 @@ export function parseLandlord(form: FormData): ParseResult<LandlordInput> {
 		parser.fail('postalCode', 'Die Postleitzahl hat fünf Ziffern.');
 	}
 	const city = parser.optionalText('city', 200);
-	return parser.result(() => ({ landlordName, street, postalCode, city }));
+	const iban = parser.iban('iban', { required: false });
+	const bankName = parser.optionalText('bankName', 200);
+	return parser.result(() => ({ landlordName, street, postalCode, city, iban, bankName }));
 }

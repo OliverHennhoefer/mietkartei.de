@@ -18,12 +18,14 @@ export async function ensureDefaultAccount(db: Database): Promise<string> {
 	return DEFAULT_ACCOUNT_ID;
 }
 
-/** The landlord as sender of letters; falls back to the account name. */
+/** The landlord as sender of letters and statements; falls back to the account name. */
 export type LandlordAddress = {
 	name: string;
 	street: string | null;
 	postalCode: string | null;
 	city: string | null;
+	iban: string | null;
+	bankName: string | null;
 	/** True when the sender block is usable on a letter (name and postal address present). */
 	complete: boolean;
 };
@@ -39,6 +41,8 @@ export async function landlordAddress(db: Database, accountId: string): Promise<
 		street,
 		postalCode,
 		city,
+		iban: account?.iban ?? null,
+		bankName: account?.bankName ?? null,
 		complete: Boolean(name && street && postalCode && city)
 	};
 }
@@ -58,9 +62,11 @@ export type LandlordInput = {
 	street: string | null;
 	postalCode: string | null;
 	city: string | null;
+	iban: string | null;
+	bankName: string | null;
 };
 
-/** Sets the sender block of the account, which letters print. */
+/** Sets the sender block of the account, which letters and statements print. */
 export async function updateLandlord(
 	db: Database,
 	context: AuditContext,
@@ -74,7 +80,7 @@ export async function updateLandlord(
 			'account',
 			context.accountId,
 			'update',
-			'Absender (Vermieter) für Briefe geändert'
+			'Absender (Vermieter) für Briefe und Abrechnungen geändert'
 		)
 	]);
 }
@@ -86,9 +92,20 @@ export async function getLandlord(db: Database, accountId: string): Promise<Land
 			landlordName: accounts.landlordName,
 			street: accounts.street,
 			postalCode: accounts.postalCode,
-			city: accounts.city
+			city: accounts.city,
+			iban: accounts.iban,
+			bankName: accounts.bankName
 		})
 		.from(accounts)
 		.where(eq(accounts.id, accountId));
-	return account ?? { landlordName: null, street: null, postalCode: null, city: null };
+	return (
+		account ?? {
+			landlordName: null,
+			street: null,
+			postalCode: null,
+			city: null,
+			iban: null,
+			bankName: null
+		}
+	);
 }

@@ -35,19 +35,32 @@ describe('landlordAddress', () => {
 });
 
 describe('updateLandlord and getLandlord', () => {
-	const empty = { landlordName: null, street: null, postalCode: null, city: null };
+	const empty = {
+		landlordName: null,
+		street: null,
+		postalCode: null,
+		city: null,
+		iban: null,
+		bankName: null
+	};
 	const block = {
 		landlordName: 'Erika Vermieter',
 		street: 'Hauptstraße 1',
 		postalCode: '10115',
-		city: 'Berlin'
+		city: 'Berlin',
+		iban: 'DE89370400440532013000',
+		bankName: 'Musterbank'
 	};
 
 	it('stores the sender block of the own account with an audit entry', async () => {
 		expect(await getLandlord(db, 'a')).toEqual(empty);
 		await updateLandlord(db, contextA, block);
 		expect(await getLandlord(db, 'a')).toEqual(block);
-		expect((await landlordAddress(db, 'a')).complete).toBe(true);
+		expect(await landlordAddress(db, 'a')).toMatchObject({
+			complete: true,
+			iban: 'DE89370400440532013000',
+			bankName: 'Musterbank'
+		});
 		const entries = await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'));
 		expect(entries).toHaveLength(1);
 		expect(entries[0]).toMatchObject({
@@ -55,7 +68,7 @@ describe('updateLandlord and getLandlord', () => {
 			entity: 'account',
 			entityId: 'a',
 			action: 'update',
-			summary: 'Absender (Vermieter) für Briefe geändert'
+			summary: 'Absender (Vermieter) für Briefe und Abrechnungen geändert'
 		});
 	});
 

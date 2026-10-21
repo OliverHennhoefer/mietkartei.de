@@ -4,6 +4,8 @@ import {
 	addMonths,
 	addMonthsToMonth,
 	dayOf,
+	daysBetween,
+	daysInclusive,
 	formatDate,
 	formatDateTime,
 	formatMonth,
@@ -12,6 +14,7 @@ import {
 	lastOfMonth,
 	monthsInRange,
 	overlap,
+	overlapDays,
 	parseGermanDate,
 	today
 } from './dates';
@@ -54,6 +57,14 @@ describe('arithmetic', () => {
 		expect(lastOfMonth('2026-12')).toBe('2026-12-31');
 	});
 
+	it('counts days', () => {
+		expect(daysBetween('2026-01-01', '2026-01-01')).toBe(0);
+		expect(daysBetween('2026-01-01', '2026-12-31')).toBe(364);
+		expect(daysInclusive('2026-01-01', '2026-12-31')).toBe(365);
+		expect(daysInclusive('2024-01-01', '2024-12-31')).toBe(366);
+		expect(daysInclusive('2026-02-02', '2026-02-01')).toBe(0);
+	});
+
 	it('computes overlaps of closed ranges', () => {
 		const year = { start: '2026-01-01', end: '2026-12-31' };
 		expect(overlap(year, { start: '2025-10-01', end: '2026-03-15' })).toEqual({
@@ -61,6 +72,8 @@ describe('arithmetic', () => {
 			end: '2026-03-15'
 		});
 		expect(overlap(year, { start: '2027-01-01', end: '2027-01-02' })).toBeUndefined();
+		expect(overlapDays(year, { start: '2026-07-01', end: '2027-06-30' })).toBe(184);
+		expect(overlapDays(year, { start: '2025-01-01', end: '2025-12-31' })).toBe(0);
 	});
 
 	it('lists months', () => {

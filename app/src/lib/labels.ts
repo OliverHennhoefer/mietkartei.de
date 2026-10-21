@@ -10,6 +10,7 @@ import type {
 	RentChangeReason,
 	RentChargeKind,
 	RentModel,
+	StatementStatus,
 	TerminatedBy
 } from './server/db/schema';
 
@@ -65,6 +66,7 @@ export const depositTransactionKindLabels: Record<DepositTransactionKind, string
 
 export const rentChargeKindLabels: Record<RentChargeKind, string> = {
 	rent: 'Miete',
+	statement_balance: 'Betriebskostenabrechnung',
 	adjustment: 'Korrektur'
 };
 
@@ -90,4 +92,9 @@ export const meterKindLabels: Record<MeterKind, string> = {
 	heat: 'Wärme',
 	gas: 'Gas',
 	electricity: 'Strom'
+};
+
+export const statementStatusLabels: Record<StatementStatus, string> = {
+	draft: 'Entwurf',
+	approved: 'Freigegeben'
 };
