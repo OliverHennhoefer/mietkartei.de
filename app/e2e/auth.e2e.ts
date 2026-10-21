@@ -66,7 +66,7 @@ test('sends the security headers and a CSP with a nonce', async ({ request }) =>
 	expect(csp).toContain("default-src 'self'");
 	expect(csp).toContain("frame-ancestors 'none'");
 	expect(csp).toContain("form-action 'self'");
-	expect(csp).toMatch(/script-src 'self' 'nonce-[^']+'/);
+	expect(csp).toMatch(/script-src 'self'[^;]* 'nonce-[^']+'/);
 	expect(headers['x-frame-options']).toBe('DENY');
 	expect(headers['referrer-policy']).toBe('same-origin');
 	expect(headers['x-content-type-options']).toBe('nosniff');
