@@ -936,10 +936,11 @@ export const users = sqliteTable(
 	},
 	(table) => [
 		index('users_account_id_idx').on(table.accountId),
-		// Only one user can take over the data from before sign-in, even if two register at once.
-		uniqueIndex('users_default_account_unique')
+		// One owner per account. Invitations add managers only; the index also lets only one of two
+		// simultaneous first registrations take over the default account.
+		uniqueIndex('users_account_owner_unique')
 			.on(table.accountId)
-			.where(sql`${table.accountId} = 'default'`)
+			.where(sql`${table.role} = 'owner'`)
 	]
 );
 

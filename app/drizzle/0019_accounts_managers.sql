@@ -51,5 +51,7 @@ CREATE TABLE `password_resets` (
 );
 --> statement-breakpoint
 CREATE INDEX `password_resets_user_id_idx` ON `password_resets` (`user_id`);--> statement-breakpoint
+DROP INDEX `users_default_account_unique`;--> statement-breakpoint
 ALTER TABLE `users` ADD `role` text DEFAULT 'owner' NOT NULL;--> statement-breakpoint
-ALTER TABLE `users` ADD `name` text;
+ALTER TABLE `users` ADD `name` text;--> statement-breakpoint
+CREATE UNIQUE INDEX `users_account_owner_unique` ON `users` (`account_id`) WHERE "users"."role" = 'owner';

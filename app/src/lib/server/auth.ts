@@ -1,9 +1,7 @@
-import { and, count, eq, getTableColumns, is, ne } from 'drizzle-orm';
-import { SQLiteTable } from 'drizzle-orm/sqlite-core';
+import { and, count, eq, ne } from 'drizzle-orm';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import * as schema from './db/schema';
 import { accounts, emailChanges, loginAttempts, sessions, users, type UserRole } from './db/schema';
 import { DEFAULT_ACCOUNT_ID, ensureDefaultAccount } from './accounts';
 
@@ -94,32 +92,8 @@ export type RegisterResult =
 	| { ok: false; reason: 'retry' };
 
 /**
- * Moves everything in the default account, the user included, into a fresh account and drops the
- * default account. The unique index `users_default_account_unique` lets only one user into the
- * default account, which protects the takeover against a race, but would also keep every
- * invited manager out; so the first user keeps the data, not the account id. Returns the new id.
- */
-async function moveDefaultAccount(db: Database, name: string): Promise<string> {
-	const [current] = await db.select().from(accounts).where(eq(accounts.id, DEFAULT_ACCOUNT_ID));
-	const accountId = crypto.randomUUID();
-	const scoped = (Object.values(schema) as unknown[]).filter(
-		(value): value is SQLiteTable & { accountId: typeof users.accountId } =>
-			is(value, SQLiteTable) && 'accountId' in getTableColumns(value)
-	);
-	await runBatch(db, [
-		db.insert(accounts).values({ ...current, id: accountId, name }),
-		...scoped.map((table) =>
-			db.update(table).set({ accountId }).where(eq(table.accountId, DEFAULT_ACCOUNT_ID))
-		),
-		db.delete(accounts).where(eq(accounts.id, DEFAULT_ACCOUNT_ID))
-	]);
-	return accountId;
-}
-
-/**
  * The first user takes over the default account and with it any data entered before sign-in
- * existed; the data then moves into an account of its own (see `moveDefaultAccount`). Every
- * later user gets a new, empty account.
+ * existed. Every later user gets a new, empty account.
  */
 export async function registerUser(
 	db: Database,
@@ -145,10 +119,10 @@ export async function registerUser(
 			.insert(users)
 			.values({ accountId, email, passwordHash })
 			.returning({ id: users.id });
-		if (first) await moveDefaultAccount(db, email);
 		return { ok: true, userId: user.id };
 	} catch (error) {
-		// Another registration won a race: either for the same address, or for the default account.
+		// Another registration won a race: for the same address, or for the owner of the default
+		// account (users_account_owner_unique).
 		if (accountId !== DEFAULT_ACCOUNT_ID)
 			await db.delete(accounts).where(eq(accounts.id, accountId));
 		const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));

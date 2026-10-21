@@ -55,7 +55,7 @@ describe('passwords', () => {
 });
 
 describe('registration', () => {
-	it('gives the first user the data of the default account, in an account of its own', async () => {
+	it('gives the first user the default account with the data entered before sign-in', async () => {
 		await ensureDefaultAccount(db);
 		await db.insert(properties).values({
 			accountId: DEFAULT_ACCOUNT_ID,
@@ -69,32 +69,39 @@ describe('registration', () => {
 		expect(result.ok).toBe(true);
 		const session = await createSession(db, result.ok ? result.userId : '');
 		const validated = await validateSession(db, session.token);
-		expect(validated?.user).toMatchObject({ email: 'erste@example.org' });
-		// The data moved with the user; the default account is gone, so a second user (an
-		// invited manager) can join the account despite the index on the default account.
-		const accountId = validated!.user.accountId;
-		expect(accountId).not.toBe(DEFAULT_ACCOUNT_ID);
-		const [property] = await db.select().from(properties);
-		expect(property).toMatchObject({ name: 'Altes Haus', accountId });
-		expect((await db.select().from(accounts)).map((row) => row.id)).toEqual([accountId]);
-		await db.insert(users).values({
-			accountId,
-			email: 'zweite@example.org',
-			passwordHash: await hashPassword(password),
-			role: 'manager'
+		expect(validated?.user).toMatchObject({
+			email: 'erste@example.org',
+			accountId: DEFAULT_ACCOUNT_ID,
+			role: 'owner'
 		});
-		expect(await db.select().from(users)).toHaveLength(2);
+		const [property] = await db.select().from(properties);
+		expect(property).toMatchObject({ name: 'Altes Haus', accountId: DEFAULT_ACCOUNT_ID });
 	});
 
-	it('never gives the default account to a second user', async () => {
+	it('lets managers but no second owner into an account, the default account too', async () => {
 		await registerUser(db, 'erste@example.org', password);
+		const passwordHash = await hashPassword(password);
+		await db.insert(users).values({
+			accountId: DEFAULT_ACCOUNT_ID,
+			email: 'mitverwalter@example.org',
+			passwordHash,
+			role: 'manager'
+		});
+		await db.insert(users).values({
+			accountId: DEFAULT_ACCOUNT_ID,
+			email: 'noch-ein-mitverwalter@example.org',
+			passwordHash,
+			role: 'manager'
+		});
 		await expect(
 			db.insert(users).values({
 				accountId: DEFAULT_ACCOUNT_ID,
 				email: 'zweite@example.org',
-				passwordHash: await hashPassword(password)
+				passwordHash,
+				role: 'owner'
 			})
 		).rejects.toThrow();
+		expect(await db.select().from(users)).toHaveLength(3);
 	});
 
 	it('gives every later user a new account', async () => {
