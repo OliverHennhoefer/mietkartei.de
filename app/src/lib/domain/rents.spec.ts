@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { monthlyAmounts, rentOn, type RentChange } from './rents';
+import { laterRowUpdates, monthlyAmounts, rentOn, type RentChange } from './rents';
 
 const changes: RentChange[] = [
 	{
@@ -80,5 +80,112 @@ describe('monthlyAmounts', () => {
 			baseRent: 19355,
 			days: 10
 		});
+	});
+});
+
+describe('monthlyAmounts with an unchanged field', () => {
+	it('keeps a prepayment that does not change exact when another field changes mid-month', () => {
+		// April has 30 days; the base rent changes on 16 April, the prepayments stay at 123,45 € and
+		// 50,01 €. Rounded per stretch, 12345 × 15/30 = 6172,5 → 6173 twice = 12346 and 5001 → 5002;
+		// rounded once over the month they stay 12345 and 5001.
+		const history: RentChange[] = [
+			{
+				validFrom: '2026-01-01',
+				baseRent: 60000,
+				operatingCostPrepayment: 12345,
+				heatingCostPrepayment: 5001,
+				status: 'approved'
+			},
+			{
+				validFrom: '2026-04-16',
+				baseRent: 63001,
+				operatingCostPrepayment: 12345,
+				heatingCostPrepayment: 5001,
+				status: 'approved'
+			}
+		];
+		expect(monthlyAmounts(history, { startDate: '2026-01-01', endDate: null }, '2026-04')).toEqual({
+			// 60000 × 15/30 + 63001 × 15/30 = 30000 + 31500,5 = 61500,5 → 61501.
+			baseRent: 61501,
+			operatingCostPrepayment: 12345,
+			heatingCostPrepayment: 5001,
+			days: 30,
+			daysInMonth: 30
+		});
+	});
+});
+
+describe('laterRowUpdates', () => {
+	const row = (
+		id: string,
+		validFrom: string,
+		baseRent: number,
+		operatingCostPrepayment: number,
+		status: 'approved' | 'proposed' = 'approved'
+	) => ({ id, validFrom, baseRent, operatingCostPrepayment, heatingCostPrepayment: 5000, status });
+
+	it('carries a new prepayment into later rows that inherited the old one', () => {
+		// Staffel steps entered up front for 2027 and 2028 copied the prepayment of 150 €; a § 560
+		// change from 2026-06-01 raises it to 200 €. Both steps follow; their Kaltmiete stays.
+		const history = [
+			row('initial', '2025-01-01', 60000, 15000),
+			row('step-2027', '2027-01-01', 62000, 15000),
+			row('step-2028', '2028-01-01', 64000, 15000)
+		];
+		expect(
+			laterRowUpdates(
+				history,
+				'2026-06-01',
+				{ baseRent: 60000, operatingCostPrepayment: 15000, heatingCostPrepayment: 5000 },
+				{ baseRent: 60000, operatingCostPrepayment: 20000, heatingCostPrepayment: 5000 }
+			)
+		).toEqual([
+			{ field: 'operatingCostPrepayment', value: 20000, ids: ['step-2027', 'step-2028'] }
+		]);
+	});
+
+	it('stops at the first later row that set the field itself and ignores proposals', () => {
+		const history = [
+			row('initial', '2025-01-01', 60000, 15000),
+			row('proposal', '2026-08-01', 61000, 15000, 'proposed'),
+			row('step-2027', '2027-01-01', 62000, 15000),
+			// A later § 560 change set 180 €; it and what follows keep their own value.
+			row('statement-2027', '2027-06-01', 62000, 18000),
+			row('step-2028', '2028-01-01', 64000, 18000)
+		];
+		expect(
+			laterRowUpdates(
+				history,
+				'2026-06-01',
+				{ baseRent: 60000, operatingCostPrepayment: 15000, heatingCostPrepayment: 5000 },
+				{ baseRent: 60000, operatingCostPrepayment: 20000, heatingCostPrepayment: 5000 }
+			)
+		).toEqual([{ field: 'operatingCostPrepayment', value: 20000, ids: ['step-2027'] }]);
+	});
+
+	it('carries a new Kaltmiete into a later § 560 row and skips the excluded row', () => {
+		// A § 560 row from 2027-03-01 copied the Kaltmiete of 600 €; a Staffel step on 2027-01-01
+		// to 620 € must reach it. The excluded id is the row being edited itself.
+		const history = [
+			row('initial', '2025-01-01', 60000, 15000),
+			row('statement', '2027-03-01', 60000, 20000)
+		];
+		expect(
+			laterRowUpdates(
+				history,
+				'2027-01-01',
+				{ baseRent: 60000, operatingCostPrepayment: 15000, heatingCostPrepayment: 5000 },
+				{ baseRent: 62000, operatingCostPrepayment: 15000, heatingCostPrepayment: 5000 }
+			)
+		).toEqual([{ field: 'baseRent', value: 62000, ids: ['statement'] }]);
+		expect(
+			laterRowUpdates(
+				history,
+				'2025-01-01',
+				{ baseRent: 60000, operatingCostPrepayment: 15000, heatingCostPrepayment: 5000 },
+				{ baseRent: 61000, operatingCostPrepayment: 15000, heatingCostPrepayment: 5000 },
+				'statement'
+			)
+		).toEqual([]);
 	});
 });

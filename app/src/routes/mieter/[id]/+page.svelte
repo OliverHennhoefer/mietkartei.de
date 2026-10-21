@@ -65,12 +65,10 @@
 				</span>
 				{#if lease.active}
 					<Badge tone="success">Aktiv</Badge>
-				{:else if lease.endDate && lease.endDate < lease.startDate}
-					<Badge>Beendet</Badge>
-				{:else if lease.endDate}
-					<Badge>Beendet</Badge>
-				{:else}
+				{:else if lease.upcoming}
 					<Badge tone="info">Beginnt später</Badge>
+				{:else}
+					<Badge>Beendet</Badge>
 				{/if}
 			</li>
 		{/each}

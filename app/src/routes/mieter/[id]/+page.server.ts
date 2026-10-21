@@ -18,7 +18,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			label: `${lease.unit.name} · ${lease.property.name}`,
 			startDate: lease.startDate,
 			endDate: lease.endDate,
-			active: lease.active
+			active: lease.active,
+			upcoming: lease.upcoming
 		}))
 	};
 };

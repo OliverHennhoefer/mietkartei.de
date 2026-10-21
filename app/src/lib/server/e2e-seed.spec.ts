@@ -14,7 +14,7 @@ import {
 	units,
 	users
 } from './db/schema';
-import { seed, type SeedLeaseResult } from './e2e-seed';
+import { FOREIGN_ACCOUNT_ID, seed, type SeedLeaseResult } from './e2e-seed';
 import { testDatabase } from './testing';
 
 let db: Database;
@@ -97,6 +97,23 @@ describe('seed lease', () => {
 		const result = await seed(db, { op: 'lease', lease: 'cheap' });
 		expect(result.status).toBe(400);
 		expect(await db.select().from(leases)).toEqual([]);
+	});
+});
+
+describe('seed foreignLease', () => {
+	it('creates a lease in a second account, the same one on every call', async () => {
+		const first = (await seed(db, { op: 'foreignLease' })).body as SeedLeaseResult;
+		const second = (await seed(db, { op: 'foreignLease' })).body as SeedLeaseResult;
+		const rows = await db.select().from(leases);
+		const accountOf = (id: string) => rows.find((row) => row.id === id)?.accountId;
+		expect(accountOf(first.leaseId)).toBe(FOREIGN_ACCOUNT_ID);
+		expect(accountOf(second.leaseId)).toBe(FOREIGN_ACCOUNT_ID);
+		const [property] = await db
+			.select()
+			.from(properties)
+			.where(eq(properties.id, first.propertyId));
+		expect(property.accountId).toBe(FOREIGN_ACCOUNT_ID);
+		expect(FOREIGN_ACCOUNT_ID).not.toBe('a');
 	});
 });
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	fullYears,
 	leaseEndDeadlines,
+	noticeDeadline,
 	noticePeriodMonths,
 	proposedEndDate,
 	type LeaseEndInput
@@ -67,7 +68,7 @@ describe('proposedEndDate', () => {
 		// December 2026: Tue 1st, Wed 2nd, Thu 3rd are the first three working days.
 		expect(proposedEndDate({ ...tenant, terminatedAt: '2026-12-03' })).toBe('2027-02-28');
 		expect(proposedEndDate({ ...tenant, terminatedAt: '2026-12-04' })).toBe('2027-03-31');
-		// January 2026: Thu 1st, Fri 2nd, Mon 5th (Saturday the 3rd does not count).
+		// January 2026: Thu 1st, Fri 2nd, Sat 3rd; a deadline on a Saturday moves to Mon 5th.
 		expect(proposedEndDate({ ...tenant, terminatedAt: '2026-01-03' })).toBe('2026-03-31');
 		expect(proposedEndDate({ ...tenant, terminatedAt: '2026-01-05' })).toBe('2026-03-31');
 		expect(proposedEndDate({ ...tenant, terminatedAt: '2026-01-06' })).toBe('2026-04-30');
@@ -79,10 +80,54 @@ describe('proposedEndDate', () => {
 		expect(proposedEndDate({ ...landlord, startDate: '2019-01-01' })).toBe('2026-08-31');
 		// 8 full years and more: May + 6 = November.
 		expect(proposedEndDate({ ...landlord, startDate: '2017-06-01' })).toBe('2026-11-30');
-		// A commercial lease of twenty years: still May.
-		expect(proposedEndDate({ ...landlord, kind: 'commercial', startDate: '2006-01-01' })).toBe(
+		// A parking lease of twenty years: still May (§ 580a Abs. 1 Nr. 3 BGB).
+		expect(proposedEndDate({ ...landlord, kind: 'parking', startDate: '2006-01-01' })).toBe(
 			'2026-05-31'
 		);
+	});
+
+	it('counts Saturday as a Werktag for the notice (BGH VIII ZR 206/04)', () => {
+		// August 2026 starts on a Saturday: Sat 1, Mon 3, Tue 4. A notice on Wed 5 August is late,
+		// so it counts for September: September + 2 = November.
+		expect(proposedEndDate({ ...tenant, terminatedAt: '2026-08-04' })).toBe('2026-10-31');
+		expect(proposedEndDate({ ...tenant, terminatedAt: '2026-08-05' })).toBe('2026-11-30');
+	});
+
+	it('ends a commercial lease at the end of the next quarter (§ 580a Abs. 2 BGB)', () => {
+		const commercial = { ...tenant, kind: 'commercial' as const };
+		// 2 March 2026 is past the third Werktag of the quarter (Mon 5 January), so the notice
+		// counts for the quarter from April: end of the next quarter, 30 September.
+		expect(proposedEndDate(commercial)).toBe('2026-09-30');
+		// 3 April 2026 (Fri) is the third Werktag of the second quarter (Wed 1, Thu 2, Fri 3):
+		// end of the third quarter.
+		expect(proposedEndDate({ ...commercial, terminatedAt: '2026-04-03' })).toBe('2026-09-30');
+		expect(proposedEndDate({ ...commercial, terminatedAt: '2026-04-04' })).toBe('2026-12-31');
+		// Late in the year: the notice counts for the first quarter of 2027, ending 30 June 2027.
+		expect(proposedEndDate({ ...commercial, terminatedAt: '2026-11-10' })).toBe('2027-06-30');
+		// The landlord's longer periods of § 573c do not apply.
+		expect(
+			proposedEndDate({
+				...commercial,
+				terminatedBy: 'landlord',
+				startDate: '2006-01-01',
+				terminatedAt: '2026-04-03'
+			})
+		).toBe('2026-09-30');
+	});
+});
+
+describe('noticeDeadline', () => {
+	it('is the third Werktag, Saturday included, moved from a Saturday to Monday (§ 193 BGB)', () => {
+		// March 2026: Sun 1, Mon 2, Tue 3, Wed 4.
+		expect(noticeDeadline('2026-03')).toBe('2026-03-04');
+		// August 2026: Sat 1, Mon 3, Tue 4 (the Monday-to-Friday count would give Wed 5).
+		expect(noticeDeadline('2026-08')).toBe('2026-08-04');
+		// January 2026: Thu 1, Fri 2, Sat 3, which moves to Mon 5.
+		expect(noticeDeadline('2026-01')).toBe('2026-01-05');
+		// October 2026: Thu 1, Fri 2, Sat 3 → Mon 5.
+		expect(noticeDeadline('2026-10')).toBe('2026-10-05');
+		// June 2026: Mon 1, Tue 2, Wed 3.
+		expect(noticeDeadline('2026-06')).toBe('2026-06-03');
 	});
 });
 

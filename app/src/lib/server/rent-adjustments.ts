@@ -12,7 +12,7 @@ import {
 	waitingPeriodEnd,
 	type HistoryChange
 } from '../domain/index-rent';
-import { rentOn, total } from '../domain/rents';
+import { rentOn, total, type RentAmounts } from '../domain/rents';
 import { personName } from '../format';
 import { formatCents } from '../money';
 import { addressLines, landlordAddress, type LandlordAddress } from './accounts';
@@ -23,7 +23,8 @@ import { consumerPriceIndex, rentChanges } from './db/schema';
 import { getLease, type LeaseSummary } from './leases';
 import { ensureCharges } from './ledger';
 import type { Letter } from './pdf';
-import { deleteRentChange, listRentChanges, type RentChangeRow } from './rents';
+import { laterRows, laterRowsNote } from './rent-history';
+import { listRentChanges, type RentChangeRow } from './rents';
 
 // Changes of the rent beyond the initial one: manual changes, Staffel steps, index proposals with
 // their approval and letter, and the VPI table the proposals are computed from. Every write
@@ -143,10 +144,22 @@ export type ManualChangeInput = {
 	note: string | null;
 };
 
+function amountsOf(rent: RentAmounts): RentAmounts {
+	return {
+		baseRent: rent.baseRent,
+		operatingCostPrepayment: rent.operatingCostPrepayment,
+		heatingCostPrepayment: rent.heatingCostPrepayment
+	};
+}
+
 /**
- * "Änderung ab Datum": an approved change of any amount. On an indexed lease a change of the
- * base rent records the latest VPI, so the next index proposal starts from this rent and index.
- * Returns undefined when the lease is not in the account.
+ * "Änderung ab Datum": an approved change of any amount. The fields it changes against the rent
+ * valid on that day are carried into later rows that inherited the old value (a Staffel step
+ * entered up front keeps its own Kaltmiete but takes the new prepayments). A § 560 change
+ * (reason `statement`) changes only the prepayments: a Kaltmiete different from the one valid on
+ * that day is refused. On an indexed lease a change of the base rent records the latest VPI, so
+ * the next index proposal starts from this rent and index. Returns undefined when the lease is
+ * not in the account.
  */
 export async function manualChange(
 	db: Database,
@@ -156,23 +169,43 @@ export async function manualChange(
 ): Promise<AdjustmentResult | undefined> {
 	const lease = await getLease(db, context.accountId, leaseId);
 	if (!lease) return undefined;
+	if (input.validFrom < lease.startDate) {
+		return refuse(
+			`Eine Mietänderung kann frühestens zum Vertragsbeginn am ${formatDate(lease.startDate)} gelten.`
+		);
+	}
 	const changes = await listRentChanges(db, context.accountId, leaseId);
 	if (hasApprovedOn(changes, input.validFrom)) return sameDayRefusal(input.validFrom);
+	const before = rentOn(changes, input.validFrom);
+	if (!before) return refuse('Dem Mietvertrag fehlt die Miete bei Vertragsbeginn.');
+	if (input.reason === 'statement' && input.baseRent !== before.baseRent) {
+		return refuse(
+			`Eine Anpassung nach Abrechnung (§ 560 BGB) ändert nur die Vorauszahlungen. Am ${formatDate(input.validFrom)} gilt eine Kaltmiete von ${formatCents(before.baseRent)}; trage sie so ein oder wähle als Grund „Änderung“.`
+		);
+	}
 
 	let index: { indexMonth: string; indexValue: number } | undefined;
 	if (lease.rentModel === 'indexed' && input.reason === 'manual') {
-		const current = rentOn(changes, today()) ?? rentOn(changes, '9999-12-31');
 		const latest = latestIndex(await listIndexValues(db, context.accountId));
-		if (latest.ok && current && current.baseRent !== input.baseRent) {
+		if (latest.ok && before.baseRent !== input.baseRent) {
 			index = { indexMonth: latest.latest.month, indexValue: latest.latest.value };
 		}
 	}
 
 	const id = crypto.randomUUID();
+	const later = laterRows(
+		db,
+		context.accountId,
+		changes,
+		input.validFrom,
+		amountsOf(before),
+		amountsOf(input)
+	);
 	const summary =
-		input.reason === 'statement'
+		(input.reason === 'statement'
 			? `Vorauszahlungen ab ${formatDate(input.validFrom)} nach Abrechnung angepasst, Gesamtmiete ${formatCents(total(input))}`
-			: `Miete ab ${formatDate(input.validFrom)} auf ${formatCents(total(input))} geändert`;
+			: `Miete ab ${formatDate(input.validFrom)} auf ${formatCents(total(input))} geändert`) +
+		laterRowsNote(later);
 	await runBatch(db, [
 		db.insert(rentChanges).values({
 			id,
@@ -183,6 +216,7 @@ export async function manualChange(
 			status: 'approved',
 			createdBy: context.userId
 		}),
+		...later.statements,
 		auditEntry(db, context, 'lease', leaseId, 'update', summary)
 	]);
 	await ensureCharges(db, context.accountId, [leaseId]);
@@ -193,7 +227,8 @@ export type GraduatedStepInput = { validFrom: IsoDate; baseRent: number };
 
 /**
  * A step of a graduated rent (§ 557a BGB), approved at once. The prepayments stay as they are on
- * the day before the step. Residential leases need a year between steps.
+ * the day of the step; later rows that carried the old Kaltmiete take the new one. Residential
+ * leases need a year between steps.
  */
 export async function addGraduatedStep(
 	db: Database,
@@ -212,29 +247,44 @@ export async function addGraduatedStep(
 			`Zwischen zwei Staffeln muss mindestens ein Jahr liegen (§ 557a Abs. 2 BGB); die nächste Staffel kann frühestens am ${formatDate(earliest)} beginnen.`
 		);
 	}
-	const before = rentOn(changes, input.validFrom) ?? rentOn(changes, '9999-12-31');
+	if (input.validFrom < lease.startDate) {
+		return refuse(
+			`Eine Staffel kann frühestens zum Vertragsbeginn am ${formatDate(lease.startDate)} beginnen.`
+		);
+	}
+	const before = rentOn(changes, input.validFrom);
+	if (!before) return refuse('Dem Mietvertrag fehlt die Miete bei Vertragsbeginn.');
+	const after = { ...amountsOf(before), baseRent: input.baseRent };
 	const id = crypto.randomUUID();
+	const later = laterRows(
+		db,
+		context.accountId,
+		changes,
+		input.validFrom,
+		amountsOf(before),
+		after
+	);
 	await runBatch(db, [
 		db.insert(rentChanges).values({
 			id,
 			accountId: context.accountId,
 			leaseId,
 			validFrom: input.validFrom,
-			baseRent: input.baseRent,
-			operatingCostPrepayment: before?.operatingCostPrepayment ?? 0,
-			heatingCostPrepayment: before?.heatingCostPrepayment ?? 0,
+			...after,
 			reason: 'graduated',
 			status: 'approved',
 			note: null,
 			createdBy: context.userId
 		}),
+		...later.statements,
 		auditEntry(
 			db,
 			context,
 			'lease',
 			leaseId,
 			'update',
-			`Staffel ab ${formatDate(input.validFrom)}: Kaltmiete ${formatCents(input.baseRent)}`
+			`Staffel ab ${formatDate(input.validFrom)}: Kaltmiete ${formatCents(input.baseRent)}` +
+				laterRowsNote(later)
 		)
 	]);
 	await ensureCharges(db, context.accountId, [leaseId]);
@@ -330,8 +380,14 @@ export async function approveChange(
 		);
 	}
 
-	const approved: HistoryChange = { ...change, validFrom, status: 'approved' };
 	const others = changes.filter((other) => other.id !== change.id);
+	// The prepayments were copied when the change was proposed; take the ones valid on the
+	// effective date, so a § 560 change in between is kept.
+	const before = rentOn(others, validFrom);
+	if (!before) return refuse('Dem Mietvertrag fehlt die Miete bei Vertragsbeginn.');
+	const amounts = { ...amountsOf(before), baseRent: change.baseRent };
+	const approved: HistoryChange = { ...change, ...amounts, validFrom, status: 'approved' };
+	const later = laterRows(db, context.accountId, others, validFrom, amountsOf(before), amounts);
 	const latest = latestIndex(await listIndexValues(db, context.accountId));
 	const baseYear = latest.ok ? latest.latest.baseYear : '2020';
 	const figures = letterFigures([...others, approved], lease, approved, baseYear);
@@ -346,15 +402,23 @@ export async function approveChange(
 	await runBatch(db, [
 		db
 			.update(rentChanges)
-			.set({ status: 'approved', validFrom, deliveredOn: input.deliveredOn, letterText })
+			.set({
+				status: 'approved',
+				validFrom,
+				...amounts,
+				deliveredOn: input.deliveredOn,
+				letterText
+			})
 			.where(and(eq(rentChanges.accountId, context.accountId), eq(rentChanges.id, changeId))),
+		...later.statements,
 		auditEntry(
 			db,
 			context,
 			'lease',
 			leaseId,
 			'approve',
-			`Indexanpassung ab ${formatDate(validFrom)} auf ${formatCents(change.baseRent)} Kaltmiete freigegeben`
+			`Indexanpassung ab ${formatDate(validFrom)} auf ${formatCents(change.baseRent)} Kaltmiete freigegeben` +
+				laterRowsNote(later)
 		)
 	]);
 	await ensureCharges(db, context.accountId, [leaseId]);
@@ -375,10 +439,12 @@ export async function removeChange(
 	const change = await getRentChange(db, context.accountId, leaseId, changeId);
 	if (!change) return undefined;
 	if (change.reason === 'initial') {
-		return refuse('Die Miete bei Vertragsbeginn gehört zum Mietvertrag und wird dort geändert.');
+		return refuse(
+			'Die Miete bei Vertragsbeginn gehört zum Mietvertrag; du änderst sie unter „Bearbeiten“ in der Übersicht.'
+		);
 	}
+	const changes = await listRentChanges(db, context.accountId, leaseId);
 	if (change.status === 'approved') {
-		const changes = await listRentChanges(db, context.accountId, leaseId);
 		const referenced = changes.some(
 			(other) =>
 				other.status === 'approved' &&
@@ -391,7 +457,33 @@ export async function removeChange(
 			);
 		}
 	}
-	if (!(await deleteRentChange(db, context, changeId))) return undefined;
+	// The later rows that inherited this change's values fall back to the rent before it.
+	const others = changes.filter((other) => other.id !== change.id);
+	const previous = change.status === 'approved' ? rentOn(others, change.validFrom) : undefined;
+	const later = previous
+		? laterRows(
+				db,
+				context.accountId,
+				others,
+				change.validFrom,
+				amountsOf(change),
+				amountsOf(previous)
+			)
+		: { statements: [], count: 0 };
+	await runBatch(db, [
+		db
+			.delete(rentChanges)
+			.where(and(eq(rentChanges.accountId, context.accountId), eq(rentChanges.id, changeId))),
+		...later.statements,
+		auditEntry(
+			db,
+			context,
+			'lease',
+			leaseId,
+			'update',
+			`Mietänderung ab ${formatDate(change.validFrom)} entfernt` + laterRowsNote(later)
+		)
+	]);
 	await ensureCharges(db, context.accountId, [leaseId]);
 	return { ok: true };
 }

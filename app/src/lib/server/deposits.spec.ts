@@ -236,9 +236,10 @@ describe('instalmentDeadlines', () => {
 		);
 		if (!result.ok) throw new Error('setup failed');
 		// 1.000,00 € over three: 333,34 + 333,33 + 333,33 (largest remainder, first index wins).
-		// Third working days: Wed 5 Jun, Wed 3 Jul, Mon 5 Aug 2024.
+		// Third working days: Wed 5 Jun, Wed 3 Jul, Mon 5 Aug 2024. The first instalment is due at
+		// the start of the tenancy (§ 551 Abs. 2 BGB), so 5 June becomes the start date, 15 June.
 		expect(await instalmentDeadlines(db, 'a', result.id)).toEqual([
-			{ dueDate: '2024-06-05', amount: 33334 },
+			{ dueDate: '2024-06-15', amount: 33334 },
 			{ dueDate: '2024-07-03', amount: 33333 },
 			{ dueDate: '2024-08-05', amount: 33333 }
 		]);

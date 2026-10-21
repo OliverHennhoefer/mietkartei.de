@@ -1,6 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import { addMonthsToMonth, firstOfMonth, monthOf, today } from '#lib/dates.ts';
 import { effectiveFrom, indexSituation, nextGraduatedStepAllowed } from '#lib/domain/index-rent.ts';
+import { rentOn } from '#lib/domain/rents.ts';
 import { parseApproval, parseGraduatedStep, parseManualChange } from '#lib/forms/rent.ts';
 import { landlordAddress } from '#lib/server/accounts.ts';
 import { getLease, type LeaseSummary } from '#lib/server/leases.ts';
@@ -35,17 +36,31 @@ export const load: PageServerLoad = async ({ locals, params, parent, url }) => {
 		const value = url.searchParams.get(name);
 		return value && /^\d{1,12}$/.test(value) ? Number(value) : null;
 	};
+	const prepaymentCents = cents('prepayment');
+	const heatingCents = cents('heating');
+	const fromStatement = prepaymentCents !== null || heatingCents !== null;
+	const afterNext = effectiveFrom(day);
+	const nextMonth = firstOfMonth(addMonthsToMonth(monthOf(day), 1));
+	// The change form starts from the rent valid on its default date, so a Staffel step or index
+	// change between today and that date is not undone by today's amounts.
+	const changeFrom = fromStatement ? afterNext : nextMonth;
+	const rentThen = rentOn(changes, changeFrom) ?? lease.currentRent;
 	return {
 		changes,
 		today: day,
 		situation: indexSituation(lease, changes, values, day),
 		nextStepAllowed:
 			lease.rentModel === 'graduated' ? nextGraduatedStepAllowed(changes) : undefined,
-		prepayment: cents('prepayment'),
-		heatingPrepayment: cents('heating'),
-		/** The first day of the month after next, for a § 560 adjustment. */
-		afterNext: effectiveFrom(day),
-		nextMonth: firstOfMonth(addMonthsToMonth(monthOf(day), 1)),
+		prepayment: prepaymentCents,
+		heatingPrepayment: heatingCents,
+		/** The default first day of the change: the month after next for a § 560 adjustment. */
+		changeFrom,
+		/** The amounts valid on changeFrom, to prefill the change form. */
+		changeDefaults: {
+			baseRent: rentThen.baseRent,
+			operatingCostPrepayment: prepaymentCents ?? rentThen.operatingCostPrepayment,
+			heatingCostPrepayment: heatingCents ?? rentThen.heatingCostPrepayment
+		},
 		landlordComplete: landlord.complete
 	};
 };
@@ -74,8 +89,9 @@ export const actions: Actions = {
 	change: async ({ request, locals, params }) => {
 		const lease = await requireLease(locals, params.id);
 		const form = await request.formData();
+		const changes = await listRentChanges(locals.db, requireAccount(locals), lease.id);
 		const result = parseManualChange(form, {
-			currentBaseRent: lease.currentRent.baseRent,
+			baseRentOn: (validFrom) => rentOn(changes, validFrom)?.baseRent,
 			// § 557a Abs. 2 / § 557b Abs. 2 BGB exclude § 558 increases on residential leases.
 			noteRequiredOnBaseRentChange: lease.kind === 'residential' && lease.rentModel !== 'fixed'
 		});

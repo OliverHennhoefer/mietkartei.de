@@ -1,5 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { today } from '#lib/dates.ts';
+import { formatDate, today } from '#lib/dates.ts';
 import { leaseEndDeadlines, proposedEndDate } from '#lib/domain/lease-end.ts';
 import { parseLeaseEnd, parseLeasePersons } from '#lib/forms/leases.ts';
 import { depositSummary, listDepositMovements } from '#lib/server/deposits.ts';
@@ -40,7 +40,8 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 		},
 		balance: ledger.balance,
 		deposit: depositSummary(movements, lease.securityDeposit),
-		// Prefilled for a tenant's notice received today; the form can change both.
+		// Prefilled for a tenant's notice received today; the page recomputes the end date when the
+		// receipt date or the party changes, and the action checks it.
 		endProposal: {
 			terminatedAt: date,
 			terminatedBy: 'tenant' as const,
@@ -100,7 +101,7 @@ export const actions: Actions = {
 		if (outcome === 'initial') {
 			return fail(400, {
 				message:
-					'Der erste Eintrag gehört zum Vertragsbeginn und bleibt; ändere die Personenzahl beim Vertrag.'
+					'Der erste Eintrag gehört zum Vertragsbeginn und bleibt; die Personenzahl bei Einzug änderst du unter „Bearbeiten“.'
 			});
 		}
 		return { which: 'persons' as const };
@@ -117,15 +118,35 @@ export const actions: Actions = {
 				values: result.values
 			});
 		}
+		const values = Object.fromEntries(
+			[...form].filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+		);
+		const lease = await getLease(locals.db, context.accountId, params.id);
+		if (!lease) return notFound();
+		// The notice period of § 573c / § 580a BGB; an earlier end needs an agreement.
+		const earliest = proposedEndDate({
+			kind: lease.kind,
+			startDate: lease.startDate,
+			terminatedAt: result.data.terminatedAt,
+			terminatedBy: result.data.terminatedBy
+		});
+		if (result.data.endDate < earliest && !result.data.earlyEndAgreed) {
+			const law = lease.kind === 'commercial' ? '§ 580a Abs. 2 BGB' : '§ 573c BGB';
+			return refuse({
+				which: 'end',
+				errors: {
+					endDate: `Nach ${law} endet der Vertrag bei dieser Kündigung frühestens am ${formatDate(earliest)}. Ein früheres Ende gilt nur, wenn du es mit der anderen Seite vereinbart hast; dann setze den Haken „Früheres Ende vereinbart“.`
+				},
+				values
+			});
+		}
 		const outcome = await endLease(locals.db, context, params.id, result.data);
 		if (outcome === 'missing') notFound();
 		if (outcome === 'before-start') {
 			return refuse({
 				which: 'end',
 				errors: { endDate: 'Das Vertragsende liegt vor dem Vertragsbeginn.' },
-				values: Object.fromEntries(
-					[...form].filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-				)
+				values
 			});
 		}
 		// Months after the end leave the ledger with the next sync; do it now, so the tab is right.

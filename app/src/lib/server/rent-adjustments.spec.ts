@@ -5,6 +5,7 @@ import { effectiveFrom } from '../domain/index-rent';
 import type { Database } from './db';
 import { auditLog, rentCharges } from './db/schema';
 import { createLease } from './leases';
+import { ensureCharges } from './ledger';
 import {
 	addGraduatedStep,
 	addIndexValue,
@@ -152,7 +153,7 @@ describe('proposeIndexChange and approveChange', () => {
 			deliveredOn: '2026-10-15'
 		});
 		const paragraphs = history[1].letterText?.split('\n\n') ?? [];
-		expect(paragraphs[0]).toBe('Sehr geehrte Frau Mustermann,');
+		expect(paragraphs[0]).toBe('Guten Tag Frau Mustermann,');
 		expect(paragraphs[2]).toContain('von 118,2 (Januar 2024) auf 124,3 (Januar 2026)');
 		expect(paragraphs[2]).toContain('von 600,00 € um 30,96 € auf 630,96 €');
 		expect(paragraphs[3]).toContain('ab dem 01.12.2026');
@@ -258,10 +259,25 @@ describe('manualChange', () => {
 			baseRent: 60000,
 			operatingCostPrepayment: 17000
 		});
+		// A § 560 change changes only the prepayments: a different Kaltmiete is refused.
+		expect(
+			await manualChange(db, contextA, leaseId, {
+				...input,
+				validFrom: '2025-06-01',
+				baseRent: 70000,
+				operatingCostPrepayment: 23000,
+				reason: 'statement'
+			})
+		).toEqual({
+			ok: false,
+			message:
+				'Eine Anpassung nach Abrechnung (§ 560 BGB) ändert nur die Vorauszahlungen. Am 01.06.2025 gilt eine Kaltmiete von 600,00\u00a0€; trage sie so ein oder wähle als Grund „Änderung“.'
+		});
 		await manualChange(db, contextA, leaseId, {
 			...input,
 			validFrom: '2025-06-01',
-			baseRent: 70000,
+			baseRent: 60000,
+			operatingCostPrepayment: 25000,
 			reason: 'statement'
 		});
 		const [, prepayment, statement] = await listRentChanges(db, 'a', leaseId);
@@ -361,7 +377,8 @@ describe('removeChange', () => {
 
 		expect(await removeChange(db, contextA, leaseId, initial.id)).toEqual({
 			ok: false,
-			message: 'Die Miete bei Vertragsbeginn gehört zum Mietvertrag und wird dort geändert.'
+			message:
+				'Die Miete bei Vertragsbeginn gehört zum Mietvertrag; du änderst sie unter „Bearbeiten“ in der Übersicht.'
 		});
 		expect(await removeChange(db, contextA, leaseId, proposedId)).toEqual({ ok: true });
 		expect(await chargeOf(leaseId, '2025-03')).toMatchObject({ baseRent: 62000 });
@@ -449,5 +466,168 @@ describe('indexLetter', () => {
 		expect(await indexLetter(db, 'b', foreignLeaseId, changeId)).toBeDefined();
 		expect(await indexLetter(db, 'a', foreignLeaseId, changeId)).toBeUndefined();
 		expect(await indexLetter(db, 'a', leaseId, changeId)).toBeUndefined();
+	});
+});
+
+describe('later rows follow a change of a field', () => {
+	// A graduated lease from 2025-01-01 at 600 € + 150 € + 50 €.
+	let graduatedId: string;
+	const amountsOf = async (id: string) =>
+		(await listRentChanges(db, 'a', id)).map((change) => [
+			change.validFrom,
+			change.reason,
+			change.baseRent,
+			change.operatingCostPrepayment,
+			change.heatingCostPrepayment
+		]);
+
+	beforeEach(async () => {
+		const lease = await createLease(
+			db,
+			contextA,
+			leaseInput(unitId, { startDate: '2025-01-01', rentModel: 'graduated' })
+		);
+		if (!lease.ok) throw new Error('setup failed');
+		graduatedId = lease.id;
+	});
+
+	it('keeps a § 560 prepayment change after Staffel steps entered up front', async () => {
+		await addGraduatedStep(db, contextA, graduatedId, { validFrom: '2027-01-01', baseRent: 62000 });
+		await addGraduatedStep(db, contextA, graduatedId, { validFrom: '2028-01-01', baseRent: 64000 });
+		const result = await manualChange(db, contextA, graduatedId, {
+			validFrom: '2026-06-01',
+			baseRent: 60000,
+			operatingCostPrepayment: 20000,
+			heatingCostPrepayment: 5000,
+			reason: 'statement',
+			note: null
+		});
+		expect(result?.ok).toBe(true);
+		// Both steps take the new 200 € and keep their own Kaltmiete.
+		expect(await amountsOf(graduatedId)).toEqual([
+			['2025-01-01', 'initial', 60000, 15000, 5000],
+			['2026-06-01', 'statement', 60000, 20000, 5000],
+			['2027-01-01', 'graduated', 62000, 20000, 5000],
+			['2028-01-01', 'graduated', 64000, 20000, 5000]
+		]);
+		// February 2027: 620 + 200 + 50 = 870 €, not 820 €.
+		await ensureCharges(db, 'a', [graduatedId], '2027-02');
+		expect(await chargeOf(graduatedId, '2027-02')).toMatchObject({
+			baseRent: 62000,
+			operatingCostPrepayment: 20000,
+			amount: 87000
+		});
+		expect((await summaries('a')).at(-1)).toBe(
+			'update: Vorauszahlungen ab 01.06.2026 nach Abrechnung angepasst, Gesamtmiete 850,00 € (gilt auch für 2 spätere Mietänderungen)'
+		);
+	});
+
+	it('refuses a § 560 change that would undo a Staffel step between today and its date', async () => {
+		await addGraduatedStep(db, contextA, graduatedId, { validFrom: '2026-01-01', baseRent: 65000 });
+		// Today's rent before the step would be 600 €; from 2026-01-01 the step's 650 € apply.
+		expect(
+			await manualChange(db, contextA, graduatedId, {
+				validFrom: '2026-03-01',
+				baseRent: 60000,
+				operatingCostPrepayment: 20000,
+				heatingCostPrepayment: 5000,
+				reason: 'statement',
+				note: null
+			})
+		).toEqual({
+			ok: false,
+			message:
+				'Eine Anpassung nach Abrechnung (§ 560 BGB) ändert nur die Vorauszahlungen. Am 01.03.2026 gilt eine Kaltmiete von 650,00 €; trage sie so ein oder wähle als Grund „Änderung“.'
+		});
+		expect(await listRentChanges(db, 'a', graduatedId)).toHaveLength(2);
+	});
+
+	it('carries a Staffel step into a later § 560 row and an approved index change into later rows', async () => {
+		// A § 560 change from 2027-03-01 copied the Kaltmiete of 600 €.
+		await manualChange(db, contextA, graduatedId, {
+			validFrom: '2027-03-01',
+			baseRent: 60000,
+			operatingCostPrepayment: 20000,
+			heatingCostPrepayment: 5000,
+			reason: 'statement',
+			note: null
+		});
+		// The step from 2027-01-01 to 620 € reaches it; the step keeps the prepayment of its own day.
+		await addGraduatedStep(db, contextA, graduatedId, { validFrom: '2027-01-01', baseRent: 62000 });
+		expect(await amountsOf(graduatedId)).toEqual([
+			['2025-01-01', 'initial', 60000, 15000, 5000],
+			['2027-01-01', 'graduated', 62000, 15000, 5000],
+			['2027-03-01', 'statement', 62000, 20000, 5000]
+		]);
+		await ensureCharges(db, 'a', [graduatedId], '2027-04');
+		expect(await chargeOf(graduatedId, '2027-04')).toMatchObject({ amount: 87000 });
+	});
+
+	it('takes the prepayments valid on the effective date when an index change is approved', async () => {
+		await seedValues();
+		const proposed = await proposeIndexChange(db, contextA, leaseId);
+		const changeId = proposed?.ok ? proposed.id : '';
+		// After the proposal, a § 560 change from 2026-11-01 (before the effective date) and one
+		// from 2027-02-01 (after it, still carrying the old Kaltmiete of 600 €).
+		await manualChange(db, contextA, leaseId, {
+			validFrom: '2026-11-01',
+			baseRent: 60000,
+			operatingCostPrepayment: 17000,
+			heatingCostPrepayment: 5000,
+			reason: 'statement',
+			note: null
+		});
+		await manualChange(db, contextA, leaseId, {
+			validFrom: '2027-02-01',
+			baseRent: 60000,
+			operatingCostPrepayment: 19000,
+			heatingCostPrepayment: 5000,
+			reason: 'statement',
+			note: null
+		});
+		await approveChange(db, contextA, leaseId, changeId, {
+			deliveredOn: '2026-10-15',
+			validFrom: null
+		});
+		// The index change from 2026-12-01 keeps the 170 € of November, and the February row
+		// takes the new Kaltmiete 630,96 €.
+		expect(await amountsOf(leaseId)).toEqual([
+			['2024-01-01', 'initial', 60000, 15000, 5000],
+			['2026-11-01', 'statement', 60000, 17000, 5000],
+			['2026-12-01', 'indexed', 63096, 17000, 5000],
+			['2027-02-01', 'statement', 63096, 19000, 5000]
+		]);
+		await ensureCharges(db, 'a', [leaseId], '2027-03');
+		expect(await chargeOf(leaseId, '2027-03')).toMatchObject({ amount: 63096 + 19000 + 5000 });
+	});
+
+	it('lets later rows fall back when the change they inherited from is deleted', async () => {
+		const first = await manualChange(db, contextA, graduatedId, {
+			validFrom: '2026-06-01',
+			baseRent: 60000,
+			operatingCostPrepayment: 20000,
+			heatingCostPrepayment: 5000,
+			reason: 'statement',
+			note: null
+		});
+		// A later manual change of the heating prepayment only: it inherited the 200 €.
+		await manualChange(db, contextA, graduatedId, {
+			validFrom: '2026-09-01',
+			baseRent: 60000,
+			operatingCostPrepayment: 20000,
+			heatingCostPrepayment: 6000,
+			reason: 'manual',
+			note: null
+		});
+		expect(await removeChange(db, contextA, graduatedId, first?.ok ? first.id : '')).toEqual({
+			ok: true
+		});
+		expect(await amountsOf(graduatedId)).toEqual([
+			['2025-01-01', 'initial', 60000, 15000, 5000],
+			['2026-09-01', 'manual', 60000, 15000, 6000]
+		]);
+		expect((await summaries('a')).at(-1)).toBe(
+			'update: Mietänderung ab 01.06.2026 entfernt (gilt auch für 1 spätere Mietänderung)'
+		);
 	});
 });

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clearTables, seedLease } from './seed';
+import { clearTables, seedForeignLease, seedLease } from './seed';
 
 // The rent feature: VPI values, the index proposal with its approval and letter, and a manual
 // change. The lease is seeded; only /einstellungen/vpi and the Miethöhe tab are driven.
@@ -96,8 +96,72 @@ test('adjusts an index rent from the VPI and writes the letter', async ({ page }
 	await expect(manual).toContainText('Einvernehmlich vereinbart am 01.10.2026.');
 });
 
+test('adds a Staffel step after a confirmation and keeps a later prepayment change', async ({
+	page
+}) => {
+	// A graduated residential lease from 2025-01-01 at 600 € + 150 € + 50 €.
+	const { leaseId } = await seedLease(page.request, {
+		lease: { rentModel: 'graduated', startDate: '2025-01-01' }
+	});
+	await page.goto(`/vertraege/${leaseId}/miethoehe`);
+	const history = page.getByRole('table', { name: 'Mietänderungen' });
+	await expect(history.getByRole('row')).toHaveCount(2);
+	const stepFrom = page.getByLabel('Beginn der Staffel');
+	const stepRent = page.getByLabel('Neue Kaltmiete');
+	const addStep = page.getByRole('button', { name: 'Staffel anlegen' });
+	// The confirmation names the new Kaltmiete and its first day (formatCents uses a no-break space).
+	const answer = (accept: boolean, expected: string) =>
+		page.once('dialog', (dialog) => {
+			expect(dialog.message().replace(/\u00a0/g, ' ')).toContain(expected);
+			void (accept ? dialog.accept() : dialog.dismiss());
+		});
+
+	// Dismissed: nothing is saved.
+	await stepFrom.fill('2027-01-01');
+	await stepRent.fill('620,00');
+	answer(false, 'Staffel ab 01.01.2027 mit Kaltmiete 620,00 € anlegen?');
+	await addStep.click();
+	await expect(history.getByRole('row')).toHaveCount(2);
+
+	// Less than a year after the start (§ 557a Abs. 2 BGB): refused.
+	await stepFrom.fill('2025-12-01');
+	answer(true, 'Staffel ab 01.12.2025 mit Kaltmiete 620,00 € anlegen?');
+	await addStep.click();
+	await expect(
+		page.getByRole('alert').getByText('Zwischen zwei Staffeln muss mindestens ein Jahr liegen')
+	).toBeVisible();
+	await expect(history.getByRole('row')).toHaveCount(2);
+
+	// Confirmed: the step is approved at once.
+	await stepFrom.fill('2027-01-01');
+	answer(true, 'Staffel ab 01.01.2027 mit Kaltmiete 620,00 € anlegen?');
+	await addStep.click();
+	await expect(page.getByText('Die Staffel wurde angelegt.')).toBeVisible();
+	await expect(history.getByRole('row')).toHaveCount(3);
+	await expect(page.getByRole('list', { name: 'Staffeln' })).toContainText('ab 01.01.2027');
+
+	// A § 560 change of the operating prepayment to 200 € from 01.12.2026, entered after the step:
+	// the step keeps its Kaltmiete and takes the new prepayment, 620 + 200 + 50 = 870 €.
+	await page.getByLabel('Gültig ab').fill('2026-12-01');
+	await page.getByLabel('Kaltmiete', { exact: true }).fill('600,00');
+	await page.getByLabel('Betriebskostenvorauszahlung').fill('200,00');
+	await page.getByLabel('Grund').selectOption('statement');
+	await page.getByRole('button', { name: 'Änderung speichern' }).click();
+	await expect(page.getByText('Die Änderung wurde gespeichert.')).toBeVisible();
+	await expect(history.getByRole('row')).toHaveCount(4);
+	const step = history.getByRole('row').filter({ hasText: '01.01.2027' });
+	await expect(step).toContainText(/620,00\s€/);
+	await expect(step).toContainText(/870,00\s€/);
+});
+
 test('answers an unknown lease with 404', async ({ page }) => {
 	const response = await page.goto('/vertraege/does-not-exist/miethoehe');
 	expect(response?.status()).toBe(404);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Nicht gefunden');
+	// A lease of another account, and its letter route.
+	const foreign = await seedForeignLease(page.request);
+	expect((await page.goto(`/vertraege/${foreign.leaseId}/miethoehe`))?.status()).toBe(404);
+	expect(
+		(await page.request.get(`/vertraege/${foreign.leaseId}/miethoehe/brief/unknown`)).status()
+	).toBe(404);
 });

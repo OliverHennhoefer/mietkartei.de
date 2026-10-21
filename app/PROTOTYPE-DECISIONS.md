@@ -65,13 +65,13 @@ feature. When a feature is ported to main, its section is the checklist of what 
 
 - Ledger start default: when the start date is in the past and the field is empty, ledgerStart = first day of the current month, unless the lease ends before that (then left empty = start date).
 - Opening balance is posted as a separate `postCharge` adjustment (period = month of the ledger start, due date = ledger start, note "Anfangssaldo") right after createLease; a zero opening balance posts nothing.
-- Deposit instalment deadlines are the due dates of the first three months computed from the rent history (same rule as the ledger, ignoring ledgerStart), split with distributeCents; shown while received < agreed, residential only.
-- "Vertrag beenden" is prefilled for a tenant's notice received today (no JS); the landlord's longer periods are explained in the hint and the date is editable. Commercial and parking leases use the plain three months (§ 580a not modelled).
+- Deposit instalment deadlines are the due dates of the first three months computed from the rent history (same rule as the ledger, ignoring ledgerStart), the first one never before the start date (§ 551 Abs. 2: at the start of the tenancy, as in deadlines.ts), split with distributeCents; shown while received < agreed, residential only.
+- "Vertrag beenden" is prefilled for a tenant's notice received today; with JS the end date follows the receipt date and the party (landlord's 6/9 months included) and the hint names the earliest legal date. The action recomputes it and refuses an earlier end date unless "Früheres Ende vereinbart (Aufhebungsvertrag)" is ticked (noted in the audit line). The notice cutoff is the third Werktag counting Saturday (BGH VIII ZR 206/04), moved to Monday when it is a Saturday (§ 193 BGB); holidays are not modelled. Commercial leases follow § 580a Abs. 2 (third Werktag of a quarter, end of the next quarter, no landlord extension); parking leases keep the plain three months (§ 580a Abs. 1 Nr. 3).
 - The Betriebskostenabrechnung deadline after a lease end is 12 months after 31 December of the end year.
 - endLease refuses an end date before the start; it runs ensureCharges afterwards so months after the end leave the ledger immediately.
 - Deposit movements assigned from a bank transaction cannot be deleted on the Kaution tab (sentence points to the banking pages).
 - The first persons row (valid from the start date) belongs to the lease and cannot be deleted; later rows can.
-- The lease edit form merges the fixed fields (units, amounts, initial persons) from the stored lease into the form data so parseLease validates the whole lease as on creation.
+- The lease edit form merges the units from the stored lease into the form data so parseLease validates the whole lease as on creation. The amounts, deposit and persons at the start are edited there (labelled "bei Vertragsbeginn"): updateLease moves the initial rent change and persons row and carries changed initial amounts into later rent rows that still held the old value. A new start date on or after a later approved rent change or persons row is refused with a field error naming the date (the unique indexes would otherwise fail the batch).
 - `/mieter/neu?return=` accepts only paths starting with a single "/" and appends `tenantId=<id>` on return.
 
 ### Rent changes, index and graduated rent
@@ -79,7 +79,9 @@ feature. When a feature is ported to main, its section is the checklist of what 
 - A manual change of the base rent on an indexed lease records the latest VPI month/value, so the next proposal starts from that rent and index; prepayment-only and `statement` changes record none.
 - A proposal is refused (with a sentence) when the latest VPI month is not newer than the reference month or the index did not rise, when a proposal is already pending, and on residential leases while the provisional effective date is before the waiting period end.
 - Approving re-checks the waiting period against the actual effective date; for commercial/parking leases the effective date is free but must be after the delivery date.
-- Staffel steps keep the prepayments valid on the day before the step.
+- Staffel steps keep the prepayments valid on the day of the step and are confirmed with a ConfirmButton naming the Kaltmiete and the date.
+- Rent history rows store all three amounts, so every write carries the fields it changes into the later approved rows that still held the old value, up to the first later row that set the field itself (`laterRowUpdates`, `rent-history.ts`): a § 560 change after Staffel steps entered up front reaches the steps, a step or approved index change reaches a later § 560 row, a corrected initial amount reaches later rows, and deleting a change lets the rows that inherited from it fall back. An approved index change takes the prepayments valid on its effective date, not those copied at proposal time.
+- A § 560 change (reason `statement`) changes only the prepayments: a Kaltmiete different from the one valid on its date is refused with a sentence. The change form is prefilled with the rent valid on its default date (not today's), and the § 557a/§ 557b note requirement compares with that rent. Changes and Staffel steps before the lease start are refused.
 - An approved change cannot be deleted while a later approved index or Staffel change builds on it; proposals can always be deleted.
 - The letter's base year is taken from the account's VPI table (fallback 2020); the recipient address is the first tenant with an address, else the property's; the letter date is the delivery date.
 - VPI values: at most one decimal, base year four digits default 2020, one value per (base year, month), deletion via ConfirmButton.
@@ -159,7 +161,7 @@ feature. When a feature is ported to main, its section is the checklist of what 
 
 ### CO₂ cost split
 
-- Year must be ≥ 2023 (first CO2KostAufG year) and not in the future; claimedOn must not precede invoiceDate.
+- Year must be ≥ 2023 (first CO2KostAufG year) and not in the future; claimedOn must not precede invoiceDate, and with an invoice date a claim more than twelve months after it is refused (§ 6 Abs. 1 CO2KostAufG; the invoice date stands in for the receipt of the bill).
 - co2Kg, co2Cost and area must be > 0; invoiceDate and fuelKwh are optional.
 - A duplicate year is reported as a field error on "Jahr" with the hint to delete the existing split; the year can be re-entered after deletion.
 - A split with landlord share 0 % (< 12 kg/m²) is still stored and a 0 € credit is posted, so the year is documented as settled.
@@ -168,6 +170,8 @@ feature. When a feature is ported to main, its section is the checklist of what 
 
 ### Tasks and deadlines
 
+- "Indexanpassung frühestens möglich" is dated on the first day a proposal can be sent so that it takes effect when the waiting period ends (two months before, or one month before the following first of the month when the waiting period ends mid-month); the detail names both dates.
+- Statement deadlines skip residential leases with Pauschale/Inklusivmiete for both cost groups (they get no statement).
 - Statement deadlines are generated only for years from the lease's ledger start (max(startDate, ledgerStart)) up to the last ended calendar year, so a migrated lease does not produce years of overdue statements.
 - Deadlines that only inform (Vertragsende, Einwendungsfrist, nächste Mietstaffel, Indexanpassung frühestens möglich, CO₂-Erstattung) disappear once their date has passed; deadlines that name something to do (Betriebskostenabrechnung, Kaution abrechnen, Kautionsraten, Zählerstände ablesen) stay and carry the "überfällig" badge.
 - Deposit instalment due dates are computed from rentDueDay (nthWorkingDay of the first three months, never before the start date), not read from rent_charges; "received" covers instalments in order, interest does not count; residential leases only; nothing on an ended lease.
@@ -236,8 +240,8 @@ feature. When a feature is ported to main, its section is the checklist of what 
 
 ### Tenants, leases, deposit
 
-- The lease edit e2e covers the due day and notes, not tenants or the notice fields; the "no tenants" and "no units" empty states of /vertraege/neu are not e2e-tested (the owner account already has data when the test runs).
-- Landlord-notice end dates (6/9 months) are unit-tested only.
+- The lease edit e2e covers the due day, notes, deposit and the start-date refusal, not tenants or the notice fields; the "no tenants" and "no units" empty states of /vertraege/neu are not e2e-tested (the owner account already has data when the test runs).
+- Landlord-notice end dates (6/9 months) are unit-tested; the e2e checks only that the form proposes 9 months for a nine-year lease.
 - No deposit interest calculation; interest is entered as a movement.
 
 ### Rent changes, index and graduated rent

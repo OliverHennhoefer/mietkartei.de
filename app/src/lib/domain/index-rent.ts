@@ -241,17 +241,18 @@ export type LetterTenant = {
 	lastName: string;
 };
 
-/** "Sehr geehrte Frau Muster, sehr geehrter Herr Beispiel," or "Guten Tag Erika Muster,". */
+/**
+ * "Guten Tag Frau Muster, Herr Beispiel," or "Guten Tag Erika Muster,": the letters to tenants
+ * use the informal register of the app ("du"), as the statement letter does, so the greeting is
+ * not the formal "Sehr geehrte".
+ */
 export function greeting(tenants: readonly LetterTenant[]): string {
-	const parts = tenants.map((tenant) => {
+	const names = tenants.map((tenant) => {
 		const salutation = (tenant.salutation ?? '').trim();
-		if (salutation === 'Frau') return `sehr geehrte Frau ${tenant.lastName}`;
-		if (salutation === 'Herr') return `sehr geehrter Herr ${tenant.lastName}`;
-		return `guten Tag ${tenant.firstName} ${tenant.lastName}`.trim();
+		if (salutation === 'Frau' || salutation === 'Herr') return `${salutation} ${tenant.lastName}`;
+		return `${tenant.firstName} ${tenant.lastName}`.trim();
 	});
-	if (parts.length === 0) return 'Guten Tag,';
-	const joined = parts.join(', ');
-	return `${joined.charAt(0).toUpperCase()}${joined.slice(1)},`;
+	return names.length > 0 ? `Guten Tag ${names.join(', ')},` : 'Guten Tag,';
 }
 
 export type LetterFigures = {
@@ -303,7 +304,8 @@ export function indexLetterText(content: LetterContent): string {
 	const { figures } = content;
 	const paragraphs = [
 		greeting(content.tenants),
-		`dein Mietvertrag für ${content.unitName} sieht eine Indexmiete nach § 557b BGB vor: Die ` +
+		`${content.tenants.length > 1 ? 'euer' : 'dein'} Mietvertrag für ${content.unitName} sieht ` +
+			'eine Indexmiete nach § 557b BGB vor: Die ' +
 			'Kaltmiete folgt dem Verbraucherpreisindex für Deutschland des Statistischen Bundesamts ' +
 			`(Basisjahr ${figures.baseYear} = 100).`,
 		`Der Index ist von ${formatIndexValue(figures.reference.value)} (${formatMonth(figures.reference.month)}) ` +

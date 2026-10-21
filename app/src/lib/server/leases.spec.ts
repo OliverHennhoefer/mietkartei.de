@@ -252,6 +252,150 @@ describe('updateLease', () => {
 		});
 		expect((await getLease(db, 'a', own.id))!.unitId).toBe(unitId);
 	});
+
+	it('corrects the initial amounts, deposit and persons, and later rows that inherited them', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const tenantId = await seedTenant(db, 'a');
+		const result = await createLease(db, contextA, leaseInput(unitId, { tenantIds: [tenantId] }));
+		if (!result.ok) throw new Error('setup failed');
+		// A § 560 row copied the Kaltmiete of 600 €; a manual row set its own Kaltmiete of 700 €.
+		await db.insert(rentChanges).values([
+			{
+				accountId: 'a',
+				leaseId: result.id,
+				validFrom: '2025-06-01',
+				baseRent: 60000,
+				operatingCostPrepayment: 17000,
+				heatingCostPrepayment: 5000,
+				reason: 'statement'
+			},
+			{
+				accountId: 'a',
+				leaseId: result.id,
+				validFrom: '2026-01-01',
+				baseRent: 70000,
+				operatingCostPrepayment: 17000,
+				heatingCostPrepayment: 5000,
+				reason: 'manual'
+			}
+		]);
+		// The Kaltmiete was typed as 600 € instead of 610 €, the heating prepayment as 50 € instead
+		// of 55 €, the deposit and the persons wrong too.
+		expect(
+			await updateLease(
+				db,
+				contextA,
+				result.id,
+				leaseInput(unitId, {
+					tenantIds: [tenantId],
+					baseRent: 61000,
+					heatingCostPrepayment: 5500,
+					securityDeposit: 183000,
+					persons: 3
+				})
+			)
+		).toEqual({ ok: true });
+		const history = await db
+			.select()
+			.from(rentChanges)
+			.where(eq(rentChanges.leaseId, result.id))
+			.orderBy(rentChanges.validFrom);
+		// The § 560 row takes 610 € (it carried the old 600 €); the manual row keeps its 700 €. Both
+		// carried the heating prepayment of 50 € and take 55 €.
+		expect(
+			history.map((row) => [row.validFrom, row.reason, row.baseRent, row.heatingCostPrepayment])
+		).toEqual([
+			['2025-01-01', 'initial', 61000, 5500],
+			['2025-06-01', 'statement', 61000, 5500],
+			['2026-01-01', 'manual', 70000, 5500]
+		]);
+		const lease = await getLease(db, 'a', result.id);
+		expect(lease).toMatchObject({ securityDeposit: 183000, persons: 3 });
+		const persons = await db.select().from(leasePersons).where(eq(leasePersons.leaseId, result.id));
+		expect(persons.map((row) => [row.validFrom, row.persons])).toEqual([['2025-01-01', 3]]);
+		const [entry] = await db
+			.select()
+			.from(auditLog)
+			.where(eq(auditLog.action, 'update'))
+			.orderBy(auditLog.at);
+		expect(entry.summary).toBe(
+			'Mietvertrag geändert: Kaltmiete bei Vertragsbeginn 610,00\u00a0€, Heizkostenvorauszahlung 55,00\u00a0€, Kaution 1.830,00\u00a0€, Personen bei Einzug 3 (gilt auch für 2 spätere Mietänderungen)'
+		);
+	});
+
+	it('refuses a start date on or after a later rent change or persons row instead of failing', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const tenantId = await seedTenant(db, 'a');
+		const result = await createLease(db, contextA, leaseInput(unitId, { tenantIds: [tenantId] }));
+		if (!result.ok) throw new Error('setup failed');
+		await db.insert(rentChanges).values({
+			accountId: 'a',
+			leaseId: result.id,
+			validFrom: '2026-01-01',
+			baseRent: 65000,
+			reason: 'graduated'
+		});
+		await db
+			.insert(leasePersons)
+			.values({ accountId: 'a', leaseId: result.id, validFrom: '2025-09-01', persons: 3 });
+		const move = (startDate: string) =>
+			updateLease(
+				db,
+				contextA,
+				result.id,
+				leaseInput(unitId, { tenantIds: [tenantId], startDate })
+			);
+
+		// On the day of the persons row (the unique index would have failed the batch) and after
+		// the rent change: refused, naming the earliest blocking date.
+		expect(await move('2025-09-01')).toEqual({
+			ok: false,
+			reason: 'start-after-changes',
+			date: '2025-09-01'
+		});
+		expect(await move('2026-01-01')).toEqual({
+			ok: false,
+			reason: 'start-after-changes',
+			date: '2025-09-01'
+		});
+		expect((await getLease(db, 'a', result.id))!.startDate).toBe('2025-01-01');
+		// Before both rows: fine.
+		expect(await move('2025-03-01')).toEqual({ ok: true });
+	});
+});
+
+describe('listLeases with many leases', () => {
+	it('binds at most 100 parameters per statement (D1) and keeps tenants and units in order', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const zed = await seedTenant(db, 'a', { firstName: 'Zoe', lastName: 'Zander' });
+		const abe = await seedTenant(db, 'a', { firstName: 'Abe', lastName: 'Adler' });
+		for (let index = 0; index < 120; index += 1) {
+			const lease = await createLease(
+				db,
+				contextA,
+				leaseInput(unitId, { tenantIds: [zed, abe], startDate: '2025-01-01' })
+			);
+			if (!lease.ok) throw new Error('setup failed');
+		}
+		// SQLite allows thousands of variables; D1 refuses more than 100. Count them here.
+		const client = (db as unknown as { $client: { prepare: (sql: string) => unknown } }).$client;
+		const prepare = client.prepare.bind(client);
+		let most = 0;
+		client.prepare = (sql: string) => {
+			most = Math.max(most, (sql.match(/\?/g) ?? []).length);
+			return prepare(sql);
+		};
+		try {
+			const leases = await listLeases(db, 'a');
+			expect(leases).toHaveLength(120);
+			expect(leases.every((lease) => lease.currentRent.baseRent === 60000)).toBe(true);
+			expect(leases[119].tenants.map((tenant) => tenant.lastName)).toEqual(['Adler', 'Zander']);
+		} finally {
+			client.prepare = prepare;
+		}
+		expect(most).toBeGreaterThan(0);
+		expect(most).toBeLessThanOrEqual(100);
+	});
 });
 
 describe('deleteLease', () => {

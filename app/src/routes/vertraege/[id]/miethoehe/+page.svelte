@@ -10,7 +10,7 @@
 	import { effectiveFrom, formatIndexValue, formatPercent } from '#lib/domain/index-rent.ts';
 	import { rentOn, total } from '#lib/domain/rents.ts';
 	import { rentChangeReasonLabels, rentModelLabels } from '#lib/labels.ts';
-	import { formatCents, formatCentsPlain } from '#lib/money.ts';
+	import { formatCents, formatCentsPlain, parseCents } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
 	// The "Miethöhe" tab under /vertraege/[id]: the heading and tab bar come from the layout.
@@ -60,6 +60,16 @@
 	);
 
 	const steps = $derived(data.changes.filter((change) => change.reason === 'graduated'));
+
+	// The Staffel form confirms with the new Kaltmiete and its first day; both are typed in.
+	let stepFrom = $state(untrack(() => stepValues?.validFrom ?? data.nextStepAllowed ?? ''));
+	let stepRent = $state(untrack(() => stepValues?.baseRent ?? ''));
+	const stepMessage = $derived.by(() => {
+		const rent = parseCents(stepRent);
+		return isIsoDate(stepFrom) && rent !== undefined
+			? `Staffel ab ${formatDate(stepFrom)} mit Kaltmiete ${formatCents(rent)} anlegen? Die Sollstellungen werden neu berechnet.`
+			: 'Staffel anlegen? Die Sollstellungen werden neu berechnet.';
+	});
 	const situation = $derived(data.situation);
 
 	/** An approved change stays while a later index or Staffel change builds on it. */
@@ -148,8 +158,10 @@
 	</table>
 </div>
 <p class="muted small">
-	Vorauszahlungen für Betriebs- und Heizkosten je Monat. Die Miete bei Vertragsbeginn änderst du im
-	Mietvertrag.
+	Vorauszahlungen für Betriebs- und Heizkosten je Monat. Eine Änderung gilt auch für spätere
+	Einträge, die den bisherigen Betrag übernommen hatten: Eine Anpassung der Vorauszahlungen gilt
+	also auch nach einer schon angelegten Staffel. Die Miete bei Vertragsbeginn änderst du unter
+	<a href="/vertraege/{lease.id}/bearbeiten">Mietvertrag bearbeiten</a>.
 </p>
 
 {#if lease.rentModel === 'indexed'}
@@ -289,29 +301,28 @@
 			{/each}
 		</ul>
 	{/if}
-	<form method="POST" action="?/step" class="card" use:enhance>
-		<Field label="Beginn der Staffel" error={stepErrors?.validFrom}>
-			<input
-				type="date"
-				name="validFrom"
-				defaultValue={stepValues?.validFrom ?? data.nextStepAllowed ?? ''}
-				aria-invalid={stepErrors?.validFrom ? 'true' : undefined}
-				required
-			/>
-		</Field>
-		<Field label="Neue Kaltmiete" error={stepErrors?.baseRent}>
-			<input
-				name="baseRent"
-				inputmode="decimal"
-				defaultValue={stepValues?.baseRent ?? ''}
-				aria-invalid={stepErrors?.baseRent ? 'true' : undefined}
-				required
-			/>
-		</Field>
-		<div class="form-actions">
-			<button type="submit">Staffel anlegen</button>
+	<ConfirmButton action="?/step" label="Staffel anlegen" message={stepMessage} tone="primary">
+		<div class="card step-form">
+			<Field label="Beginn der Staffel" error={stepErrors?.validFrom}>
+				<input
+					type="date"
+					name="validFrom"
+					bind:value={stepFrom}
+					aria-invalid={stepErrors?.validFrom ? 'true' : undefined}
+					required
+				/>
+			</Field>
+			<Field label="Neue Kaltmiete" error={stepErrors?.baseRent}>
+				<input
+					name="baseRent"
+					inputmode="decimal"
+					bind:value={stepRent}
+					aria-invalid={stepErrors?.baseRent ? 'true' : undefined}
+					required
+				/>
+			</Field>
 		</div>
-	</form>
+	</ConfirmButton>
 {/if}
 
 <h2>Änderung ab Datum</h2>
@@ -330,7 +341,7 @@
 		<input
 			type="date"
 			name="validFrom"
-			defaultValue={changeValues?.validFrom ?? (fromStatement ? data.afterNext : data.nextMonth)}
+			defaultValue={changeValues?.validFrom ?? data.changeFrom}
 			aria-invalid={changeErrors?.validFrom ? 'true' : undefined}
 			required
 		/>
@@ -339,7 +350,7 @@
 		<input
 			name="baseRent"
 			inputmode="decimal"
-			defaultValue={changeValues?.baseRent ?? formatCentsPlain(lease.currentRent.baseRent)}
+			defaultValue={changeValues?.baseRent ?? formatCentsPlain(data.changeDefaults.baseRent)}
 			aria-invalid={changeErrors?.baseRent ? 'true' : undefined}
 			required
 		/>
@@ -349,7 +360,7 @@
 			name="operatingCostPrepayment"
 			inputmode="decimal"
 			defaultValue={changeValues?.operatingCostPrepayment ??
-				formatCentsPlain(data.prepayment ?? lease.currentRent.operatingCostPrepayment)}
+				formatCentsPlain(data.changeDefaults.operatingCostPrepayment)}
 			aria-invalid={changeErrors?.operatingCostPrepayment ? 'true' : undefined}
 		/>
 	</Field>
@@ -358,7 +369,7 @@
 			name="heatingCostPrepayment"
 			inputmode="decimal"
 			defaultValue={changeValues?.heatingCostPrepayment ??
-				formatCentsPlain(data.heatingPrepayment ?? lease.currentRent.heatingCostPrepayment)}
+				formatCentsPlain(data.changeDefaults.heatingCostPrepayment)}
 			aria-invalid={changeErrors?.heatingCostPrepayment ? 'true' : undefined}
 		/>
 	</Field>
@@ -408,5 +419,9 @@
 	}
 	.approval .from {
 		margin: 0 0 0.5rem;
+	}
+	.step-form {
+		display: grid;
+		margin: 0 0 0.75rem;
 	}
 </style>

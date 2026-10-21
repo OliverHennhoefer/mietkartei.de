@@ -8,7 +8,6 @@
 		terminatedByLabels
 	} from '../labels';
 	import { personName } from '../format';
-	import { formatCents } from '../money';
 	import type {
 		HeatingCostModel,
 		LeaseKind,
@@ -20,8 +19,8 @@
 	import Field from './Field.svelte';
 
 	// The lease form, shared by /vertraege/neu (mode create: units and amounts included) and
-	// /vertraege/[id]/bearbeiten (mode edit: the units and amounts are shown, not edited; the
-	// notice fields are). Values are the strings of the last submit or the defaults of the page.
+	// /vertraege/[id]/bearbeiten (mode edit: the units are shown, not edited; the amounts, deposit
+	// and persons at the start of the lease and the notice fields are edited). Values are the strings of the last submit or the defaults of the page.
 	let {
 		mode,
 		action,
@@ -56,6 +55,8 @@
 	const selectedTenants = $derived(new Set((values.tenantIds ?? '').split(',').filter(Boolean)));
 	const selectedExtras = $derived(new Set((values.extraUnitIds ?? '').split(',').filter(Boolean)));
 	const invalid = (name: string) => (errors[name] ? 'true' : undefined);
+	// In the edit form the amounts are the ones at the start of the lease.
+	const atStart = (label: string) => (mode === 'edit' ? `${label} bei Vertragsbeginn` : label);
 </script>
 
 <form method="POST" {action} class="card" use:enhance>
@@ -185,77 +186,69 @@
 		</select>
 	</Field>
 
-	{#if mode === 'create'}
-		<Field label="Kaltmiete" error={errors.baseRent}>
-			<input
-				name="baseRent"
-				defaultValue={values.baseRent ?? ''}
-				inputmode="decimal"
-				placeholder="650,00"
-				aria-invalid={invalid('baseRent')}
-				required
-			/>
-		</Field>
-		<Field label="Betriebskostenvorauszahlung" error={errors.operatingCostPrepayment}>
-			<input
-				name="operatingCostPrepayment"
-				defaultValue={values.operatingCostPrepayment ?? ''}
-				inputmode="decimal"
-				placeholder="0,00"
-				aria-invalid={invalid('operatingCostPrepayment')}
-			/>
-		</Field>
-		<Field label="Heizkostenvorauszahlung" error={errors.heatingCostPrepayment}>
-			<input
-				name="heatingCostPrepayment"
-				defaultValue={values.heatingCostPrepayment ?? ''}
-				inputmode="decimal"
-				placeholder="0,00"
-				aria-invalid={invalid('heatingCostPrepayment')}
-			/>
-		</Field>
-		<Field
-			label="Kaution"
-			error={errors.securityDeposit}
-			hint={depositWarning ?? 'Bei Wohnraum höchstens drei Nettokaltmieten (§ 551 BGB).'}
-		>
-			<input
-				name="securityDeposit"
-				defaultValue={values.securityDeposit ?? ''}
-				inputmode="decimal"
-				placeholder="0,00"
-				aria-invalid={invalid('securityDeposit')}
-			/>
-		</Field>
-		<Field
-			label="Personen bei Einzug"
-			error={errors.persons}
-			hint="Für den Umlageschlüssel nach Personen."
-		>
-			<input
-				name="persons"
-				type="number"
-				min="0"
-				max="20"
-				defaultValue={values.persons || '1'}
-				aria-invalid={invalid('persons')}
-			/>
-		</Field>
-	{:else if lease}
-		<div class="form-wide">
-			<p>
-				<strong>Miete bei Vertragsbeginn:</strong>
-				{formatCents(lease.baseRent)} Kaltmiete, {formatCents(lease.operatingCostPrepayment)} Betriebskosten,
-				{formatCents(lease.heatingCostPrepayment)} Heizkosten, Kaution {formatCents(
-					lease.securityDeposit
-				)}.
-			</p>
-			<p class="muted small">
-				Die Miete und ihre Änderungen pflegst du im Reiter
-				<a href="/vertraege/{lease.id}/miethoehe">Miethöhe</a>, den Personenstand in der Übersicht.
-			</p>
-		</div>
+	{#if mode === 'edit' && lease}
+		<p class="form-wide muted small">
+			Die Beträge und die Personenzahl hier gelten ab Vertragsbeginn. Spätere Änderungen der Miete
+			pflegst du im Reiter <a href="/vertraege/{lease.id}/miethoehe">Miethöhe</a>, den Personenstand
+			in der Übersicht. Eine Korrektur gilt auch für spätere Mietänderungen, die den bisherigen
+			Betrag übernommen hatten.
+		</p>
 	{/if}
+	<Field label={atStart('Kaltmiete')} error={errors.baseRent}>
+		<input
+			name="baseRent"
+			defaultValue={values.baseRent ?? ''}
+			inputmode="decimal"
+			placeholder="650,00"
+			aria-invalid={invalid('baseRent')}
+			required
+		/>
+	</Field>
+	<Field label={atStart('Betriebskostenvorauszahlung')} error={errors.operatingCostPrepayment}>
+		<input
+			name="operatingCostPrepayment"
+			defaultValue={values.operatingCostPrepayment ?? ''}
+			inputmode="decimal"
+			placeholder="0,00"
+			aria-invalid={invalid('operatingCostPrepayment')}
+		/>
+	</Field>
+	<Field label={atStart('Heizkostenvorauszahlung')} error={errors.heatingCostPrepayment}>
+		<input
+			name="heatingCostPrepayment"
+			defaultValue={values.heatingCostPrepayment ?? ''}
+			inputmode="decimal"
+			placeholder="0,00"
+			aria-invalid={invalid('heatingCostPrepayment')}
+		/>
+	</Field>
+	<Field
+		label="Kaution"
+		error={errors.securityDeposit}
+		hint={depositWarning ?? 'Bei Wohnraum höchstens drei Nettokaltmieten (§ 551 BGB).'}
+	>
+		<input
+			name="securityDeposit"
+			defaultValue={values.securityDeposit ?? ''}
+			inputmode="decimal"
+			placeholder="0,00"
+			aria-invalid={invalid('securityDeposit')}
+		/>
+	</Field>
+	<Field
+		label="Personen bei Einzug"
+		error={errors.persons}
+		hint="Für den Umlageschlüssel nach Personen."
+	>
+		<input
+			name="persons"
+			type="number"
+			min="0"
+			max="20"
+			defaultValue={values.persons || '1'}
+			aria-invalid={invalid('persons')}
+		/>
+	</Field>
 
 	<Field
 		label="Fälligkeit (Werktag des Monats)"

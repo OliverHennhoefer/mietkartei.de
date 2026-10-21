@@ -111,13 +111,13 @@ export function depositWarning(
 
 // Appended by the tenants-leases feature: the smaller forms of the lease pages.
 
-import { formatCentsPlain } from '../money';
 import type { LeaseEndInput, LeasePersonsInput } from '../server/leases';
 
 /**
- * The edit form changes everything but the units and the amounts (those have their own places:
- * end the lease and start a new one, the Miethöhe tab). The current values of those fields are
- * put into the form data, so parseLease checks the whole lease as on creation.
+ * The edit form changes everything but the units (end the lease and start a new one). The
+ * amounts, deposit and persons it edits are the ones at the start of the lease; the changes after
+ * it live on the Miethöhe tab and in the persons history. The current units are put into the form
+ * data, so parseLease checks the whole lease as on creation.
  */
 export function parseLeaseEdit(form: FormData, current: LeaseInput): ParseResult<LeaseInput> {
 	const merged = new FormData();
@@ -125,11 +125,6 @@ export function parseLeaseEdit(form: FormData, current: LeaseInput): ParseResult
 	merged.set('unitId', current.unitId);
 	merged.delete('extraUnitIds');
 	for (const unitId of current.extraUnitIds) merged.append('extraUnitIds', unitId);
-	merged.set('baseRent', formatCentsPlain(current.baseRent));
-	merged.set('operatingCostPrepayment', formatCentsPlain(current.operatingCostPrepayment));
-	merged.set('heatingCostPrepayment', formatCentsPlain(current.heatingCostPrepayment));
-	merged.set('securityDeposit', formatCentsPlain(current.securityDeposit));
-	merged.set('persons', String(current.persons));
 	return parseLease(merged);
 }
 
@@ -163,9 +158,11 @@ export function parseLeaseEnd(form: FormData): ParseResult<LeaseEndInput> {
 	if (terminatedAt && endDate && endDate < terminatedAt) {
 		parser.fail('endDate', 'Das Vertragsende liegt vor dem Eingang der Kündigung.');
 	}
+	const earlyEndAgreed = parser.flag('earlyEndAgreed');
 	return parser.result(() => ({
 		terminatedAt: terminatedAt!,
 		terminatedBy: terminatedBy!,
-		endDate: endDate!
+		endDate: endDate!,
+		earlyEndAgreed
 	}));
 }
