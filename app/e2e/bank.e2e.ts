@@ -84,6 +84,14 @@ test('creates a bank account', async ({ page }) => {
 	await expect(row).toContainText('DE02 1203 0000 0000 2020 51');
 	await expect(row).toContainText('BYLADEM1001');
 	await expect(row).toContainText('Vera Vermieterin');
+
+	// The same IBAN a second time is refused: one statement must not be imported twice.
+	await page.getByLabel('Bezeichnung').fill('Zweitkonto');
+	await page.getByLabel('IBAN').fill('DE02120300000000202051');
+	await page.getByLabel('Kontoinhaber').fill('Vera Vermieterin');
+	await page.getByRole('button', { name: 'Bankverbindung anlegen' }).click();
+	await expect(page.getByText('Ein Konto mit dieser IBAN gibt es schon.')).toBeVisible();
+	await expect(page.getByRole('row', { name: /Zweitkonto/ })).toHaveCount(0);
 });
 
 test('imports a Sparkasse export and recognises it as duplicates the second time', async ({

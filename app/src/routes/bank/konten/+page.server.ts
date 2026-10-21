@@ -1,5 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
-import { parseBankAccount } from '#lib/forms/bank.ts';
+import { parseBankAccount, type BankAccountInput } from '#lib/forms/bank.ts';
+import type { FieldErrors } from '#lib/forms/fields.ts';
 import {
 	createBankAccount,
 	deleteBankAccount,
@@ -17,7 +18,16 @@ export const actions: Actions = {
 	create: async ({ request, locals }) => {
 		const result = parseBankAccount(await request.formData());
 		if (!result.ok) return fail(400, { errors: result.errors, values: result.values });
-		await createBankAccount(locals.db, auditContext(locals), result.data);
+		const created = await createBankAccount(locals.db, auditContext(locals), result.data);
+		if (!created.ok) {
+			const errors: FieldErrors<BankAccountInput> = {
+				iban: 'Ein Konto mit dieser IBAN gibt es schon.'
+			};
+			return fail(400, {
+				errors,
+				values: { ...result.data, bic: result.data.bic ?? '' }
+			});
+		}
 		return { created: result.data.name };
 	},
 
