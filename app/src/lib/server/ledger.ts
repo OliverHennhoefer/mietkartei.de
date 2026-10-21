@@ -424,11 +424,11 @@ export type LeaseBalance = {
 	/** charged − paid, including charges not due yet; positive = owed, negative = Guthaben. */
 	balance: number;
 	/**
-	 * The Rückstand: charges due by `asOf` minus all payments, at least 0. A month's rent before its
-	 * due day and a correction dated later do not count yet.
+	 * The Rückstand: charges due by `asOf` minus the payments made by `asOf`, at least 0. A month's
+	 * rent before its due day, a correction dated later and a payment dated later do not count yet.
 	 */
 	overdue: number;
-	/** The last day money came in, null when nothing was paid yet. */
+	/** The last day by `asOf` money came in, null when nothing was paid by then. */
 	lastPaymentDate: IsoDate | null;
 	/**
 	 * The month (of the due date) of the oldest due charge the payments do not cover: payments and
@@ -465,7 +465,8 @@ function overdueSince(
 /**
  * The balance of every lease of the account, largest balance first. Charges are synced up to
  * `untilMonth` (default: the current month) before the sums are taken; `asOf` (default: today)
- * decides which charges are due for `overdue` and `openSince`.
+ * decides which charges are due and which payments are made for `overdue`, `openSince` and
+ * `lastPaymentDate`.
  */
 export async function listBalances(
 	db: Database,
@@ -498,10 +499,15 @@ export async function listBalances(
 	const chargesByLease = groupByLease(chargeRows);
 	const paymentsByLease = groupByLease(paymentRows);
 	const balances = leaseIds.map((leaseId): LeaseBalance => {
+		// The balance takes every payment; the Rückstand and the last payment only those made by
+		// asOf, so a payment dated later does not settle what is overdue today.
 		let paid = 0;
+		let paidByAsOf = 0;
 		let lastPaymentDate: IsoDate | null = null;
 		for (const payment of paymentsByLease.get(leaseId) ?? []) {
 			paid += payment.amount;
+			if (payment.date > asOf) continue;
+			paidByAsOf += payment.amount;
 			if (payment.amount > 0 && (!lastPaymentDate || payment.date > lastPaymentDate)) {
 				lastPaymentDate = payment.date;
 			}
@@ -513,7 +519,7 @@ export async function listBalances(
 			charged,
 			paid,
 			balance: charged - paid,
-			...overdueSince(charges, paid, asOf),
+			...overdueSince(charges, paidByAsOf, asOf),
 			lastPaymentDate
 		};
 	});

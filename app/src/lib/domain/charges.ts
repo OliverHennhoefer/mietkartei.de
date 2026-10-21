@@ -8,7 +8,10 @@ import { monthlyAmounts, total, type RentChange } from './rents';
 
 export type ExpectedCharge = {
 	period: IsoMonth;
-	/** The n-th working day of the month (§ 556b BGB), public holidays skipped. */
+	/**
+	 * The n-th working day of the month (§ 556b BGB), public holidays skipped; in the first month
+	 * not before the start of the charges.
+	 */
 	dueDate: IsoDate;
 	baseRent: number;
 	operatingCostPrepayment: number;
@@ -56,9 +59,12 @@ export function expectedRentCharges(
 		if (period < monthOf(firstKnown)) continue;
 		const amounts = monthlyAmounts(changes, term, period);
 		if (amounts.days === 0) continue;
+		// A term starting after the due day of its first month owes that month's rent from its
+		// start, not before it (a lease from 15 January is not in arrears on 6 January).
+		const dueDate = nthWorkingDay(period, lease.rentDueDay);
 		charges.push({
 			period,
-			dueDate: nthWorkingDay(period, lease.rentDueDay),
+			dueDate: dueDate < start ? start : dueDate,
 			baseRent: amounts.baseRent,
 			operatingCostPrepayment: amounts.operatingCostPrepayment,
 			heatingCostPrepayment: amounts.heatingCostPrepayment,

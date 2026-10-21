@@ -1,14 +1,13 @@
 import { and, asc, eq } from 'drizzle-orm';
 import { addMonthsToMonth, formatDate, monthOf, type IsoDate } from '../dates';
-import { expectedRentCharges } from '../domain/charges';
 import { depositTransactionKindLabels } from '../labels';
 import { distributeCents, formatCents } from '../money';
+import { nthWorkingDay } from '../working-days';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import { depositTransactions, type DepositTransactionKind } from './db/schema';
 import { getLease } from './leases';
-import { listRentChanges } from './rents';
 
 // The deposit ledger (Kaution) of a lease, kept apart from the rent. Amounts are signed from the
 // deposit's point of view: received and interest add to it (positive), returned and withheld
@@ -146,12 +145,13 @@ export async function deleteDepositMovement(
 export type DepositInstalment = { dueDate: IsoDate; amount: number };
 
 /**
- * § 551 Abs. 2 BGB: a residential tenant may pay the deposit in three instalments, the first at
- * the start of the tenancy, the others with the two following rents. The dates are the due dates
- * of the first three rent charges of the lease (same rule as the ledger, from the start date even
- * when the ledger starts later), the first one not before the start date; the amounts split the
- * agreed deposit to the cent. Empty for commercial and parking leases, for a lease without a
- * deposit, and for an unknown lease.
+ * § 551 Abs. 2 BGB: a residential tenant may pay the deposit in three equal monthly instalments,
+ * the first at the start of the tenancy, the others with the two following rents. The dates are
+ * the rent due days of the first three months of the lease (the n-th working day, as in the
+ * ledger, from the start date even when the ledger starts later and whatever the end date or the
+ * rent history), the first one not before the start date; the amounts split the agreed deposit to
+ * the cent. Empty for commercial and parking leases, for a lease without a deposit, and for an
+ * unknown lease.
  */
 export async function instalmentDeadlines(
 	db: Database,
@@ -160,20 +160,14 @@ export async function instalmentDeadlines(
 ): Promise<DepositInstalment[]> {
 	const lease = await getLease(db, accountId, leaseId);
 	if (!lease || lease.kind !== 'residential' || lease.securityDeposit <= 0) return [];
-	const changes = await listRentChanges(db, accountId, leaseId);
-	const horizon = addMonthsToMonth(monthOf(lease.startDate), 2);
-	const charges = expectedRentCharges({ ...lease, ledgerStart: null }, changes, horizon).slice(
-		0,
-		3
-	);
-	const amounts = distributeCents(
-		lease.securityDeposit,
-		charges.map(() => 1)
-	);
-	// § 551 Abs. 2 BGB: the first instalment is due at the start of the tenancy, never before it
-	// (a lease starting on the 15th has its first rent due on the 3rd working day of the month).
-	return charges.map((charge, index) => ({
-		dueDate: charge.dueDate < lease.startDate ? lease.startDate : charge.dueDate,
-		amount: amounts[index]
-	}));
+	const amounts = distributeCents(lease.securityDeposit, [1, 1, 1]);
+	return amounts.map((amount, index) => {
+		const dueDate = nthWorkingDay(
+			addMonthsToMonth(monthOf(lease.startDate), index),
+			lease.rentDueDay
+		);
+		// The first instalment is due at the start of the tenancy, never before it (a lease starting
+		// on the 15th has its first rent due on the 3rd working day of the month).
+		return { dueDate: dueDate < lease.startDate ? lease.startDate : dueDate, amount };
+	});
 }

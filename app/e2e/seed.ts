@@ -10,7 +10,7 @@ import type { SeedLeaseOverrides, SeedLeaseResult } from '../src/lib/server/e2e-
  */
 
 async function post(request: APIRequestContext, body: Record<string, unknown>): Promise<unknown> {
-	const response = await request.post('/__e2e/seed', { data: body });
+	const response = await request.post('/api/e2e/seed', { data: body });
 	if (!response.ok()) {
 		throw new Error(
 			`Seed ${String(body.op)} failed with ${response.status()}: ${await response.text()}`

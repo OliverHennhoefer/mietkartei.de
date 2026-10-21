@@ -11,7 +11,7 @@ const publicPaths = new Set(['/anmelden', '/registrieren', '/health']);
 function isPublic(pathname: string): boolean {
 	if (publicPaths.has(pathname)) return true;
 	// Test-only endpoints, e.g. the seed. Only enabled by the end-to-end test server.
-	return E2E && pathname.startsWith('/__e2e/');
+	return E2E && pathname.startsWith('/api/e2e/');
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
