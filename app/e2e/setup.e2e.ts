@@ -1,7 +1,10 @@
 import { expect, test } from '@playwright/test';
+import { watchCspViolations } from './csp';
 import { owner } from './owner';
 
 test('the first visitor registers and becomes the owner', async ({ page }) => {
+	// The only run of the open registration form, so it is also checked against the CSP.
+	const violations = watchCspViolations(page);
 	await page.goto('/');
 	await expect(page).toHaveURL(/\/registrieren$/);
 
@@ -12,4 +15,5 @@ test('the first visitor registers and becomes the owner', async ({ page }) => {
 	await expect(page).toHaveURL(/\/objekte$/);
 	await expect(page.getByRole('navigation')).toContainText(owner.email);
 	await page.context().storageState({ path: '.e2e/owner.json' });
+	expect(violations).toEqual([]);
 });

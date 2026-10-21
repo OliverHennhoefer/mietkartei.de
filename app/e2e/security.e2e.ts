@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { watchCspViolations } from './csp';
 import { seedLease, seedRows } from './seed';
 
 // Every page must work under the Content-Security-Policy from vite.config.ts: a style attribute
@@ -26,15 +27,6 @@ const pages = [
 	'/einstellungen/vpi'
 ];
 
-/** Collects the CSP violations the browser reports on the console. */
-function watchViolations(page: Page): string[] {
-	const violations: string[] = [];
-	page.on('console', (message) => {
-		if (/Content Security Policy/i.test(message.text())) violations.push(message.text());
-	});
-	return violations;
-}
-
 async function visit(page: Page, path: string) {
 	await page.goto(path);
 	await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
@@ -49,7 +41,7 @@ async function firstEntry(page: Page, listPath: string): Promise<string> {
 }
 
 test('no page violates the Content-Security-Policy', async ({ page }) => {
-	const violations = watchViolations(page);
+	const violations = watchCspViolations(page);
 	for (const path of pages) await visit(page, path);
 	expect(violations).toEqual([]);
 });
@@ -59,7 +51,7 @@ test('no detail page violates the Content-Security-Policy', async ({ page }) => 
 	const {
 		ids: [circleId]
 	} = await seedRows(page.request, 'billingCircles', [{ propertyId, name: 'CSP-Kreis' }]);
-	const violations = watchViolations(page);
+	const violations = watchCspViolations(page);
 	const property = `/objekte/${propertyId}`;
 	const lease = `/vertraege/${leaseId}`;
 	const detailPages = [
@@ -88,10 +80,11 @@ test('no detail page violates the Content-Security-Policy', async ({ page }) => 
 test.describe('signed out', () => {
 	test.use({ storageState: { cookies: [], origins: [] } });
 
+	// Registration is closed by now; setup.e2e.ts checks the open registration form.
 	test('the sign-in and registration pages keep to the Content-Security-Policy', async ({
 		page
 	}) => {
-		const violations = watchViolations(page);
+		const violations = watchCspViolations(page);
 		for (const path of ['/anmelden', '/registrieren']) await visit(page, path);
 		expect(violations).toEqual([]);
 	});
