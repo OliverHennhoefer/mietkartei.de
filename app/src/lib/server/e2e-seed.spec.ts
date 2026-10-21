@@ -1,7 +1,16 @@
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from './db';
-import { leaseTenants, leases, properties, tenants, units, users } from './db/schema';
+import {
+	leasePersons,
+	leaseTenants,
+	leases,
+	properties,
+	rentChanges,
+	tenants,
+	units,
+	users
+} from './db/schema';
 import { FOREIGN_ACCOUNT_ID, seed, type SeedLeaseResult } from './e2e-seed';
 import { testDatabase } from './testing';
 
@@ -36,9 +45,24 @@ describe('seed lease', () => {
 			endDate: null,
 			baseRent: 60000,
 			operatingCostPrepayment: 15000,
-			securityDeposit: 180000
+			heatingCostPrepayment: 5000,
+			securityDeposit: 180000,
+			persons: 2
 		});
 		expect(await db.select().from(leaseTenants)).toEqual([{ leaseId, tenantId }]);
+
+		const history = await db.select().from(rentChanges).where(eq(rentChanges.leaseId, leaseId));
+		expect(history).toHaveLength(1);
+		expect(history[0]).toMatchObject({
+			accountId: 'a',
+			validFrom: '2025-01-01',
+			baseRent: 60000,
+			reason: 'initial',
+			status: 'approved',
+			createdBy: 'user-a'
+		});
+		const persons = await db.select().from(leasePersons).where(eq(leasePersons.leaseId, leaseId));
+		expect(persons).toMatchObject([{ accountId: 'a', persons: 2 }]);
 	});
 
 	it('applies overrides and keeps names distinct between calls', async () => {
@@ -47,7 +71,7 @@ describe('seed lease', () => {
 			property: { name: 'Villa Kunterbunt', accountId: 'b' },
 			unit: { name: 'Stellplatz', kind: 'parking', floorArea: null },
 			tenant: { lastName: 'Lindgren' },
-			lease: { startDate: '2024-06-01', endDate: '2024-12-31', baseRent: 70000 }
+			lease: { startDate: '2024-06-01', endDate: '2024-12-31', baseRent: 70000, persons: 1 }
 		});
 		const second = await seed(db, { op: 'lease' });
 		expect(first.status).toBe(200);
@@ -64,7 +88,8 @@ describe('seed lease', () => {
 		expect(lease).toMatchObject({
 			startDate: '2024-06-01',
 			endDate: '2024-12-31',
-			baseRent: 70000
+			baseRent: 70000,
+			persons: 1
 		});
 
 		const names = (await db.select({ name: properties.name }).from(properties)).map((r) => r.name);
@@ -81,6 +106,7 @@ describe('seed lease', () => {
 		const result = await seed(db, { op: 'lease', unit: { kind: 'cellar', name: null } });
 		expect(result.status).toBe(500);
 		expect(await db.select().from(properties)).toEqual([]);
+		expect(await db.select().from(rentChanges)).toEqual([]);
 	});
 });
 

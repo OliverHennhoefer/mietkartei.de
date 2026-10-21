@@ -1,0 +1,222 @@
+import { expect, test, type Page } from '@playwright/test';
+import { seedForeignLease, seedLease, seedRows } from './seed';
+
+// Leases: the whole life of one lease on the pages this feature owns. Property, unit and
+// tenant are seeded as raw rows (the portfolio and tenant pages are not driven here).
+
+const suffix = () => crypto.randomUUID().slice(0, 6);
+
+async function seedUnitAndTenant(page: Page) {
+	const s = suffix();
+	const property = await seedRows(page.request, 'properties', [
+		{ name: `Haus ${s}`, street: 'Lindenstraße 4', postalCode: '10115', city: 'Berlin' }
+	]);
+	const unit = await seedRows(page.request, 'units', [
+		{ propertyId: property.ids[0], name: `Wohnung ${s}`, kind: 'apartment', floorArea: 64 }
+	]);
+	const tenant = await seedRows(page.request, 'tenants', [
+		{ firstName: 'Erika', lastName: `Vertrag-${s}` }
+	]);
+	return {
+		unitId: unit.ids[0],
+		tenantId: tenant.ids[0],
+		label: `Wohnung ${s} · Haus ${s}`,
+		tenantName: `Erika Vertrag-${s}`
+	};
+}
+
+test('creates a lease, keeps its history and ends it', async ({ page }) => {
+	const { unitId, tenantId, label, tenantName } = await seedUnitAndTenant(page);
+	page.on('dialog', (dialog) => dialog.accept());
+
+	// The unit and the tenant come preselected from the query string.
+	await page.goto(`/vertraege/neu?unitId=${unitId}&tenantId=${tenantId}`);
+	await expect(page.locator('select[name="unitId"]')).toHaveValue(unitId);
+	await expect(page.getByRole('checkbox', { name: tenantName })).toBeChecked();
+	await page.getByLabel('Beginn', { exact: true }).fill('2025-01-01');
+	// Amounts by name: the hints of other fields mention Kaltmiete and Kaution too.
+	await page.locator('input[name="baseRent"]').fill('600,00');
+	await page.locator('input[name="operatingCostPrepayment"]').fill('150,00');
+	await page.locator('input[name="heatingCostPrepayment"]').fill('50,00');
+	await page.locator('input[name="securityDeposit"]').fill('1.800,00');
+	await page.getByRole('button', { name: 'Mietvertrag anlegen' }).click();
+
+	// Overview: the current rent is the initial one, 600 € + 150 € + 50 € = 800 €.
+	await expect(page).toHaveURL(/\/vertraege\/(?!neu)[^/?]+$/);
+	const leaseUrl = page.url();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText(label);
+	await expect(page.getByText(tenantName)).toHaveCount(2);
+	await expect(page.getByLabel('Aktuelle Miete')).toContainText(/800,00\s€/);
+	await expect(page.getByLabel('Kaution', { exact: true })).toContainText(/1\.800,00\s€/);
+
+	// Persons history: the initial row and one added "ab Datum".
+	const persons = page.getByRole('table', { name: 'Personenstand' });
+	await expect(persons.getByRole('row')).toHaveCount(2);
+	await page.getByLabel('Personen ab Datum').fill('2026-01-01');
+	await page.getByLabel('Personen', { exact: true }).fill('3');
+	await page.getByLabel('Notiz (optional)').fill('Kind geboren');
+	await page.getByRole('button', { name: 'Personenstand eintragen' }).click();
+	await expect(persons.getByRole('row')).toHaveCount(3);
+	await expect(persons).toContainText('01.01.2026');
+	await expect(persons).toContainText('Kind geboren');
+
+	// Edit: a start date on the day of the later persons row is refused with a sentence (not a
+	// database error); the notes and the deposit typed wrong at the start are fixed.
+	await page.getByRole('link', { name: 'Bearbeiten' }).click();
+	await expect(page.locator('input[name="baseRent"]')).toHaveValue('600,00');
+	await expect(page.locator('input[name="securityDeposit"]')).toHaveValue('1.800,00');
+	// By name: the label's accessible name takes in the error and hint texts.
+	const startDate = page.locator('input[name="startDate"]');
+	await startDate.fill('2026-01-01');
+	await page.getByRole('button', { name: 'Speichern' }).click();
+	await expect(
+		page.getByText('Am 01.01.2026 beginnt schon eine spätere Mietänderung')
+	).toBeVisible();
+	await startDate.fill('2025-01-01');
+	await page.getByLabel('Notizen (optional)').fill('Schlüssel übergeben');
+	await page.locator('input[name="securityDeposit"]').fill('1.500,00');
+	await page.getByRole('button', { name: 'Speichern' }).click();
+	await expect(page).toHaveURL(leaseUrl);
+	await expect(page.getByText('Schlüssel übergeben')).toBeVisible();
+	await expect(page.getByLabel('Kaution', { exact: true })).toContainText(/1\.500,00\s€/);
+
+	// The added persons row goes again; the first row stays.
+	await persons
+		.getByRole('row', { name: /01\.01\.2026/ })
+		.getByRole('button', { name: 'Entfernen' })
+		.click();
+	await expect(persons.getByRole('row')).toHaveCount(2);
+	await expect(persons).not.toContainText('Kind geboren');
+
+	// Kaution tab: three instalments while nothing is paid in, one movement, the summary.
+	await page
+		.getByRole('navigation', { name: 'Bereiche' })
+		.getByRole('link', { name: 'Kaution' })
+		.click();
+	await expect(page).toHaveURL(`${leaseUrl}/kaution`);
+	const instalments = page.getByRole('list', { name: 'Raten' }).getByRole('listitem');
+	await expect(instalments).toHaveCount(3);
+	await expect(instalments.nth(0)).toContainText('zu Beginn am 01.01.2025');
+	await expect(instalments.nth(1)).toContainText(/500,00\s€/);
+	await expect(instalments.nth(1)).toContainText('mit der Miete für Februar 2025');
+	await expect(instalments.nth(2)).toContainText('mit der Miete für März 2025');
+	await expect(page.getByText('Noch keine Bewegungen.')).toBeVisible();
+	await page.getByLabel('Betrag').fill('600,00');
+	await page.getByLabel('Notiz (optional)').fill('erste Rate');
+	await page.getByRole('button', { name: 'Bewegung buchen' }).click();
+	const movements = page.getByRole('table', { name: 'Kautionsbewegungen' });
+	await expect(movements.getByRole('row')).toHaveCount(2);
+	await expect(movements).toContainText('Erhalten');
+	await expect(movements).toContainText('erste Rate');
+	await expect(movements).toContainText(/\+600,00\s€/);
+	const outstanding = page
+		.getByLabel('Zusammenfassung')
+		.locator('.stat', { hasText: 'Noch offen' });
+	await expect(outstanding).toContainText(/900,00\s€/);
+	await expect(page.getByRole('list', { name: 'Raten' })).toBeVisible();
+
+	// The lease now carries money, so it cannot be deleted, only ended.
+	await page.goto(leaseUrl);
+	await page.getByRole('button', { name: 'Mietvertrag löschen' }).click();
+	await expect(page.getByRole('alert')).toContainText('Vertrag beenden');
+
+	// Vertrag beenden: a tenant's notice received on 2 March 2026 ends the lease on 31 May 2026
+	// at the earliest (§ 573c BGB); the form proposes that date, and an earlier one is refused
+	// unless it was agreed.
+	await page.getByLabel('Kündigung erhalten am').fill('2026-03-02');
+	await page.locator('select[name="terminatedBy"]').selectOption('tenant');
+	const endDate = page.locator('input[name="endDate"]');
+	await expect(endDate).toHaveValue('2026-05-31');
+	await endDate.fill('2026-04-30');
+	await page.getByRole('button', { name: 'Vertrag beenden' }).click();
+	await expect(
+		page.getByText(
+			'Nach § 573c BGB endet der Vertrag bei dieser Kündigung frühestens am 31.05.2026.'
+		)
+	).toBeVisible();
+	await endDate.fill('2026-05-31');
+	await page.getByRole('button', { name: 'Vertrag beenden' }).click();
+	const notice = page.getByLabel('Kündigung', { exact: true });
+	await expect(notice).toContainText('02.03.2026 durch Mieter');
+	await expect(notice).toContainText('31.05.2026');
+	const deadlines = page.getByRole('list', { name: 'Fristen' });
+	await expect(deadlines).toContainText('Zählerstände ablesen am 31.05.2026');
+	await expect(deadlines).toContainText('Kaution abrechnen bis 30.11.2026');
+	await expect(deadlines).toContainText('Betriebskostenabrechnung bis 31.12.2027');
+	await expect(page.getByRole('button', { name: 'Vertrag beenden' })).toHaveCount(0);
+
+	// The deposit movement booked by mistake goes again: the whole deposit is open.
+	await page.goto(`${leaseUrl}/kaution`);
+	await movements.getByRole('button', { name: 'Löschen' }).click();
+	await expect(page.getByText('Noch keine Bewegungen.')).toBeVisible();
+	await expect(outstanding).toContainText(/1\.500,00\s€/);
+
+	// The list shows the ended lease after the active ones.
+	await page.goto('/vertraege');
+	const row = page.getByRole('table', { name: 'Mietverträge' }).getByRole('row', { name: label });
+	await expect(row).toContainText('Beendet');
+	await expect(row).toContainText('01.01.2025 – 31.05.2026');
+	await expect(row).toContainText(/800,00\s€/);
+});
+
+test('shows validation errors and the deposit hint', async ({ page }) => {
+	const { unitId, tenantId } = await seedUnitAndTenant(page);
+	await page.goto(`/vertraege/neu?unitId=${unitId}&tenantId=${tenantId}`);
+	await page.getByLabel('Beginn', { exact: true }).fill('2026-02-01');
+	await page.getByLabel('Vertragsende (optional)').fill('2026-01-31');
+	await page.locator('input[name="baseRent"]').fill('600,00');
+	await page.locator('input[name="securityDeposit"]').fill('2.000,00');
+	await page.getByRole('button', { name: 'Mietvertrag anlegen' }).click();
+	await expect(page.getByText('Das Vertragsende liegt vor dem Beginn.')).toBeVisible();
+	await expect(
+		page.getByText('Die Kaution übersteigt drei Nettokaltmieten (§ 551 BGB).')
+	).toBeVisible();
+	await expect(page.locator('input[name="baseRent"]')).toHaveValue('600,00');
+});
+
+test('proposes the landlord notice period and deletes a lease without money', async ({ page }) => {
+	page.on('dialog', (dialog) => dialog.accept());
+	// A lease of nine years: a landlord's notice of 2 March 2026 ends it on 30 November 2026
+	// (§ 573c Abs. 1 BGB: three plus six months), a tenant's on 31 May 2026.
+	const { leaseId } = await seedLease(page.request, { lease: { startDate: '2017-01-01' } });
+	await page.goto(`/vertraege/${leaseId}`);
+	await page.getByLabel('Kündigung erhalten am').fill('2026-03-02');
+	const endDate = page.locator('input[name="endDate"]');
+	await expect(endDate).toHaveValue('2026-05-31');
+	await page.locator('select[name="terminatedBy"]').selectOption('landlord');
+	await expect(endDate).toHaveValue('2026-11-30');
+	await expect(page.getByText('Nach § 573c BGB frühestens am 30.11.2026.')).toBeVisible();
+
+	// The lease has no deposit movements, so it can be deleted with its history.
+	await page.getByRole('button', { name: 'Mietvertrag löschen' }).click();
+	await expect(page).toHaveURL(/\/vertraege$/);
+	const response = await page.goto(`/vertraege/${leaseId}`);
+	expect(response?.status()).toBe(404);
+});
+
+test('answers unknown leases and leases of another account with 404', async ({ page }) => {
+	const response = await page.goto('/vertraege/does-not-exist');
+	expect(response?.status()).toBe(404);
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Nicht gefunden');
+
+	// Real ids of a second account: every page of the lease and tenant answers 404, and so does
+	// a form action.
+	const foreign = await seedForeignLease(page.request);
+	for (const path of [
+		`/vertraege/${foreign.leaseId}`,
+		`/vertraege/${foreign.leaseId}/bearbeiten`,
+		`/vertraege/${foreign.leaseId}/kaution`,
+		`/mieter/${foreign.tenantId}`,
+		`/mieter/${foreign.tenantId}/bearbeiten`
+	]) {
+		const answer = await page.goto(path);
+		expect(answer?.status(), path).toBe(404);
+	}
+	const origin = new URL(page.url()).origin;
+	const deleted = await page.request.post(`/vertraege/${foreign.leaseId}?/delete`, {
+		form: {},
+		headers: { origin },
+		maxRedirects: 0
+	});
+	expect(deleted.status()).toBe(404);
+});

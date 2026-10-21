@@ -1,6 +1,8 @@
 import type { Database } from './db';
-import { accounts, leaseTenants, leases, tenants, users } from './db/schema';
+import { accounts, properties, tenants, units, users } from './db/schema';
 import { createSqliteDatabase } from './db/sqlite';
+import { createLease, type LeaseInput } from './leases';
+import type { TenantInput } from './tenants';
 
 // Fixtures for unit tests of server modules: an in-memory database with two accounts (`a` and
 // `b`), one owner each, and helpers that create the rows most tests need. Everything a test
@@ -25,42 +27,88 @@ export async function testDatabase(): Promise<Database> {
 	return db;
 }
 
+/** A property with one unit; returns both ids. */
+export async function seedUnit(
+	db: Database,
+	accountId: string,
+	overrides: { name?: string; floorArea?: number | null; propertyName?: string } = {}
+) {
+	const [property] = await db
+		.insert(properties)
+		.values({ accountId, name: overrides.propertyName ?? 'Haus', ...address })
+		.returning({ id: properties.id });
+	const [unit] = await db
+		.insert(units)
+		.values({
+			accountId,
+			propertyId: property.id,
+			name: overrides.name ?? 'EG links',
+			kind: 'apartment',
+			floorArea: overrides.floorArea === undefined ? 64 : overrides.floorArea
+		})
+		.returning({ id: units.id });
+	return { propertyId: property.id, unitId: unit.id };
+}
+
+export function tenantInput(overrides: Partial<TenantInput> = {}): TenantInput {
+	return {
+		salutation: null,
+		firstName: 'Erika',
+		lastName: 'Mustermann',
+		email: null,
+		phone: null,
+		street: null,
+		postalCode: null,
+		city: null,
+		notes: null,
+		...overrides
+	};
+}
+
 export async function seedTenant(
 	db: Database,
 	accountId: string,
-	overrides: Partial<typeof tenants.$inferInsert> = {}
+	overrides: Partial<TenantInput> = {}
 ) {
 	const [tenant] = await db
 		.insert(tenants)
-		.values({ firstName: 'Erika', lastName: 'Mustermann', ...overrides, accountId })
+		.values({ accountId, ...tenantInput(overrides) })
 		.returning({ id: tenants.id });
 	return tenant.id;
 }
 
-/** A plain lease of the unit from 2025-01-01 at 600 € + 150 €, with the given tenants. */
+/** A plain residential lease from 2025-01-01 at 600 € + 150 € + 50 €. */
+export function leaseInput(unitId: string, overrides: Partial<LeaseInput> = {}): LeaseInput {
+	return {
+		unitId,
+		extraUnitIds: [],
+		tenantIds: [],
+		startDate: '2025-01-01',
+		endDate: null,
+		kind: 'residential',
+		rentModel: 'fixed',
+		operatingCostModel: 'prepayment',
+		heatingCostModel: 'prepayment',
+		baseRent: 60000,
+		operatingCostPrepayment: 15000,
+		heatingCostPrepayment: 5000,
+		securityDeposit: 180000,
+		persons: 2,
+		terminatedAt: null,
+		terminatedBy: null,
+		notes: null,
+		...overrides
+	};
+}
+
+/** Creates a lease of the unit with leaseInput() and the overrides; returns its id. */
 export async function seedLease(
 	db: Database,
 	accountId: string,
 	unitId: string,
-	overrides: Partial<typeof leases.$inferInsert> & { tenantIds?: string[] } = {}
-) {
-	const { tenantIds = [], ...lease } = overrides;
-	const [row] = await db
-		.insert(leases)
-		.values({
-			startDate: '2025-01-01',
-			baseRent: 60000,
-			operatingCostPrepayment: 15000,
-			securityDeposit: 180000,
-			...lease,
-			accountId,
-			unitId
-		})
-		.returning({ id: leases.id });
-	if (tenantIds.length > 0) {
-		await db
-			.insert(leaseTenants)
-			.values(tenantIds.map((tenantId) => ({ leaseId: row.id, tenantId })));
-	}
-	return row.id;
+	overrides: Partial<LeaseInput> = {}
+): Promise<string> {
+	const result = await createLease(db, { accountId, userId: null }, leaseInput(unitId, overrides));
+	if (!result.ok) throw new Error(`seedLease failed: ${result.reason}`);
+	return result.id;
 }

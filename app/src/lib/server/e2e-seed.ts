@@ -1,10 +1,12 @@
 import { asc, getTableColumns, getTableName, is, sql } from 'drizzle-orm';
 import { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { DEFAULT_ACCOUNT_ID, ensureDefaultAccount } from './accounts';
+import type { AuditContext } from './audit';
 import type { Database } from './db';
 import { chunk, rowsPerStatement, runBatch } from './db/batch';
 import * as schema from './db/schema';
-import { accounts, leaseTenants, leases, properties, tenants, units, users } from './db/schema';
+import { accounts, properties, tenants, units, users } from './db/schema';
+import { newLeaseStatements, type LeaseInput } from './leases';
 
 // Seeds data for the end-to-end tests, behind POST /__e2e/seed (only when E2E is set). A feature's
 // test creates the prerequisites it does not own here, instead of driving other features' pages.
@@ -17,7 +19,7 @@ export type SeedLeaseOverrides = {
 	property?: Partial<typeof properties.$inferInsert>;
 	unit?: Partial<typeof units.$inferInsert>;
 	tenant?: Partial<typeof tenants.$inferInsert>;
-	lease?: Partial<typeof leases.$inferInsert>;
+	lease?: Partial<LeaseInput>;
 };
 
 export type SeedLeaseResult = {
@@ -37,16 +39,16 @@ function bad(message: string): SeedResult {
 	return { status: 400, body: { message } };
 }
 
-/** The account of the first user (the e2e owner); the default account while no one exists. */
-async function ownerAccount(db: Database): Promise<string> {
+/** The first user (the e2e owner) and their account; the default account while no one exists. */
+async function ownerContext(db: Database): Promise<AuditContext> {
 	const [owner] = await db
-		.select({ accountId: users.accountId })
+		.select({ id: users.id, accountId: users.accountId })
 		.from(users)
 		.orderBy(asc(users.createdAt), sql`rowid`)
 		.limit(1);
-	if (owner) return owner.accountId;
+	if (owner) return { accountId: owner.accountId, userId: owner.id };
 	await ensureDefaultAccount(db);
-	return DEFAULT_ACCOUNT_ID;
+	return { accountId: DEFAULT_ACCOUNT_ID, userId: null };
 }
 
 /** Finds a table of the schema by its export name (`leaseTenants`) or SQL name (`lease_tenants`). */
@@ -83,9 +85,10 @@ function toRow(table: SQLiteTable, row: Row, accountId: string): Row | string {
 
 async function seedLease(
 	db: Database,
-	accountId: string,
+	context: AuditContext,
 	overrides: SeedLeaseOverrides
 ): Promise<SeedResult> {
+	const { accountId } = context;
 	// Repeated calls create distinct names, so a test can find its own rows by name.
 	const suffix = crypto.randomUUID().slice(0, 4);
 	const ids = {
@@ -94,6 +97,29 @@ async function seedLease(
 		tenantId: crypto.randomUUID(),
 		leaseId: crypto.randomUUID()
 	};
+	// The same plain lease as leaseInput() in testing.ts, which cannot be imported here because
+	// it pulls in the SQLite driver.
+	const input: LeaseInput = {
+		unitId: ids.unitId,
+		extraUnitIds: [],
+		tenantIds: [ids.tenantId],
+		startDate: '2025-01-01',
+		endDate: null,
+		kind: 'residential',
+		rentModel: 'fixed',
+		operatingCostModel: 'prepayment',
+		heatingCostModel: 'prepayment',
+		baseRent: 60000,
+		operatingCostPrepayment: 15000,
+		heatingCostPrepayment: 5000,
+		securityDeposit: 180000,
+		persons: 2,
+		terminatedAt: null,
+		terminatedBy: null,
+		notes: null,
+		...overrides.lease
+	};
+	// One batch, so a failed insert leaves nothing behind.
 	await runBatch(db, [
 		db.insert(properties).values({
 			name: `Testhaus ${suffix}`,
@@ -120,17 +146,7 @@ async function seedLease(
 			id: ids.tenantId,
 			accountId
 		}),
-		db.insert(leases).values({
-			startDate: '2025-01-01',
-			baseRent: 60000,
-			operatingCostPrepayment: 15000,
-			securityDeposit: 180000,
-			...overrides.lease,
-			id: ids.leaseId,
-			accountId,
-			unitId: ids.unitId
-		}),
-		db.insert(leaseTenants).values({ leaseId: ids.leaseId, tenantId: ids.tenantId })
+		...newLeaseStatements(db, context, [{ id: ids.leaseId, input }])
 	]);
 	const body: SeedLeaseResult = ids;
 	return { status: 200, body };
@@ -145,7 +161,7 @@ async function seedForeignLease(db: Database): Promise<SeedResult> {
 		.insert(accounts)
 		.values({ id: FOREIGN_ACCOUNT_ID, name: 'Fremdes Konto' })
 		.onConflictDoNothing();
-	return seedLease(db, FOREIGN_ACCOUNT_ID, {});
+	return seedLease(db, { accountId: FOREIGN_ACCOUNT_ID, userId: null }, {});
 }
 
 async function seedRows(db: Database, accountId: string, body: Row): Promise<SeedResult> {
@@ -171,13 +187,14 @@ async function seedRows(db: Database, accountId: string, body: Row): Promise<See
 }
 
 /**
- * Runs one seed operation, chosen by `body.op`: `lease` (property, unit, tenant and lease),
- * `foreignLease` (the same in a second account no e2e user belongs to, for the 404 checks) or
- * `rows` (raw rows of any table). Returns the HTTP status and body for the route.
+ * Runs one seed operation, chosen by `body.op`: `lease` (property, unit, tenant and a lease with
+ * its initial rent and persons), `foreignLease` (the same in a second account no e2e user belongs
+ * to, for the 404 checks) or `rows` (raw rows of any table). Returns the HTTP status and body
+ * for the route.
  */
 export async function seed(db: Database, body: unknown): Promise<SeedResult> {
 	if (!isPlainObject(body)) return bad('Der Körper ist ein JSON-Objekt mit „op“.');
-	const accountId = await ownerAccount(db);
+	const context = await ownerContext(db);
 	try {
 		switch (body.op) {
 			case 'lease': {
@@ -189,12 +206,12 @@ export async function seed(db: Database, body: unknown): Promise<SeedResult> {
 						return bad(`„${key}“ ist ein Objekt mit den Überschreibungen.`);
 					overrides[key] = value;
 				}
-				return await seedLease(db, accountId, overrides);
+				return await seedLease(db, context, overrides);
 			}
 			case 'foreignLease':
 				return await seedForeignLease(db);
 			case 'rows':
-				return await seedRows(db, accountId, body);
+				return await seedRows(db, context.accountId, body);
 			default:
 				return bad('Unbekannte Operation; erlaubt sind lease, foreignLease und rows.');
 		}
