@@ -4,7 +4,7 @@ import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import * as schema from './db/schema';
-import { accounts, loginAttempts, sessions, users, type UserRole } from './db/schema';
+import { accounts, emailChanges, loginAttempts, sessions, users, type UserRole } from './db/schema';
 import { DEFAULT_ACCOUNT_ID, ensureDefaultAccount } from './accounts';
 
 // Sign-in uses only WebCrypto, which Node and Workers both provide, so both targets behave the same.
@@ -242,8 +242,9 @@ export async function deleteSession(db: Database, token: string): Promise<void> 
 	await db.delete(sessions).where(eq(sessions.id, await sessionId(token)));
 }
 
-// Lockout (login_attempts): failed sign-ins and reset requests are counted per address, whether
-// or not the address has an account, so the lock does not reveal which addresses exist.
+// Lockout (login_attempts): failed sign-ins are counted per address, whether or not the address
+// has an account, so the lock does not reveal which addresses exist. Reset requests are limited
+// on their own (password-resets.ts), so neither can lock the other.
 
 const MAX_FAILED_ATTEMPTS = 5;
 /** Failures are counted within this window; a lock lasts as long. */
@@ -327,7 +328,7 @@ export async function hashToken(token: string): Promise<string> {
  * Checks the current password of a signed-in user before a change. Wrong ones count like failed
  * sign-ins and a locked address is refused, so a stolen session cannot guess the password.
  */
-async function checkCurrentPassword(
+export async function checkCurrentPassword(
 	db: Database,
 	user: { email: string; passwordHash: string },
 	password: string
@@ -338,9 +339,18 @@ async function checkCurrentPassword(
 	return locked ? 'locked' : 'wrong-password';
 }
 
+/** The condition for the sessions of the user except the one of `keepToken`, to delete them. */
+export async function otherSessions(userId: string, keepToken: string | undefined) {
+	const keepId = keepToken ? await sessionId(keepToken) : undefined;
+	return keepId
+		? and(eq(sessions.userId, userId), ne(sessions.id, keepId))
+		: eq(sessions.userId, userId);
+}
+
 /**
- * Changes the password after checking the current one, and ends every other session of the
- * user (the one in `keepToken` stays). The audit entry carries no user id and no address.
+ * Changes the password after checking the current one, ends every other session of the user
+ * (the one in `keepToken` stays) and drops a pending address change, which the notice to the old
+ * address tells its owner to stop this way. The audit entry carries no user id and no address.
  */
 export async function changePassword(
 	db: Database,
@@ -356,12 +366,10 @@ export async function changePassword(
 	const checked = await checkCurrentPassword(db, user, input.currentPassword);
 	if (checked !== 'ok') return { ok: false, reason: checked };
 	const passwordHash = await hashPassword(input.password);
-	const keepId = input.keepToken ? await sessionId(input.keepToken) : undefined;
 	await runBatch(db, [
 		db.update(users).set({ passwordHash }).where(eq(users.id, user.id)),
-		keepId
-			? db.delete(sessions).where(and(eq(sessions.userId, user.id), ne(sessions.id, keepId)))
-			: db.delete(sessions).where(eq(sessions.userId, user.id)),
+		db.delete(sessions).where(await otherSessions(user.id, input.keepToken)),
+		db.delete(emailChanges).where(eq(emailChanges.userId, user.id)),
 		auditEntry(
 			db,
 			{ accountId: context.accountId, userId: null },
@@ -374,44 +382,20 @@ export async function changePassword(
 	return { ok: true };
 }
 
-/**
- * Updates name and email of the signed-in user. A new address needs the current password and
- * must be free. Logged without the address.
- */
-export async function updateProfile(
+/** Sets the name of the signed-in user. A new address goes through requestEmailChange. */
+export async function updateName(
 	db: Database,
 	context: AuditContext,
-	input: { name: string | null; email: string; currentPassword: string }
-): Promise<
-	{ ok: true } | { ok: false; reason: 'wrong-password' | 'locked' | 'email-taken' | 'missing' }
-> {
-	if (!context.userId) return { ok: false, reason: 'missing' };
+	name: string | null
+): Promise<void> {
+	if (!context.userId) return;
 	const [user] = await db
-		.select({
-			id: users.id,
-			email: users.email,
-			name: users.name,
-			passwordHash: users.passwordHash
-		})
+		.select({ id: users.id })
 		.from(users)
 		.where(and(eq(users.id, context.userId), eq(users.accountId, context.accountId)));
-	if (!user) return { ok: false, reason: 'missing' };
-	const email = normalizeEmail(input.email);
-	const emailChanged = email !== user.email;
-	if (emailChanged) {
-		const checked = await checkCurrentPassword(db, user, input.currentPassword);
-		if (checked !== 'ok') return { ok: false, reason: checked };
-		const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
-		if (taken) return { ok: false, reason: 'email-taken' };
-	}
-	const summary = emailChanged
-		? input.name !== user.name
-			? 'Name und E-Mail-Adresse geändert'
-			: 'E-Mail-Adresse geändert'
-		: 'Name geändert';
+	if (!user) return;
 	await runBatch(db, [
-		db.update(users).set({ name: input.name, email }).where(eq(users.id, user.id)),
-		auditEntry(db, context, 'user', user.id, 'update', summary)
+		db.update(users).set({ name }).where(eq(users.id, user.id)),
+		auditEntry(db, context, 'user', user.id, 'update', 'Name geändert')
 	]);
-	return { ok: true };
 }

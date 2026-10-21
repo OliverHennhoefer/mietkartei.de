@@ -54,8 +54,9 @@ export default defineConfig({
 			dependencies: ['signed in'],
 			use: { storageState: '.e2e/owner.json' }
 		},
-		// Exhausts the sign-in limit of the test client, so it runs last. Until then the whole run
-		// posts fewer than 10 sign-ins, registrations and reset requests, so no window reaches it.
+		// Exhausts the sign-in limit of the test client, so it runs last. Until then the run posts
+		// a dozen sign-ins, registrations and reset and invitation forms, spread over several
+		// minutes, so no window of 10 per minute reaches the limit.
 		{
 			name: 'rate limit',
 			testMatch: 'rate-limit.e2e.ts',

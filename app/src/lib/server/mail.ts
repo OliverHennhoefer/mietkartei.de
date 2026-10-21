@@ -27,7 +27,26 @@ export async function sendMail(db: Database, mail: Mail): Promise<void> {
 		case 'outbox':
 			await db.insert(outbox).values(mail);
 			return;
-		default:
+		case 'console':
+			// The links in the mails sign people in; the hosted variant must not log them.
+			if (__DEPLOY_TARGET__ === 'cloudflare') {
+				throw new Error('MAIL_TRANSPORT=console is refused on the cloudflare target');
+			}
 			console.log(`[mail] to ${mail.to}\nsubject: ${mail.subject}\n\n${mail.text}\n`);
+	}
+}
+
+/**
+ * Sends the mail without making the response wait for it. A failure is logged, never answered,
+ * so a form that sends mail for some addresses only answers the same for every address.
+ */
+export async function sendMailInBackground(db: Database, mail: Mail): Promise<void> {
+	const sending = sendMail(db, mail).catch((error: unknown) => {
+		console.error(`[mail] "${mail.subject}" was not sent:`, error);
+	});
+	// Workers stop a request's work with the response unless told to wait for it.
+	if (__DEPLOY_TARGET__ === 'cloudflare') {
+		const { waitUntil } = await import('cloudflare:workers');
+		waitUntil(sending);
 	}
 }

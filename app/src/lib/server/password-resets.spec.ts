@@ -1,14 +1,21 @@
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { authenticate, createSession, hashPassword, isLockedOut, validateSession } from './auth';
-import type { Database } from './db';
-import { auditLog, loginAttempts, passwordResets, users } from './db/schema';
 import {
+	authenticate,
+	createSession,
+	hashPassword,
+	isLockedOut,
+	signIn,
+	validateSession
+} from './auth';
+import type { Database } from './db';
+import { auditLog, emailChanges, loginAttempts, passwordResets, users } from './db/schema';
+import {
+	MAX_OPEN_RESETS,
 	PASSWORD_RESET_LIFETIME,
 	findPasswordReset,
 	passwordResetMail,
 	requestPasswordReset,
-	resetLinkOrigin,
 	resetPassword
 } from './password-resets';
 import { testDatabase } from './testing';
@@ -27,7 +34,7 @@ beforeEach(async () => {
 });
 
 describe('requestPasswordReset', () => {
-	it('stores only the hash of the token, valid for one hour, and counts the request', async () => {
+	it('stores only the hash of the token, valid for one hour', async () => {
 		const request = await requestPasswordReset(db, ' A@Example.org ', now);
 		expect(request).toMatchObject({ userId: 'user-a', email: 'a@example.org' });
 		const rows = await db.select().from(passwordResets);
@@ -36,24 +43,42 @@ describe('requestPasswordReset', () => {
 		expect(rows[0].id).toMatch(/^[0-9a-f]{64}$/);
 		expect(rows[0].userId).toBe('user-a');
 		expect(rows[0].expiresAt.getTime()).toBe(now + PASSWORD_RESET_LIFETIME);
-		const [attempt] = await db.select().from(loginAttempts);
-		expect(attempt).toMatchObject({ email: 'a@example.org', failures: 1 });
 	});
 
-	it('answers nothing for an unknown address but still counts it', async () => {
+	it('answers nothing for an unknown address and stores nothing', async () => {
 		expect(await requestPasswordReset(db, 'niemand@example.org', now)).toBeUndefined();
 		expect(await db.select().from(passwordResets)).toEqual([]);
-		const [attempt] = await db.select().from(loginAttempts);
-		expect(attempt).toMatchObject({ email: 'niemand@example.org', failures: 1 });
+		expect(await db.select().from(loginAttempts)).toEqual([]);
 	});
 
-	it('sends nothing to a locked address', async () => {
-		for (let attempt = 1; attempt <= 5; attempt++)
-			await requestPasswordReset(db, 'a@example.org', now);
-		expect(await isLockedOut(db, 'a@example.org', now)).toBe(true);
-		expect(await db.select().from(passwordResets)).toHaveLength(5);
+	it('sends no more links while the user has three open ones', async () => {
+		for (let attempt = 1; attempt <= MAX_OPEN_RESETS; attempt++) {
+			expect(await requestPasswordReset(db, 'a@example.org', now)).toBeDefined();
+		}
 		expect(await requestPasswordReset(db, 'a@example.org', now)).toBeUndefined();
-		expect(await db.select().from(passwordResets)).toHaveLength(5);
+		expect(await db.select().from(passwordResets)).toHaveLength(MAX_OPEN_RESETS);
+		// Once they expired, a new link goes out.
+		expect(
+			await requestPasswordReset(db, 'a@example.org', now + PASSWORD_RESET_LIFETIME)
+		).toBeDefined();
+	});
+
+	it('neither locks sign-in nor is locked by failed sign-ins', async () => {
+		for (let attempt = 1; attempt <= MAX_OPEN_RESETS + 2; attempt++) {
+			await requestPasswordReset(db, 'a@example.org', now);
+		}
+		expect(await isLockedOut(db, 'a@example.org', now)).toBe(false);
+		expect(await signIn(db, 'a@example.org', password)).toMatchObject({ ok: true });
+
+		await db.delete(passwordResets);
+		await db.insert(loginAttempts).values({
+			email: 'a@example.org',
+			failures: 5,
+			firstFailureAt: new Date(now),
+			lockedUntil: new Date(now + 60_000)
+		});
+		expect(await isLockedOut(db, 'a@example.org', now)).toBe(true);
+		expect(await requestPasswordReset(db, 'a@example.org', now)).toBeDefined();
 	});
 });
 
@@ -69,10 +94,22 @@ describe('findPasswordReset', () => {
 });
 
 describe('resetPassword', () => {
-	it('sets the password, ends every session and reset of the user and logs it without a name', async () => {
+	it('sets the password, ends every session, reset and address change of the user and logs it without a name', async () => {
 		const request = await requestPasswordReset(db, 'a@example.org', now);
 		const older = await requestPasswordReset(db, 'a@example.org', now);
 		const session = await createSession(db, 'user-a');
+		await db.insert(loginAttempts).values({
+			email: 'a@example.org',
+			failures: 2,
+			firstFailureAt: new Date(now)
+		});
+		await db.insert(emailChanges).values({
+			id: 'change',
+			accountId: 'a',
+			userId: 'user-a',
+			email: 'neu@example.org',
+			expiresAt: new Date(now + PASSWORD_RESET_LIFETIME)
+		});
 
 		const result = await resetPassword(db, request!.token, 'ein-neues-passwort', now);
 		expect(result).toEqual({ ok: true, userId: 'user-a' });
@@ -81,8 +118,9 @@ describe('resetPassword', () => {
 		expect(await authenticate(db, 'a@example.org', password)).toBeUndefined();
 		expect(await validateSession(db, session.token)).toBeUndefined();
 		expect(await db.select().from(passwordResets)).toEqual([]);
+		expect(await db.select().from(emailChanges)).toEqual([]);
 		expect(await resetPassword(db, older!.token, 'noch-ein-passwort', now)).toEqual({ ok: false });
-		// The two requests counted as attempts; the reset forgets them.
+		// The reset forgets the failed sign-ins of the address.
 		expect(await db.select().from(loginAttempts)).toEqual([]);
 
 		const audit = await db.select().from(auditLog);
@@ -130,42 +168,5 @@ describe('passwordResetMail', () => {
 		expect(mail.to).toBe('a@example.org');
 		expect(mail.subject).toContain('Passwort');
 		expect(mail.text).toContain('https://app.example/passwort-zuruecksetzen/t0k');
-	});
-});
-
-describe('resetLinkOrigin', () => {
-	const url = (href: string) => new URL(href);
-
-	it('takes ORIGIN when it is set, whatever host the request names', () => {
-		expect(
-			resetLinkOrigin(
-				url('http://evil.example/passwort-vergessen'),
-				'https://mk.example.de/',
-				'node'
-			)
-		).toBe('https://mk.example.de');
-		expect(
-			resetLinkOrigin(url('https://worker.example/x'), 'https://mk.example.de', 'cloudflare')
-		).toBe('https://mk.example.de');
-	});
-
-	it('trusts only loopback hosts on node without ORIGIN', () => {
-		expect(resetLinkOrigin(url('http://localhost:3000/x'), '', 'node')).toBe(
-			'http://localhost:3000'
-		);
-		expect(resetLinkOrigin(url('http://127.0.0.1:3000/x'), '', 'node')).toBe(
-			'http://127.0.0.1:3000'
-		);
-		expect(resetLinkOrigin(url('http://[::1]:3000/x'), '', 'node')).toBe('http://[::1]:3000');
-		// The Host header is the client's: a link to it could hand the token to a foreign site.
-		expect(resetLinkOrigin(url('http://evil.example/x'), '', 'node')).toBeUndefined();
-		expect(resetLinkOrigin(url('http://192.168.1.5:3000/x'), '', 'node')).toBeUndefined();
-		expect(resetLinkOrigin(url('http://localhost.evil.example/x'), '', 'node')).toBeUndefined();
-	});
-
-	it('trusts the routed host on Workers', () => {
-		expect(resetLinkOrigin(url('https://mk.example.de/x'), '', 'cloudflare')).toBe(
-			'https://mk.example.de'
-		);
 	});
 });

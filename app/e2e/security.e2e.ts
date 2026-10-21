@@ -99,7 +99,8 @@ test('no detail page violates the Content-Security-Policy', async ({ page }) => 
 	const {
 		ids: [taskId]
 	} = await seedRows(page.request, 'tasks', [{ title: `Aufgabe ${suffix}`, leaseId }]);
-	// The invitation and reset pages open from a mail; their links are seeded here.
+	// The invitation, reset and address confirmation pages open from a mail; their links are
+	// seeded here.
 	const expiresAt = Date.now() + 60 * 60 * 1000;
 	const invitation = await linkToken();
 	await seedRows(page.request, 'invitations', [
@@ -112,6 +113,10 @@ test('no detail page violates the Content-Security-Policy', async ({ page }) => 
 		role: 'manager'
 	});
 	await seedRows(page.request, 'passwordResets', [{ id: reset.hash, userId, expiresAt }]);
+	const emailChange = await linkToken();
+	await seedRows(page.request, 'emailChanges', [
+		{ id: emailChange.hash, userId, email: `csp-neu-${suffix}@example.org`, expiresAt }
+	]);
 	const violations = watchCspViolations(page);
 	const property = `/objekte/${propertyId}`;
 	const lease = `/vertraege/${leaseId}`;
@@ -138,6 +143,7 @@ test('no detail page violates the Content-Security-Policy', async ({ page }) => 
 		`/aufgaben/${taskId}`,
 		`/einladung/${invitation.token}`,
 		`/passwort-zuruecksetzen/${reset.token}`,
+		`/e-mail-bestaetigen/${emailChange.token}`,
 		await firstEntry(page, '/betriebskosten/kostenarten'),
 		await firstEntry(page, '/betriebskosten/schluessel')
 	];

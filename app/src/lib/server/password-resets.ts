@@ -1,17 +1,15 @@
-import { and, eq, gt } from 'drizzle-orm';
+import { and, count, eq, gt } from 'drizzle-orm';
 import { auditEntry } from './audit';
 import {
 	clearFailedAttempts,
 	generateToken,
 	hashPassword,
 	hashToken,
-	isLockedOut,
-	normalizeEmail,
-	recordFailedAttempt
+	normalizeEmail
 } from './auth';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import { passwordResets, sessions, users } from './db/schema';
+import { emailChanges, passwordResets, sessions, users } from './db/schema';
 import type { Mail } from './mail';
 
 // Password resets (Passwort zurücksetzen): a link with a random token, valid for one hour. Only
@@ -19,13 +17,15 @@ import type { Mail } from './mail';
 // consumes every reset of the user and ends all their sessions.
 
 export const PASSWORD_RESET_LIFETIME = 60 * 60 * 1000;
+/** Open resets a user may have at once, i.e. requests within the lifetime of a link. */
+export const MAX_OPEN_RESETS = 3;
 
 export type PasswordResetRequest = { userId: string; email: string; token: string };
 
 /**
- * Creates a reset for the address, or nothing when no user has it or the address is locked.
- * Every request counts like a failed sign-in, so the form cannot be used to flood a mailbox.
- * The caller answers the same way in every case.
+ * Creates a reset for the address, or nothing when no user has it or the user already has
+ * MAX_OPEN_RESETS open ones, so the form cannot be used to flood a mailbox. Requests are counted
+ * apart from failed sign-ins: neither locks the other. The caller answers the same in every case.
  */
 export async function requestPasswordReset(
 	db: Database,
@@ -33,10 +33,13 @@ export async function requestPasswordReset(
 	now = Date.now()
 ): Promise<PasswordResetRequest | undefined> {
 	email = normalizeEmail(email);
-	if (await isLockedOut(db, email, now)) return undefined;
-	await recordFailedAttempt(db, email, now);
 	const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
 	if (!user) return undefined;
+	const [open] = await db
+		.select({ value: count() })
+		.from(passwordResets)
+		.where(and(eq(passwordResets.userId, user.id), gt(passwordResets.expiresAt, new Date(now))));
+	if (open.value >= MAX_OPEN_RESETS) return undefined;
 	const token = generateToken();
 	await db.insert(passwordResets).values({
 		id: await hashToken(token),
@@ -61,8 +64,8 @@ export async function findPasswordReset(
 }
 
 /**
- * Sets the password of the user behind a valid token, deletes all resets and sessions of the
- * user and forgets the failed attempts of the address. The audit entry names neither the user
+ * Sets the password of the user behind a valid token, deletes all resets, sessions and pending
+ * address changes of the user and forgets the failed attempts of the address. The audit entry names neither the user
  * nor the address. Returns the user, so the caller can sign them in.
  */
 export async function resetPassword(
@@ -83,6 +86,7 @@ export async function resetPassword(
 		db.update(users).set({ passwordHash }).where(eq(users.id, user.id)),
 		db.delete(sessions).where(eq(sessions.userId, user.id)),
 		db.delete(passwordResets).where(eq(passwordResets.userId, user.id)),
+		db.delete(emailChanges).where(eq(emailChanges.userId, user.id)),
 		auditEntry(
 			db,
 			{ accountId: user.accountId, userId: null },
@@ -94,27 +98,6 @@ export async function resetPassword(
 	]);
 	await clearFailedAttempts(db, user.email);
 	return { ok: true, userId: user.id };
-}
-
-function isLoopback(hostname: string): boolean {
-	return hostname === 'localhost' || hostname === '[::1]' || /^127(\.\d{1,3}){3}$/.test(hostname);
-}
-
-/**
- * The origin for the link in a reset mail, or undefined when the request cannot be trusted with
- * it. The mail goes to someone other than the sender of the request, so the link must not
- * follow a Host header the sender chose: ORIGIN wins when set; on Workers the request URL is the
- * host Cloudflare routed to the app; on node without ORIGIN the Host header is the client's, and
- * only a loopback address is accepted, because a link to localhost cannot lead to a foreign site.
- */
-export function resetLinkOrigin(
-	url: URL,
-	configuredOrigin: string,
-	target: 'node' | 'cloudflare'
-): string | undefined {
-	if (configuredOrigin) return new URL(configuredOrigin).origin;
-	if (target === 'cloudflare' || isLoopback(url.hostname)) return url.origin;
-	return undefined;
 }
 
 /** The mail with the reset link; `link` is the absolute URL of /passwort-zuruecksetzen/<token>. */

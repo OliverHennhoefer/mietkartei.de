@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e4980c2e-60e5-4a5c-a142-b3b74a82723a",
+  "id": "a5d5a05f-ae3c-4939-baa9-e226c14214ec",
   "prevId": "c67cbc74-2a55-49de-b74d-1819aa82d878",
   "tables": {
     "accounts": {
@@ -1991,6 +1991,101 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "email_changes": {
+      "name": "email_changes",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch('subsec') * 1000)"
+        }
+      },
+      "indexes": {
+        "email_changes_account_id_idx": {
+          "name": "email_changes_account_id_idx",
+          "columns": [
+            "account_id"
+          ],
+          "isUnique": false
+        },
+        "email_changes_user_id_idx": {
+          "name": "email_changes_user_id_idx",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "email_changes_account_id_accounts_id_fk": {
+          "name": "email_changes_account_id_accounts_id_fk",
+          "tableFrom": "email_changes",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "email_changes_user_id_users_id_fk": {
+          "name": "email_changes_user_id_users_id_fk",
+          "tableFrom": "email_changes",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "invitations": {
       "name": "invitations",
       "columns": {
@@ -2015,14 +2110,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "role": {
-          "name": "role",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'manager'"
-        },
         "token_hash": {
           "name": "token_hash",
           "type": "text",
@@ -2046,6 +2133,13 @@
         },
         "accepted_at": {
           "name": "accepted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,

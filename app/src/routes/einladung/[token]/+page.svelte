@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
-	import { userRoleLabels } from '#lib/labels.ts';
 	import { MIN_PASSWORD_LENGTH } from '#lib/validation.ts';
 	import type { PageProps } from './$types';
 
@@ -31,7 +30,7 @@
 		</p>
 	{:else}
 		<p class="muted">
-			Du wurdest als {userRoleLabels[data.role]} eingeladen. Lege dein Zugangskonto an, um mitzuarbeiten.
+			Du wurdest als Mitverwalter eingeladen. Lege dein Zugangskonto an, um mitzuarbeiten.
 		</p>
 		<form method="POST" class="card" use:enhance>
 			<label>

@@ -36,11 +36,13 @@ export const variables = defineEnvVars({
 	},
 	MAIL_TRANSPORT: {
 		description:
-			'How mails (password reset, invitations) are sent: "console" logs them, "resend" uses the ' +
-			'Resend HTTP API with MAIL_API_KEY and MAIL_FROM, "outbox" stores them in the database for tests.',
+			'How mails (password reset, invitations, address confirmation) are sent: "console" ' +
+			'(default) logs them, which the cloudflare target refuses, "resend" uses the Resend HTTP ' +
+			'API with MAIL_API_KEY and MAIL_FROM, "outbox" stores them in the database for tests.',
 		schema: (value) => {
-			if (value === 'resend' || value === 'outbox') return value;
-			return 'console' as const;
+			if (!value) return 'console' as const;
+			if (value === 'console' || value === 'resend' || value === 'outbox') return value;
+			throw new Error('MAIL_TRANSPORT is "console", "resend" or "outbox"');
 		}
 	},
 	MAIL_API_KEY: {

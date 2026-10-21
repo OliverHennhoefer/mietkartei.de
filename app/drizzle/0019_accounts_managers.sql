@@ -1,12 +1,25 @@
+CREATE TABLE `email_changes` (
+	`id` text PRIMARY KEY NOT NULL,
+	`account_id` text NOT NULL,
+	`user_id` text NOT NULL,
+	`email` text NOT NULL,
+	`expires_at` integer NOT NULL,
+	`created_at` integer DEFAULT (unixepoch('subsec') * 1000) NOT NULL,
+	FOREIGN KEY (`account_id`) REFERENCES `accounts`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `email_changes_account_id_idx` ON `email_changes` (`account_id`);--> statement-breakpoint
+CREATE INDEX `email_changes_user_id_idx` ON `email_changes` (`user_id`);--> statement-breakpoint
 CREATE TABLE `invitations` (
 	`id` text PRIMARY KEY NOT NULL,
 	`account_id` text NOT NULL,
 	`email` text NOT NULL,
-	`role` text DEFAULT 'manager' NOT NULL,
 	`token_hash` text NOT NULL,
 	`expires_at` integer NOT NULL,
 	`invited_by` text,
 	`accepted_at` integer,
+	`revoked_at` integer,
 	`created_at` integer DEFAULT (unixepoch('subsec') * 1000) NOT NULL,
 	FOREIGN KEY (`account_id`) REFERENCES `accounts`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`invited_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null

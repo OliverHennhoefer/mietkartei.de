@@ -74,18 +74,22 @@ describe('parsePasswordChange', () => {
 });
 
 describe('parseInvitation', () => {
-	it('defaults the role to manager and accepts owner', () => {
+	it('invites a manager, with or without the role field', () => {
 		expect(parseInvitation(formDataOf({ email: 'Neu@Example.org' }))).toEqual({
 			ok: true,
 			data: { email: 'neu@example.org', role: 'manager' }
 		});
-		expect(parseInvitation(formDataOf({ email: 'neu@example.org', role: 'owner' }))).toEqual({
+		expect(parseInvitation(formDataOf({ email: 'neu@example.org', role: 'manager' }))).toEqual({
 			ok: true,
-			data: { email: 'neu@example.org', role: 'owner' }
+			data: { email: 'neu@example.org', role: 'manager' }
 		});
 	});
 
-	it('rejects an unknown role and a bad address', () => {
+	it('refuses the owner role, an unknown role and a bad address', () => {
+		expect(parseInvitation(formDataOf({ email: 'neu@example.org', role: 'owner' }))).toMatchObject({
+			ok: false,
+			errors: { role: 'Bitte wähle einen gültigen Eintrag aus.' }
+		});
 		expect(parseInvitation(formDataOf({ email: 'neu', role: 'admin' }))).toMatchObject({
 			ok: false,
 			errors: {

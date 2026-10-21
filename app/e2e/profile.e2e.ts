@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { owner } from './owner';
+import { linkInMailTo, mailTo } from './outbox';
 import { pdfText } from './pdf-text';
 import { seedLease, seedRows, seedUser, signInAs } from './seed';
 
@@ -83,7 +84,7 @@ test('saves the landlord sender block, which the letters print', async ({ page }
 	expect(text).toContain('Leipzig, 10.01.2026');
 });
 
-test('changes the name and the password, which signs out the other browsers', async ({
+test('changes the name, the password and the address, which sign out the other browsers', async ({
 	browser,
 	baseURL
 }) => {
@@ -145,6 +146,28 @@ test('changes the name and the password, which signs out the other browsers', as
 	await otherPage.getByLabel('Passwort').fill(user.newPassword);
 	await otherPage.getByRole('button', { name: 'Anmelden' }).click();
 	await expect(otherPage).toHaveURL(/\/$/);
+
+	// A new address counts only once the link mailed to it is used; the old address is told.
+	const newEmail = `neu-${user.email}`;
+	await page.goto('/einstellungen/profil');
+	await profile.getByLabel('E-Mail-Adresse', { exact: true }).fill(newEmail);
+	await profile.getByLabel('Aktuelles Passwort').fill(user.newPassword);
+	await profile.getByRole('button', { name: 'Profil speichern' }).click();
+	await expect(page.getByText(`Wir haben dir einen Link an ${newEmail} geschickt.`)).toBeVisible();
+	expect((await mailTo(page.request, user.email)).text).toContain(newEmail);
+	const link = await linkInMailTo(page.request, newEmail, '/e-mail-bestaetigen/');
+	await page.reload();
+	await expect(profile.getByLabel('E-Mail-Adresse', { exact: true })).toHaveValue(user.email);
+
+	await page.goto(link);
+	await expect(page.getByText(`Bestätige, dass ${newEmail} ab jetzt`)).toBeVisible();
+	await page.getByRole('button', { name: 'E-Mail-Adresse bestätigen' }).click();
+	await expect(page).toHaveURL(/\/einstellungen\/profil$/);
+	await expect(profile.getByLabel('E-Mail-Adresse', { exact: true })).toHaveValue(newEmail);
+	// The other browser is signed out, and the link is used up.
+	await otherPage.goto('/objekte');
+	await expect(otherPage).toHaveURL(/\/anmelden$/);
+	expect((await page.request.get(link)).status()).toBe(404);
 	await context.close();
 	await other.close();
 });

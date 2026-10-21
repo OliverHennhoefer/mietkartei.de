@@ -958,18 +958,21 @@ export const sessions = sqliteTable(
 	(table) => [index('sessions_user_id_idx').on(table.userId)]
 );
 
-/** An invitation to join the account as a manager. Only the hash of the link token is stored. */
+/**
+ * An invitation to join the account as a manager. Only the hash of the link token is stored.
+ * Revoked invitations stay, so the daily limit of invitations counts them too.
+ */
 export const invitations = sqliteTable(
 	'invitations',
 	{
 		id: id(),
 		accountId: accountId(),
 		email: text('email').notNull(),
-		role: text('role', { enum: userRoles }).notNull().default('manager'),
 		tokenHash: text('token_hash').notNull().unique(),
 		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
 		invitedBy: text('invited_by').references(() => users.id, { onDelete: 'set null' }),
 		acceptedAt: integer('accepted_at', { mode: 'timestamp_ms' }),
+		revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),
 		createdAt: createdAt()
 	},
 	(table) => [index('invitations_account_id_idx').on(table.accountId)]
@@ -987,6 +990,28 @@ export const passwordResets = sqliteTable(
 		createdAt: createdAt()
 	},
 	(table) => [index('password_resets_user_id_idx').on(table.userId)]
+);
+
+/**
+ * A new email address waiting for confirmation. The id is the SHA-256 hash of the token in the
+ * link sent to the new address; valid for one day.
+ */
+export const emailChanges = sqliteTable(
+	'email_changes',
+	{
+		id: text('id').primaryKey(),
+		accountId: accountId(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		email: text('email').notNull(),
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('email_changes_account_id_idx').on(table.accountId),
+		index('email_changes_user_id_idx').on(table.userId)
+	]
 );
 
 /** Failed sign-ins per address; five within fifteen minutes lock the address for fifteen minutes. */

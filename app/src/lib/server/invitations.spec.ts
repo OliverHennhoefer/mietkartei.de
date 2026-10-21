@@ -3,13 +3,15 @@ import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { authenticate, createSession, validateSession } from './auth';
 import type { Database } from './db';
-import { auditLog, invitations, passwordResets, sessions, users } from './db/schema';
+import { auditLog, emailChanges, invitations, passwordResets, sessions, users } from './db/schema';
 import {
 	INVITATION_LIFETIME,
+	MAX_INVITATIONS_PER_DAY,
 	acceptInvitation,
 	createInvitation,
 	findInvitation,
 	invitationMail,
+	inviterName,
 	listAccountUsers,
 	listPendingInvitations,
 	removeUser,
@@ -28,7 +30,7 @@ beforeEach(async () => {
 });
 
 async function invite(email = 'Neu@Example.org', context = contextA) {
-	const result = await createInvitation(db, context, { email, role: 'manager' }, now);
+	const result = await createInvitation(db, context, { email }, now);
 	if (!result.ok) throw new Error(result.reason);
 	return result;
 }
@@ -42,9 +44,9 @@ describe('createInvitation', () => {
 			id: result.id,
 			accountId: 'a',
 			email: 'neu@example.org',
-			role: 'manager',
 			invitedBy: 'user-a',
-			acceptedAt: null
+			acceptedAt: null,
+			revokedAt: null
 		});
 		expect(row.tokenHash).not.toBe(result.token);
 		expect(row.tokenHash).toMatch(/^[0-9a-f]{64}$/);
@@ -55,17 +57,44 @@ describe('createInvitation', () => {
 		).toEqual([['invitation', result.id, 'invite', 'neu@example.org als Mitverwalter eingeladen']]);
 	});
 
-	it('refuses an address that has a user or an open invitation', async () => {
-		expect(
-			await createInvitation(db, contextA, { email: 'B@example.org', role: 'manager' })
-		).toEqual({ ok: false, reason: 'email-taken' });
+	it('refuses an address of the account or with an open invitation', async () => {
+		expect(await createInvitation(db, contextA, { email: 'A@example.org' }, now)).toEqual({
+			ok: false,
+			reason: 'member'
+		});
 		await invite();
-		expect(
-			await createInvitation(db, contextA, { email: 'neu@example.org', role: 'owner' }, now)
-		).toEqual({ ok: false, reason: 'already-invited' });
+		expect(await createInvitation(db, contextA, { email: 'neu@example.org' }, now)).toEqual({
+			ok: false,
+			reason: 'already-invited'
+		});
 		// An expired invitation does not block a new one.
+		expect(await createInvitation(db, contextA, { email: 'neu@example.org' }, later)).toMatchObject(
+			{ ok: true }
+		);
+	});
+
+	it('says nothing about users of other accounts; accepting refuses them', async () => {
+		const { token } = await invite('B@example.org');
 		expect(
-			await createInvitation(db, contextA, { email: 'neu@example.org', role: 'owner' }, later)
+			await acceptInvitation(db, token, { name: 'B', password: 'passwort-von-b' }, now)
+		).toEqual({ ok: false, reason: 'email-taken' });
+	});
+
+	it('sends at most twenty invitations a day, revoked ones included', async () => {
+		for (let index = 0; index < MAX_INVITATIONS_PER_DAY; index++) {
+			const { id } = await invite(`eins-${index}@example.org`);
+			// Revoking frees neither the daily limit nor the quota.
+			await revokeInvitation(db, contextA, id, now);
+		}
+		expect(await createInvitation(db, contextA, { email: 'noch@example.org' }, now)).toEqual({
+			ok: false,
+			reason: 'too-many'
+		});
+		expect(await db.select().from(invitations)).toHaveLength(MAX_INVITATIONS_PER_DAY);
+		// Another account has its own limit, and a day later the account may invite again.
+		expect(await invite('noch@example.org', contextB)).toMatchObject({ ok: true });
+		expect(
+			await createInvitation(db, contextA, { email: 'noch@example.org' }, now + 24 * 60 * 60 * 1000)
 		).toMatchObject({ ok: true });
 	});
 
@@ -102,20 +131,29 @@ describe('listPendingInvitations and listAccountUsers', () => {
 
 		const accountUsers = await listAccountUsers(db, 'a');
 		expect(accountUsers.map((user) => [user.email, user.role, user.name])).toEqual([
-			['drei@example.org', 'manager', 'Drei'],
-			['a@example.org', 'owner', null]
+			['a@example.org', 'owner', null],
+			['drei@example.org', 'manager', 'Drei']
 		]);
 	});
 });
 
 describe('revokeInvitation', () => {
-	it('deletes an open invitation of the account and logs it', async () => {
+	it('revokes an open invitation of the account, whose link then leads nowhere, and logs it', async () => {
 		const own = await invite('eins@example.org');
 		const foreign = await invite('zwei@example.org', contextB);
-		expect(await revokeInvitation(db, contextA, own.id)).toBe(true);
-		expect(await revokeInvitation(db, contextA, foreign.id)).toBe(false);
-		expect(await revokeInvitation(db, contextA, own.id)).toBe(false);
-		expect((await db.select().from(invitations)).map((row) => row.id)).toEqual([foreign.id]);
+		expect(await revokeInvitation(db, contextA, own.id, now)).toBe(true);
+		expect(await revokeInvitation(db, contextA, foreign.id, now)).toBe(false);
+		expect(await revokeInvitation(db, contextA, own.id, now)).toBe(false);
+		const rows = await db.select().from(invitations);
+		expect(rows.map((row) => [row.id, row.revokedAt?.getTime() ?? null])).toEqual([
+			[own.id, now],
+			[foreign.id, null]
+		]);
+		expect(await listPendingInvitations(db, 'a', now)).toEqual([]);
+		expect(await findInvitation(db, own.token, now)).toBeUndefined();
+		expect(
+			await acceptInvitation(db, own.token, { name: 'Eins', password: 'passwort-von-eins' }, now)
+		).toEqual({ ok: false, reason: 'invalid' });
 		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'delete'));
 		expect(audit.map((entry) => [entry.accountId, entry.summary])).toEqual([
 			['a', 'Einladung an eins@example.org zurückgezogen']
@@ -129,7 +167,6 @@ describe('findInvitation and acceptInvitation', () => {
 		expect(await findInvitation(db, token, now)).toMatchObject({
 			accountId: 'a',
 			email: 'neu@example.org',
-			role: 'manager',
 			status: 'open'
 		});
 		expect((await findInvitation(db, token, later))!.status).toBe('expired');
@@ -138,7 +175,7 @@ describe('findInvitation and acceptInvitation', () => {
 		expect((await findInvitation(db, token, now))!.status).toBe('accepted');
 	});
 
-	it('creates the user in the inviting account with the invited role and logs it', async () => {
+	it('creates the user in the inviting account as a manager and logs it', async () => {
 		const { id, token } = await invite();
 		const result = await acceptInvitation(
 			db,
@@ -212,16 +249,24 @@ describe('removeUser', () => {
 		return result.userId;
 	}
 
-	it('deletes the user with sessions and resets, keeps the history and logs it', async () => {
+	it('deletes the user with sessions, resets and address changes, keeps the history and logs it', async () => {
 		const userId = await manager();
 		const session = await createSession(db, userId);
 		await db.insert(passwordResets).values({ id: 'r', userId, expiresAt: new Date(later) });
+		await db.insert(emailChanges).values({
+			id: 'c',
+			accountId: 'a',
+			userId,
+			email: 'anders@example.org',
+			expiresAt: new Date(later)
+		});
 
 		expect(await removeUser(db, contextA, userId)).toBe('removed');
 		expect(await db.select().from(users).where(eq(users.id, userId))).toEqual([]);
 		expect(await validateSession(db, session.token)).toBeUndefined();
 		expect(await db.select().from(sessions)).toEqual([]);
 		expect(await db.select().from(passwordResets)).toEqual([]);
+		expect(await db.select().from(emailChanges)).toEqual([]);
 		// The invitation the user accepted stays, now pointing at nobody.
 		expect(await db.select().from(invitations)).toHaveLength(1);
 		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'delete'));
@@ -233,24 +278,55 @@ describe('removeUser', () => {
 		expect(created[0].userId).toBeNull();
 	});
 
-	it('neither removes oneself nor a user of another account', async () => {
+	it('neither removes oneself, an owner nor a user of another account', async () => {
 		const foreign = await manager(contextB);
+		await db.insert(users).values({
+			id: 'owner-a',
+			accountId: 'a',
+			email: 'zweiter-vermieter@example.org',
+			passwordHash: 'x',
+			role: 'owner'
+		});
 		expect(await removeUser(db, contextA, 'user-a')).toBe('self');
+		expect(await removeUser(db, contextA, 'owner-a')).toBe('owner');
 		expect(await removeUser(db, contextA, foreign)).toBe('missing');
 		expect(await removeUser(db, contextA, 'user-b')).toBe('missing');
-		expect(await db.select().from(users)).toHaveLength(3);
+		expect(await db.select().from(users)).toHaveLength(4);
 	});
 });
 
 describe('invitationMail', () => {
 	it('names the inviter, the role and the link', () => {
-		const mail = invitationMail('neu@example.org', 'https://app.example/einladung/t0k', {
-			inviter: 'Erika',
-			role: 'manager'
-		});
+		const mail = invitationMail('neu@example.org', 'https://app.example/einladung/t0k', 'Erika');
 		expect(mail.to).toBe('neu@example.org');
-		expect(mail.text).toContain('Erika');
+		expect(mail.text).toContain('Erika lädt dich ein');
 		expect(mail.text).toContain('Mitverwalter');
 		expect(mail.text).toContain('https://app.example/einladung/t0k');
+	});
+
+	it('prints nothing of the name that a mail program would turn into a link', () => {
+		const mail = invitationMail(
+			'neu@example.org',
+			'https://app.example/einladung/t0k',
+			'Klicke https://evil.example/x oder www.evil.example\nboese.example.org, Erika'
+		);
+		expect(mail.text).toContain('Klicke oder Erika lädt dich ein');
+		expect(mail.text).not.toMatch(/evil|boese/);
+	});
+});
+
+describe('inviterName', () => {
+	it('keeps an ordinary name and falls back to Jemand', () => {
+		expect(inviterName('Dr. Erika Müller-Lüdenscheidt')).toBe('Dr. Erika Müller-Lüdenscheidt');
+		expect(inviterName(null)).toBe('Jemand');
+		expect(inviterName('  ')).toBe('Jemand');
+		expect(inviterName('https://evil.example')).toBe('Jemand');
+		expect(inviterName('mail@evil.example')).toBe('Jemand');
+		expect(inviterName('evil.рф')).toBe('Jemand');
+	});
+
+	it('keeps one line of at most 60 characters', () => {
+		expect(inviterName('Erika\r\nMustermann')).toBe('Erika Mustermann');
+		expect(inviterName('x'.repeat(100))).toHaveLength(60);
 	});
 });

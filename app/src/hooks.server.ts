@@ -9,14 +9,18 @@ import { getAuthLimiter } from '#lib/server/rate-limit/index.ts';
 
 /** Paths that work without signing in. Everything else redirects to the sign-in page. */
 const publicPaths = new Set(['/anmelden', '/registrieren', '/passwort-vergessen', '/health']);
-const publicPrefixes = ['/passwort-zuruecksetzen/', '/einladung/'];
+const publicPrefixes = ['/passwort-zuruecksetzen/', '/einladung/', '/e-mail-bestaetigen/'];
 
 /**
- * Paths whose posts check a password, create an account or send a reset mail, counted per client
- * address. A reset request also writes a row for the address, so unthrottled it could fill the
- * database.
+ * Paths whose posts check a password, hash a new one, create an account or send a reset mail,
+ * counted per client address: the forms above and the pages of reset and invitation links.
  */
 const authPaths = new Set(['/anmelden', '/registrieren', '/passwort-vergessen']);
+const authPrefixes = ['/passwort-zuruecksetzen/', '/einladung/'];
+
+function isAuthPath(pathname: string): boolean {
+	return authPaths.has(pathname) || authPrefixes.some((prefix) => pathname.startsWith(prefix));
+}
 
 function isPublic(pathname: string): boolean {
 	if (publicPaths.has(pathname)) return true;
@@ -42,7 +46,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	if (!event.locals.user && !isPublic(event.url.pathname)) redirect(303, '/anmelden');
 	// Counted with or without a session: a signed-in client can post to these actions as well.
-	if (event.request.method === 'POST' && authPaths.has(event.url.pathname)) {
+	if (event.request.method === 'POST' && isAuthPath(event.url.pathname)) {
 		const limiter = await getAuthLimiter();
 		if (!(await limiter.limit(`auth:${event.getClientAddress()}`))) {
 			error(429, 'Zu viele Versuche in kurzer Zeit. Bitte warte eine Minute.');

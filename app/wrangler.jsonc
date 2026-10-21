@@ -22,7 +22,7 @@
 	// A request may use at most 10 s of CPU instead of the default 30 s. The slowest real path, a
 	// bank import of a 2 MB file (~27,000 rows), takes about 1 s each for preview and commit.
 	"limits": { "cpu_ms": 10000 },
-	// Sign-in, registration and password reset posts per client address; see
+	// Posts of the sign-in, registration, reset and invitation forms per client address; see
 	// src/lib/server/rate-limit.
 	"ratelimits": [
 		{ "name": "AUTH_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }

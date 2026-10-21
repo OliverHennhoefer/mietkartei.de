@@ -33,7 +33,15 @@
 	<section>
 		<h2>Name und E-Mail-Adresse</h2>
 		{#if profile && 'saved' in profile}
-			<Alert tone="success"><p>Dein Profil wurde gespeichert.</p></Alert>
+			<Alert tone="success">
+				<p>Dein Profil wurde gespeichert.</p>
+				{#if profile.pendingEmail}
+					<p>
+						Wir haben dir einen Link an {profile.pendingEmail} geschickt. Erst wenn du ihn öffnest, gilt
+						die neue E-Mail-Adresse; bis dahin meldest du dich mit der bisherigen an.
+					</p>
+				{/if}
+			</Alert>
 		{/if}
 		<form method="POST" action="?/profile" class="card" use:enhance>
 			<label>

@@ -19,7 +19,6 @@ test('the owner invites a manager, who registers through the link', async ({
 	await expect(page.getByRole('heading', { level: 1, name: 'Mitverwalter' })).toBeVisible();
 	await expect(page.getByRole('table', { name: 'Zugänge' })).toContainText('(du)');
 	await page.getByLabel('E-Mail-Adresse').fill(manager.email);
-	await page.getByLabel('Rolle').selectOption({ label: 'Mitverwalter' });
 	await page.getByRole('button', { name: 'Einladen' }).click();
 	await expect(page.getByRole('status')).toContainText(`Die Einladung an ${manager.email}`);
 	await expect(page.getByRole('table', { name: 'Offene Einladungen' })).toContainText(

@@ -72,7 +72,6 @@
 			<thead>
 				<tr>
 					<th>E-Mail-Adresse</th>
-					<th>Rolle</th>
 					<th>Gültig bis</th>
 					<th class="actions"></th>
 				</tr>
@@ -81,7 +80,6 @@
 				{#each data.invitations as invitation (invitation.id)}
 					<tr>
 						<td>{invitation.email}</td>
-						<td>{userRoleLabels[invitation.role]}</td>
 						<td>{formatDateTime(invitation.expiresAt)}</td>
 						<td class="actions">
 							<form method="POST" action="?/revoke" use:enhance>
@@ -98,8 +96,8 @@
 
 <h2>Einladen</h2>
 <p class="muted">
-	Die eingeladene Person bekommt eine E-Mail mit einem Link, der sieben Tage gilt. Mitverwalter
-	bearbeiten alles außer Einladungen und Bankverbindungen.
+	Die eingeladene Person bekommt eine E-Mail mit einem Link, der sieben Tage gilt, und arbeitet als
+	Mitverwalter mit: Mitverwalter bearbeiten alles außer Einladungen und Bankverbindungen.
 </p>
 <form method="POST" action="?/invite" class="card" use:enhance>
 	<label>
@@ -112,15 +110,6 @@
 			required
 		/>
 		{#if errors?.email}<span class="error">{errors.email}</span>{/if}
-	</label>
-	<label>
-		Rolle
-		<select name="role" aria-invalid={errors?.role ? 'true' : undefined}>
-			{#each Object.entries(userRoleLabels) as [role, label] (role)}
-				<option value={role} selected={(values?.role ?? 'manager') === role}>{label}</option>
-			{/each}
-		</select>
-		{#if errors?.role}<span class="error">{errors.role}</span>{/if}
 	</label>
 	<div class="form-actions">
 		<button type="submit">Einladen</button>

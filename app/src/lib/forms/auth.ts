@@ -1,5 +1,4 @@
 import type { LandlordInput } from '../server/accounts';
-import { userRoles, type UserRole } from '../server/db/schema';
 import { MIN_PASSWORD_LENGTH } from '../validation';
 import { FormParser, type ParseResult } from './fields';
 
@@ -62,14 +61,17 @@ export function parsePasswordChange(form: FormData): ParseResult<PasswordChangeI
 	return parser.result(() => ({ currentPassword, ...fields }));
 }
 
-export type InvitationFormInput = { email: string; role: UserRole };
+export type InvitationFormInput = { email: string; role: 'manager' };
 
-/** The "Einladen" form; the role defaults to manager when the field is missing. */
+/**
+ * The "Einladen" form. An account has one owner, so invitations are for managers only: the form
+ * has no role field, and a posted role other than manager is refused.
+ */
 export function parseInvitation(form: FormData): ParseResult<InvitationFormInput> {
 	const parser = new FormParser<InvitationFormInput>(form);
 	const email = parser.email('email');
-	const role = parser.raw('role') ? parser.oneOf('role', userRoles) : 'manager';
-	return parser.result(() => ({ email, role: role ?? 'manager' }));
+	if (parser.raw('role')) parser.oneOf('role', ['manager'] as const);
+	return parser.result(() => ({ email, role: 'manager' }));
 }
 
 export type AcceptInvitationInput = { name: string; password: string; passwordConfirm: string };
