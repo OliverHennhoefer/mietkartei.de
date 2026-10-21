@@ -12,7 +12,7 @@ import {
 	signedDepositAmount
 } from './deposits';
 import { createLease } from './leases';
-import { contextA, contextB, leaseInput, seedUnit, testDatabase } from './testing';
+import { contextA, contextB, leaseInput, seedLease, seedUnit, testDatabase } from './testing';
 
 let db: Database;
 let leaseId: string;
@@ -143,7 +143,7 @@ describe('deleteDepositMovement', () => {
 			kind: 'received',
 			amount: 60000
 		});
-		expect(await deleteDepositMovement(db, contextA, id!)).toBe('deleted');
+		expect(await deleteDepositMovement(db, contextA, leaseId, id!)).toBe('deleted');
 		expect(await listDepositMovements(db, 'a', leaseId)).toEqual([]);
 		expect(await depositAudit('delete')).toEqual([
 			`Kaution erhalten: ${formatCents(60000)} vom 03.01.2025 gelöscht`
@@ -157,8 +157,21 @@ describe('deleteDepositMovement', () => {
 			kind: 'received',
 			amount: 60000
 		});
-		expect(await deleteDepositMovement(db, contextA, id!)).toBe('missing');
+		expect(await deleteDepositMovement(db, contextA, foreignLeaseId, id!)).toBe('missing');
 		expect(await listDepositMovements(db, 'b', foreignLeaseId)).toHaveLength(1);
+	});
+
+	it('does not delete a movement of another lease of the account', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const otherLeaseId = await seedLease(db, 'a', unitId);
+		const id = await addDepositMovement(db, contextA, {
+			leaseId: otherLeaseId,
+			date: '2025-01-03',
+			kind: 'received',
+			amount: 60000
+		});
+		expect(await deleteDepositMovement(db, contextA, leaseId, id!)).toBe('missing');
+		expect(await listDepositMovements(db, 'a', otherLeaseId)).toHaveLength(1);
 	});
 });
 

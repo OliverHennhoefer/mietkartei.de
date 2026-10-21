@@ -104,10 +104,11 @@ export async function addDepositMovement(
 	return id;
 }
 
-/** Deletes a movement with its audit entry. */
+/** Deletes a movement of the lease with its audit entry; a movement of another lease is missing. */
 export async function deleteDepositMovement(
 	db: Database,
 	context: AuditContext,
+	leaseId: string,
 	movementId: string
 ): Promise<'deleted' | 'missing'> {
 	const [movement] = await db
@@ -116,6 +117,7 @@ export async function deleteDepositMovement(
 		.where(
 			and(
 				eq(depositTransactions.accountId, context.accountId),
+				eq(depositTransactions.leaseId, leaseId),
 				eq(depositTransactions.id, movementId)
 			)
 		);

@@ -36,11 +36,11 @@ export const actions: Actions = {
 		return { added: true };
 	},
 
-	delete: async ({ request, locals }) => {
+	delete: async ({ request, locals, params }) => {
 		const context = auditContext(locals);
 		const movementId = (await request.formData()).get('movementId');
 		if (typeof movementId !== 'string') return fail(400, { message: 'Ungültige Auswahl.' });
-		const outcome = await deleteDepositMovement(locals.db, context, movementId);
+		const outcome = await deleteDepositMovement(locals.db, context, params.id, movementId);
 		if (outcome === 'missing') return fail(404, { message: 'Diese Bewegung gibt es nicht.' });
 		return { deleted: true };
 	}
