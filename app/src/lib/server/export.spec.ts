@@ -3,16 +3,16 @@ import { strFromU8, unzipSync } from 'fflate';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from './db';
 import { auditLog, leaseTenants } from './db/schema';
 import { storeDocument } from './documents';
 import {
 	accountTables,
-	buildExportZip,
 	collectExport,
 	documentPath,
 	exportTables,
+	exportZip,
 	type ExportData
 } from './export';
 import { createPayment, ensureCharges } from './ledger';
@@ -126,7 +126,17 @@ describe('collectExport', () => {
 	});
 });
 
-describe('buildExportZip', () => {
+/** The whole archive the stream yields, as the browser receives it. */
+async function readZip(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+	return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function exportEntries(): Promise<string[]> {
+	const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'export'));
+	return audit.map((entry) => entry.summary);
+}
+
+describe('exportZip', () => {
 	it('zips export.json with the documents and logs the export', async () => {
 		const { leaseId } = await seedAccount(contextA);
 		const stored = await storeDocument(
@@ -157,8 +167,7 @@ describe('buildExportZip', () => {
 		);
 		if (!foreign.ok) throw new Error(foreign.reason);
 
-		const zip = await buildExportZip(db, contextA, { storage });
-		const files = unzipSync(zip);
+		const files = unzipSync(await readZip(await exportZip(db, contextA, { storage })));
 		expect(Object.keys(files).sort()).toEqual(
 			['export.json', 'documents/', `documents/${stored.id}-Mietvertrag.pdf`].sort()
 		);
@@ -177,12 +186,76 @@ describe('buildExportZip', () => {
 		expect(
 			audit.map((entry) => [entry.accountId, entry.userId, entry.entity, entry.summary])
 		).toEqual([['a', 'user-a', 'account', 'Alle Daten als ZIP-Datei exportiert']]);
-		// The export entry itself is part of the exported log.
-		expect(data.tables.audit_log.some((row) => row.action === 'export')).toBe(true);
+		// Logged once the archive was complete, so the entry is not part of the exported log.
+		expect(data.tables.audit_log.some((row) => row.action === 'export')).toBe(false);
+	});
+
+	it('reads the documents only while the archive is read, from the listed rows', async () => {
+		const ids: string[] = [];
+		for (const name of ['Eins.pdf', 'Zwei.pdf', 'Drei.pdf']) {
+			const stored = await storeDocument(
+				db,
+				contextA,
+				{ name, mimeType: 'application/pdf', bytes: new TextEncoder().encode(name) },
+				{ storage }
+			);
+			if (!stored.ok) throw new Error(stored.reason);
+			ids.push(stored.id);
+		}
+		const keys: string[] = [];
+		const watched: Storage = {
+			...storage,
+			get(key) {
+				keys.push(key);
+				return storage.get(key);
+			}
+		};
+		// The same number of queries with three documents as without any: no lookup per document.
+		const selects = vi.spyOn(db, 'select');
+		const empty = await exportZip(db, contextB, { storage });
+		const queriesWithout = selects.mock.calls.length;
+		selects.mockClear();
+		const stream = await exportZip(db, contextA, { storage: watched });
+		expect(selects.mock.calls.length).toBe(queriesWithout);
+		selects.mockRestore();
+		await empty.cancel();
+
+		// Nothing is read or logged before the reader pulls.
+		expect(keys).toEqual([]);
+		expect(await exportEntries()).toEqual([]);
+		const files = unzipSync(await readZip(stream));
+		expect(keys.sort()).toEqual(ids.map((id) => `a/${id}`).sort());
+		expect(strFromU8(files[`documents/${ids[1]}-Zwei.pdf`])).toBe('Zwei.pdf');
+		expect(await exportEntries()).toEqual(['Alle Daten als ZIP-Datei exportiert']);
+	});
+
+	it('does not log an export that fails part-way', async () => {
+		const stored = await storeDocument(
+			db,
+			contextA,
+			{ name: 'Kaputt.pdf', mimeType: 'application/pdf', bytes: new TextEncoder().encode('x') },
+			{ storage }
+		);
+		if (!stored.ok) throw new Error(stored.reason);
+		const broken: Storage = {
+			...storage,
+			async get() {
+				const body = new ReadableStream<Uint8Array>({
+					pull(controller) {
+						controller.error(new Error('R2 nicht erreichbar'));
+					}
+				});
+				return { body, contentType: 'application/pdf', size: 1 };
+			}
+		};
+		await expect(readZip(await exportZip(db, contextA, { storage: broken }))).rejects.toThrow(
+			'R2 nicht erreichbar'
+		);
+		expect(await exportEntries()).toEqual([]);
 	});
 
 	it('builds a ZIP for an empty account', async () => {
-		const files = unzipSync(await buildExportZip(db, contextB, { storage }));
+		const files = unzipSync(await readZip(await exportZip(db, contextB, { storage })));
 		expect(Object.keys(files).sort()).toEqual(['documents/', 'export.json']);
 		const data = JSON.parse(strFromU8(files['export.json'])) as ExportData;
 		expect(data.tables.properties).toEqual([]);
