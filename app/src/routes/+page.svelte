@@ -50,8 +50,10 @@
 		<h2 id="first-run">Erste Schritte</h2>
 		{#if !data.firstRun.properties}
 			<p class="muted">
-				Dein Bestand ist noch leer. So fängst du an. Hast du die Daten schon in einer Tabelle, nimmt
-				die <a href="/datenuebernahme">Datenübernahme</a> sie dir ab.
+				Dein Bestand ist noch leer. So fängst du an{#if data.role === 'owner'}, oder du probierst
+					mietkartei erst mit <a href="/einstellungen/konto">Demodaten</a> aus{/if}. Hast du die
+				Daten schon in einer Tabelle, nimmt die <a href="/datenuebernahme">Datenübernahme</a> sie dir
+				ab.
 			</p>
 		{:else}
 			<p class="muted">

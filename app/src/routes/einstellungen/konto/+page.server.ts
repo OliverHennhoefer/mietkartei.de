@@ -8,6 +8,7 @@ import {
 	getBillingAccount,
 	subscriptionRuns
 } from '#lib/server/billing.ts';
+import { createDemoData, isEmptyAccount } from '#lib/server/demo.ts';
 import {
 	auditContext,
 	deleteSessionCookie,
@@ -21,6 +22,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const isOwner = user.role === 'owner';
 	return {
 		isOwner,
+		canLoadDemo: isOwner && (await isEmptyAccount(locals.db, user.accountId)),
 		subscriptionRuns:
 			isOwner &&
 			billingEnabled() &&
@@ -29,6 +31,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
+	// Demo data only goes into an account without any property, so nothing real is mixed with it.
+	demo: async ({ locals }) => {
+		requireOwner(locals);
+		const result = await createDemoData(locals.db, auditContext(locals));
+		if (!result.ok) {
+			return fail(400, { demoFailed: 'Demodaten gibt es nur für ein leeres Konto.' });
+		}
+		redirect(303, '/');
+	},
 	// Deleting the account asks for the password again; that is the confirmation. Wrong passwords
 	// count like failed sign-ins, so a stolen session cannot guess it.
 	delete: async (event) => {

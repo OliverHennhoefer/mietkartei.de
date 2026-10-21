@@ -1,0 +1,99 @@
+import { isHttpError } from '@sveltejs/kit';
+import { eq, sql } from 'drizzle-orm';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { countUnmatched } from './bank/transactions';
+import type { Database } from './db';
+import {
+	auditLog,
+	costItems,
+	leases,
+	payments,
+	properties,
+	tasks,
+	tenants,
+	units
+} from './db/schema';
+import { createDemoData, isEmptyAccount } from './demo';
+import { listBalances } from './ledger';
+import { QUOTAS } from './quotas';
+import { contextA, contextB, seedUnit, testDatabase } from './testing';
+
+let db: Database;
+
+beforeEach(async () => {
+	db = await testDatabase();
+});
+
+describe('createDemoData', () => {
+	it('fills an empty account with properties, leases, payments, transactions and tasks', async () => {
+		expect(await isEmptyAccount(db, 'a')).toBe(true);
+		const result = await createDemoData(db, contextA);
+		expect(result).toEqual({ ok: true, leases: 5 });
+
+		expect(await db.select().from(properties).where(eq(properties.accountId, 'a'))).toHaveLength(2);
+		expect(await db.select().from(units).where(eq(units.accountId, 'a'))).toHaveLength(6);
+		expect(await db.select().from(tenants).where(eq(tenants.accountId, 'a'))).toHaveLength(5);
+		expect(await db.select().from(leases).where(eq(leases.accountId, 'a'))).toHaveLength(5);
+		expect(await db.select().from(costItems).where(eq(costItems.accountId, 'a'))).toHaveLength(5);
+		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(2);
+		expect(await countUnmatched(db, 'a')).toBe(3);
+
+		// Only Berger is in arrears, by the two unpaid months before the current one plus the
+		// current month (open on the bank account, not booked yet); everyone else owes this month.
+		const balances = await listBalances(db, 'a');
+		const inArrears = balances.filter((balance) => balance.balance > 0);
+		expect(inArrears.length).toBeGreaterThan(0);
+		const berger = balances.reduce((max, balance) =>
+			balance.balance > max.balance ? balance : max
+		);
+		expect(berger.balance).toBe(3 * (83000 + 16000 + 7500));
+		// The ended lease is settled: no charge after its end, nothing before its ledger start.
+		expect(balances.every((balance) => balance.balance >= 0)).toBe(true);
+
+		expect(await isEmptyAccount(db, 'b')).toBe(true);
+	});
+
+	it('writes in one batch: a failure part-way leaves the account empty, so the demo can be retried', async () => {
+		// The database refuses the task rows, which come late in the batch.
+		await db.run(
+			sql`create trigger refuse_tasks before insert on tasks begin select raise(abort, 'D1 down'); end`
+		);
+		await expect(createDemoData(db, contextA)).rejects.toThrow('D1 down');
+		expect(await isEmptyAccount(db, 'a')).toBe(true);
+		for (const table of [properties, units, tenants, leases, payments, costItems]) {
+			expect(await db.select().from(table).where(eq(table.accountId, 'a'))).toEqual([]);
+		}
+
+		await db.run(sql`drop trigger refuse_tasks`);
+		expect(await createDemoData(db, contextA)).toEqual({ ok: true, leases: 5 });
+		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(2);
+	});
+
+	it('creates the demo once when the button is pressed twice at the same time', async () => {
+		const results = await Promise.all([createDemoData(db, contextA), createDemoData(db, contextA)]);
+		expect(results).toContainEqual({ ok: true, leases: 5 });
+		expect(results).toContainEqual({ ok: false, reason: 'not-empty' });
+		expect(await db.select().from(properties).where(eq(properties.accountId, 'a'))).toHaveLength(2);
+		expect(await db.select().from(leases).where(eq(leases.accountId, 'a'))).toHaveLength(5);
+		const audit = await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'));
+		expect(audit.filter((entry) => entry.summary === 'Demodaten angelegt')).toHaveLength(1);
+	});
+
+	it('refuses with 409 when the account has no room for the tasks', async () => {
+		const limit = QUOTAS.tasks.max;
+		QUOTAS.tasks.max = 1;
+		try {
+			const refusal = await createDemoData(db, contextA).catch((e) => e);
+			expect(isHttpError(refusal, 409)).toBe(true);
+		} finally {
+			QUOTAS.tasks.max = limit;
+		}
+		expect(await isEmptyAccount(db, 'a')).toBe(true);
+	});
+
+	it('refuses an account that already has a property', async () => {
+		await seedUnit(db, 'a');
+		expect(await createDemoData(db, contextA)).toEqual({ ok: false, reason: 'not-empty' });
+		expect(await createDemoData(db, contextB)).toMatchObject({ ok: true });
+	});
+});

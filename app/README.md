@@ -20,9 +20,11 @@ Fünf falsche Passwörter in 15 Minuten sperren eine E-Mail-Adresse für 15 Minu
 
 Unter **Einstellungen → Export** lädst du alle Daten deines Kontos als ZIP-Datei herunter: `export.json` mit allen Einträgen (ohne Passwörter) und die hochgeladenen Dokumente im Ordner `documents/`. Unter **Einstellungen → Konto** löschst du dein Konto endgültig, nachdem du dein Passwort noch einmal eingegeben hast. Dabei gehen alle Daten, Dokumente und die Zugänge der Mitverwalter verloren.
 
-## Datenübernahme
+## Datenübernahme und Demodaten
 
 Unter **Einstellungen → Datenübernahme** übernimmst du einen bestehenden Bestand aus CSV-Dateien deiner bisherigen Software, eine Datei je Art und in dieser Reihenfolge: Objekte und Einheiten, Mieter, Mietverträge, Zahlungen. Eine Datei hat höchstens 2 MB und 10.000 Zeilen. mietkartei schlägt zu jedem Feld eine Spalte vor und zeigt eine Vorschau, bevor etwas gespeichert wird; ungültige Zeilen und solche, die es schon gibt, werden übersprungen und aufgelistet.
+
+Zum Ausprobieren legt der Vermieter unter **Einstellungen → Konto** mit **Demodaten anlegen** einen kleinen Beispielbestand an: zwei Objekte, fünf Mietverträge, zwei Jahre Mietzahlungen, ein Bankkonto mit offenen Umsätzen, Belege des Vorjahres und zwei Aufgaben. Das geht nur, solange das Konto noch kein Objekt hat; wieder los wirst du die Demodaten, indem du das Konto löschst.
 
 ## Abo
 
