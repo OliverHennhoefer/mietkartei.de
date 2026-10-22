@@ -73,6 +73,8 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 
 	// A mixed key for heating outside the HeizKV range is refused.
 	await page.goto('/betriebskosten/schluessel');
+	// The form binds its selects; a choice made before hydration is reset to the default.
+	await page.waitForLoadState('networkidle');
 	await page.getByLabel('Bezeichnung').fill(`Heizung 80/20 ${suffix}`);
 	await page.getByRole('combobox', { name: 'Art', exact: true }).selectOption('mixed');
 	await page.getByRole('combobox', { name: 'Zählerart' }).selectOption('heat');
@@ -227,6 +229,8 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 
 	// "Speichern und nächsten Beleg" keeps the property and the period for the next one.
 	await page.goto(`/betriebskosten/belege/neu?property=${propertyId}&year=2025`);
+	// The form binds its selects; a choice made before hydration is reset to the default.
+	await page.waitForLoadState('networkidle');
 	await page
 		.getByRole('combobox', { name: 'Kostenart' })
 		.selectOption({ label: '8 Straßenreinigung und Müllbeseitigung' });
@@ -303,6 +307,8 @@ test('edits and deletes categories, keys, circles, cost items, meters and readin
 	// A custom key of the property, renamed on its page.
 	const keyName = `Gartenanteile ${tag}`;
 	await page.goto('/betriebskosten/schluessel');
+	// The form binds its selects; a choice made before hydration is reset to the default.
+	await page.waitForLoadState('networkidle');
 	await page.getByLabel('Bezeichnung').fill(`${keyName} alt`);
 	await page.getByRole('combobox', { name: 'Art', exact: true }).selectOption('custom');
 	await page.getByRole('combobox', { name: 'Objekt' }).selectOption({ label: propertyName });
@@ -323,6 +329,8 @@ test('edits and deletes categories, keys, circles, cost items, meters and readin
 
 	// A cost item with both.
 	await page.goto(`/betriebskosten/belege/neu?property=${propertyId}&year=2025`);
+	// The form binds its selects; a choice made before hydration is reset to the default.
+	await page.waitForLoadState('networkidle');
 	await expect(page.getByText('Vorbelegt mit dem Vorjahr')).toHaveCount(0);
 	await page.getByRole('combobox', { name: 'Kostenart' }).selectOption({ label: categoryName });
 	await page.getByRole('combobox', { name: 'Umlageschlüssel' }).selectOption({ label: keyName });
