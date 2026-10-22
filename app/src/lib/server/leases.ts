@@ -269,8 +269,8 @@ function leaseColumns(input: LeaseInput) {
  * The inserts that create new leases with their tenants, extra units, the initial rent, the first
  * persons row and the "Mietvertrag angelegt" audit line, as bulk inserts chunked for D1's
  * parameter limit. Every id is given or generated here, so a caller can put any number of leases
- * into one batch (the end-to-end seed puts the lease's property, unit and tenant in the same
- * one). The references must already be checked against the account.
+ * into one batch (the CSV import, the demo data; the end-to-end seed puts the lease's property,
+ * unit and tenant in the same one). The references must already be checked against the account.
  */
 export function newLeaseStatements(
 	db: Database,

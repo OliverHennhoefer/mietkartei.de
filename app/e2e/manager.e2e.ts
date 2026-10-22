@@ -66,6 +66,13 @@ test('the owner invites a manager, who registers through the link', async ({
 		headers: { origin: baseURL! }
 	});
 	expect(deleteAccount.status()).toBe(403);
+	// Demo data as well: no button, and the action answers 403.
+	await expect(invitee.getByRole('button', { name: 'Demodaten anlegen' })).toHaveCount(0);
+	const demo = await invitee.request.post('/einstellungen/konto?/demo', {
+		form: {},
+		headers: { origin: baseURL! }
+	});
+	expect(demo.status()).toBe(403);
 
 	// Bank accounts are the owner's too: the page says so, the actions answer 403.
 	await invitee.goto('/bank/konten');

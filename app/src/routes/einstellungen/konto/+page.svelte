@@ -9,6 +9,24 @@
 
 <PageHeader title="Konto" back={{ href: '/einstellungen', label: 'Einstellungen' }} />
 
+{#if data.canLoadDemo}
+	<section class="card demo" aria-labelledby="demodaten">
+		<h2 id="demodaten">Demodaten</h2>
+		<p>
+			Probier mietkartei mit einem kleinen Beispielbestand aus: zwei Objekte, fünf Mietverträge,
+			zwei Jahre Mietzahlungen, ein Bankkonto mit offenen Umsätzen, Belege des Vorjahres und zwei
+			Aufgaben. Das geht nur, solange dein Konto noch kein Objekt hat. Wenn du fertig bist, löschst
+			du das Konto unten und fängst neu an.
+		</p>
+		{#if form?.demoFailed}
+			<Alert tone="danger"><p>{form.demoFailed}</p></Alert>
+		{/if}
+		<form method="POST" action="?/demo" use:enhance>
+			<button type="submit">Demodaten anlegen</button>
+		</form>
+	</section>
+{/if}
+
 {#if form?.failed}
 	<Alert tone="danger"><p>{form.failed}</p></Alert>
 {/if}
@@ -47,6 +65,16 @@
 </section>
 
 <style>
+	.demo {
+		max-width: 45rem;
+		margin-bottom: 1.5rem;
+	}
+	.demo h2 {
+		margin: 0 0 0.75rem;
+	}
+	.demo p {
+		margin: 0 0 1.25rem;
+	}
 	.danger-zone {
 		max-width: 45rem;
 		border-color: var(--color-danger-border);

@@ -2,12 +2,13 @@ import { expect, test } from '@playwright/test';
 import { strFromU8, unzipSync } from 'fflate';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { linkInMailTo, readOutbox } from './outbox';
 import { owner } from './owner';
 import { seedLease } from './seed';
 import { FAKE_SUBSCRIPTION_ID, requests, start, stop } from './stripe-fake';
 
 // Project "account", runs last with the owner's storage state: the export, then the deletion
-// of the account, after which nothing else can run. The owner's subscription (sub_fake, started
+// of the account, after which only the demo data can run, in an account registered anew. The owner's subscription (sub_fake, started
 // in billing.e2e.ts) runs, so the deletion has to cancel it at the Stripe fake first.
 
 test.afterAll(async () => {
@@ -162,4 +163,46 @@ test('deletes the account after the password is entered again', async ({ page, b
 	// The uploaded file, there after the upload, went with the account.
 	expect(exported).toBeDefined();
 	if (process.env.DEPLOY_TARGET !== 'cloudflare') expect(existsSync(storedFile())).toBe(false);
+});
+
+test('fills a fresh account with demo data from the account page', async ({ page }) => {
+	// After the deletion above the instance is empty: the owner registers again, as in
+	// setup.e2e.ts. The hosted variant sends a link; the mail of the first registration is still
+	// in the outbox, so the new one is waited for.
+	await page.context().clearCookies();
+	await page.goto('/registrieren');
+	await page.getByLabel('E-Mail-Adresse').fill(owner.email);
+	if (process.env.DEPLOY_TARGET === 'cloudflare') {
+		const mailsToOwner = async () =>
+			(await readOutbox(page.request)).filter((mail) => mail.to === owner.email).length;
+		const before = await mailsToOwner();
+		await page.getByRole('button', { name: 'Link anfordern' }).click();
+		await expect(page.getByRole('status')).toContainText('E-Mail mit einem Link');
+		await expect.poll(mailsToOwner).toBe(before + 1);
+		await page.goto(await linkInMailTo(page.request, owner.email, '/registrieren/'));
+		await page.locator('input[name="password"]').fill(owner.password);
+		await page.locator('input[name="passwordConfirm"]').fill(owner.password);
+	} else {
+		await page.getByLabel('Passwort').fill(owner.password);
+	}
+	await page.getByRole('button', { name: 'Konto anlegen' }).click();
+	await expect(page).toHaveURL(/\/$/);
+
+	const firstRun = page.getByRole('region', { name: 'Erste Schritte' });
+	await firstRun.getByRole('link', { name: 'Demodaten' }).click();
+	await expect(page).toHaveURL(/\/einstellungen\/konto$/);
+	await page.getByRole('button', { name: 'Demodaten anlegen' }).click();
+	await expect(page).toHaveURL(/\/$/);
+	await expect(firstRun).toHaveCount(0);
+	const tiles = page.getByRole('list', { name: 'Kennzahlen' }).getByRole('listitem');
+	await expect(tiles.nth(0).locator('.value')).not.toHaveText('0,00 €');
+	await expect(tiles.nth(2).locator('.value')).toHaveText('3');
+
+	await page.goto('/objekte');
+	await expect(page.getByText('Lindenstraße 12').first()).toBeVisible();
+	await expect(page.getByText('Gartenweg 3').first()).toBeVisible();
+
+	// The button is gone once the account holds data.
+	await page.goto('/einstellungen/konto');
+	await expect(page.getByRole('button', { name: 'Demodaten anlegen' })).toHaveCount(0);
 });

@@ -145,6 +145,7 @@ describe('refusesWrite', () => {
 		// A registration link creates another account, which is not the read-only one.
 		expect(refusesWrite('expired', 'POST', '/registrieren/abc', true)).toBe(false);
 		// Everything else on those pages changes data and stays refused.
+		expect(refusesWrite('expired', 'POST', '/einstellungen/konto', true, 'demo')).toBe(true);
 		expect(refusesWrite('expired', 'POST', '/einstellungen/konto', true)).toBe(true);
 		expect(refusesWrite('canceled', 'POST', '/einstellungen/profil', true, 'landlord')).toBe(true);
 		expect(refusesWrite('expired', 'POST', '/objekte', true, 'delete')).toBe(true);
@@ -565,7 +566,8 @@ describe('with a database', () => {
 		await expect(enforceBilling(requestEvent('POST', '/abo'))).resolves.toBeUndefined();
 		await expect(enforceBilling(requestEvent('POST', '/abmelden'))).resolves.toBeUndefined();
 		await expect(enforceBilling(requestEvent('POST', '/objekte', false))).resolves.toBeUndefined();
-		// Leaving and securing the sign-in work without paying; the sender block does not.
+		// Leaving and securing the sign-in work without paying; the sender block, the demo data and
+		// the data import do not.
 		await expect(
 			enforceBilling(requestEvent('POST', '/einstellungen/konto?/delete'))
 		).resolves.toBeUndefined();
@@ -574,6 +576,12 @@ describe('with a database', () => {
 		).resolves.toBeUndefined();
 		await expect(
 			enforceBilling(requestEvent('POST', '/einstellungen/profil?/landlord'))
+		).rejects.toMatchObject({ status: 403 });
+		await expect(
+			enforceBilling(requestEvent('POST', '/einstellungen/konto?/demo'))
+		).rejects.toMatchObject({ status: 403 });
+		await expect(
+			enforceBilling(requestEvent('POST', '/datenuebernahme?/commit'))
 		).rejects.toMatchObject({ status: 403 });
 		expect(await billingNotice(requestEvent('GET', '/').locals)).toEqual({
 			text: 'Deine Testphase ist abgelaufen. Du kannst nur noch lesen.',

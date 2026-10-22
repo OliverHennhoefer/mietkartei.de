@@ -39,6 +39,7 @@ const pages = [
 	'/einstellungen/mitverwalter',
 	'/einstellungen/protokoll',
 	'/einstellungen/vpi',
+	'/datenuebernahme',
 	'/einstellungen/export',
 	'/einstellungen/konto',
 	'/abo'

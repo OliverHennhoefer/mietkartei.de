@@ -49,6 +49,26 @@ test('the first visitor registers and becomes the owner', async ({ page, request
 		await expect(steps.getByRole('link', { name, exact: true })).toHaveAttribute('href', href);
 	}
 	await expect(steps).not.toContainText('erledigt');
+	// The owner of an empty account may try the demo data; the import is linked as well, also
+	// from the empty lists of properties and tenants.
+	await expect(steps.getByRole('link', { name: 'Demodaten' })).toHaveAttribute(
+		'href',
+		'/einstellungen/konto'
+	);
+	await expect(steps.getByRole('link', { name: 'Datenübernahme' })).toHaveAttribute(
+		'href',
+		'/datenuebernahme'
+	);
+	await page.goto('/objekte');
+	await expect(
+		page.getByRole('link', { name: 'Daten aus einer anderen Software importieren' })
+	).toHaveAttribute('href', '/datenuebernahme');
+	await page.goto('/mieter');
+	await expect(page.getByRole('link', { name: 'Importieren' })).toHaveAttribute(
+		'href',
+		'/datenuebernahme'
+	);
+	await page.goto('/');
 
 	// With a property but no lease and no bank account it stays, the property ticked off and the
 	// unit step pointing to the property's page with the unit form.
@@ -62,6 +82,8 @@ test('the first visitor registers and becomes the owner', async ({ page, request
 	const items = steps.locator('ol > li');
 	await expect(items.nth(0)).toContainText('erledigt');
 	await expect(items.nth(1)).not.toContainText('erledigt');
+	// Demo data only goes into an account without any property.
+	await expect(steps.getByRole('link', { name: 'Demodaten' })).toHaveCount(0);
 	await expect(steps.getByRole('link', { name: 'Einheit anlegen', exact: true })).toHaveAttribute(
 		'href',
 		`/objekte/${propertyId}`
