@@ -12,6 +12,7 @@ import type {
 	RentChargeKind,
 	RentModel,
 	StatementStatus,
+	SubscriptionStatus,
 	TerminatedBy,
 	UserRole
 } from './server/db/schema';
@@ -108,6 +109,14 @@ export const meterKindLabels: Record<MeterKind, string> = {
 export const statementStatusLabels: Record<StatementStatus, string> = {
 	draft: 'Entwurf',
 	approved: 'Freigegeben'
+};
+
+export const subscriptionStatusLabels: Record<SubscriptionStatus, string> = {
+	none: 'Kein Abo',
+	trialing: 'Testphase',
+	active: 'Aktiv',
+	past_due: 'Zahlung ausstehend',
+	canceled: 'Gekündigt'
 };
 
 export const userRoleLabels: Record<UserRole, string> = {

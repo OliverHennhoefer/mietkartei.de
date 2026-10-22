@@ -55,6 +55,33 @@ export const variables = defineEnvVars({
 		description: 'Sender address, e.g. "mietkartei <noreply@mietkartei.de>".',
 		schema: (value) => value || 'mietkartei <noreply@mietkartei.de>'
 	},
+	STRIPE_SECRET_KEY: {
+		description:
+			'Stripe secret key (sk_test_… in test mode). Together with STRIPE_PRICE_ID it turns on the ' +
+			'subscription of the hosted variant; unset, a self-hosted instance shows nothing of it. ' +
+			'A secret on the hosted variant.',
+		schema: (value) => value || ''
+	},
+	STRIPE_PRICE_ID: {
+		description: 'Stripe price of the monthly subscription (price_…).',
+		schema: (value) => value || ''
+	},
+	STRIPE_WEBHOOK_SECRET: {
+		description:
+			'Signing secret of the Stripe webhook endpoint /api/webhooks/stripe (whsec_…). A secret ' +
+			'on the hosted variant.',
+		schema: (value) => value || ''
+	},
+	STRIPE_API_BASE: {
+		description: 'Base URL of the Stripe API; the end-to-end tests point it at a fake server.',
+		schema: (value) => value || 'https://api.stripe.com'
+	},
+	BILLING_REQUIRED: {
+		description:
+			'"true": once the 30-day trial has ended, accounts without an active subscription can ' +
+			'only read. Only with the Stripe keys.',
+		schema: (value) => value === 'true'
+	},
 	E2E: {
 		description:
 			'"true" enables the /api/e2e routes the end-to-end tests use to seed data and read the ' +

@@ -37,7 +37,9 @@ export default defineConfig({
 					'connect-src': ['self'],
 					'object-src': ['none'],
 					'base-uri': ['none'],
-					'form-action': ['self'],
+					// The subscription page's forms answer with a redirect to Stripe Checkout or the
+					// Customer Portal, which a browser without JavaScript follows as part of the post.
+					'form-action': ['self', 'https://checkout.stripe.com', 'https://billing.stripe.com'],
 					'frame-ancestors': ['none']
 				}
 			}

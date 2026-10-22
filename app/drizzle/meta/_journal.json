@@ -148,6 +148,13 @@
       "when": 1792609534258,
       "tag": "0020_registration_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1792615251242,
+      "tag": "0021_subscriptions",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,12 @@ import { parseDeleteAccount } from '#lib/forms/auth.ts';
 import { deleteAccount } from '#lib/server/accounts.ts';
 import { confirmPassword } from '#lib/server/auth.ts';
 import {
+	billingEnabled,
+	cancelSubscriptionOf,
+	getBillingAccount,
+	subscriptionRuns
+} from '#lib/server/billing.ts';
+import {
 	auditContext,
 	deleteSessionCookie,
 	requireOwner,
@@ -10,9 +16,16 @@ import {
 } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = ({ locals }) => {
+export const load: PageServerLoad = async ({ locals }) => {
 	const user = requireUser(locals);
-	return { isOwner: user.role === 'owner' };
+	const isOwner = user.role === 'owner';
+	return {
+		isOwner,
+		subscriptionRuns:
+			isOwner &&
+			billingEnabled() &&
+			subscriptionRuns(await getBillingAccount(locals.db, user.accountId))
+	};
 };
 
 export const actions: Actions = {
@@ -30,6 +43,13 @@ export const actions: Actions = {
 					? 'Zu viele Fehlversuche. Bitte warte 15 Minuten.'
 					: 'Das Passwort stimmt nicht.';
 			return fail(400, { errors: { password } });
+		}
+		// A running subscription ends first, so nobody keeps paying for a deleted account.
+		if (!(await cancelSubscriptionOf(locals.db, user.accountId))) {
+			return fail(502, {
+				failed:
+					'Stripe antwortet gerade nicht, darum ist dein Abo noch nicht gekündigt und dein Konto nicht gelöscht. Bitte versuche es gleich noch einmal.'
+			});
 		}
 		// No storage given: the default adapter of the target deletes the documents' files. A
 		// failure leaves the account (or at least its rows) in place, so the owner can try again.

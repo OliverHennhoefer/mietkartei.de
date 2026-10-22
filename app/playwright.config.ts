@@ -4,6 +4,8 @@ import { defineConfig } from '@playwright/test';
 // database: DEPLOY_TARGET=node (default) or DEPLOY_TARGET=cloudflare (workerd with a local D1).
 const target = process.env.DEPLOY_TARGET === 'cloudflare' ? 'cloudflare' : 'node';
 const port = Number(process.env.E2E_PORT || 4173);
+// The Stripe fake of billing.e2e.ts; another port lets two checkouts run their suites side by side.
+const stripePort = Number(process.env.STRIPE_FAKE_PORT || 4299);
 
 // E2E=true enables /api/e2e/seed, through which the tests create what they do not own, and
 // /api/e2e/outbox, where they read the mails MAIL_TRANSPORT=outbox stores instead of sending. The
@@ -15,17 +17,19 @@ const port = Number(process.env.E2E_PORT || 4173);
 // minute. Every request of a test comes from localhost, and on a fast runner the whole suite fits
 // into one minute, so each project names a client address of its own in CF-Connecting-IP: the
 // header Workers take the address from, and on node through ADDRESS_HEADER, as behind a proxy.
+//
+// The subscription runs against e2e/stripe-fake.ts, with test keys that only the fake accepts.
 const commands = {
 	node: [
 		'rm -rf .e2e',
 		'npm run build',
-		`DATABASE_PATH=.e2e/node.db DATA_DIR=.e2e/documents MAIL_TRANSPORT=outbox E2E=true ADDRESS_HEADER=cf-connecting-ip PORT=${port} node server.js`
+		`DATABASE_PATH=.e2e/node.db DATA_DIR=.e2e/documents MAIL_TRANSPORT=outbox E2E=true ADDRESS_HEADER=cf-connecting-ip STRIPE_SECRET_KEY=sk_test_fake STRIPE_PRICE_ID=price_fake STRIPE_WEBHOOK_SECRET=whsec_fake STRIPE_API_BASE=http://localhost:${stripePort} PORT=${port} node server.js`
 	],
 	cloudflare: [
 		'rm -rf .e2e',
 		'npm run build:cloudflare',
 		'wrangler d1 migrations apply DB --local --persist-to .e2e/wrangler',
-		`wrangler dev --port ${port} --local-upstream localhost:${port} --inspector-port 0 --persist-to .e2e/wrangler --var MAIL_TRANSPORT:outbox --var E2E:true --var REGISTRATION_EMAILS:vermieterin@example.org`
+		`wrangler dev --port ${port} --local-upstream localhost:${port} --inspector-port 0 --persist-to .e2e/wrangler --var MAIL_TRANSPORT:outbox --var E2E:true --var REGISTRATION_EMAILS:vermieterin@example.org --var STRIPE_SECRET_KEY:sk_test_fake --var STRIPE_PRICE_ID:price_fake --var STRIPE_WEBHOOK_SECRET:whsec_fake --var STRIPE_API_BASE:http://localhost:${stripePort}`
 	]
 };
 

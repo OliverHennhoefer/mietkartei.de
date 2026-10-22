@@ -4,9 +4,15 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { owner } from './owner';
 import { seedLease } from './seed';
+import { FAKE_SUBSCRIPTION_ID, requests, start, stop } from './stripe-fake';
 
 // Project "account", runs last with the owner's storage state: the export, then the deletion
-// of the account, after which nothing else can run.
+// of the account, after which nothing else can run. The owner's subscription (sub_fake, started
+// in billing.e2e.ts) runs, so the deletion has to cancel it at the Stripe fake first.
+
+test.afterAll(async () => {
+	await stop();
+});
 
 // The document uploaded before the export; the deletion below checks its file is gone too.
 let exported: { accountId: string; documentId: string } | undefined;
@@ -105,17 +111,32 @@ test('downloads the export as a ZIP with export.json and the uploaded documents'
 });
 
 test('deletes the account after the password is entered again', async ({ page, baseURL }) => {
+	await page.goto('/abo');
+	await expect(page.getByText('Dein Abo ist aktiv.')).toBeVisible();
+
 	await page.goto('/einstellungen');
 	await page
 		.getByRole('list', { name: 'Einstellungen' })
 		.getByRole('link', { name: 'Konto' })
 		.click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Konto' })).toBeVisible();
+	await expect(page.getByText('Dein Abo wird dabei sofort gekündigt')).toBeVisible();
 	await page.getByLabel('Passwort').fill('falsches-passwort');
 	await page.getByRole('button', { name: 'Konto endgültig löschen' }).click();
 	await expect(page.getByText('Das Passwort stimmt nicht.')).toBeVisible();
 	await expect(page).toHaveURL(/\/einstellungen\/konto$/);
 
+	// While Stripe does not answer (the fake is not running), the subscription cannot be
+	// canceled, so the account stays.
+	await stop();
+	await page.getByLabel('Passwort').fill(owner.password);
+	await page.getByRole('button', { name: 'Konto endgültig löschen' }).click();
+	await expect(
+		page.getByRole('alert').filter({ hasText: 'Stripe antwortet gerade nicht' })
+	).toBeVisible();
+	await expect(page).toHaveURL(/\/einstellungen\/konto$/);
+
+	await start();
 	await page.getByLabel('Passwort').fill(owner.password);
 	await page.getByRole('button', { name: 'Konto endgültig löschen' }).click();
 
@@ -123,6 +144,10 @@ test('deletes the account after the password is entered again', async ({ page, b
 	// visitor to the registration, and the old credentials do not sign anyone in. The action is
 	// posted the way use:enhance does, so its answer is readable without the page's redirect.
 	await expect(page).toHaveURL(/\/registrieren$/);
+	const cancel = requests.filter(
+		(entry) => entry.path === `/v1/subscriptions/${FAKE_SUBSCRIPTION_ID}`
+	);
+	expect(cancel.map((entry) => entry.method)).toEqual(['DELETE']);
 	await page.goto('/anmelden');
 	await expect(page).toHaveURL(/\/registrieren$/);
 	const response = await page.request.post('/anmelden', {

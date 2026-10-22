@@ -40,7 +40,8 @@ const pages = [
 	'/einstellungen/protokoll',
 	'/einstellungen/vpi',
 	'/einstellungen/export',
-	'/einstellungen/konto'
+	'/einstellungen/konto',
+	'/abo'
 ];
 
 async function visit(page: Page, path: string) {

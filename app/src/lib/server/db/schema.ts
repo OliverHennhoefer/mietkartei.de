@@ -32,20 +32,56 @@ const accountId = () =>
 const bool = (name: string, fallback: boolean) =>
 	integer(name, { mode: 'boolean' }).notNull().default(fallback);
 
-export const accounts = sqliteTable('accounts', {
-	id: id(),
-	name: text('name').notNull(),
-	/** The landlord as sender of letters and statements (Vermieter), all optional. */
-	landlordName: text('landlord_name'),
-	street: text('street'),
-	postalCode: text('postal_code'),
-	city: text('city'),
-	/** Where tenants transfer a Nachzahlung to; printed on the statement. */
-	iban: text('iban'),
-	bankName: text('bank_name'),
-	/** Set once the standard cost categories and keys are seeded, so they are seeded only once. */
-	operatingCostDefaultsSeeded: bool('operating_cost_defaults_seeded', false),
-	createdAt: createdAt()
+export const subscriptionStatuses = ['none', 'trialing', 'active', 'past_due', 'canceled'] as const;
+export type SubscriptionStatus = (typeof subscriptionStatuses)[number];
+
+export const accounts = sqliteTable(
+	'accounts',
+	{
+		id: id(),
+		name: text('name').notNull(),
+		/** The landlord as sender of letters and statements (Vermieter), all optional. */
+		landlordName: text('landlord_name'),
+		street: text('street'),
+		postalCode: text('postal_code'),
+		city: text('city'),
+		/** Where tenants transfer a Nachzahlung to; printed on the statement. */
+		iban: text('iban'),
+		bankName: text('bank_name'),
+		/** Set once the standard cost categories and keys are seeded, so they are seeded only once. */
+		operatingCostDefaultsSeeded: bool('operating_cost_defaults_seeded', false),
+		/** When the free trial ends; null: 30 days after the account was created. */
+		trialEndsAt: integer('trial_ends_at', { mode: 'timestamp_ms' }),
+		stripeCustomerId: text('stripe_customer_id'),
+		stripeSubscriptionId: text('stripe_subscription_id'),
+		subscriptionStatus: text('subscription_status', { enum: subscriptionStatuses })
+			.notNull()
+			.default('none'),
+		currentPeriodEnd: integer('current_period_end', { mode: 'timestamp_ms' }),
+		/**
+		 * The Checkout session last opened for the account, until its webhook arrives. Another
+		 * Checkout reuses it while it is open, so two sessions cannot both start a subscription.
+		 */
+		stripeCheckoutSessionId: text('stripe_checkout_session_id'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		// The webhook looks accounts up by these, so they identify exactly one account.
+		uniqueIndex('accounts_stripe_customer_unique')
+			.on(table.stripeCustomerId)
+			.where(sql`${table.stripeCustomerId} is not null`),
+		uniqueIndex('accounts_stripe_subscription_unique')
+			.on(table.stripeSubscriptionId)
+			.where(sql`${table.stripeSubscriptionId} is not null`)
+	]
+);
+
+/** Stripe webhook events already processed, so a retried delivery changes nothing twice. */
+export const stripeEvents = sqliteTable('stripe_events', {
+	/** The Stripe event id (evt_…). */
+	id: text('id').primaryKey(),
+	type: text('type').notNull(),
+	receivedAt: createdAt()
 });
 
 export const buildingUses = ['residential', 'non_residential'] as const;

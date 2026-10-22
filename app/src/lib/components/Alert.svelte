@@ -3,13 +3,19 @@
 	import Icon from './Icon.svelte';
 
 	// A message box above a form or list, announced as an alert for errors and as a status else.
+	// `role="note"` is for a standing remark that is not news, such as the billing notice.
 	let {
 		tone = 'info',
+		role,
 		children
-	}: { tone?: 'info' | 'success' | 'warning' | 'danger'; children: Snippet } = $props();
+	}: {
+		tone?: 'info' | 'success' | 'warning' | 'danger';
+		role?: 'note';
+		children: Snippet;
+	} = $props();
 </script>
 
-<div class="alert {tone}" role={tone === 'danger' ? 'alert' : 'status'}>
+<div class="alert {tone}" role={role ?? (tone === 'danger' ? 'alert' : 'status')}>
 	<Icon name={tone === 'success' ? 'check' : tone === 'info' ? 'info' : 'alert'} size={18} />
 	<div>{@render children()}</div>
 </div>

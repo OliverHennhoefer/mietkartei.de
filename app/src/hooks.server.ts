@@ -2,13 +2,21 @@ import { error, redirect } from '@sveltejs/kit';
 import type { Handle } from '@sveltejs/kit/hooks';
 import { E2E } from '$app/env/private';
 import { validateSession } from '#lib/server/auth.ts';
+import { enforceBilling } from '#lib/server/billing.ts';
 import { applySecurityHeaders } from '#lib/server/security-headers.ts';
 import { deleteSessionCookie, getSessionToken, setSessionCookie } from '#lib/server/session.ts';
 import { getDatabase } from '#lib/server/db/index.ts';
 import { getAuthLimiter } from '#lib/server/rate-limit/index.ts';
 
 /** Paths that work without signing in. Everything else redirects to the sign-in page. */
-const publicPaths = new Set(['/anmelden', '/registrieren', '/passwort-vergessen', '/health']);
+const publicPaths = new Set([
+	'/anmelden',
+	'/registrieren',
+	'/passwort-vergessen',
+	// Stripe's deliveries carry a signature instead of a session.
+	'/api/webhooks/stripe',
+	'/health'
+]);
 const publicPrefixes = [
 	'/registrieren/',
 	'/passwort-zuruecksetzen/',
@@ -63,6 +71,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 			error(429, 'Zu viele Versuche in kurzer Zeit. Bitte warte eine Minute.');
 		}
 	}
+	// With BILLING_REQUIRED, an account without subscription after the trial may only read.
+	if (event.locals.user) await enforceBilling(event);
 	const response = await resolve(event);
 	applySecurityHeaders(response.headers, {
 		https: event.url.protocol === 'https:',

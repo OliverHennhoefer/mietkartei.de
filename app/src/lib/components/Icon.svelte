@@ -4,6 +4,7 @@
 		| 'people'
 		| 'file'
 		| 'wallet'
+		| 'card'
 		| 'bank'
 		| 'receipt'
 		| 'folder'
@@ -32,6 +33,7 @@
 		file: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8ZM14 2v6h6M8 13h8m-8 4h5',
 		wallet:
 			'M20 8V5a2 2 0 0 0-2-2H6a3 3 0 0 0 0 6h14a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6m18 7h-5v4h5',
+		card: 'M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2ZM2 10h20M6 15h4',
 		bank: 'm3 9 9-6 9 6ZM3 21h18M5 12v6m7-6v6m7-6v6',
 		receipt: 'M4 3v18l4-2 4 2 4-2 4 2V3l-4 2-4-2-4 2ZM8 9h8m-8 4h8m-8 4h4',
 		folder: 'M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2ZM3 9h18',
