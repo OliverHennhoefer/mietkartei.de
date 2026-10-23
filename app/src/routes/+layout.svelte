@@ -67,7 +67,8 @@
 				{ href: '/mietkonto', label: 'Mietkonto', icon: 'wallet' },
 				{ href: '/bank', label: 'Bank', icon: 'bank' },
 				{ href: '/betriebskosten', label: 'Betriebskosten', icon: 'receipt' },
-				{ href: '/dokumente', label: 'Dokumente', icon: 'folder' }
+				{ href: '/dokumente', label: 'Dokumente', icon: 'folder' },
+				{ href: '/auswertung', label: 'Auswertung', icon: 'trend' }
 			]
 		}
 	];
