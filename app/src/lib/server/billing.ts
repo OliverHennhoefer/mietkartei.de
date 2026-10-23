@@ -114,11 +114,13 @@ const writablePrefixes = ['/passwort-zuruecksetzen/', '/e-mail-bestaetigen/', '/
 
 /**
  * Form actions that still work while the account is read-only: leaving the service (deleting the
- * account) and securing the sign-in (name, email, password) must never depend on paying.
+ * account), securing the sign-in (name, email, password) and withdrawing an API key's access must
+ * never depend on paying.
  */
 const writableActions = new Map([
 	['/einstellungen/konto', new Set(['delete'])],
-	['/einstellungen/profil', new Set(['profile', 'password'])]
+	['/einstellungen/profil', new Set(['profile', 'password'])],
+	['/einstellungen/api-schluessel', new Set(['revoke'])]
 ]);
 
 /** The form action a POST goes to, the way SvelteKit reads it: `?/delete` → `delete`. */

@@ -138,6 +138,12 @@ describe('refusesWrite', () => {
 	it('lets read-only accounts delete the account and secure their sign-in', () => {
 		expect(refusesWrite('expired', 'POST', '/einstellungen/konto', true, 'delete')).toBe(false);
 		expect(refusesWrite('canceled', 'POST', '/einstellungen/profil', true, 'password')).toBe(false);
+		expect(refusesWrite('expired', 'POST', '/einstellungen/api-schluessel', true, 'revoke')).toBe(
+			false
+		);
+		expect(refusesWrite('expired', 'POST', '/einstellungen/api-schluessel', true, 'create')).toBe(
+			true
+		);
 		expect(refusesWrite('canceled', 'POST', '/einstellungen/profil/', true, 'profile')).toBe(false);
 		// The pages of reset and address confirmation links finish what the profile started.
 		expect(refusesWrite('expired', 'POST', '/passwort-zuruecksetzen/abc', true)).toBe(false);
