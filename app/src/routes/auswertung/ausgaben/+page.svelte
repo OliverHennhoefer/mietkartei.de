@@ -17,9 +17,6 @@
 		form && 'values' in form ? (form.values as Record<string, string>) : {}
 	);
 	const total = $derived(data.expenses.reduce((sum, expense) => sum + expense.amount, 0));
-	const years = $derived(
-		Array.from({ length: 6 }, (_, index) => data.currentYear - index).filter((year) => year >= 1900)
-	);
 </script>
 
 <div class="toolbar">
@@ -27,7 +24,7 @@
 		<label class="inline">
 			Jahr
 			<select name="jahr" onchange={(event) => event.currentTarget.form?.requestSubmit()}>
-				{#each years.includes(data.year) ? years : [data.year, ...years] as year (year)}
+				{#each data.years as year (year)}
 					<option value={String(year)} selected={data.year === year}>{year}</option>
 				{/each}
 			</select>
@@ -148,7 +145,10 @@
 	<div class="form-actions">
 		<button type="submit">Ausgabe erfassen</button>
 		{#if form && 'created' in form}
-			<p role="status">Die Ausgabe wurde erfasst.</p>
+			<p role="status">
+				Die Ausgabe wurde erfasst.{#if form.year !== data.year}
+					<a href="?jahr={form.year}">Ausgaben {form.year} anzeigen</a>{/if}
+			</p>
 		{/if}
 	</div>
 </form>

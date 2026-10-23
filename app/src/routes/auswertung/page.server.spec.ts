@@ -60,6 +60,26 @@ describe('auswertung/ausgaben', () => {
 		expect(await run(actions.delete, { form: { id: expense.id } })).toMatchObject({ fail: 404 });
 	});
 
+	it('offers every year back to the earliest expense', async () => {
+		expect(
+			await run(actions.create, {
+				form: {
+					date: '2015-06-01',
+					amount: '10',
+					category: 'other',
+					scope: '',
+					description: 'Alt'
+				}
+			})
+		).toMatchObject({ data: { year: 2015 } });
+		const page = (await run(loadExpenses)) as { data: { years: number[] } };
+		expect(page.data.years[0]).toBe(year);
+		expect(page.data.years.at(-1)).toBe(2015);
+		expect(await run(loadExpenses, { url: '/auswertung/ausgaben?jahr=2015' })).toMatchObject({
+			data: { year: 2015, expenses: [{ description: 'Alt' }] }
+		});
+	});
+
 	it("refuses a form error and another account's unit", async () => {
 		const other = await seedUnit(db, 'b');
 		expect(

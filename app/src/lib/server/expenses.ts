@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, min } from 'drizzle-orm';
 import { formatDate } from '../dates';
 import { scopeValue, type ExpenseInput, type ExpenseScope } from '../forms/expenses';
 import { expenseCategoryLabels } from '../labels';
@@ -169,4 +169,13 @@ export async function scopeOptions(db: Database, accountId: string): Promise<Sco
 				.map((unit) => ({ value: scopeValue('unit', unit.id), label: unit.name }))
 		]
 	}));
+}
+
+/** The year of the earliest expense, null without any; for the year select. */
+export async function firstExpenseYear(db: Database, accountId: string): Promise<number | null> {
+	const [row] = await db
+		.select({ date: min(expenses.date) })
+		.from(expenses)
+		.where(eq(expenses.accountId, accountId));
+	return row?.date ? Number(row.date.slice(0, 4)) : null;
 }
