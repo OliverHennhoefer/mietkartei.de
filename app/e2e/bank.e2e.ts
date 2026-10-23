@@ -65,12 +65,9 @@ test('creates a bank account', async ({ page }) => {
 	});
 	leaseId = seeded.leaseId;
 
-	// Reached through the Bankverbindungen entry of the settings.
-	await page.goto('/einstellungen');
-	await page
-		.getByRole('list', { name: 'Einstellungen' })
-		.getByRole('link', { name: 'Bankverbindungen' })
-		.click();
+	// Reached through the Konten tab of the bank.
+	await page.goto('/bank');
+	await page.getByRole('link', { name: 'Konten', exact: true }).click();
 	await expect(page).toHaveURL(/\/bank\/konten$/);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Bank');
 	await page.getByLabel('Bezeichnung').fill(accountName);

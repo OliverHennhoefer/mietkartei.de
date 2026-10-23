@@ -113,8 +113,221 @@ textarea {
 	width: 52px;
 	height: 52px;
 }
+.authenticated .site-header {
+	display: flex;
+	align-items: center;
+}
 .workspace-bar {
-	display: none;
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	padding: 0 1.5rem 0 0;
+}
+
+/* The subscription notice: one quiet line in the top bar, louder only when writes are refused. */
+.billing-notice {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	min-width: 0;
+	margin: 0 1rem 0 0;
+	color: var(--color-muted);
+	font-size: 0.8rem;
+}
+.billing-notice span {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+.billing-notice a {
+	flex-shrink: 0;
+	color: inherit;
+	font-weight: 550;
+}
+.billing-notice .icon {
+	flex-shrink: 0;
+}
+.billing-notice.warning {
+	color: var(--color-text);
+}
+.billing-notice.danger {
+	color: var(--color-danger);
+}
+
+/* The account button top right and its menu. */
+.account {
+	position: relative;
+}
+button.account-button {
+	min-height: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: transparent;
+}
+button.account-button:hover .avatar,
+button.account-button[aria-expanded='true'] .avatar {
+	background: var(--color-hover);
+}
+.account-menu {
+	position: absolute;
+	top: calc(100% + 0.5rem);
+	right: 0;
+	z-index: 50;
+	display: grid;
+	min-width: 15rem;
+	max-width: min(20rem, calc(100vw - 2rem));
+	padding: 0.4rem;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius);
+	background: var(--color-surface);
+	box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+.account-user {
+	display: grid;
+	gap: 0.1rem;
+	padding: 0.5rem 0.65rem 0.65rem;
+	margin-bottom: 0.3rem;
+	border-bottom: 1px solid var(--color-border);
+	font-size: 0.85rem;
+	font-weight: 500;
+}
+.account-name,
+.account-email {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+.account-email {
+	color: var(--color-muted);
+	font-size: 0.75rem;
+	font-weight: 400;
+}
+.account-menu a,
+.account-menu button {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 0.65rem;
+	width: 100%;
+	min-height: 2.4rem;
+	padding: 0.4rem 0.65rem;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--color-text);
+	font-size: 0.875rem;
+	font-weight: 450;
+	text-decoration: none;
+}
+.account-menu a:hover,
+.account-menu button:hover {
+	background: var(--color-hover);
+}
+
+/* The settings dialog: sections on the left, the open one on the right. */
+.settings-dialog {
+	position: fixed;
+	inset: 0;
+	width: min(60rem, calc(100vw - 2rem));
+	height: min(44rem, calc(100dvh - 2rem));
+	max-width: none;
+	max-height: none;
+	margin: auto;
+	padding: 0;
+	border: 1px solid var(--color-border);
+	border-radius: 14px;
+	background: var(--color-background);
+	color: var(--color-text);
+	box-shadow: 0 24px 64px rgb(0 0 0 / 22%);
+}
+.settings-dialog::backdrop {
+	background: rgb(0 0 0 / 35%);
+}
+.settings-frame {
+	display: grid;
+	grid-template-columns: 14rem minmax(0, 1fr);
+	height: 100%;
+}
+.settings-side {
+	padding: 1.25rem 0.75rem;
+	background: var(--color-sidebar);
+	border-right: 1px solid var(--color-border);
+	overflow-y: auto;
+}
+.settings-title {
+	margin: 0 0 0.75rem;
+	padding: 0 0.75rem;
+	font-weight: 550;
+}
+.settings-side nav {
+	display: grid;
+	gap: 0.15rem;
+}
+.settings-side a {
+	display: flex;
+	align-items: center;
+	gap: 0.65rem;
+	min-height: 2.4rem;
+	padding: 0.4rem 0.75rem;
+	border-radius: 8px;
+	color: var(--color-muted);
+	font-size: 0.875rem;
+	text-decoration: none;
+}
+.settings-side a:hover {
+	background: var(--color-hover);
+	color: var(--color-text);
+}
+.settings-side a[aria-current='page'] {
+	background: var(--color-hover);
+	color: var(--color-text);
+	font-weight: 550;
+}
+.settings-content {
+	position: relative;
+	padding: 2rem 2.25rem 2.5rem;
+	overflow-y: auto;
+}
+.settings-content .page-header {
+	padding-right: 2.5rem;
+}
+button.settings-close {
+	position: absolute;
+	top: 0.75rem;
+	right: 0.75rem;
+}
+@media (max-width: 40rem) {
+	.settings-dialog {
+		width: 100vw;
+		height: 100dvh;
+		border: 0;
+		border-radius: 0;
+	}
+	.settings-frame {
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: auto minmax(0, 1fr);
+	}
+	.settings-side {
+		padding: 0.75rem;
+		border-right: 0;
+		border-bottom: 1px solid var(--color-border);
+	}
+	.settings-title {
+		margin-bottom: 0.5rem;
+	}
+	.settings-side nav {
+		display: flex;
+		overflow-x: auto;
+	}
+	.settings-side a {
+		flex-shrink: 0;
+	}
+	.settings-content {
+		padding: 1.5rem 1.25rem 2rem;
+	}
 }
 .nav-toggle {
 	align-self: center;
@@ -189,18 +402,6 @@ textarea {
 	box-shadow: var(--shadow);
 	font-weight: 550;
 }
-.nav-bottom {
-	margin-top: auto;
-	padding-top: 2rem;
-}
-.nav-account {
-	display: flex;
-	align-items: center;
-	gap: 0.6rem;
-	margin-top: 1rem;
-	padding: 1.15rem 0.25rem;
-	border-top: 1px solid var(--color-border);
-}
 .avatar {
 	display: grid;
 	place-items: center;
@@ -210,27 +411,9 @@ textarea {
 	border: 1px solid var(--color-border);
 	border-radius: 50%;
 	background: var(--color-surface);
+	color: var(--color-text);
 	font-size: 0.7rem;
 	font-weight: 550;
-}
-.nav-user {
-	display: grid;
-	gap: 0.1rem;
-	min-width: 0;
-	flex: 1;
-	font-size: 0.8rem;
-	font-weight: 500;
-}
-.nav-name,
-.nav-email {
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-}
-.nav-email {
-	color: var(--color-muted);
-	font-size: 0.72rem;
-	font-weight: 400;
 }
 .site-main {
 	min-width: 0;
@@ -680,22 +863,7 @@ dl.details dd {
 		border-right: 1px solid var(--color-border);
 	}
 	.workspace-bar {
-		display: flex;
-		align-items: center;
-		justify-content: flex-end;
-		gap: 1rem;
 		padding: 0 2.5rem;
-	}
-	.help-link {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.4rem;
-		color: var(--color-muted);
-		font-size: 0.8rem;
-		text-decoration: none;
-	}
-	.help-link:hover {
-		color: var(--color-text);
 	}
 	.authenticated .site-layout {
 		display: grid;

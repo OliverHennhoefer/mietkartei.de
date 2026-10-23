@@ -32,7 +32,9 @@ test('the first visitor registers and becomes the owner', async ({ page, request
 	}
 
 	await expect(page).toHaveURL(/\/$/);
-	await expect(page.getByRole('navigation')).toContainText(owner.email);
+	await page.getByRole('button', { name: 'Konto' }).click();
+	await expect(page.locator('#account-menu')).toContainText(owner.email);
+	await page.keyboard.press('Escape');
 
 	// The empty account gets the first steps instead of the tiles, each linked to its form.
 	const steps = page.getByRole('region', { name: 'Erste Schritte' });

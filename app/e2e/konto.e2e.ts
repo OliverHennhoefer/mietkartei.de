@@ -52,7 +52,7 @@ test('downloads the export as a ZIP with export.json and the uploaded documents'
 
 	await page.goto('/einstellungen');
 	await page
-		.getByRole('list', { name: 'Einstellungen' })
+		.getByRole('navigation', { name: 'Einstellungen' })
 		.getByRole('link', { name: 'Export' })
 		.click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Export' })).toBeVisible();
@@ -117,7 +117,7 @@ test('deletes the account after the password is entered again', async ({ page, b
 
 	await page.goto('/einstellungen');
 	await page
-		.getByRole('list', { name: 'Einstellungen' })
+		.getByRole('navigation', { name: 'Einstellungen' })
 		.getByRole('link', { name: 'Konto' })
 		.click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Konto' })).toBeVisible();

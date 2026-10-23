@@ -13,7 +13,7 @@ test('the owner invites a manager, who registers through the link', async ({
 }) => {
 	await page.goto('/einstellungen');
 	await page
-		.getByRole('list', { name: 'Einstellungen' })
+		.getByRole('navigation', { name: 'Einstellungen' })
 		.getByRole('link', { name: 'Mitverwalter' })
 		.click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Mitverwalter' })).toBeVisible();
@@ -42,7 +42,9 @@ test('the owner invites a manager, who registers through the link', async ({
 	await invitee.locator('input[name="passwordConfirm"]').fill(manager.password);
 	await invitee.getByRole('button', { name: 'Konto anlegen' }).click();
 	await expect(invitee).toHaveURL(/\/$/);
-	await expect(invitee.getByRole('navigation')).toContainText('Max Mitverwalter');
+	await invitee.getByRole('button', { name: 'Konto' }).click();
+	await expect(invitee.locator('#account-menu')).toContainText('Max Mitverwalter');
+	await invitee.keyboard.press('Escape');
 
 	// A manager works in the owner's account but does not manage invitations.
 	const objekte = await invitee.goto('/objekte');
@@ -97,7 +99,7 @@ test('the owner invites a manager, who registers through the link', async ({
 	expect(checkout.status()).toBe(403);
 	// The settings hub does not send a manager to the owner-only pages.
 	await invitee.goto('/einstellungen');
-	const hub = invitee.getByRole('list', { name: 'Einstellungen' });
+	const hub = invitee.getByRole('navigation', { name: 'Einstellungen' });
 	await expect(hub.getByRole('link', { name: 'Profil' })).toBeVisible();
 	await expect(hub.getByRole('link', { name: 'Protokoll' })).toBeVisible();
 	await expect(hub.getByRole('link', { name: 'Konto' })).toBeVisible();

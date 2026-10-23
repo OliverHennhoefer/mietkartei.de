@@ -7,7 +7,7 @@
 	let { data, form }: PageProps = $props();
 </script>
 
-<PageHeader title="Konto" back={{ href: '/einstellungen', label: 'Einstellungen' }} />
+<PageHeader title="Konto" />
 
 {#if data.canLoadDemo}
 	<section class="card demo" aria-labelledby="demodaten">

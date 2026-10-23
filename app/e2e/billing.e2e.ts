@@ -56,16 +56,26 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	baseURL
 }) => {
 	// A fresh account is in its 30-day trial: the page and the notice above every page say so.
-	// The settings and the navigation lead to the page.
+	// The account menu and the settings lead to the page.
 	await page.goto('/einstellungen');
 	await page
-		.getByRole('list', { name: 'Einstellungen' })
+		.getByRole('navigation', { name: 'Einstellungen' })
 		.getByRole('link', { name: 'Abo' })
 		.click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Abo' })).toBeVisible();
 	await expect(
-		page.getByRole('navigation', { name: 'Hauptnavigation' }).getByRole('link', { name: 'Abo' })
+		page.getByRole('navigation', { name: 'Einstellungen' }).getByRole('link', { name: 'Abo' })
 	).toHaveAttribute('aria-current', 'page');
+	await page.getByRole('button', { name: 'Einstellungen schließen' }).click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.getByRole('button', { name: 'Konto' }).click();
+	await page.locator('#account-menu').getByRole('link', { name: 'Abo' }).click();
+	await expect(
+		page
+			.getByRole('dialog', { name: 'Einstellungen' })
+			.getByRole('heading', { level: 1, name: 'Abo' })
+	).toBeVisible();
+	await expect(page).toHaveURL(/\/abo$/);
 	await expect(page.getByText('Testphase bis')).toBeVisible();
 	await expect(page.getByText('9,90 € pro Monat')).toBeVisible();
 	const notice = page.getByRole('note').filter({ hasText: 'Deine Testphase endet am' });

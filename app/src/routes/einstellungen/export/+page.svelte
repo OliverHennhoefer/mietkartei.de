@@ -2,11 +2,7 @@
 	import PageHeader from '#lib/components/PageHeader.svelte';
 </script>
 
-<PageHeader
-	title="Export"
-	lead="Alle Daten deines Kontos als eine Datei."
-	back={{ href: '/einstellungen', label: 'Einstellungen' }}
-/>
+<PageHeader title="Export" lead="Alle Daten deines Kontos als eine Datei." />
 
 <section class="card export">
 	<p>
