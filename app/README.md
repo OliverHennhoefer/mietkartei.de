@@ -26,6 +26,8 @@ Unter **Einstellungen → Datenübernahme** übernimmst du einen bestehenden Bes
 
 Zum Ausprobieren legt der Vermieter unter **Einstellungen → Konto** mit **Demodaten anlegen** einen kleinen Beispielbestand an: zwei Objekte, fünf Mietverträge, zwei Jahre Mietzahlungen, ein Bankkonto mit offenen Umsätzen, Belege des Vorjahres und zwei Aufgaben. Das geht nur, solange das Konto noch kein Objekt hat; wieder los wirst du die Demodaten, indem du das Konto löschst.
 
+Mit `DEMO=true` wird die Instanz zur öffentlichen Demo wie unter [demo.mietkartei.de](https://demo.mietkartei.de): Wer nicht angemeldet ist, landet auf `/demo` und startet dort mit einem Klick ein eigenes Konto mit den Demodaten, ohne E-Mail-Adresse und Passwort. Demo-Konten werden nach 24 Stunden gelöscht, jeweils wenn jemand eine neue Demo startet. Setze `DEMO` nur für eine solche Demo-Instanz.
+
 ## Abo
 
 Die gehostete Variante auf app.mietkartei.de kostet ein monatliches Abo, das über Stripe läuft. Jedes neue Konto kann mietkartei 30 Tage kostenlos testen; über jeder Seite steht, wann die Testphase endet. Unter **Abo** schließt der Vermieter das Abo über Stripe Checkout ab, ohne die restlichen Testtage zu verlieren, und verwaltet danach Zahlungsart, Rechnungen und Kündigung im Kundenportal von Stripe. Den Preis legt Stripe fest, nicht der Code. Das Abo verwaltet nur der Vermieter, nicht die Mitverwalter. Zwei Checkouts zugleich führen nicht zu zwei Abos: ein offener Checkout wird wiederverwendet, und ein trotzdem entstandenes zweites Abo kündigt mietkartei sofort. Wer sein Konto löscht, beendet damit auch das Abo; antwortet Stripe gerade nicht, bleibt das Konto, bis die Kündigung klappt.
@@ -71,6 +73,10 @@ Die Unit-Tests prüfen die Fachlogik in `src/lib` und die Server-Seite der Route
 Vor den End-to-End-Tests installiert `npx playwright install chromium` einmalig den Browser. Der Testserver läuft auf Port 4173; mit `E2E_PORT` wählst du einen anderen, etwa um beide Ziele gleichzeitig in zwei Arbeitskopien zu testen.
 
 Der Testserver startet mit `E2E=true`. Damit ist der Endpunkt `/api/e2e/seed` aktiv, über den ein Test anlegt, was er braucht, aber nicht selbst prüft, etwa einen Mietvertrag mit Objekt, Einheit und Mieter (siehe `e2e/seed.ts`). Mails speichert der Testserver mit `MAIL_TRANSPORT=outbox` in der Datenbank, die Tests lesen sie unter `/api/e2e/outbox`. Setze `E2E` nie in einer echten Installation. Statt Stripe beantwortet ein kleiner Server aus `e2e/stripe-fake.ts` die Anfragen des Abos; er läuft auf Port 4299, mit `STRIPE_FAKE_PORT` auf einem anderen.
+
+## Bildschirmfotos der README
+
+`npm run build && npm run screenshots` erneuert die Bildschirmfotos in `assets/screenshots/`. Das Skript startet den Produktions-Build mit einer leeren Datenbank auf Port 4180, legt ein Konto mit den Demodaten an und fotografiert Übersicht, Mietkonto und den Anteil eines Mieters in der Betriebskostenabrechnung. Erneuere sie, wenn sich diese Seiten sichtbar ändern.
 
 ## Datenbankschema ändern
 

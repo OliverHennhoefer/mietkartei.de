@@ -20,6 +20,7 @@ import { load } from './+page.server';
 // The dashboard, the root layout, the balances of all leases and the health check.
 
 const env = vi.hoisted(() => ({
+	DEMO: false,
 	STRIPE_SECRET_KEY: '',
 	STRIPE_PRICE_ID: '',
 	BILLING_REQUIRED: false
@@ -126,6 +127,7 @@ describe('layout', () => {
 				name: null,
 				role: 'owner',
 				billingEnabled: false,
+				demo: false,
 				notice: undefined
 			}
 		});

@@ -94,6 +94,8 @@ Viele Begriffe des Mietrechts haben keine genaue englische Entsprechung. Verwend
 | Aufgabe | `task` | Was sich der Vermieter selbst vornimmt, optional mit Fälligkeit und Bezug zu Objekt oder Mietvertrag |
 | Mieterportal | `portal` | Seite, die die Mieter eines Mietvertrags über einen persönlichen Link ohne Anmeldung öffnen |
 | Schadensmeldung | `damageReport` | Schaden oder Mangel, den Mieter über das Mieterportal melden, mit Status und Antwort des Vermieters |
+| Ausgabe | `expense` | Geld, das der Vermieter für ein Objekt, eine Einheit oder den ganzen Bestand ausgibt, von Hand erfasst oder aus einem Bankumsatz zugeordnet |
+| Auswertung | `analysis` | Kennzahlen zu Einnahmen, Ausgaben und Leerstand über einen Zeitraum; wird berechnet, nicht gespeichert |
 | Mitverwalter | `manager` | Person, die der Vermieter in sein Konto einlädt; Rolle neben `owner`, dem Vermieter. Sie bearbeitet alles außer Einladungen und Bankverbindungen |
 
 ### Pfade

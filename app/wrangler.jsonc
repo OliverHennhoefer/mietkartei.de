@@ -47,5 +47,40 @@
 			"bucket_name": "mietkartei-documents",
 			"jurisdiction": "eu"
 		}
-	]
+	],
+	// The public demo at demo.mietkartei.de, deployed with `wrangler deploy --env demo` after the
+	// app. Every visitor gets a throwaway account (DEMO, see src/lib/server/demo-accounts.ts); mails
+	// stay in the outbox table and are never sent. The deploy job creates the bucket when it is
+	// missing.
+	"env": {
+		"demo": {
+			"name": "mietkartei-demo",
+			"routes": [{ "pattern": "demo.mietkartei.de", "custom_domain": true }],
+			"vars": {
+				"DEMO": "true",
+				"MAIL_TRANSPORT": "outbox",
+				"MAIL_FROM": "noreply@mietkartei.de",
+				// No subscription in the demo.
+				"STRIPE_PRICE_ID": ""
+			},
+			"ratelimits": [
+				{ "name": "AUTH_LIMITER", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }
+			],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "mietkartei-demo",
+					"database_id": "454147c0-ec65-4c1f-97d3-be5ce42d3691",
+					"migrations_dir": "drizzle"
+				}
+			],
+			"r2_buckets": [
+				{
+					"binding": "DOCUMENTS",
+					"bucket_name": "mietkartei-demo-documents",
+					"jurisdiction": "eu"
+				}
+			]
+		}
+	}
 }
