@@ -8,6 +8,7 @@ import {
 	listCircles,
 	listKeys
 } from '#lib/server/operating-costs.ts';
+import { insurancePrefill } from '#lib/server/insurance.ts';
 import { listProperties } from '#lib/server/properties.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { costItemFailure, itemPage, parseCostItemForm, storeReceipt } from '../save.server';
@@ -22,6 +23,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		listKeys(locals.db, accountId),
 		listCircles(locals.db, accountId)
 	]);
+	// ?versicherung=<id>&von=<start> comes from the Versicherungen tab: the Beleg of that
+	// insurance year.
+	const policyId = url.searchParams.get('versicherung');
+	const start = url.searchParams.get('von');
+	if (policyId && start && isIsoDate(start)) {
+		const prefill = await insurancePrefill(locals.db, accountId, policyId, start);
+		if (prefill) return { properties, categories, keys, circles, prefill };
+	}
 	// ?property= and ?year= come from the list, ?from=/?to= from "Speichern und nächsten Beleg".
 	const propertyParam = url.searchParams.get('property');
 	const propertyId = properties.find((property) => property.id === propertyParam)?.id;

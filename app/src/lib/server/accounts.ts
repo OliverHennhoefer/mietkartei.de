@@ -37,6 +37,7 @@ import {
 	rentChanges,
 	sessions,
 	statementResults,
+	insurancePolicies,
 	tasks,
 	tenants,
 	units,
@@ -140,6 +141,7 @@ export async function deleteAccount(
 	const scoped = [
 		documents,
 		tasks,
+		insurancePolicies,
 		co2CostSplits,
 		statementResults,
 		operatingCostStatements,

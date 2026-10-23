@@ -935,6 +935,49 @@ export const documents = sqliteTable(
 	]
 );
 
+export const insuranceKinds = [
+	'building',
+	'liability',
+	'glass',
+	'oil_tank',
+	'rent_loss',
+	'legal',
+	'other'
+] as const;
+export type InsuranceKind = (typeof insuranceKinds)[number];
+
+/**
+ * Versicherung of a property. It renews every year on `renewalDate` (Hauptfälligkeit) until
+ * `endDate`; the notice deadline before each renewal is computed in deadlines.ts.
+ */
+export const insurancePolicies = sqliteTable(
+	'insurance_policies',
+	{
+		id: id(),
+		accountId: accountId(),
+		propertyId: text('property_id')
+			.notNull()
+			.references(() => properties.id, { onDelete: 'cascade' }),
+		kind: text('kind', { enum: insuranceKinds }).notNull(),
+		insurer: text('insurer').notNull(),
+		policyNumber: text('policy_number'),
+		/** Premium per insurance year in cents. */
+		annualPremium: integer('annual_premium').notNull(),
+		/** The first day of an insurance year; later years start on the same day of the year. */
+		renewalDate: text('renewal_date').notNull(),
+		/** Months before the end of an insurance year by which a cancellation must arrive. */
+		noticeMonths: integer('notice_months').notNull().default(3),
+		/** The last day of cover once the policy is cancelled. */
+		endDate: text('end_date'),
+		note: text('note'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('insurance_policies_account_id_idx').on(table.accountId),
+		index('insurance_policies_property_id_idx').on(table.propertyId)
+	]
+);
+
 export const taskCategories = ['maintenance', 'inspection', 'insurance', 'other'] as const;
 export type TaskCategory = (typeof taskCategories)[number];
 

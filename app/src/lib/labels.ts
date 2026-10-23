@@ -5,6 +5,7 @@ import type {
 	DepositTransactionKind,
 	Fuel,
 	HeatingCostModel,
+	InsuranceKind,
 	LeaseKind,
 	MeterKind,
 	OperatingCostModel,
@@ -120,6 +121,16 @@ export const subscriptionStatusLabels: Record<SubscriptionStatus, string> = {
 	canceled: 'Gekündigt'
 };
 
+export const insuranceKindLabels: Record<InsuranceKind, string> = {
+	building: 'Wohngebäudeversicherung',
+	liability: 'Haus- und Grundbesitzerhaftpflicht',
+	glass: 'Glasversicherung',
+	oil_tank: 'Gewässerschadenhaftpflicht',
+	rent_loss: 'Mietausfallversicherung',
+	legal: 'Vermieterrechtsschutz',
+	other: 'Sonstige Versicherung'
+};
+
 export const taskCategoryLabels: Record<TaskCategory, string> = {
 	maintenance: 'Wartung',
 	inspection: 'Prüfung',
@@ -168,6 +179,7 @@ export const auditEntityLabels: Record<string, string> = {
 	billing_circle: 'Abrechnungskreis',
 	cost_item: 'Beleg',
 	meter: 'Zähler',
+	insurance_policy: 'Versicherung',
 	meter_reading: 'Zählerstand',
 	statement: 'Betriebskostenabrechnung',
 	document: 'Dokument',
