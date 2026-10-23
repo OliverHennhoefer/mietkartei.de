@@ -109,6 +109,7 @@ describe('documentRow', () => {
 			leaseId: 'l1',
 			tenantId: null,
 			costItemId: null,
+			damageReportId: null,
 			uploadedBy: 'user-a',
 			createdAt
 		};

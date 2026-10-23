@@ -11,6 +11,7 @@ import {
 	consumerPriceIndex,
 	costCategories,
 	costItems,
+	damageReports,
 	depositTransactions,
 	emailChanges,
 	invitations,
@@ -70,6 +71,7 @@ export const QUOTAS = {
 	/** One per lease and year. */
 	co2CostSplits: { table: co2CostSplits, max: 50_000, label: 'CO₂-Kostenaufteilungen' },
 	tasks: { table: tasks, max: 20_000, label: 'Aufgaben' },
+	damageReports: { table: damageReports, max: 20_000, label: 'Schadensmeldungen' },
 	/** Accepted, expired and revoked invitations stay, so this also bounds the users of an account. */
 	invitations: { table: invitations, max: 500, label: 'Einladungen' },
 	/** Requests to change an email address; each user may make five a day. */

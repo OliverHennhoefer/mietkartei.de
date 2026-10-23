@@ -64,8 +64,10 @@ export const exportTables: AccountTable[] = [
 	schema.operatingCostStatements,
 	schema.statementResults,
 	schema.co2CostSplits,
-	schema.documents,
-	schema.tasks
+	schema.tasks,
+	schema.portalLinks,
+	schema.damageReports,
+	schema.documents
 ];
 
 /** The tables of the schema that carry an accountId column, for the completeness check. */

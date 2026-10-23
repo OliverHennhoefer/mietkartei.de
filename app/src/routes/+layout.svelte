@@ -50,7 +50,8 @@
 			label: 'Alltag',
 			sections: [
 				{ href: '/', label: 'Übersicht', icon: 'home' },
-				{ href: '/aufgaben', label: 'Aufgaben', icon: 'check' }
+				{ href: '/aufgaben', label: 'Aufgaben', icon: 'check' },
+				{ href: '/schadensmeldungen', label: 'Schadensmeldungen', icon: 'tool' }
 			]
 		},
 		{

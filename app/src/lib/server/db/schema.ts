@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+	type AnySQLiteColumn,
 	index,
 	integer,
 	primaryKey,
@@ -925,6 +926,10 @@ export const documents = sqliteTable(
 		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
 		tenantId: text('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
 		costItemId: text('cost_item_id').references(() => costItems.id, { onDelete: 'set null' }),
+		/** A photo a tenant attached to a damage report; deleted with the report. */
+		damageReportId: text('damage_report_id').references((): AnySQLiteColumn => damageReports.id, {
+			onDelete: 'set null'
+		}),
 		uploadedBy: text('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
 		createdAt: createdAt()
 	},
@@ -951,6 +956,59 @@ export const tasks = sqliteTable(
 		createdAt: createdAt()
 	},
 	(table) => [index('tasks_account_id_idx').on(table.accountId)]
+);
+
+/**
+ * The Mieterportal link of a lease: the tenants open it without signing in to report damage and
+ * follow their reports. The link holds a random token, the database only its SHA-256, so the
+ * landlord sees the link once and replaces it to see it again. One link per lease; deleting the
+ * row locks the old link out.
+ */
+export const portalLinks = sqliteTable(
+	'portal_links',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.unique()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		tokenHash: text('token_hash').notNull().unique(),
+		createdAt: createdAt()
+	},
+	(table) => [index('portal_links_account_id_idx').on(table.accountId)]
+);
+
+export const damageReportStatuses = ['new', 'in_progress', 'done'] as const;
+export type DamageReportStatus = (typeof damageReportStatuses)[number];
+
+/** Schadensmeldung: what a tenant reported through the Mieterportal, and how far it got. */
+export const damageReports = sqliteTable(
+	'damage_reports',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
+		title: text('title').notNull(),
+		description: text('description').notNull(),
+		/** Where in the unit, e.g. "Bad, Waschbecken". */
+		location: text('location'),
+		urgent: bool('urgent', false),
+		/** Who reported and how to reach them, as the tenant typed it. */
+		reporterName: text('reporter_name'),
+		reporterPhone: text('reporter_phone'),
+		status: text('status', { enum: damageReportStatuses }).notNull().default('new'),
+		/** The landlord's answer, shown to the tenants in the portal. */
+		reply: text('reply'),
+		/** The task the landlord made of the report, while it exists. */
+		taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+		updatedAt: integer('updated_at', { mode: 'timestamp_ms' }),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('damage_reports_account_id_idx').on(table.accountId),
+		index('damage_reports_lease_id_idx').on(table.leaseId)
+	]
 );
 
 export const userRoles = ['owner', 'manager'] as const;
