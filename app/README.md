@@ -72,6 +72,10 @@ Vor den End-to-End-Tests installiert `npx playwright install chromium` einmalig 
 
 Der Testserver startet mit `E2E=true`. Damit ist der Endpunkt `/api/e2e/seed` aktiv, über den ein Test anlegt, was er braucht, aber nicht selbst prüft, etwa einen Mietvertrag mit Objekt, Einheit und Mieter (siehe `e2e/seed.ts`). Mails speichert der Testserver mit `MAIL_TRANSPORT=outbox` in der Datenbank, die Tests lesen sie unter `/api/e2e/outbox`. Setze `E2E` nie in einer echten Installation. Statt Stripe beantwortet ein kleiner Server aus `e2e/stripe-fake.ts` die Anfragen des Abos; er läuft auf Port 4299, mit `STRIPE_FAKE_PORT` auf einem anderen.
 
+## Bildschirmfotos der README
+
+`npm run build && npm run screenshots` erneuert die Bildschirmfotos in `assets/screenshots/`. Das Skript startet den Produktions-Build mit einer leeren Datenbank auf Port 4180, legt ein Konto mit den Demodaten an und fotografiert Übersicht, Mietkonto und den Anteil eines Mieters in der Betriebskostenabrechnung. Erneuere sie, wenn sich diese Seiten sichtbar ändern.
+
 ## Datenbankschema ändern
 
 Das Schema steht in `src/lib/server/db/schema.ts`. Nach einer Änderung erzeugt `npm run db:generate` eine neue SQL-Migration in `drizzle/`. Committe die Migration zusammen mit dem Schema; die CI prüft, dass beide zusammenpassen.
