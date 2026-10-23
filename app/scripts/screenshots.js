@@ -10,6 +10,12 @@ import { chromium } from '@playwright/test';
 const port = 4180;
 const baseURL = `http://localhost:${port}`;
 const output = path.resolve(import.meta.dirname, '../../assets/screenshots');
+// Launched first, so a missing browser fails before the server starts.
+const browser = await chromium.launch(
+	process.env.PLAYWRIGHT_CHROMIUM_PATH
+		? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
+		: {}
+);
 const data = mkdtempSync(path.join(tmpdir(), 'mietkartei-screenshots-'));
 
 const server = spawn('node', ['server.js'], {
@@ -36,11 +42,6 @@ async function waitForServer() {
 	throw new Error('The server did not start.');
 }
 
-const browser = await chromium.launch(
-	process.env.PLAYWRIGHT_CHROMIUM_PATH
-		? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
-		: {}
-);
 try {
 	await waitForServer();
 	const context = await browser.newContext({
