@@ -1,6 +1,6 @@
 [project]
 site_name = "mietkartei"
-site_description = "Die Dokumentation zu mietkartei.de ist in Arbeit."
+site_description = "Dokumentation zu mietkartei, der Open-Source-Hausverwaltung für Privatvermieter: Nutzung, Selbsthosten und Mitarbeit."
 site_author = "Oliver Hennhoefer"
 copyright = 'Erstellt mit <a href="https://zensical.org/">Zensical</a>'
 site_url = "https://docs.mietkartei.de/"
@@ -12,6 +12,7 @@ extra_css = ["assets/stylesheets/extra.css"]
 exclude_docs = """
 requirements.txt
 wrangler.toml
+overrides/
 """
 nav = [
   { "Dokumentation" = "index.md" },
@@ -21,6 +22,7 @@ nav = [
 [project.theme]
 language = "de"
 font = false
+custom_dir = "docs/overrides"
 logo = "assets/brand/lockup.svg"
 favicon = "assets/brand/favicon.svg?v=register"
 features = []
@@ -51,6 +53,18 @@ md_in_html = {}
 
 [project.plugins.search]
 enabled = false
+
+[project.plugins.llmstxt]
+full_output = "llms-full.txt"
+markdown_description = """
+mietkartei ist eine Open-Source-Hausverwaltung für Privatvermieter in Deutschland: Mieten, Bankumsätze und Betriebskostenabrechnung an einem Ort, gehostet unter app.mietkartei.de oder selbst betrieben als Docker-Container. Die Startseite ist https://mietkartei.de/, die Demo https://demo.mietkartei.de/.
+"""
+
+[project.plugins.llmstxt.sections]
+Dokumentation = [
+  { "index.md" = "Überblick über die Dokumentation" },
+  { "selbst-hosten.md" = "mietkartei mit Docker oder aus dem Quellcode betreiben" },
+]
 
 [project.extra]
 generator = false

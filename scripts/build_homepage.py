@@ -10,7 +10,16 @@ if OUTPUT.exists():
     rmtree(OUTPUT)
 OUTPUT.mkdir(parents=True)
 
-for filename in ("index.html", "impressum/index.html", "styles.css", "robots.txt", "_headers"):
+for filename in (
+    "index.html",
+    "impressum/index.html",
+    "styles.css",
+    "robots.txt",
+    "sitemap.xml",
+    "llms.txt",
+    "_headers",
+    "assets/social.png",
+):
     destination = OUTPUT / filename
     destination.parent.mkdir(parents=True, exist_ok=True)
     copyfile(ROOT / "website" / filename, destination)
