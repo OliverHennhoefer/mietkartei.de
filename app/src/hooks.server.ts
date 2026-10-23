@@ -45,6 +45,14 @@ function isAuthPath(pathname: string): boolean {
 	return authPaths.has(pathname) || authPrefixes.some((prefix) => pathname.startsWith(prefix));
 }
 
+/**
+ * The API and the MCP server authenticate with an API key in the Authorization header and answer
+ * in JSON, never with the session cookie or a redirect; see #lib/server/api/request.ts.
+ */
+function isApiPath(pathname: string): boolean {
+	return pathname === '/api/v1' || pathname.startsWith('/api/v1/') || pathname === '/mcp';
+}
+
 function isPublic(pathname: string): boolean {
 	// The demo has no sign-in: visitors start a demo account instead.
 	if (DEMO) return pathname === '/demo' || pathname === '/health' || pathname === '/robots.txt';
@@ -57,6 +65,15 @@ function isPublic(pathname: string): boolean {
 export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.db = await getDatabase();
 	event.locals.user = undefined;
+	if (isApiPath(event.url.pathname)) {
+		const response = await resolve(event);
+		// Answers hold personal data like signed-in pages, so they are not cached either.
+		applySecurityHeaders(response.headers, {
+			https: event.url.protocol === 'https:',
+			signedIn: true
+		});
+		return response;
+	}
 
 	const token = getSessionToken(event);
 	if (token) {

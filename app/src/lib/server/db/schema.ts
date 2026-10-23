@@ -1145,6 +1145,35 @@ export const sessions = sqliteTable(
 	(table) => [index('sessions_user_id_idx').on(table.userId)]
 );
 
+export const apiKeyScopes = ['read', 'write'] as const;
+export type ApiKeyScope = (typeof apiKeyScopes)[number];
+
+/**
+ * A key for the API and the MCP server, created by a user and acting with that user's rights. The
+ * id is the SHA-256 hash of the key, never the key itself; `prefix` is its first characters, so
+ * the list of keys can tell them apart.
+ */
+export const apiKeys = sqliteTable(
+	'api_keys',
+	{
+		id: text('id').primaryKey(),
+		accountId: accountId(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		prefix: text('prefix').notNull(),
+		scope: text('scope', { enum: apiKeyScopes }).notNull().default('read'),
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+		lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('api_keys_account_id_idx').on(table.accountId),
+		index('api_keys_user_id_idx').on(table.userId)
+	]
+);
+
 /**
  * An invitation to join the account as a manager. Only the hash of the link token is stored.
  * Revoked invitations stay, so the daily limit of invitations counts them too.

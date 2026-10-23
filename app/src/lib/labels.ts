@@ -176,6 +176,7 @@ export const auditEntityLabels: Record<string, string> = {
 	account: 'Konto',
 	user: 'Zugang',
 	invitation: 'Einladung',
+	api_key: 'API-Schlüssel',
 	property: 'Objekt',
 	unit: 'Einheit',
 	tenant: 'Mieter',

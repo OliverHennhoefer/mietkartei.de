@@ -114,11 +114,13 @@ const writablePrefixes = ['/passwort-zuruecksetzen/', '/e-mail-bestaetigen/', '/
 
 /**
  * Form actions that still work while the account is read-only: leaving the service (deleting the
- * account) and securing the sign-in (name, email, password) must never depend on paying.
+ * account), securing the sign-in (name, email, password) and withdrawing an API key's access must
+ * never depend on paying.
  */
 const writableActions = new Map([
 	['/einstellungen/konto', new Set(['delete'])],
-	['/einstellungen/profil', new Set(['profile', 'password'])]
+	['/einstellungen/profil', new Set(['profile', 'password'])],
+	['/einstellungen/api-schluessel', new Set(['revoke'])]
 ]);
 
 /** The form action a POST goes to, the way SvelteKit reads it: `?/delete` → `delete`. */
@@ -204,6 +206,16 @@ export async function enforceBilling(event: RequestEvent): Promise<void> {
 	const state = billingState(account, new Date());
 	const action = actionName(event.url.searchParams);
 	if (refusesWrite(state, method, event.url.pathname, true, action)) error(403, READ_ONLY_MESSAGE);
+}
+
+/**
+ * Whether the account may only read: the API's counterpart to enforceBilling, which looks at the
+ * page and form action instead. False while billing is off or not required.
+ */
+export async function apiReadOnly(db: Database, accountId: string): Promise<boolean> {
+	if (!billingEnabled() || !BILLING_REQUIRED) return false;
+	const account = await getBillingAccount(db, accountId);
+	return Boolean(account && isReadOnly(billingState(account, new Date())));
 }
 
 /**
