@@ -37,6 +37,7 @@ export const exportTables: AccountTable[] = [
 	schema.emailChanges,
 	schema.invitations,
 	schema.auditLog,
+	schema.calendarFeeds,
 	schema.properties,
 	schema.units,
 	schema.tenants,
@@ -67,7 +68,8 @@ export const exportTables: AccountTable[] = [
 	schema.statementResults,
 	schema.co2CostSplits,
 	schema.documents,
-	schema.tasks
+	schema.tasks,
+	schema.insurancePolicies
 ];
 
 /** The tables of the schema that carry an accountId column, for the completeness check. */

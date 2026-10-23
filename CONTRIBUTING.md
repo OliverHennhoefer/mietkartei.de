@@ -75,27 +75,30 @@ Die Anwendung richtet sich an Vermieter in Deutschland, deshalb sind Oberfläche
 
 Viele Begriffe des Mietrechts haben keine genaue englische Entsprechung. Verwende im Code deshalb die Bezeichnungen aus dieser Tabelle und ergänze sie, wenn ein neuer Fachbegriff hinzukommt:
 
-| Deutscher Begriff | Im Code | Bedeutung |
-| --- | --- | --- |
-| Vermieter | `landlord` | Person, die vermietet und die Anwendung nutzt |
-| Mieter | `tenant` | Vertragspartei eines Mietvertrags |
-| Objekt | `property` | Gebäude oder Grundstück mit einer oder mehreren Einheiten |
-| Einheit | `unit` | Wohnung, Gewerbeeinheit oder Stellplatz innerhalb eines Objekts |
-| Mietvertrag | `lease` | Vertrag über eine Einheit |
-| Kaltmiete | `baseRent` | Miete ohne Betriebskosten |
-| Betriebskosten | `operatingCosts` | Umlagefähige laufende Kosten nach § 556 BGB und Betriebskostenverordnung |
-| Betriebskostenvorauszahlung | `operatingCostPrepayment` | Monatliche Vorauszahlung auf die Betriebskosten |
-| Betriebskostenabrechnung | `operatingCostStatement` | Jährliche Abrechnung der Betriebskosten gegenüber den Vorauszahlungen, oft Nebenkostenabrechnung genannt |
-| Umlageschlüssel | `allocationKey` | Verteilung von Kosten, etwa nach Fläche, Personen oder Verbrauch |
-| Zahlungserinnerung, Mahnung | `paymentReminder` | Schreiben an den Mieter über fällige, nicht bezahlte Beträge, mit einer Stufe (`level`): 1 Zahlungserinnerung, 2 Mahnung, 3 letzte Mahnung |
-| Mietsicherheit (Kaution) | `securityDeposit` | Sicherheitsleistung des Mieters |
-| Zählerstand | `meterReading` | Ablesewert eines Zählers zu einem Stichtag |
-| CO₂-Kostenaufteilung | `co2CostSplit` | Aufteilung der CO₂-Kosten des Heizens zwischen Vermieter und Mieter nach dem CO2KostAufG |
-| Frist | `deadline` | Termin, der sich aus den Daten ergibt, etwa die Abrechnungsfrist oder das Vertragsende; wird berechnet, nicht gespeichert |
-| Aufgabe | `task` | Was sich der Vermieter selbst vornimmt, optional mit Fälligkeit und Bezug zu Objekt oder Mietvertrag |
-| Ausgabe | `expense` | Geld, das der Vermieter für ein Objekt, eine Einheit oder den ganzen Bestand ausgibt, von Hand erfasst oder aus einem Bankumsatz zugeordnet |
-| Auswertung | `analysis` | Kennzahlen zu Einnahmen, Ausgaben und Leerstand über einen Zeitraum; wird berechnet, nicht gespeichert |
-| Mitverwalter | `manager` | Person, die der Vermieter in sein Konto einlädt; Rolle neben `owner`, dem Vermieter. Sie bearbeitet alles außer Einladungen und Bankverbindungen |
+| Deutscher Begriff           | Im Code                   | Bedeutung                                                                                                                                                          |
+| --------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Vermieter                   | `landlord`                | Person, die vermietet und die Anwendung nutzt                                                                                                                      |
+| Mieter                      | `tenant`                  | Vertragspartei eines Mietvertrags                                                                                                                                  |
+| Objekt                      | `property`                | Gebäude oder Grundstück mit einer oder mehreren Einheiten                                                                                                          |
+| Einheit                     | `unit`                    | Wohnung, Gewerbeeinheit oder Stellplatz innerhalb eines Objekts                                                                                                    |
+| Mietvertrag                 | `lease`                   | Vertrag über eine Einheit                                                                                                                                          |
+| Kaltmiete                   | `baseRent`                | Miete ohne Betriebskosten                                                                                                                                          |
+| Betriebskosten              | `operatingCosts`          | Umlagefähige laufende Kosten nach § 556 BGB und Betriebskostenverordnung                                                                                           |
+| Betriebskostenvorauszahlung | `operatingCostPrepayment` | Monatliche Vorauszahlung auf die Betriebskosten                                                                                                                    |
+| Betriebskostenabrechnung    | `operatingCostStatement`  | Jährliche Abrechnung der Betriebskosten gegenüber den Vorauszahlungen, oft Nebenkostenabrechnung genannt                                                           |
+| Umlageschlüssel             | `allocationKey`           | Verteilung von Kosten, etwa nach Fläche, Personen oder Verbrauch                                                                                                   |
+| Zahlungserinnerung, Mahnung | `paymentReminder`         | Schreiben an den Mieter über fällige, nicht bezahlte Beträge, mit einer Stufe (`level`): 1 Zahlungserinnerung, 2 Mahnung, 3 letzte Mahnung                         |
+| Mietsicherheit (Kaution)    | `securityDeposit`         | Sicherheitsleistung des Mieters                                                                                                                                    |
+| Zählerstand                 | `meterReading`            | Ablesewert eines Zählers zu einem Stichtag                                                                                                                         |
+| CO₂-Kostenaufteilung        | `co2CostSplit`            | Aufteilung der CO₂-Kosten des Heizens zwischen Vermieter und Mieter nach dem CO2KostAufG                                                                           |
+| Frist                       | `deadline`                | Termin, der sich aus den Daten ergibt, etwa die Abrechnungsfrist oder das Vertragsende; wird berechnet, nicht gespeichert                                          |
+| Aufgabe                     | `task`                    | Was sich der Vermieter selbst vornimmt, optional mit Fälligkeit und Bezug zu Objekt oder Mietvertrag                                                               |
+| Wiederkehrende Aufgabe      | `task` mit `repeatMonths` | Aufgabe, die alle so viele Monate wiederkommt, etwa Wartung (`maintenance`), Prüfung (`inspection`) oder Versicherung (`insurance`)                                |
+| Versicherung                | `insurancePolicy`         | Versicherung eines Objekts; verlängert sich jedes Jahr zur Hauptfälligkeit (`renewalDate`), wenn sie nicht mit der Kündigungsfrist (`noticeMonths`) gekündigt wird |
+| Fristenkalender             | `calendarFeed`            | Geheimer Link je Zugang, über den eine Kalender-App Fristen und fällige Aufgaben abonniert (iCalendar)                                                             |
+| Ausgabe                     | `expense`                 | Geld, das der Vermieter für ein Objekt, eine Einheit oder den ganzen Bestand ausgibt, von Hand erfasst oder aus einem Bankumsatz zugeordnet                        |
+| Auswertung                  | `analysis`                | Kennzahlen zu Einnahmen, Ausgaben und Leerstand über einen Zeitraum; wird berechnet, nicht gespeichert                                                             |
+| Mitverwalter                | `manager`                 | Person, die der Vermieter in sein Konto einlädt; Rolle neben `owner`, dem Vermieter. Sie bearbeitet alles außer Einladungen und Bankverbindungen                   |
 
 ### Pfade
 

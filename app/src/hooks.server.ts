@@ -21,7 +21,9 @@ const publicPrefixes = [
 	'/registrieren/',
 	'/passwort-zuruecksetzen/',
 	'/einladung/',
-	'/e-mail-bestaetigen/'
+	'/e-mail-bestaetigen/',
+	// Calendar apps subscribe without a session; the token in the path is the credential.
+	'/api/calendar/'
 ];
 
 /**

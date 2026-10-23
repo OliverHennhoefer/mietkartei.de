@@ -23,7 +23,8 @@
 		| 'user'
 		| 'trend'
 		| 'history'
-		| 'download';
+		| 'download'
+		| 'calendar';
 </script>
 
 <script lang="ts">
@@ -57,7 +58,9 @@
 		user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
 		trend: 'm22 7-8.5 8.5-5-5L2 17M16 7h6v6',
 		history: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l4 2',
-		download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3'
+		download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',
+		calendar:
+			'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2ZM16 2v4M8 2v4M3 10h18'
 	};
 </script>
 

@@ -802,6 +802,10 @@ export const costItems = sqliteTable(
 		fuelKwh: real('fuel_kwh'),
 		co2Kg: real('co2_kg'),
 		co2Cost: integer('co2_cost'),
+		/** The Versicherung whose premium this Beleg holds, when it was entered from the policy. */
+		insurancePolicyId: text('insurance_policy_id').references(() => insurancePolicies.id, {
+			onDelete: 'set null'
+		}),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -1010,6 +1014,52 @@ export const documents = sqliteTable(
 	]
 );
 
+export const insuranceKinds = [
+	'building',
+	'liability',
+	'glass',
+	'oil_tank',
+	'rent_loss',
+	'legal',
+	'other'
+] as const;
+export type InsuranceKind = (typeof insuranceKinds)[number];
+
+/**
+ * Versicherung of a property. It renews every year on `renewalDate` (Hauptfälligkeit) until
+ * `endDate`; the notice deadline before each renewal is computed in deadlines.ts.
+ */
+export const insurancePolicies = sqliteTable(
+	'insurance_policies',
+	{
+		id: id(),
+		accountId: accountId(),
+		propertyId: text('property_id')
+			.notNull()
+			.references(() => properties.id, { onDelete: 'cascade' }),
+		kind: text('kind', { enum: insuranceKinds }).notNull(),
+		insurer: text('insurer').notNull(),
+		policyNumber: text('policy_number'),
+		/** Premium per insurance year in cents. */
+		annualPremium: integer('annual_premium').notNull(),
+		/** The first day of an insurance year; later years start on the same day of the year. */
+		renewalDate: text('renewal_date').notNull(),
+		/** Months before the end of an insurance year by which a cancellation must arrive. */
+		noticeMonths: integer('notice_months').notNull().default(3),
+		/** The last day of cover once the policy is cancelled. */
+		endDate: text('end_date'),
+		note: text('note'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('insurance_policies_account_id_idx').on(table.accountId),
+		index('insurance_policies_property_id_idx').on(table.propertyId)
+	]
+);
+
+export const taskCategories = ['maintenance', 'inspection', 'insurance', 'other'] as const;
+export type TaskCategory = (typeof taskCategories)[number];
+
 /** Aufgabe with an optional due date. Deadlines derived from the data are computed, not stored. */
 export const tasks = sqliteTable(
 	'tasks',
@@ -1017,9 +1067,19 @@ export const tasks = sqliteTable(
 		id: id(),
 		accountId: accountId(),
 		title: text('title').notNull(),
+		category: text('category', { enum: taskCategories }).notNull().default('other'),
 		dueDate: text('due_date'),
+		/** Repeats every so many months from the due date; done, it leaves an open copy behind. */
+		repeatMonths: integer('repeat_months'),
+		/**
+		 * The due date the series was set up with; occurrences are counted from it, so a series on
+		 * the 31st returns to the 31st after a shorter month.
+		 */
+		repeatAnchor: text('repeat_anchor'),
 		done: bool('done', false),
 		doneAt: integer('done_at', { mode: 'timestamp_ms' }),
+		/** The open copy created when this repeating task was done; reopening removes it again. */
+		followUpId: text('follow_up_id'),
 		propertyId: text('property_id').references(() => properties.id, { onDelete: 'set null' }),
 		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
 		note: text('note'),
@@ -1054,6 +1114,21 @@ export const users = sqliteTable(
 			.where(sql`${table.role} = 'owner'`)
 	]
 );
+
+/**
+ * The secret link of a user's calendar subscription (iCal) with the account's deadlines and tasks.
+ * Only the hash of the link token is stored; a new link replaces the old one.
+ */
+export const calendarFeeds = sqliteTable('calendar_feeds', {
+	id: id(),
+	accountId: accountId(),
+	userId: text('user_id')
+		.notNull()
+		.unique()
+		.references(() => users.id, { onDelete: 'cascade' }),
+	tokenHash: text('token_hash').notNull().unique(),
+	createdAt: createdAt()
+});
 
 /** A signed-in browser. The id is the SHA-256 hash of the cookie token, never the token itself. */
 export const sessions = sqliteTable(

@@ -1,5 +1,6 @@
 import { and, eq, isNotNull } from 'drizzle-orm';
 import {
+	addDays,
 	addMonths,
 	addMonthsToMonth,
 	daysBetween,
@@ -9,7 +10,9 @@ import {
 	today as todayInBerlin,
 	type IsoDate
 } from '../dates';
+import { nextCancellation } from '../domain/insurance';
 import { objectionDeadline, statementDeadline } from '../domain/statement';
+import { insuranceKindLabels } from '../labels';
 import { personName } from '../format';
 import { distributeCents, formatCents } from '../money';
 import { nthWorkingDay } from '../working-days';
@@ -17,9 +20,11 @@ import type { Database } from './db';
 import {
 	co2CostSplits,
 	depositTransactions,
+	insurancePolicies,
 	meterReadings,
 	meters,
 	operatingCostStatements,
+	properties,
 	rentChanges,
 	statementResults
 } from './db/schema';
@@ -39,7 +44,9 @@ export type DeadlineKind =
 	| 'graduated_step'
 	| 'index_proposal'
 	| 'co2_reimbursement'
-	| 'meter_reading';
+	| 'meter_reading'
+	| 'insurance_notice'
+	| 'insurance_end';
 
 export type Deadline = {
 	kind: DeadlineKind;
@@ -77,7 +84,7 @@ function yearOf(date: IsoDate): number {
 /**
  * Every deadline of the account sorted by date: the ones to do (overdue ones included, whatever
  * `from` says) and the ones to know about that lie ahead. A fixed number of queries however large
- * the account: listLeases plus seven selects.
+ * the account: listLeases plus eight selects.
  */
 export async function listDeadlines(
 	db: Database,
@@ -86,62 +93,84 @@ export async function listDeadlines(
 ): Promise<Deadline[]> {
 	const today = filter.today ?? todayInBerlin();
 	const allLeases = await listLeases(db, accountId);
-	const [changeRows, depositRows, statementRows, resultRows, splitRows, meterRows, readingRows] =
-		await Promise.all([
-			db
-				.select()
-				.from(rentChanges)
-				.where(and(eq(rentChanges.accountId, accountId), eq(rentChanges.status, 'approved'))),
-			db
-				.select({
-					leaseId: depositTransactions.leaseId,
-					amount: depositTransactions.amount,
-					kind: depositTransactions.kind
-				})
-				.from(depositTransactions)
-				.where(eq(depositTransactions.accountId, accountId)),
-			db
-				.select({
-					id: operatingCostStatements.id,
-					propertyId: operatingCostStatements.propertyId,
-					periodStart: operatingCostStatements.periodStart,
-					periodEnd: operatingCostStatements.periodEnd,
-					version: operatingCostStatements.version,
-					status: operatingCostStatements.status
-				})
-				.from(operatingCostStatements)
-				.where(eq(operatingCostStatements.accountId, accountId)),
-			db
-				.select({
-					statementId: statementResults.statementId,
-					leaseId: statementResults.leaseId,
-					deliveredOn: statementResults.deliveredOn
-				})
-				.from(statementResults)
-				.where(eq(statementResults.accountId, accountId)),
-			db
-				.select({
-					leaseId: co2CostSplits.leaseId,
-					year: co2CostSplits.year,
-					amount: co2CostSplits.amount,
-					claimedOn: co2CostSplits.claimedOn
-				})
-				.from(co2CostSplits)
-				.where(eq(co2CostSplits.accountId, accountId)),
-			db
-				.select({
-					id: meters.id,
-					unitId: meters.unitId,
-					installedAt: meters.installedAt,
-					removedAt: meters.removedAt
-				})
-				.from(meters)
-				.where(and(eq(meters.accountId, accountId), isNotNull(meters.unitId))),
-			db
-				.select({ meterId: meterReadings.meterId, readAt: meterReadings.readAt })
-				.from(meterReadings)
-				.where(eq(meterReadings.accountId, accountId))
-		]);
+	const [
+		changeRows,
+		depositRows,
+		statementRows,
+		resultRows,
+		splitRows,
+		meterRows,
+		readingRows,
+		policyRows
+	] = await Promise.all([
+		db
+			.select()
+			.from(rentChanges)
+			.where(and(eq(rentChanges.accountId, accountId), eq(rentChanges.status, 'approved'))),
+		db
+			.select({
+				leaseId: depositTransactions.leaseId,
+				amount: depositTransactions.amount,
+				kind: depositTransactions.kind
+			})
+			.from(depositTransactions)
+			.where(eq(depositTransactions.accountId, accountId)),
+		db
+			.select({
+				id: operatingCostStatements.id,
+				propertyId: operatingCostStatements.propertyId,
+				periodStart: operatingCostStatements.periodStart,
+				periodEnd: operatingCostStatements.periodEnd,
+				version: operatingCostStatements.version,
+				status: operatingCostStatements.status
+			})
+			.from(operatingCostStatements)
+			.where(eq(operatingCostStatements.accountId, accountId)),
+		db
+			.select({
+				statementId: statementResults.statementId,
+				leaseId: statementResults.leaseId,
+				deliveredOn: statementResults.deliveredOn
+			})
+			.from(statementResults)
+			.where(eq(statementResults.accountId, accountId)),
+		db
+			.select({
+				leaseId: co2CostSplits.leaseId,
+				year: co2CostSplits.year,
+				amount: co2CostSplits.amount,
+				claimedOn: co2CostSplits.claimedOn
+			})
+			.from(co2CostSplits)
+			.where(eq(co2CostSplits.accountId, accountId)),
+		db
+			.select({
+				id: meters.id,
+				unitId: meters.unitId,
+				installedAt: meters.installedAt,
+				removedAt: meters.removedAt
+			})
+			.from(meters)
+			.where(and(eq(meters.accountId, accountId), isNotNull(meters.unitId))),
+		db
+			.select({ meterId: meterReadings.meterId, readAt: meterReadings.readAt })
+			.from(meterReadings)
+			.where(eq(meterReadings.accountId, accountId)),
+		db
+			.select({
+				id: insurancePolicies.id,
+				propertyId: insurancePolicies.propertyId,
+				propertyName: properties.name,
+				kind: insurancePolicies.kind,
+				insurer: insurancePolicies.insurer,
+				renewalDate: insurancePolicies.renewalDate,
+				noticeMonths: insurancePolicies.noticeMonths,
+				endDate: insurancePolicies.endDate
+			})
+			.from(insurancePolicies)
+			.innerJoin(properties, eq(insurancePolicies.propertyId, properties.id))
+			.where(eq(insurancePolicies.accountId, accountId))
+	]);
 
 	const leaseById = new Map(allLeases.map((lease) => [lease.id, lease]));
 	const deadlines: Deadline[] = [];
@@ -426,6 +455,40 @@ export async function listDeadlines(
 				false
 			);
 		}
+	}
+
+	// Versicherungen: the last day to cancel before the next renewal, to know about; a cancelled
+	// policy shows the end of its cover instead.
+	for (const policy of policyRows) {
+		const base = {
+			href: `/objekte/${policy.propertyId}/versicherungen/${policy.id}`,
+			propertyId: policy.propertyId
+		};
+		const label = insuranceKindLabels[policy.kind];
+		if (policy.endDate) {
+			push(
+				{
+					kind: 'insurance_end',
+					date: policy.endDate,
+					title: `${label} endet`,
+					detail: `${policy.insurer} · ${policy.propertyName}`,
+					...base
+				},
+				false
+			);
+			continue;
+		}
+		const { renewal, deadline } = nextCancellation(policy.renewalDate, policy.noticeMonths, today);
+		push(
+			{
+				kind: 'insurance_notice',
+				date: deadline,
+				title: `Kündigungsfrist ${label}`,
+				detail: `${policy.insurer} · ${policy.propertyName}: kündbar zum ${formatDate(addDays(renewal, -1))}, sonst verlängert sie sich um ein Jahr.`,
+				...base
+			},
+			false
+		);
 	}
 
 	return deadlines

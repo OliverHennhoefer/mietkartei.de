@@ -5,7 +5,7 @@ import { seedLease } from './seed';
 // The banking feature end to end: a bank account, a Sparkasse export imported twice, the inline
 // assignment with a remembered rule, undo, ignore, a generic file with a column mapping, a third
 // file whose line the remembered rule assigns on import, a split over two leases, a deposit, a
-// double submit that books once, and 404 for an unknown transaction. The lease is seeded; only the /bank pages are driven. The tests
+// double submit that books once, 404 for an unknown transaction and a camt.053 statement. The lease is seeded; only the /bank pages are driven. The tests
 // build on each other, so they run in order.
 
 test.describe.configure({ mode: 'serial' });
@@ -337,4 +337,51 @@ test('answers an unknown transaction with 404', async ({ page, baseURL }) => {
 		headers: { origin: baseURL ?? '' }
 	});
 	expect(response.status()).toBe(404);
+});
+
+test('imports a camt.053 statement, leaving out the lines of another account', async ({ page }) => {
+	const entry = (amount: string, indicator: string, party: string, text: string) => `
+		<Ntry>
+			<Amt Ccy="EUR">${amount}</Amt><CdtDbtInd>${indicator}</CdtDbtInd><Sts>BOOK</Sts>
+			<BookgDt><Dt>2026-12-01</Dt></BookgDt>
+			<NtryDtls><TxDtls><RltdPties>${party}</RltdPties>
+				<RmtInf><Ustrd>${text}</Ustrd></RmtInf></TxDtls></NtryDtls>
+		</Ntry>`;
+	const statement = (iban: string, entries: string) =>
+		`<Stmt><Acct><Id><IBAN>${iban}</IBAN></Id></Acct>${entries}</Stmt>`;
+	const camt = `<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02"><BkToCstmrStmt>
+	${statement(
+		'DE02120300000000202051',
+		entry(
+			'850.00',
+			'CRDT',
+			`<Dbtr><Nm>Max ${lastName}</Nm></Dbtr><DbtrAcct><Id><IBAN>${tenantIban}</IBAN></Id></DbtrAcct>`,
+			`Miete Dezember camt ${suffix}`
+		) + entry('49.90', 'DBIT', '<Cdtr><Nm>Stadtwerke</Nm></Cdtr>', `Strom camt ${suffix}`)
+	)}
+	${statement('DE75512108001245126199', entry('10.00', 'CRDT', '', `Fremdkonto ${suffix}`))}
+</BkToCstmrStmt></Document>`;
+
+	await page.goto('/bank/import');
+	await page.getByLabel('Bankverbindung').selectOption({ label: accountName });
+	await page.locator('input[name="file"]').setInputFiles({
+		name: 'auszug.xml',
+		mimeType: 'application/xml',
+		buffer: Buffer.from(camt, 'utf8')
+	});
+	await page.getByRole('button', { name: 'Datei prüfen' }).click();
+	await expect(page.getByText('Format camt.053 (XML-Kontoauszug) erkannt.')).toBeVisible();
+	await expect(page.getByRole('status')).toContainText(
+		'3 Zeilen: 1 neu, 0 Duplikate, 1 per Regel zugeordnet, 1 ungültig.'
+	);
+	await expect(page.getByRole('table', { name: 'Vorschau' })).toContainText(
+		'Auszug eines anderen Kontos (DE75 5121 0800 1245 1261 99)'
+	);
+	await page.getByRole('button', { name: 'Importieren' }).click();
+	await expect(page.getByRole('status')).toContainText(
+		'Import abgeschlossen: 2 neue Umsätze, 0 Duplikate, 1 per Regel zugeordnet, 1 ungültige Zeile übersprungen.'
+	);
+	await page.goto('/bank');
+	await expect(card(page, `Strom camt ${suffix}`)).toContainText('-49,90 €');
 });
