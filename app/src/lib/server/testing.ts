@@ -4,7 +4,14 @@ import { hashPassword, type SessionUser } from './auth';
 import type { Database } from './db';
 import { accounts, properties, tenants, units, users } from './db/schema';
 import { createSqliteDatabase } from './db/sqlite';
+import type { Storage } from './storage';
 import { createLease, type LeaseInput } from './leases';
+import {
+	createCostItem,
+	ensureDefaults,
+	listCategories,
+	type CostItemInput
+} from './operating-costs';
 import type { TenantInput } from './tenants';
 
 // Fixtures for unit tests of server modules: an in-memory database with two accounts (`a` and
@@ -28,6 +35,40 @@ export async function testDatabase(): Promise<Database> {
 		{ id: 'user-b', accountId: 'b', email: 'b@example.org', passwordHash: 'x' }
 	]);
 	return db;
+}
+
+/**
+ * Document storage in memory, for routes that read and write files. A route test hands it to the
+ * route by mocking getStorage of '#lib/server/storage/index.ts'.
+ */
+export function memoryStorage(): Storage & { files: Map<string, Uint8Array> } {
+	const files = new Map<string, Uint8Array>();
+	const types = new Map<string, string>();
+	return {
+		files,
+		async put(key, body, contentType) {
+			files.set(
+				key,
+				body instanceof Uint8Array ? body : new Uint8Array(await new Response(body).arrayBuffer())
+			);
+			types.set(key, contentType);
+		},
+		async get(key) {
+			const bytes = files.get(key);
+			if (!bytes) return undefined;
+			return {
+				body: new Response(bytes as Uint8Array<ArrayBuffer>).body!,
+				contentType: types.get(key)!,
+				size: bytes.length
+			};
+		},
+		async delete(key) {
+			files.delete(key);
+		},
+		async deletePrefix(prefix) {
+			for (const key of [...files.keys()]) if (key.startsWith(prefix)) files.delete(key);
+		}
+	};
 }
 
 /** The password tests sign in with; setPassword() gives it to a user. */
@@ -213,4 +254,42 @@ export async function outcome(run: () => unknown): Promise<Outcome> {
 		if (isHttpError(thrown)) return { error: thrown.status, message: thrown.body.message };
 		throw thrown;
 	}
+}
+
+/**
+ * A cost item of 600 € for 2025 in the first standard category with a default key ("Grundsteuer"
+ * unless overridden); seeds the standard categories and keys first. Returns its id.
+ */
+export async function seedCostItem(
+	db: Database,
+	accountId: string,
+	propertyId: string,
+	overrides: Partial<CostItemInput> = {}
+): Promise<string> {
+	await ensureDefaults(db, accountId);
+	const [category] = (await listCategories(db, accountId)).filter((row) => row.allocationKeyId);
+	const result = await createCostItem(
+		db,
+		{ accountId, userId: null },
+		{
+			propertyId,
+			categoryId: category.id,
+			allocationKeyId: category.allocationKeyId!,
+			billingCircleId: null,
+			description: 'Grundsteuer',
+			supplier: null,
+			invoiceDate: null,
+			periodStart: '2025-01-01',
+			periodEnd: '2025-12-31',
+			amount: 60000,
+			allocable: true,
+			fuel: null,
+			fuelKwh: null,
+			co2Kg: null,
+			co2Cost: null,
+			...overrides
+		}
+	);
+	if (!result.ok) throw new Error(`seedCostItem failed: ${result.reason}`);
+	return result.id;
 }
