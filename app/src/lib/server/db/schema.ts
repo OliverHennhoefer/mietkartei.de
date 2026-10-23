@@ -477,6 +477,41 @@ export const payments = sqliteTable(
 	]
 );
 
+/** 1 = Zahlungserinnerung, 2 = Mahnung, 3 = letzte Mahnung. */
+export const reminderLevels = [1, 2, 3] as const;
+export type ReminderLevel = (typeof reminderLevels)[number];
+
+/**
+ * Zahlungserinnerung or Mahnung: a letter about the overdue amounts of a lease. The open items
+ * and the paragraphs are stored as written, so a later payment or correction cannot change a
+ * letter that was already sent.
+ */
+export const paymentReminders = sqliteTable(
+	'payment_reminders',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		level: integer('level').$type<ReminderLevel>().notNull(),
+		/** The date of the letter; the open items are those on this day. */
+		date: text('date').notNull(),
+		/** The day the tenant is asked to pay by. */
+		paymentDeadline: text('payment_deadline').notNull(),
+		/** The overdue total on `date`. */
+		amount: integer('amount').notNull(),
+		/** Rows of the open items table: due date, posting, open amount. */
+		items: text('items', { mode: 'json' }).notNull().$type<string[][]>(),
+		letterText: text('letter_text').notNull(),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('payment_reminders_account_id_idx').on(table.accountId),
+		index('payment_reminders_lease_id_date_idx').on(table.leaseId, table.date)
+	]
+);
+
 // Banking
 
 export const bankAccounts = sqliteTable(

@@ -400,7 +400,11 @@ export type Ledger = {
 	balance: number;
 };
 
-function chargeLabel(charge: { kind: RentChargeKind; period: IsoMonth; note: string | null }) {
+export function chargeLabel(charge: {
+	kind: RentChargeKind;
+	period: IsoMonth;
+	note: string | null;
+}) {
 	const label = `${rentChargeKindLabels[charge.kind]} ${formatMonth(charge.period)}`;
 	return charge.note ? `${label}: ${charge.note}` : label;
 }
