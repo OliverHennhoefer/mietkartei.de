@@ -217,6 +217,10 @@
 						<img src={logo} alt="mietkartei" width="52" height="52" />
 					</picture>
 				</a>
+				<a href="https://mietkartei.de" class="back-home small">
+					<Icon name="arrow-left" size={16} />
+					<span>mietkartei.de</span>
+				</a>
 			{:else}
 				<button
 					bind:this={menuButton}
