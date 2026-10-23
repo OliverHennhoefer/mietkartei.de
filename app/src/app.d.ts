@@ -20,7 +20,10 @@ declare global {
 			user: SessionUser | undefined;
 		}
 		// interface PageData {}
-		// interface PageState {}
+		interface PageState {
+			/** A settings section opened as a dialog over the current page (shallow routing). */
+			settings?: { href: string; data: Record<string, unknown> };
+		}
 		// interface Platform {}
 	}
 }

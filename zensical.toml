@@ -1,5 +1,5 @@
 [project]
-site_name = "mietkartei.de"
+site_name = "mietkartei"
 site_description = "Die Dokumentation zu mietkartei.de ist in Arbeit."
 site_author = "Oliver Hennhoefer"
 copyright = 'Erstellt mit <a href="https://zensical.org/">Zensical</a>'

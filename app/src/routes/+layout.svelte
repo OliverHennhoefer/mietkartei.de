@@ -2,16 +2,47 @@
 	import favicon from '../../../assets/brand/favicon.svg';
 	import logo from '../../../assets/brand/mark.svg';
 	import logoWhite from '../../../assets/brand/mark-white.svg';
-	import Alert from '#lib/components/Alert.svelte';
+	import { untrack, type Component } from 'svelte';
 	import Icon, { type IconName } from '#lib/components/Icon.svelte';
+	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
+	import { settingsSectionOf, settingsSections } from '#lib/settings.ts';
+	import { goto, preloadData } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import '../app.css';
 	import type { LayoutProps } from './$types';
+	import Subscription from './abo/+page.svelte';
+	import Account from './einstellungen/konto/+page.svelte';
+	import Managers from './einstellungen/mitverwalter/+page.svelte';
+	import Export from './einstellungen/export/+page.svelte';
+	import Profile from './einstellungen/profil/+page.svelte';
+	import AuditLog from './einstellungen/protokoll/+page.svelte';
+	import PriceIndex from './einstellungen/vpi/+page.svelte';
 
 	let { data, children }: LayoutProps = $props();
 	let open = $state(false);
 	let menuButton = $state<HTMLButtonElement>();
+	let accountOpen = $state(false);
+	let accountButton = $state<HTMLButtonElement>();
+	let accountMenu = $state<HTMLDivElement>();
+	// The answer of the last form sent from the settings dialog; one from the page behind it is
+	// not shown in the dialog.
+	let settingsForm = $state<unknown>(null);
+	// The tab title of the page behind the dialog, given back when the dialog closes.
+	let pageTitle = { url: '', title: '' };
+
+	// The pages a settings section renders when it opens as a dialog over another page. Each one
+	// gets the data its own load returned.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const settingsViews: Record<string, Component<any>> = {
+		'/einstellungen/profil': Profile,
+		'/einstellungen/mitverwalter': Managers,
+		'/einstellungen/vpi': PriceIndex,
+		'/einstellungen/protokoll': AuditLog,
+		'/einstellungen/export': Export,
+		'/abo': Subscription,
+		'/einstellungen/konto': Account
+	};
 
 	const groups: { label: string; sections: { href: string; label: string; icon: IconName }[] }[] = [
 		{
@@ -58,9 +89,88 @@
 		menuButton?.focus();
 	}
 
+	function closeAccountMenu() {
+		accountOpen = false;
+		accountButton?.focus();
+	}
+
 	$effect(() => {
 		void page.url.pathname;
 		open = false;
+		accountOpen = false;
+	});
+
+	const sections = $derived(settingsSections(data.role, data.billingEnabled));
+	// A settings page opened by its address renders the dialog itself (see SettingsFrame).
+	const onSettingsPage = $derived(!!settingsSectionOf(page.url.pathname));
+	const settings = $derived(onSettingsPage ? undefined : page.state.settings);
+	const SettingsView = $derived(settings && settingsViews[settings.href]);
+
+	/**
+	 * Opens a settings section as a dialog over the current page: its data is loaded as for a
+	 * navigation, then the address changes without leaving the page (shallow routing), so the
+	 * back button closes the dialog and a reload opens the section as a page of its own.
+	 */
+	async function openSettings(href: string, replace: boolean) {
+		if (href !== settings?.href) settingsForm = null;
+		if (!settings) pageTitle = { url: page.url.href, title: document.title };
+		const result = await preloadData(href);
+		if (result.type === 'loaded' && result.status === 200) {
+			// eslint-disable-next-line svelte/no-navigation-without-resolve -- a path from settings.ts
+			await goto(href, {
+				shallow: true,
+				replace,
+				state: { settings: { href, data: result.data } }
+			});
+		} else {
+			// eslint-disable-next-line svelte/no-navigation-without-resolve -- a path from settings.ts
+			await goto(href);
+		}
+	}
+
+	/** Follows a settings link as a dialog; a click that opens a new tab stays with the browser. */
+	function settingsLink(event: MouseEvent, href: string, replace: boolean) {
+		accountOpen = false;
+		if (
+			onSettingsPage ||
+			!settingsViews[href] ||
+			event.button !== 0 ||
+			event.metaKey ||
+			event.ctrlKey ||
+			event.shiftKey
+		)
+			return;
+		event.preventDefault();
+		void openSettings(href, replace);
+	}
+
+	function closeSettings() {
+		history.back();
+	}
+
+	// A form in the dialog posts to the section's own page; once its answer is applied the
+	// section's data is loaded again, the way the page itself would be after the submission.
+	let seenForm = page.form;
+	$effect(() => {
+		const form = page.form;
+		if (form === seenForm) return;
+		seenForm = form;
+		const open = untrack(() => settings);
+		if (!open) return;
+		settingsForm = form;
+		void openSettings(open.href, true);
+	});
+
+	// The section's heading names the tab while the dialog is open. Once it is gone, the tab gets
+	// back the title of the page behind it (unless a form led to another page), and focus goes back to the account button.
+	let hadSettings = false;
+	$effect(() => {
+		const has = !!settings;
+		if (hadSettings && !has) {
+			if (page.url.href === pageTitle.url) document.title = pageTitle.title;
+			accountButton?.focus();
+		}
+		hadSettings = has;
 	});
 </script>
 
@@ -71,7 +181,16 @@
 </svelte:head>
 
 <svelte:window
-	onkeydown={(event) => event.key === 'Escape' && open && closeMenu()}
+	onkeydown={(event) => {
+		if (event.key !== 'Escape') return;
+		if (accountOpen) closeAccountMenu();
+		else if (open) closeMenu();
+	}}
+	onclick={(event) => {
+		const target = event.target as Node;
+		if (accountOpen && !accountMenu?.contains(target) && !accountButton?.contains(target))
+			accountOpen = false;
+	}}
 	onresize={() => {
 		if (window.matchMedia('(min-width: 60rem)').matches) open = false;
 	}}
@@ -81,13 +200,15 @@
 	<a class="skip-link" href="#main-content">Zum Inhalt</a>
 	<header class="site-header">
 		<div class="brand-bar">
-			<a href={resolve('/')} class="brand">
-				<picture>
-					<source media="(prefers-color-scheme: dark)" srcset={logoWhite} />
-					<img src={logo} alt="mietkartei" width="52" height="52" />
-				</picture>
-			</a>
-			{#if data.email}
+			<!-- Signed in, the app shows no logo; the favicon names it. -->
+			{#if !data.email}
+				<a href={resolve('/')} class="brand">
+					<picture>
+						<source media="(prefers-color-scheme: dark)" srcset={logoWhite} />
+						<img src={logo} alt="mietkartei" width="52" height="52" />
+					</picture>
+				</a>
+			{:else}
 				<button
 					bind:this={menuButton}
 					type="button"
@@ -103,13 +224,60 @@
 		</div>
 		{#if data.email}
 			<div class="workspace-bar">
-				<a
-					class="help-link"
-					href="https://docs.mietkartei.de/"
-					target="_blank"
-					rel="noreferrer"
-					aria-label="Hilfe und Dokumentation (neuer Tab)"><Icon name="help" /><span>Hilfe</span></a
-				>
+				{#if data.notice}
+					<!-- The subscription notice stays in this bar, so it never pushes the page down. -->
+					<p class="billing-notice {data.notice.tone}" role="note">
+						<Icon name={data.notice.tone === 'info' ? 'info' : 'alert'} size={16} />
+						<span>{data.notice.text}</span>
+						<a
+							href={data.notice.href}
+							onclick={(event) => data.notice && settingsLink(event, data.notice.href, false)}
+							>Zum Abo</a
+						>
+					</p>
+				{/if}
+				<div class="account">
+					<button
+						bind:this={accountButton}
+						type="button"
+						class="account-button"
+						aria-label="Konto"
+						aria-expanded={accountOpen}
+						aria-controls="account-menu"
+						onclick={() => (accountOpen = !accountOpen)}
+					>
+						<span class="avatar" aria-hidden="true">{initials}</span>
+					</button>
+					{#if accountOpen}
+						<div bind:this={accountMenu} id="account-menu" class="account-menu">
+							<div class="account-user">
+								<span class="account-name" title={data.name ?? undefined}
+									>{data.name ?? 'Dein Konto'}</span
+								><span class="account-email" title={data.email}>{data.email}</span>
+							</div>
+							<a
+								href={resolve('/einstellungen/profil')}
+								onclick={(event) => settingsLink(event, '/einstellungen/profil', false)}
+								><Icon name="settings" />Einstellungen</a
+							>
+							{#if data.billingEnabled}
+								<a href={resolve('/abo')} onclick={(event) => settingsLink(event, '/abo', false)}
+									><Icon name="card" />Abo</a
+								>
+							{/if}
+							<a
+								href="https://docs.mietkartei.de/"
+								target="_blank"
+								rel="noreferrer"
+								aria-label="Hilfe und Dokumentation (neuer Tab)"
+								onclick={() => (accountOpen = false)}><Icon name="help" />Hilfe</a
+							>
+							<form method="POST" action={resolve('/abmelden')}>
+								<button type="submit"><Icon name="logout" />Abmelden</button>
+							</form>
+						</div>
+					{/if}
+				</div>
 			</div>
 		{/if}
 	</header>
@@ -131,36 +299,20 @@
 						{/each}
 					</div>
 				{/each}
-				<div class="nav-bottom">
-					<a href={resolve('/einstellungen')} aria-current={current('/einstellungen')}
-						><Icon name="settings" />Einstellungen</a
-					>
-					{#if data.billingEnabled}
-						<a href={resolve('/abo')} aria-current={current('/abo')}><Icon name="card" />Abo</a>
-					{/if}
-					<div class="nav-account">
-						<span class="avatar" aria-hidden="true">{initials}</span>
-						<div class="nav-user">
-							<span class="nav-name" title={data.name ?? undefined}
-								>{data.name ?? 'Dein Konto'}</span
-							><span class="nav-email" title={data.email}>{data.email}</span>
-						</div>
-						<form method="POST" action={resolve('/abmelden')}>
-							<button type="submit" class="icon-button" aria-label="Abmelden" title="Abmelden"
-								><Icon name="logout" size={16} /></button
-							>
-						</form>
-					</div>
-				</div>
 			</nav>
 		{/if}
 		<main id="main-content" class="site-main" tabindex="-1" inert={open}>
-			{#if data.notice}
-				<Alert tone={data.notice.tone} role="note">
-					<p>{data.notice.text} <a href={data.notice.href}>Zum Abo</a></p>
-				</Alert>
-			{/if}
 			{@render children()}
 		</main>
 	</div>
+	{#if settings && SettingsView}
+		<SettingsDialog
+			{sections}
+			current={settings.href}
+			onclose={closeSettings}
+			onselect={(event, href) => settingsLink(event, href, true)}
+		>
+			<SettingsView data={settings.data} form={settingsForm} />
+		</SettingsDialog>
+	{/if}
 </div>

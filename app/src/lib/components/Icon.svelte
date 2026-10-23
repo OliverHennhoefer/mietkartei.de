@@ -19,7 +19,11 @@
 		| 'check'
 		| 'alert'
 		| 'info'
-		| 'home';
+		| 'home'
+		| 'user'
+		| 'trend'
+		| 'history'
+		| 'download';
 </script>
 
 <script lang="ts">
@@ -49,7 +53,11 @@
 		check: 'm5 12 4 4L19 6',
 		alert: 'm12 3 10 18H2ZM12 9v4m0 4h.01',
 		info: 'M12 11v6m0-10h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
-		home: 'm3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z'
+		home: 'm3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z',
+		user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
+		trend: 'm22 7-8.5 8.5-5-5L2 17M16 7h6v6',
+		history: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l4 2',
+		download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3'
 	};
 </script>
 

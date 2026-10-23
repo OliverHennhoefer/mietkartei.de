@@ -27,7 +27,7 @@
 	);
 </script>
 
-<PageHeader title="Profil" back={{ href: '/einstellungen', label: 'Einstellungen' }} />
+<PageHeader title="Profil" />
 
 <div class="stack">
 	<section>

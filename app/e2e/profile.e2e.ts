@@ -9,14 +9,14 @@ import { seedLease, seedRows, seedUser, signInAs } from './seed';
 // as they are; the second test changes those of a user of its own.
 
 test('saves the landlord sender block, which the letters print', async ({ page }) => {
-	// Reached through the settings in the main navigation.
+	// Reached through the account menu: the settings open as a dialog over the page.
 	await page.goto('/objekte');
-	await page.getByRole('navigation').getByRole('link', { name: 'Einstellungen' }).click();
-	await page
-		.getByRole('list', { name: 'Einstellungen' })
-		.getByRole('link', { name: 'Profil' })
-		.click();
-	await expect(page.getByRole('heading', { level: 1, name: 'Profil' })).toBeVisible();
+	await page.getByRole('button', { name: 'Konto' }).click();
+	await page.getByRole('link', { name: 'Einstellungen' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Einstellungen' });
+	await expect(dialog.getByRole('heading', { level: 1, name: 'Profil' })).toBeVisible();
+	await expect(page).toHaveURL(/\/einstellungen\/profil$/);
+	await expect(page.getByRole('heading', { level: 1, name: 'Objekte' })).toBeAttached();
 	const form = page.locator('form[action="?/landlord"]');
 
 	// An invalid postal code is refused in place, with the values kept.
@@ -43,7 +43,7 @@ test('saves the landlord sender block, which the letters print', async ({ page }
 	await expect(form.getByLabel('Bank')).toHaveValue('Commerzbank');
 	await page.goto('/einstellungen');
 	await page
-		.getByRole('list', { name: 'Einstellungen' })
+		.getByRole('navigation', { name: 'Einstellungen' })
 		.getByRole('link', { name: 'Protokoll' })
 		.click();
 	await page.getByLabel('Bereich').selectOption({ label: 'Konto' });
@@ -113,7 +113,8 @@ test('changes the name, the password and the address, which sign out the other b
 	await profile.getByRole('button', { name: 'Profil speichern' }).click();
 	await expect(page.getByText('Dein Profil wurde gespeichert.')).toBeVisible();
 	await page.reload();
-	await expect(page.getByRole('navigation')).toContainText('Paula Profil');
+	// The account button shows the new initials.
+	await expect(page.getByRole('button', { name: 'Konto' })).toHaveText('PP');
 
 	// A new address needs the current password.
 	await profile.getByLabel('E-Mail-Adresse', { exact: true }).fill(`neu-${user.email}`);

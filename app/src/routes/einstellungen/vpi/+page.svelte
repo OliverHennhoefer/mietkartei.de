@@ -17,7 +17,6 @@
 <PageHeader
 	title="Verbraucherpreisindex"
 	lead="Die Indexwerte, nach denen Indexmieten angepasst werden."
-	back={{ href: '/einstellungen', label: 'Einstellungen' }}
 />
 
 <Alert tone="info">

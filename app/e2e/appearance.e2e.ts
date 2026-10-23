@@ -62,3 +62,40 @@ test('opens and closes mobile navigation and restores the workspace after resizi
 	);
 	await expect(main.getByRole('heading', { name: 'Mieter', exact: true })).toBeVisible();
 });
+
+test('opens the settings as a dialog over the page and closes it again', async ({ page }) => {
+	await page.goto('/mieter');
+	await expect(page).toHaveTitle('Mieter · mietkartei');
+	const account = page.getByRole('button', { name: 'Konto' });
+	await account.click();
+	await page.getByRole('link', { name: 'Einstellungen' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Einstellungen' });
+	await expect(dialog.getByRole('heading', { level: 1, name: 'Profil' })).toBeVisible();
+	await expect(page).toHaveURL(/\/einstellungen\/profil$/);
+	await expect(page).toHaveTitle('Profil · mietkartei');
+
+	// The sections switch inside the dialog; one step back closes it.
+	await dialog.getByRole('link', { name: 'Protokoll' }).click();
+	await expect(dialog.getByRole('heading', { level: 1, name: 'Protokoll' })).toBeVisible();
+	await expect(page).toHaveURL(/\/einstellungen\/protokoll$/);
+	await page.goBack();
+	await expect(dialog).toHaveCount(0);
+	await expect(page).toHaveURL(/\/mieter$/);
+	await expect(page).toHaveTitle('Mieter · mietkartei');
+
+	// Escape closes it too, and focus returns to the account button.
+	await account.click();
+	await page.getByRole('link', { name: 'Einstellungen' }).click();
+	await expect(dialog).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(dialog).toHaveCount(0);
+	await expect(account).toBeFocused();
+
+	// Opened by its address, the section is the same dialog; closing leads to the overview.
+	await page.goto('/einstellungen/vpi');
+	await expect(
+		dialog.getByRole('heading', { level: 1, name: 'Verbraucherpreisindex' })
+	).toBeVisible();
+	await dialog.getByRole('button', { name: 'Einstellungen schließen' }).click();
+	await expect(page).toHaveURL(/\/$/);
+});

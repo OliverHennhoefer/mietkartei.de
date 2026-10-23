@@ -13,7 +13,12 @@ function fixture(name: string): string {
 }
 
 async function preview(page: Page, kind: string, file: string) {
-	await page.goto('/datenuebernahme');
+	await page.goto('/einstellungen');
+	await page
+		.getByRole('navigation', { name: 'Einstellungen' })
+		.getByRole('link', { name: 'Datenübernahme' })
+		.click();
+	await expect(page).toHaveURL(/\/datenuebernahme$/);
 	await expect(page.getByRole('heading', { level: 1, name: 'Datenübernahme' })).toBeVisible();
 	await page.getByLabel('Art der Daten').selectOption({ label: kind });
 	await page.getByLabel('CSV-Datei').setInputFiles(fixture(file));
@@ -42,7 +47,7 @@ test('imports properties, tenants, leases and payments from CSV files in order',
 	const violations = watchCspViolations(page);
 	await page.goto('/einstellungen');
 	await page
-		.getByRole('list', { name: 'Einstellungen' })
+		.getByRole('navigation', { name: 'Einstellungen' })
 		.getByRole('link', { name: 'Datenübernahme' })
 		.click();
 	await expect(page).toHaveURL(/\/datenuebernahme$/);

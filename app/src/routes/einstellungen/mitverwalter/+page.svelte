@@ -13,7 +13,7 @@
 	const refused = $derived(form && 'refused' in form ? form.refused : undefined);
 </script>
 
-<PageHeader title="Mitverwalter" back={{ href: '/einstellungen', label: 'Einstellungen' }} />
+<PageHeader title="Mitverwalter" />
 
 {#if refused}
 	<Alert tone="danger"><p>{refused}</p></Alert>
