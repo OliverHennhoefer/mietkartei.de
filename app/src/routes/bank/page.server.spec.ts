@@ -65,6 +65,38 @@ async function importFile(accountId = bankAccountId, context = contextA) {
 }
 
 describe('bank', () => {
+	it('books the janitor as an expense and shows it on the row', async () => {
+		const { janitor } = await importFile();
+		expect(
+			await run(actions.expense, {
+				form: { id: janitor.id, category: 'nonsense', scope: '', description: 'Hausmeister' }
+			})
+		).toMatchObject({
+			fail: 400,
+			data: { id: janitor.id, expenseErrors: { category: expect.any(String) } }
+		});
+		expect(
+			await run(actions.expense, {
+				form: { id: janitor.id, category: 'operating_costs', scope: '', description: 'Hausmeister' }
+			})
+		).toEqual({ data: { assigned: janitor.id } });
+		expect(
+			await run(actions.expense, {
+				form: { id: janitor.id, category: 'operating_costs', scope: '', description: 'Hausmeister' }
+			})
+		).toMatchObject({
+			fail: 400,
+			data: { expenseErrors: { scope: 'Dieser Umsatz ist nicht mehr offen.' } }
+		});
+		const page = (await run(load, { url: `/bank?umsatz=${janitor.id}` })) as {
+			data: { transactions: { assignments: unknown[] }[]; scopes: unknown[] };
+		};
+		expect(page.data.scopes).toHaveLength(1);
+		expect(page.data.transactions[0].assignments).toEqual([
+			expect.objectContaining({ kind: 'expense', amount: 12050, scope: 'Gesamter Bestand' })
+		]);
+	});
+
 	it('lists open transactions with a suggestion by name', async () => {
 		const { rent } = await importFile();
 		const page = (await run(load, { url: '/bank' })) as {
