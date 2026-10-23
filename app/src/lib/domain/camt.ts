@@ -169,9 +169,15 @@ export function parseCamt(text: string, seen: SeenEntries = new Map()): ParsedCa
 		const statementId = textAt(statement, 'Id');
 		const token = {};
 		children(statement, 'Ntry').forEach((entry, position) => {
-			const mapped = isRepeated(seen, token, entryKeys(iban, statementId, entry, position))
-				? [{ ok: false, reason: 'Schon in einem anderen Auszug der Datei' } as const]
-				: mapEntry(entry, currency);
+			const keys = entryKeys(iban, statementId, entry, position);
+			let mapped: RowResult[];
+			if (isRepeated(seen, token, keys)) {
+				mapped = [{ ok: false, reason: 'Schon in einem anderen Auszug der Datei' }];
+			} else {
+				mapped = mapEntry(entry, currency);
+				// A pending entry of an intraday report must not hide its booked version later on.
+				if (mapped.some((result) => result.ok)) for (const key of keys) seen.set(key, token);
+			}
 			for (const result of mapped) {
 				results.push(result);
 				accountIbans.push(iban);
@@ -202,14 +208,12 @@ function entryKeys(
 	return keys;
 }
 
-/** Whether another statement of the upload had one of the keys; records them for this one. */
+/** Whether another statement of the upload had an importable entry with one of the keys. */
 function isRepeated(seen: SeenEntries, statement: object, keys: string[]): boolean {
-	const repeated = keys.some((key) => {
+	return keys.some((key) => {
 		const owner = seen.get(key);
 		return owner !== undefined && owner !== statement;
 	});
-	if (!repeated) for (const key of keys) seen.set(key, statement);
-	return repeated;
 }
 
 /** Whether the decoded text is XML rather than a CSV table. */

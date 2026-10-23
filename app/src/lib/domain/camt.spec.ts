@@ -266,9 +266,15 @@ describe('parseBankUpload', () => {
 				: [];
 		};
 		const repeated = 'Schon in einem anderen Auszug der Datei';
-		// A copy under another name: every entry of the second copy, by the statement id.
+		// A copy under another name: every importable entry of the second copy, by the statement id.
 		const copy = reasons(zipSync({ 'a.xml': strToU8(camt053v2), 'b.xml': strToU8(camt053v2) }));
-		expect(copy.slice(6)).toEqual(Array(5).fill(repeated));
+		expect(copy.slice(6)).toEqual([
+			repeated,
+			repeated,
+			'Noch nicht gebucht (vorgemerkt)',
+			repeated,
+			'Betrag in CHF, nur Euro wird importiert'
+		]);
 		expect(copy.slice(0, 6)).not.toContain(repeated);
 		// An intraday report with another id and the statement: the entry with the same reference.
 		const report = camt053v2
@@ -277,6 +283,18 @@ describe('parseBankUpload', () => {
 			.replace('STMT-10', 'RPT-1');
 		const overlap = reasons(zipSync({ 'a.xml': strToU8(report), 'b.xml': strToU8(camt053v2) }));
 		expect(overlap.filter((reason) => reason === repeated)).toHaveLength(2);
+	});
+
+	it('imports the booked version of an entry a report listed as pending', () => {
+		const booked = camt053v8.replace('<Ntry>', '<Ntry><AcctSvcrRef>R-9</AcctSvcrRef>');
+		const pending = booked
+			.replaceAll('BkToCstmrStmt', 'BkToCstmrAcctRpt')
+			.replaceAll('Stmt>', 'Rpt>')
+			.replace('<Cd>BOOK</Cd>', '<Cd>PDNG</Cd>');
+		const parsed = parseBankUpload(
+			zipSync({ 'a.xml': strToU8(pending), 'b.xml': strToU8(booked) })
+		);
+		expect(parsed.ok && parsed.file.results.map((result) => result.ok)).toEqual([false, true]);
 	});
 
 	it('names what is wrong with an upload it cannot read', () => {
