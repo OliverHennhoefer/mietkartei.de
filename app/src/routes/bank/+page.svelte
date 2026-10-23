@@ -354,7 +354,7 @@
 									<option value="" selected={rowValue(transaction, 'scope') === ''}>
 										Gesamter Bestand
 									</option>
-									{#each data.scopes as group (group.label)}
+									{#each data.scopes as group (group.id)}
 										<optgroup label={group.label}>
 											{#each group.options as option (option.value)}
 												<option

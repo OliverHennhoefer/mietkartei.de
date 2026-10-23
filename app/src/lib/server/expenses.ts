@@ -143,7 +143,7 @@ export async function deleteExpense(
 	return 'deleted';
 }
 
-export type ScopeGroup = { label: string; options: { value: string; label: string }[] };
+export type ScopeGroup = { id: string; label: string; options: { value: string; label: string }[] };
 
 /** The entries of the scope select: one group per property, the whole property first. */
 export async function scopeOptions(db: Database, accountId: string): Promise<ScopeGroup[]> {
@@ -160,6 +160,7 @@ export async function scopeOptions(db: Database, accountId: string): Promise<Sco
 			.orderBy(units.name)
 	]);
 	return propertyRows.map((property) => ({
+		id: property.id,
 		label: property.name,
 		options: [
 			{ value: scopeValue('property', property.id), label: `${property.name} (ganzes Objekt)` },

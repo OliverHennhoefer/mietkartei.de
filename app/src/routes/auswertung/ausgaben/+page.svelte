@@ -123,7 +123,7 @@
 		<Field label="Betrifft" error={errors?.scope}>
 			<select name="scope" aria-invalid={errors?.scope ? 'true' : undefined}>
 				<option value="" selected={!values.scope}>Gesamter Bestand</option>
-				{#each data.scopes as group (group.label)}
+				{#each data.scopes as group (group.id)}
 					<optgroup label={group.label}>
 						{#each group.options as option (option.value)}
 							<option value={option.value} selected={values.scope === option.value}>

@@ -164,6 +164,7 @@ describe('expenses', () => {
 	it('offers each property with its units', async () => {
 		await db.insert(units).values({ accountId: 'a', propertyId, name: 'OG', kind: 'apartment' });
 		const [group] = await scopeOptions(db, 'a');
+		expect(group.id).toBe(propertyId);
 		expect(group.options.map((option) => option.label)).toEqual([
 			'Haus (ganzes Objekt)',
 			'EG links',
