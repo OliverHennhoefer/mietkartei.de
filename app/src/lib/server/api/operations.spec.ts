@@ -35,7 +35,9 @@ beforeEach(async () => {
 	await seedCostItem(db, 'a', propertyId);
 	await createTask(db, contextA, {
 		title: 'Rauchmelder prüfen',
+		category: 'other',
 		dueDate: '2026-03-01',
+		repeatMonths: null,
 		propertyId,
 		leaseId: null,
 		note: null

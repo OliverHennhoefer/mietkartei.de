@@ -22,13 +22,20 @@ Then open [http://127.0.0.1:8002](http://127.0.0.1:8002). Rebuild the output aft
 | `website/styles.css` | Styles, including light and dark colors |
 | `website/assets/screenshots/` | App screenshots shown on the homepage, copied from `assets/screenshots/` (`npm run screenshots` in `app/`) |
 | `website/_headers` | HTTP response headers for Cloudflare |
-| `website/robots.txt` | Instructions for search engines |
+| `website/robots.txt` | Instructions for search engines, pointing to the sitemap |
+| `website/sitemap.xml` | List of the public pages; add every new page here |
+| `website/llms.txt` | Plain-text summary of the product for AI assistants and AI search ([llms.txt](https://llmstxt.org/)) |
+| `website/assets/social.png` | Preview image (1200×630) for links shared on social media and in messengers |
 | `website/wrangler.toml` | Cloudflare Worker and custom domain |
 | `scripts/build_homepage.py` | Builds the public output with the shared assets |
 | `.github/workflows/websites.yml` | Checks and deploys homepage and documentation |
 | `dist/homepage/` | Generated output; not committed |
 
 The build copies only the listed public files, the two homepage screenshots, the black and white register symbols and wordmark combinations, the favicon and the original font with its OFL license. The font and brand SVGs are maintained in `assets/brand/`. Both the homepage and legal-notice header combine the larger register symbol with the Geist wordmark, using `lockup.svg` in light mode and `lockup-white.svg` in dark mode. The combination is 52px high on desktop and 44px on smaller screens. The favicon uses the small register symbol on a black background. Earlier wordmarks and design studies are not copied into the public output. Page-specific illustrations live in `website/assets/`.
+
+## Search engines and AI search
+
+Each page has a German title in the form `Page | mietkartei`, a description of at most about 160 characters and a canonical URL. The homepage also carries Open Graph tags for link previews and structured data (`Organization`, `WebSite`, `SoftwareApplication`) as JSON-LD. When the product changes, keep the description, the `featureList` in the JSON-LD and `llms.txt` in line with the README. A new page needs its own title, description and canonical URL and an entry in `sitemap.xml`.
 
 The legal notice is available at `/impressum/`. Keep the provider and contact details current and remove optional details that do not apply.
 

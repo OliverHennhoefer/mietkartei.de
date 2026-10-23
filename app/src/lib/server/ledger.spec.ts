@@ -465,7 +465,8 @@ describe('listBalances', () => {
 				balance: 160000,
 				overdue: 160000,
 				lastPaymentDate: null,
-				openSince: '2025-01'
+				openSince: '2025-01',
+				openSinceDate: '2025-01-06'
 			},
 			{
 				leaseId,
@@ -474,7 +475,8 @@ describe('listBalances', () => {
 				balance: 110000,
 				overdue: 110000,
 				lastPaymentDate: '2025-02-10',
-				openSince: '2025-02'
+				openSince: '2025-02',
+				openSinceDate: '2025-02-05'
 			},
 			{
 				leaseId: overpaid.id,
@@ -483,7 +485,8 @@ describe('listBalances', () => {
 				balance: -20000,
 				overdue: 0,
 				lastPaymentDate: '2025-01-02',
-				openSince: null
+				openSince: null,
+				openSinceDate: null
 			}
 		]);
 		expect(await rentRows(foreignLeaseId)).toEqual([]);
@@ -530,7 +533,8 @@ describe('listBalances', () => {
 			balance: 30000,
 			overdue: 30000,
 			lastPaymentDate: '2025-12-10',
-			openSince: '2025-12'
+			openSince: '2025-12',
+			openSinceDate: '2025-12-03'
 		});
 
 		const ledger = await listLedger(db, 'a', lease.id, { to: '2025-12-31' });
@@ -620,6 +624,30 @@ describe('listBalances', () => {
 		expect(await balanceOn('2026-04-01')).toMatchObject({ overdue: 20000, openSince: '2026-04' });
 	});
 
+	it('dates a Rückstand from a refund once the rent it follows was paid', async () => {
+		// January 2025: rent 800 € due 06.01., paid on 12.01.; 100 € refunded on 20.01.
+		await db.update(leases).set({ endDate: '2025-01-31' }).where(eq(leases.id, leaseId));
+		await createPayment(db, contextA, {
+			leaseId,
+			date: '2025-01-12',
+			amount: 80000,
+			source: 'manual'
+		});
+		await createPayment(db, contextA, {
+			leaseId,
+			date: '2025-01-20',
+			amount: -10000,
+			source: 'manual'
+		});
+		const [balance] = await listBalances(db, 'a', { untilMonth: '2025-01', asOf: '2025-01-31' });
+		expect(balance).toMatchObject({
+			overdue: 10000,
+			openSince: '2025-01',
+			openSinceDate: '2025-01-20',
+			lastPaymentDate: '2025-01-12'
+		});
+	});
+
 	it('counts the rent of the month only from its due day', async () => {
 		// January 2025: Neujahr does not count, so the rent is due on Monday 06.01. Paid nothing.
 		// On Friday 03.01. it is owed but not due.
@@ -656,7 +684,8 @@ describe('listBalances', () => {
 			balance: -40000,
 			overdue: 160000,
 			lastPaymentDate: null,
-			openSince: '2025-01'
+			openSince: '2025-01',
+			openSinceDate: '2025-01-06'
 		});
 	});
 

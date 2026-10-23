@@ -6,6 +6,7 @@ import { leaseLabel, listLeases } from '#lib/server/leases.ts';
 import { listProperties } from '#lib/server/properties.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { createTask, deleteTask, listTasks, setDone } from '#lib/server/tasks.ts';
+import { taskTemplates } from '#lib/task-templates.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 const linkErrors = {
@@ -14,8 +15,10 @@ const linkErrors = {
 	missing: 'Diese Aufgabe gibt es nicht.'
 };
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const accountId = requireAccount(locals);
+	// ?vorlage=<key> fills the create form from a template.
+	const template = taskTemplates.find((entry) => entry.key === url.searchParams.get('vorlage'));
 	const date = today();
 	const [deadlines, tasks, properties, leases] = await Promise.all([
 		listDeadlines(locals.db, accountId, { to: addMonths(date, 12) }),
@@ -25,6 +28,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 	]);
 	return {
 		today: date,
+		template: template
+			? {
+					key: template.key,
+					title: template.title,
+					category: template.category,
+					repeatMonths: String(template.repeatMonths),
+					note: template.note
+				}
+			: null,
 		deadlines,
 		open: tasks.open,
 		done: tasks.done,

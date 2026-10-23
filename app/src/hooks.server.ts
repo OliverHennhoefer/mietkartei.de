@@ -15,13 +15,16 @@ const publicPaths = new Set([
 	'/passwort-vergessen',
 	// Stripe's deliveries carry a signature instead of a session.
 	'/api/webhooks/stripe',
-	'/health'
+	'/health',
+	'/robots.txt'
 ]);
 const publicPrefixes = [
 	'/registrieren/',
 	'/passwort-zuruecksetzen/',
 	'/einladung/',
-	'/e-mail-bestaetigen/'
+	'/e-mail-bestaetigen/',
+	// Calendar apps subscribe without a session; the token in the path is the credential.
+	'/api/calendar/'
 ];
 
 /**
@@ -52,7 +55,7 @@ function isApiPath(pathname: string): boolean {
 
 function isPublic(pathname: string): boolean {
 	// The demo has no sign-in: visitors start a demo account instead.
-	if (DEMO) return pathname === '/demo' || pathname === '/health';
+	if (DEMO) return pathname === '/demo' || pathname === '/health' || pathname === '/robots.txt';
 	if (publicPaths.has(pathname)) return true;
 	if (publicPrefixes.some((prefix) => pathname.startsWith(prefix))) return true;
 	// Test-only endpoints, e.g. the seed. Only enabled by the end-to-end test server.
@@ -100,5 +103,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 		https: event.url.protocol === 'https:',
 		signedIn: Boolean(event.locals.user)
 	});
+	// Only the demo's start page belongs in search engines; see routes/robots.txt.
+	if (!(DEMO && event.url.pathname === '/demo')) {
+		response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+	}
 	return response;
 };

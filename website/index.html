@@ -4,10 +4,74 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
-    <title>mietkartei | Hausverwaltung von Vermietern für Vermieter</title>
-    <meta name="description" content="mietkartei ist die Open-Source-Hausverwaltung für Privatvermieter: Mieten, Bankumsätze und Betriebskostenabrechnung nachvollziehbar an einem Ort, gehostet oder selbst betrieben.">
+    <title>Hausverwaltung für Privatvermieter | mietkartei</title>
+    <meta name="description" content="Open-Source-Hausverwaltung für Privatvermieter: Mieten, Bankumsätze und Betriebskostenabrechnung nachvollziehbar an einem Ort. Gehostet oder selbst betrieben.">
     <link rel="canonical" href="https://mietkartei.de/">
     <link rel="icon" href="assets/brand/favicon.svg?v=register" type="image/svg+xml">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#181818" media="(prefers-color-scheme: dark)">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="mietkartei">
+    <meta property="og:locale" content="de_DE">
+    <meta property="og:url" content="https://mietkartei.de/">
+    <meta property="og:title" content="mietkartei: Hausverwaltung von Vermietern für Vermieter">
+    <meta property="og:description" content="Mieten, Bankumsätze und die Betriebskostenabrechnung für deine paar Wohnungen. Open Source, nachvollziehbar gerechnet und ohne Einarbeitung.">
+    <meta property="og:image" content="https://mietkartei.de/assets/social.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="mietkartei: Vermieten. Mit Überblick. Daneben die Übersicht der App.">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="preload" href="assets/fonts/geist/Geist.ttf" as="font" type="font/ttf" crossorigin>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://mietkartei.de/#organization",
+            "name": "mietkartei",
+            "url": "https://mietkartei.de/",
+            "logo": "https://mietkartei.de/assets/brand/mark.svg",
+            "founder": { "@type": "Person", "name": "Oliver Hennhöfer" },
+            "sameAs": ["https://github.com/OliverHennhoefer/mietkartei.de"]
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://mietkartei.de/#website",
+            "name": "mietkartei",
+            "url": "https://mietkartei.de/",
+            "inLanguage": "de-DE",
+            "publisher": { "@id": "https://mietkartei.de/#organization" }
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://mietkartei.de/#software",
+            "name": "mietkartei",
+            "description": "Open-Source-Hausverwaltung für Privatvermieter mit drei bis zehn Wohnungen: Mietkonto, Bankimport und Betriebskostenabrechnung nach Betriebskostenverordnung.",
+            "url": "https://mietkartei.de/",
+            "applicationCategory": "BusinessApplication",
+            "applicationSubCategory": "Hausverwaltung",
+            "operatingSystem": "Web, Docker",
+            "inLanguage": "de-DE",
+            "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+            "image": "https://mietkartei.de/assets/screenshots/uebersicht.png",
+            "screenshot": "https://mietkartei.de/assets/screenshots/abrechnung-mieter.png",
+            "softwareHelp": "https://docs.mietkartei.de/",
+            "codeRepository": "https://github.com/OliverHennhoefer/mietkartei.de",
+            "featureList": [
+              "Betriebskostenabrechnung mit tagesgenauer Umlage und CO₂-Kostenaufteilung",
+              "Mietkonto mit Soll und Ist je Mietvertrag",
+              "Bankimport mit Zuordnungsvorschlägen",
+              "Index- und Staffelmiete",
+              "Dokumente, Aufgaben und Fristen",
+              "Vollständiger Datenexport",
+              "Gehostet oder selbst betrieben als Docker-Container"
+            ],
+            "publisher": { "@id": "https://mietkartei.de/#organization" }
+          }
+        ]
+      }
+    </script>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>

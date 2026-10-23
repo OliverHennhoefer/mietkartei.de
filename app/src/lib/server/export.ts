@@ -37,6 +37,7 @@ export const exportTables: AccountTable[] = [
 	schema.emailChanges,
 	schema.invitations,
 	schema.auditLog,
+	schema.calendarFeeds,
 	schema.properties,
 	schema.units,
 	schema.tenants,
@@ -51,6 +52,7 @@ export const exportTables: AccountTable[] = [
 	schema.bankImports,
 	schema.bankTransactions,
 	schema.payments,
+	schema.paymentReminders,
 	schema.expenses,
 	schema.matchingRules,
 	schema.allocationKeys,
@@ -66,7 +68,8 @@ export const exportTables: AccountTable[] = [
 	schema.statementResults,
 	schema.co2CostSplits,
 	schema.documents,
-	schema.tasks
+	schema.tasks,
+	schema.insurancePolicies
 ];
 
 /**

@@ -57,7 +57,8 @@ describe('handle', () => {
 			'/passwort-zuruecksetzen/token',
 			'/einladung/token',
 			'/e-mail-bestaetigen/token',
-			'/health'
+			'/health',
+			'/robots.txt'
 		]) {
 			const { result, resolved } = await send(path);
 			expect(resolved, path).toBe(true);
@@ -95,6 +96,17 @@ describe('handle', () => {
 		}
 		expect((await send('/demo')).resolved).toBe(true);
 		expect((await send('/health')).resolved).toBe(true);
+		expect((await send('/robots.txt')).resolved).toBe(true);
+	});
+
+	it('keeps every page out of search engines except the start page of the demo', async () => {
+		const robots = async (path: string) =>
+			((await send(path)).result as { data: Response }).data.headers.get('X-Robots-Tag');
+		expect(await robots('/anmelden')).toBe('noindex, nofollow');
+		expect(await robots('/health')).toBe('noindex, nofollow');
+		env.DEMO = true;
+		expect(await robots('/demo')).toBeNull();
+		expect(await robots('/health')).toBe('noindex, nofollow');
 	});
 
 	it('signs the request in with a valid session cookie', async () => {

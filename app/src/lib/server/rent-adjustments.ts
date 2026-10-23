@@ -521,7 +521,7 @@ export async function removeChange(
 // The letter
 
 /** The tenants' address for the window of the letter: the first tenant with one, else the unit's. */
-function recipientLines(lease: LeaseSummary): string[] {
+export function recipientLines(lease: LeaseSummary): string[] {
 	const lines = lease.tenants.map((tenant) =>
 		[tenant.salutation, personName(tenant)].filter(Boolean).join(' ')
 	);

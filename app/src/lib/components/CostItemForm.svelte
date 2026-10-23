@@ -34,7 +34,17 @@
 		keys: { id: string; name: string; propertyId: string | null }[];
 		circles: { id: string; name: string; propertyId: string; propertyName: string }[];
 		item?: CostItemSummary;
-		prefill?: { propertyId?: string; periodStart?: string; periodEnd?: string };
+		prefill?: {
+			propertyId?: string;
+			periodStart?: string;
+			periodEnd?: string;
+			categoryId?: string;
+			description?: string;
+			supplier?: string;
+			amount?: number;
+			allocable?: boolean;
+			insurancePolicyId?: string;
+		};
 		errors?: FieldErrors<CostItemForm>;
 		values?: Record<string, string>;
 		/** Show "Speichern und nächsten Beleg" (creating only). */
@@ -53,10 +63,17 @@
 		values?.propertyId ?? item?.propertyId ?? prefill?.propertyId ?? properties[0]?.id ?? ''
 	);
 	// svelte-ignore state_referenced_locally
-	let categoryId = $state(values?.categoryId ?? item?.categoryId ?? categories[0]?.id ?? '');
+	let categoryId = $state(
+		values?.categoryId ?? item?.categoryId ?? prefill?.categoryId ?? categories[0]?.id ?? ''
+	);
 	// svelte-ignore state_referenced_locally
 	let allocable = $state(
-		values ? values.allocable === 'on' : (item?.allocable ?? categories[0]?.allocable ?? true)
+		values
+			? values.allocable === 'on'
+			: (item?.allocable ??
+					prefill?.allocable ??
+					categories.find((category) => category.id === categoryId)?.allocable ??
+					true)
 	);
 
 	const propertyKeys = $derived(
@@ -78,6 +95,9 @@
 </script>
 
 <form method="POST" {action} class="card" enctype="multipart/form-data" use:enhance>
+	{#if prefill?.insurancePolicyId}
+		<input type="hidden" name="insurancePolicyId" value={prefill.insurancePolicyId} />
+	{/if}
 	<label>
 		Objekt
 		<select
@@ -138,7 +158,7 @@
 		Beschreibung
 		<input
 			name="description"
-			defaultValue={value('description', item?.description ?? '')}
+			defaultValue={value('description', item?.description ?? prefill?.description ?? '')}
 			placeholder="z. B. Grundsteuer 2025"
 			aria-invalid={errors?.description ? 'true' : undefined}
 			required
@@ -149,7 +169,7 @@
 		Lieferant (optional)
 		<input
 			name="supplier"
-			defaultValue={value('supplier', item?.supplier ?? '')}
+			defaultValue={value('supplier', item?.supplier ?? prefill?.supplier ?? '')}
 			aria-invalid={errors?.supplier ? 'true' : undefined}
 		/>
 		{#if errors?.supplier}<span class="error">{errors.supplier}</span>{/if}
@@ -199,7 +219,14 @@
 		<input
 			name="amount"
 			inputmode="decimal"
-			defaultValue={value('amount', item ? formatCentsPlain(item.amount) : '')}
+			defaultValue={value(
+				'amount',
+				item
+					? formatCentsPlain(item.amount)
+					: prefill?.amount !== undefined
+						? formatCentsPlain(prefill.amount)
+						: ''
+			)}
 			aria-invalid={errors?.amount ? 'true' : undefined}
 			required
 		/>
