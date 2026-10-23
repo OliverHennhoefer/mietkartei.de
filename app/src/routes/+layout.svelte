@@ -30,6 +30,7 @@
 	let settingsForm = $state<unknown>(null);
 	// The tab title of the page behind the dialog, given back when the dialog closes.
 	let pageTitle = { url: '', title: '' };
+	let settingsRequest = 0;
 
 	// The pages a settings section renders when it opens as a dialog over another page. Each one
 	// gets the data its own load returned.
@@ -112,9 +113,14 @@
 	 * back button closes the dialog and a reload opens the section as a page of its own.
 	 */
 	async function openSettings(href: string, replace: boolean) {
+		// Only the latest request counts: one overtaken by another section, by closing the dialog
+		// or by a navigation is dropped once its data arrives.
+		const request = ++settingsRequest;
+		const from = page.url.href;
+		const result = await preloadData(href);
+		if (request !== settingsRequest || page.url.href !== from || (replace && !settings)) return;
 		if (href !== settings?.href) settingsForm = null;
 		if (!settings) pageTitle = { url: page.url.href, title: document.title };
-		const result = await preloadData(href);
 		if (result.type === 'loaded' && result.status === 200) {
 			// eslint-disable-next-line svelte/no-navigation-without-resolve -- a path from settings.ts
 			await goto(href, {
@@ -145,6 +151,7 @@
 	}
 
 	function closeSettings() {
+		settingsRequest++;
 		history.back();
 	}
 
@@ -167,6 +174,7 @@
 	$effect(() => {
 		const has = !!settings;
 		if (hadSettings && !has) {
+			settingsRequest++;
 			if (page.url.href === pageTitle.url) document.title = pageTitle.title;
 			accountButton?.focus();
 		}
