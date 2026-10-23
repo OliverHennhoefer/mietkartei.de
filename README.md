@@ -12,6 +12,7 @@ Open-Source-Hausverwaltung für Privatvermieter in Deutschland.
 [Startseite](https://mietkartei.de) · [Dokumentation](https://docs.mietkartei.de) · [Mitmachen](CONTRIBUTING.md)
 
 [![App](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/app.yml/badge.svg)](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/app.yml)
+[![Testabdeckung](https://codecov.io/gh/OliverHennhoefer/mietkartei.de/graph/badge.svg)](https://codecov.io/gh/OliverHennhoefer/mietkartei.de)
 [![Lizenz: AGPL-3.0](https://img.shields.io/badge/Lizenz-AGPL--3.0-111111)](LICENSE)
 ![Status: im Aufbau](https://img.shields.io/badge/Status-im%20Aufbau-d97706)
 

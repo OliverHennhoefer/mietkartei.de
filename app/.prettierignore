@@ -9,4 +9,5 @@ bun.lockb
 /static/
 /drizzle/
 /.e2e/
+/coverage/
 /data/
