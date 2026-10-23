@@ -4,6 +4,8 @@ site_description = "Die Dokumentation zu mietkartei.de ist in Arbeit."
 site_author = "Oliver Hennhoefer"
 copyright = 'Erstellt mit <a href="https://zensical.org/">Zensical</a>'
 site_url = "https://docs.mietkartei.de/"
+repo_url = "https://github.com/OliverHennhoefer/mietkartei.de"
+repo_name = "mietkartei.de"
 docs_dir = "docs"
 site_dir = "site"
 extra_css = ["assets/stylesheets/extra.css"]
@@ -21,6 +23,9 @@ font = false
 logo = "assets/brand/lockup.svg"
 favicon = "assets/brand/favicon.svg?v=register"
 features = []
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
 
 [[project.theme.palette]]
 media = "(prefers-color-scheme: light)"
