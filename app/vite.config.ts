@@ -55,6 +55,12 @@ export default defineConfig({
 	},
 	test: {
 		expect: { requireAssertions: true },
+		// CI uploads the lcov report to Codecov; the e2e tests are not part of the coverage.
+		coverage: {
+			provider: 'v8',
+			include: ['src/**/*.{js,ts,svelte}'],
+			reporter: ['text-summary', 'lcov']
+		},
 		projects: [
 			{
 				extends: './vite.config.ts',
