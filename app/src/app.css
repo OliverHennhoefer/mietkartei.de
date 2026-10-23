@@ -340,8 +340,8 @@ button.settings-close {
 	display: none;
 	flex-direction: column;
 	gap: 1.5rem;
-	background: var(--color-sidebar);
-	padding: 1.5rem 0.875rem 0;
+	background: var(--color-surface);
+	padding: 1.5rem 0.75rem 1.5rem;
 }
 .site-nav.open {
 	display: flex;
@@ -371,40 +371,33 @@ button.settings-close {
 	background: rgb(0 0 0 / 20%);
 }
 .nav-label {
-	margin: 0 0 0.5rem;
+	margin: 0 0 0.35rem;
 	padding: 0 0.75rem;
-	font-size: 0.7rem;
-	font-weight: 500;
-	letter-spacing: 0.07em;
+	font-size: 0.8rem;
+	font-weight: 450;
 	color: var(--color-muted);
-	text-transform: uppercase;
 }
 .site-nav a {
 	display: flex;
 	align-items: center;
 	gap: 0.75rem;
-	min-height: 2.75rem;
-	padding: 0.5rem 0.75rem;
-	border: 1px solid transparent;
+	min-height: 2.4rem;
+	padding: 0.4rem 0.75rem;
 	border-radius: 8px;
-	color: var(--color-muted);
+	color: var(--color-text);
 	text-decoration: none;
-	font-size: 0.9rem;
-	font-weight: 450;
+	font-size: 0.95rem;
+	font-weight: 400;
 	transition:
 		background 140ms,
 		color 140ms;
 }
 .site-nav a:hover {
-	color: var(--color-text);
-	background: var(--color-hover);
+	background: color-mix(in srgb, var(--color-hover), var(--color-surface) 45%);
 }
 .site-nav a[aria-current='page'] {
-	background: var(--color-surface);
-	color: var(--color-text);
-	border-color: var(--color-border);
-	box-shadow: var(--shadow);
-	font-weight: 550;
+	background: var(--color-hover);
+	font-weight: 500;
 }
 .avatar {
 	display: grid;
