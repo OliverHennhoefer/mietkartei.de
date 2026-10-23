@@ -22,6 +22,8 @@ copyfile(ROOT / "website" / "assets" / "house-blueprint.svg", illustration)
 for filename in (
     "mark.svg",
     "mark-white.svg",
+    "lockup.svg",
+    "lockup-white.svg",
     "favicon.svg",
 ):
     destination = OUTPUT / "assets" / "brand" / filename

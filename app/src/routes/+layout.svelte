@@ -84,7 +84,7 @@
 			<a href={resolve('/')} class="brand">
 				<picture>
 					<source media="(prefers-color-scheme: dark)" srcset={logoWhite} />
-					<img src={logo} alt="mietkartei" width="44" height="44" />
+					<img src={logo} alt="mietkartei" width="52" height="52" />
 				</picture>
 			</a>
 			{#if data.email}

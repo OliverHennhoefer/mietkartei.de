@@ -13,9 +13,10 @@ TOP=8
 PARALLEL_GAP=8.8
 MASTER_SLIT=5.5
 INK_WIDTH=190/3  # Preserve the existing horizontal footprint.
-WORDMARK_X=103
+LOCKUP_MARK_HEIGHT=78
+WORDMARK_X=108
 WORDMARK_HEIGHT=58
-LOCKUP_WIDTH=464
+LOCKUP_WIDTH=469
 DEPTH=RIGHT-BACK
 PLANE_THICKNESS=DEPTH*(RECEDING_SLOPE+RETURN_SLOPE)
 TOP_UPPER=TOP+RECEDING_SLOPE*BACK
@@ -35,6 +36,7 @@ def n(value):
 
 
 TRANSFORM=f'translate(48 48) scale({n(SCALE)}) translate(-48 -{n(CENTER_Y)})'
+LOCKUP_TRANSFORM=f'translate(48 48) scale({n(LOCKUP_MARK_HEIGHT/(FOLD_BOTTOM-TOP))}) translate(-48 -{n(CENTER_Y)})'
 SPINE=[
     (BACK,TOP),(RIGHT,TOP+RETURN_SLOPE*DEPTH),
     (FOLD,TOP_LOWER-RECEDING_SLOPE*FOLD),(FOLD,FOLD_BOTTOM),
@@ -60,10 +62,10 @@ def planes(small=False):
     return [SPINE,entry(MIDDLE_UPPER,left),entry(LOWER_UPPER,left)]
 
 
-def paths(ink,small=False):
+def paths(ink,small=False,transform=TRANSFORM):
     names=['spine-and-fold','middle-entry','lower-entry']
     shapes='\n    '.join(f'<path id="{name}" d="{polygon(points)}"/>' for name,points in zip(names,planes(small)))
-    return f'<g fill="{ink}" transform="{TRANSFORM}">\n    {shapes}\n  </g>'
+    return f'<g fill="{ink}" transform="{transform}">\n    {shapes}\n  </g>'
 
 
 def svg(ink,small=False,favicon=False):
@@ -82,7 +84,7 @@ def lockup(ink):
         element.tag=element.tag.rsplit('}',1)[-1]
     content=''.join(ET.tostring(e,encoding='unicode') for e in wordmark if e.tag in ('path','g'))
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {LOCKUP_WIDTH} 96" role="img" aria-label="mietkartei mit Registerfaltung">
-  {paths(ink)}
+  {paths(ink,transform=LOCKUP_TRANSFORM)}
   <g transform="translate({WORDMARK_X} 19) scale({n(WORDMARK_HEIGHT/774.8)})" fill="{ink}">{content}</g>
 </svg>
 '''
@@ -111,8 +113,10 @@ if __name__=='__main__':
         'lower_return_height':0,'entry_thickness_vertical':PLANE_THICKNESS,
         'normalized_ink_width':INK_WIDTH,
         'wordmark':{'x':WORDMARK_X,'height':WORDMARK_HEIGHT,'viewBoxWidth':LOCKUP_WIDTH},
+        'lockup':{'mark_height':LOCKUP_MARK_HEIGHT,'normalization':LOCKUP_TRANSFORM,
+                  'gap':WORDMARK_X-48-LOCKUP_MARK_HEIGHT/2},
         'normalization':TRANSFORM,'viewBox':[0,0,96,96],
     }),indent=2)+'\n')
-    for filename in ('mark.svg','mark-white.svg','favicon.svg'):
+    for filename in ('mark.svg','mark-white.svg','favicon.svg','lockup.svg','lockup-white.svg'):
         (ROOT.parent/filename).write_bytes((ROOT/filename).read_bytes())
     print('Chosen register SVG masters, lockups, favicon and shared exports written.')

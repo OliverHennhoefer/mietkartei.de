@@ -58,7 +58,7 @@ These repository settings complement the workflow (Settings → Code security):
 
 ## Deploying the websites
 
-The workflow [websites.yml](workflows/websites.yml) reports the required check **Check websites** for every pull request. It checks changed files for whitespace errors and builds the affected websites. Changes to the shared brand assets or the workflow file affect both sites. Before the Zensical build, the selected symbols and favicon are copied from the shared brand assets.
+The workflow [websites.yml](workflows/websites.yml) reports the required check **Check websites** for every pull request. It checks changed files for whitespace errors and builds the affected websites. Changes to the shared brand assets or the workflow file affect both sites. Before the Zensical build, the selected symbols, wordmark combinations and favicon are copied from the shared brand assets.
 
 After relevant changes on `main`, the workflow deploys the homepage and the documentation as separate Cloudflare Workers in the shared GitHub environment **production**. The environment holds the deployment token and the restriction to `main`. A manual run on `main` deploys both sites. The [deployment guide](DEPLOYMENT.md) describes secrets, domains and the migration from GitHub Pages and Cloudflare Workers Builds. The [documentation guide](DOCUMENTATION.md) describes the local preview and the Zensical build.
 

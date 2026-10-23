@@ -147,9 +147,14 @@
   "entry_thickness_vertical": 13.6,
   "normalized_ink_width": 63.333333,
   "wordmark": {
-    "x": 103,
+    "x": 108,
     "height": 58,
-    "viewBoxWidth": 464
+    "viewBoxWidth": 469
+  },
+  "lockup": {
+    "mark_height": 78,
+    "normalization": "translate(48 48) scale(1.026315789) translate(-48 -46)",
+    "gap": 21.0
   },
   "normalization": "translate(48 48) scale(0.833333333) translate(-48 -46)",
   "viewBox": [
