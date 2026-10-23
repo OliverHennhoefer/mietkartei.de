@@ -16,7 +16,9 @@ describe('parseTask', () => {
 	it('parses a task with a due date, a property link and a note', () => {
 		const result = parse({
 			title: '  Rauchmelder prüfen ',
+			category: 'inspection',
 			dueDate: '2026-11-30',
+			repeatMonths: '12',
 			link: linkValue('property', 'property-1'),
 			note: 'Alle Wohnungen.'
 		});
@@ -24,14 +26,18 @@ describe('parseTask', () => {
 			ok: true,
 			data: {
 				title: 'Rauchmelder prüfen',
+				category: 'inspection',
 				dueDate: '2026-11-30',
+				repeatMonths: 12,
 				propertyId: 'property-1',
 				leaseId: null,
 				note: 'Alle Wohnungen.'
 			},
 			values: {
 				title: 'Rauchmelder prüfen',
+				category: 'inspection',
 				dueDate: '2026-11-30',
+				repeatMonths: '12',
 				link: 'property:property-1',
 				note: 'Alle Wohnungen.'
 			}
@@ -44,7 +50,9 @@ describe('parseTask', () => {
 		if (!result.ok) return;
 		expect(result.data).toEqual({
 			title: 'Übergabeprotokoll',
+			category: 'other',
 			dueDate: null,
+			repeatMonths: null,
 			propertyId: null,
 			leaseId: 'lease-1',
 			note: null
@@ -72,6 +80,18 @@ describe('parseTask', () => {
 		});
 		expect(errorsOf({ title: 'Aufgabe', link: 'property:' })).toEqual({
 			link: 'Bitte wähle einen gültigen Eintrag aus.'
+		});
+	});
+
+	it('needs a due date to repeat and refuses unknown intervals and categories', () => {
+		expect(errorsOf({ title: 'Aufgabe', repeatMonths: '12' })).toEqual({
+			dueDate: 'Eine wiederkehrende Aufgabe braucht ein Fälligkeitsdatum.'
+		});
+		expect(errorsOf({ title: 'Aufgabe', dueDate: '2026-11-30', repeatMonths: '7' })).toEqual({
+			repeatMonths: 'Bitte wähle einen gültigen Eintrag aus.'
+		});
+		expect(errorsOf({ title: 'Aufgabe', category: 'repair' })).toEqual({
+			category: 'Bitte wähle einen gültigen Eintrag aus.'
 		});
 	});
 
