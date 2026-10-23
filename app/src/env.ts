@@ -82,6 +82,13 @@ export const variables = defineEnvVars({
 			'only read. Only with the Stripe keys.',
 		schema: (value) => value === 'true'
 	},
+	DEMO: {
+		description:
+			'"true" makes the instance the public demo: every visitor starts an account of their own ' +
+			'with the demo data at /demo, signed in without a password, deleted after 24 hours. Only ' +
+			'for demo.mietkartei.de.',
+		schema: (value) => value === 'true'
+	},
 	E2E: {
 		description:
 			'"true" enables the /api/e2e routes the end-to-end tests use to seed data and read the ' +

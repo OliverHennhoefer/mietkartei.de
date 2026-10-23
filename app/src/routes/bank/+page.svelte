@@ -9,7 +9,7 @@
 	import { formatDate } from '#lib/dates.ts';
 	import { formatIban } from '#lib/domain/bank-matching.ts';
 	import { pluralize } from '#lib/format.ts';
-	import { bankTransactionStatusLabels } from '#lib/labels.ts';
+	import { bankTransactionStatusLabels, expenseCategoryLabels } from '#lib/labels.ts';
 	import { formatCents } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
@@ -41,6 +41,9 @@
 	const errors = $derived(form && 'errors' in form ? form.errors : undefined);
 	const values = $derived(form && 'values' in form ? form.values : undefined);
 	const message = $derived(form && 'message' in form ? form.message : undefined);
+	const expenseErrors = $derived(
+		form && 'expenseErrors' in form ? (form.expenseErrors as Record<string, string>) : undefined
+	);
 	const leaseLabels = $derived(new Map(data.leases.map((lease) => [lease.id, lease.label])));
 
 	const filters = [
@@ -73,6 +76,17 @@
 	function rowValue(transaction: { id: string }, name: string): string {
 		return formId === transaction.id ? (values?.[name] ?? '') : '';
 	}
+
+	/**
+	 * The expense form starts open for money paid out that no lease is suggested for, and after
+	 * its own refusal; otherwise the lease assignment is what the row is usually for.
+	 */
+	function expenseOpen(transaction: (typeof data.transactions)[number]): boolean {
+		if (formId === transaction.id && expenseErrors) return true;
+		return transaction.amount < 0 && !transaction.suggestion;
+	}
+
+	const categoryEntries = Object.entries(expenseCategoryLabels);
 </script>
 
 <!-- The heading and the tab bar come from +layout.svelte; this page is the "Umsätze" tab. -->
@@ -299,14 +313,100 @@
 							</button>
 						</div>
 					</form>
+					<details class="expense" open={expenseOpen(transaction)}>
+						<summary>Als Ausgabe buchen</summary>
+						<form
+							method="POST"
+							action={action('expense')}
+							class="assign"
+							use:enhance={submitting(transaction.id)}
+						>
+							<input type="hidden" name="id" value={transaction.id} />
+							<label>
+								Kategorie
+								<select
+									name="category"
+									aria-invalid={formId === transaction.id && expenseErrors?.category
+										? 'true'
+										: undefined}
+								>
+									<option value="" selected={rowValue(transaction, 'category') === ''}>
+										– bitte wählen –
+									</option>
+									{#each categoryEntries as [value, label] (value)}
+										<option {value} selected={rowValue(transaction, 'category') === value}>
+											{label}
+										</option>
+									{/each}
+								</select>
+								{#if formId === transaction.id && expenseErrors?.category}
+									<span class="error">{expenseErrors.category}</span>
+								{/if}
+							</label>
+							<label>
+								Betrifft
+								<select
+									name="scope"
+									aria-invalid={formId === transaction.id && expenseErrors?.scope
+										? 'true'
+										: undefined}
+								>
+									<option value="" selected={rowValue(transaction, 'scope') === ''}>
+										Gesamter Bestand
+									</option>
+									{#each data.scopes as group (group.id)}
+										<optgroup label={group.label}>
+											{#each group.options as option (option.value)}
+												<option
+													value={option.value}
+													selected={rowValue(transaction, 'scope') === option.value}
+												>
+													{option.label}
+												</option>
+											{/each}
+										</optgroup>
+									{/each}
+								</select>
+								{#if formId === transaction.id && expenseErrors?.scope}
+									<span class="error">{expenseErrors.scope}</span>
+								{/if}
+							</label>
+							<label>
+								Beschreibung
+								<input
+									name="description"
+									maxlength="200"
+									defaultValue={formId === transaction.id && values?.description !== undefined
+										? values.description
+										: (transaction.counterpartName || transaction.purpose).slice(0, 200)}
+									aria-invalid={formId === transaction.id && expenseErrors?.description
+										? 'true'
+										: undefined}
+								/>
+								{#if formId === transaction.id && expenseErrors?.description}
+									<span class="error">{expenseErrors.description}</span>
+								{/if}
+							</label>
+							<div class="row">
+								<button type="submit" disabled={pending === transaction.id}>
+									Als Ausgabe buchen
+								</button>
+							</div>
+						</form>
+					</details>
 				{:else if transaction.status === 'matched'}
 					<div class="row between">
 						<ul class="assignments">
 							{#each transaction.assignments as assignment (assignment.id)}
 								<li>
-									{assignment.kind === 'rent' ? 'Zahlung' : 'Kaution'}
-									<Money cents={assignment.amount} signed />
-									→ {leaseLabels.get(assignment.leaseId) ?? 'Unbekannter Mietvertrag'}
+									{#if assignment.kind === 'expense'}
+										Ausgabe <Money cents={assignment.amount} />
+										({expenseCategoryLabels[assignment.category]}) → {assignment.scope}
+									{:else}
+										{assignment.kind === 'rent' ? 'Zahlung' : 'Kaution'}
+										<Money cents={assignment.amount} signed />
+										→ {leaseLabels.get(assignment.leaseId) ?? 'Unbekannter Mietvertrag'}
+									{/if}
 								</li>
 							{/each}
 						</ul>
@@ -314,7 +414,7 @@
 							action={action('undo')}
 							label="Zuordnung aufheben"
 							tone="secondary"
-							message="Zuordnung aufheben? Die gebuchten Zahlungen oder Kautionsbewegungen werden gelöscht."
+							message="Zuordnung aufheben? Die gebuchten Zahlungen, Kautionsbewegungen oder Ausgaben werden gelöscht."
 						>
 							<input type="hidden" name="id" value={transaction.id} />
 						</ConfirmButton>
@@ -378,6 +478,15 @@
 		gap: 0.5rem;
 		grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
 		margin-top: 0.5rem;
+	}
+	.expense {
+		border-top: 1px solid var(--color-border);
+		padding-top: 0.75rem;
+	}
+	.expense .assign {
+		border-top: none;
+		margin-top: 0.5rem;
+		padding-top: 0;
 	}
 	.assignments {
 		margin: 0;

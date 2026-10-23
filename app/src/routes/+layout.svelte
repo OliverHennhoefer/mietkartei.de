@@ -69,7 +69,8 @@
 				{ href: '/mietkonto', label: 'Mietkonto', icon: 'wallet' },
 				{ href: '/bank', label: 'Bank', icon: 'bank' },
 				{ href: '/betriebskosten', label: 'Betriebskosten', icon: 'receipt' },
-				{ href: '/dokumente', label: 'Dokumente', icon: 'folder' }
+				{ href: '/dokumente', label: 'Dokumente', icon: 'folder' },
+				{ href: '/auswertung', label: 'Auswertung', icon: 'trend' }
 			]
 		}
 	];
@@ -234,6 +235,13 @@
 		</div>
 		{#if data.email}
 			<div class="workspace-bar">
+				{#if data.demo}
+					<p class="billing-notice info" role="note">
+						<Icon name="info" size={16} />
+						<span>Demo mit Beispieldaten, wird nach 24 Stunden gelöscht.</span>
+						<a href="https://mietkartei.de">Mehr über mietkartei</a>
+					</p>
+				{/if}
 				{#if data.notice}
 					<!-- The subscription notice stays in this bar, so it never pushes the page down. -->
 					<p class="billing-notice {data.notice.tone}" role="note">

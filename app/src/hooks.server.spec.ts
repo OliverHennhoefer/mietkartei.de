@@ -7,6 +7,7 @@ import { outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
 import { handle } from './hooks.server';
 
 const env = vi.hoisted(() => ({
+	DEMO: false,
 	E2E: false,
 	BILLING_REQUIRED: false,
 	STRIPE_SECRET_KEY: '',
@@ -19,7 +20,7 @@ vi.mock('#lib/server/db/index.ts', () => ({ getDatabase: async () => db }));
 
 beforeEach(async () => {
 	db = await testDatabase();
-	Object.assign(env, { E2E: false, BILLING_REQUIRED: false, STRIPE_SECRET_KEY: '' });
+	Object.assign(env, { DEMO: false, E2E: false, BILLING_REQUIRED: false, STRIPE_SECRET_KEY: '' });
 });
 
 type Request = {
@@ -85,6 +86,15 @@ describe('handle', () => {
 		expect((await send('/api/e2e/seed')).result).toEqual({ redirect: '/anmelden' });
 		env.E2E = true;
 		expect((await send('/api/e2e/seed')).resolved).toBe(true);
+	});
+
+	it('sends visitors of the demo to its start page instead of any sign-in', async () => {
+		env.DEMO = true;
+		for (const path of ['/', '/objekte', '/anmelden', '/registrieren']) {
+			expect((await send(path)).result, path).toEqual({ redirect: '/demo' });
+		}
+		expect((await send('/demo')).resolved).toBe(true);
+		expect((await send('/health')).resolved).toBe(true);
 	});
 
 	it('signs the request in with a valid session cookie', async () => {

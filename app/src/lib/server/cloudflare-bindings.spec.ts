@@ -158,4 +158,20 @@ describe('wrangler.jsonc', () => {
 		const [db] = wranglerConfig().d1_databases;
 		expect(db.migrations_dir).toBe('drizzle');
 	});
+
+	it('gives the demo the same bindings and turns it on only there', () => {
+		const config = wranglerConfig();
+		const demo = config.env.demo;
+		expect(config.vars.DEMO).toBeUndefined();
+		expect(demo.vars.DEMO).toBe('true');
+		expect(demo.vars.MAIL_TRANSPORT).toBe('outbox');
+		expect(demo.d1_databases[0]).toMatchObject({ binding: 'DB', migrations_dir: 'drizzle' });
+		expect(demo.d1_databases[0].database_id).not.toBe(config.d1_databases[0].database_id);
+		expect(demo.r2_buckets[0].binding).toBe('DOCUMENTS');
+		expect(demo.r2_buckets[0].bucket_name).not.toBe(config.r2_buckets[0].bucket_name);
+		expect(demo.ratelimits[0]).toMatchObject({
+			name: 'AUTH_LIMITER',
+			simple: { limit: AUTH_LIMIT, period: AUTH_PERIOD_SECONDS }
+		});
+	});
 });

@@ -3,6 +3,7 @@ import type {
 	BankTransactionStatus,
 	BuildingUse,
 	DepositTransactionKind,
+	ExpenseCategory,
 	Fuel,
 	HeatingCostModel,
 	LeaseKind,
@@ -119,6 +120,15 @@ export const subscriptionStatusLabels: Record<SubscriptionStatus, string> = {
 	canceled: 'Gekündigt'
 };
 
+export const expenseCategoryLabels: Record<ExpenseCategory, string> = {
+	operating_costs: 'Betriebskosten und Hausgeld',
+	maintenance: 'Instandhaltung und Reparaturen',
+	financing: 'Finanzierung (Zins und Tilgung)',
+	management: 'Verwaltung, Beratung und Gebühren',
+	modernization: 'Modernisierung und Anschaffungen',
+	other: 'Sonstiges'
+};
+
 export const userRoleLabels: Record<UserRole, string> = {
 	owner: 'Vermieter',
 	manager: 'Mitverwalter'
@@ -165,6 +175,7 @@ export const auditEntityLabels: Record<string, string> = {
 	statement: 'Betriebskostenabrechnung',
 	document: 'Dokument',
 	task: 'Aufgabe',
+	expense: 'Ausgabe',
 	vpi: 'Verbraucherpreisindex',
 	import: 'Datenübernahme'
 };
