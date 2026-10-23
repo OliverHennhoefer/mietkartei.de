@@ -1,4 +1,4 @@
-import { addDays, firstOfMonth, formatDate, monthOf, type IsoDate } from '../dates';
+import { addDays, formatDate, type IsoDate } from '../dates';
 import { formatCents } from '../money';
 import type { ReminderLevel } from '../server/db/schema';
 import { greeting, type LetterTenant } from './index-rent';
@@ -63,18 +63,17 @@ export function openItems(charges: readonly DueCharge[], paid: number, asOf: Iso
 export type SentReminder = { level: ReminderLevel; date: IsoDate; paymentDeadline: IsoDate };
 
 /**
- * The letters sent since the current Rückstand began: those dated on or after the first day of
- * the month of the oldest open item. Earlier letters were about arrears that have been paid since.
- * Newest first.
+ * The letters sent since the current Rückstand began: those dated on or after the due date of the
+ * oldest open item. A letter written before that charge was due was about arrears that have been
+ * paid since. Newest first.
  */
 export function currentReminders<T extends SentReminder>(
 	reminders: readonly T[],
 	oldestOpen: IsoDate | null
 ): T[] {
 	if (!oldestOpen) return [];
-	const start = firstOfMonth(monthOf(oldestOpen));
 	return reminders
-		.filter((reminder) => reminder.date >= start)
+		.filter((reminder) => reminder.date >= oldestOpen)
 		.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.level - a.level));
 }
 

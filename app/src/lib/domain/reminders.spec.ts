@@ -71,6 +71,11 @@ describe('currentReminders and nextLevel', () => {
 		expect(currentReminders(sent, null)).toEqual([]);
 	});
 
+	it('leaves out a letter written before the oldest open charge was due, in the same month', () => {
+		// The Mahnung of 01.03. was settled; a correction due 25.03. is a new Rückstand.
+		expect(currentReminders(sent, '2025-03-25')).toEqual([]);
+	});
+
 	it('suggests one level above the highest, at most the last Mahnung', () => {
 		expect(nextLevel([])).toBe(1);
 		expect(nextLevel(currentReminders(sent, '2025-02-05'))).toBe(3);

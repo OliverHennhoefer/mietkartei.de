@@ -465,7 +465,8 @@ describe('listBalances', () => {
 				balance: 160000,
 				overdue: 160000,
 				lastPaymentDate: null,
-				openSince: '2025-01'
+				openSince: '2025-01',
+				openSinceDate: '2025-01-06'
 			},
 			{
 				leaseId,
@@ -474,7 +475,8 @@ describe('listBalances', () => {
 				balance: 110000,
 				overdue: 110000,
 				lastPaymentDate: '2025-02-10',
-				openSince: '2025-02'
+				openSince: '2025-02',
+				openSinceDate: '2025-02-05'
 			},
 			{
 				leaseId: overpaid.id,
@@ -483,7 +485,8 @@ describe('listBalances', () => {
 				balance: -20000,
 				overdue: 0,
 				lastPaymentDate: '2025-01-02',
-				openSince: null
+				openSince: null,
+				openSinceDate: null
 			}
 		]);
 		expect(await rentRows(foreignLeaseId)).toEqual([]);
@@ -530,7 +533,8 @@ describe('listBalances', () => {
 			balance: 30000,
 			overdue: 30000,
 			lastPaymentDate: '2025-12-10',
-			openSince: '2025-12'
+			openSince: '2025-12',
+			openSinceDate: '2025-12-03'
 		});
 
 		const ledger = await listLedger(db, 'a', lease.id, { to: '2025-12-31' });
@@ -656,7 +660,8 @@ describe('listBalances', () => {
 			balance: -40000,
 			overdue: 160000,
 			lastPaymentDate: null,
-			openSince: '2025-01'
+			openSince: '2025-01',
+			openSinceDate: '2025-01-06'
 		});
 	});
 

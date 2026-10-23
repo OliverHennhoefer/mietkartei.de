@@ -505,6 +505,8 @@ export type LeaseBalance = {
 	 * due credits pay the oldest due charges first. Null when nothing is overdue.
 	 */
 	openSince: IsoMonth | null;
+	/** The due date of that charge, null when nothing is overdue. */
+	openSinceDate: IsoDate | null;
 };
 
 type BalanceCharge = { amount: number; dueDate: IsoDate | null };
@@ -514,7 +516,7 @@ function overdueSince(
 	charges: readonly BalanceCharge[],
 	paid: number,
 	asOf: IsoDate
-): { overdue: number; openSince: IsoMonth | null } {
+): { overdue: number; openSince: IsoMonth | null; openSinceDate: IsoDate | null } {
 	const due = charges
 		.filter((charge): charge is { amount: number; dueDate: IsoDate } =>
 			Boolean(charge.dueDate && charge.dueDate <= asOf)
@@ -528,10 +530,14 @@ function overdueSince(
 		covered += charge.amount;
 		if (covered > available) {
 			const owed = due.reduce((sum, row) => sum + row.amount, 0) - paid;
-			return { overdue: owed, openSince: monthOf(charge.dueDate) };
+			return {
+				overdue: owed,
+				openSince: monthOf(charge.dueDate),
+				openSinceDate: charge.dueDate
+			};
 		}
 	}
-	return { overdue: 0, openSince: null };
+	return { overdue: 0, openSince: null, openSinceDate: null };
 }
 
 /**

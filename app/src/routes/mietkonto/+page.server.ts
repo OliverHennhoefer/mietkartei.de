@@ -1,5 +1,5 @@
 import { leaseLabel, listLeases } from '#lib/server/leases.ts';
-import { firstOfMonth, today } from '#lib/dates.ts';
+import { today } from '#lib/dates.ts';
 import { currentReminders } from '#lib/domain/reminders.ts';
 import { listBalances } from '#lib/server/ledger.ts';
 import { listRemindersByLease } from '#lib/server/reminders.ts';
@@ -38,10 +38,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const rows: BalanceRow[] = leases.map((lease) => {
 		const balance = balanceByLease.get(lease.id);
-		const openSince = balance?.overdue ? balance.openSince : null;
 		const [reminder] = currentReminders(
 			reminders.get(lease.id) ?? [],
-			openSince ? firstOfMonth(openSince) : null
+			balance?.overdue ? balance.openSinceDate : null
 		);
 		return {
 			leaseId: lease.id,
