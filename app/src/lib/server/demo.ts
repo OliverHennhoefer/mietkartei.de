@@ -405,6 +405,7 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			category: 'inspection' as const,
 			dueDate: addMonths(date, 1),
 			repeatMonths: 12,
+			repeatAnchor: addMonths(date, 1),
 			propertyId: lindenId,
 			leaseId: null,
 			note: 'Jährliche Wartung, alle Wohnungen.'

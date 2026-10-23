@@ -145,7 +145,9 @@ export async function createTask(
 	if (reason) return { ok: false, reason };
 	const id = crypto.randomUUID();
 	await runBatch(db, [
-		db.insert(tasks).values({ id, accountId, ...input }),
+		db
+			.insert(tasks)
+			.values({ id, accountId, ...input, repeatAnchor: input.repeatMonths ? input.dueDate : null }),
 		auditEntry(db, context, 'task', id, 'create', `Aufgabe ${describe(input)} angelegt`)
 	]);
 	return { ok: true, id };
@@ -162,10 +164,16 @@ export async function updateTask(
 	if (!existing) return { ok: false, reason: 'missing' };
 	const reason = await checkLinks(db, accountId, input);
 	if (reason) return { ok: false, reason };
+	// The series keeps its anchor while date and interval stay; a new date starts a new series.
+	const sameSeries =
+		existing.dueDate === input.dueDate && existing.repeatMonths === input.repeatMonths;
+	const repeatAnchor = input.repeatMonths
+		? (sameSeries && existing.repeatAnchor) || input.dueDate
+		: null;
 	await runBatch(db, [
 		db
 			.update(tasks)
-			.set(input)
+			.set({ ...input, repeatAnchor })
 			.where(and(eq(tasks.accountId, accountId), eq(tasks.id, taskId))),
 		auditEntry(db, context, 'task', taskId, 'update', `Aufgabe ${describe(input)} geändert`)
 	]);
@@ -173,16 +181,21 @@ export async function updateTask(
 }
 
 /**
- * The due date of the next occurrence: one interval after the due date, further when that has
- * passed already, so a task done late does not come back overdue.
+ * The due date of the next occurrence: the first date of the series after the current due date,
+ * and after today, so a task done late does not come back overdue. Dates are counted from the
+ * series' anchor, so the 31st does not drift to the 28th.
  */
-export function nextDueDate(dueDate: IsoDate, repeatMonths: number, today: IsoDate): IsoDate {
+export function nextDueDate(
+	anchor: IsoDate,
+	dueDate: IsoDate,
+	repeatMonths: number,
+	today: IsoDate
+): IsoDate {
 	let steps = 1;
-	let next = addMonths(dueDate, repeatMonths);
-	while (next <= today) {
+	let next = addMonths(anchor, repeatMonths);
+	while (next <= dueDate || next <= today) {
 		steps += 1;
-		// Counted from the original date, so the 31st does not drift to the 28th.
-		next = addMonths(dueDate, repeatMonths * steps);
+		next = addMonths(anchor, repeatMonths * steps);
 	}
 	return next;
 }
@@ -217,12 +230,14 @@ export async function setDone(
 		}
 		await assertQuota(db, accountId, 'tasks');
 		const followUpId = crypto.randomUUID();
-		const dueDate = nextDueDate(due, repeatMonths, today);
+		const repeatAnchor = existing.repeatAnchor ?? due;
+		const dueDate = nextDueDate(repeatAnchor, due, repeatMonths, today);
 		const next = {
 			title: existing.title,
 			category: existing.category,
 			dueDate,
 			repeatMonths,
+			repeatAnchor,
 			propertyId: existing.propertyId,
 			leaseId: existing.leaseId,
 			note: existing.note

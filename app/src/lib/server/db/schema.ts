@@ -996,6 +996,11 @@ export const tasks = sqliteTable(
 		dueDate: text('due_date'),
 		/** Repeats every so many months from the due date; done, it leaves an open copy behind. */
 		repeatMonths: integer('repeat_months'),
+		/**
+		 * The due date the series was set up with; occurrences are counted from it, so a series on
+		 * the 31st returns to the 31st after a shorter month.
+		 */
+		repeatAnchor: text('repeat_anchor'),
 		done: bool('done', false),
 		doneAt: integer('done_at', { mode: 'timestamp_ms' }),
 		/** The open copy created when this repeating task was done; reopening removes it again. */

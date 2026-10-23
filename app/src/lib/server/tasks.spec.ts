@@ -218,14 +218,19 @@ describe('setDone, updateTask and deleteTask', () => {
 
 describe('nextDueDate', () => {
 	it('adds the interval to the due date', () => {
-		expect(nextDueDate('2026-11-30', 12, '2026-11-20')).toBe('2027-11-30');
-		expect(nextDueDate('2026-11-30', 3, '2026-12-01')).toBe('2027-02-28');
+		expect(nextDueDate('2026-11-30', '2026-11-30', 12, '2026-11-20')).toBe('2027-11-30');
+		expect(nextDueDate('2026-11-30', '2026-11-30', 3, '2026-12-01')).toBe('2027-02-28');
 	});
 
-	it('skips occurrences that have passed and keeps the day of month', () => {
-		expect(nextDueDate('2024-01-31', 12, '2026-10-23')).toBe('2027-01-31');
-		expect(nextDueDate('2026-01-31', 1, '2026-03-15')).toBe('2026-03-31');
-		expect(nextDueDate('2026-10-23', 6, '2026-10-23')).toBe('2027-04-23');
+	it('skips occurrences that have passed', () => {
+		expect(nextDueDate('2024-01-31', '2024-01-31', 12, '2026-10-23')).toBe('2027-01-31');
+		expect(nextDueDate('2026-10-23', '2026-10-23', 6, '2026-10-23')).toBe('2027-04-23');
+	});
+
+	it('counts from the anchor, so a shorter month does not move the series', () => {
+		expect(nextDueDate('2026-01-31', '2026-02-28', 1, '2026-02-20')).toBe('2026-03-31');
+		expect(nextDueDate('2024-02-29', '2025-02-28', 12, '2025-02-01')).toBe('2026-02-28');
+		expect(nextDueDate('2024-02-29', '2027-02-28', 12, '2027-02-01')).toBe('2028-02-29');
 	});
 });
 
@@ -282,6 +287,30 @@ describe('setDone on a repeating task', () => {
 		const { open, done } = await listTasks(db, 'a');
 		expect(open.map((task) => task.dueDate)).toEqual(['2026-11-30', '2028-11-30']);
 		expect(done.map((task) => task.id)).toEqual([followUp.id]);
+	});
+
+	it('keeps the day of month across copies', async () => {
+		const created = await createTask(
+			db,
+			contextA,
+			input({ dueDate: '2026-01-31', repeatMonths: 1, category: 'maintenance' })
+		);
+		if (!created.ok) return;
+		await setDone(db, contextA, created.id, true, '2026-01-20');
+		const [february] = (await listTasks(db, 'a')).open;
+		expect(february.dueDate).toBe('2026-02-28');
+		await setDone(db, contextA, february.id, true, '2026-02-20');
+		expect((await listTasks(db, 'a')).open.map((task) => task.dueDate)).toEqual(['2026-03-31']);
+
+		// A new due date starts a new series.
+		const [march] = (await listTasks(db, 'a')).open;
+		await updateTask(
+			db,
+			contextA,
+			march.id,
+			input({ dueDate: '2026-03-15', repeatMonths: 1, category: 'maintenance' })
+		);
+		expect((await getTask(db, 'a', march.id))?.repeatAnchor).toBe('2026-03-15');
 	});
 
 	it('leaves a single copy when two requests mark the task done at once', async () => {

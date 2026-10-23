@@ -29,4 +29,8 @@ CREATE TABLE `insurance_policies` (
 --> statement-breakpoint
 CREATE INDEX `insurance_policies_account_id_idx` ON `insurance_policies` (`account_id`);--> statement-breakpoint
 CREATE INDEX `insurance_policies_property_id_idx` ON `insurance_policies` (`property_id`);--> statement-breakpoint
-ALTER TABLE `cost_items` ADD `insurance_policy_id` text REFERENCES insurance_policies(id) ON DELETE set null;
+ALTER TABLE `cost_items` ADD `insurance_policy_id` text REFERENCES insurance_policies(id) ON DELETE set null;--> statement-breakpoint
+ALTER TABLE `tasks` ADD `category` text DEFAULT 'other' NOT NULL;--> statement-breakpoint
+ALTER TABLE `tasks` ADD `repeat_months` integer;--> statement-breakpoint
+ALTER TABLE `tasks` ADD `repeat_anchor` text;--> statement-breakpoint
+ALTER TABLE `tasks` ADD `follow_up_id` text;
