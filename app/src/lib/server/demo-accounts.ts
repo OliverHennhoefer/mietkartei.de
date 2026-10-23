@@ -2,7 +2,7 @@ import { and, asc, eq, like, lt } from 'drizzle-orm';
 import { deleteAccount } from './accounts';
 import { createSession, generateToken, hashPassword } from './auth';
 import type { Database } from './db';
-import { accounts, users } from './db/schema';
+import { accounts, outbox, users } from './db/schema';
 import { createDemoData } from './demo';
 import type { Storage } from './storage';
 
@@ -37,7 +37,10 @@ export async function startDemo(db: Database, options?: { storage?: Storage }) {
 	return createSession(db, user.id);
 }
 
-/** Deletes the oldest demo accounts created before the lifetime; returns how many. */
+/**
+ * Deletes the oldest demo accounts created before the lifetime and returns how many. The mails
+ * of the demo (invitations a visitor sent) are only stored, and go after the same lifetime.
+ */
 export async function deleteExpiredDemoAccounts(
 	db: Database,
 	now: number,
@@ -57,5 +60,6 @@ export async function deleteExpiredDemoAccounts(
 		.orderBy(asc(accounts.createdAt))
 		.limit(EXPIRED_PER_START);
 	for (const { id } of expired) await deleteAccount(db, id, options);
+	await db.delete(outbox).where(lt(outbox.createdAt, new Date(now - DEMO_LIFETIME)));
 	return expired.length;
 }

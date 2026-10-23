@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { validateSession } from './auth';
 import type { Database } from './db';
-import { accounts, properties, users } from './db/schema';
+import { accounts, outbox, properties, users } from './db/schema';
 import { DEMO_LIFETIME, deleteExpiredDemoAccounts, startDemo } from './demo-accounts';
 import { memoryStorage, testDatabase } from './testing';
 
@@ -66,5 +66,16 @@ describe('deleteExpiredDemoAccounts', () => {
 			.from(users)
 			.where(sql`${users.email} like 'demo-%'`);
 		expect(left[0].count).toBe(0);
+	});
+
+	it('deletes the stored mails after the same lifetime', async () => {
+		const mail = { to: 'x@example.org', subject: 'Einladung', text: '…' };
+		await db.insert(outbox).values([
+			{ ...mail, createdAt: new Date(Date.now() - DEMO_LIFETIME - 1000) },
+			{ ...mail, subject: 'Neu' }
+		]);
+		await deleteExpiredDemoAccounts(db, Date.now(), { storage });
+		const left = await db.select({ subject: outbox.subject }).from(outbox);
+		expect(left).toEqual([{ subject: 'Neu' }]);
 	});
 });
