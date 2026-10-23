@@ -1,7 +1,7 @@
 <script lang="ts">
 	import favicon from '../../../assets/brand/favicon.svg';
-	import logo from '../../../assets/brand/logo.svg';
-	import logoWhite from '../../../assets/brand/logo-white.svg';
+	import logo from '../../../assets/brand/mark.svg';
+	import logoWhite from '../../../assets/brand/mark-white.svg';
 	import Alert from '#lib/components/Alert.svelte';
 	import Icon, { type IconName } from '#lib/components/Icon.svelte';
 	import { resolve } from '$app/paths';
@@ -65,7 +65,7 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
+	<link rel="icon" href={favicon} type="image/svg+xml" />
 	<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
 	<meta name="theme-color" content="#181818" media="(prefers-color-scheme: dark)" />
 </svelte:head>
@@ -84,7 +84,7 @@
 			<a href={resolve('/')} class="brand">
 				<picture>
 					<source media="(prefers-color-scheme: dark)" srcset={logoWhite} />
-					<img src={logo} alt="mietkartei" height="23" />
+					<img src={logo} alt="mietkartei" width="44" height="44" />
 				</picture>
 			</a>
 			{#if data.email}

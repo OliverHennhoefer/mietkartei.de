@@ -1,0 +1,118 @@
+"""Chosen register mark: three consistent sheet planes in the same projection."""
+
+from pathlib import Path
+import json
+import math
+import xml.etree.ElementTree as ET
+
+ROOT=Path(__file__).resolve().parent
+RECEDING_SLOPE=.4
+RETURN_SLOPE=.45
+LEFT, FOLD, BACK, RIGHT=10,26,70,86
+TOP=8
+PARALLEL_GAP=8.8
+MASTER_SLIT=5.5
+INK_WIDTH=190/3  # Preserve the existing horizontal footprint.
+WORDMARK_X=103
+WORDMARK_HEIGHT=58
+LOCKUP_WIDTH=464
+DEPTH=RIGHT-BACK
+PLANE_THICKNESS=DEPTH*(RECEDING_SLOPE+RETURN_SLOPE)
+TOP_UPPER=TOP+RECEDING_SLOPE*BACK
+TOP_LOWER=TOP_UPPER+PLANE_THICKNESS
+MIDDLE_UPPER=TOP_LOWER+PARALLEL_GAP
+MIDDLE_LOWER=MIDDLE_UPPER+PLANE_THICKNESS
+LOWER_UPPER=MIDDLE_LOWER+PARALLEL_GAP
+BASE_INTERCEPT=LOWER_UPPER+PLANE_THICKNESS
+FOLD_BOTTOM=BASE_INTERCEPT-RECEDING_SLOPE*FOLD
+SCALE=INK_WIDTH/(RIGHT-LEFT)
+CENTER_Y=(TOP+FOLD_BOTTOM)/2
+SMALL_SLIT=6/SCALE
+
+
+def n(value):
+    return f'{value:.9f}'.rstrip('0').rstrip('.')
+
+
+TRANSFORM=f'translate(48 48) scale({n(SCALE)}) translate(-48 -{n(CENTER_Y)})'
+SPINE=[
+    (BACK,TOP),(RIGHT,TOP+RETURN_SLOPE*DEPTH),
+    (FOLD,TOP_LOWER-RECEDING_SLOPE*FOLD),(FOLD,FOLD_BOTTOM),
+    (LEFT,FOLD_BOTTOM-RETURN_SLOPE*(FOLD-LEFT)),
+    (LEFT,TOP+RECEDING_SLOPE*(BACK-LEFT)),
+]
+
+
+def polygon(points):
+    return 'M'+'L'.join(f'{n(x)} {n(y)}' for x,y in points)+'Z'
+
+
+def entry(upper, left):
+    lower=upper+PLANE_THICKNESS
+    return [(left,upper-RECEDING_SLOPE*left),
+            (BACK,upper-RECEDING_SLOPE*BACK),
+            (RIGHT,lower-RECEDING_SLOPE*RIGHT),
+            (left,lower-RECEDING_SLOPE*left)]
+
+
+def planes(small=False):
+    left=FOLD+(SMALL_SLIT if small else MASTER_SLIT)
+    return [SPINE,entry(MIDDLE_UPPER,left),entry(LOWER_UPPER,left)]
+
+
+def paths(ink,small=False):
+    names=['spine-and-fold','middle-entry','lower-entry']
+    shapes='\n    '.join(f'<path id="{name}" d="{polygon(points)}"/>' for name,points in zip(names,planes(small)))
+    return f'<g fill="{ink}" transform="{TRANSFORM}">\n    {shapes}\n  </g>'
+
+
+def svg(ink,small=False,favicon=False):
+    bg='  <rect width="96" height="96" rx="18" fill="#000"/>\n' if favicon else ''
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title description">
+  <title id="title">mietkartei — Registerfaltung</title>
+  <desc id="description">Drei geordnete Eintragsebenen werden von einer gemeinsamen Falte gehalten. Die zurücklaufenden Kanten geben dem Zeichen eine klare räumliche Drehung.</desc>
+{bg}  {paths(ink,small)}
+</svg>
+'''
+
+
+def lockup(ink):
+    wordmark=ET.parse(ROOT.parent/'logo.svg').getroot()
+    for element in wordmark.iter():
+        element.tag=element.tag.rsplit('}',1)[-1]
+    content=''.join(ET.tostring(e,encoding='unicode') for e in wordmark if e.tag in ('path','g'))
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {LOCKUP_WIDTH} 96" role="img" aria-label="mietkartei mit Registerfaltung">
+  {paths(ink)}
+  <g transform="translate({WORDMARK_X} 19) scale({n(WORDMARK_HEIGHT/774.8)})" fill="{ink}">{content}</g>
+</svg>
+'''
+
+
+def clean(value):
+    if isinstance(value,float):return round(value,6)
+    if isinstance(value,(list,tuple)):return [clean(item) for item in value]
+    if isinstance(value,dict):return {key:clean(item) for key,item in value.items()}
+    return value
+
+
+if __name__=='__main__':
+    for ink,suffix in (('#000',''),('#fff','-white')):
+        (ROOT/f'mark{suffix}.svg').write_text(svg(ink))
+        (ROOT/f'lockup{suffix}.svg').write_text(lockup(ink))
+    (ROOT/'small.svg').write_text(svg('#000',small=True))
+    (ROOT/'favicon.svg').write_text(svg('#fff',small=True,favicon=True))
+    (ROOT/'geometry.json').write_text(json.dumps(clean({
+        'status':'chosen register direction',
+        'axes':{'receding':[1,-RECEDING_SLOPE],'return':[1,RETURN_SLOPE]},
+        'return_angle_degrees':math.degrees(math.atan(RETURN_SLOPE)),
+        'planes':planes(),'small_planes':planes(True),
+        'parallel_gap_vertical':PARALLEL_GAP,'spine_gap':MASTER_SLIT,
+        'small_spine_gap':SMALL_SLIT,'small_slit_at_16px':SMALL_SLIT*SCALE/96*16,
+        'lower_return_height':0,'entry_thickness_vertical':PLANE_THICKNESS,
+        'normalized_ink_width':INK_WIDTH,
+        'wordmark':{'x':WORDMARK_X,'height':WORDMARK_HEIGHT,'viewBoxWidth':LOCKUP_WIDTH},
+        'normalization':TRANSFORM,'viewBox':[0,0,96,96],
+    }),indent=2)+'\n')
+    for filename in ('mark.svg','mark-white.svg','favicon.svg'):
+        (ROOT.parent/filename).write_bytes((ROOT/filename).read_bytes())
+    print('Chosen register SVG masters, lockups, favicon and shared exports written.')
