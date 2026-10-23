@@ -1,4 +1,5 @@
-import { and, asc, count, eq } from 'drizzle-orm';
+import { and, asc, count, eq, notExists, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/sqlite-core';
 import { addMonths, formatDate, today as todayInBerlin, type IsoDate } from '../dates';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
@@ -202,7 +203,8 @@ export async function setDone(
 	const existing = await getTask(db, accountId, taskId);
 	if (!existing) return false;
 	if (existing.done === done) return true;
-	const where = and(eq(tasks.accountId, accountId), eq(tasks.id, taskId));
+	// Guarded by the state read above, so a second request racing this one changes nothing.
+	const where = and(eq(tasks.accountId, accountId), eq(tasks.id, taskId), eq(tasks.done, !done));
 
 	if (done) {
 		const { dueDate: due, repeatMonths } = existing;
@@ -225,9 +227,23 @@ export async function setDone(
 			leaseId: existing.leaseId,
 			note: existing.note
 		};
+		// The copy goes in first and out again unless this request's update was the one that
+		// marked the task done, so two overlapping requests leave a single copy behind.
+		const original = alias(tasks, 'original');
 		await runBatch(db, [
-			db.update(tasks).set({ done, doneAt: new Date(), followUpId }).where(where),
 			db.insert(tasks).values({ id: followUpId, accountId, ...next }),
+			db.update(tasks).set({ done, doneAt: new Date(), followUpId }).where(where),
+			db.delete(tasks).where(
+				and(
+					eq(tasks.id, followUpId),
+					notExists(
+						db
+							.select({ one: sql`1` })
+							.from(original)
+							.where(and(eq(original.id, taskId), eq(original.followUpId, followUpId)))
+					)
+				)
+			),
 			auditEntry(
 				db,
 				context,

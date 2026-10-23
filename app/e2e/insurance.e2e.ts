@@ -54,4 +54,15 @@ test('records a policy, lists its notice deadline and enters its premium as a Be
 	await expect
 		.poll(() => category.evaluate((select: HTMLSelectElement) => select.selectedOptions[0]?.text))
 		.toContain('Sach- und Haftpflichtversicherung');
+
+	await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+	await expect(page).toHaveURL(/\/betriebskosten\/belege\/[\w-]+/);
+	await page.goto(`/objekte/${propertyId}/versicherungen`);
+	await expect(
+		page
+			.getByRole('list', { name: 'Belege zu Wohngebäudeversicherung' })
+			.getByRole('listitem')
+			.filter({ hasText: `01.01.${year} bis 31.12.${year}` })
+			.getByRole('link', { name: 'Beleg erfasst' })
+	).toBeVisible();
 });

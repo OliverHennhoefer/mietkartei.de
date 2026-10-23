@@ -727,6 +727,10 @@ export const costItems = sqliteTable(
 		fuelKwh: real('fuel_kwh'),
 		co2Kg: real('co2_kg'),
 		co2Cost: integer('co2_cost'),
+		/** The Versicherung whose premium this Beleg holds, when it was entered from the policy. */
+		insurancePolicyId: text('insurance_policy_id').references(() => insurancePolicies.id, {
+			onDelete: 'set null'
+		}),
 		createdAt: createdAt()
 	},
 	(table) => [

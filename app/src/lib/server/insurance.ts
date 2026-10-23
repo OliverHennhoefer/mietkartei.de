@@ -60,9 +60,8 @@ export async function listPolicies(
 		db
 			.select({
 				id: costItems.id,
-				supplier: costItems.supplier,
-				periodStart: costItems.periodStart,
-				periodEnd: costItems.periodEnd
+				insurancePolicyId: costItems.insurancePolicyId,
+				periodStart: costItems.periodStart
 			})
 			.from(costItems)
 			.where(and(eq(costItems.accountId, accountId), eq(costItems.propertyId, propertyId)))
@@ -70,17 +69,14 @@ export async function listPolicies(
 	const year = Number(today.slice(0, 4));
 	return rows.map((policy) => ({
 		...policy,
-		// A Beleg counts as entered when it names the insurer and covers the same period, as the
-		// one prefilled from the policy does.
+		// A Beleg counts as entered when it was taken over from this policy for the year.
 		years: insuranceYearsFor(policy, [year - 1, year]).map(({ start, end, fullEnd }) => ({
 			start,
 			end,
 			amount: premiumFor(policy.annualPremium, { start, end, fullEnd }),
 			costItemId:
-				items.find(
-					(item) =>
-						item.supplier === policy.insurer && item.periodStart === start && item.periodEnd === end
-				)?.id ?? null
+				items.find((item) => item.insurancePolicyId === policy.id && item.periodStart === start)
+					?.id ?? null
 		}))
 	}));
 }
@@ -169,6 +165,7 @@ export async function deletePolicy(
 
 /** What /betriebskosten/belege/neu?versicherung=<id>&von=<start> fills in. */
 export type InsurancePrefill = {
+	insurancePolicyId: string;
 	propertyId: string;
 	categoryId?: string;
 	description: string;
@@ -204,6 +201,7 @@ export async function insurancePrefill(
 				.where(and(eq(costCategories.accountId, accountId), eq(costCategories.betrkvItem, 13)))
 		: [];
 	return {
+		insurancePolicyId: policy.id,
 		propertyId: policy.propertyId,
 		categoryId: category?.id,
 		description: `${insuranceKindLabels[policy.kind]} ${formatDate(range.start)} bis ${formatDate(range.end)}`,
@@ -213,4 +211,28 @@ export async function insurancePrefill(
 		amount: premiumFor(policy.annualPremium, range),
 		allocable
 	};
+}
+
+/**
+ * Marks a new Beleg as the one taken over from the policy (the hidden field of the prefilled
+ * form). Ignored unless policy and Beleg are the account's and belong to the same property.
+ */
+export async function linkCostItemToPolicy(
+	db: Database,
+	accountId: string,
+	costItemId: string,
+	policyId: string
+): Promise<void> {
+	const policy = await getPolicy(db, accountId, policyId);
+	if (!policy) return;
+	await db
+		.update(costItems)
+		.set({ insurancePolicyId: policy.id })
+		.where(
+			and(
+				eq(costItems.accountId, accountId),
+				eq(costItems.id, costItemId),
+				eq(costItems.propertyId, policy.propertyId)
+			)
+		);
 }

@@ -8,7 +8,7 @@ import {
 	listCircles,
 	listKeys
 } from '#lib/server/operating-costs.ts';
-import { insurancePrefill } from '#lib/server/insurance.ts';
+import { insurancePrefill, linkCostItemToPolicy } from '#lib/server/insurance.ts';
 import { listProperties } from '#lib/server/properties.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { costItemFailure, itemPage, parseCostItemForm, storeReceipt } from '../save.server';
@@ -56,6 +56,10 @@ export const actions: Actions = {
 		const context = auditContext(locals);
 		const created = await createCostItem(locals.db, context, input);
 		if (!created.ok) return fail(400, costItemFailure(created.reason, values));
+		const policyId = form.get('insurancePolicyId');
+		if (typeof policyId === 'string' && policyId) {
+			await linkCostItemToPolicy(locals.db, context.accountId, created.id, policyId);
+		}
 		const receiptError = receipt
 			? await storeReceipt(locals.db, context, created.id, input.propertyId, receipt)
 			: undefined;

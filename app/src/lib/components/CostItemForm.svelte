@@ -43,6 +43,7 @@
 			supplier?: string;
 			amount?: number;
 			allocable?: boolean;
+			insurancePolicyId?: string;
 		};
 		errors?: FieldErrors<CostItemForm>;
 		values?: Record<string, string>;
@@ -94,6 +95,9 @@
 </script>
 
 <form method="POST" {action} class="card" enctype="multipart/form-data" use:enhance>
+	{#if prefill?.insurancePolicyId}
+		<input type="hidden" name="insurancePolicyId" value={prefill.insurancePolicyId} />
+	{/if}
 	<label>
 		Objekt
 		<select

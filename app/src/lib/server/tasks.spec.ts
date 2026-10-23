@@ -284,6 +284,18 @@ describe('setDone on a repeating task', () => {
 		expect(done.map((task) => task.id)).toEqual([followUp.id]);
 	});
 
+	it('leaves a single copy when two requests mark the task done at once', async () => {
+		const created = await createTask(db, contextA, repeating());
+		if (!created.ok) return;
+		await Promise.all([
+			setDone(db, contextA, created.id, true, '2026-11-25'),
+			setDone(db, contextA, created.id, true, '2026-11-25')
+		]);
+		const { open, done } = await listTasks(db, 'a');
+		expect(open).toHaveLength(1);
+		expect(done[0].followUpId).toBe(open[0].id);
+	});
+
 	it('does nothing when the task is done already', async () => {
 		const created = await createTask(db, contextA, repeating());
 		if (!created.ok) return;

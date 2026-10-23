@@ -7,6 +7,7 @@ import {
 	deletePolicy,
 	getPolicy,
 	insurancePrefill,
+	linkCostItemToPolicy,
 	listPolicies,
 	updatePolicy,
 	type InsurancePolicyInput
@@ -65,19 +66,27 @@ describe('insurance policies', () => {
 		expect(await listPolicies(db, 'a', other.propertyId)).toEqual([]);
 	});
 
-	it('lists the insurance years of last and this year with their Beleg', async () => {
-		const created = await createPolicy(db, contextA, propertyId, input());
-		if (!created.ok) throw new Error('create');
-		const itemId = await seedCostItem(db, 'a', propertyId, {
-			supplier: 'Allianz',
-			periodStart: '2025-01-01',
-			periodEnd: '2025-12-31'
-		});
-		const [policy] = await listPolicies(db, 'a', propertyId, '2026-10-23');
-		expect(policy.years).toEqual([
+	it('lists the insurance years of last and this year with the Beleg taken over for each', async () => {
+		const building = await createPolicy(db, contextA, propertyId, input());
+		const liability = await createPolicy(db, contextA, propertyId, input({ kind: 'liability' }));
+		if (!building.ok || !liability.ok) throw new Error('create');
+		const period = { supplier: 'Allianz', periodStart: '2025-01-01', periodEnd: '2025-12-31' };
+		const itemId = await seedCostItem(db, 'a', propertyId, period);
+		// Same insurer and period, but entered by hand: no proof for either policy.
+		await seedCostItem(db, 'a', propertyId, period);
+		await linkCostItemToPolicy(db, 'a', itemId, building.id);
+		// Another account's policy or a Beleg of another property is not linked.
+		const other = await seedUnit(db, 'a', { propertyName: 'Anderes Haus' });
+		const elsewhere = await seedCostItem(db, 'a', other.propertyId, period);
+		await linkCostItemToPolicy(db, 'a', elsewhere, liability.id);
+		await linkCostItemToPolicy(db, 'b', itemId, liability.id);
+
+		const [first, second] = await listPolicies(db, 'a', propertyId, '2026-10-23');
+		expect(first.years).toEqual([
 			{ start: '2025-01-01', end: '2025-12-31', amount: 1200_00, costItemId: itemId },
 			{ start: '2026-01-01', end: '2026-12-31', amount: 1200_00, costItemId: null }
 		]);
+		expect(second.years.map((year) => year.costItemId)).toEqual([null, null]);
 	});
 
 	it('prefills the Beleg of an insurance year with the § 13 category', async () => {
@@ -91,6 +100,7 @@ describe('insurance policies', () => {
 		if (!building.ok || !rentLoss.ok) throw new Error('create');
 
 		expect(await insurancePrefill(db, 'a', building.id, '2026-01-01')).toEqual({
+			insurancePolicyId: building.id,
 			propertyId,
 			categoryId: category.id,
 			description: 'Wohngebäudeversicherung 01.01.2026 bis 30.06.2026',
