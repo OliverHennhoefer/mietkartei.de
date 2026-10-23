@@ -231,6 +231,29 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy
 
+      # The public demo at demo.mietkartei.de: the same build with the demo environment of
+      # wrangler.jsonc, its own database and bucket. It deploys after the app, so a failure here
+      # never holds back app.mietkartei.de.
+      - name: Create the demo document bucket
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx wrangler r2 bucket info mietkartei-demo-documents --jurisdiction eu ||
+            npx wrangler r2 bucket create mietkartei-demo-documents --jurisdiction eu
+
+      - name: Apply demo database migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations apply DB --remote --env demo
+
+      - name: Deploy the demo
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --env demo
+
   publish:
     name: Publish image
     needs: [check, e2e, docker]

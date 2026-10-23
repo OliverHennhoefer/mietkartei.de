@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "da12fe96-0508-465c-9045-f88268e5d6df",
+  "id": "27db0ed4-bafd-486a-924c-6ac166fdf90c",
   "prevId": "62cf5cab-e2de-4b0d-8080-f109e12835b5",
   "tables": {
     "accounts": {
@@ -994,94 +994,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "calendar_feeds": {
-      "name": "calendar_feeds",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(unixepoch('subsec') * 1000)"
-        }
-      },
-      "indexes": {
-        "calendar_feeds_user_id_unique": {
-          "name": "calendar_feeds_user_id_unique",
-          "columns": [
-            "user_id"
-          ],
-          "isUnique": true
-        },
-        "calendar_feeds_token_hash_unique": {
-          "name": "calendar_feeds_token_hash_unique",
-          "columns": [
-            "token_hash"
-          ],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {
-        "calendar_feeds_account_id_accounts_id_fk": {
-          "name": "calendar_feeds_account_id_accounts_id_fk",
-          "tableFrom": "calendar_feeds",
-          "tableTo": "accounts",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "calendar_feeds_user_id_users_id_fk": {
-          "name": "calendar_feeds_user_id_users_id_fk",
-          "tableFrom": "calendar_feeds",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "co2_cost_splits": {
       "name": "co2_cost_splits",
       "columns": {
@@ -1689,13 +1601,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "insurance_policy_id": {
-          "name": "insurance_policy_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -1781,19 +1686,6 @@
           "tableTo": "billing_circles",
           "columnsFrom": [
             "billing_circle_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "cost_items_insurance_policy_id_insurance_policies_id_fk": {
-          "name": "cost_items_insurance_policy_id_insurance_policies_id_fk",
-          "tableFrom": "cost_items",
-          "tableTo": "insurance_policies",
-          "columnsFrom": [
-            "insurance_policy_id"
           ],
           "columnsTo": [
             "id"
@@ -2254,8 +2146,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "insurance_policies": {
-      "name": "insurance_policies",
+    "expenses": {
+      "name": "expenses",
       "columns": {
         "id": {
           "name": "id",
@@ -2275,61 +2167,46 @@
           "name": "property_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "insurer": {
-          "name": "insurer",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "policy_number": {
-          "name": "policy_number",
+        "unit_id": {
+          "name": "unit_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "annual_premium": {
-          "name": "annual_premium",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "renewal_date": {
-          "name": "renewal_date",
+        "date": {
+          "name": "date",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "notice_months": {
-          "name": "notice_months",
+        "amount": {
+          "name": "amount",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": 3
-        },
-        "end_date": {
-          "name": "end_date",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
-        "note": {
-          "name": "note",
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bank_transaction_id": {
+          "name": "bank_transaction_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2345,25 +2222,27 @@
         }
       },
       "indexes": {
-        "insurance_policies_account_id_idx": {
-          "name": "insurance_policies_account_id_idx",
+        "expenses_account_id_date_idx": {
+          "name": "expenses_account_id_date_idx",
           "columns": [
-            "account_id"
+            "account_id",
+            "date"
           ],
           "isUnique": false
         },
-        "insurance_policies_property_id_idx": {
-          "name": "insurance_policies_property_id_idx",
+        "expenses_bank_transaction_unique": {
+          "name": "expenses_bank_transaction_unique",
           "columns": [
-            "property_id"
+            "bank_transaction_id"
           ],
-          "isUnique": false
+          "isUnique": true,
+          "where": "\"expenses\".\"bank_transaction_id\" is not null"
         }
       },
       "foreignKeys": {
-        "insurance_policies_account_id_accounts_id_fk": {
-          "name": "insurance_policies_account_id_accounts_id_fk",
-          "tableFrom": "insurance_policies",
+        "expenses_account_id_accounts_id_fk": {
+          "name": "expenses_account_id_accounts_id_fk",
+          "tableFrom": "expenses",
           "tableTo": "accounts",
           "columnsFrom": [
             "account_id"
@@ -2374,9 +2253,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "insurance_policies_property_id_properties_id_fk": {
-          "name": "insurance_policies_property_id_properties_id_fk",
-          "tableFrom": "insurance_policies",
+        "expenses_property_id_properties_id_fk": {
+          "name": "expenses_property_id_properties_id_fk",
+          "tableFrom": "expenses",
           "tableTo": "properties",
           "columnsFrom": [
             "property_id"
@@ -2384,7 +2263,33 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "expenses_unit_id_units_id_fk": {
+          "name": "expenses_unit_id_units_id_fk",
+          "tableFrom": "expenses",
+          "tableTo": "units",
+          "columnsFrom": [
+            "unit_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "expenses_bank_transaction_id_bank_transactions_id_fk": {
+          "name": "expenses_bank_transaction_id_bank_transactions_id_fk",
+          "tableFrom": "expenses",
+          "tableTo": "bank_transactions",
+          "columnsFrom": [
+            "bank_transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -4580,30 +4485,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "category": {
-          "name": "category",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'other'"
-        },
         "due_date": {
           "name": "due_date",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "repeat_months": {
-          "name": "repeat_months",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "repeat_anchor": {
-          "name": "repeat_anchor",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -4620,13 +4503,6 @@
         "done_at": {
           "name": "done_at",
           "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "follow_up_id": {
-          "name": "follow_up_id",
-          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

@@ -572,6 +572,46 @@ export const matchingRules = sqliteTable(
 	(table) => [index('matching_rules_account_id_idx').on(table.accountId)]
 );
 
+// Expenses (Ausgaben)
+
+export const expenseCategories = [
+	'operating_costs',
+	'maintenance',
+	'financing',
+	'management',
+	'modernization',
+	'other'
+] as const;
+export type ExpenseCategory = (typeof expenseCategories)[number];
+
+/**
+ * Ausgabe: money the landlord paid out, entered by hand or assigned from an outgoing bank
+ * transaction. Positive = paid out, negative = a refund. Belongs to a unit, to a whole property
+ * or (both null) to the portfolio as a whole; propertyId is set whenever unitId is.
+ */
+export const expenses = sqliteTable(
+	'expenses',
+	{
+		id: id(),
+		accountId: accountId(),
+		propertyId: text('property_id').references(() => properties.id, { onDelete: 'set null' }),
+		unitId: text('unit_id').references(() => units.id, { onDelete: 'set null' }),
+		date: text('date').notNull(),
+		amount: integer('amount').notNull(),
+		category: text('category', { enum: expenseCategories }).notNull(),
+		description: text('description').notNull(),
+		/** The bank transaction the expense was assigned from; no delete action, as for payments. */
+		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('expenses_account_id_date_idx').on(table.accountId, table.date),
+		uniqueIndex('expenses_bank_transaction_unique')
+			.on(table.bankTransactionId)
+			.where(sql`${table.bankTransactionId} is not null`)
+	]
+);
+
 // Operating costs (Betriebskosten)
 
 /** Kostenart, usually one of the 17 items of § 2 BetrKV. */

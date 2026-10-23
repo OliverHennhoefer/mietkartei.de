@@ -3,6 +3,7 @@ import type { BatchItem } from 'drizzle-orm/batch';
 import { formatDate } from '../../dates';
 import { rememberedRule, type LeaseHints } from '../../domain/bank-matching';
 import type { AssignmentInput } from '../../forms/bank';
+import type { ExpenseAssignmentInput } from '../../forms/expenses';
 import { formatCents } from '../../money';
 import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
@@ -11,19 +12,23 @@ import {
 	bankAccounts,
 	bankTransactions,
 	depositTransactions,
+	expenses,
 	leases,
 	payments,
 	type BankTransactionStatus
 } from '../db/schema';
+import { expenseSummary, resolveScope, scopeLabels } from '../expenses';
 import { paymentEntry } from '../ledger';
 import { leaseLabel, type LeaseSummary } from '../leases';
 import { ruleEntry } from './rules';
 import { assertQuota } from '../quotas';
 
-// Umsätze: the imported statement lines and their assignment to leases. `matched` means a payment
-// or a deposit movement references the transaction; undo deletes those and reopens it.
+// Umsätze: the imported statement lines and their assignment to leases or as an expense. `matched`
+// means a payment, a deposit movement or an expense references the transaction; undo deletes
+// those and reopens it.
 
 export type BankTransaction = typeof bankTransactions.$inferSelect;
+type Expense = typeof expenses.$inferSelect;
 export type TransactionRow = BankTransaction & { bankAccountName: string };
 
 export type TransactionFilter = {
@@ -92,9 +97,14 @@ export async function getTransaction(
 	return row;
 }
 
-export type Assignment = { kind: 'rent' | 'deposit'; id: string; leaseId: string; amount: number };
+export type Assignment =
+	| { kind: 'rent' | 'deposit'; id: string; leaseId: string; amount: number }
+	| { kind: 'expense'; id: string; amount: number; category: Expense['category']; scope: string };
 
-/** The payments and deposit movements of the given transactions, two queries per 90 ids. */
+/**
+ * The payments, deposit movements and expenses of the given transactions: three queries per 90
+ * ids and two for the expenses' labels.
+ */
 export async function listAssignments(
 	db: Database,
 	accountId: string,
@@ -107,9 +117,10 @@ export async function listAssignments(
 		if (list) list.push(assignment);
 		else result.set(transactionId, [assignment]);
 	};
+	const label = await scopeLabels(db, accountId);
 	await Promise.all(
 		chunkIds([...new Set(transactionIds)]).map(async (ids) => {
-			const [paymentRows, depositRows] = await Promise.all([
+			const [paymentRows, depositRows, expenseRows] = await Promise.all([
 				db
 					.select({
 						id: payments.id,
@@ -133,10 +144,23 @@ export async function listAssignments(
 							eq(depositTransactions.accountId, accountId),
 							inArray(depositTransactions.bankTransactionId, ids)
 						)
-					)
+					),
+				db
+					.select()
+					.from(expenses)
+					.where(and(eq(expenses.accountId, accountId), inArray(expenses.bankTransactionId, ids)))
 			]);
 			for (const row of paymentRows) add(row.bankTransactionId, { kind: 'rent', ...row });
 			for (const row of depositRows) add(row.bankTransactionId, { kind: 'deposit', ...row });
+			for (const row of expenseRows) {
+				add(row.bankTransactionId, {
+					kind: 'expense',
+					id: row.id,
+					amount: row.amount,
+					category: row.category,
+					scope: label(row)
+				});
+			}
 		})
 	);
 	return result;
@@ -338,7 +362,55 @@ export async function assignTransaction(
 	return done ? 'assigned' : 'not-open';
 }
 
-/** Deletes the payments and deposit movements of the transaction and reopens it. */
+/**
+ * Books the transaction as an expense: an outgoing transaction as money paid out, an incoming one
+ * as a refund (a negative expense). Marks it matched. One batch.
+ */
+export async function assignExpense(
+	db: Database,
+	context: AuditContext,
+	transactionId: string,
+	input: ExpenseAssignmentInput
+): Promise<'assigned' | 'missing' | 'not-open' | 'unknown-scope'> {
+	const { accountId } = context;
+	const transaction = await getTransaction(db, accountId, transactionId);
+	if (!transaction) return 'missing';
+	if (transaction.status !== 'unmatched') return 'not-open';
+	const scope = await resolveScope(db, accountId, input.scope);
+	if (!scope) return 'unknown-scope';
+	await assertQuota(db, accountId, 'expenses');
+	const id = crypto.randomUUID();
+	const row = {
+		id,
+		accountId,
+		...scope,
+		date: transaction.bookingDate,
+		amount: -transaction.amount,
+		category: input.category,
+		description: input.description,
+		bankTransactionId: transaction.id
+	};
+	const done = await runGuarded(db, accountId, transaction.id, 'unmatched', [
+		db.insert(expenses).values(row),
+		db
+			.update(bankTransactions)
+			.set({ status: 'matched' })
+			.where(
+				and(eq(bankTransactions.accountId, accountId), eq(bankTransactions.id, transaction.id))
+			),
+		auditEntry(
+			db,
+			context,
+			'bankTransaction',
+			transaction.id,
+			'assign',
+			`${transactionLabel(transaction)} als ${expenseSummary(row)} zugeordnet`
+		)
+	]);
+	return done ? 'assigned' : 'not-open';
+}
+
+/** Deletes the payments, deposit movements and expenses of the transaction and reopens it. */
 export async function undoAssignment(
 	db: Database,
 	context: AuditContext,
@@ -361,6 +433,11 @@ export async function undoAssignment(
 					eq(depositTransactions.accountId, accountId),
 					eq(depositTransactions.bankTransactionId, transaction.id)
 				)
+			),
+		db
+			.delete(expenses)
+			.where(
+				and(eq(expenses.accountId, accountId), eq(expenses.bankTransactionId, transaction.id))
 			),
 		db
 			.update(bankTransactions)

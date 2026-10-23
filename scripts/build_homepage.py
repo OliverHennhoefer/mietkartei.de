@@ -15,9 +15,10 @@ for filename in ("index.html", "impressum/index.html", "styles.css", "robots.txt
     destination.parent.mkdir(parents=True, exist_ok=True)
     copyfile(ROOT / "website" / filename, destination)
 
-illustration = OUTPUT / "assets" / "house-blueprint.svg"
-illustration.parent.mkdir(parents=True, exist_ok=True)
-copyfile(ROOT / "website" / "assets" / "house-blueprint.svg", illustration)
+for filename in ("uebersicht.png", "abrechnung-mieter.png"):
+    destination = OUTPUT / "assets" / "screenshots" / filename
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    copyfile(ROOT / "website" / "assets" / "screenshots" / filename, destination)
 
 for filename in (
     "mark.svg",
