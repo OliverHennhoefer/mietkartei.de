@@ -148,7 +148,7 @@ function mapEntry(entry: XmlElement, currency: string): RowResult[] {
  * The text of a camt file → its entries as rows, statement by statement. Undefined when the text
  * is not XML or not a camt message the import knows; throws nothing.
  */
-export function parseCamt(text: string): ParsedCamt | undefined {
+export function parseCamt(text: string, seen: SeenEntries = new Map()): ParsedCamt | undefined {
 	let root: XmlElement;
 	try {
 		root = parseXml(text);
@@ -166,14 +166,50 @@ export function parseCamt(text: string): ParsedCamt | undefined {
 		const account = child(statement, 'Acct');
 		const iban = accountIban(account);
 		const currency = textAt(account, 'Ccy');
-		for (const entry of children(statement, 'Ntry')) {
-			for (const result of mapEntry(entry, currency)) {
+		const statementId = textAt(statement, 'Id');
+		const token = {};
+		children(statement, 'Ntry').forEach((entry, position) => {
+			const mapped = isRepeated(seen, token, entryKeys(iban, statementId, entry, position))
+				? [{ ok: false, reason: 'Schon in einem anderen Auszug der Datei' } as const]
+				: mapEntry(entry, currency);
+			for (const result of mapped) {
 				results.push(result);
 				accountIbans.push(iban);
 			}
-		}
+		});
 	}
 	return { name, results, accountIbans };
+}
+
+/**
+ * The entries an upload has read so far, by key, with the statement they came from. A ZIP may hold
+ * the same statement twice or statements that overlap (intraday reports and the day's statement);
+ * without this, the fingerprint would number the repeated entry as a second, legitimate payment.
+ */
+export type SeenEntries = Map<string, object>;
+
+/** The bank's reference of the entry, and its place in a statement with an id. */
+function entryKeys(
+	iban: string | null,
+	statementId: string,
+	entry: XmlElement,
+	position: number
+): string[] {
+	const keys: string[] = [];
+	const reference = textAt(entry, 'AcctSvcrRef');
+	if (reference && reference.toUpperCase() !== 'NONREF') keys.push(`${iban}|ref|${reference}`);
+	if (statementId) keys.push(`${iban}|stmt|${statementId}|${position}`);
+	return keys;
+}
+
+/** Whether another statement of the upload had one of the keys; records them for this one. */
+function isRepeated(seen: SeenEntries, statement: object, keys: string[]): boolean {
+	const repeated = keys.some((key) => {
+		const owner = seen.get(key);
+		return owner !== undefined && owner !== statement;
+	});
+	if (!repeated) for (const key of keys) seen.set(key, statement);
+	return repeated;
 }
 
 /** Whether the decoded text is XML rather than a CSV table. */
@@ -239,7 +275,8 @@ export function parseBankUpload(bytes: Uint8Array, generic?: ColumnMapping | nul
 	if (isZip(bytes)) {
 		const texts = unzipXml(bytes);
 		if (!texts) return { ok: false, reason: 'Die ZIP-Datei lässt sich nicht entpacken.' };
-		const camt = texts.map(parseCamt);
+		const seen: SeenEntries = new Map();
+		const camt = texts.map((text) => parseCamt(text, seen));
 		if (camt.length === 0 || camt.some((statement) => !statement)) {
 			return { ok: false, reason: 'Die ZIP-Datei enthält nicht nur camt-Kontoauszüge (XML).' };
 		}

@@ -258,6 +258,27 @@ describe('parseBankUpload', () => {
 		expect(parsed.ok && parsed.accountIbans?.at(-1)).toBe('DE75512108001245126199');
 	});
 
+	it('reads a statement repeated in a ZIP once, by its id or the bank reference', () => {
+		const reasons = (zip: Uint8Array) => {
+			const parsed = parseBankUpload(zip);
+			return parsed.ok
+				? parsed.file.results.map((result) => (result.ok ? 'ok' : result.reason))
+				: [];
+		};
+		const repeated = 'Schon in einem anderen Auszug der Datei';
+		// A copy under another name: every entry of the second copy, by the statement id.
+		const copy = reasons(zipSync({ 'a.xml': strToU8(camt053v2), 'b.xml': strToU8(camt053v2) }));
+		expect(copy.slice(6)).toEqual(Array(5).fill(repeated));
+		expect(copy.slice(0, 6)).not.toContain(repeated);
+		// An intraday report with another id and the statement: the entry with the same reference.
+		const report = camt053v2
+			.replaceAll('BkToCstmrStmt', 'BkToCstmrAcctRpt')
+			.replaceAll('Stmt>', 'Rpt>')
+			.replace('STMT-10', 'RPT-1');
+		const overlap = reasons(zipSync({ 'a.xml': strToU8(report), 'b.xml': strToU8(camt053v2) }));
+		expect(overlap.filter((reason) => reason === repeated)).toHaveLength(2);
+	});
+
 	it('names what is wrong with an upload it cannot read', () => {
 		expect(parseBankUpload(zipSync({ 'a.txt': strToU8('x') }))).toEqual({
 			ok: false,
