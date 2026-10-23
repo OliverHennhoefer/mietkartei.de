@@ -66,6 +66,8 @@ npm run test:e2e      # End-to-End-Tests mit Playwright gegen einen Produktions-
 DEPLOY_TARGET=cloudflare npm run test:e2e   # dieselben Tests in workerd mit lokaler D1
 ```
 
+Die Unit-Tests prüfen die Fachlogik in `src/lib` und die Server-Seite der Routen: Ladefunktionen, Formularaktionen und Endpunkte laufen gegen eine SQLite-Datenbank im Speicher. `routeEvent()` und `outcome()` aus `src/lib/server/testing.ts` bauen dafür die Anfrage und zeigen, ob die Route Daten liefert, mit `fail()` ablehnt, weiterleitet oder einen Fehler wirft. Die Svelte-Komponenten rendern nur die End-to-End-Tests, darum zählt die Testabdeckung sie nicht mit.
+
 Vor den End-to-End-Tests installiert `npx playwright install chromium` einmalig den Browser. Der Testserver läuft auf Port 4173; mit `E2E_PORT` wählst du einen anderen, etwa um beide Ziele gleichzeitig in zwei Arbeitskopien zu testen.
 
 Der Testserver startet mit `E2E=true`. Damit ist der Endpunkt `/api/e2e/seed` aktiv, über den ein Test anlegt, was er braucht, aber nicht selbst prüft, etwa einen Mietvertrag mit Objekt, Einheit und Mieter (siehe `e2e/seed.ts`). Mails speichert der Testserver mit `MAIL_TRANSPORT=outbox` in der Datenbank, die Tests lesen sie unter `/api/e2e/outbox`. Setze `E2E` nie in einer echten Installation. Statt Stripe beantwortet ein kleiner Server aus `e2e/stripe-fake.ts` die Anfragen des Abos; er läuft auf Port 4299, mit `STRIPE_FAKE_PORT` auf einem anderen.

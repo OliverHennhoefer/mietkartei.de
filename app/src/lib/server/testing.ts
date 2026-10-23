@@ -1,3 +1,6 @@
+import { isActionFailure, isHttpError, isRedirect } from '@sveltejs/kit';
+import { eq } from 'drizzle-orm';
+import { hashPassword, type SessionUser } from './auth';
 import type { Database } from './db';
 import { accounts, properties, tenants, units, users } from './db/schema';
 import { createSqliteDatabase } from './db/sqlite';
@@ -25,6 +28,16 @@ export async function testDatabase(): Promise<Database> {
 		{ id: 'user-b', accountId: 'b', email: 'b@example.org', passwordHash: 'x' }
 	]);
 	return db;
+}
+
+/** The password tests sign in with; setPassword() gives it to a user. */
+export const PASSWORD = 'richtig-geheim-42';
+
+export async function setPassword(db: Database, userId: string, password = PASSWORD) {
+	await db
+		.update(users)
+		.set({ passwordHash: await hashPassword(password) })
+		.where(eq(users.id, userId));
 }
 
 /** A property with one unit; returns both ids. */
@@ -116,4 +129,88 @@ export async function seedLease(
 	const result = await createLease(db, { accountId, userId: null }, leaseInput(unitId, overrides));
 	if (!result.ok) throw new Error(`seedLease failed: ${result.reason}`);
 	return result.id;
+}
+
+// Route tests call a load function, action or request handler with routeEvent() and look at what
+// came out with outcome(): data, a fail(), a redirect() or an error(), the way SvelteKit tells
+// them apart.
+
+/** The owner of account `a`, signed in. */
+export const ownerA: SessionUser = {
+	id: 'user-a',
+	email: 'a@example.org',
+	accountId: 'a',
+	name: null,
+	role: 'owner'
+};
+
+/** A manager (Mitverwalter) of account `a`; the user row exists only when a test inserts it. */
+export const managerA: SessionUser = { ...ownerA, id: 'manager-a', role: 'manager' };
+
+export type RouteEventOptions = {
+	/** The signed-in user; null for a visitor. Defaults to ownerA. */
+	user?: SessionUser | null;
+	params?: Record<string, string>;
+	/** Path and query, e.g. '/objekte?neu=1'. */
+	url?: string;
+	/** Posts these fields as a form; an array posts the field once per value. */
+	form?: Record<string, string | string[] | File>;
+	/** The cookie jar; the test keeps it to look at what the route set. */
+	cookies?: Map<string, string>;
+	/** What the layouts above the page loaded. */
+	parent?: Record<string, unknown>;
+	clientAddress?: string;
+};
+
+/**
+ * A request event for a route of the app. Typed `never`, so it fits any route's event type;
+ * the route only uses what is here.
+ */
+export function routeEvent(db: Database, options: RouteEventOptions = {}): never {
+	const url = new URL(options.url ?? '/', 'http://localhost');
+	let body: FormData | undefined;
+	if (options.form) {
+		body = new FormData();
+		for (const [name, value] of Object.entries(options.form)) {
+			for (const item of Array.isArray(value) ? value : [value]) body.append(name, item);
+		}
+	}
+	const jar = options.cookies ?? new Map<string, string>();
+	return {
+		locals: { db, user: options.user === undefined ? ownerA : (options.user ?? undefined) },
+		params: options.params ?? {},
+		url,
+		request: new Request(url, body ? { method: 'POST', body } : undefined),
+		cookies: {
+			get: (name: string) => jar.get(name),
+			getAll: () => [...jar].map(([name, value]) => ({ name, value })),
+			set: (name: string, value: string) => void jar.set(name, value),
+			delete: (name: string) => void jar.delete(name)
+		},
+		parent: async () => options.parent ?? {},
+		getClientAddress: () => options.clientAddress ?? '127.0.0.1',
+		setHeaders: () => {},
+		route: { id: null }
+	} as never;
+}
+
+export type Outcome =
+	| { data: unknown }
+	| { fail: number; data: Record<string, unknown> }
+	| { redirect: string }
+	| { error: number; message: string };
+
+/** Runs a load function, action or handler and returns how it ended. */
+export async function outcome(run: () => unknown): Promise<Outcome> {
+	try {
+		const data = await run();
+		if (isActionFailure(data)) {
+			return { fail: data.status, data: data.data as unknown as Record<string, unknown> };
+		}
+		return { data };
+	} catch (thrown) {
+		if (isRedirect(thrown)) return { redirect: thrown.location };
+		if (isHttpError(thrown)) return { error: thrown.status, message: thrown.body.message };
+		throw thrown;
+	}
 }

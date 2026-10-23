@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { coverageConfigDefaults, defineConfig } from 'vitest/config';
 import cloudflare from '@sveltejs/adapter-cloudflare';
 import node from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
@@ -55,10 +55,20 @@ export default defineConfig({
 	},
 	test: {
 		expect: { requireAssertions: true },
-		// CI uploads the lcov report to Codecov; the e2e tests are not part of the coverage.
+		// CI uploads the lcov report to Codecov; the e2e tests are not part of the coverage. The
+		// unit tests never render a component, so the .svelte files are left out: their markup is
+		// what the Playwright tests click through on both targets, and logic worth a unit test
+		// belongs in a .ts module. Also left out: the unit test fixtures and the /api/e2e routes,
+		// which exist only for the end-to-end tests.
 		coverage: {
 			provider: 'v8',
-			include: ['src/**/*.{js,ts,svelte}'],
+			include: ['src/**/*.{js,ts}'],
+			exclude: [
+				...coverageConfigDefaults.exclude,
+				'src/**/*.d.ts',
+				'src/lib/server/testing.ts',
+				'src/routes/api/e2e/**'
+			],
 			reporter: ['text-summary', 'lcov']
 		},
 		projects: [
