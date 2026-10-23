@@ -120,6 +120,13 @@ describe('vertraege/neu', () => {
 			})
 		);
 		expect(await getLease(db, 'a', id)).toMatchObject({ ledgerStart: null });
+		expect((await listLedger(db, 'a', id)).lines).toContainEqual(
+			expect.objectContaining({
+				date: '2026-03-01',
+				amount: -10000,
+				label: expect.stringMatching(/Anfangssaldo$/)
+			})
+		);
 	});
 
 	it('refuses form errors with the whole form and the deposit hint', async () => {

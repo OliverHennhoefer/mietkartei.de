@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
+import { storeDocument } from '#lib/server/documents.ts';
 import { getLease } from '#lib/server/leases.ts';
 import {
+	contextB,
 	memoryStorage,
 	outcome,
+	ownerA,
 	routeEvent,
 	seedLease,
 	seedTenant,
@@ -113,6 +116,22 @@ describe('dokumente', () => {
 			error: 404
 		});
 		expect(await run(download, { params: { id: document.id } })).toMatchObject({ error: 404 });
+
+		const foreign = await storeDocument(db, contextB, {
+			name: 'Fremd.pdf',
+			mimeType: 'application/pdf',
+			bytes: new TextEncoder().encode('%PDF-1.4 fremd')
+		});
+		if (!foreign.ok) throw new Error('setup failed');
+		const ownerB = { ...ownerA, id: 'user-b', accountId: 'b', email: 'b@example.org' };
+		expect(await run(actions.delete, { form: { documentId: foreign.id } })).toMatchObject({
+			error: 404
+		});
+		expect(await run(download, { params: { id: foreign.id } })).toMatchObject({ error: 404 });
+		// Still there for its own account.
+		expect(await run(download, { params: { id: foreign.id }, user: ownerB })).toMatchObject({
+			data: expect.any(Response)
+		});
 	});
 });
 

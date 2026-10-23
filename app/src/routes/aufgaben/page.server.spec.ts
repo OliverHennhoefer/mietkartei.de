@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
-import { getTask, listTasks } from '#lib/server/tasks.ts';
-import { outcome, routeEvent, seedLease, seedUnit, testDatabase } from '#lib/server/testing.ts';
+import { createTask as storeTask, getTask, listTasks } from '#lib/server/tasks.ts';
+import {
+	contextB,
+	outcome,
+	routeEvent,
+	seedLease,
+	seedUnit,
+	testDatabase
+} from '#lib/server/testing.ts';
 import { actions as taskActions, load as loadTask } from './[id]/+page.server';
 import { actions, load } from './+page.server';
 
@@ -92,5 +99,23 @@ describe('aufgaben/[id]', () => {
 				error: 404
 			});
 		}
+	});
+
+	it("answers 404 for another account's task and leaves it as it is", async () => {
+		const foreign = await storeTask(db, contextB, {
+			title: 'Fremd',
+			dueDate: null,
+			propertyId: null,
+			leaseId: null,
+			note: null
+		});
+		if (!foreign.ok) throw new Error('setup failed');
+		const id = foreign.id;
+		for (const handler of [loadTask, taskActions.update, taskActions.delete]) {
+			expect(await run(handler, { params: { id }, form: { title: 'x' } })).toMatchObject({
+				error: 404
+			});
+		}
+		expect(await getTask(db, 'b', id)).toMatchObject({ title: 'Fremd' });
 	});
 });
