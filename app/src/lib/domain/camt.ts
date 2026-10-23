@@ -69,8 +69,9 @@ function signed(cents: number, indicator: string): number {
 
 /**
  * One row per transaction of the entry. A batch booking (several `TxDtls` whose amounts add up to
- * the entry) is split, so each tenant of a collective transfer is a line of its own; otherwise the
- * entry is one row with the details of its first transaction.
+ * the entry) is split, so each tenant of a collective transfer is a line of its own. A batch that
+ * cannot be split stays one row without counterpart, so no rule assigns the whole sum to the first
+ * tenant; a single transaction gives the entry its details.
  */
 function mapEntry(entry: XmlElement, currency: string): RowResult[] {
 	const status = textAt(entry, 'Sts', 'Cd') || textAt(entry, 'Sts');
@@ -141,6 +142,13 @@ function mapEntry(entry: XmlElement, currency: string): RowResult[] {
 	};
 
 	if (split) return transactions.map((transaction, index) => row(transaction, parts[index]!));
+	if (transactions.length > 1) {
+		const batch = row(undefined, amount);
+		if (batch.ok && !batch.row.purpose) {
+			batch.row.purpose = `Sammelbuchung mit ${transactions.length} Posten`;
+		}
+		return [batch];
+	}
 	return [row(transactions[0], amount)];
 }
 

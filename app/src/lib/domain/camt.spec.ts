@@ -202,13 +202,25 @@ describe('parseCamt', () => {
 		]);
 	});
 
-	it('keeps a batch as one row when its parts do not add up', () => {
+	it('keeps a batch whose parts do not add up as one row without counterpart', () => {
 		const parsed = parseCamt(camt053v2.replace('600.00', '500.00'));
 		const batch = parsed?.results.filter(
 			(result) => result.ok && result.row.bookingDate === '2026-10-04'
 		);
-		expect(batch).toHaveLength(1);
-		expect(batch?.[0].ok && batch[0].row.amount).toBe(150000);
+		expect(batch).toEqual([
+			{
+				ok: true,
+				row: {
+					bookingDate: '2026-10-04',
+					valueDate: null,
+					amount: 150000,
+					counterpartName: '',
+					counterpartIban: null,
+					purpose: 'Sammelbuchung mit 2 Posten',
+					externalId: 'REF-BATCH'
+				}
+			}
+		]);
 	});
 
 	it('names an invalid date or amount', () => {
