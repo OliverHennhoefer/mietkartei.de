@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	actionName,
+	apiReadOnly,
 	applySubscriptionUpdate,
 	billingNotice,
 	billingState,
@@ -195,6 +196,18 @@ describe('with a database', () => {
 		const [found] = await db.select().from(accounts).where(eq(accounts.id, id));
 		return found;
 	}
+
+	it('tells the API whether the account may only read', async () => {
+		expect(await apiReadOnly(db, 'a')).toBe(false);
+		await db
+			.update(accounts)
+			.set({ createdAt: new Date('2020-01-01'), subscriptionStatus: 'none' })
+			.where(eq(accounts.id, 'a'));
+		expect(await apiReadOnly(db, 'a')).toBe(true);
+		await db.update(accounts).set({ subscriptionStatus: 'active' }).where(eq(accounts.id, 'a'));
+		expect(await apiReadOnly(db, 'a')).toBe(false);
+		expect(await apiReadOnly(db, 'missing')).toBe(false);
+	});
 
 	it('stores the Stripe customer with an audit entry', async () => {
 		await setStripeCustomer(db, contextA, 'cus_a');
