@@ -44,10 +44,14 @@ describe('openItems', () => {
 		]);
 	});
 
-	it('is empty when the payments cover everything due, even with a refund in between', () => {
+	it('is empty when the payments cover everything due', () => {
 		expect(openItems(charges, 240000, '2025-03-31')).toEqual([]);
-		expect(openItems(charges, -10000, '2025-01-06')).toEqual([
-			{ label: 'Miete Januar', dueDate: '2025-01-06', amount: 80000, open: 80000 }
+	});
+
+	it('keeps a refund passed as a charge open after the rent it follows', () => {
+		const refund = { label: 'Rückzahlung', dueDate: '2025-01-20', amount: 10000 };
+		expect(openItems([...charges, refund], 80000, '2025-01-31')).toEqual([
+			{ label: 'Rückzahlung', dueDate: '2025-01-20', amount: 10000, open: 10000 }
 		]);
 	});
 });

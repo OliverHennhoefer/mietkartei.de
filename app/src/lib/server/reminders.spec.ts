@@ -104,6 +104,28 @@ describe('createReminder', () => {
 		expect(await db.select().from(paymentReminders)).toEqual([]);
 	});
 
+	it('refuses a letter dated in the future', async () => {
+		expect(
+			await createReminder(db, contextA, leaseId, {
+				...input,
+				date: '2099-01-10',
+				paymentDeadline: '2099-01-24'
+			})
+		).toEqual({ ok: false, message: 'Das Schreiben kann nicht in die Zukunft datiert werden.' });
+	});
+
+	it('counts a refund as owed again, like the Rückstand of the ledger', async () => {
+		await createPayment(db, contextA, {
+			leaseId,
+			date: '2025-03-07',
+			amount: -10000,
+			source: 'manual'
+		});
+		const state = await reminderState(db, 'a', leaseId, '2025-03-10');
+		expect(state.overdue).toBe(140000);
+		expect(state.items.map((item) => item.label)).toContain('Rückzahlung');
+	});
+
 	it('does not write to a lease of another account', async () => {
 		expect(await createReminder(db, contextB, leaseId, input)).toBeUndefined();
 	});

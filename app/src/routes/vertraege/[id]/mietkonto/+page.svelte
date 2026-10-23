@@ -221,6 +221,7 @@
 			<input
 				type="date"
 				name="date"
+				max={data.today}
 				defaultValue={reminderValues?.date ?? data.today}
 				aria-invalid={reminderErrors?.date ? 'true' : undefined}
 				required

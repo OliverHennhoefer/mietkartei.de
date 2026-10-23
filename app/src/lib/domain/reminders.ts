@@ -33,7 +33,8 @@ export type OpenItem = {
 /**
  * The charges due by `asOf` that the payments made by `asOf` do not cover, oldest first. Payments
  * and due credits settle the oldest charges first, as in the Rückstand of the ledger, so the open
- * amounts add up to that Rückstand.
+ * amounts add up to that Rückstand. `paid` is the money received; a refund to the tenant is passed
+ * as a charge on its date, so it is owed back like any other debt.
  */
 export function openItems(charges: readonly DueCharge[], paid: number, asOf: IsoDate): OpenItem[] {
 	const due = charges

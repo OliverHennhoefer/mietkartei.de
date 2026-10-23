@@ -1,5 +1,5 @@
 import { and, desc, eq } from 'drizzle-orm';
-import { formatDate, monthOf, today, type IsoDate } from '../dates';
+import { formatDate, today, type IsoDate } from '../dates';
 import {
 	currentReminders,
 	nextLevel,
@@ -66,9 +66,7 @@ async function leaseOpenItems(
 	leaseId: string,
 	asOf: IsoDate
 ): Promise<OpenItem[]> {
-	const currentMonth = monthOf(today());
-	const untilMonth = monthOf(asOf) > currentMonth ? monthOf(asOf) : currentMonth;
-	await ensureCharges(db, accountId, [leaseId], untilMonth);
+	await ensureCharges(db, accountId, [leaseId]);
 	const [chargeRows, paymentRows] = await Promise.all([
 		db
 			.select({
@@ -81,18 +79,28 @@ async function leaseOpenItems(
 			.from(rentCharges)
 			.where(and(eq(rentCharges.accountId, accountId), eq(rentCharges.leaseId, leaseId))),
 		db
-			.select({ date: payments.date, amount: payments.amount })
+			.select({ date: payments.date, amount: payments.amount, note: payments.note })
 			.from(payments)
 			.where(and(eq(payments.accountId, accountId), eq(payments.leaseId, leaseId)))
 	]);
 	const paid = paymentRows
-		.filter((payment) => payment.date <= asOf)
+		.filter((payment) => payment.amount > 0 && payment.date <= asOf)
 		.reduce((sum, payment) => sum + payment.amount, 0);
-	const charges = chargeRows.map((row) => ({
-		label: chargeLabel(row),
-		dueDate: row.dueDate,
-		amount: row.amount
-	}));
+	const charges = [
+		...chargeRows.map((row) => ({
+			label: chargeLabel(row),
+			dueDate: row.dueDate,
+			amount: row.amount
+		})),
+		// A refund is money the tenant got back: owed again from its date.
+		...paymentRows
+			.filter((payment) => payment.amount < 0)
+			.map((payment) => ({
+				label: payment.note || 'Rückzahlung',
+				dueDate: payment.date,
+				amount: -payment.amount
+			}))
+	];
 	return openItems(charges, paid, asOf);
 }
 
@@ -149,6 +157,11 @@ export async function createReminder(
 ): Promise<ReminderResult | undefined> {
 	const lease = await getLease(db, context.accountId, leaseId);
 	if (!lease) return undefined;
+	// The open items are those booked by the letter date; a later date would anticipate rent the
+	// ledger does not hold yet.
+	if (input.date > today()) {
+		return { ok: false, message: 'Das Schreiben kann nicht in die Zukunft datiert werden.' };
+	}
 	if (input.paymentDeadline <= input.date) {
 		return { ok: false, message: 'Die Zahlungsfrist muss nach dem Datum des Schreibens liegen.' };
 	}
