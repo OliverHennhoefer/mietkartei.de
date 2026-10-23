@@ -1,17 +1,18 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
-import { accounts } from '#lib/server/db/schema.ts';
+import { accounts, stripeEvents } from '#lib/server/db/schema.ts';
 import { signWebhookPayload } from '#lib/server/stripe.ts';
 import { testDatabase } from '#lib/server/testing.ts';
 import { POST } from './+server';
 
-vi.mock('$app/env/private', () => ({
+const env = vi.hoisted(() => ({
 	STRIPE_SECRET_KEY: 'sk_test_unit',
 	STRIPE_PRICE_ID: 'price_unit',
 	STRIPE_WEBHOOK_SECRET: 'whsec_unit',
 	STRIPE_API_BASE: 'http://stripe.test'
 }));
+vi.mock('$app/env/private', () => env);
 
 let db: Database;
 /** What GET /v1/subscriptions/sub_a answers: Stripe's current state of the subscription. */
@@ -19,6 +20,7 @@ let current: { status: string; current_period_end: number };
 
 beforeEach(async () => {
 	db = await testDatabase();
+	env.STRIPE_WEBHOOK_SECRET = 'whsec_unit';
 	await db
 		.update(accounts)
 		.set({ stripeCustomerId: 'cus_a', stripeSubscriptionId: 'sub_a' })
@@ -112,5 +114,67 @@ describe('POST /api/webhooks/stripe', () => {
 		// The payload is older than what the API answers; the API wins.
 		await deliver('evt_2', 'customer.subscription.updated', 'past_due');
 		expect((await account('a')).subscriptionStatus).toBe('active');
+	});
+});
+
+describe('POST /api/webhooks/stripe refusals', () => {
+	/** Posts a payload, signed with the endpoint's secret unless a signature is given. */
+	async function post(payload: string, signature?: string, headers: Record<string, string> = {}) {
+		signature ??= await signWebhookPayload(payload, 'whsec_unit', Math.floor(Date.now() / 1000));
+		const request = new Request('http://localhost/api/webhooks/stripe', {
+			method: 'POST',
+			body: payload,
+			headers: { 'stripe-signature': signature, ...headers }
+		});
+		const response = await POST({ request, locals: { db } } as unknown as Parameters<
+			typeof POST
+		>[0]);
+		return { status: response.status, body: await response.text() };
+	}
+
+	it('does not exist without a webhook secret', async () => {
+		env.STRIPE_WEBHOOK_SECRET = '';
+		expect((await post('{}')).status).toBe(404);
+	});
+
+	it('refuses oversized, unsigned and malformed deliveries', async () => {
+		expect((await post('{}', undefined, { 'content-length': String(600 * 1024) })).status).toBe(
+			413
+		);
+		expect((await post('x'.repeat(513 * 1024))).status).toBe(413);
+		expect((await post('{}', 't=1,v1=00')).status).toBe(400);
+		expect(await post('not json')).toEqual({ status: 400, body: 'Kein gültiges JSON.' });
+		expect(await post('{"id":1}')).toEqual({ status: 400, body: 'Kein Stripe-Ereignis.' });
+		expect(await db.select().from(stripeEvents)).toEqual([]);
+	});
+
+	it('records events that name no subscription and ignores their redelivery', async () => {
+		const payload = JSON.stringify({
+			id: 'evt_invoice',
+			type: 'invoice.paid',
+			data: { object: { id: 'in_1' } }
+		});
+		expect(await post(payload)).toEqual({ status: 200, body: '{"received":true}' });
+		expect(await post(payload)).toEqual({
+			status: 200,
+			body: '{"received":true,"duplicate":true}'
+		});
+		// A Checkout in payment mode is not the subscription's.
+		const oneOff = JSON.stringify({
+			id: 'evt_payment',
+			type: 'checkout.session.completed',
+			data: { object: { id: 'cs_2', mode: 'payment' } }
+		});
+		expect((await post(oneOff)).status).toBe(200);
+		expect(fetch).not.toHaveBeenCalled();
+		expect(await db.select().from(stripeEvents)).toHaveLength(2);
+	});
+
+	it('records a subscription event of an unknown customer without changing an account', async () => {
+		current = { status: 'active', current_period_end: 1_894_665_600 };
+		await db.update(accounts).set({ stripeCustomerId: 'cus_other' }).where(eq(accounts.id, 'a'));
+		await deliver('evt_unknown', 'customer.subscription.updated', 'active');
+		expect((await account('a')).subscriptionStatus).toBe('none');
+		expect(await db.select().from(stripeEvents)).toHaveLength(1);
 	});
 });
