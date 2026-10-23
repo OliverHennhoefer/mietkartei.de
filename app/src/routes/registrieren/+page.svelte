@@ -9,7 +9,7 @@
 </script>
 
 <svelte:head>
-	<title>Registrieren · mietkartei</title>
+	<title>Registrieren | mietkartei</title>
 	{#if data.turnstileSiteKey}
 		<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 	{/if}

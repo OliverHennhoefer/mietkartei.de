@@ -17,7 +17,7 @@
 </script>
 
 <svelte:head>
-	<title>{title} · mietkartei</title>
+	<title>{title} | mietkartei</title>
 </svelte:head>
 
 <div class="page-header">

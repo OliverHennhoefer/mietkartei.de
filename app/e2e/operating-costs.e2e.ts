@@ -31,7 +31,7 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 		.click();
 	await expect(page).toHaveURL(/\/betriebskosten$/);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Betriebskosten');
-	await expect(page).toHaveTitle('Betriebskosten · mietkartei');
+	await expect(page).toHaveTitle('Betriebskosten | mietkartei');
 	await expect(page.getByRole('heading', { level: 2, name: 'Neue Abrechnung' })).toBeVisible();
 
 	// Categories: heating and hot water start with their HeizKV key, a combined system with none

@@ -2,6 +2,10 @@ import { coverageConfigDefaults, defineConfig } from 'vitest/config';
 import cloudflare from '@sveltejs/adapter-cloudflare';
 import node from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { readFileSync } from 'node:fs';
+
+// The version shown at the bottom of the sidebar; set in package.json for each release.
+const { version } = JSON.parse(readFileSync(new URL('package.json', import.meta.url), 'utf8'));
 
 // The same code builds for self-hosting (Node, one SQLite file) and for Cloudflare Workers (D1).
 const target = process.env.DEPLOY_TARGET || 'node';
@@ -47,7 +51,8 @@ export default defineConfig({
 	],
 	define: {
 		// Replaced at build time, so the bundle for one target never contains the other's driver.
-		__DEPLOY_TARGET__: JSON.stringify(target)
+		__DEPLOY_TARGET__: JSON.stringify(target),
+		__APP_VERSION__: JSON.stringify(version)
 	},
 	server: {
 		// The logo and favicon are shared with the website and docs in ../assets/brand.

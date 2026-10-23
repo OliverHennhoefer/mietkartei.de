@@ -6,7 +6,7 @@
 </script>
 
 <svelte:head>
-	<title>Neue E-Mail-Adresse · mietkartei</title>
+	<title>Neue E-Mail-Adresse | mietkartei</title>
 </svelte:head>
 
 <div class="narrow">

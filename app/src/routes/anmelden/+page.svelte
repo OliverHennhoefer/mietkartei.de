@@ -7,7 +7,7 @@
 </script>
 
 <svelte:head>
-	<title>Anmelden · mietkartei</title>
+	<title>Anmelden | mietkartei</title>
 </svelte:head>
 
 <div class="narrow">

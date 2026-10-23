@@ -10,7 +10,7 @@
 </script>
 
 <svelte:head>
-	<title>Passwort vergessen · mietkartei</title>
+	<title>Passwort vergessen | mietkartei</title>
 </svelte:head>
 
 <div class="narrow">

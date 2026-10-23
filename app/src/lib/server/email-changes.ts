@@ -156,7 +156,7 @@ export async function confirmEmailChange(
 export function emailChangeMail(to: string, link: string): Mail {
 	return {
 		to,
-		subject: 'Neue E-Mail-Adresse bestätigen · mietkartei',
+		subject: 'Neue E-Mail-Adresse bestätigen | mietkartei',
 		text:
 			'Hallo,\n\n' +
 			'für einen Zugang zu mietkartei soll ab jetzt diese E-Mail-Adresse gelten. Mit diesem ' +
@@ -170,7 +170,7 @@ export function emailChangeMail(to: string, link: string): Mail {
 export function emailChangeNoticeMail(to: string, newEmail: string): Mail {
 	return {
 		to,
-		subject: 'Neue E-Mail-Adresse beantragt · mietkartei',
+		subject: 'Neue E-Mail-Adresse beantragt | mietkartei',
 		text:
 			'Hallo,\n\n' +
 			`für deinen Zugang zu mietkartei wurde beantragt, die E-Mail-Adresse auf ${newEmail} zu ` +

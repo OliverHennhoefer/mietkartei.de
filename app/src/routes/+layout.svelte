@@ -307,6 +307,15 @@
 						{/each}
 					</div>
 				{/each}
+				<p class="nav-version">
+					<a
+						href="https://github.com/OliverHennhoefer/mietkartei.de/releases"
+						target="_blank"
+						rel="noreferrer"
+						aria-label="Version {__APP_VERSION__}, Versionshinweise auf GitHub (neuer Tab)"
+						>Version {__APP_VERSION__}</a
+					>
+				</p>
 			</nav>
 		{/if}
 		<main id="main-content" class="site-main" tabindex="-1" inert={open}>

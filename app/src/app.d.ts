@@ -6,6 +6,8 @@ import type { Database } from '#lib/server/db/index.ts';
 declare global {
 	/** Set by vite.config.ts from the DEPLOY_TARGET environment variable. */
 	const __DEPLOY_TARGET__: 'node' | 'cloudflare';
+	/** Set by vite.config.ts from the version in package.json. */
+	const __APP_VERSION__: string;
 
 	interface Window {
 		/** Cloudflare Turnstile, loaded by the registration page when the bot check is on. */

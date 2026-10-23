@@ -4,7 +4,7 @@
 </script>
 
 <svelte:head>
-	<title>Fehler · mietkartei</title>
+	<title>Fehler | mietkartei</title>
 </svelte:head>
 
 <h1>{page.status === 404 ? 'Nicht gefunden' : 'Etwas ist schiefgelaufen'}</h1>

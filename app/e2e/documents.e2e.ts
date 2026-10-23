@@ -18,7 +18,7 @@ test('uploads a document, shows it on the lease, downloads, filters and deletes 
 
 	await page.goto('/dokumente');
 	await expect(page.getByRole('heading', { level: 1, name: 'Dokumente' })).toBeVisible();
-	await expect(page).toHaveTitle('Dokumente · mietkartei');
+	await expect(page).toHaveTitle('Dokumente | mietkartei');
 
 	const upload = uploadForm(page);
 	await upload
