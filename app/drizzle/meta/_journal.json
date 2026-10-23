@@ -169,6 +169,13 @@
       "when": 1792796296092,
       "tag": "0023_recurring_deadlines",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1792797287883,
+      "tag": "0024_payment_reminders",
+      "breakpoints": true
     }
   ]
 }
