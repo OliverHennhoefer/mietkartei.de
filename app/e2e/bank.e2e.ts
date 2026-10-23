@@ -198,6 +198,25 @@ test('ignores a transaction and reopens it', async ({ page }) => {
 	await expect(card(page, `Hausmeister ${suffix}`)).toHaveCount(1);
 });
 
+test('books an outgoing line as an expense and undoes it', async ({ page }) => {
+	await page.goto('/bank');
+	const outgoing = card(page, `Hausmeister ${suffix}`);
+	// Money paid out without a lease suggestion opens the expense form right away.
+	await outgoing.getByLabel('Kategorie').selectOption({ label: 'Betriebskosten und Hausgeld' });
+	await expect(outgoing.getByLabel('Beschreibung')).toHaveValue('Hausmeister GmbH');
+	await outgoing.getByRole('button', { name: 'Als Ausgabe buchen' }).click();
+	await expect(card(page, `Hausmeister ${suffix}`)).toHaveCount(0);
+
+	await page.goto('/bank?status=matched');
+	const booked = card(page, `Hausmeister ${suffix}`);
+	await expect(booked).toContainText('Ausgabe 120,50 € (Betriebskosten und Hausgeld)');
+	page.on('dialog', (dialog) => dialog.accept());
+	await booked.getByRole('button', { name: 'Zuordnung aufheben' }).click();
+	await expect(card(page, `Hausmeister ${suffix}`)).toHaveCount(0);
+	await page.goto('/bank');
+	await expect(card(page, `Hausmeister ${suffix}`)).toHaveCount(1);
+});
+
 test('imports a file without a known header through a column mapping', async ({ page }) => {
 	await page.goto('/bank/import');
 	await page.getByLabel('Bankverbindung').selectOption({ label: accountName });
@@ -294,7 +313,7 @@ test('splits a line over two leases and books a deposit', async ({ page }) => {
 test('books a double submit of one assignment once', async ({ page, baseURL }) => {
 	await page.goto('/bank');
 	const open = card(page, purpose).first();
-	const id = await open.locator('input[name="id"]').getAttribute('value');
+	const id = await open.locator('input[name="id"]').first().getAttribute('value');
 	if (!id) throw new Error('no transaction id');
 	const submit = () =>
 		page.request.post('/bank?/assign', {

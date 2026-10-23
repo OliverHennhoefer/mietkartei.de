@@ -21,6 +21,7 @@ import {
 	bankTransactions,
 	costItems,
 	depositTransactions,
+	expenses,
 	payments,
 	properties,
 	tasks,
@@ -35,8 +36,8 @@ import type { TenantInput } from './tenants';
 
 // Demo data for an empty account: two properties with six units,
 // five tenants, four running leases and one ended, two years of rent payments, one lease two
-// months in arrears, a bank account with open transactions, last year's cost items and two
-// tasks. Everything is written in one batch with the rows and audit lines the features' own
+// months in arrears, a bank account with open transactions, last year's cost items, two years of
+// expenses and two tasks. Everything is written in one batch with the rows and audit lines the features' own
 // functions write, so the audit log and the ledger look like real use and a failure leaves the
 // account empty. The names read like a small real portfolio; nothing marks them as demo rows,
 // so the landlord deletes them with the account (Einstellungen → Konto).
@@ -396,6 +397,60 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 		];
 	});
 
+	// Two years of expenses: the monthly loan rates, last year's operating costs as paid, a few
+	// repairs on single units and the tax adviser, so the analysis has something to compare.
+	const expense = (
+		day: string,
+		amount: number,
+		category: (typeof expenses.$inferInsert)['category'],
+		description: string,
+		propertyId: string | null,
+		unit: string | null = null
+	) => ({
+		id: crypto.randomUUID(),
+		accountId,
+		propertyId,
+		unitId: unit ? unitId(unit) : null,
+		date: day,
+		amount,
+		category,
+		description
+	});
+	const expenseRows = [
+		...monthsInRange(firstBookedMonth, lastMonth).flatMap((month) => [
+			expense(
+				addDays(firstOfMonth(month), 14),
+				95000,
+				'financing',
+				'Darlehensrate Sparkasse',
+				lindenId
+			),
+			expense(addDays(firstOfMonth(month), 14), 62000, 'financing', 'Darlehensrate KfW', gartenId)
+		]),
+		...costItemRows.map((item) =>
+			expense(`${lastYear}-03-15`, item.amount, 'operating_costs', item.description, lindenId)
+		),
+		expense(
+			addMonths(date, -14),
+			124000,
+			'maintenance',
+			'Heizungsreparatur',
+			gartenId,
+			'Wohnung EG'
+		),
+		expense(addMonths(date, -9), 215000, 'maintenance', 'Malerarbeiten', gartenId, 'Wohnung DG'),
+		expense(
+			addMonths(date, -3),
+			318000,
+			'maintenance',
+			'Wasserschaden Bad',
+			lindenId,
+			'Wohnung 1. OG'
+		),
+		expense(addMonths(date, -6), 89000, 'modernization', 'Rauchmelder, alle Wohnungen', lindenId),
+		expense(`${lastYear}-05-20`, 69000, 'management', 'Steuerberatung Anlage V', null)
+	];
+
 	// Two tasks.
 	const taskRows = [
 		{
@@ -452,6 +507,7 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 		['tenants', tenantRows.length],
 		['bankAccounts', 1],
 		['bankTransactions', transactionRows.length],
+		['expenses', expenseRows.length],
 		['tasks', taskRows.length]
 	];
 	for (const [kind, rows] of adding) await assertQuota(db, accountId, kind, rows);
@@ -469,6 +525,7 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			...insert(bankAccounts, [bankAccount]),
 			...insert(bankTransactions, transactionRows),
 			...insert(costItems, costItemRows),
+			...insert(expenses, expenseRows),
 			...insert(tasks, taskRows),
 			...insert(auditLog, auditRows),
 			// The last line is also the guard against a second run at the same time (a double

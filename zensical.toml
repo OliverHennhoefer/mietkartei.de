@@ -15,6 +15,7 @@ wrangler.toml
 """
 nav = [
   { "Dokumentation" = "index.md" },
+  { "Selbst hosten" = "selbst-hosten.md" },
 ]
 
 [project.theme]
@@ -44,6 +45,7 @@ toggle.icon = "lucide/sun"
 toggle.name = "Zur hellen Darstellung wechseln"
 
 [project.markdown_extensions]
+admonition = {}
 attr_list = {}
 md_in_html = {}
 

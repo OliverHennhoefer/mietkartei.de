@@ -21,6 +21,9 @@
 	--color-danger: #b4332a;
 	--color-danger-subtle: #fbf1f0;
 	--color-danger-border: #ecc9c5;
+	/* Charts: money in dark, money out mid-grey; told apart by lightness, never by hue alone. */
+	--color-chart-income: #202020;
+	--color-chart-expense: #8c8c8c;
 	--radius: 10px;
 	--sidebar-width: 15.5rem;
 	--header-height: 4rem;
@@ -1088,6 +1091,8 @@ dl.details dd {
 		--color-danger: #f0857b;
 		--color-danger-subtle: #2a1d1c;
 		--color-danger-border: #5a2f2b;
+		--color-chart-income: #ededed;
+		--color-chart-expense: #7a7a7a;
 		--shadow: none;
 		--color-focus-ring: rgb(255 255 255 / 12%);
 		--icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
@@ -1119,6 +1124,8 @@ dl.details dd {
 		--color-danger: #b4332a;
 		--color-danger-subtle: #fff;
 		--color-danger-border: #b4332a;
+		--color-chart-income: #111;
+		--color-chart-expense: #8c8c8c;
 		color-scheme: light;
 	}
 	.site-header,

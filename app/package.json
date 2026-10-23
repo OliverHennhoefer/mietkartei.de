@@ -23,6 +23,7 @@
 		"test:unit": "vitest",
 		"test:coverage": "vitest run --coverage",
 		"test:e2e": "playwright test",
+		"screenshots": "node scripts/screenshots.js",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate:d1": "wrangler d1 migrations apply DB --local",
 		"db:studio": "drizzle-kit studio"

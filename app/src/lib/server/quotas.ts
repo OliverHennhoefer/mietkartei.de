@@ -13,6 +13,7 @@ import {
 	costItems,
 	depositTransactions,
 	emailChanges,
+	expenses,
 	invitations,
 	leasePersons,
 	leases,
@@ -57,6 +58,7 @@ export const QUOTAS = {
 	bankAccounts: { table: bankAccounts, max: 50, label: 'Bankverbindungen' },
 	matchingRules: { table: matchingRules, max: 2_000, label: 'Zuordnungsregeln' },
 	bankTransactions: { table: bankTransactions, max: 100_000, label: 'Bankumsätze' },
+	expenses: { table: expenses, max: 100_000, label: 'Ausgaben' },
 	costCategories: { table: costCategories, max: 200, label: 'Kostenarten' },
 	/** Also bounds the shares: one per unit of the key's property. */
 	allocationKeys: { table: allocationKeys, max: 200, label: 'Umlageschlüssel' },
