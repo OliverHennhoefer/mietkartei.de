@@ -179,11 +179,16 @@
 			</select>
 		</Field>
 		<Field
-			label="CSV-Datei"
+			label="Kontoauszug"
 			error={errors?.file}
-			hint="Export deiner Bank als CSV: Sparkasse, Volksbank, ING, DKB und comdirect werden erkannt, andere Dateien ordnest du per Spalte zu."
+			hint="Am besten als camt.053 (XML, auch mehrere als ZIP), das bietet jede Bank im Online-Banking an. CSV-Exporte von Sparkasse, Volksbank, ING, DKB und comdirect werden ebenfalls erkannt, andere CSV-Dateien ordnest du per Spalte zu."
 		>
-			<input type="file" name="file" accept=".csv,text/csv,text/plain" required />
+			<input
+				type="file"
+				name="file"
+				accept=".csv,.xml,.zip,text/csv,text/plain,text/xml,application/xml,application/zip"
+				required
+			/>
 		</Field>
 		<div class="form-actions form-wide">
 			<button type="submit">Datei prüfen</button>
