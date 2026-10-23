@@ -27,6 +27,7 @@ Wer ein paar Wohnungen vermietet, jongliert oft mit Tabellen, Ordnern und Friste
 
 - **Objekte, Einheiten und Mieter** mit Verträgen, Kaltmiete, Vorauszahlungen und Kaution
 - **Betriebskostenabrechnung** mit Umlageschlüsseln und Zählerständen
+- **API und MCP-Server:** eigene Programme oder ein KI-Assistent wie Claude lesen deine Daten mit einem API-Schlüssel
 - **Deine Daten bleiben bei dir:** selbst gehostet als ein Container mit einer einzigen Datenbankdatei, oder künftig als gehosteter Dienst
 - **Offen für alle:** derselbe Code unter AGPL-3.0, egal wer die Anwendung betreibt
 

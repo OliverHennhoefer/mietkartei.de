@@ -207,6 +207,16 @@ export async function enforceBilling(event: RequestEvent): Promise<void> {
 }
 
 /**
+ * Whether the account may only read: the API's counterpart to enforceBilling, which looks at the
+ * page and form action instead. False while billing is off or not required.
+ */
+export async function apiReadOnly(db: Database, accountId: string): Promise<boolean> {
+	if (!billingEnabled() || !BILLING_REQUIRED) return false;
+	const account = await getBillingAccount(db, accountId);
+	return Boolean(account && isReadOnly(billingState(account, new Date())));
+}
+
+/**
  * A line shown above every page while the trial runs out or the account is read-only, with a
  * link to the subscription page. Nothing while billing is off or the subscription is active.
  */

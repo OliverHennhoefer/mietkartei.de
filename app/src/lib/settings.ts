@@ -21,6 +21,7 @@ const sections: SettingsSection[] = [
 	{ href: '/einstellungen/vpi', label: 'Verbraucherpreisindex', icon: 'trend' },
 	{ href: '/einstellungen/protokoll', label: 'Protokoll', icon: 'history' },
 	{ href: '/einstellungen/export', label: 'Export', icon: 'download', ownerOnly: true },
+	{ href: '/einstellungen/api-schluessel', label: 'API-Schlüssel', icon: 'key' },
 	{ href: '/datenuebernahme', label: 'Datenübernahme', icon: 'file', page: true },
 	{ href: '/abo', label: 'Abo', icon: 'card', billingOnly: true },
 	{ href: '/einstellungen/konto', label: 'Konto', icon: 'settings' }

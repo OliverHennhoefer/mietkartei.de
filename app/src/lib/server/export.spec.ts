@@ -15,6 +15,7 @@ import {
 	exportJson,
 	exportTables,
 	exportZip,
+	unexportedTables,
 	type ExportData
 } from './export';
 import { createPayment, ensureCharges } from './ledger';
@@ -56,7 +57,7 @@ async function seedAccount(context: typeof contextA) {
 
 describe('exportTables', () => {
 	it('names every table of the schema that belongs to an account, each once', () => {
-		const listed = exportTables.map(getTableName).sort();
+		const listed = [...exportTables, ...unexportedTables].map(getTableName).sort();
 		const expected = accountTables().map(getTableName).sort();
 		expect(listed).toEqual(expected);
 		expect(new Set(listed).size).toBe(listed.length);

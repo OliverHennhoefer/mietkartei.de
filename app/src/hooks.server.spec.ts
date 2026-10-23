@@ -65,6 +65,22 @@ describe('handle', () => {
 		}
 	});
 
+	it('leaves the API and the MCP server to their own authentication, ignoring the cookie', async () => {
+		const { token } = await createSession(db, 'user-a');
+		for (const path of ['/api/v1', '/api/v1/leases', '/mcp']) {
+			const { result, resolved, locals } = await send(path, {
+				method: 'POST',
+				cookies: new Map([['session', token]])
+			});
+			expect(resolved, path).toBe(true);
+			expect(locals.user, path).toBeUndefined();
+			const response = (result as { data: Response }).data;
+			expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+		}
+		expect((await send('/api/v1x')).result).toEqual({ redirect: '/anmelden' });
+		expect((await send('/mcp/x')).result).toEqual({ redirect: '/anmelden' });
+	});
+
 	it('opens the test routes only on the end-to-end server', async () => {
 		expect((await send('/api/e2e/seed')).result).toEqual({ redirect: '/anmelden' });
 		env.E2E = true;

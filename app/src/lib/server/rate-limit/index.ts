@@ -15,16 +15,36 @@ export interface RateLimiter {
 export const AUTH_LIMIT = 10;
 export const AUTH_PERIOD_SECONDS = 60;
 
+/**
+ * Calls of the API and the MCP server per key and minute, and calls with a wrong key per client
+ * address. An assistant working through a question makes a few dozen calls; a script copying the
+ * database in a loop is held back.
+ */
+export const API_LIMIT = 120;
+export const API_PERIOD_SECONDS = 60;
+
 let authLimiter: Promise<RateLimiter> | undefined;
+let apiLimiter: Promise<RateLimiter> | undefined;
+
+async function openLimiter(
+	binding: 'AUTH_LIMITER' | 'API_LIMITER',
+	limit: number,
+	periodSeconds: number
+): Promise<RateLimiter> {
+	if (__DEPLOY_TARGET__ === 'cloudflare') {
+		const { openCloudflareLimiter } = await import('./cloudflare');
+		return openCloudflareLimiter(binding);
+	}
+	const { createMemoryLimiter } = await import('./memory');
+	return createMemoryLimiter(limit, periodSeconds * 1000);
+}
 
 export function getAuthLimiter(): Promise<RateLimiter> {
-	authLimiter ??= (async () => {
-		if (__DEPLOY_TARGET__ === 'cloudflare') {
-			const { openCloudflareLimiter } = await import('./cloudflare');
-			return openCloudflareLimiter();
-		}
-		const { createMemoryLimiter } = await import('./memory');
-		return createMemoryLimiter(AUTH_LIMIT, AUTH_PERIOD_SECONDS * 1000);
-	})();
+	authLimiter ??= openLimiter('AUTH_LIMITER', AUTH_LIMIT, AUTH_PERIOD_SECONDS);
 	return authLimiter;
+}
+
+export function getApiLimiter(): Promise<RateLimiter> {
+	apiLimiter ??= openLimiter('API_LIMITER', API_LIMIT, API_PERIOD_SECONDS);
+	return apiLimiter;
 }
