@@ -1,4 +1,4 @@
-"""Copy the shared symbols, favicon and font into the documentation."""
+"""Copy the shared branding and font into the documentation."""
 
 from pathlib import Path
 from shutil import copyfile
@@ -12,6 +12,8 @@ DESTINATION.mkdir(parents=True, exist_ok=True)
 for filename in (
     "mark.svg",
     "mark-white.svg",
+    "lockup.svg",
+    "lockup-white.svg",
     "favicon.svg",
     "fonts/geist/Geist.ttf",
     "fonts/geist/OFL.txt",

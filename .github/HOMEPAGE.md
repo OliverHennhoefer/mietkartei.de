@@ -1,6 +1,6 @@
 # Maintaining the public homepage
 
-The static placeholder page at `https://mietkartei.de/` briefly introduces the project and links to the documentation. It consists of HTML and CSS. Geist, the register symbol and the favicon are taken from the shared brand assets; the page needs no JavaScript.
+The static placeholder page at `https://mietkartei.de/` briefly introduces the project and links to the documentation. It consists of HTML and CSS. Geist, the register symbol/wordmark combination and the favicon are taken from the shared brand assets; the page needs no JavaScript.
 
 ## Preview
 
@@ -28,7 +28,7 @@ Then open [http://127.0.0.1:8002](http://127.0.0.1:8002). Rebuild the output aft
 | `.github/workflows/websites.yml` | Checks and deploys homepage and documentation |
 | `dist/homepage/` | Generated output; not committed |
 
-The build copies only the listed public files, the house drawing, the black and white register symbols, the favicon and the original font with its OFL license. The font and brand SVGs are maintained in `assets/brand/`. Both the homepage and legal-notice header show the symbol without a wordmark, using `mark.svg` in light mode and `mark-white.svg` in dark mode. The favicon uses the small register symbol on a black background. Earlier wordmarks and design studies are not copied into the public output. Page-specific illustrations live in `website/assets/`.
+The build copies only the listed public files, the house drawing, the black and white register symbols and wordmark combinations, the favicon and the original font with its OFL license. The font and brand SVGs are maintained in `assets/brand/`. Both the homepage and legal-notice header combine the larger register symbol with the Geist wordmark, using `lockup.svg` in light mode and `lockup-white.svg` in dark mode. The combination is 52px high on desktop and 44px on smaller screens. The favicon uses the small register symbol on a black background. Earlier wordmarks and design studies are not copied into the public output. Page-specific illustrations live in `website/assets/`.
 
 The legal notice is available at `/impressum/`. Keep the provider and contact details current and remove optional details that do not apply.
 

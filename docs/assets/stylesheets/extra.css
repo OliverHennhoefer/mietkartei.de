@@ -57,8 +57,14 @@ body[data-md-color-scheme="slate"][data-md-color-primary] {
 }
 
 .md-header .md-logo img {
-  height: 1.8rem;
-  width: 1.8rem;
+  height: 2.2rem;
+  width: auto;
+}
+
+@media (max-width: 600px) {
+  .md-header .md-logo img {
+    height: 2rem;
+  }
 }
 
 .md-header .md-logo {
