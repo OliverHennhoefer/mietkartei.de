@@ -131,7 +131,9 @@ export async function loadAnalysis(
 	for (const day of [
 		...leaseRows.map((lease) => lease.startDate),
 		...paymentRows.map((payment) => payment.date),
-		...expenseRows.map((expense) => expense.date)
+		...expenseRows.map((expense) => expense.date),
+		// A unit counts for vacancy from its creation, so its history starts there too.
+		...unitRows.map((unit) => dayOf(unit.createdAt))
 	]) {
 		firstYear = Math.min(firstYear, Number(day.slice(0, 4)));
 	}

@@ -48,8 +48,9 @@
 	);
 
 	const categoryMax = $derived(Math.max(1, ...data.byCategory.map((row) => Math.abs(row.amount))));
+	// Activity per period, not the sums: an expense and its refund cancel out in the totals.
 	const hasData = $derived(
-		data.totals.charged !== 0 || data.totals.received !== 0 || data.totals.expenses !== 0
+		data.series.some((point) => point.charged !== 0 || point.received !== 0 || point.expenses !== 0)
 	);
 </script>
 
@@ -183,7 +184,7 @@
 
 	<section aria-labelledby="categories">
 		<h2 id="categories">Ausgaben nach Kategorie</h2>
-		{#if data.byCategory.length === 0}
+		{#if data.topExpenses.length === 0}
 			<p class="muted">
 				Keine Ausgaben in diesem Zeitraum. Ordne ausgehende Umsätze unter
 				<a href="/bank">Bank</a> als Ausgabe zu oder erfasse sie unter

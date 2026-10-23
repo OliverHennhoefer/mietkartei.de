@@ -296,5 +296,18 @@ describe('loadAnalysis', () => {
 			today: '2026-03-31'
 		});
 		expect(other.totals.received).toBe(0);
+
+		// A unit never let still reaches back to its creation for the vacancy history.
+		await db
+			.update(units)
+			.set({ createdAt: new Date('2024-05-01T00:00:00Z') })
+			.where(eq(units.id, foreignUnitId));
+		const created = await loadAnalysis(db, 'b', {
+			period: 'all',
+			propertyId: null,
+			today: '2026-03-31'
+		});
+		expect(created.years).toEqual([2026, 2025, 2024]);
+		expect(created.totals.vacantDays).toBe(700);
 	});
 });
