@@ -8,7 +8,7 @@
 </script>
 
 <svelte:head>
-	<title>Konto anlegen · mietkartei</title>
+	<title>Konto anlegen | mietkartei</title>
 </svelte:head>
 
 <div class="narrow">

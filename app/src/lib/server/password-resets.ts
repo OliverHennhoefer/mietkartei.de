@@ -104,7 +104,7 @@ export async function resetPassword(
 export function passwordResetMail(to: string, link: string): Mail {
 	return {
 		to,
-		subject: 'Passwort zurücksetzen · mietkartei',
+		subject: 'Passwort zurücksetzen | mietkartei',
 		text:
 			'Hallo,\n\n' +
 			'du hast ein neues Passwort für mietkartei angefordert. Mit diesem Link kannst du es ' +

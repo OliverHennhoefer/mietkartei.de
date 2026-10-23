@@ -127,6 +127,7 @@ textarea {
 	display: flex;
 	align-items: center;
 	justify-content: flex-end;
+	gap: 1rem;
 	padding: 0 1.5rem 0 0;
 }
 
@@ -136,7 +137,8 @@ textarea {
 	align-items: center;
 	gap: 0.4rem;
 	min-width: 0;
-	margin: 0 1rem 0 0;
+	/* Left-aligned in the bar; the account button stays on the right. */
+	margin: 0 auto 0 0;
 	color: var(--color-muted);
 	font-size: 0.8rem;
 }
@@ -335,6 +337,24 @@ button.settings-close {
 }
 .nav-toggle {
 	align-self: center;
+}
+.nav-version {
+	margin: auto 0 0;
+	padding: 0 0.75rem;
+	font-size: 0.75rem;
+}
+.site-nav .nav-version a {
+	display: inline;
+	min-height: 0;
+	padding: 0;
+	border: 0;
+	color: var(--color-muted);
+	font-size: inherit;
+	font-weight: 400;
+}
+.site-nav .nav-version a:hover {
+	background: none;
+	color: var(--color-text);
 }
 .site-nav {
 	display: none;

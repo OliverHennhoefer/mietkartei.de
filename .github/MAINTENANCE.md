@@ -74,10 +74,11 @@ Release notes are aimed at users and self-hosters and are therefore written in G
 
 1. Review the changes planned for the release and their state on the default branch.
 2. Label the pull requests accordingly. In particular, mark breaking changes and security fixes.
-3. Create a release draft on GitHub with the intended tag and the correct commit.
-4. If needed, copy the [release template](RELEASE_TEMPLATE.md) into the description. GitHub does not insert this file into the release form automatically.
-5. Generate the release notes and review them. `release.yml` sorts the entries into German categories; "Weitere Änderungen" collects contributions without a matching category. The behavior is described in [GitHub's documentation on release notes](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes).
-6. Add required upgrade steps and known limitations. Update the supported versions in [SECURITY.md](../SECURITY.md) if needed.
-7. Publish the release after a final review.
+3. Set `version` in [app/package.json](../app/package.json) (and `npm install` for the lockfile) to the new version without the leading `v`, and merge that change. The app shows it at the bottom of its sidebar, linked to the releases.
+4. Create a release draft on GitHub with the intended tag and the correct commit.
+5. If needed, copy the [release template](RELEASE_TEMPLATE.md) into the description. GitHub does not insert this file into the release form automatically.
+6. Generate the release notes and review them. `release.yml` sorts the entries into German categories; "Weitere Änderungen" collects contributions without a matching category. The behavior is described in [GitHub's documentation on release notes](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes).
+7. Add required upgrade steps and known limitations. Update the supported versions in [SECURITY.md](../SECURITY.md) if needed.
+8. Publish the release after a final review.
 
 When changing the confidential reporting channel, keep [SECURITY.md](../SECURITY.md) and [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) consistent.

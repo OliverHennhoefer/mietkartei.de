@@ -27,7 +27,7 @@ test('shows the deadlines of a lease that ends next month', async ({ page }) => 
 
 	await page.goto('/aufgaben');
 	await expect(page.getByRole('heading', { level: 1, name: 'Aufgaben' })).toBeVisible();
-	await expect(page).toHaveTitle('Aufgaben · mietkartei');
+	await expect(page).toHaveTitle('Aufgaben | mietkartei');
 
 	const deadlines = page.getByRole('table', { name: 'Fristen' });
 	const ours = deadlines.getByRole('row').filter({ hasText: tenantName });

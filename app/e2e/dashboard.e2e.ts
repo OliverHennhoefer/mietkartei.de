@@ -76,7 +76,7 @@ test('shows the tiles with arrears, vacancy, open transactions and deadlines', a
 
 	const before = await readTiles(page);
 	await expect(page.getByRole('heading', { level: 1, name: 'Übersicht' })).toBeVisible();
-	await expect(page).toHaveTitle('Übersicht · mietkartei');
+	await expect(page).toHaveTitle('Übersicht | mietkartei');
 	await expect(
 		page
 			.getByRole('navigation', { name: 'Hauptnavigation' })

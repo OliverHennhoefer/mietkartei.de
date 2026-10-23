@@ -13,7 +13,7 @@
 </script>
 
 <svelte:head>
-	<title>Einladung · mietkartei</title>
+	<title>Einladung | mietkartei</title>
 </svelte:head>
 
 <div class="narrow">
