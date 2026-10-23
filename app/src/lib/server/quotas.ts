@@ -13,6 +13,7 @@ import {
 	costItems,
 	depositTransactions,
 	emailChanges,
+	insurancePolicies,
 	invitations,
 	leasePersons,
 	leases,
@@ -25,7 +26,6 @@ import {
 	rentChanges,
 	rentCharges,
 	statementResults,
-	insurancePolicies,
 	tasks,
 	tenants,
 	units

@@ -169,6 +169,13 @@
       "when": 1792793477186,
       "tag": "0023_insurance_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1792794014423,
+      "tag": "0024_calendar_feeds",
+      "breakpoints": true
     }
   ]
 }

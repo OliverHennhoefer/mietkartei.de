@@ -1031,6 +1031,21 @@ export const users = sqliteTable(
 	]
 );
 
+/**
+ * The secret link of a user's calendar subscription (iCal) with the account's deadlines and tasks.
+ * Only the hash of the link token is stored; a new link replaces the old one.
+ */
+export const calendarFeeds = sqliteTable('calendar_feeds', {
+	id: id(),
+	accountId: accountId(),
+	userId: text('user_id')
+		.notNull()
+		.unique()
+		.references(() => users.id, { onDelete: 'cascade' }),
+	tokenHash: text('token_hash').notNull().unique(),
+	createdAt: createdAt()
+});
+
 /** A signed-in browser. The id is the SHA-256 hash of the cookie token, never the token itself. */
 export const sessions = sqliteTable(
 	'sessions',

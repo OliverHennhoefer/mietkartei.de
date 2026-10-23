@@ -37,6 +37,7 @@ export const exportTables: AccountTable[] = [
 	schema.emailChanges,
 	schema.invitations,
 	schema.auditLog,
+	schema.calendarFeeds,
 	schema.properties,
 	schema.units,
 	schema.tenants,

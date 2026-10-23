@@ -180,6 +180,7 @@ export const auditEntityLabels: Record<string, string> = {
 	cost_item: 'Beleg',
 	meter: 'Zähler',
 	insurance_policy: 'Versicherung',
+	calendar_feed: 'Kalender-Link',
 	meter_reading: 'Zählerstand',
 	statement: 'Betriebskostenabrechnung',
 	document: 'Dokument',
