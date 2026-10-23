@@ -1,6 +1,6 @@
 import { error, redirect } from '@sveltejs/kit';
 import type { Handle } from '@sveltejs/kit/hooks';
-import { E2E } from '$app/env/private';
+import { DEMO, E2E } from '$app/env/private';
 import { validateSession } from '#lib/server/auth.ts';
 import { enforceBilling } from '#lib/server/billing.ts';
 import { applySecurityHeaders } from '#lib/server/security-headers.ts';
@@ -31,6 +31,7 @@ const publicPrefixes = [
  */
 const authPaths = new Set([
 	'/anmelden',
+	'/demo',
 	'/registrieren',
 	'/passwort-vergessen',
 	'/einstellungen/konto'
@@ -42,6 +43,8 @@ function isAuthPath(pathname: string): boolean {
 }
 
 function isPublic(pathname: string): boolean {
+	// The demo has no sign-in: visitors start a demo account instead.
+	if (DEMO) return pathname === '/demo' || pathname === '/health';
 	if (publicPaths.has(pathname)) return true;
 	if (publicPrefixes.some((prefix) => pathname.startsWith(prefix))) return true;
 	// Test-only endpoints, e.g. the seed. Only enabled by the end-to-end test server.
@@ -63,7 +66,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	if (!event.locals.user && !isPublic(event.url.pathname)) redirect(303, '/anmelden');
+	if (!event.locals.user && !isPublic(event.url.pathname)) {
+		redirect(303, DEMO ? '/demo' : '/anmelden');
+	}
 	// Counted with or without a session: a signed-in client can post to these actions as well.
 	if (event.request.method === 'POST' && isAuthPath(event.url.pathname)) {
 		const limiter = await getAuthLimiter();

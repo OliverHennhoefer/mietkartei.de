@@ -16,11 +16,11 @@ Open Source, nachvollziehbar gerechnet und ohne Einarbeitung.
 [![Docker-Image](https://img.shields.io/badge/Docker-ghcr.io-2496ed?logo=docker&logoColor=white)](https://github.com/OliverHennhoefer/mietkartei.de/pkgs/container/mietkartei)
 ![Status: im Aufbau](https://img.shields.io/badge/Status-im%20Aufbau-d97706)
 
-[**Startseite**](https://mietkartei.de) · [**Dokumentation**](https://docs.mietkartei.de) · [**Selbst hosten**](.github/SELF_HOSTING.md) · [**Mitmachen**](CONTRIBUTING.md)
+[**▶ Demo ausprobieren**](https://demo.mietkartei.de) · [Startseite](https://mietkartei.de) · [Dokumentation](https://docs.mietkartei.de) · [Mitmachen](CONTRIBUTING.md)
 
 <br>
 
-<img src="assets/screenshots/uebersicht.png" alt="Übersicht von mietkartei mit Rückständen, Leerstand, offenen Bankumsätzen und Fristen" width="900">
+<a href="https://demo.mietkartei.de"><img src="assets/screenshots/uebersicht.png" alt="Übersicht von mietkartei mit Rückständen, Leerstand, offenen Bankumsätzen und Fristen" width="900"></a>
 
 </div>
 
@@ -59,22 +59,11 @@ Wer drei bis zehn Wohnungen vermietet, ist für die großen Verwaltungsprogramme
 > [!IMPORTANT]
 > **mietkartei ist im Aufbau** und ändert sich gerade schnell. Probier es mit den eingebauten Demodaten aus, verwalte damit aber noch keine echten Mieterdaten.
 
-## In zwei Minuten ausprobieren
+## Ausprobieren
 
-Mit Docker:
+**[demo.mietkartei.de](https://demo.mietkartei.de)**: ein Klick, und du hast deinen eigenen Beispielbestand mit zwei Häusern, Mietzahlungen, Bankumsätzen und einer fertigen Betriebskostenabrechnung. Ohne Anmeldung, nach 24 Stunden wird alles gelöscht.
 
-```sh
-docker run -p 127.0.0.1:3000:3000 -v mietkartei-data:/data ghcr.io/oliverhennhoefer/mietkartei
-```
-
-Oder aus dem Quellcode mit Node.js 22:
-
-```sh
-git clone https://github.com/OliverHennhoefer/mietkartei.de.git
-cd mietkartei.de/app && npm ci && npm run dev
-```
-
-Öffne <http://localhost:3000> (beim Start aus dem Quellcode <http://localhost:5173>), lege ein Konto an und wähle **Einstellungen → Konto → Demodaten anlegen**. Du bekommst zwei Häuser mit sechs Einheiten, zwei Jahre Mietzahlungen und die Belege für eine Abrechnung. Den Betrieb auf einem eigenen Server beschreibt die [Anleitung zum Selbsthosten](.github/SELF_HOSTING.md), alle Befehle stehen in [app/README.md](app/README.md).
+Du willst mietkartei auf deinem eigenen Rechner oder Server betreiben? Das beschreibt die [Anleitung zum Selbsthosten](https://docs.mietkartei.de/selbst-hosten/).
 
 ## Mitmachen
 
@@ -95,7 +84,7 @@ Issues und Dokumentation schreiben wir auf Deutsch, Code, Commits und Pull Reque
 | [`website/`](website/) | Die Startseite [mietkartei.de](https://mietkartei.de) |
 | [`docs/`](docs/) | Die Dokumentation [docs.mietkartei.de](https://docs.mietkartei.de), gebaut mit Zensical |
 | [`assets/`](assets/) | Logo, Schrift und die Bildschirmfotos dieser Seite (`npm run screenshots` in `app/`) |
-| [`.github/`](.github/) | Workflows, Vorlagen sowie Anleitungen zu [Deployment](.github/DEPLOYMENT.md), [Selbsthosten](.github/SELF_HOSTING.md) und [Pflege](.github/MAINTENANCE.md) |
+| [`.github/`](.github/) | Workflows, Vorlagen sowie Anleitungen zu [Deployment](.github/DEPLOYMENT.md), [Betrieb auf einem Server](.github/SELF_HOSTING.md) und [Pflege](.github/MAINTENANCE.md) |
 
 </details>
 

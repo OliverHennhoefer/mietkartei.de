@@ -26,6 +26,8 @@ Unter **Einstellungen → Datenübernahme** übernimmst du einen bestehenden Bes
 
 Zum Ausprobieren legt der Vermieter unter **Einstellungen → Konto** mit **Demodaten anlegen** einen kleinen Beispielbestand an: zwei Objekte, fünf Mietverträge, zwei Jahre Mietzahlungen, ein Bankkonto mit offenen Umsätzen, Belege des Vorjahres und zwei Aufgaben. Das geht nur, solange das Konto noch kein Objekt hat; wieder los wirst du die Demodaten, indem du das Konto löschst.
 
+Mit `DEMO=true` wird die Instanz zur öffentlichen Demo wie unter [demo.mietkartei.de](https://demo.mietkartei.de): Wer nicht angemeldet ist, landet auf `/demo` und startet dort mit einem Klick ein eigenes Konto mit den Demodaten, ohne E-Mail-Adresse und Passwort. Demo-Konten werden nach 24 Stunden gelöscht, jeweils wenn jemand eine neue Demo startet. Setze `DEMO` nur für eine solche Demo-Instanz.
+
 ## Abo
 
 Die gehostete Variante auf app.mietkartei.de kostet ein monatliches Abo, das über Stripe läuft. Jedes neue Konto kann mietkartei 30 Tage kostenlos testen; über jeder Seite steht, wann die Testphase endet. Unter **Abo** schließt der Vermieter das Abo über Stripe Checkout ab, ohne die restlichen Testtage zu verlieren, und verwaltet danach Zahlungsart, Rechnungen und Kündigung im Kundenportal von Stripe. Den Preis legt Stripe fest, nicht der Code. Das Abo verwaltet nur der Vermieter, nicht die Mitverwalter. Zwei Checkouts zugleich führen nicht zu zwei Abos: ein offener Checkout wird wiederverwendet, und ein trotzdem entstandenes zweites Abo kündigt mietkartei sofort. Wer sein Konto löscht, beendet damit auch das Abo; antwortet Stripe gerade nicht, bleibt das Konto, bis die Kündigung klappt.

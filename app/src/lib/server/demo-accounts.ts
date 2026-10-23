@@ -1,0 +1,61 @@
+import { and, asc, eq, like, lt } from 'drizzle-orm';
+import { deleteAccount } from './accounts';
+import { createSession, generateToken, hashPassword } from './auth';
+import type { Database } from './db';
+import { accounts, users } from './db/schema';
+import { createDemoData } from './demo';
+import type { Storage } from './storage';
+
+// The public demo (DEMO=true, demo.mietkartei.de): every visitor gets an account of their own
+// with the demo data, signed in without a password. The accounts are thrown away after a day.
+// Their owners have addresses under a reserved domain, which nobody can confirm a change of,
+// so only demo accounts are ever deleted here, even on an instance that set DEMO by mistake.
+
+export const DEMO_LIFETIME = 24 * 60 * 60 * 1000;
+const DEMO_EMAIL_DOMAIN = '@demo.invalid';
+/** Expired accounts deleted per new demo, so starting one stays fast after a busy day. */
+const EXPIRED_PER_START = 5;
+
+/** Creates a demo account with the demo data and returns the session for its owner. */
+export async function startDemo(db: Database, options?: { storage?: Storage }) {
+	await deleteExpiredDemoAccounts(db, Date.now(), options);
+	const [account] = await db
+		.insert(accounts)
+		.values({ name: 'Demo' })
+		.returning({ id: accounts.id });
+	const [user] = await db
+		.insert(users)
+		.values({
+			accountId: account.id,
+			email: `demo-${crypto.randomUUID()}${DEMO_EMAIL_DOMAIN}`,
+			// Nobody knows it: the demo signs in through the session alone.
+			passwordHash: await hashPassword(generateToken()),
+			name: 'Demo'
+		})
+		.returning({ id: users.id });
+	await createDemoData(db, { accountId: account.id, userId: user.id });
+	return createSession(db, user.id);
+}
+
+/** Deletes the oldest demo accounts created before the lifetime; returns how many. */
+export async function deleteExpiredDemoAccounts(
+	db: Database,
+	now: number,
+	options?: { storage?: Storage }
+): Promise<number> {
+	const expired = await db
+		.select({ id: accounts.id })
+		.from(accounts)
+		.innerJoin(users, eq(users.accountId, accounts.id))
+		.where(
+			and(
+				eq(users.role, 'owner'),
+				like(users.email, `demo-%${DEMO_EMAIL_DOMAIN}`),
+				lt(accounts.createdAt, new Date(now - DEMO_LIFETIME))
+			)
+		)
+		.orderBy(asc(accounts.createdAt))
+		.limit(EXPIRED_PER_START);
+	for (const { id } of expired) await deleteAccount(db, id, options);
+	return expired.length;
+}
