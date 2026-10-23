@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
-    <title>mietkartei</title>
-    <meta name="description" content="Hier entsteht mietkartei: eine Open-Source-Hausverwaltung für Privatvermieter in Deutschland. Die Anwendung befindet sich noch im Aufbau.">
+    <title>mietkartei | Hausverwaltung von Vermietern für Vermieter</title>
+    <meta name="description" content="mietkartei ist die Open-Source-Hausverwaltung für Privatvermieter: Mieten, Bankumsätze und Betriebskostenabrechnung nachvollziehbar an einem Ort, gehostet oder selbst betrieben.">
     <link rel="canonical" href="https://mietkartei.de/">
     <link rel="icon" href="assets/brand/favicon.svg?v=register" type="image/svg+xml">
     <link rel="stylesheet" href="styles.css">
@@ -27,23 +27,33 @@
 
       <main id="inhalt">
         <div class="hero-copy">
-          <p class="eyebrow">Hausverwaltung für Privatvermieter</p>
+          <p class="eyebrow">Von Vermietern für Vermieter</p>
           <h1>Vermieten.<br>Mit Überblick.</h1>
-          <p class="intro">Hier entsteht <code>mietkartei.de</code>: eine Open-Source-Hausverwaltung für Privatvermieter in Deutschland.</p>
-          <p class="progress">Wir arbeiten daran.</p>
+          <p class="intro">Mieten, Bankumsätze und die Betriebskostenabrechnung für deine paar Wohnungen. Open Source, nachvollziehbar gerechnet und ohne Einarbeitung.</p>
           <div class="actions">
             <a class="app-link" href="https://app.mietkartei.de/anmelden">Zur App<span aria-hidden="true">→</span></a>
             <a class="documentation" href="https://docs.mietkartei.de/">Zur Dokumentation<span aria-hidden="true">↗</span></a>
           </div>
         </div>
-        <figure class="hero-illustration" aria-hidden="true">
-          <img src="assets/house-blueprint.svg" alt="" width="560" height="560" decoding="async">
+        <figure class="hero-shots">
+          <img class="shot shot-main" src="assets/screenshots/uebersicht.png" alt="Übersicht von mietkartei mit Rückständen, Leerstand, offenen Bankumsätzen und Fristen" width="2560" height="1120" decoding="async">
+          <img class="shot shot-detail" src="assets/screenshots/abrechnung-mieter.png" alt="Anteil eines Mieters in der Betriebskostenabrechnung mit Umlageschlüssel je Kostenart" width="1930" height="1340" decoding="async" loading="lazy">
         </figure>
+        <ul class="values" aria-label="Was mietkartei ausmacht">
+          <li><strong>Fachlich genau</strong><span>Kostenarten nach Betriebskostenverordnung, tagesgenaue Umlage und CO₂-Aufteilung. Jeder Betrag zeigt seinen Rechenweg.</span></li>
+          <li><strong>Einfach</strong><span>Ein Bestand, ein Mietkonto pro Vertrag, eine Übersicht. Keine Buchhaltungskenntnisse nötig.</span></li>
+          <li><strong>Offen</strong><span>Der komplette Code unter AGPL-3.0. Deine Daten lassen sich jederzeit vollständig exportieren.</span></li>
+          <li><strong>Bequem</strong><span>Gehostet unter app.mietkartei.de oder selbst betrieben als ein Docker-Container.</span></li>
+        </ul>
       </main>
 
       <footer class="footer">
-        <span>Ein Projekt im Aufbau.</span>
-        <a href="/impressum/">Impressum</a>
+        <span class="status"><span class="dot" aria-hidden="true"></span>Frühe Version: Probier es mit den Demodaten aus, verwalte aber noch keine echten Mieterdaten.</span>
+        <nav class="footer-links" aria-label="Weitere Seiten">
+          <a href="https://github.com/OliverHennhoefer/mietkartei.de">GitHub</a>
+          <a href="https://docs.mietkartei.de/">Dokumentation</a>
+          <a href="/impressum/">Impressum</a>
+        </nav>
       </footer>
     </div>
   </body>
