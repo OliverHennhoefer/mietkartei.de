@@ -8,6 +8,7 @@ import {
 	listCircles,
 	listKeys
 } from '#lib/server/operating-costs.ts';
+import { insurancePrefill, linkCostItemToPolicy } from '#lib/server/insurance.ts';
 import { listProperties } from '#lib/server/properties.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { costItemFailure, itemPage, parseCostItemForm, storeReceipt } from '../save.server';
@@ -22,6 +23,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		listKeys(locals.db, accountId),
 		listCircles(locals.db, accountId)
 	]);
+	// ?versicherung=<id>&von=<start> comes from the Versicherungen tab: the Beleg of that
+	// insurance year.
+	const policyId = url.searchParams.get('versicherung');
+	const start = url.searchParams.get('von');
+	if (policyId && start && isIsoDate(start)) {
+		const prefill = await insurancePrefill(locals.db, accountId, policyId, start);
+		if (prefill) return { properties, categories, keys, circles, prefill };
+	}
 	// ?property= and ?year= come from the list, ?from=/?to= from "Speichern und nächsten Beleg".
 	const propertyParam = url.searchParams.get('property');
 	const propertyId = properties.find((property) => property.id === propertyParam)?.id;
@@ -47,6 +56,10 @@ export const actions: Actions = {
 		const context = auditContext(locals);
 		const created = await createCostItem(locals.db, context, input);
 		if (!created.ok) return fail(400, costItemFailure(created.reason, values));
+		const policyId = form.get('insurancePolicyId');
+		if (typeof policyId === 'string' && policyId) {
+			await linkCostItemToPolicy(locals.db, context.accountId, created.id, policyId);
+		}
 		const receiptError = receipt
 			? await storeReceipt(locals.db, context, created.id, input.propertyId, receipt)
 			: undefined;

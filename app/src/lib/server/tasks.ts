@@ -1,17 +1,22 @@
-import { and, asc, count, eq } from 'drizzle-orm';
-import { formatDate } from '../dates';
+import { and, asc, count, eq, notExists, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/sqlite-core';
+import { addMonths, formatDate, today as todayInBerlin, type IsoDate } from '../dates';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import { leases, properties, tasks, units } from './db/schema';
+import { leases, properties, tasks, units, type TaskCategory } from './db/schema';
 import { assertQuota } from './quotas';
 
 // Aufgaben: what the landlord writes down to do, optionally dated and linked to a property or a
 // lease. The deadlines that follow from the data are computed in deadlines.ts, not stored here.
+// A repeating task (maintenance, inspections, insurance) stays a single row per occurrence: done,
+// it leaves an open copy due one interval later, so the done list keeps the history.
 
 export type TaskInput = {
 	title: string;
+	category: TaskCategory;
 	dueDate: string | null;
+	repeatMonths: number | null;
 	propertyId: string | null;
 	leaseId: string | null;
 	note: string | null;
@@ -140,7 +145,9 @@ export async function createTask(
 	if (reason) return { ok: false, reason };
 	const id = crypto.randomUUID();
 	await runBatch(db, [
-		db.insert(tasks).values({ id, accountId, ...input }),
+		db
+			.insert(tasks)
+			.values({ id, accountId, ...input, repeatAnchor: input.repeatMonths ? input.dueDate : null }),
 		auditEntry(db, context, 'task', id, 'create', `Aufgabe ${describe(input)} angelegt`)
 	]);
 	return { ok: true, id };
@@ -157,39 +164,140 @@ export async function updateTask(
 	if (!existing) return { ok: false, reason: 'missing' };
 	const reason = await checkLinks(db, accountId, input);
 	if (reason) return { ok: false, reason };
+	// The series keeps its anchor while date and interval stay; a new date starts a new series.
+	const sameSeries =
+		existing.dueDate === input.dueDate && existing.repeatMonths === input.repeatMonths;
+	const repeatAnchor = input.repeatMonths
+		? (sameSeries && existing.repeatAnchor) || input.dueDate
+		: null;
 	await runBatch(db, [
 		db
 			.update(tasks)
-			.set(input)
+			.set({ ...input, repeatAnchor })
 			.where(and(eq(tasks.accountId, accountId), eq(tasks.id, taskId))),
 		auditEntry(db, context, 'task', taskId, 'update', `Aufgabe ${describe(input)} geändert`)
 	]);
 	return { ok: true };
 }
 
-/** Marks the task done (with the time) or open again. False when the task is not in the account. */
+/**
+ * The due date of the next occurrence: the first date of the series after the current due date,
+ * and after today, so a task done late does not come back overdue. Dates are counted from the
+ * series' anchor, so the 31st does not drift to the 28th.
+ */
+export function nextDueDate(
+	anchor: IsoDate,
+	dueDate: IsoDate,
+	repeatMonths: number,
+	today: IsoDate
+): IsoDate {
+	let steps = 1;
+	let next = addMonths(anchor, repeatMonths);
+	while (next <= dueDate || next <= today) {
+		steps += 1;
+		next = addMonths(anchor, repeatMonths * steps);
+	}
+	return next;
+}
+
+/**
+ * Marks the task done (with the time) or open again. A repeating task done gets an open copy due
+ * at the next date; reopening it removes that copy again while it is still open. False when the
+ * task is not in the account.
+ */
 export async function setDone(
 	db: Database,
 	context: AuditContext,
 	taskId: string,
-	done: boolean
+	done: boolean,
+	today: IsoDate = todayInBerlin()
 ): Promise<boolean> {
 	const { accountId } = context;
 	const existing = await getTask(db, accountId, taskId);
 	if (!existing) return false;
+	if (existing.done === done) return true;
+	// Guarded by the state read above, so a second request racing this one changes nothing.
+	const where = and(eq(tasks.accountId, accountId), eq(tasks.id, taskId), eq(tasks.done, !done));
+
+	if (done) {
+		const { dueDate: due, repeatMonths } = existing;
+		if (!due || !repeatMonths) {
+			await runBatch(db, [
+				db.update(tasks).set({ done, doneAt: new Date() }).where(where),
+				auditEntry(db, context, 'task', taskId, 'update', `Aufgabe ${describe(existing)} erledigt`)
+			]);
+			return true;
+		}
+		await assertQuota(db, accountId, 'tasks');
+		const followUpId = crypto.randomUUID();
+		const repeatAnchor = existing.repeatAnchor ?? due;
+		const dueDate = nextDueDate(repeatAnchor, due, repeatMonths, today);
+		const next = {
+			title: existing.title,
+			category: existing.category,
+			dueDate,
+			repeatMonths,
+			repeatAnchor,
+			propertyId: existing.propertyId,
+			leaseId: existing.leaseId,
+			note: existing.note
+		};
+		// The copy goes in first and out again unless this request's update was the one that
+		// marked the task done, so two overlapping requests leave a single copy behind.
+		const original = alias(tasks, 'original');
+		await runBatch(db, [
+			db.insert(tasks).values({ id: followUpId, accountId, ...next }),
+			db.update(tasks).set({ done, doneAt: new Date(), followUpId }).where(where),
+			db.delete(tasks).where(
+				and(
+					eq(tasks.id, followUpId),
+					notExists(
+						db
+							.select({ one: sql`1` })
+							.from(original)
+							.where(and(eq(original.id, taskId), eq(original.followUpId, followUpId)))
+					)
+				)
+			),
+			auditEntry(
+				db,
+				context,
+				'task',
+				taskId,
+				'update',
+				`Aufgabe ${describe(existing)} erledigt; wieder fällig am ${formatDate(dueDate)}`
+			)
+		]);
+		return true;
+	}
+
+	const [followUp] = existing.followUpId
+		? await db
+				.select({ id: tasks.id, done: tasks.done })
+				.from(tasks)
+				.where(and(eq(tasks.accountId, accountId), eq(tasks.id, existing.followUpId)))
+		: [];
+	const removeFollowUp = followUp && !followUp.done;
 	await runBatch(db, [
-		db
-			.update(tasks)
-			.set({ done, doneAt: done ? new Date() : null })
-			.where(and(eq(tasks.accountId, accountId), eq(tasks.id, taskId))),
+		db.update(tasks).set({ done, doneAt: null, followUpId: null }).where(where),
+		...(removeFollowUp
+			? [
+					// Still open when the batch runs: a copy done in the meantime keeps its history.
+					db
+						.delete(tasks)
+						.where(
+							and(eq(tasks.accountId, accountId), eq(tasks.id, followUp.id), eq(tasks.done, false))
+						)
+				]
+			: []),
 		auditEntry(
 			db,
 			context,
 			'task',
 			taskId,
 			'update',
-			done
-				? `Aufgabe ${describe(existing)} erledigt`
+			removeFollowUp
+				? `Aufgabe ${describe(existing)} wieder geöffnet; die nächste Fälligkeit entfällt`
 				: `Aufgabe ${describe(existing)} wieder geöffnet`
 		)
 	]);

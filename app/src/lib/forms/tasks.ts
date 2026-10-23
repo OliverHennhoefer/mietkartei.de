@@ -1,4 +1,7 @@
+import { taskCategoryLabels } from '../labels';
+import type { TaskCategory } from '../server/db/schema';
 import type { TaskInput } from '../server/tasks';
+import { repeatOptions } from '../task-templates';
 import { FormParser, type FieldErrors } from './fields';
 
 // Parses the task form. The link is one select over properties and leases, so its value carries
@@ -17,11 +20,21 @@ export type TaskParseResult =
 
 export const linkValue = (kind: 'property' | 'lease', id: string) => `${kind}:${id}`;
 
+// From the label table rather than the schema: the task form component imports this module.
+const taskCategories = Object.keys(taskCategoryLabels) as TaskCategory[];
+const repeatValues = repeatOptions.map((option) => String(option.months));
+
 export function parseTask(form: FormData): TaskParseResult {
 	const parser = new FormParser<TaskForm>(form);
 
 	const title = parser.text('title');
+	const category = parser.oneOf('category', taskCategories, { required: false }) ?? 'other';
 	const dueDate = parser.date('dueDate', { required: false });
+	const repeat = parser.oneOf('repeatMonths', repeatValues, { required: false });
+	const repeatMonths = repeat ? Number(repeat) : null;
+	if (repeatMonths && !dueDate) {
+		parser.fail('dueDate', 'Eine wiederkehrende Aufgabe braucht ein Fälligkeitsdatum.');
+	}
 	const note = parser.optionalText('note', 2000);
 
 	const link = parser.raw('link');
@@ -35,5 +48,9 @@ export function parseTask(form: FormData): TaskParseResult {
 	}
 
 	if (parser.hasErrors) return { ok: false, errors: parser.errors, values: parser.values };
-	return { ok: true, data: { title, dueDate, propertyId, leaseId, note }, values: parser.values };
+	return {
+		ok: true,
+		data: { title, category, dueDate, repeatMonths, propertyId, leaseId, note },
+		values: parser.values
+	};
 }
