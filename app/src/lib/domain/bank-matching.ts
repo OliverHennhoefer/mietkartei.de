@@ -185,8 +185,8 @@ export function genericHeaderRow(rows: string[][]): number {
 export type ParsedBankFile = {
 	/** The column names of the header row, for the mapping selects of a generic file. */
 	columns: string[];
-	/** The preset detected from the header; undefined for a file that needs a mapping. */
-	preset: BankPreset | undefined;
+	/** The preset detected from the header (or camt); undefined for a file that needs a mapping. */
+	preset: Pick<BankPreset, 'id' | 'name'> | undefined;
 	/** Empty for a generic file until a mapping is given. */
 	results: RowResult[];
 };
