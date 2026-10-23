@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { coverageConfigDefaults, defineConfig } from 'vitest/config';
 import cloudflare from '@sveltejs/adapter-cloudflare';
 import node from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
@@ -63,7 +63,12 @@ export default defineConfig({
 		coverage: {
 			provider: 'v8',
 			include: ['src/**/*.{js,ts}'],
-			exclude: ['src/**/*.d.ts', 'src/lib/server/testing.ts', 'src/routes/api/e2e/**'],
+			exclude: [
+				...coverageConfigDefaults.exclude,
+				'src/**/*.d.ts',
+				'src/lib/server/testing.ts',
+				'src/routes/api/e2e/**'
+			],
 			reporter: ['text-summary', 'lcov']
 		},
 		projects: [
