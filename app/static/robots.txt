@@ -1,3 +1,0 @@
-# The app holds private data and is not meant to be indexed.
-User-agent: *
-Disallow: /
