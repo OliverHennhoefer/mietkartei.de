@@ -10,7 +10,14 @@ import {
 	undoAssignment
 } from './bank/transactions';
 import type { Database } from './db';
-import { auditLog, bankTransactions, expenses, payments, units } from './db/schema';
+import {
+	auditLog,
+	bankTransactions,
+	depositTransactions,
+	expenses,
+	payments,
+	units
+} from './db/schema';
 import { createExpense, deleteExpense, listExpenses, scopeOptions } from './expenses';
 import { deleteProperty } from './properties';
 import { contextA, contextB, seedLease, seedUnit, testDatabase } from './testing';
@@ -250,6 +257,10 @@ describe('loadAnalysis', () => {
 			scope: { kind: 'unit', id: unitId },
 			description: 'Therme'
 		});
+		await db.insert(depositTransactions).values([
+			{ accountId: 'a', leaseId, date: '2026-01-05', amount: 180000, kind: 'received' },
+			{ accountId: 'a', leaseId, date: '2026-06-30', amount: -180000, kind: 'returned' }
+		]);
 		const page = await loadAnalysis(db, 'a', {
 			period: 2026,
 			propertyId: null,
@@ -261,7 +272,8 @@ describe('loadAnalysis', () => {
 			expenses: 30000,
 			net: 130000,
 			vacantDays: 0,
-			depositsHeld: 0
+			// The return on 30 June is still ahead on 31 March.
+			depositsHeld: 180000
 		});
 		expect(page.arrears).toBe(80000);
 		expect(page.years).toEqual([2026]);

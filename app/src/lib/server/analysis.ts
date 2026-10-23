@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, lte } from 'drizzle-orm';
 import { dayOf, monthOf, today, type IsoDate } from '../dates';
 import { analyse, type Analysis } from '../domain/analysis';
 import type { Database } from './db';
@@ -105,7 +105,8 @@ export async function loadAnalysis(
 		db
 			.select({ leaseId: depositTransactions.leaseId, amount: depositTransactions.amount })
 			.from(depositTransactions)
-			.where(eq(depositTransactions.accountId, accountId))
+			// Held today: movements dated later have not happened yet, whatever the period shown.
+			.where(and(eq(depositTransactions.accountId, accountId), lte(depositTransactions.date, date)))
 	]);
 
 	// A unit counts for vacancy from its creation, or from its first lease when that is earlier
