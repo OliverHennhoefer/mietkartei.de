@@ -1,5 +1,9 @@
 import { leaseLabel, listLeases } from '#lib/server/leases.ts';
+import { today } from '#lib/dates.ts';
+import { currentReminders } from '#lib/domain/reminders.ts';
 import { listBalances } from '#lib/server/ledger.ts';
+import { listRemindersByLease } from '#lib/server/reminders.ts';
+import type { ReminderLevel } from '#lib/server/db/schema.ts';
 import { requireAccount } from '#lib/server/session.ts';
 import { personName } from '#lib/format.ts';
 import type { PageServerLoad } from './$types';
@@ -18,19 +22,26 @@ export type BalanceRow = {
 	overdue: number;
 	openSince: string | null;
 	lastPaymentDate: string | null;
+	/** The latest letter about the current Rückstand. */
+	reminder: { level: ReminderLevel; date: string; paymentDeadline: string } | null;
 };
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const accountId = requireAccount(locals);
 	const onlyArrears = url.searchParams.get('filter') === 'rueckstaende';
-	const [leases, balances] = await Promise.all([
+	const [leases, balances, reminders] = await Promise.all([
 		listLeases(locals.db, accountId),
-		listBalances(locals.db, accountId)
+		listBalances(locals.db, accountId),
+		listRemindersByLease(locals.db, accountId)
 	]);
 	const balanceByLease = new Map(balances.map((balance) => [balance.leaseId, balance]));
 
 	const rows: BalanceRow[] = leases.map((lease) => {
 		const balance = balanceByLease.get(lease.id);
+		const [reminder] = currentReminders(
+			reminders.get(lease.id) ?? [],
+			balance?.overdue ? balance.openSinceDate : null
+		);
 		return {
 			leaseId: lease.id,
 			label: leaseLabel(lease),
@@ -39,7 +50,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			balance: balance?.balance ?? 0,
 			overdue: balance?.overdue ?? 0,
 			openSince: balance?.openSince ?? null,
-			lastPaymentDate: balance?.lastPaymentDate ?? null
+			lastPaymentDate: balance?.lastPaymentDate ?? null,
+			reminder: reminder
+				? { level: reminder.level, date: reminder.date, paymentDeadline: reminder.paymentDeadline }
+				: null
 		};
 	});
 	rows.sort((a, b) => {
@@ -54,6 +68,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		leaseCount: rows.length,
 		rows: onlyArrears ? arrears : rows,
 		onlyArrears,
+		today: today(),
 		stats: {
 			arrearsTotal: arrears.reduce((sum, row) => sum + row.overdue, 0),
 			arrearsCount: arrears.length,
