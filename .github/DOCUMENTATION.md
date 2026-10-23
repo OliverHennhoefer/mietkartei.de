@@ -25,25 +25,25 @@ zensical build --clean --strict
 
 Warnings, such as invalid internal links, make the build fail. The generated files in `site/` and `docs/assets/brand/` and the local environment are not committed. Also check the layout on small screens and in light and dark mode.
 
-After changing the originals in `assets/brand/`, run `python scripts/prepare_docs_assets.py` again. It copies both logos, the favicon and Geist with its OFL license. A running preview picks up the updated copies automatically. The script uses only the Python standard library and needs no symbolic links.
+After changing the originals in `assets/brand/`, run `python scripts/prepare_docs_assets.py` again. It copies the black and white register symbols, the favicon and Geist with its OFL license. A running preview picks up the updated copies automatically. The script uses only the Python standard library and needs no symbolic links.
 
 ## Files
 
 | Path | Purpose |
 | --- | --- |
 | `docs/index.md` | Public placeholder page |
-| `assets/brand/` | Shared originals of the selected wordmarks |
+| `assets/brand/` | Shared register symbols, favicon and Geist font |
 | `assets/brand/variants/` | Earlier design variants, not published |
 | `docs/assets/stylesheets/` | Styles for the documentation only |
-| `docs/assets/brand/` | Generated copies of the selected wordmarks and Geist with its license |
-| `scripts/prepare_docs_assets.py` | Copies the shared wordmarks and font before preview and build |
+| `docs/assets/brand/` | Generated copies of the selected symbols, favicon and Geist with its license |
+| `scripts/prepare_docs_assets.py` | Copies the shared symbols, favicon and font before preview and build |
 | `docs/requirements.txt` | Pinned Zensical version |
 | `zensical.toml` | Language, domain and appearance |
 | `docs/wrangler.toml` | Cloudflare Worker for the documentation domain |
 | `docs/_headers` | HTTP response headers for Cloudflare |
 | `.github/workflows/websites.yml` | Required check and deployment of both websites |
 
-The single-line wordmarks use the original outlines of Geist Medium (500). The [brand assets](../assets/brand/README.md) contain the original font, its license and instructions for exporting again. The page uses the same locally hosted Geist font as the homepage and app, with system fonts as a fallback. Search stays disabled for the single placeholder page.
+The header uses the register symbol without a wordmark. Dark mode inverts the black symbol to white, and the browser icon uses the small white symbol on black. The [brand assets](../assets/brand/README.md) contain the vector construction, shared exports and the earlier Geist wordmarks with their original font and license. The page uses the same locally hosted Geist font as the homepage and app, with system fonts as a fallback. Search stays disabled for the single placeholder page.
 
 ## Cloudflare and domain
 

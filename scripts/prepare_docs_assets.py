@@ -1,4 +1,4 @@
-"""Übernimmt die gemeinsamen Wortmarken und die Schrift in die Dokumentation."""
+"""Copy the shared symbols, favicon and font into the documentation."""
 
 from pathlib import Path
 from shutil import copyfile
@@ -10,8 +10,8 @@ DESTINATION = ROOT / "docs" / "assets" / "brand"
 
 DESTINATION.mkdir(parents=True, exist_ok=True)
 for filename in (
-    "logo.svg",
-    "logo-white.svg",
+    "mark.svg",
+    "mark-white.svg",
     "favicon.svg",
     "fonts/geist/Geist.ttf",
     "fonts/geist/OFL.txt",

@@ -20,11 +20,9 @@ illustration.parent.mkdir(parents=True, exist_ok=True)
 copyfile(ROOT / "website" / "assets" / "house-blueprint.svg", illustration)
 
 for filename in (
-    "logo.svg",
-    "logo-white.svg",
+    "mark.svg",
+    "mark-white.svg",
     "favicon.svg",
-    "variants/geist-highlight.svg",
-    "variants/geist-highlight-white.svg",
 ):
     destination = OUTPUT / "assets" / "brand" / filename
     destination.parent.mkdir(parents=True, exist_ok=True)

@@ -1,26 +1,34 @@
 # Markenressourcen
 
-Hier liegen die gemeinsamen Originaldateien für Dokumentation, README und die künftige Anwendung.
+Die **Registerfaltung** ist die ausgewählte Bildmarke für mietkartei. Drei geordnete Eintragsebenen werden von einer gemeinsamen räumlichen Falte gehalten. Alle Ebenen folgen derselben dünnen Flächengeometrie; die Gestaltung bleibt vollständig schwarz-weiß.
 
 | Datei | Verwendung |
 | --- | --- |
-| [logo.svg](logo.svg) | Schwarze Wortmarke für helle Hintergründe |
-| [logo-white.svg](logo-white.svg) | Weiße Wortmarke für dunkle Hintergründe |
-| [favicon.svg](favicon.svg) | Weißer Hausumriss auf schwarzem Grund als Browser-Symbol |
+| [mark.svg](mark.svg) | Schwarze Bildmarke für helle Hintergründe |
+| [mark-white.svg](mark-white.svg) | Weiße Bildmarke für dunkle Hintergründe |
+| [favicon.svg](favicon.svg) | Kleine weiße Registerfaltung auf schwarzem Grund als Browser-Symbol |
+| [register/](register/README.md) | Vektorkonstruktion, Maße, kleine Fassung und Wortmarken-Kombinationen |
+| [logo.svg](logo.svg), [logo-white.svg](logo-white.svg) | Bestehende Geist-Medium-Wortmarken, weiterhin als separate Ressource verfügbar |
 | [fonts/geist/](fonts/geist/) | Originalschrift mit Quelle und SIL-OFL-Lizenz |
-| [variants/](variants/) | Gestaltungsvarianten und frühere Schriftvergleiche |
+| [variants/](variants/) | Gestaltungsvarianten und frühere Vergleiche |
 
-Die ausgewählte Wortmarke zeigt **mietkartei** in einer Zeile, gesetzt in **Geist Medium (500)** mit nativer Laufweite und Kerning. Die originalen Schriftkonturen sind in SVG-Pfade umgewandelt; zur Darstellung muss die Schrift nicht installiert sein. Die beiden Logos direkt in diesem Ordner bilden die schlichte Grundversion. Zusätzliche Entwürfe liegen unter `variants/`.
+Startseite, Impressum, Anwendung, Dokumentationskopf und Repository-README verwenden die Bildmarke ohne Schriftzug. Die Webseiten verwenden dasselbe Favicon. Helle und dunkle Ansichten zeigen die passende schwarze beziehungsweise weiße Bildmarke; der Link zur Startseite behält den zugänglichen Namen „mietkartei“.
 
-Als Gestaltungsprobe verwendet die öffentliche Startseite derzeit [geist-highlight.svg](variants/geist-highlight.svg): „miet“ bleibt unverändert, „kartei“ steht weiß in einer schwarzen rechteckigen Fläche. [geist-highlight-white.svg](variants/geist-highlight-white.svg) kehrt die Farben für dunkle Hintergründe um. Beide Varianten verwenden ebenfalls die originalen Geist-Konturen und werden vom selben Skript erzeugt.
+Die Bildmarken und das Favicon direkt in diesem Ordner sind Exporte der gewählten Konstruktion unter `register/`. Sie lassen sich mit Python 3 neu erzeugen:
 
-Das ausgewählte Favicon zeigt einen weißen Hausumriss auf schwarzem Grund und ist auf 16 und 32 Pixel ausgelegt. Die SVG-Zeichnung wird direkt in `favicon.svg` bearbeitet. Die Entwürfe [Kartei](variants/favicon-card-index.svg) und [Haus](variants/favicon-house.svg) bleiben als Gestaltungsreferenz verfügbar.
+```sh
+python3 assets/brand/register/construction.py
+```
 
-Die Wortmarken-Exporte lassen sich mit Python 3.12 aus der mitgelieferten Originalschrift neu erzeugen:
+Das Skript erzeugt die SVGs unter `register/` und aktualisiert `mark.svg`, `mark-white.svg` und `favicon.svg` in diesem Ordner. Die kleine Fassung öffnet die senkrechte Fuge für die Anzeige bei 16 Pixeln. Alle Aussparungen der freistehenden Bildmarke bleiben transparent.
+
+`python3 scripts/build_homepage.py` übernimmt ausschließlich die ausgewählten Bildmarken, das Favicon und die Seitenschrift in den Startseiten-Build. `python3 scripts/prepare_docs_assets.py` kopiert dieselben drei Marken-SVGs und Geist mit der OFL-Lizenz nach `docs/assets/brand/`. Die Anwendung importiert Bildmarke, Favicon und Schrift direkt aus diesem gemeinsamen Ordner. Diese erzeugten Kopien werden nicht eingecheckt. Die Dokumentationsgestaltung bleibt in `docs/assets/stylesheets/`.
+
+Die Wortmarke zeigt **mietkartei** in einer Zeile, gesetzt in **Geist Medium (500)** mit nativer Laufweite und Kerning. Ihre Originalkonturen sind SVG-Pfade. Die Wortmarke bleibt für Kombinationen mit dem Zeichen verfügbar; für die Darstellung muss die Schrift nicht installiert sein. Die Schrift-Exporte lassen sich aus der mitgelieferten Originalschrift neu erzeugen:
 
 ```sh
 python -m pip install -r scripts/requirements-brand.txt
 python scripts/generate_brand_logos.py
 ```
 
-`python scripts/prepare_docs_assets.py` kopiert die beiden ausgewählten Logos, das Favicon und Geist mit der OFL-Lizenz nach `docs/assets/brand/`. Diese erzeugten Kopien werden nicht eingecheckt. Die Dokumentationsgestaltung bleibt in `docs/assets/stylesheets/`. Startseite, Dokumentation und Anwendung verwenden dieselbe lokale Originalschrift über ihren jeweiligen Build.
+Frühere Schriftvergleiche bleiben unter [variants/](variants/) als Gestaltungsreferenz verfügbar. Sie gehören nicht zu den öffentlichen Builds.

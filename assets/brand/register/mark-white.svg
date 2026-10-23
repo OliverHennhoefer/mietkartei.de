@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title description">
+  <title id="title">mietkartei — Registerfaltung</title>
+  <desc id="description">Drei geordnete Eintragsebenen werden von einer gemeinsamen Falte gehalten. Die zurücklaufenden Kanten geben dem Zeichen eine klare räumliche Drehung.</desc>
+  <g fill="#fff" transform="translate(48 48) scale(0.833333333) translate(-48 -46)">
+    <path id="spine-and-fold" d="M70 8L86 15.2L26 39.2L26 84L10 76.8L10 32Z"/>
+    <path id="middle-entry" d="M31.5 45.8L70 30.4L86 37.6L31.5 59.4Z"/>
+    <path id="lower-entry" d="M31.5 68.2L70 52.8L86 60L31.5 81.8Z"/>
+  </g>
+</svg>

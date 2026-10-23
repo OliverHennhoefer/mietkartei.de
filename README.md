@@ -1,8 +1,8 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/brand/logo-white.svg">
-  <img src="assets/brand/logo.svg" alt="mietkartei" width="280">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/brand/mark-white.svg">
+  <img src="assets/brand/mark.svg" alt="mietkartei" width="64" height="64">
 </picture>
 
 **Vermieten. Mit Überblick.**
