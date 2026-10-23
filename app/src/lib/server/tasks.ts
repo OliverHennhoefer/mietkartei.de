@@ -1,17 +1,21 @@
 import { and, asc, count, eq } from 'drizzle-orm';
-import { formatDate } from '../dates';
+import { addMonths, formatDate, today as todayInBerlin, type IsoDate } from '../dates';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import { leases, properties, tasks, units } from './db/schema';
+import { leases, properties, tasks, units, type TaskCategory } from './db/schema';
 import { assertQuota } from './quotas';
 
 // Aufgaben: what the landlord writes down to do, optionally dated and linked to a property or a
 // lease. The deadlines that follow from the data are computed in deadlines.ts, not stored here.
+// A repeating task (maintenance, inspections, insurance) stays a single row per occurrence: done,
+// it leaves an open copy due one interval later, so the done list keeps the history.
 
 export type TaskInput = {
 	title: string;
+	category: TaskCategory;
 	dueDate: string | null;
+	repeatMonths: number | null;
 	propertyId: string | null;
 	leaseId: string | null;
 	note: string | null;
@@ -167,29 +171,95 @@ export async function updateTask(
 	return { ok: true };
 }
 
-/** Marks the task done (with the time) or open again. False when the task is not in the account. */
+/**
+ * The due date of the next occurrence: one interval after the due date, further when that has
+ * passed already, so a task done late does not come back overdue.
+ */
+export function nextDueDate(dueDate: IsoDate, repeatMonths: number, today: IsoDate): IsoDate {
+	let steps = 1;
+	let next = addMonths(dueDate, repeatMonths);
+	while (next <= today) {
+		steps += 1;
+		// Counted from the original date, so the 31st does not drift to the 28th.
+		next = addMonths(dueDate, repeatMonths * steps);
+	}
+	return next;
+}
+
+/**
+ * Marks the task done (with the time) or open again. A repeating task done gets an open copy due
+ * at the next date; reopening it removes that copy again while it is still open. False when the
+ * task is not in the account.
+ */
 export async function setDone(
 	db: Database,
 	context: AuditContext,
 	taskId: string,
-	done: boolean
+	done: boolean,
+	today: IsoDate = todayInBerlin()
 ): Promise<boolean> {
 	const { accountId } = context;
 	const existing = await getTask(db, accountId, taskId);
 	if (!existing) return false;
+	if (existing.done === done) return true;
+	const where = and(eq(tasks.accountId, accountId), eq(tasks.id, taskId));
+
+	if (done) {
+		const { dueDate: due, repeatMonths } = existing;
+		if (!due || !repeatMonths) {
+			await runBatch(db, [
+				db.update(tasks).set({ done, doneAt: new Date() }).where(where),
+				auditEntry(db, context, 'task', taskId, 'update', `Aufgabe ${describe(existing)} erledigt`)
+			]);
+			return true;
+		}
+		await assertQuota(db, accountId, 'tasks');
+		const followUpId = crypto.randomUUID();
+		const dueDate = nextDueDate(due, repeatMonths, today);
+		const next = {
+			title: existing.title,
+			category: existing.category,
+			dueDate,
+			repeatMonths,
+			propertyId: existing.propertyId,
+			leaseId: existing.leaseId,
+			note: existing.note
+		};
+		await runBatch(db, [
+			db.update(tasks).set({ done, doneAt: new Date(), followUpId }).where(where),
+			db.insert(tasks).values({ id: followUpId, accountId, ...next }),
+			auditEntry(
+				db,
+				context,
+				'task',
+				taskId,
+				'update',
+				`Aufgabe ${describe(existing)} erledigt; wieder fällig am ${formatDate(dueDate)}`
+			)
+		]);
+		return true;
+	}
+
+	const [followUp] = existing.followUpId
+		? await db
+				.select({ id: tasks.id, done: tasks.done })
+				.from(tasks)
+				.where(and(eq(tasks.accountId, accountId), eq(tasks.id, existing.followUpId)))
+		: [];
+	const removeFollowUp = followUp && !followUp.done;
 	await runBatch(db, [
-		db
-			.update(tasks)
-			.set({ done, doneAt: done ? new Date() : null })
-			.where(and(eq(tasks.accountId, accountId), eq(tasks.id, taskId))),
+		db.update(tasks).set({ done, doneAt: null, followUpId: null }).where(where),
+		...(removeFollowUp
+			? [db.delete(tasks).where(and(eq(tasks.accountId, accountId), eq(tasks.id, followUp.id)))]
+			: []),
 		auditEntry(
 			db,
 			context,
 			'task',
 			taskId,
 			'update',
-			done
-				? `Aufgabe ${describe(existing)} erledigt`
+			removeFollowUp
+				? `Aufgabe ${describe(existing)} wieder geöffnet; die nächste Fälligkeit entfällt`
 				: `Aufgabe ${describe(existing)} wieder geöffnet`
 		)
 	]);

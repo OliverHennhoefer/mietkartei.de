@@ -92,6 +92,7 @@ Viele Begriffe des Mietrechts haben keine genaue englische Entsprechung. Verwend
 | CO₂-Kostenaufteilung | `co2CostSplit` | Aufteilung der CO₂-Kosten des Heizens zwischen Vermieter und Mieter nach dem CO2KostAufG |
 | Frist | `deadline` | Termin, der sich aus den Daten ergibt, etwa die Abrechnungsfrist oder das Vertragsende; wird berechnet, nicht gespeichert |
 | Aufgabe | `task` | Was sich der Vermieter selbst vornimmt, optional mit Fälligkeit und Bezug zu Objekt oder Mietvertrag |
+| Wiederkehrende Aufgabe | `task` mit `repeatMonths` | Aufgabe, die alle so viele Monate wiederkommt, etwa Wartung (`maintenance`), Prüfung (`inspection`) oder Versicherung (`insurance`) |
 | Mitverwalter | `manager` | Person, die der Vermieter in sein Konto einlädt; Rolle neben `owner`, dem Vermieter. Sie bearbeitet alles außer Einladungen und Bankverbindungen |
 
 ### Pfade

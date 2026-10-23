@@ -935,6 +935,9 @@ export const documents = sqliteTable(
 	]
 );
 
+export const taskCategories = ['maintenance', 'inspection', 'insurance', 'other'] as const;
+export type TaskCategory = (typeof taskCategories)[number];
+
 /** Aufgabe with an optional due date. Deadlines derived from the data are computed, not stored. */
 export const tasks = sqliteTable(
 	'tasks',
@@ -942,9 +945,14 @@ export const tasks = sqliteTable(
 		id: id(),
 		accountId: accountId(),
 		title: text('title').notNull(),
+		category: text('category', { enum: taskCategories }).notNull().default('other'),
 		dueDate: text('due_date'),
+		/** Repeats every so many months from the due date; done, it leaves an open copy behind. */
+		repeatMonths: integer('repeat_months'),
 		done: bool('done', false),
 		doneAt: integer('done_at', { mode: 'timestamp_ms' }),
+		/** The open copy created when this repeating task was done; reopening removes it again. */
+		followUpId: text('follow_up_id'),
 		propertyId: text('property_id').references(() => properties.id, { onDelete: 'set null' }),
 		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
 		note: text('note'),

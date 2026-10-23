@@ -13,6 +13,7 @@ import type {
 	RentModel,
 	StatementStatus,
 	SubscriptionStatus,
+	TaskCategory,
 	TerminatedBy,
 	UserRole
 } from './server/db/schema';
@@ -117,6 +118,13 @@ export const subscriptionStatusLabels: Record<SubscriptionStatus, string> = {
 	active: 'Aktiv',
 	past_due: 'Zahlung ausstehend',
 	canceled: 'Gekündigt'
+};
+
+export const taskCategoryLabels: Record<TaskCategory, string> = {
+	maintenance: 'Wartung',
+	inspection: 'Prüfung',
+	insurance: 'Versicherung',
+	other: 'Sonstiges'
 };
 
 export const userRoleLabels: Record<UserRole, string> = {

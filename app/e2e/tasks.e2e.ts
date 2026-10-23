@@ -113,6 +113,27 @@ test('creates, completes, reopens, edits and deletes a task', async ({ page }) =
 	await expect(openTask(page, taskTitle)).toHaveCount(0);
 });
 
+test('fills a repeating task from a template and brings it back when done', async ({ page }) => {
+	const title = `Heizung warten ${suffix}`;
+	await page.goto('/aufgaben');
+	await page.getByRole('link', { name: 'Heizung warten lassen' }).click();
+	await expect(page).toHaveURL(/\?vorlage=heizungswartung/);
+	await expect(page.getByLabel('Art')).toHaveValue('maintenance');
+	await expect(page.getByLabel('Wiederholen')).toHaveValue('12');
+	await expect(page.getByLabel('Notiz (optional)')).toHaveValue(/BetrKV/);
+
+	await page.getByLabel('Aufgabe', { exact: true }).fill(title);
+	await page.getByLabel('Fällig am (optional)').fill(today());
+	await page.getByRole('button', { name: 'Aufgabe anlegen' }).click();
+	await expect(page.getByRole('status')).toContainText(`„${title}“ wurde angelegt.`);
+	const item = openTask(page, title);
+	await expect(item).toContainText('Wartung');
+	await expect(item).toContainText('jährlich');
+
+	await page.getByRole('checkbox', { name: `„${title}“ erledigt` }).click();
+	await expect(openTask(page, title)).toContainText(`bis ${formatDate(addMonths(today(), 12))}`);
+});
+
 test('shows validation errors next to the fields', async ({ page }) => {
 	await page.goto('/aufgaben');
 	// Hydration sets the note's textarea to its (empty) value; typing before it would be lost.

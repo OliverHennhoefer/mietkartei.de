@@ -401,8 +401,10 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 		{
 			id: crypto.randomUUID(),
 			accountId,
-			title: 'Rauchmelder prüfen lassen',
+			title: 'Rauchwarnmelder prüfen lassen',
+			category: 'inspection' as const,
 			dueDate: addMonths(date, 1),
+			repeatMonths: 12,
 			propertyId: lindenId,
 			leaseId: null,
 			note: 'Jährliche Wartung, alle Wohnungen.'
