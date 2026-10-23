@@ -281,7 +281,14 @@ export async function setDone(
 	await runBatch(db, [
 		db.update(tasks).set({ done, doneAt: null, followUpId: null }).where(where),
 		...(removeFollowUp
-			? [db.delete(tasks).where(and(eq(tasks.accountId, accountId), eq(tasks.id, followUp.id)))]
+			? [
+					// Still open when the batch runs: a copy done in the meantime keeps its history.
+					db
+						.delete(tasks)
+						.where(
+							and(eq(tasks.accountId, accountId), eq(tasks.id, followUp.id), eq(tasks.done, false))
+						)
+				]
 			: []),
 		auditEntry(
 			db,
