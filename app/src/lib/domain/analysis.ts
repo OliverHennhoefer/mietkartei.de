@@ -1,4 +1,11 @@
-import { daysInclusive, type DateRange, type IsoDate, type IsoMonth } from '../dates';
+import {
+	daysInclusive,
+	firstOfMonth,
+	lastOfMonth,
+	type DateRange,
+	type IsoDate,
+	type IsoMonth
+} from '../dates';
 import type { ExpenseCategory, RentChargeKind } from '../server/db/schema';
 
 // Die Auswertung: what the portfolio, a property or a unit brought in and cost over a period.
@@ -176,6 +183,16 @@ export function analyse(input: AnalysisInput, options: AnalysisOptions): Analysi
 	const units = input.units.filter((unit) => !propertyId || unit.propertyId === propertyId);
 	const unitById = new Map(units.map((unit) => [unit.id, unit]));
 	const leaseUnit = new Map(input.leases.map((lease) => [lease.id, lease.unitId]));
+	const leaseById = new Map(input.leases.map((lease) => [lease.id, lease]));
+	/** Whether the lease ran the whole month, so its charge is the monthly rent, not prorated. */
+	const fullMonth = (leaseId: string, period: IsoMonth) => {
+		const lease = leaseById.get(leaseId);
+		return Boolean(
+			lease &&
+			lease.startDate <= firstOfMonth(period) &&
+			(lease.endDate === null || lease.endDate >= lastOfMonth(period))
+		);
+	};
 	/** The unit a lease's money counts for, when the unit is in view. */
 	const unitOfLease = (leaseId: string) => {
 		const unitId = leaseUnit.get(leaseId);
@@ -193,7 +210,7 @@ export function analyse(input: AnalysisInput, options: AnalysisOptions): Analysi
 				/** Σ area over the charged months with an area, and the base rent of those months. */
 				rentArea: 0,
 				rentWithArea: 0,
-				lastRent: null as null | { period: string; baseRent: number }
+				lastRent: null as null | { period: string; full: boolean; baseRent: number }
 			}
 		])
 	);
@@ -208,8 +225,14 @@ export function analyse(input: AnalysisInput, options: AnalysisOptions): Analysi
 		const unitId = unitOfLease(charge.leaseId);
 		if (!unitId) continue;
 		const row = perUnit.get(unitId)!;
-		if (charge.kind === 'rent' && (!row.lastRent || charge.period > row.lastRent.period)) {
-			row.lastRent = { period: charge.period, baseRent: charge.baseRent };
+		// The vacancy is priced at the latest full month's rent; a prorated first or last month
+		// only counts when the lease never ran a whole month.
+		if (charge.kind === 'rent') {
+			const full = fullMonth(charge.leaseId, charge.period);
+			const last = row.lastRent;
+			if (!last || (full && !last.full) || (full === last.full && charge.period > last.period)) {
+				row.lastRent = { period: charge.period, full, baseRent: charge.baseRent };
+			}
 		}
 		if (charge.period < range.start.slice(0, 7) || charge.period > range.end.slice(0, 7)) continue;
 		charged += charge.amount;

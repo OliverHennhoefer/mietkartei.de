@@ -142,6 +142,27 @@ describe('analyse', () => {
 		expect(totals.vacancyRate).toBeCloseTo(365 / (365 * 2 + 184));
 	});
 
+	it('prices vacancy at the last full month, not a prorated final month', () => {
+		const data = input({
+			leases: [
+				{
+					id: 'l-eg',
+					unitId: 'eg',
+					extraUnitIds: [],
+					startDate: '2024-01-01',
+					endDate: '2026-01-15'
+				}
+			],
+			charges: [
+				{ leaseId: 'l-eg', period: '2025-12', kind: 'rent', baseRent: 60000, amount: 80000 },
+				{ leaseId: 'l-eg', period: '2026-01', kind: 'rent', baseRent: 29032, amount: 38710 }
+			]
+		});
+		const eg = analyse(data, year).units.find((unit) => unit.id === 'eg')!;
+		expect(eg.vacantDays).toBe(350);
+		expect(eg.lostRent).toBe(Math.round((350 * 60000 * 12) / 365));
+	});
+
 	it('does not count vacancy after today', () => {
 		const { units } = analyse(input(), { ...year, today: '2026-03-31' });
 		expect(units.find((unit) => unit.id === 'og')!.unitDays).toBe(90);
