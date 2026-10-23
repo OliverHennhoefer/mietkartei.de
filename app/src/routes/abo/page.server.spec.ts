@@ -3,10 +3,10 @@ import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { accounts } from '#lib/server/db/schema.ts';
-import { testDatabase } from '#lib/server/testing.ts';
-import { actions } from './+page.server';
+import { managerA, outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
+import { actions, load } from './+page.server';
 
-vi.mock('$app/env/private', () => ({
+const env = vi.hoisted(() => ({
 	STRIPE_SECRET_KEY: 'sk_test_unit',
 	STRIPE_PRICE_ID: 'price_unit',
 	STRIPE_WEBHOOK_SECRET: 'whsec_unit',
@@ -14,6 +14,7 @@ vi.mock('$app/env/private', () => ({
 	BILLING_REQUIRED: false,
 	ORIGIN: 'https://app.mietkartei.de'
 }));
+vi.mock('$app/env/private', () => env);
 
 // The URLs real Stripe answers with; the end-to-end fake answers with the app's own URLs, so
 // only these tests see a redirect to another origin.
@@ -42,6 +43,7 @@ beforeEach(async () => {
 
 afterEach(() => {
 	vi.unstubAllGlobals();
+	env.STRIPE_SECRET_KEY = 'sk_test_unit';
 });
 
 function event(action: 'checkout' | 'portal') {
@@ -172,5 +174,49 @@ describe('portal', () => {
 			body: { url: 'https://billing.stripe.com.evil.example/p' }
 		});
 		expect((await run('portal')).failure).toMatchObject({ status: 502 });
+	});
+});
+
+describe('load', () => {
+	const show = (url = '/abo', user = undefined as typeof managerA | undefined) =>
+		outcome(() => load(routeEvent(db, { url, user })));
+
+	it('is not there when the instance does not bill', async () => {
+		env.STRIPE_SECRET_KEY = '';
+		expect(await show()).toMatchObject({ error: 404 });
+	});
+
+	it('shows a manager only that the owner handles the subscription', async () => {
+		expect(await show('/abo', managerA)).toEqual({ data: { owner: false } });
+	});
+
+	it('shows the owner the trial and the price Stripe answers with', async () => {
+		answers['GET /v1/prices/price_unit'] = () => ({ body: { id: 'price_unit', unit_amount: 900 } });
+		const { data } = (await show('/abo?erfolg=1')) as { data: Record<string, unknown> };
+		expect(data).toMatchObject({
+			owner: true,
+			state: 'trialing',
+			status: 'none',
+			currentPeriodEnd: null,
+			hasSubscription: false,
+			required: false,
+			price: expect.stringMatching(/^9,00\s€ pro Monat$/),
+			success: true
+		});
+		expect(data.trialEnd).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+	});
+
+	it('still opens when Stripe does not answer with a price', async () => {
+		await db
+			.update(accounts)
+			.set({ stripeSubscriptionId: 'sub_1', currentPeriodEnd: new Date('2026-11-01T00:00:00Z') })
+			.where(eq(accounts.id, 'a'));
+		const { data } = (await show()) as { data: Record<string, unknown> };
+		expect(data).toMatchObject({
+			price: 'monatlich',
+			success: false,
+			hasSubscription: true,
+			currentPeriodEnd: '2026-11-01'
+		});
 	});
 });
