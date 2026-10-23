@@ -44,6 +44,9 @@ a { color: inherit; }
 
 .brand { display: inline-flex; }
 .brand img { display: block; width: auto; height: 52px; }
+.github { display: inline-flex; padding: 8px; margin-right: -8px; border-radius: 8px; color: var(--muted); transition: color 140ms; }
+.github:hover { color: var(--foreground); }
+.github svg { display: block; }
 
 main {
   flex: 1;
@@ -91,7 +94,7 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-link, .documentation { transition: none; }
+  .app-link, .documentation, .github { transition: none; }
 }
 
 @media (max-width: 900px) {
