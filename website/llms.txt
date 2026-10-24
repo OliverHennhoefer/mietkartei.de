@@ -13,6 +13,8 @@ Was mietkartei kann:
 - Zähler und Abrechnungskreise, Dokumente, Aufgaben und Fristen.
 - Mitverwalter, Datenübernahme per CSV, vollständiger Export und Änderungsprotokoll.
 
+Was es kostet: Selbst betrieben ist mietkartei kostenlos und ohne Einschränkungen, der komplette Code ist Open Source unter der AGPL-3.0. Die gehostete Version unter app.mietkartei.de kostet 8 € im Monat, mit 30 Tagen kostenlosem Test und jederzeit kündbar.
+
 Für wen: Privatvermieter, die für große Verwaltungsprogramme zu klein und für Excel zu groß sind. Buchhaltungskenntnisse sind nicht nötig.
 
 ## Links
