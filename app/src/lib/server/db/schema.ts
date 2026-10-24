@@ -1236,9 +1236,28 @@ export const apiKeyScopes = ['read', 'write'] as const;
 export type ApiKeyScope = (typeof apiKeyScopes)[number];
 
 /**
+ * An app that registered itself for OAuth (RFC 7591), e.g. the claude.ai connector. Anyone may
+ * register one; it gets access only once a user approves it. Public clients without a secret, so
+ * PKCE protects the code.
+ */
+export const oauthClients = sqliteTable('oauth_clients', {
+	id: text('id').primaryKey(),
+	/** As the app names itself; the consent page shows the address it returns to as well. */
+	name: text('name').notNull(),
+	/** JSON array of the exact redirect URIs. */
+	redirectUris: text('redirect_uris', { mode: 'json' }).$type<string[]>().notNull(),
+	createdAt: createdAt()
+});
+
+/**
  * A key for the API and the MCP server, created by a user and acting with that user's rights. The
  * id is the SHA-256 hash of the key, never the key itself; `prefix` is its first characters, so
  * the list of keys can tell them apart.
+ *
+ * An app connected by OAuth holds a row as well, with `clientId` set and a random id that stays
+ * the same: its access token is found by `accessHash`, replaced together with the refresh token on
+ * every refresh, and only valid until `accessExpiresAt`; `expiresAt` is when the refresh token
+ * runs out. Everything that revokes keys therefore disconnects apps too.
  */
 export const apiKeys = sqliteTable(
 	'api_keys',
@@ -1253,12 +1272,43 @@ export const apiKeys = sqliteTable(
 		scope: text('scope', { enum: apiKeyScopes }).notNull().default('read'),
 		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
 		lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
+		clientId: text('client_id').references(() => oauthClients.id, { onDelete: 'cascade' }),
+		/** SHA-256 of the access token of an OAuth app. */
+		accessHash: text('access_hash'),
+		/** SHA-256 of the refresh token of an OAuth app. */
+		refreshHash: text('refresh_hash'),
+		accessExpiresAt: integer('access_expires_at', { mode: 'timestamp_ms' }),
 		createdAt: createdAt()
 	},
 	(table) => [
 		index('api_keys_account_id_idx').on(table.accountId),
-		index('api_keys_user_id_idx').on(table.userId)
+		index('api_keys_user_id_idx').on(table.userId),
+		uniqueIndex('api_keys_access_hash_unique').on(table.accessHash),
+		uniqueIndex('api_keys_refresh_hash_unique').on(table.refreshHash)
 	]
+);
+
+/**
+ * A one-time code of the OAuth authorization code flow, valid for minutes. The id is the code's
+ * SHA-256; the PKCE challenge binds it to the app that asked for it.
+ */
+export const oauthCodes = sqliteTable(
+	'oauth_codes',
+	{
+		id: text('id').primaryKey(),
+		clientId: text('client_id')
+			.notNull()
+			.references(() => oauthClients.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		scope: text('scope', { enum: apiKeyScopes }).notNull(),
+		redirectUri: text('redirect_uri').notNull(),
+		codeChallenge: text('code_challenge').notNull(),
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+		createdAt: createdAt()
+	},
+	(table) => [index('oauth_codes_user_id_idx').on(table.userId)]
 );
 
 /**

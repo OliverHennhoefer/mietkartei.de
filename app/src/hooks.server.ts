@@ -3,8 +3,9 @@ import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
 import { DEMO, E2E } from '$app/env/private';
 import { validateSession } from '#lib/server/auth.ts';
 import { enforceBilling } from '#lib/server/billing.ts';
+import { isCrossSiteForm } from '#lib/server/csrf.ts';
 import { enforceRole } from '#lib/server/roles.ts';
-import { applySecurityHeaders } from '#lib/server/security-headers.ts';
+import { allowFormRedirect, applySecurityHeaders } from '#lib/server/security-headers.ts';
 import { deleteSessionCookie, getSessionToken, setSessionCookie } from '#lib/server/session.ts';
 import { isForeignKeyError } from '#lib/server/db/errors.ts';
 import { getDatabase } from '#lib/server/db/index.ts';
@@ -18,7 +19,9 @@ const publicPaths = new Set([
 	// Stripe's deliveries carry a signature instead of a session.
 	'/api/webhooks/stripe',
 	'/health',
-	'/robots.txt'
+	'/robots.txt',
+	// Checks the request before anything else and sends visitors to sign in with a way back.
+	'/oauth/authorize'
 ]);
 const publicPrefixes = [
 	'/registrieren/',
@@ -49,10 +52,18 @@ function isAuthPath(pathname: string): boolean {
 
 /**
  * The API and the MCP server authenticate with an API key in the Authorization header and answer
- * in JSON, never with the session cookie or a redirect; see #lib/server/api/request.ts.
+ * in JSON, never with the session cookie or a redirect; see #lib/server/api/request.ts. So do the
+ * OAuth endpoints the apps call from their servers, and the OAuth metadata.
  */
 function isApiPath(pathname: string): boolean {
-	return pathname === '/api/v1' || pathname.startsWith('/api/v1/') || pathname === '/mcp';
+	return (
+		pathname === '/api/v1' ||
+		pathname.startsWith('/api/v1/') ||
+		pathname === '/mcp' ||
+		pathname === '/oauth/token' ||
+		pathname === '/oauth/register' ||
+		pathname.startsWith('/.well-known/')
+	);
 }
 
 function isPublic(pathname: string): boolean {
@@ -65,6 +76,11 @@ function isPublic(pathname: string): boolean {
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
+	if (isCrossSiteForm(event.request, event.url)) {
+		return new Response(`Cross-site ${event.request.method} form submissions are forbidden`, {
+			status: 403
+		});
+	}
 	event.locals.db = await getDatabase();
 	event.locals.user = undefined;
 	if (isApiPath(event.url.pathname)) {
@@ -107,6 +123,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 		https: event.url.protocol === 'https:',
 		signedIn: Boolean(event.locals.user)
 	});
+	if (event.locals.formRedirectOrigin) {
+		allowFormRedirect(response.headers, event.locals.formRedirectOrigin);
+	}
 	// Only the demo's start page belongs in search engines; see routes/robots.txt.
 	if (!(DEMO && event.url.pathname === '/demo')) {
 		response.headers.set('X-Robots-Tag', 'noindex, nofollow');

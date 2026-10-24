@@ -1,11 +1,15 @@
 // Where viewers (Lesezugriff) may still write, shared by the hook that refuses all other writes
 // (#lib/server/roles.ts) and the layout, which keeps the forms of these pages usable.
 
-/** Paths that accept every POST of a viewer: signing out, their own calendar link and API keys. */
+/**
+ * Paths that accept every POST of a viewer: signing out, their own calendar link, API keys and
+ * connecting an app, which gets read access only.
+ */
 export const viewerPaths = new Set([
 	'/abmelden',
 	'/einstellungen/kalender',
-	'/einstellungen/api-schluessel'
+	'/einstellungen/api-schluessel',
+	'/oauth/authorize'
 ]);
 
 /**

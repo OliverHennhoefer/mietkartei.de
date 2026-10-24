@@ -70,7 +70,7 @@ test('creates an API key, reads with it through REST and MCP, and revokes it', a
 
 	page.once('dialog', (dialog) => dialog.accept());
 	await row.getByRole('button', { name: 'Widerrufen' }).click();
-	await expect(page.getByText('Der API-Schlüssel wurde widerrufen.')).toBeVisible();
+	await expect(page.getByText('Der Zugriff wurde widerrufen.')).toBeVisible();
 	expect((await client.get('/api/v1/leases')).status()).toBe(401);
 	await client.dispose();
 });
