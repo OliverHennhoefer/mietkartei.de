@@ -1,8 +1,7 @@
-import { and, desc, eq } from 'drizzle-orm';
-import { formatDate, formatMonth, today, type IsoDate, type IsoMonth } from '../dates';
+import { and, eq } from 'drizzle-orm';
+import { formatDate, today, type IsoDate } from '../dates';
 import {
 	effectiveFrom,
-	formatIndexValue,
 	indexLetterRows,
 	indexLetterText,
 	indexProposal,
@@ -21,7 +20,8 @@ import { addressLines, landlordAddress, type LandlordAddress } from './accounts'
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import { consumerPriceIndex, rentChanges } from './db/schema';
+import { listIndexValues } from './consumer-price-index';
+import { rentChanges } from './db/schema';
 import { getLease, type LeaseSummary } from './leases';
 import { ensureCharges } from './ledger';
 import type { Letter } from './pdf';
@@ -29,84 +29,14 @@ import { laterRows, laterRowsNote } from './rent-history';
 import { listRentChanges, type RentChangeRow } from './rents';
 import { assertQuota } from './quotas';
 
-// Changes of the rent beyond the initial one: manual changes, Staffel steps, index proposals with
-// their approval and letter, and the VPI table the proposals are computed from. Every write
-// re-syncs the rent charges, so the ledger follows the history at once.
+// Changes of the rent beyond the initial one: manual changes, Staffel steps and index proposals
+// with their approval and letter. Every write re-syncs the rent charges, so the ledger follows the
+// history at once.
 
 export type AdjustmentResult = { ok: true; id: string } | { ok: false; message: string };
 
 function refuse(message: string): AdjustmentResult {
 	return { ok: false, message };
-}
-
-// VPI (Verbraucherpreisindex)
-
-export type IndexValueInput = { month: IsoMonth; value: number; baseYear: string };
-
-export type IndexValueRow = typeof consumerPriceIndex.$inferSelect;
-
-/** The account's VPI values, newest month first. */
-export async function listIndexValues(db: Database, accountId: string): Promise<IndexValueRow[]> {
-	return db
-		.select()
-		.from(consumerPriceIndex)
-		.where(eq(consumerPriceIndex.accountId, accountId))
-		.orderBy(desc(consumerPriceIndex.month), desc(consumerPriceIndex.baseYear));
-}
-
-function indexValueSummary(value: IndexValueInput, verb: string): string {
-	return `VPI ${formatMonth(value.month)} = ${formatIndexValue(value.value)} (Basisjahr ${value.baseYear}) ${verb}`;
-}
-
-/** Adds a VPI value; a month already entered for the base year is refused. */
-export async function addIndexValue(
-	db: Database,
-	context: AuditContext,
-	input: IndexValueInput
-): Promise<AdjustmentResult> {
-	await assertQuota(db, context.accountId, 'consumerPriceIndex');
-	const [existing] = await db
-		.select({ id: consumerPriceIndex.id })
-		.from(consumerPriceIndex)
-		.where(
-			and(
-				eq(consumerPriceIndex.accountId, context.accountId),
-				eq(consumerPriceIndex.baseYear, input.baseYear),
-				eq(consumerPriceIndex.month, input.month)
-			)
-		);
-	if (existing) {
-		return refuse(
-			`Für ${formatMonth(input.month)} (Basisjahr ${input.baseYear}) gibt es schon einen Wert. Lösche ihn zuerst.`
-		);
-	}
-	const id = crypto.randomUUID();
-	await runBatch(db, [
-		db.insert(consumerPriceIndex).values({ id, accountId: context.accountId, ...input }),
-		auditEntry(db, context, 'vpi', id, 'create', indexValueSummary(input, 'eingetragen'))
-	]);
-	return { ok: true, id };
-}
-
-export async function deleteIndexValue(
-	db: Database,
-	context: AuditContext,
-	id: string
-): Promise<boolean> {
-	const [row] = await db
-		.select()
-		.from(consumerPriceIndex)
-		.where(and(eq(consumerPriceIndex.accountId, context.accountId), eq(consumerPriceIndex.id, id)));
-	if (!row) return false;
-	await runBatch(db, [
-		db
-			.delete(consumerPriceIndex)
-			.where(
-				and(eq(consumerPriceIndex.accountId, context.accountId), eq(consumerPriceIndex.id, id))
-			),
-		auditEntry(db, context, 'vpi', id, 'delete', indexValueSummary(row, 'gelöscht'))
-	]);
-	return true;
 }
 
 // Rent changes
@@ -191,7 +121,7 @@ export async function manualChange(
 
 	let index: { indexMonth: string; indexValue: number; indexBaseYear: string } | undefined;
 	if (lease.rentModel === 'indexed' && input.reason === 'manual') {
-		const latest = latestIndex(await listIndexValues(db, context.accountId));
+		const latest = latestIndex(await listIndexValues(db));
 		if (latest.ok && before.baseRent !== input.baseRent) {
 			index = {
 				indexMonth: latest.latest.month,
@@ -316,7 +246,7 @@ export async function proposeIndexChange(
 	if (!lease) return undefined;
 	const [changes, values] = await Promise.all([
 		listRentChanges(db, context.accountId, leaseId),
-		listIndexValues(db, context.accountId)
+		listIndexValues(db)
 	]);
 	const day = today();
 	const situation = indexSituation(lease, changes, values, day);

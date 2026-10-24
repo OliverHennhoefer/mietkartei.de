@@ -46,7 +46,6 @@ export const exportTables: AccountTable[] = [
 	schema.leasePersons,
 	schema.rentChanges,
 	schema.depositTransactions,
-	schema.consumerPriceIndex,
 	schema.rentCharges,
 	schema.bankAccounts,
 	schema.bankImports,

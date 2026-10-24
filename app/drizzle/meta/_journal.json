@@ -211,6 +211,13 @@
       "when": 1792858793439,
       "tag": "0029_invitation_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1792865766309,
+      "tag": "0030_global_consumer_price_index",
+      "breakpoints": true
     }
   ]
 }

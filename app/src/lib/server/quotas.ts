@@ -8,7 +8,6 @@ import {
 	billingCircles,
 	bankTransactions,
 	co2CostSplits,
-	consumerPriceIndex,
 	costCategories,
 	costItems,
 	depositTransactions,
@@ -55,7 +54,6 @@ export const QUOTAS = {
 	/** Mostly the monthly rent charges, which every lease generates on its own. */
 	rentCharges: { table: rentCharges, max: 1_000_000, label: 'Sollstellungen' },
 	rentChanges: { table: rentChanges, max: 50_000, label: 'Mietänderungen' },
-	consumerPriceIndex: { table: consumerPriceIndex, max: 2_000, label: 'VPI-Werte' },
 	bankAccounts: { table: bankAccounts, max: 50, label: 'Bankverbindungen' },
 	matchingRules: { table: matchingRules, max: 2_000, label: 'Zuordnungsregeln' },
 	bankTransactions: { table: bankTransactions, max: 100_000, label: 'Bankumsätze' },
