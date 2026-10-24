@@ -9,6 +9,8 @@ import {
 	subscriptionRuns
 } from '#lib/server/billing.ts';
 import { createDemoData, isEmptyAccount } from '#lib/server/demo.ts';
+import { accessEndedMail, leaveAccount, listAccountUsers } from '#lib/server/invitations.ts';
+import { sendMailInBackground } from '#lib/server/mail.ts';
 import {
 	auditContext,
 	deleteSessionCookie,
@@ -40,6 +42,28 @@ export const actions: Actions = {
 		}
 		redirect(303, '/');
 	},
+	// Managers and viewers end their own access; the password again is the confirmation.
+	leave: async (event) => {
+		const { request, locals } = event;
+		requireUser(locals);
+		const result = parseDeleteAccount(await request.formData());
+		if (!result.ok) return fail(400, { errors: result.errors });
+		const checked = await confirmPassword(locals.db, auditContext(locals), result.data.password);
+		if (checked !== 'ok') {
+			const password =
+				checked === 'locked'
+					? 'Zu viele Fehlversuche. Bitte warte 15 Minuten.'
+					: 'Das Passwort stimmt nicht.';
+			return fail(400, { errors: { password } });
+		}
+		if ((await leaveAccount(locals.db, auditContext(locals))) !== 'left') {
+			return fail(400, {
+				failed: 'Als Vermieter kannst du das Konto nicht verlassen, nur löschen oder übergeben.'
+			});
+		}
+		deleteSessionCookie(event);
+		redirect(303, '/anmelden');
+	},
 	// Deleting the account asks for the password again; that is the confirmation. Wrong passwords
 	// count like failed sign-ins, so a stolen session cannot guess it.
 	delete: async (event) => {
@@ -62,6 +86,9 @@ export const actions: Actions = {
 					'Stripe antwortet gerade nicht, darum ist dein Abo noch nicht gekündigt und dein Konto nicht gelöscht. Bitte versuche es gleich noch einmal.'
 			});
 		}
+		const others = (await listAccountUsers(locals.db, user.accountId)).filter(
+			(member) => member.id !== user.id
+		);
 		// No storage given: the default adapter of the target deletes the documents' files. A
 		// failure leaves the account (or at least its rows) in place, so the owner can try again.
 		try {
@@ -71,6 +98,10 @@ export const actions: Actions = {
 			return fail(503, {
 				failed: 'Das Konto konnte nicht gelöscht werden. Bitte versuche es erneut.'
 			});
+		}
+		// The others learn why they cannot sign in any more.
+		for (const member of others) {
+			await sendMailInBackground(locals.db, accessEndedMail(member.email, 'account-deleted'));
 		}
 		deleteSessionCookie(event);
 		redirect(303, '/anmelden');

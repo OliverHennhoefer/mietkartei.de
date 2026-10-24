@@ -3,7 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { invitations, outbox, users } from '#lib/server/db/schema.ts';
 import { createInvitation } from '#lib/server/invitations.ts';
-import { contextA, managerA, outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
+import {
+	contextA,
+	managerA,
+	outcome,
+	PASSWORD,
+	routeEvent,
+	setPassword,
+	testDatabase
+} from '#lib/server/testing.ts';
 import { actions, load } from './+page.server';
 
 const env = vi.hoisted(() => ({ ORIGIN: '', MAIL_TRANSPORT: 'outbox' }));
@@ -42,7 +50,8 @@ describe('mitverwalter', () => {
 			actions.resend,
 			actions.revoke,
 			actions.role,
-			actions.remove
+			actions.remove,
+			actions.transfer
 		]) {
 			expect(await outcome(() => action(routeEvent(db, manager)))).toMatchObject({ error: 403 });
 		}
@@ -152,9 +161,39 @@ describe('mitverwalter', () => {
 		expect(await remove('user-b')).toMatchObject({ fail: 404 });
 		expect(await remove('')).toMatchObject({ fail: 400 });
 		expect(await remove('manager-a')).toEqual({ data: { removed: true } });
+		const [mail] = await db.select().from(outbox);
+		expect(mail).toMatchObject({
+			to: 'm@example.org',
+			subject: 'Dein Zugang zu mietkartei wurde beendet'
+		});
 		expect((await db.select().from(users)).map((user) => user.id).sort()).toEqual([
 			'user-a',
 			'user-b'
 		]);
+	});
+});
+
+describe('transfer', () => {
+	function transfer(userId: string, password: string) {
+		return outcome(() => actions.transfer(routeEvent(db, { form: { userId, password } })));
+	}
+
+	it('hands the account over after the password and mails the new owner', async () => {
+		await setPassword(db, 'user-a');
+		expect(await transfer('manager-a', 'falsch')).toMatchObject({ fail: 400 });
+		expect(await transfer('user-b', PASSWORD)).toMatchObject({ fail: 404 });
+		expect(await transfer('manager-a', PASSWORD)).toEqual({ redirect: '/' });
+		const roles = await db.select({ id: users.id, role: users.role }).from(users);
+		expect(
+			roles.filter((user) => user.id !== 'user-b').sort((a, b) => a.id.localeCompare(b.id))
+		).toEqual([
+			{ id: 'manager-a', role: 'owner' },
+			{ id: 'user-a', role: 'manager' }
+		]);
+		const [mail] = await db.select().from(outbox);
+		expect(mail).toMatchObject({
+			to: 'm@example.org',
+			subject: 'Du bist jetzt Vermieter in mietkartei'
+		});
 	});
 });

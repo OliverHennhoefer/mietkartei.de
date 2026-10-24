@@ -161,6 +161,37 @@
 	</form>
 {/if}
 
+{#if data.users.some((user) => user.id !== data.userId)}
+	<h2>Konto übergeben</h2>
+	<p class="muted">
+		Die gewählte Person wird Vermieter des Kontos und verwaltet dann Zugänge, Bankverbindungen und
+		Abo; du arbeitest als Mitverwalter weiter. Das Abo bleibt, wie es ist.
+	</p>
+	<form method="POST" action="?/transfer" class="card" use:enhance>
+		<label>
+			Neuer Vermieter
+			<select name="userId" required>
+				{#each data.users.filter((user) => user.id !== data.userId) as user (user.id)}
+					<option value={user.id}>{user.name ?? user.email}</option>
+				{/each}
+			</select>
+		</label>
+		<label>
+			Dein Passwort
+			<input
+				name="password"
+				type="password"
+				autocomplete="current-password"
+				maxlength="200"
+				required
+			/>
+		</label>
+		<div class="form-actions">
+			<button type="submit" class="danger">Konto übergeben</button>
+		</div>
+	</form>
+{/if}
+
 <style>
 	.inline {
 		display: inline;

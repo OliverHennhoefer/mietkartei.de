@@ -64,6 +64,33 @@
 	{/if}
 </section>
 
+{#if !data.isOwner}
+	<section class="card danger-zone leave" aria-labelledby="konto-verlassen">
+		<h2 id="konto-verlassen">Konto verlassen</h2>
+		<p>
+			Das beendet deinen Zugang zu diesem Konto. Die Daten des Kontos bleiben, du kannst dich aber
+			nicht mehr anmelden, bis der Vermieter dich wieder einlädt.
+		</p>
+		<form method="POST" action="?/leave" class="form" use:enhance>
+			<label>
+				Passwort
+				<input
+					name="password"
+					type="password"
+					autocomplete="current-password"
+					maxlength="200"
+					aria-invalid={form?.errors?.password ? 'true' : undefined}
+					required
+				/>
+				{#if form?.errors?.password}<span class="error">{form.errors.password}</span>{/if}
+			</label>
+			<div class="form-actions">
+				<button type="submit" class="danger">Konto verlassen</button>
+			</div>
+		</form>
+	</section>
+{/if}
+
 <style>
 	.demo {
 		max-width: 45rem;
@@ -74,6 +101,9 @@
 	}
 	.demo p {
 		margin: 0 0 1.25rem;
+	}
+	.leave {
+		margin-top: 1.5rem;
 	}
 	.danger-zone {
 		max-width: 45rem;

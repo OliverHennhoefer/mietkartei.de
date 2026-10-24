@@ -19,8 +19,11 @@ export const viewerPrefixes = [
 	'/einladung/'
 ];
 
-/** Form actions a viewer may use: their own name, address and password. */
-export const viewerActions = new Map([['/einstellungen/profil', new Set(['profile', 'password'])]]);
+/** Form actions a viewer may use: their own name, address and password, and leaving the account. */
+export const viewerActions = new Map([
+	['/einstellungen/profil', new Set(['profile', 'password'])],
+	['/einstellungen/konto', new Set(['leave'])]
+]);
 
 /** The path without a trailing slash, as the lists above spell it. */
 export function normalizePath(pathname: string): string {
