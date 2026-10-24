@@ -4,8 +4,9 @@ import { ApiError } from '#lib/server/api/operations.ts';
 import { authenticateRequest, errorResponse, readJsonBody } from '#lib/server/api/request.ts';
 import type { RequestHandler } from './$types';
 
-// The MCP server for assistants such as Claude: POST JSON-RPC messages here with an API key as
-// bearer token. Stateless, see #lib/server/api/mcp.ts; there is no event stream to GET.
+// The MCP server for assistants such as Claude: POST JSON-RPC messages here with an API key or an
+// OAuth access token as bearer token. Stateless, see #lib/server/api/mcp.ts; there is no event
+// stream to GET. A 401 names the OAuth metadata, where clients find how to get a token.
 
 export const POST: RequestHandler = async ({ request, url, locals, getClientAddress }) => {
 	try {
@@ -32,8 +33,15 @@ export const POST: RequestHandler = async ({ request, url, locals, getClientAddr
 		if (!response) return new Response(null, { status: 202 });
 		return json(response);
 	} catch (error) {
-		if (error instanceof ApiError) return errorResponse(error);
-		throw error;
+		if (!(error instanceof ApiError)) throw error;
+		const response = errorResponse(error);
+		if (error.status === 401) {
+			response.headers.set(
+				'www-authenticate',
+				`Bearer realm="mietkartei", resource_metadata="${url.origin}/.well-known/oauth-protected-resource/mcp"`
+			);
+		}
+		return response;
 	}
 };
 

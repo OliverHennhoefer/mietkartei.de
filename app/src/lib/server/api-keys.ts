@@ -1,4 +1,4 @@
-import { and, asc, count, eq, lt } from 'drizzle-orm';
+import { and, asc, count, eq, isNotNull, isNull, lt } from 'drizzle-orm';
 import { dayOf, formatDate } from '../dates';
 import { auditEntry, type AuditContext } from './audit';
 import { generateToken, hashToken, type SessionUser } from './auth';
@@ -43,6 +43,22 @@ export type ApiKeySummary = {
 
 /** The keys of the signed-in user, oldest first. Keys of other users stay invisible. */
 export async function listApiKeys(db: Database, context: AuditContext): Promise<ApiKeySummary[]> {
+	return listRows(db, context, false);
+}
+
+/** The apps the signed-in user connected by OAuth, oldest first; see #lib/server/oauth.ts. */
+export async function listConnectedApps(
+	db: Database,
+	context: AuditContext
+): Promise<ApiKeySummary[]> {
+	return listRows(db, context, true);
+}
+
+async function listRows(
+	db: Database,
+	context: AuditContext,
+	apps: boolean
+): Promise<ApiKeySummary[]> {
 	if (!context.userId) return [];
 	return db
 		.select({
@@ -55,7 +71,13 @@ export async function listApiKeys(db: Database, context: AuditContext): Promise<
 			createdAt: apiKeys.createdAt
 		})
 		.from(apiKeys)
-		.where(and(eq(apiKeys.accountId, context.accountId), eq(apiKeys.userId, context.userId)))
+		.where(
+			and(
+				eq(apiKeys.accountId, context.accountId),
+				eq(apiKeys.userId, context.userId),
+				apps ? isNotNull(apiKeys.clientId) : isNull(apiKeys.clientId)
+			)
+		)
 		.orderBy(asc(apiKeys.createdAt));
 }
 
@@ -79,7 +101,7 @@ export async function createApiKey(
 	const [{ value }] = await db
 		.select({ value: count() })
 		.from(apiKeys)
-		.where(eq(apiKeys.userId, userId));
+		.where(and(eq(apiKeys.userId, userId), isNull(apiKeys.clientId)));
 	if (value >= MAX_API_KEYS_PER_USER) return { ok: false, reason: 'limit' };
 
 	const key = `${API_KEY_PREFIX}${generateToken()}`;
@@ -107,7 +129,7 @@ export async function createApiKey(
 	return { ok: true, id, key };
 }
 
-/** Revokes a key of the signed-in user. False when the user holds no such key. */
+/** Revokes a key or app connection of the signed-in user. False when the user holds no such key. */
 export async function revokeApiKey(
 	db: Database,
 	context: AuditContext,
@@ -119,11 +141,17 @@ export async function revokeApiKey(
 		eq(apiKeys.accountId, context.accountId),
 		eq(apiKeys.userId, context.userId)
 	);
-	const [key] = await db.select({ name: apiKeys.name }).from(apiKeys).where(where);
+	const [key] = await db
+		.select({ name: apiKeys.name, clientId: apiKeys.clientId })
+		.from(apiKeys)
+		.where(where);
 	if (!key) return false;
+	const summary = key.clientId
+		? `Verbindung mit „${key.name}“ getrennt`
+		: `API-Schlüssel „${key.name}“ widerrufen`;
 	await runBatch(db, [
 		db.delete(apiKeys).where(where),
-		auditEntry(db, context, 'api_key', keyId, 'delete', `API-Schlüssel „${key.name}“ widerrufen`)
+		auditEntry(db, context, 'api_key', keyId, 'delete', summary)
 	]);
 	return true;
 }
@@ -150,6 +178,7 @@ export async function authenticateApiKey(
 		.select({
 			scope: apiKeys.scope,
 			expiresAt: apiKeys.expiresAt,
+			accessExpiresAt: apiKeys.accessExpiresAt,
 			lastUsedAt: apiKeys.lastUsedAt,
 			user: {
 				id: users.id,
@@ -167,6 +196,8 @@ export async function authenticateApiKey(
 		await db.delete(apiKeys).where(eq(apiKeys.id, id));
 		return undefined;
 	}
+	// An app's access token runs out long before its refresh token, which keeps the row.
+	if (row.accessExpiresAt && row.accessExpiresAt.getTime() <= now) return undefined;
 	if (!row.lastUsedAt || now - row.lastUsedAt.getTime() >= LAST_USED_RESOLUTION) {
 		await db
 			.update(apiKeys)

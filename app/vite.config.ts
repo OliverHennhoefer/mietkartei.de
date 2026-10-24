@@ -22,6 +22,9 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 			adapter: target === 'cloudflare' ? cloudflare() : node(),
+			// The hook checks the origin of form posts instead, with an exception for the OAuth
+			// token endpoint; see #lib/server/csrf.ts.
+			csrf: { trustedOrigins: ['*'] },
 			// Only the app's own scripts and styles run; SvelteKit adds a nonce to the inline ones it
 			// renders. Nothing may frame the app, and forms only post to it.
 			csp: {

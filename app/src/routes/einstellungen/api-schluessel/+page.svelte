@@ -32,14 +32,16 @@
 />
 
 <p class="muted">
-	Wie du Claude oder einen anderen Assistenten einrichtest und was er darf, steht in der
+	In claude.ai, der Claude-App oder ChatGPT brauchst du keinen Schlüssel: Füge dort einen Connector
+	mit der Adresse <code>{data.origin}/mcp</code> hinzu und erlaube den Zugriff. Wie du Claude oder
+	einen anderen Assistenten einrichtest und was er darf, steht in der
 	<a href="https://docs.mietkartei.de/anleitungen/ki-assistenten/">Anleitung</a>.
 </p>
 
 {#if refused}
 	<Alert tone="danger"><p>{refused}</p></Alert>
 {:else if form && 'revoked' in form}
-	<Alert tone="success"><p>Der API-Schlüssel wurde widerrufen.</p></Alert>
+	<Alert tone="success"><p>Der Zugriff wurde widerrufen.</p></Alert>
 {/if}
 
 {#if created}
@@ -115,6 +117,42 @@
 								message="API-Schlüssel „{key.name}“ widerrufen? Programme, die ihn nutzen, haben dann keinen Zugriff mehr."
 							>
 								<input type="hidden" name="keyId" value={key.id} />
+							</ConfirmButton>
+						</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	</div>
+{/if}
+
+{#if data.apps.length > 0}
+	<h2>Verbundene Apps</h2>
+	<div class="table-wrap">
+		<table class="table" aria-label="Verbundene Apps">
+			<thead>
+				<tr>
+					<th>App</th>
+					<th>Rechte</th>
+					<th>Verbunden seit</th>
+					<th>Zuletzt genutzt</th>
+					<th class="actions"></th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each data.apps as app (app.id)}
+					<tr>
+						<td>{app.name}</td>
+						<td>{scopeLabels[app.scope]}</td>
+						<td>{formatDateTime(app.createdAt)}</td>
+						<td>{app.lastUsedAt ? formatDateTime(app.lastUsedAt) : '–'}</td>
+						<td class="actions">
+							<ConfirmButton
+								action="?/revoke"
+								label="Trennen"
+								message="Verbindung mit „{app.name}“ trennen? Die App hat dann keinen Zugriff mehr."
+							>
+								<input type="hidden" name="keyId" value={app.id} />
 							</ConfirmButton>
 						</td>
 					</tr>

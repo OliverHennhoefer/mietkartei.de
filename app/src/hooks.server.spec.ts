@@ -59,7 +59,8 @@ describe('handle', () => {
 			'/einladung/token',
 			'/e-mail-bestaetigen/token',
 			'/health',
-			'/robots.txt'
+			'/robots.txt',
+			'/oauth/authorize'
 		]) {
 			const { result, resolved } = await send(path);
 			expect(resolved, path).toBe(true);
@@ -70,7 +71,14 @@ describe('handle', () => {
 
 	it('leaves the API and the MCP server to their own authentication, ignoring the cookie', async () => {
 		const { token } = await createSession(db, 'user-a');
-		for (const path of ['/api/v1', '/api/v1/leases', '/mcp']) {
+		for (const path of [
+			'/api/v1',
+			'/api/v1/leases',
+			'/mcp',
+			'/oauth/token',
+			'/oauth/register',
+			'/.well-known/oauth-authorization-server'
+		]) {
 			const { result, resolved, locals } = await send(path, {
 				method: 'POST',
 				cookies: new Map([['session', token]])
@@ -108,6 +116,43 @@ describe('handle', () => {
 		env.DEMO = true;
 		expect(await robots('/demo')).toBeNull();
 		expect(await robots('/health')).toBe('noindex, nofollow');
+	});
+
+	it('refuses form posts from other sites before anything else', async () => {
+		const event = {
+			url: new URL('http://localhost/objekte/neu'),
+			request: new Request('http://localhost/objekte/neu', {
+				method: 'POST',
+				headers: {
+					origin: 'https://evil.example',
+					'content-type': 'application/x-www-form-urlencoded'
+				},
+				body: 'a=1'
+			}),
+			locals: {}
+		};
+		const resolve = vi.fn();
+		const response = (await handle({ event, resolve } as never)) as Response;
+		expect(response.status).toBe(403);
+		expect(resolve).not.toHaveBeenCalled();
+	});
+
+	it('lets a page widen form-action for the redirect its form answers with', async () => {
+		const { token } = await createSession(db, 'user-a');
+		const event = routeEvent(db, {
+			url: '/oauth/authorize',
+			cookies: new Map([['session', token]]),
+			user: null
+		}) as { locals: App.Locals };
+		const resolve = vi.fn(async () => {
+			event.locals.formRedirectOrigin = 'https://claude.ai';
+			return new Response('ok', { headers: { 'content-security-policy': "form-action 'self'" } });
+		});
+		const result = await outcome(() => handle({ event, resolve } as never));
+		const response = (result as { data: Response }).data;
+		expect(response.headers.get('content-security-policy')).toBe(
+			"form-action 'self' https://claude.ai"
+		);
 	});
 
 	it('signs the request in with a valid session cookie', async () => {
