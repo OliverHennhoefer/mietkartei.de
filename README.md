@@ -10,7 +10,8 @@
 Mieten, Bankumsätze und die Betriebskostenabrechnung für private Vermieter an einem Ort.<br>
 Open Source, nachvollziehbar gerechnet und ohne Einarbeitung.
 
-[![App](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/app.yml/badge.svg)](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/app.yml)
+[![Tests](https://img.shields.io/github/actions/workflow/status/OliverHennhoefer/mietkartei.de/app.yml?branch=main&label=Tests)](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/app.yml)
+[![Dokumentation](https://img.shields.io/github/actions/workflow/status/OliverHennhoefer/mietkartei.de/websites.yml?branch=main&label=Doku)](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/websites.yml)
 [![Testabdeckung](https://codecov.io/gh/OliverHennhoefer/mietkartei.de/graph/badge.svg)](https://codecov.io/gh/OliverHennhoefer/mietkartei.de)
 [![Lizenz: AGPL-3.0](https://img.shields.io/badge/Lizenz-AGPL--3.0-111111)](LICENSE)
 [![Docker-Image](https://img.shields.io/badge/Docker-ghcr.io-2496ed?logo=docker&logoColor=white)](https://github.com/OliverHennhoefer/mietkartei.de/pkgs/container/mietkartei)
