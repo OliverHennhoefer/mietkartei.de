@@ -381,16 +381,18 @@ describe('updateLease', () => {
 				result.id,
 				leaseInput(unitId, { tenantIds: [tenantId], ...overrides })
 			);
+		const summaries = async () =>
+			(await db.select().from(auditLog).where(eq(auditLog.action, 'update'))).map(
+				(entry) => entry.summary
+			);
 		expect(await update({ operatingCostPrepayment: 16000 })).toEqual({ ok: true });
+		expect(await summaries()).toEqual([
+			'Mietvertrag geändert: Betriebskostenvorauszahlung 160,00\u00a0€'
+		]);
 		expect(await update({ operatingCostPrepayment: 16000 })).toEqual({ ok: true });
-		const entries = await db
-			.select()
-			.from(auditLog)
-			.where(eq(auditLog.action, 'update'))
-			.orderBy(auditLog.at);
-		expect(entries.map((entry) => entry.summary)).toEqual([
-			'Mietvertrag geändert: Betriebskostenvorauszahlung 160,00\u00a0€',
-			'Mietvertrag geändert'
+		expect((await summaries()).sort()).toEqual([
+			'Mietvertrag geändert',
+			'Mietvertrag geändert: Betriebskostenvorauszahlung 160,00\u00a0€'
 		]);
 	});
 

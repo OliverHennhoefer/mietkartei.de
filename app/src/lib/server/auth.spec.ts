@@ -330,6 +330,10 @@ describe('lockout', () => {
 		expect(await isLockedOut(db, email)).toBe(true);
 		vi.setSystemTime(new Date(start.getTime() + 15 * 60 * 1000 + 1));
 		expect(await isLockedOut(db, email)).toBe(false);
+		// A wrong password then starts a new series instead of locking again at once.
+		expect(await signIn(db, email, 'falsch')).toEqual({ ok: false, reason: 'invalid' });
+		const [row] = await db.select().from(loginAttempts);
+		expect(row).toMatchObject({ failures: 1, lockedUntil: null });
 		expect(await signIn(db, email, password)).toMatchObject({ ok: true });
 	});
 
