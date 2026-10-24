@@ -249,6 +249,14 @@ describe('parseCamt', () => {
 		expect(parseCamt(camt053v8.replace('>75<', '>7,5<'))?.results).toEqual([
 			{ ok: false, reason: 'Ungültiger Betrag „7,5“' }
 		]);
+		// A date-time the bank got wrong, an entry without its amount.
+		const brokenTime = camt053v8.replace('2026-11-03T10:15:00+01:00', 'gestern');
+		expect(parseCamt(brokenTime)?.results).toEqual([
+			{ ok: false, reason: 'Ungültiges Datum „gestern“' }
+		]);
+		expect(parseCamt(camt053v8.replace('<Amt Ccy="EUR">75</Amt>', ''))?.results).toEqual([
+			{ ok: false, reason: 'Ungültiger Betrag „“' }
+		]);
 	});
 
 	it('names camt.052 and camt.054 by their message', () => {

@@ -152,6 +152,20 @@ describe('the letters of a lease', () => {
 		if (!result?.ok) throw new Error('setup failed');
 		expect((await listRemindersByLease(db, 'a')).get(leaseId)).toHaveLength(1);
 		expect((await listRemindersByLease(db, 'b')).size).toBe(0);
+		// A Mahnung after the Zahlungserinnerung joins it under the same lease.
+		const dunning = await createReminder(db, contextA, leaseId, {
+			level: 2,
+			date: '2025-03-10',
+			paymentDeadline: '2025-03-31'
+		});
+		if (!dunning?.ok) throw new Error('setup failed');
+		expect(
+			(await listRemindersByLease(db, 'a'))
+				.get(leaseId)
+				?.map((row) => row.id)
+				.sort()
+		).toEqual([dunning.id, result.id].sort());
+		await deleteReminder(db, contextA, leaseId, dunning.id);
 		expect(await deleteReminder(db, contextB, leaseId, result.id)).toBe(false);
 		expect(await deleteReminder(db, contextA, leaseId, result.id)).toBe(true);
 		expect(await db.select().from(paymentReminders)).toEqual([]);

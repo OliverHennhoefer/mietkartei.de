@@ -487,6 +487,23 @@ describe('transactions', () => {
 		expect(await countUnmatched(db, 'a')).toBe(3);
 	});
 
+	it('ignores and reopens once when the button is pressed twice at the same time', async () => {
+		await importSparkasse();
+		const [outgoing] = (await openTransactions()).filter((row) => row.amount < 0);
+		const ignored = await Promise.all([
+			ignoreTransaction(db, contextA, outgoing.id),
+			ignoreTransaction(db, contextA, outgoing.id)
+		]);
+		expect(ignored.sort()).toEqual(['ignored', 'not-open']);
+		const reopened = await Promise.all([
+			reopenTransaction(db, contextA, outgoing.id),
+			reopenTransaction(db, contextA, outgoing.id)
+		]);
+		expect(reopened.sort()).toEqual(['not-ignored', 'reopened']);
+		const entries = await db.select().from(auditLog).where(eq(auditLog.entityId, outgoing.id));
+		expect(entries.map((entry) => entry.action).sort()).toEqual(['ignore', 'update']);
+	});
+
 	it('does not leak into another account', async () => {
 		await importSparkasse();
 		const [incoming] = (await openTransactions()).filter((row) => row.amount > 0);

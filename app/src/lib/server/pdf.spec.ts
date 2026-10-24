@@ -103,6 +103,20 @@ describe('renderLetter', () => {
 		expect(all).toContain('Mit freundlichen Grüßen');
 	});
 
+	it('moves a sum row that no longer fits to the next page, under the header', async () => {
+		// 19 rows fill the first page exactly.
+		const rows = Array.from({ length: 19 }, (_, i) => [`Position ${i + 1}`, 'W', '1', '1']);
+		const { pages } = await renderAndLoad({
+			...letter,
+			closing: undefined,
+			tables: [{ ...costTable, rows }]
+		});
+		expect(pages).toHaveLength(2);
+		expect(pages[0]).toContain('Position 19');
+		expect(pages[0]).not.toContain('Summe');
+		expect(pages[1].indexOf('Kostenart')).toBeLessThan(pages[1].indexOf('Summe'));
+	});
+
 	it('keeps blocks in the given order', async () => {
 		const { pages } = await renderAndLoad({
 			...letter,

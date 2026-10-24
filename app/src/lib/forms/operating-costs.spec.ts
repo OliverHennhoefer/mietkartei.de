@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { formDataOf } from './fields';
 import {
+	categoryErrorField,
+	costItemErrorField,
+	keyErrorField,
 	parseCategory,
 	parseCircle,
 	parseCostItem,
@@ -186,6 +189,22 @@ describe('parseReading', () => {
 	});
 });
 
+describe('the field a refusal is shown at', () => {
+	it('names the select that holds the wrong choice', () => {
+		expect(categoryErrorField('unknown-key')).toBe('allocationKeyId');
+		expect(categoryErrorField('unknown-circle')).toBe('billingCircleId');
+		expect(categoryErrorField('duplicate-name')).toBe('name');
+		expect(keyErrorField('property-in-use')).toBe('propertyId');
+		expect(keyErrorField('kind-in-use')).toBe('kind');
+		expect(keyErrorField('duplicate-name')).toBe('name');
+		expect(costItemErrorField('unknown-property')).toBe('propertyId');
+		expect(costItemErrorField('unknown-category')).toBe('categoryId');
+		expect(costItemErrorField('no-key')).toBe('allocationKeyId');
+		expect(costItemErrorField('unknown-circle')).toBe('billingCircleId');
+		expect(costItemErrorField('missing')).toBe('description');
+	});
+});
+
 describe('parseCostItem', () => {
 	const fields = {
 		propertyId: 'p1',
@@ -260,6 +279,11 @@ describe('parseCostItem', () => {
 		const noFuel = parseCostItem(formDataOf({ ...fields, fuelKwh: '25000', co2Cost: '300' }));
 		expect(noFuel.ok).toBe(true);
 		if (noFuel.ok) expect(noFuel.data).toMatchObject({ fuel: null, fuelKwh: null, co2Cost: null });
+	});
+
+	it('refuses a circle id that cannot be one', () => {
+		const result = parseCostItem(formDataOf({ ...fields, billingCircleId: 'x'.repeat(65) }));
+		expect(result).toMatchObject({ ok: false, errors: { billingCircleId: 'Ungültige Auswahl.' } });
 	});
 
 	it('reads "Alle Einheiten des Objekts" as no circle and a negative amount as a credit', () => {

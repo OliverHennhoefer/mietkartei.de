@@ -1262,6 +1262,63 @@ describe('helpers', () => {
 });
 
 describe('computeStatement edge cases', () => {
+	it('takes 70 % for a mixed key without a share and heat meters for a key without a kind', () => {
+		const reference = computeStatement(scenario(), options);
+		const defaults = scenario();
+		defaults.keys[3] = key('k-heat', 'Heizung', 'mixed', { meterKind: null });
+		const result = computeStatement(defaults, options);
+		expect(result.leases.map((lease) => lease.costsTotal)).toEqual(
+			reference.leases.map((lease) => lease.costsTotal)
+		);
+	});
+
+	it('names a meter by its number when a reading is missing', () => {
+		const input = scenario();
+		input.meters[2] = meter('m-dg', 'dg', [reading('2025-01-01', 0)], { serialNumber: '4711' });
+		const messages = computeStatement(input, options).property.warnings.map((w) => w.message);
+		expect(messages.some((message) => message.includes('Zähler Wärme 4711 der Einheit DG'))).toBe(
+			true
+		);
+	});
+
+	it('splits water by days at a change without a reading', () => {
+		// Wasser 100 € by cold water: EG 50, OG 40, DG 10 m³. The OG was not read on 30 June, so
+		// its 40 € split by days: A 181 of 365 days = 19,836… → 19,84 €, B 184 days → 20,16 €.
+		const input = scenario();
+		const water = (id: string, unitId: string, value: number) =>
+			meter(id, unitId, [reading('2025-01-01', 0), reading('2025-12-31', value)], {
+				kind: 'cold_water',
+				unit: 'm³'
+			});
+		input.meters = [water('w-eg', 'eg', 50), water('w-og', 'og', 40), water('w-dg', 'dg', 10)];
+		input.categories.push({
+			id: 'c-wasser',
+			name: 'Wasser',
+			betrkvItem: 2,
+			allocable: true,
+			consumptionBased: true
+		});
+		input.keys.push(key('k-water', 'Kaltwasser', 'consumption', { meterKind: 'cold_water' }));
+		input.items = [item('i-wasser', 'Wasserrechnung', 'c-wasser', 'k-water', 10000)];
+		const result = computeStatement(input, options);
+		const line = (leaseId: string) =>
+			result.leases.find((lease) => lease.leaseId === leaseId)!.lines[0];
+		expect(line('l-og-a')).toMatchObject({ amount: 1984, method: 'days' });
+		expect(line('l-og-a').share).toContain('davon 181 von 365 Tagen');
+		expect(line('l-og-b')).toMatchObject({ amount: 2016 });
+		expect(result.property.warnings.find((warning) => warning.unitId === 'og')?.message).toContain(
+			'nach Tagen aufgeteilt'
+		);
+	});
+
+	it('leaves the operating costs of an Inklusivmiete with the landlord', () => {
+		const input = scenario();
+		input.leases[0].operatingCostModel = 'inclusive';
+		const eg = computeStatement(input, options).leases.find((lease) => lease.leaseId === 'l-eg')!;
+		expect(new Set(eg.excluded.map((line) => line.reason))).toEqual(new Set(['Inklusivmiete']));
+		expect(eg.lines.map((line) => line.categoryName)).toEqual(['Heizung']);
+	});
+
 	it('blocks items whose category or key is gone and skips items outside the period', () => {
 		const input = scenario();
 		input.items = [

@@ -13,6 +13,7 @@ import {
 import { GET as download } from './export/herunterladen/+server';
 import { load as loadExport } from './export/+page.server';
 import { load as loadLog } from './protokoll/+page.server';
+import { load as loadSettings } from './+page.server';
 import { actions as vpiActions, load as loadVpi } from './vpi/+page.server';
 
 // The smaller settings pages: VPI values, the audit log and the data export.
@@ -33,6 +34,12 @@ beforeEach(async () => {
 function run(handler: (event: never) => unknown, options: Parameters<typeof routeEvent>[1] = {}) {
 	return outcome(() => handler(routeEvent(db, options)));
 }
+
+describe('einstellungen', () => {
+	it('opens on the profile', async () => {
+		expect(await run(loadSettings)).toEqual({ redirect: '/einstellungen/profil' });
+	});
+});
 
 describe('vpi', () => {
 	it('adds a value once per month and deletes it', async () => {
