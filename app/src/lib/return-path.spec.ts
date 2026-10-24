@@ -19,5 +19,7 @@ describe('returnPath', () => {
 		expect(returnPath('')).toBeNull();
 		expect(returnPath(null)).toBeNull();
 		expect(returnPath(undefined)).toBeNull();
+		// Not a URL at all once resolved.
+		expect(returnPath('//[')).toBeNull();
 	});
 });

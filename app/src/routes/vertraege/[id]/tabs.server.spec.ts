@@ -1,10 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
+import { createBankAccount } from '#lib/server/bank/accounts.ts';
+import { assignTransaction } from '#lib/server/bank/transactions.ts';
 import { listCo2Splits } from '#lib/server/co2.ts';
+import { bankTransactions } from '#lib/server/db/schema.ts';
 import { listDepositMovements } from '#lib/server/deposits.ts';
 import { getLease } from '#lib/server/leases.ts';
 import { listLedger } from '#lib/server/ledger.ts';
-import { outcome, routeEvent, seedLease, seedUnit, testDatabase } from '#lib/server/testing.ts';
+import {
+	contextA,
+	outcome,
+	routeEvent,
+	seedLease,
+	seedUnit,
+	testDatabase
+} from '#lib/server/testing.ts';
 import { actions as co2Actions, load as loadCo2 } from './co2/+page.server';
 import { actions as depositActions, load as loadDeposit } from './kaution/+page.server';
 import { actions as ledgerActions, load as loadLedger } from './mietkonto/+page.server';
@@ -214,6 +224,39 @@ describe('kaution', () => {
 		});
 		expect(await act(depositActions.delete, { movementId: movement.id })).toMatchObject({
 			fail: 404
+		});
+	});
+
+	it('keeps a movement booked from a bank transaction', async () => {
+		const bank = await createBankAccount(db, contextA, {
+			name: 'Kautionskonto',
+			iban: 'DE02120300000000202051',
+			bic: null,
+			holder: 'Oliver'
+		});
+		if (!bank.ok) throw new Error('setup failed');
+		await db.insert(bankTransactions).values({
+			id: 't1',
+			accountId: 'a',
+			bankAccountId: bank.id,
+			bookingDate: '2026-01-02',
+			amount: 180000,
+			counterpartName: 'Max Müller',
+			purpose: 'Kaution',
+			fingerprint: 't1'
+		});
+		await assignTransaction(db, contextA, 't1', {
+			target: 'deposit',
+			parts: [{ leaseId, amount: 180000 }],
+			remember: false
+		});
+		const [movement] = await listDepositMovements(db, 'a', leaseId);
+		expect(await act(depositActions.delete, { movementId: movement.id })).toEqual({
+			fail: 400,
+			data: {
+				message:
+					'Diese Bewegung stammt aus einem Umsatz. Hebe die Zuordnung unter Bank auf, dann verschwindet sie hier.'
+			}
 		});
 	});
 });
