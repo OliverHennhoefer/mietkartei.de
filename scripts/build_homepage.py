@@ -3,6 +3,8 @@
 from pathlib import Path
 from shutil import copyfile, rmtree
 
+from build_news import build_news
+
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "dist" / "homepage"
@@ -44,5 +46,7 @@ for filename in ("Geist.ttf", "OFL.txt"):
     destination = OUTPUT / "assets" / "fonts" / "geist" / filename
     destination.parent.mkdir(parents=True, exist_ok=True)
     copyfile(ROOT / "assets" / "brand" / "fonts" / "geist" / filename, destination)
+
+build_news(ROOT / "website", OUTPUT)
 
 print(f"Startseite erzeugt: {OUTPUT}")
