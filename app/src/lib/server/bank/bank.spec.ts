@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseBankFile, type RowResult } from '../../domain/bank-matching';
 import { auditLog, bankTransactions, depositTransactions, payments } from '../db/schema';
 import type { Database } from '../db';
-import { createLease } from '../leases';
+import { createLease, listLeases, updateLease, leaseInputOf, getLease } from '../leases';
 import { contextA, contextB, leaseInput, seedTenant, seedUnit, testDatabase } from '../testing';
 import { createBankAccount, deleteBankAccount, listBankAccounts } from './accounts';
 import { commitImport, previewImport } from './imports';
@@ -11,11 +11,15 @@ import { confirmRule, createRule, deleteRule, listRules } from './rules';
 import {
 	assignTransaction,
 	countUnmatched,
+	expensePreset,
 	ignoreTransaction,
 	leaseByIban,
+	leaseHints,
+	leaseOptions,
 	listAssignments,
 	listTransactions,
 	reopenTransaction,
+	transactionLabel,
 	undoAssignment
 } from './transactions';
 
@@ -544,5 +548,64 @@ describe('rules', () => {
 		expect(await deleteRule(db, contextA, foreign.id)).toBe(false);
 		expect(await listRules(db, 'a')).toEqual([]);
 		expect(await listRules(db, 'b')).toHaveLength(1);
+	});
+});
+
+describe('transaction helpers', () => {
+	it('suggests the lease of the latest payment from an IBAN', async () => {
+		await importSparkasse();
+		const [first, second] = (await openTransactions()).filter((row) => row.amount > 0);
+		for (const [transaction, lease] of [
+			[first, leaseId],
+			[second, secondLeaseId]
+		] as const) {
+			await assignTransaction(db, contextA, transaction.id, {
+				target: 'rent',
+				parts: [{ leaseId: lease, amount: 85000 }],
+				remember: false
+			});
+		}
+		expect(await leaseByIban(db, 'a')).toEqual(
+			new Map([['DE12500105175407324931', secondLeaseId]])
+		);
+	});
+
+	it('labels leases with their tenants and marks ended ones', async () => {
+		const lease = (await getLease(db, 'a', secondLeaseId))!;
+		await updateLease(db, contextA, secondLeaseId, {
+			...leaseInputOf(lease),
+			startDate: '2024-01-01',
+			endDate: '2024-12-31'
+		});
+		const summaries = await listLeases(db, 'a');
+		expect(leaseOptions(summaries)).toEqual(
+			expect.arrayContaining([
+				{ id: leaseId, label: 'EG links · Haus – Müller', active: true },
+				{ id: secondLeaseId, label: 'Stellplatz 1 · Haus (beendet)', active: false }
+			])
+		);
+		expect(leaseHints(summaries)).toEqual(
+			expect.arrayContaining([{ id: leaseId, lastNames: ['Müller'], unitNames: ['EG links'] }])
+		);
+	});
+
+	it('names a transaction without counterpart and finds the expense preset by IBAN or name', () => {
+		expect(
+			transactionLabel({ amount: -1250, bookingDate: '2026-10-02', counterpartName: '' })
+		).toBe('Umsatz -12,50\u00a0€ vom 02.10.2026 (ohne Namen)');
+		const preset = { category: 'other' as const, scope: '', description: 'Strom' };
+		const presets = {
+			byIban: new Map([['DE89370400440532013000', preset]]),
+			byName: new Map([['stadtwerke', { ...preset, description: 'Wasser' }]])
+		};
+		expect(
+			expensePreset({ counterpartIban: 'DE89370400440532013000', counterpartName: 'X' }, presets)
+		).toBe(preset);
+		expect(
+			expensePreset({ counterpartIban: null, counterpartName: ' Stadtwerke ' }, presets)
+		).toMatchObject({ description: 'Wasser' });
+		expect(
+			expensePreset({ counterpartIban: null, counterpartName: '' }, presets)
+		).toBeUndefined();
 	});
 });

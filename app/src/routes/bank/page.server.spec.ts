@@ -222,6 +222,53 @@ describe('bank/import', () => {
 		});
 	});
 
+	it('imports the lines of a camt file that belong to the chosen account', async () => {
+		const statement = (iban: string, amount: string, name: string) => `
+    <Stmt>
+      <Acct><Id><IBAN>${iban}</IBAN></Id></Acct>
+      <Ntry>
+        <Amt Ccy="EUR">${amount}</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt><Dt>2026-10-01</Dt></BookgDt>
+        <NtryDtls><TxDtls><RltdPties><Dbtr><Nm>${name}</Nm></Dbtr></RltdPties></TxDtls></NtryDtls>
+      </Ntry>
+    </Stmt>`;
+		const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+  <BkToCstmrStmt>${statement(konto.iban, '850.00', 'Max Müller')}${statement('DE89370400440532013000', '99.00', 'Fremdes Konto')}
+  </BkToCstmrStmt>
+</Document>`;
+		const file = () => new File([xml], 'auszug.xml', { type: 'application/xml' });
+		const preview = (await run(importActions.preview, {
+			form: { bankAccountId, file: file() }
+		})) as {
+			data: {
+				preview: { content: string; preset: string; counts: { new: number; invalid: number } };
+			};
+		};
+		expect(preview.data.preview.counts).toMatchObject({ new: 1, invalid: 1 });
+		expect(
+			await run(importActions.commit, {
+				form: {
+					bankAccountId,
+					content: preview.data.preview.content,
+					preset: preview.data.preview.preset,
+					fileName: 'auszug.xml'
+				}
+			})
+		).toMatchObject({ data: { result: { imported: 1 } } });
+
+		const foreignBank = await createBankAccount(db, contextB, { ...konto, name: 'Fremd' });
+		if (!foreignBank.ok) throw new Error('setup failed');
+		expect(
+			await run(importActions.preview, { form: { bankAccountId: foreignBank.id, file: file() } })
+		).toMatchObject({
+			fail: 400,
+			data: { errors: { file: 'Diese Bankverbindung gibt es nicht.' } }
+		});
+	});
+
 	it('refuses what it cannot read', async () => {
 		const refusal = (form: Record<string, string | File>) => run(importActions.preview, { form });
 		expect(await refusal({ bankAccountId })).toMatchObject({ fail: 400 });

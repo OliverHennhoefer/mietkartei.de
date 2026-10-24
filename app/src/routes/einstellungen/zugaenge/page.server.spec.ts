@@ -120,6 +120,24 @@ describe('mitverwalter', () => {
 		expect(await resend('')).toMatchObject({ fail: 400 });
 	});
 
+	it('resends only with a trusted origin and withdraws an invitation that cannot be sent', async () => {
+		const created = await createInvitation(db, contextA, { email: 'neu@example.org' });
+		if (!created.ok) throw new Error(created.reason);
+		const resend = (url?: string) =>
+			outcome(() => actions.resend(routeEvent(db, { form: { invitationId: created.id }, url })));
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		expect(await resend('http://evil.example/')).toMatchObject({ fail: 503 });
+
+		env.MAIL_TRANSPORT = 'resend';
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('down', { status: 500 }));
+		expect(await resend()).toMatchObject({
+			fail: 502,
+			data: { refused: expect.stringContaining('zurückgezogen') }
+		});
+		expect(await outcome(() => load(routeEvent(db)))).toMatchObject({ data: { invitations: [] } });
+	});
+
 	it('refuses to invite beyond the seats of the account', async () => {
 		await invite('eins@example.org');
 		await invite('zwei@example.org');
@@ -185,6 +203,14 @@ describe('transfer', () => {
 
 	it('hands the account over after the password and mails the new owner', async () => {
 		await setPassword(db, 'user-a');
+		expect(await transfer('', PASSWORD)).toEqual({
+			fail: 400,
+			data: { refused: 'Bitte wähle aus, wem du das Konto übergibst.' }
+		});
+		expect(await transfer('manager-a', '')).toEqual({
+			fail: 400,
+			data: { refused: 'Bitte gib dein Passwort ein.' }
+		});
 		expect(await transfer('manager-a', 'falsch')).toMatchObject({ fail: 400 });
 		expect(await transfer('user-b', PASSWORD)).toMatchObject({ fail: 404 });
 		expect(await transfer('manager-a', PASSWORD)).toEqual({ redirect: '/' });
