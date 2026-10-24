@@ -8,8 +8,8 @@ import { chunk, rowsPerStatement, runBatch } from './db/batch';
 import { consumerPriceIndex, consumerPriceIndexFetches } from './db/schema';
 
 // The Verbraucherpreisindex for Germany, one table for all accounts. It is fetched from the
-// GENESIS web service of Destatis (table 61111-0002, base year 2020 = 100) when a page that needs
-// it is opened and the last attempt is older than REFRESH_AFTER_MS. The service needs the API
+// GENESIS web service of Destatis (table 61111-0002, base year 2020 = 100) in the background when
+// a page that needs it is opened and the last attempt is older than REFRESH_AFTER_MS. The service needs the API
 // token of a (free) GENESIS account; without GENESIS_API_TOKEN nothing is fetched. Destatis
 // publishes the data under the Datenlizenz Deutschland – Namensnennung – Version 2.0, so the
 // pages that show values name the source.
@@ -21,12 +21,23 @@ const FIRST_YEAR = 1991;
 const FETCH_ID = 'destatis';
 /** Smaller values are rates of change, should one come without a unit or label saying so. */
 const MIN_INDEX_VALUE = 20;
-const INTERRUPTED = 'Der Abruf wurde abgebrochen, bevor Destatis vollständig geantwortet hat.';
+/**
+ * While an attempt runs, its record names the step it is in, worded as if the attempt stopped
+ * there: an attempt the platform cancels never reaches its catch and leaves this message behind.
+ */
+const STAGES = {
+	waiting: 'Der Abruf wurde abgebrochen, während Mietkartei auf die Antwort von Destatis wartete.',
+	reading: 'Der Abruf wurde abgebrochen, während Mietkartei die Tabelle von Destatis las.',
+	storing: 'Der Abruf wurde abgebrochen, während Mietkartei die Werte speicherte.'
+} as const;
+/** An attempt still in one of its STAGES after this long was cancelled. */
+const RUNNING_FOR_MS = 60_000;
 /** Destatis publishes once a month; four attempts a day find a new value within hours. */
 export const REFRESH_AFTER_MS = 6 * 60 * 60 * 1000;
 /** A failed attempt is repeated sooner, so a fix on either side shows within the hour. */
 export const RETRY_AFTER_MS = 30 * 60 * 1000;
-const TIMEOUT_MS = 15_000;
+/** Leaves room within the 30 seconds a Worker may keep working after its response. */
+const TIMEOUT_MS = 25_000;
 const GENESIS_URL = 'https://genesis.destatis.de/genesisWS/rest/2020/data/tablefile';
 
 export type IndexFetch = typeof consumerPriceIndexFetches.$inferSelect;
@@ -131,7 +142,8 @@ function genesisText(bytes: Uint8Array): string {
 /** Downloads table 61111-0002 from GENESIS with the API token and returns its index values. */
 export async function downloadIndexValues(
 	token: string,
-	fetcher: typeof fetch = fetch
+	fetcher: typeof fetch = fetch,
+	onResponse: () => Promise<void> = async () => {}
 ): Promise<IndexPoint[]> {
 	let response: Response;
 	try {
@@ -153,6 +165,7 @@ export async function downloadIndexValues(
 	} catch (cause) {
 		throw new Error('Destatis war nicht erreichbar.', { cause });
 	}
+	await onResponse();
 	const text = genesisText(new Uint8Array(await response.arrayBuffer()));
 	if (!response.ok) throw new Error(`Destatis antwortete mit Status ${response.status}.`);
 	// Errors (a wrong token, a table that must be ordered as a job) come as JSON with a status.
@@ -191,46 +204,82 @@ export async function storeIndexValues(db: Database, values: readonly IndexPoint
 
 export type RefreshOptions = { token: string; now?: Date; fetcher?: typeof fetch };
 
+/** Whether an attempt is under way: it is in one of its STAGES and not older than a minute. */
+export function indexFetchRunning(fetch: IndexFetch | undefined, now = new Date()): boolean {
+	return (
+		!!fetch?.error &&
+		Object.values<string>(STAGES).includes(fetch.error) &&
+		now.getTime() - fetch.attemptedAt.getTime() < RUNNING_FOR_MS
+	);
+}
+
 /**
- * Fetches the values again when there is a token and the last attempt is older than
- * REFRESH_AFTER_MS, or RETRY_AFTER_MS after a failure. The attempt is recorded first, so a failing service is not asked on every
- * page view. A failure is recorded and logged, never thrown: the stored values stay usable.
+ * Records an attempt when there is a token and the last attempt is older than REFRESH_AFTER_MS,
+ * or RETRY_AFTER_MS after a failure, and returns the attempt to run. Recording it first keeps a
+ * failing service from being asked on every page view.
  */
-export async function refreshIndexValues(db: Database, options: RefreshOptions): Promise<void> {
-	if (!options.token) return;
+async function claimRefresh(
+	db: Database,
+	options: RefreshOptions
+): Promise<(() => Promise<void>) | undefined> {
+	if (!options.token) return undefined;
 	const now = options.now ?? new Date();
 	const last = await lastIndexFetch(db);
 	const wait = last?.error ? RETRY_AFTER_MS : REFRESH_AFTER_MS;
-	if (last && now.getTime() - last.attemptedAt.getTime() < wait) return;
-	// Until the attempt ends, the record says it did not: an attempt the platform cancels (the
-	// visitor left, a limit was hit) never reaches the catch below and would otherwise leave the
-	// error of an earlier attempt under this attempt's time.
-	const claim = { attemptedAt: now, error: INTERRUPTED };
+	if (last && now.getTime() - last.attemptedAt.getTime() < wait) return undefined;
+	const claim = { attemptedAt: now, error: STAGES.waiting };
 	await db
 		.insert(consumerPriceIndexFetches)
 		.values({ id: FETCH_ID, ...claim })
 		.onConflictDoUpdate({ target: consumerPriceIndexFetches.id, set: claim });
-	try {
-		await storeIndexValues(db, await downloadIndexValues(options.token, options.fetcher));
+
+	const record = async (values: Partial<IndexFetch>) => {
 		await db
 			.update(consumerPriceIndexFetches)
-			.set({ succeededAt: now, error: null })
+			.set(values)
 			.where(eq(consumerPriceIndexFetches.id, FETCH_ID));
-	} catch (cause) {
-		const message = cause instanceof Error ? cause.message : String(cause);
-		console.error('VPI fetch from Destatis failed', cause);
-		await db
-			.update(consumerPriceIndexFetches)
-			.set({ error: message })
-			.where(eq(consumerPriceIndexFetches.id, FETCH_ID));
-	}
+	};
+	return async () => {
+		try {
+			const values = await downloadIndexValues(options.token, options.fetcher, () =>
+				record({ error: STAGES.reading })
+			);
+			await record({ error: STAGES.storing });
+			await storeIndexValues(db, values);
+			await record({ succeededAt: now, error: null });
+		} catch (cause) {
+			console.error('VPI fetch from Destatis failed', cause);
+			await record({ error: cause instanceof Error ? cause.message : String(cause) });
+		}
+	};
+}
+
+/**
+ * Fetches the values again when that is due (see claimRefresh). A failure is recorded and logged,
+ * never thrown: the stored values stay usable.
+ */
+export async function refreshIndexValues(db: Database, options: RefreshOptions): Promise<void> {
+	await (
+		await claimRefresh(db, options)
+	)?.();
 }
 
 /** Whether this instance fetches the values (GENESIS_API_TOKEN is set). */
 export const indexFetchConfigured = Boolean(GENESIS_API_TOKEN);
 
-/** The VPI values after a refresh that is due, newest month first. */
+/**
+ * The stored VPI values, newest month first. A refresh that is due runs in the background: the
+ * page does not wait for Destatis, and the attempt does not end when the page is sent or the
+ * visitor leaves. It shows on a later visit.
+ */
 export async function currentIndexValues(db: Database): Promise<IndexValueRow[]> {
-	await refreshIndexValues(db, { token: GENESIS_API_TOKEN });
+	const run = await claimRefresh(db, { token: GENESIS_API_TOKEN });
+	if (run) {
+		const running = run().catch((cause) => console.error('VPI fetch from Destatis failed', cause));
+		if (__DEPLOY_TARGET__ === 'cloudflare') {
+			const { waitUntil } = await import('cloudflare:workers');
+			waitUntil(running);
+		}
+	}
 	return listIndexValues(db);
 }

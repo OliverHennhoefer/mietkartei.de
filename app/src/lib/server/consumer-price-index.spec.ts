@@ -4,6 +4,7 @@ import type { Database } from './db';
 import { consumerPriceIndex, consumerPriceIndexFetches } from './db/schema';
 import {
 	downloadIndexValues,
+	indexFetchRunning,
 	lastIndexFetch,
 	listIndexValues,
 	parseGenesisTable,
@@ -97,6 +98,9 @@ describe('downloadIndexValues', () => {
 			'Destatis meldet: Fehler bei der Anmeldung.'
 		);
 		await expect(
+			downloadIndexValues('token', async () => new Response('{ kaputt'))
+		).rejects.toThrow('Destatis antwortete ohne Tabelle.');
+		await expect(
 			downloadIndexValues('token', async () => new Response('', { status: 503 }))
 		).rejects.toThrow('Status 503');
 		await expect(
@@ -163,10 +167,29 @@ describe('refreshIndexValues', () => {
 			fetcher: () => new Promise<Response>(() => {})
 		});
 		await new Promise((resolve) => setTimeout(resolve, 20));
-		expect(await lastIndexFetch(db)).toMatchObject({
+		const waiting = await lastIndexFetch(db);
+		expect(waiting).toMatchObject({
 			attemptedAt: later(RETRY_AFTER_MS),
-			error: expect.stringContaining('abgebrochen')
+			error: expect.stringContaining('auf die Antwort von Destatis wartete')
 		});
+		expect(indexFetchRunning(waiting, later(RETRY_AFTER_MS + 59_000))).toBe(true);
+		expect(indexFetchRunning(waiting, later(RETRY_AFTER_MS + 60_000))).toBe(false);
+
+		// One that stops while the table arrives names that step.
+		await db.update(consumerPriceIndexFetches).set({ attemptedAt: now, error: 'x' });
+		void refreshIndexValues(db, {
+			token: 't',
+			now: later(RETRY_AFTER_MS),
+			fetcher: async () =>
+				({ ok: true, arrayBuffer: () => new Promise<ArrayBuffer>(() => {}) }) as Response
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(await lastIndexFetch(db)).toMatchObject({
+			error: expect.stringContaining('die Tabelle von Destatis las')
+		});
+		expect(indexFetchRunning({ ...waiting!, error: 'Destatis antwortete mit Status 500.' })).toBe(
+			false
+		);
 		await db.update(consumerPriceIndexFetches).set({ attemptedAt: now, error: 'x' });
 
 		// A failure is tried again after half an hour, not after six.

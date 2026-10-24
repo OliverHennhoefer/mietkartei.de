@@ -14,7 +14,8 @@ vi.mock('cloudflare:workers', () => workers);
 const mailEnv = vi.hoisted(() => ({
 	MAIL_TRANSPORT: 'console' as 'outbox' | 'resend' | 'console',
 	MAIL_API_KEY: '',
-	MAIL_FROM: 'mietkartei <noreply@example.org>'
+	MAIL_FROM: 'mietkartei <noreply@example.org>',
+	GENESIS_API_TOKEN: 'token'
 }));
 vi.mock('$app/env/private', () => mailEnv);
 
@@ -86,5 +87,34 @@ describe('mail on the cloudflare target', () => {
 		await workers.waitUntil.mock.calls[0][0];
 		expect(onFailure).toHaveBeenCalledTimes(1);
 		expect(failed).toHaveBeenCalled();
+	});
+});
+
+describe('the VPI fetch on the cloudflare target', () => {
+	it('lets the Worker finish the fetch after the response', async () => {
+		const table =
+			'time;1_variable_code;1_variable_attribute_code;value;value_unit;value_variable_code\n' +
+			'2026;MONAT;MONAT01;122,8;2020=100;PREIS1\n';
+		let answer: (response: Response) => void = () => {};
+		const fetcher = vi
+			.spyOn(globalThis, 'fetch')
+			.mockReturnValue(new Promise<Response>((resolve) => (answer = resolve)));
+		const { testDatabase } = await import('./testing');
+		const { currentIndexValues, lastIndexFetch } = await import('./consumer-price-index');
+		const db = await testDatabase();
+
+		// The page gets the stored values (none yet) without waiting for Destatis.
+		expect(await currentIndexValues(db)).toEqual([]);
+		expect(workers.waitUntil).toHaveBeenCalledTimes(1);
+		answer(new Response(table));
+		await workers.waitUntil.mock.calls[0][0];
+		expect(fetcher).toHaveBeenCalledTimes(1);
+		expect(await lastIndexFetch(db)).toMatchObject({ error: null });
+
+		// The next page shows the values and starts no second fetch.
+		expect(await currentIndexValues(db)).toEqual([
+			{ baseYear: '2020', month: '2026-01', value: 122.8 }
+		]);
+		expect(workers.waitUntil).toHaveBeenCalledTimes(1);
 	});
 });

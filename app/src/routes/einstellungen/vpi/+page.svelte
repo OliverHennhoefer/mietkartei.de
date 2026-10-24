@@ -54,6 +54,13 @@
 			kostenlosen Kontos bei GENESIS-Online in der Variablen <code>GENESIS_API_TOKEN</code>.
 		</p>
 	</Alert>
+{:else if data.running}
+	<Alert tone="info">
+		<p>
+			Mietkartei ruft die Werte gerade bei Destatis ab. Lade die Seite in einer Minute neu, um das
+			Ergebnis zu sehen.
+		</p>
+	</Alert>
 {:else if data.lastFetch?.error}
 	<Alert tone="warning">
 		<p>

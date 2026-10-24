@@ -55,6 +55,7 @@ describe('vpi', () => {
 					{ month: '2025-01', value: 121 }
 				],
 				configured: false,
+				running: false,
 				lastFetch: null
 			}
 		});
