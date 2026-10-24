@@ -1,5 +1,6 @@
 import { expect, request, test } from '@playwright/test';
 import { watchCspViolations } from './csp';
+import { owner } from './owner';
 
 // An assistant such as the claude.ai connector connects by OAuth: it finds the authorization
 // server from the 401 of /mcp, registers itself, sends the signed-in owner to the consent page,
@@ -98,4 +99,50 @@ test('connects an app by OAuth, which then reads through MCP, and disconnects it
 	expect(revoked.status()).toBe(401);
 	await client.dispose();
 	expect(violations).toEqual([]);
+});
+
+test('brings a visitor through the sign-in to the consent page and back to the app', async ({
+	browser,
+	baseURL
+}) => {
+	const client = await request.newContext({
+		baseURL,
+		extraHTTPHeaders: { 'cf-connecting-ip': '192.0.2.9' }
+	});
+	const redirectUri = `${baseURL!.replace('localhost', '127.0.0.1')}/health`;
+	const { client_id } = await (
+		await client.post('/oauth/register', {
+			data: { client_name: `ChatGPT ${suffix}`, redirect_uris: [redirectUri] }
+		})
+	).json();
+	await client.dispose();
+
+	// A browser without a session, as when the app opens the consent page.
+	const context = await browser.newContext({
+		storageState: { cookies: [], origins: [] },
+		extraHTTPHeaders: { 'cf-connecting-ip': '192.0.2.9' }
+	});
+	const page = await context.newPage();
+	const violations = watchCspViolations(page);
+	const query = new URLSearchParams({
+		client_id,
+		redirect_uri: redirectUri,
+		response_type: 'code',
+		code_challenge: await challengeOf('visitor-verifier-'.repeat(3)),
+		code_challenge_method: 'S256',
+		state: 'visitor'
+	});
+	await page.goto(`/oauth/authorize?${query}`);
+	await expect(page.getByRole('heading', { level: 1, name: 'Anmelden' })).toBeVisible();
+	await page.getByLabel('E-Mail-Adresse').fill(owner.email);
+	await page.getByLabel('Passwort').fill(owner.password);
+	await page.getByRole('button', { name: 'Anmelden' }).click();
+	await expect(page.getByRole('heading', { level: 1, name: 'Zugriff erlauben' })).toBeVisible();
+	await page.getByRole('button', { name: 'Ablehnen' }).click();
+	await page.waitForURL((url) => url.href.startsWith(redirectUri), { waitUntil: 'commit' });
+	const callback = new URL(page.url());
+	expect(callback.searchParams.get('error')).toBe('access_denied');
+	expect(callback.searchParams.get('state')).toBe('visitor');
+	expect(violations).toEqual([]);
+	await context.close();
 });
