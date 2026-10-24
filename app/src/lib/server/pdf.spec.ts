@@ -20,7 +20,7 @@ const costTable: PdfTable = {
 		{ label: 'Kostenart' },
 		{ label: 'Schlüssel', width: 0.2 },
 		{ label: 'Gesamt', align: 'right', width: 0.15 },
-		{ label: 'Dein Anteil', align: 'right', width: 0.15 }
+		{ label: 'Ihr Anteil', align: 'right', width: 0.15 }
 	],
 	rows: [
 		['Grundsteuer', 'Wohnfläche', '1.200,00 €', '393,00 €'],

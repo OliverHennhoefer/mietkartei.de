@@ -759,13 +759,13 @@ describe('paid prepayments', () => {
 			'paragraph' in block ? [block.paragraph] : []
 		);
 		expect(paragraphs).toContain(
-			'Von den Vorauszahlungen für den Abrechnungszeitraum (2.400,00\u00a0€) hast du 200,00\u00a0€ nicht geleistet. Die Abrechnung rechnet nur die geleisteten an; die offenen Vorauszahlungen sind im Ergebnis enthalten und werden nicht zusätzlich verlangt.'
+			'Von den Vorauszahlungen für den Abrechnungszeitraum (2.400,00\u00a0€) haben Sie 200,00\u00a0€ nicht geleistet. Die Abrechnung rechnet nur die geleisteten an; die offenen Vorauszahlungen sind im Ergebnis enthalten und werden nicht zusätzlich verlangt.'
 		);
 		expect(paragraphs).toContain(
 			'Kosten gesamt 3.000,00\u00a0€, geleistete Vorauszahlungen 2.200,00\u00a0€: Nachzahlung 800,00\u00a0€.'
 		);
 		expect(paragraphs).toContain(
-			'Bitte überweise die Nachzahlung von 800,00\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
+			'Bitte überweisen Sie die Nachzahlung von 800,00\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
 		);
 	});
 
@@ -788,7 +788,7 @@ describe('paid prepayments', () => {
 			'paragraph' in block ? [block.paragraph] : []
 		);
 		expect(paragraphs).toContain(
-			'Die Abrechnung erreicht dich nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB); von der Nachzahlung verlangen wir nur die 200,00\u00a0€ Vorauszahlungen, die du nicht geleistet hast. Bitte überweise die Nachzahlung von 200,00\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
+			'Die Abrechnung erreicht Sie nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB); von der Nachzahlung verlangen wir nur die 200,00\u00a0€ Vorauszahlungen, die Sie nicht geleistet haben. Bitte überweisen Sie die Nachzahlung von 200,00\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
 		);
 	});
 
@@ -889,7 +889,7 @@ describe('approving a correction after the deadline', () => {
 			'paragraph' in block ? [block.paragraph] : []
 		);
 		expect(paragraphs).toContain(
-			'Nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB) gilt das rechtzeitig abgerechnete Ergebnis. Bitte überweise die Nachzahlung von 105,99\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
+			'Nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB) gilt das rechtzeitig abgerechnete Ergebnis. Bitte überweisen Sie die Nachzahlung von 105,99\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
 		);
 
 		// A lower result still lowers the claim: a credit note of 730 € by area.
@@ -1251,7 +1251,7 @@ describe('statementLetter', () => {
 			'Kostenart',
 			'Gesamtkosten',
 			'Umlageschlüssel',
-			'Dein Anteil'
+			'Ihr Anteil'
 		]);
 		expect(tables[0].rows).toHaveLength(4);
 		// The deducted CO₂ share and the allocated rest, each under its own label.
@@ -1288,7 +1288,7 @@ describe('statementLetter', () => {
 		);
 		// A Nachzahlung is due 30 days after the letter reached the tenant.
 		expect(paragraphs).toContain(
-			'Bitte überweise die Nachzahlung von 105,99\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
+			'Bitte überweisen Sie die Nachzahlung von 105,99\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
 		);
 		expect(paragraphs.some((p) => p.includes('nicht geleistet'))).toBe(false);
 		expect(letter.closing).toEqual(['Mit freundlichen Grüßen', '', 'Konto A']);
@@ -1299,7 +1299,7 @@ describe('statementLetter', () => {
 			'paragraph' in block ? [block.paragraph] : []
 		);
 		expect(egParagraphs).toContain(
-			`Das Guthaben von 105,67\u00a0€ erstatten wir dir bis zum ${addDays(today(), 30).split('-').reverse().join('.')} oder verrechnen es mit der nächsten Miete.`
+			`Das Guthaben von 105,67\u00a0€ erstatten wir Ihnen bis zum ${addDays(today(), 30).split('-').reverse().join('.')} oder verrechnen es mit der nächsten Miete.`
 		);
 	});
 });
@@ -1382,7 +1382,7 @@ describe('statementLetter variants', () => {
 			landlord: { ...base.landlord, iban: 'DE02120300000000202051', bankName: 'Testbank' }
 		});
 		expect(paragraphs).toContain(
-			'Bitte überweise die Nachzahlung von 105,99\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung auf das Konto IBAN DE02120300000000202051 bei der Testbank.'
+			'Bitte überweisen Sie die Nachzahlung von 105,99\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung auf das Konto IBAN DE02120300000000202051 bei der Testbank.'
 		);
 	});
 
@@ -1396,25 +1396,25 @@ describe('statementLetter variants', () => {
 
 	it('refunds a Guthaben without a date before approval', () => {
 		expect(paragraphsOf({ ...base, balance: -500, posted: null, dueDate: null })).toContain(
-			'Das Guthaben von 5,00\u00a0€ erstatten wir dir oder verrechnen es mit der nächsten Miete.'
+			'Das Guthaben von 5,00\u00a0€ erstatten wir Ihnen oder verrechnen es mit der nächsten Miete.'
 		);
 	});
 
 	it('explains what is left of a late Nachzahlung', () => {
-		const late = 'Die Abrechnung erreicht dich nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB)';
+		const late = 'Die Abrechnung erreicht Sie nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB)';
 		expect(paragraphsOf({ ...base, posted: 0 })).toContain(
 			`${late}; die Nachzahlung von 105,99\u00a0€ wird nicht verlangt.`
 		);
 
 		const unpaid = paragraphsOf({ ...base, unpaidPrepayments: 3000, posted: 3000 });
-		expect(unpaid.some((p) => p.includes('hast du 30,00\u00a0€ nicht geleistet'))).toBe(true);
+		expect(unpaid.some((p) => p.includes('haben Sie 30,00\u00a0€ nicht geleistet'))).toBe(true);
 		expect(unpaid).toContain(
-			`${late}; von der Nachzahlung verlangen wir nur die 30,00\u00a0€ Vorauszahlungen, die du nicht geleistet hast. Bitte überweise die Nachzahlung von 30,00\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.`
+			`${late}; von der Nachzahlung verlangen wir nur die 30,00\u00a0€ Vorauszahlungen, die Sie nicht geleistet haben. Bitte überweisen Sie die Nachzahlung von 30,00\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.`
 		);
 
 		// A late correction keeps the result claimed in time.
 		expect(paragraphsOf({ ...base, posted: 5000 })).toContain(
-			'Nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB) gilt das rechtzeitig abgerechnete Ergebnis. Bitte überweise die Nachzahlung von 50,00\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
+			'Nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB) gilt das rechtzeitig abgerechnete Ergebnis. Bitte überweisen Sie die Nachzahlung von 50,00\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
 		);
 	});
 

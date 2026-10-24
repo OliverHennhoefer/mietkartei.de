@@ -348,8 +348,7 @@ describe('index rent with an unordered or incomplete history', () => {
 });
 
 describe('greeting', () => {
-	it('addresses the tenants by salutation in the informal register of the letter', () => {
-		// The letter says "dein Mietvertrag", so the greeting is "Guten Tag", not "Sehr geehrte".
+	it('addresses the tenants by salutation with a plain "Guten Tag"', () => {
 		expect(greeting([{ salutation: 'Frau', firstName: 'Erika', lastName: 'Muster' }])).toBe(
 			'Guten Tag Frau Muster,'
 		);
@@ -401,7 +400,7 @@ describe('letterFigures and indexLetterText', () => {
 		const paragraphs = text.split('\n\n');
 		expect(paragraphs).toHaveLength(4);
 		expect(paragraphs[0]).toBe('Guten Tag Frau Muster,');
-		expect(paragraphs[1]).toMatch(/^dein Mietvertrag für Wohnung EG links/);
+		expect(paragraphs[1]).toMatch(/^Ihr Mietvertrag für Wohnung EG links/);
 		expect(paragraphs[1]).toContain('Basisjahr 2020 = 100');
 		expect(paragraphs[2]).toContain(
 			'von 118,2 (Januar 2024) auf 124,3 (Januar 2026) gestiegen, das sind 5,16 %'
@@ -417,7 +416,7 @@ describe('letterFigures and indexLetterText', () => {
 		]);
 	});
 
-	it('says "euer Mietvertrag" to two tenants', () => {
+	it('says "Ihr Mietvertrag" to two tenants as well', () => {
 		const figures = letterFigures([initial, approved], lease, approved)!;
 		const text = indexLetterText({
 			unitName: 'Wohnung EG links',
@@ -429,7 +428,7 @@ describe('letterFigures and indexLetterText', () => {
 		});
 		const paragraphs = text.split('\n\n');
 		expect(paragraphs[0]).toBe('Guten Tag Frau Muster, Herr Muster,');
-		expect(paragraphs[1]).toMatch(/^euer Mietvertrag für Wohnung EG links/);
+		expect(paragraphs[1]).toMatch(/^Ihr Mietvertrag für Wohnung EG links/);
 	});
 });
 
