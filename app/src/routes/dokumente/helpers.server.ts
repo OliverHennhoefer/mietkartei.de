@@ -58,10 +58,10 @@ export async function loadDocumentLinkOptions(
 	accountId: string
 ): Promise<DocumentLinkOptions> {
 	const [propertyRows, unitRows, leaseRows, tenantRows, costItemRows] = await Promise.all([
-		listProperties(db, accountId),
-		listUnitsWithProperty(db, accountId),
+		listProperties(db, accountId, { archived: true }),
+		listUnitsWithProperty(db, accountId, { archived: true }),
 		listLeases(db, accountId),
-		listTenants(db, accountId),
+		listTenants(db, accountId, { archived: true }),
 		db
 			.select({ id: costItems.id, description: costItems.description })
 			.from(costItems)

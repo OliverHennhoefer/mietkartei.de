@@ -14,7 +14,11 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals, parent }) => {
 	const accountId = requireAccount(locals);
 	const { lease } = await parent();
-	const tenants = await listTenants(locals.db, accountId);
+	// Archived tenants are offered only when they are on the lease already.
+	const onLease = new Set(lease.tenants.map((tenant) => tenant.id));
+	const tenants = (await listTenants(locals.db, accountId, { archived: true })).filter(
+		(tenant) => !tenant.archivedAt || onLease.has(tenant.id)
+	);
 	const input = leaseInputOf(lease);
 	const defaults: Record<string, string> = {
 		tenantIds: input.tenantIds.join(','),
@@ -93,9 +97,11 @@ export const actions: Actions = {
 								unitId:
 									'Für dieses Objekt gibt es schon eine Betriebskostenabrechnung mit diesem Vertrag. Der Vertrag muss dort eine Einheit behalten; lege für die neue Einheit einen neuen Vertrag an.'
 							}
-						: outcome.reason === 'unknown-unit'
-							? { unitId: 'Eine der Einheiten gibt es nicht.' }
-							: { tenantIds: 'Einen der Mieter gibt es nicht.' };
+						: outcome.reason === 'archived'
+							? { tenantIds: 'Einer der Mieter ist archiviert. Hol ihn zuerst aus dem Archiv.' }
+							: outcome.reason === 'unknown-unit'
+								? { unitId: 'Eine der Einheiten gibt es nicht.' }
+								: { tenantIds: 'Einen der Mieter gibt es nicht.' };
 			return fail(400, { errors, values, depositWarning: depositWarning(result.data) });
 		}
 		// A new start, end, due day or ledger start moves the months on the ledger.

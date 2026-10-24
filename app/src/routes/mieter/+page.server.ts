@@ -3,12 +3,13 @@ import { requireAccount } from '#lib/server/session.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import type { PageServerLoad } from './$types';
 
-// Tenants with their active leases: one query for the tenants, one set for the leases, so the
-// number of queries does not grow with the number of tenants.
+// Tenants with their active leases, the archived ones (moved out) apart: one query for the
+// tenants, one set for the leases, so the number of queries does not grow with the number of
+// tenants.
 export const load: PageServerLoad = async ({ locals }) => {
 	const accountId = requireAccount(locals);
 	const [tenants, leases] = await Promise.all([
-		listTenants(locals.db, accountId),
+		listTenants(locals.db, accountId, { archived: true }),
 		listLeases(locals.db, accountId)
 	]);
 	const activeByTenant = new Map<string, LeaseSummary[]>();
@@ -20,13 +21,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 			activeByTenant.set(tenant.id, list);
 		}
 	}
-	return {
-		tenants: tenants.map((tenant) => ({
-			...tenant,
-			activeLeases: (activeByTenant.get(tenant.id) ?? []).map((lease) => ({
-				id: lease.id,
-				label: leaseLabel(lease)
-			}))
+	const rows = tenants.map((tenant) => ({
+		...tenant,
+		activeLeases: (activeByTenant.get(tenant.id) ?? []).map((lease) => ({
+			id: lease.id,
+			label: leaseLabel(lease)
 		}))
+	}));
+	return {
+		tenants: rows.filter((tenant) => !tenant.archivedAt),
+		archived: rows.filter((tenant) => tenant.archivedAt)
 	};
 };

@@ -66,6 +66,8 @@ describe('mieter', () => {
 		const params = { id: foreign };
 		expect(await run(loadTenant, { params })).toMatchObject({ error: 404 });
 		expect(await run(loadEdit, { params })).toMatchObject({ error: 404 });
+		expect(await run(tenantActions.archive, { params, form: {} })).toMatchObject({ error: 404 });
+		expect(await run(tenantActions.restore, { params, form: {} })).toMatchObject({ error: 404 });
 		expect(await run(editActions.update, { params, form: tenant })).toMatchObject({ error: 404 });
 		expect(await run(tenantActions.delete, { params, form: {} })).toMatchObject({ error: 404 });
 	});
@@ -95,6 +97,32 @@ describe('mieter', () => {
 		const free = await seedTenant(db, 'a');
 		expect(await run(tenantActions.delete, { params: { id: free }, form: {} })).toEqual({
 			redirect: '/mieter'
+		});
+	});
+
+	it('archives a tenant whose leases ended and lists them apart until restored', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		await seedLease(db, 'a', unitId, { tenantIds: [tenantId], endDate: '2025-06-30' });
+		const params = { id: tenantId };
+		expect(await run(tenantActions.archive, { params, form: {} })).toEqual({
+			redirect: '/mieter'
+		});
+		expect(await run(load)).toMatchObject({ data: { tenants: [], archived: [{ id: tenantId }] } });
+		expect(await run(loadTenant, { params })).toMatchObject({
+			data: { archiving: { archivedAt: expect.any(String) } }
+		});
+		expect(await run(tenantActions.restore, { params, form: {} })).toEqual({
+			redirect: `/mieter/${tenantId}`
+		});
+		expect((await getTenant(db, 'a', tenantId))?.archivedAt).toBeNull();
+	});
+
+	it('refuses to archive a tenant with a running lease', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		await seedLease(db, 'a', unitId, { tenantIds: [tenantId] });
+		expect(await run(tenantActions.archive, { params: { id: tenantId }, form: {} })).toMatchObject({
+			fail: 400,
+			data: { archiveError: expect.any(String) }
 		});
 	});
 });
