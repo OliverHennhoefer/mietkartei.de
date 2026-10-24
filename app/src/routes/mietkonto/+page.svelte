@@ -4,13 +4,17 @@
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
+	import { reminderLevelLabels } from '#lib/domain/reminders.ts';
 	import { pluralize } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 </script>
 
-<PageHeader title="Mietkonto" lead="Alle Mietverträge mit ihrem Saldo. Rückstände stehen oben." />
+<PageHeader
+	title="Mietkonto"
+	lead="Alle Mietverträge mit ihrem Saldo. Rückstände stehen oben, mit dem letzten Schreiben dazu."
+/>
 
 {#if data.leaseCount === 0}
 	<EmptyState
@@ -54,6 +58,7 @@
 						<th class="num">Saldo</th>
 						<th>Offen seit</th>
 						<th>Letzte Zahlung</th>
+						<th>Erinnert</th>
 						<th class="actions"></th>
 					</tr>
 				</thead>
@@ -94,7 +99,28 @@
 								{#if row.openSince}{formatMonth(row.openSince)}{:else}–{/if}
 							</td>
 							<td>{row.lastPaymentDate ? formatDate(row.lastPaymentDate) : '–'}</td>
+							<td>
+								{#if row.reminder}
+									{reminderLevelLabels[row.reminder.level]} vom {formatDate(row.reminder.date)}
+									{#if row.reminder.paymentDeadline < data.today}
+										<Badge tone="danger">Frist abgelaufen</Badge>
+									{:else}
+										<span class="muted small due">
+											Frist bis {formatDate(row.reminder.paymentDeadline)}
+										</span>
+									{/if}
+								{:else if row.overdue > 0}
+									<span class="muted">noch nicht</span>
+								{:else}
+									–
+								{/if}
+							</td>
 							<td class="actions">
+								{#if row.overdue > 0}
+									<a href="/vertraege/{row.leaseId}/mietkonto#zahlungserinnerung">
+										{row.reminder ? 'Mahnen' : 'Erinnern'}
+									</a>
+								{/if}
 								<a href="/vertraege/{row.leaseId}/mietkonto">Mietkonto</a>
 							</td>
 						</tr>

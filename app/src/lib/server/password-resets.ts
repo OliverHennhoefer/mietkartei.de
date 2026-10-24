@@ -1,4 +1,5 @@
 import { and, count, eq, gt } from 'drizzle-orm';
+import { revokeAllApiKeys } from './api-keys';
 import { auditEntry } from './audit';
 import {
 	clearFailedAttempts,
@@ -64,8 +65,8 @@ export async function findPasswordReset(
 }
 
 /**
- * Sets the password of the user behind a valid token, deletes all resets, sessions and pending
- * address changes of the user and forgets the failed attempts of the address. The audit entry names neither the user
+ * Sets the password of the user behind a valid token, deletes all resets, sessions, API keys and
+ * pending address changes of the user and forgets the failed attempts of the address. The audit entry names neither the user
  * nor the address. Returns the user, so the caller can sign them in.
  */
 export async function resetPassword(
@@ -87,6 +88,7 @@ export async function resetPassword(
 		db.delete(sessions).where(eq(sessions.userId, user.id)),
 		db.delete(passwordResets).where(eq(passwordResets.userId, user.id)),
 		db.delete(emailChanges).where(eq(emailChanges.userId, user.id)),
+		revokeAllApiKeys(db, user.id),
 		auditEntry(
 			db,
 			{ accountId: user.accountId, userId: null },

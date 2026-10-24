@@ -1,5 +1,6 @@
 import { and, asc, count, desc, eq, gt, isNull, ne, sql } from 'drizzle-orm';
 import { userRoleLabels } from '../labels';
+import { revokeAllApiKeys } from './api-keys';
 import { auditEntry, type AuditContext } from './audit';
 import { generateToken, hashPassword, hashToken, normalizeEmail } from './auth';
 import type { Database } from './db';
@@ -296,7 +297,7 @@ export async function acceptInvitation(
 }
 
 /**
- * Removes a manager of the account with their sessions, resets and address changes. Neither
+ * Removes a manager of the account with their sessions, resets, API keys and address changes. Neither
  * oneself nor an owner can be removed, so the account always keeps its owner. References to the
  * user in other tables are set to null by the schema; the audit log keeps the name in its
  * summaries.
@@ -323,6 +324,7 @@ export async function removeUser(
 		db.delete(sessions).where(eq(sessions.userId, user.id)),
 		db.delete(passwordResets).where(eq(passwordResets.userId, user.id)),
 		db.delete(emailChanges).where(eq(emailChanges.userId, user.id)),
+		revokeAllApiKeys(db, user.id),
 		db.delete(users).where(and(eq(users.accountId, context.accountId), eq(users.id, user.id))),
 		auditEntry(
 			db,

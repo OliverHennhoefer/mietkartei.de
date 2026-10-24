@@ -1,5 +1,29 @@
+<script lang="ts">
+	import { page } from '$app/state';
+	import Icon from '#lib/components/Icon.svelte';
+
+	// The one page of the demo meant for search engines and link previews.
+	const title = 'Demo ausprobieren | mietkartei';
+	const description =
+		'Teste mietkartei, die Open-Source-Hausverwaltung für Privatvermieter, mit eigenem ' +
+		'Beispielbestand: Mietkonto, Bankumsätze und Betriebskostenabrechnung. Ohne Anmeldung.';
+	const url = $derived(`${page.url.origin}/demo`);
+</script>
+
 <svelte:head>
-	<title>Demo | mietkartei</title>
+	<title>{title}</title>
+	<meta name="description" content={description} />
+	<link rel="canonical" href={url} />
+	<meta property="og:type" content="website" />
+	<meta property="og:site_name" content="mietkartei" />
+	<meta property="og:locale" content="de_DE" />
+	<meta property="og:url" content={url} />
+	<meta property="og:title" content={title} />
+	<meta property="og:description" content={description} />
+	<meta property="og:image" content="https://mietkartei.de/assets/social.png" />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
+	<meta name="twitter:card" content="summary_large_image" />
 </svelte:head>
 
 <div class="narrow">

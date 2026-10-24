@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { openD1 } from './db/d1';
-import { AUTH_LIMIT, AUTH_PERIOD_SECONDS } from './rate-limit';
+import { API_LIMIT, API_PERIOD_SECONDS, AUTH_LIMIT, AUTH_PERIOD_SECONDS } from './rate-limit';
 import { openCloudflareLimiter } from './rate-limit/cloudflare';
 import { openR2 } from './storage/r2';
 
@@ -108,8 +108,16 @@ describe('rate limit binding', () => {
 		expect(limit).toHaveBeenCalledWith({ key: 'auth:10.0.0.1' });
 	});
 
+	it('opens the binding it is asked for', async () => {
+		const limit = vi.fn(async () => ({ success: false }));
+		bindings.env = { AUTH_LIMITER: { limit: vi.fn() }, API_LIMITER: { limit } };
+		expect(await openCloudflareLimiter('API_LIMITER').limit('key:1')).toBe(false);
+		expect(limit).toHaveBeenCalledWith({ key: 'key:1' });
+	});
+
 	it('names the missing binding', () => {
 		expect(() => openCloudflareLimiter()).toThrow('"AUTH_LIMITER"');
+		expect(() => openCloudflareLimiter('API_LIMITER')).toThrow('"API_LIMITER"');
 	});
 });
 
@@ -126,9 +134,10 @@ describe('wrangler.jsonc', () => {
 		expect(config.r2_buckets.map((bucket: { binding: string }) => bucket.binding)).toContain(
 			'DOCUMENTS'
 		);
-		expect(config.ratelimits.map((limit: { name: string }) => limit.name)).toContain(
-			'AUTH_LIMITER'
-		);
+		expect(config.ratelimits.map((limit: { name: string }) => limit.name)).toEqual([
+			'AUTH_LIMITER',
+			'API_LIMITER'
+		]);
 	});
 
 	it('limits sign-in attempts as the node target does', () => {
@@ -136,6 +145,13 @@ describe('wrangler.jsonc', () => {
 			(limit: { name: string }) => limit.name === 'AUTH_LIMITER'
 		);
 		expect(limiter.simple).toEqual({ limit: AUTH_LIMIT, period: AUTH_PERIOD_SECONDS });
+	});
+
+	it('limits API calls as the node target does', () => {
+		const limiter = wranglerConfig().ratelimits.find(
+			(limit: { name: string }) => limit.name === 'API_LIMITER'
+		);
+		expect(limiter.simple).toEqual({ limit: API_LIMIT, period: API_PERIOD_SECONDS });
 	});
 
 	it('migrates D1 from the same folder as the SQLite database', () => {
