@@ -171,6 +171,56 @@ export async function scopeOptions(db: Database, accountId: string): Promise<Sco
 	}));
 }
 
+/** An earlier description with the category and scope it was booked with last. */
+export type ExpenseSuggestion = {
+	description: string;
+	category: Expense['category'];
+	scope: string;
+};
+
+/** How many descriptions the suggestion list offers at most. */
+const SUGGESTIONS = 200;
+
+/**
+ * The distinct descriptions of the account, most recent first, each with the category and
+ * scope of its latest expense: picking one again fills them in. One query.
+ */
+export async function expenseSuggestions(
+	db: Database,
+	accountId: string
+): Promise<ExpenseSuggestion[]> {
+	const rows = await db
+		.select({
+			description: expenses.description,
+			category: expenses.category,
+			propertyId: expenses.propertyId,
+			unitId: expenses.unitId
+		})
+		.from(expenses)
+		.where(eq(expenses.accountId, accountId))
+		.orderBy(desc(expenses.date), desc(expenses.createdAt));
+	const result = new Map<string, ExpenseSuggestion>();
+	for (const row of rows) {
+		if (result.size >= SUGGESTIONS) break;
+		if (result.has(row.description)) continue;
+		result.set(row.description, {
+			description: row.description,
+			category: row.category,
+			scope: expenseScopeValue(row)
+		});
+	}
+	return [...result.values()];
+}
+
+/** The scope select's value of an expense: its unit, else its property, else the portfolio (''). */
+export function expenseScopeValue(row: {
+	propertyId: string | null;
+	unitId: string | null;
+}): string {
+	if (row.unitId) return scopeValue('unit', row.unitId);
+	return row.propertyId ? scopeValue('property', row.propertyId) : '';
+}
+
 /** The year of the earliest expense, null without any; for the year select. */
 export async function firstExpenseYear(db: Database, accountId: string): Promise<number | null> {
 	const [row] = await db

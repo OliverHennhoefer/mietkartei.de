@@ -162,6 +162,59 @@ export async function getCostItem(
 	return item;
 }
 
+/** The last item of a property and category, which the next one usually repeats. */
+export type LastCostItem = Pick<
+	CostItem,
+	| 'propertyId'
+	| 'categoryId'
+	| 'allocationKeyId'
+	| 'billingCircleId'
+	| 'description'
+	| 'supplier'
+	| 'amount'
+	| 'periodEnd'
+>;
+
+/** What the Beleg form offers from earlier items: the texts as suggestions, the last items to copy. */
+export type CostItemHistory = {
+	/** Distinct, most recently used first. */
+	descriptions: string[];
+	suppliers: string[];
+	/** The latest item per property and category (by period end). */
+	last: LastCostItem[];
+};
+
+/** How many texts the suggestion lists offer at most. */
+const SUGGESTIONS = 200;
+
+/** The earlier items of the account, for the suggestions of the Beleg form. One query. */
+export async function costItemHistory(db: Database, accountId: string): Promise<CostItemHistory> {
+	const rows = await db
+		.select({
+			propertyId: costItems.propertyId,
+			categoryId: costItems.categoryId,
+			allocationKeyId: costItems.allocationKeyId,
+			billingCircleId: costItems.billingCircleId,
+			description: costItems.description,
+			supplier: costItems.supplier,
+			amount: costItems.amount,
+			periodEnd: costItems.periodEnd
+		})
+		.from(costItems)
+		.where(eq(costItems.accountId, accountId))
+		.orderBy(desc(costItems.periodEnd), desc(costItems.createdAt));
+	const descriptions = new Set<string>();
+	const suppliers = new Set<string>();
+	const last = new Map<string, LastCostItem>();
+	for (const row of rows) {
+		if (descriptions.size < SUGGESTIONS) descriptions.add(row.description);
+		if (row.supplier && suppliers.size < SUGGESTIONS) suppliers.add(row.supplier);
+		const key = `${row.propertyId}:${row.categoryId}`;
+		if (!last.has(key)) last.set(key, row);
+	}
+	return { descriptions: [...descriptions], suppliers: [...suppliers], last: [...last.values()] };
+}
+
 /**
  * Every calendar year a period of the account overlaps, newest first: the years the list filter
  * finds items for. Periods are validated dates, so a range spans at most MIN_YEAR to MAX_YEAR.
