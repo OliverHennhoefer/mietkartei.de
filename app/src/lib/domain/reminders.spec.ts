@@ -105,16 +105,16 @@ describe('the letter', () => {
 		const paragraphs = reminderText(content).split('\n\n');
 		expect(paragraphs[0]).toBe('Guten Tag Frau Muster,');
 		expect(paragraphs[1]).toBe(
-			'auf deinem Mietkonto für EG links sind am 10.03.2025 folgende fällige Beträge offen:'
+			'auf Ihrem Mietkonto für EG links sind am 10.03.2025 folgende fällige Beträge offen:'
 		);
 		expect(paragraphs[2]).toContain(
-			`Bitte überweise den offenen Betrag von ${formatCents(130000)}`
+			`Bitte überweisen Sie den offenen Betrag von ${formatCents(130000)}`
 		);
 		expect(paragraphs[2]).toContain('bis zum 24.03.2025 auf das Konto IBAN DE02120300000000202051');
 		expect(paragraphs).toHaveLength(5);
 	});
 
-	it('addresses several tenants in the plural and names the previous letter', () => {
+	it('addresses several tenants and names the previous letter', () => {
 		const text = reminderText({
 			...content,
 			level: 2,
@@ -124,12 +124,12 @@ describe('the letter', () => {
 			bankName: null
 		});
 		expect(text).toContain(
-			'auf eurem Mietkonto für EG links sind am 10.03.2025 folgende fällige Beträge offen, obwohl wir euch am 12.02.2025 daran erinnert haben:'
+			'auf Ihrem Mietkonto für EG links sind am 10.03.2025 folgende fällige Beträge offen, obwohl wir Sie am 12.02.2025 daran erinnert haben:'
 		);
 		expect(text).toContain(
-			`Bitte überweist den offenen Betrag von ${formatCents(130000)} spätestens bis zum 24.03.2025.`
+			`Bitte überweisen Sie den offenen Betrag von ${formatCents(130000)} spätestens bis zum 24.03.2025.`
 		);
-		expect(text).toContain('seid ihr in Verzug');
+		expect(text).toContain('sind Sie in Verzug');
 	});
 
 	it('names the accrued default interest from the Mahnung on, not in the reminder', () => {
@@ -148,7 +148,7 @@ describe('the letter', () => {
 
 	it('announces legal steps in the last Mahnung', () => {
 		const text = reminderText({ ...content, level: 3 });
-		expect(text).toContain('Wir fordern dich letztmalig auf');
+		expect(text).toContain('Wir fordern Sie letztmalig auf');
 		expect(text).toContain('§ 543 Abs. 2 Satz 1 Nr. 3 BGB');
 		expect(text).not.toContain('Schwierigkeiten');
 	});

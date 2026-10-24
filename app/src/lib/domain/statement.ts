@@ -277,7 +277,7 @@ export type CostLine = {
 	share: string;
 	/** Set when the unit changed tenants in the period and the item follows consumption. */
 	method?: SplitMethod;
-	/** The lease's share in cents (Dein Anteil). */
+	/** The lease's share in cents (Ihr Anteil). */
 	amount: number;
 	co2?: Co2Disclosure;
 	/** For a cost of a WEG: its figures, the total prorated to the period like `itemTotal`. */

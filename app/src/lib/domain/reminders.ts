@@ -112,11 +112,9 @@ export function reminderRows(items: readonly OpenItem[]): string[][] {
 
 /**
  * The paragraphs of the letter, joined by blank lines; the open items table follows the second
- * one. In the informal register of the app, addressed to all tenants of the lease.
+ * one. Formal ("Sie"), as landlords write to tenants, addressed to all tenants of the lease.
  */
 export function reminderText(content: ReminderContent): string {
-	const plural = content.tenants.length > 1;
-	const you = (singular: string, several: string) => (plural ? several : singular);
 	const amount = formatCents(content.amount);
 	const deadline = formatDate(content.paymentDeadline);
 	const account = [
@@ -127,14 +125,14 @@ export function reminderText(content: ReminderContent): string {
 		.join(' ');
 	const toAccount = account ? ` auf das Konto ${account}` : '';
 	const previous = content.previous
-		? `, obwohl wir ${you('dich', 'euch')} am ${formatDate(content.previous.date)} daran erinnert haben`
+		? `, obwohl wir Sie am ${formatDate(content.previous.date)} daran erinnert haben`
 		: '';
 	const items =
-		`auf ${you('deinem', 'eurem')} Mietkonto für ${content.unitName} sind ` +
+		`auf Ihrem Mietkonto für ${content.unitName} sind ` +
 		`am ${formatDate(content.date)} folgende fällige Beträge offen`;
 	const alreadyPaid =
-		`Falls ${you('du', 'ihr')} in den letzten Tagen schon gezahlt ${you('hast', 'habt')}, ` +
-		`${you('betrachte', 'betrachtet')} dieses Schreiben bitte als gegenstandslos.`;
+		'Falls Sie in den letzten Tagen schon gezahlt haben, betrachten Sie dieses Schreiben bitte ' +
+		'als gegenstandslos.';
 	const interest =
 		content.interest > 0
 			? `Bis zum ${formatDate(content.date)} sind darauf Verzugszinsen von ` +
@@ -142,14 +140,14 @@ export function reminderText(content: ReminderContent): string {
 				'§ 288 Abs. 1 BGB). Wir behalten uns vor, sie geltend zu machen.'
 			: 'Wir behalten uns vor, Verzugszinsen (§ 288 BGB) geltend zu machen.';
 	const talk =
-		`Wenn es gerade Schwierigkeiten gibt, ${you('melde dich', 'meldet euch')} bitte bei uns, ` +
+		'Wenn es gerade Schwierigkeiten gibt, melden Sie sich bitte bei uns, ' +
 		'dann finden wir gemeinsam eine Lösung.';
 
 	const paragraphs: string[] = [greeting(content.tenants)];
 	if (content.level === 1) {
 		paragraphs.push(
 			`${items}:`,
-			`Sicher ist das nur ein Versehen. Bitte ${you('überweise', 'überweist')} den offenen ` +
+			`Sicher ist das nur ein Versehen. Bitte überweisen Sie den offenen ` +
 				`Betrag von ${amount} bis zum ${deadline}${toAccount}.`,
 			alreadyPaid,
 			talk
@@ -157,9 +155,9 @@ export function reminderText(content: ReminderContent): string {
 	} else if (content.level === 2) {
 		paragraphs.push(
 			`${items}${previous}:`,
-			`Bitte ${you('überweise', 'überweist')} den offenen Betrag von ${amount} spätestens bis ` +
+			`Bitte überweisen Sie den offenen Betrag von ${amount} spätestens bis ` +
 				`zum ${deadline}${toAccount}.`,
-			`Die Miete ist zu festen Terminen fällig; mit dem Ablauf des Fälligkeitstags ${you('bist du', 'seid ihr')} ` +
+			`Die Miete ist zu festen Terminen fällig; mit dem Ablauf des Fälligkeitstags sind Sie ` +
 				`in Verzug (§ 286 Abs. 2 Nr. 1 BGB). ${interest}`,
 			alreadyPaid,
 			talk
@@ -167,7 +165,7 @@ export function reminderText(content: ReminderContent): string {
 	} else {
 		paragraphs.push(
 			`${items}${previous}:`,
-			`Wir fordern ${you('dich', 'euch')} letztmalig auf, den offenen Betrag von ${amount} bis ` +
+			`Wir fordern Sie letztmalig auf, den offenen Betrag von ${amount} bis ` +
 				`zum ${deadline}${toAccount} zu überweisen.`,
 			'Geht der Betrag bis dahin nicht ein, werden wir ohne weitere Ankündigung rechtliche ' +
 				'Schritte einleiten. Ein Mietrückstand kann außerdem zur fristlosen Kündigung des ' +
