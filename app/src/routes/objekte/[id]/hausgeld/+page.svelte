@@ -57,6 +57,10 @@
 					<dd><Money cents={statement.reserveContribution} /></dd>
 					<dt>Kosten gesamt</dt>
 					<dd><Money cents={statement.costsTotal} /></dd>
+					{#if statement.reserveWithdrawal}
+						<dt>Entnahme aus der Rücklage</dt>
+						<dd><Money cents={statement.reserveWithdrawal} /></dd>
+					{/if}
 					<dt>Hausgeld laut Wirtschaftsplan</dt>
 					<dd><Money cents={statement.feesDue} /></dd>
 					<dt>Abrechnungsspitze</dt>

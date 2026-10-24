@@ -25,6 +25,7 @@ import {
 	payments,
 	properties,
 	tasks,
+	taxYears,
 	tenants,
 	units
 } from './db/schema';
@@ -119,7 +120,11 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			name: 'Lindenstraße 12',
 			street: 'Lindenstraße 12',
 			postalCode: '10115',
-			city: 'Berlin'
+			city: 'Berlin',
+			acquisitionDate: '2015-07-01',
+			acquisitionCost: 850_000_00,
+			buildingShare: 75,
+			depreciationRate: 2
 		},
 		{
 			id: gartenId,
@@ -127,7 +132,11 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			name: 'Gartenweg 3',
 			street: 'Gartenweg 3',
 			postalCode: '14467',
-			city: 'Potsdam'
+			city: 'Potsdam',
+			acquisitionDate: '2019-04-01',
+			acquisitionCost: 420_000_00,
+			buildingShare: 70,
+			depreciationRate: 2
 		}
 	];
 	const unitRows = [
@@ -421,11 +430,17 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			expense(
 				addDays(firstOfMonth(month), 14),
 				95000,
-				'financing',
+				'loan_payment',
 				'Darlehensrate Sparkasse',
 				lindenId
 			),
-			expense(addDays(firstOfMonth(month), 14), 62000, 'financing', 'Darlehensrate KfW', gartenId)
+			expense(
+				addDays(firstOfMonth(month), 14),
+				62000,
+				'loan_payment',
+				'Darlehensrate KfW',
+				gartenId
+			)
 		]),
 		...costItemRows.map((item) =>
 			expense(`${lastYear}-03-15`, item.amount, 'operating_costs', item.description, lindenId)
@@ -530,6 +545,11 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			...insert(costItems, costItemRows),
 			...insert(expenses, expenseRows),
 			...insert(tasks, taskRows),
+			// The interest of last year's Darlehensraten, as the bank's Zinsbescheinigung would say.
+			...insert(taxYears, [
+				{ accountId, propertyId: lindenId, year: Number(lastYear), loanInterest: 4_920_00 },
+				{ accountId, propertyId: gartenId, year: Number(lastYear), loanInterest: 2_870_00 }
+			]),
 			...insert(auditLog, auditRows),
 			// The last line is also the guard against a second run at the same time (a double
 			// click): both pass isEmptyAccount, but once one batch is in, the other sees four

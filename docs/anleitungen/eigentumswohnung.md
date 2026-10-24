@@ -45,6 +45,7 @@ Bei einer Eigentumswohnung hat das Objekt den Reiter **Hausgeld**. Dort erfasst 
 - nicht umlagefähige Kosten,
 - Zuführung zur Erhaltungsrücklage,
 - Hausgeld laut Wirtschaftsplan, also die Vorauszahlungen, die du im Jahr zahlen solltest,
+- auf Wunsch die Entnahme aus der Erhaltungsrücklage, also was der Verwalter im Jahr aus der Rücklage für Reparaturen ausgegeben hat,
 - auf Wunsch das Ergebnis laut Verwalter, als Nachzahlung oder Guthaben.
 
 Das monatliche Hausgeld erfasst du als Ausgabe mit der Kategorie **Hausgeld (WEG)**, von Hand oder aus deinen [Kontoauszügen](kontoauszuege-importieren.md). mietkartei gleicht dann drei Dinge ab:
@@ -53,7 +54,9 @@ Das monatliche Hausgeld erfasst du als Ausgabe mit der Kategorie **Hausgeld (WEG
 - **Hausgeld:** Hast du so viel gezahlt, wie der Wirtschaftsplan vorsieht? Fehlt etwas, zeigt mietkartei den Rückstand. Unter **Mit dem gezahlten Hausgeld** steht, was du nach deinen tatsächlichen Zahlungen noch zahlst oder zurückbekommst.
 - **Belege:** Sind die umlagefähigen Kosten vollständig als Belege mit den Zahlen der WEG erfasst? Fehlt ein Teil, fehlt er auch in der Nebenkostenabrechnung deines Mieters.
 
-Die Zuführung zur Erhaltungsrücklage zählt bei der Steuer erst, wenn der Verwalter das Geld für eine Maßnahme ausgibt. mietkartei führt sie deshalb getrennt.
+Die Zuführung zur Erhaltungsrücklage zählt bei der Steuer erst, wenn der Verwalter das Geld für eine Maßnahme ausgibt. mietkartei führt sie deshalb getrennt: Die [Steuerübersicht](steuer.md) zieht das gezahlte Hausgeld ohne die Zuführung ab und dafür die Entnahme aus der Rücklage.
+
+Eine Sonderumlage buchst du als Ausgabe mit der Kategorie **Sonderumlage für Erhaltung (WEG)**, wenn die WEG damit gleich eine Reparatur bezahlt, oder **Sonderumlage in die Rücklage (WEG)**, wenn das Geld erst in die Rücklage geht. Dient sie einer Modernisierung, etwa einem neuen Aufzug, nimm **Modernisierung und Anschaffungen**.
 
 ## Über die Schnittstelle
 

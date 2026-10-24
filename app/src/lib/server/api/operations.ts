@@ -27,6 +27,7 @@ import { reminderState } from '../reminders';
 import { listRentChanges } from '../rents';
 import { getStatement, listStatements } from '../statements';
 import { createTask, getTask, listTasks, setDone } from '../tasks';
+import { loadTaxOverview } from '../tax';
 import { getTenant, listTenants } from '../tenants';
 import { schema, type InputSchema } from './input';
 
@@ -119,7 +120,7 @@ export const operations: Operation[] = [
 	{
 		name: 'get_property',
 		description:
-			'Returns one property with its units (Einheiten) and who occupies each unit today. kind is "building" for an own building or "condominium" for an Eigentumswohnung in a WEG, which then has associationManager (Verwalter), ownershipShare (its MEA) and ownershipShareTotal (MEA of the WEG).',
+			'Returns one property with its units (Einheiten) and who occupies each unit today. kind is "building" for an own building or "condominium" for an Eigentumswohnung in a WEG, which then has associationManager (Verwalter), ownershipShare (its MEA) and ownershipShareTotal (MEA of the WEG). acquisitionDate, acquisitionCost, buildingShare and depreciationRate (percent) are the basis of the AfA.',
 		method: 'GET',
 		path: '/properties/{id}',
 		scope: 'read',
@@ -279,7 +280,7 @@ export const operations: Operation[] = [
 	},
 	{
 		name: 'list_expenses',
-		description: `Lists the expenses (Ausgaben) the landlord paid out, newest first, e.g. repairs, loan interest or management fees, each for a unit, a property or the whole portfolio. Unlike cost items they are not passed on to tenants. ${AMOUNTS}`,
+		description: `Lists the expenses (Ausgaben) the landlord paid out, newest first, e.g. repairs, loan payments (category loan_payment: interest and repayment in one), Hausgeld or management fees, each for a unit, a property or the whole portfolio. Unlike cost items they are not passed on to tenants. ${AMOUNTS}`,
 		method: 'GET',
 		path: '/expenses',
 		scope: 'read',
@@ -296,7 +297,7 @@ export const operations: Operation[] = [
 	},
 	{
 		name: 'get_analysis',
-		description: `Returns the analysis (Auswertung) of one calendar year or of all years: rent charged and received, expenses, net income, collection and vacancy rate, rent per m², a monthly (or yearly) series, expenses by category and the figures per property and unit. Use it for income questions, e.g. for the tax return (Anlage V). ${AMOUNTS}`,
+		description: `Returns the analysis (Auswertung) of one calendar year or of all years: rent charged and received, expenses, net income, collection and vacancy rate, rent per m², a monthly (or yearly) series, expenses by category and the figures per property and unit. Use it for cash-flow questions; for the tax return use get_tax_overview. ${AMOUNTS}`,
 		method: 'GET',
 		path: '/analysis',
 		scope: 'read',
@@ -318,6 +319,33 @@ export const operations: Operation[] = [
 					: ((input.year as number | undefined) ?? Number(today().slice(0, 4))),
 				propertyId: (input.propertyId as string | undefined) ?? null
 			})
+	},
+	{
+		name: 'get_tax_overview',
+		description: `Returns the tax overview (Steuerübersicht) of one property for one calendar year, sorted into the lines of the Anlage V (numbered as on the 2025 form): income (Kaltmiete for apartments, other rooms and parking, Umlagen as prepayments and statement results, received in the year) and Werbungskosten (AfA of the building, Schuldzinsen, Erhaltungsaufwendungen, umgelegte, nicht umgelegte and sonstige Kosten), with the Überschuss. Hausgeld counts without the Zuführung zur Erhaltungsrücklage; the Verwalter's Entnahme for Erhaltung counts instead. nonDeductible lists what was booked but is not deductible right away (Tilgung, modernisation, reserve), findings what is missing or worth checking. It is an aid, not tax advice. ${AMOUNTS}`,
+		method: 'GET',
+		path: '/properties/{id}/tax',
+		scope: 'read',
+		readOnly: true,
+		input: schema(
+			{
+				id: id('property'),
+				year: {
+					type: 'integer',
+					minimum: 1900,
+					maximum: 2100,
+					description: 'The calendar year; defaults to the last one.'
+				}
+			},
+			['id']
+		),
+		async run({ db, caller }, input) {
+			const { accountId } = caller.user;
+			const property = await getProperty(db, accountId, String(input.id));
+			if (!property) notFound('Property');
+			const year = (input.year as number | undefined) ?? Number(today().slice(0, 4)) - 1;
+			return loadTaxOverview(db, accountId, property, year);
+		}
 	},
 	{
 		name: 'list_cost_items',

@@ -94,6 +94,21 @@
 		/>
 	</Field>
 	<Field
+		label="Entnahme aus der Rücklage in € (optional)"
+		error={errors?.reserveWithdrawal}
+		hint="Dein Anteil an dem, was der Verwalter im Jahr aus der Erhaltungsrücklage für Reparaturen und Instandhaltung ausgegeben hat. Für die Steuer zählt dieser Betrag, nicht die Zuführung."
+	>
+		<input
+			name="reserveWithdrawal"
+			inputmode="decimal"
+			defaultValue={value(
+				'reserveWithdrawal',
+				statement?.reserveWithdrawal ? formatCentsPlain(statement.reserveWithdrawal) : ''
+			)}
+			aria-invalid={errors?.reserveWithdrawal ? 'true' : undefined}
+		/>
+	</Field>
+	<Field
 		label="Hausgeld laut Wirtschaftsplan in €"
 		error={errors?.feesDue}
 		hint="Die Vorauszahlungen des Jahres, die du hättest zahlen sollen (Soll)."

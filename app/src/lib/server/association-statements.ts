@@ -17,6 +17,7 @@ export type AssociationStatementInput = {
 	allocableCosts: number;
 	nonAllocableCosts: number;
 	reserveContribution: number;
+	reserveWithdrawal: number;
 	feesDue: number;
 	statedBalance: number | null;
 	note: string | null;

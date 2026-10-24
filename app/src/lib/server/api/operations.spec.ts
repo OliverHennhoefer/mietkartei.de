@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { today } from '../../dates';
 import type { ApiCaller } from '../api-keys';
 import { createAssociationStatement } from '../association-statements';
 import { listAuditLog } from '../audit';
@@ -182,7 +183,8 @@ describe('operations', () => {
 			['get_lease', otherLease.id],
 			['get_rent_ledger', otherLease.id],
 			['get_reminder_state', otherLease.id],
-			['get_statement', otherLease.id]
+			['get_statement', otherLease.id],
+			['get_tax_overview', otherLease.propertyId]
 		]) {
 			await expect(run(name, { id }), name).rejects.toMatchObject({ status: 404 });
 		}
@@ -366,6 +368,7 @@ describe('write operations', () => {
 			allocableCosts: 180000,
 			nonAllocableCosts: 60000,
 			reserveContribution: 40000,
+			reserveWithdrawal: 0,
 			feesDue: 300000,
 			statedBalance: null,
 			note: null
@@ -374,6 +377,17 @@ describe('write operations', () => {
 			{ costsTotal: 280000, computedBalance: -20000, feesPaid: 0, feesOutstanding: 300000 }
 		]);
 		expect(await run('list_association_statements', { propertyId: 'other' })).toEqual([]);
+	});
+
+	it('return the tax overview of a property and year', async () => {
+		expect(await run('get_tax_overview', { id: ids.propertyId, year: 2025 })).toMatchObject({
+			year: 2025,
+			findings: expect.arrayContaining([expect.objectContaining({ code: 'depreciation-missing' })])
+		});
+		expect(await run('get_tax_overview', { id: ids.propertyId })).toMatchObject({
+			year: Number(today().slice(0, 4)) - 1
+		});
+		await expect(run('get_tax_overview', { id: 'other' })).rejects.toMatchObject({ status: 404 });
 	});
 
 	it('refuse cost items of unknown rows or with a wrong period', async () => {

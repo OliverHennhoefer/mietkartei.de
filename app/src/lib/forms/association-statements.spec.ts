@@ -8,6 +8,7 @@ const fields = {
 	allocableCosts: '1.800,00',
 	nonAllocableCosts: '600',
 	reserveContribution: '400,00',
+	reserveWithdrawal: '250,00',
 	feesDue: '3.000,00',
 	statedBalance: '200,00',
 	balanceKind: 'credit',
@@ -25,6 +26,7 @@ describe('parseAssociationStatement', () => {
 			allocableCosts: 180000,
 			nonAllocableCosts: 60000,
 			reserveContribution: 40000,
+			reserveWithdrawal: 25000,
 			feesDue: 300000,
 			statedBalance: -20000,
 			note: null
@@ -41,6 +43,7 @@ describe('parseAssociationStatement', () => {
 			allocableCosts: 0,
 			nonAllocableCosts: 0,
 			reserveContribution: 0,
+			reserveWithdrawal: 0,
 			feesDue: 0,
 			statedBalance: null
 		});
