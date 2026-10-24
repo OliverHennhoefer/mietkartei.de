@@ -451,7 +451,6 @@ export const operations: Operation[] = [
 		),
 		async run({ db, caller }, input) {
 			const title = String(input.title);
-			if (!title) invalid('"title" must not be empty.');
 			const repeatMonths = (input.repeatMonths as number | undefined) ?? null;
 			if (repeatMonths && !repeatOptions.some((option) => option.months === repeatMonths)) {
 				invalid(

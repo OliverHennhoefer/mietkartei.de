@@ -221,6 +221,11 @@ describe('write operations', () => {
 				status: 400
 			});
 		}
+		expect(await write('create_task', { title: 'x', propertyId: ' ', leaseId: '' })).toMatchObject({
+			title: 'x',
+			property: null,
+			lease: null
+		});
 		await expect(write('create_task', { title: 'x', leaseId: 'other' })).rejects.toMatchObject({
 			status: 404
 		});
