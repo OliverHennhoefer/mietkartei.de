@@ -5,10 +5,13 @@ import type { FieldErrors } from '#lib/forms/fields.ts';
 import {
 	createInvitation,
 	deliverInvitation,
+	freeSeats,
 	invitationMail,
 	listAccountUsers,
 	listPendingInvitations,
+	MAX_ACCOUNT_MEMBERS,
 	removeUser,
+	resendInvitation,
 	revokeInvitation
 } from '#lib/server/invitations.ts';
 import { sendMail } from '#lib/server/mail.ts';
@@ -18,13 +21,24 @@ import type { Actions, PageServerLoad } from './$types';
 
 // Owners only: who has access to the account, open invitations, and the form to invite.
 
+const FULL = `Ein Konto hat höchstens ${MAX_ACCOUNT_MEMBERS} Zugänge, offene Einladungen eingerechnet. Entferne einen Zugang oder ziehe eine Einladung zurück.`;
+const TOO_MANY =
+	'Du hast heute schon viele Einladungen verschickt. Bitte versuche es morgen wieder.';
+
 export const load: PageServerLoad = async ({ locals }) => {
 	const user = requireOwner(locals);
-	const [accountUsers, pending] = await Promise.all([
+	const [accountUsers, pending, seats] = await Promise.all([
 		listAccountUsers(locals.db, user.accountId),
-		listPendingInvitations(locals.db, user.accountId)
+		listPendingInvitations(locals.db, user.accountId),
+		freeSeats(locals.db, user.accountId)
 	]);
-	return { userId: user.id, users: accountUsers, invitations: pending };
+	return {
+		userId: user.id,
+		users: accountUsers,
+		invitations: pending,
+		freeSeats: seats,
+		maxMembers: MAX_ACCOUNT_MEMBERS
+	};
 };
 
 export const actions: Actions = {
@@ -44,8 +58,10 @@ export const actions: Actions = {
 				created.reason === 'member'
 					? 'Diese Person hat schon einen Zugang zu deinem Konto.'
 					: created.reason === 'already-invited'
-						? 'Diese E-Mail-Adresse ist schon eingeladen. Ziehe die Einladung zurück, um sie neu zu schicken.'
-						: 'Du hast heute schon viele Einladungen verschickt. Bitte versuche es morgen wieder.';
+						? 'Diese E-Mail-Adresse ist schon eingeladen. Schicke die Einladung unten erneut.'
+						: created.reason === 'full'
+							? FULL
+							: TOO_MANY;
 			const errors: FieldErrors<InvitationFormInput> = { email: message };
 			return fail(400, { errors, values: { email: result.data.email } });
 		}
@@ -65,6 +81,43 @@ export const actions: Actions = {
 			return fail(502, { errors, values: { email: created.email } });
 		}
 		return { invited: created.email };
+	},
+
+	resend: async ({ request, locals, url }) => {
+		const user = requireOwner(locals);
+		const form = await request.formData();
+		const id = form.get('invitationId');
+		if (typeof id !== 'string' || !id)
+			return fail(400, { refused: 'Diese Einladung gibt es nicht.' });
+		const origin = mailLinkOrigin(url, ORIGIN, __DEPLOY_TARGET__);
+		if (!origin) {
+			console.warn('Invitation refused: set ORIGIN to the public URL of mietkartei.');
+			return fail(503, { refused: MAIL_LINKS_UNAVAILABLE });
+		}
+		const resent = await resendInvitation(locals.db, auditContext(locals), id);
+		if (!resent.ok) {
+			const refused =
+				resent.reason === 'missing'
+					? 'Diese Einladung gibt es nicht mehr.'
+					: resent.reason === 'full'
+						? FULL
+						: TOO_MANY;
+			return fail(resent.reason === 'missing' ? 404 : 400, { refused });
+		}
+		const sent = await deliverInvitation(
+			locals.db,
+			auditContext(locals),
+			resent.id,
+			invitationMail(resent.email, `${origin}/einladung/${resent.token}`, user.name),
+			(mail) => sendMail(locals.db, mail)
+		);
+		if (!sent) {
+			return fail(502, {
+				refused:
+					'Die Einladung konnte nicht verschickt werden und wurde zurückgezogen. Bitte lade die Person später neu ein.'
+			});
+		}
+		return { invited: resent.email };
 	},
 
 	revoke: async ({ request, locals }) => {

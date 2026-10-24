@@ -6,16 +6,20 @@ import type { Database } from './db';
 import { auditLog, emailChanges, invitations, passwordResets, sessions, users } from './db/schema';
 import {
 	INVITATION_LIFETIME,
+	INVITATION_RETENTION,
+	MAX_ACCOUNT_MEMBERS,
 	MAX_INVITATIONS_PER_DAY,
 	acceptInvitation,
 	createInvitation,
 	deliverInvitation,
 	findInvitation,
+	freeSeats,
 	invitationMail,
 	inviterName,
 	listAccountUsers,
 	listPendingInvitations,
 	removeUser,
+	resendInvitation,
 	revokeInvitation
 } from './invitations';
 import { QUOTAS } from './quotas';
@@ -58,20 +62,48 @@ describe('createInvitation', () => {
 		).toEqual([['invitation', result.id, 'invite', 'neu@example.org als Mitverwalter eingeladen']]);
 	});
 
-	it('refuses an address of the account or with an open invitation', async () => {
+	it('refuses an address of the account or with an open or expired invitation', async () => {
 		expect(await createInvitation(db, contextA, { email: 'A@example.org' }, now)).toEqual({
 			ok: false,
 			reason: 'member'
 		});
-		await invite();
+		const { id } = await invite();
 		expect(await createInvitation(db, contextA, { email: 'neu@example.org' }, now)).toEqual({
 			ok: false,
 			reason: 'already-invited'
 		});
-		// An expired invitation does not block a new one.
+		// An expired invitation is sent again instead; a revoked one does not block a new one.
+		expect(await createInvitation(db, contextA, { email: 'neu@example.org' }, later)).toEqual({
+			ok: false,
+			reason: 'already-invited'
+		});
+		await revokeInvitation(db, contextA, id, later);
 		expect(await createInvitation(db, contextA, { email: 'neu@example.org' }, later)).toMatchObject(
 			{ ok: true }
 		);
+	});
+
+	it('refuses once users and open invitations fill the seats of the account', async () => {
+		// The test account has its owner; the other seats go to open invitations.
+		for (let index = 1; index < MAX_ACCOUNT_MEMBERS; index++)
+			await invite(`p-${index}@example.org`);
+		expect(await freeSeats(db, 'a', now)).toBe(0);
+		expect(await createInvitation(db, contextA, { email: 'voll@example.org' }, now)).toEqual({
+			ok: false,
+			reason: 'full'
+		});
+		// Expired invitations free their seat.
+		expect(await freeSeats(db, 'a', later)).toBe(MAX_ACCOUNT_MEMBERS - 1);
+		expect(await invite('frei@example.org', contextB)).toMatchObject({ ok: true });
+	});
+
+	it('deletes invitations of every account a month after their expiry', async () => {
+		const old = await invite('alt@example.org', contextB);
+		const purgeAt = later + INVITATION_RETENTION + 1;
+		await createInvitation(db, contextA, { email: 'neu@example.org' }, purgeAt);
+		const rows = await db.select().from(invitations);
+		expect(rows.map((row) => row.email)).toEqual(['neu@example.org']);
+		expect(rows.some((row) => row.id === old.id)).toBe(false);
 	});
 
 	it('says nothing about users of other accounts; accepting refuses them', async () => {
@@ -81,7 +113,7 @@ describe('createInvitation', () => {
 		).toEqual({ ok: false, reason: 'email-taken' });
 	});
 
-	it('sends at most twenty invitations a day, revoked ones included', async () => {
+	it('sends at most five invitations a day, revoked ones included', async () => {
 		for (let index = 0; index < MAX_INVITATIONS_PER_DAY; index++) {
 			const { id } = await invite(`eins-${index}@example.org`);
 			// Revoking frees neither the daily limit nor the quota.
@@ -115,7 +147,7 @@ describe('createInvitation', () => {
 });
 
 describe('listPendingInvitations and listAccountUsers', () => {
-	it('lists open invitations and users of the account only', async () => {
+	it('lists open and expired invitations and users of the account only', async () => {
 		const open = await invite('eins@example.org');
 		await invite('zwei@example.org', contextB);
 		const accepted = await invite('drei@example.org');
@@ -127,8 +159,12 @@ describe('listPendingInvitations and listAccountUsers', () => {
 		);
 
 		const pending = await listPendingInvitations(db, 'a', now);
-		expect(pending.map((invitation) => invitation.id)).toEqual([open.id]);
-		expect(await listPendingInvitations(db, 'a', later)).toEqual([]);
+		expect(pending.map((invitation) => [invitation.id, invitation.expired])).toEqual([
+			[open.id, false]
+		]);
+		expect(
+			(await listPendingInvitations(db, 'a', later)).map((invitation) => invitation.expired)
+		).toEqual([true]);
 
 		const accountUsers = await listAccountUsers(db, 'a');
 		expect(accountUsers.map((user) => [user.email, user.role, user.name])).toEqual([
@@ -159,6 +195,80 @@ describe('revokeInvitation', () => {
 		expect(audit.map((entry) => [entry.accountId, entry.summary])).toEqual([
 			['a', 'Einladung an eins@example.org zurückgezogen']
 		]);
+	});
+});
+
+describe('resendInvitation', () => {
+	it('replaces an invitation with a new link and a new week, and logs it', async () => {
+		const first = await invite();
+		const resent = await resendInvitation(db, contextA, first.id, later);
+		if (!resent.ok) throw new Error(resent.reason);
+		expect(resent).toMatchObject({ email: 'neu@example.org' });
+		expect(resent.token).not.toBe(first.token);
+		expect(await findInvitation(db, first.token, later)).toBeUndefined();
+		expect(await findInvitation(db, resent.token, later)).toMatchObject({ status: 'open' });
+		const pending = await listPendingInvitations(db, 'a', later);
+		expect(pending.map((invitation) => [invitation.id, invitation.expiresAt.getTime()])).toEqual([
+			[resent.id, later + INVITATION_LIFETIME]
+		]);
+		const audit = await db.select().from(auditLog).where(eq(auditLog.entityId, resent.id));
+		expect(audit.map((entry) => entry.summary)).toEqual([
+			'Einladung an neu@example.org erneut geschickt'
+		]);
+	});
+
+	it('refuses foreign, revoked and accepted invitations', async () => {
+		const foreign = await invite('b-neu@example.org', contextB);
+		expect(await resendInvitation(db, contextA, foreign.id, now)).toEqual({
+			ok: false,
+			reason: 'missing'
+		});
+		const revoked = await invite('eins@example.org');
+		await revokeInvitation(db, contextA, revoked.id, now);
+		expect(await resendInvitation(db, contextA, revoked.id, now)).toEqual({
+			ok: false,
+			reason: 'missing'
+		});
+		const accepted = await invite('zwei@example.org');
+		await acceptInvitation(
+			db,
+			accepted.token,
+			{ name: 'Zwei', password: 'passwort-von-zwei' },
+			now
+		);
+		expect(await resendInvitation(db, contextA, accepted.id, now)).toEqual({
+			ok: false,
+			reason: 'missing'
+		});
+	});
+
+	it('counts towards the daily limit, and an expired one needs a free seat', async () => {
+		const first = await invite('eins@example.org');
+		for (let index = 1; index < MAX_INVITATIONS_PER_DAY; index++) {
+			const resent = await resendInvitation(db, contextA, first.id, now);
+			if (!resent.ok) throw new Error(resent.reason);
+			first.id = resent.id;
+		}
+		expect(await resendInvitation(db, contextA, first.id, now)).toEqual({
+			ok: false,
+			reason: 'too-many'
+		});
+
+		const day = 24 * 60 * 60 * 1000;
+		const expiredAt = now + INVITATION_LIFETIME + day;
+		for (let index = 1; index < MAX_ACCOUNT_MEMBERS; index++) {
+			const result = await createInvitation(
+				db,
+				contextA,
+				{ email: `p-${index}@example.org` },
+				expiredAt + index * day
+			);
+			if (!result.ok) throw new Error(result.reason);
+		}
+		expect(await resendInvitation(db, contextA, first.id, expiredAt + 5 * day)).toEqual({
+			ok: false,
+			reason: 'full'
+		});
 	});
 });
 

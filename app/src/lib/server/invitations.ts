@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, isNull, lt, ne, sql } from 'drizzle-orm';
 import { userRoleLabels } from '../labels';
 import { revokeAllApiKeys } from './api-keys';
 import { auditEntry, type AuditContext } from './audit';
@@ -23,8 +23,15 @@ import { assertQuota } from './quotas';
 
 const DAY = 24 * 60 * 60 * 1000;
 export const INVITATION_LIFETIME = 7 * DAY;
-/** Invitations an account may send per day, revoked ones included; each one sends a mail. */
-export const MAX_INVITATIONS_PER_DAY = 20;
+/**
+ * Invitation mails an account may send per day, revoked and resent ones included. Low, because
+ * the mail provider's daily allowance is shared by all accounts.
+ */
+export const MAX_INVITATIONS_PER_DAY = 5;
+/** People per account, the owner and open invitations included. */
+export const MAX_ACCOUNT_MEMBERS = 5;
+/** Days after its expiry an invitation is deleted, so unused addresses do not stay forever. */
+export const INVITATION_RETENTION = 30 * DAY;
 
 export type AccountUser = {
 	id: string;
@@ -58,15 +65,19 @@ export type PendingInvitation = {
 	email: string;
 	expiresAt: Date;
 	createdAt: Date;
+	expired: boolean;
 };
 
-/** Invitations of the account that are neither accepted, revoked nor expired, newest first. */
+/**
+ * Invitations of the account that are neither accepted nor revoked, newest first: the open ones and
+ * the expired ones, which the owner may send again until they are deleted.
+ */
 export async function listPendingInvitations(
 	db: Database,
 	accountId: string,
 	now = Date.now()
 ): Promise<PendingInvitation[]> {
-	return db
+	const rows = await db
 		.select({
 			id: invitations.id,
 			email: invitations.email,
@@ -78,23 +89,54 @@ export async function listPendingInvitations(
 			and(
 				eq(invitations.accountId, accountId),
 				isNull(invitations.acceptedAt),
-				isNull(invitations.revokedAt),
-				gt(invitations.expiresAt, new Date(now))
+				isNull(invitations.revokedAt)
 			)
 		)
 		.orderBy(desc(invitations.createdAt));
+	return rows.map((row) => ({ ...row, expired: row.expiresAt.getTime() <= now }));
+}
+
+/** How many more people the account may invite: MAX_ACCOUNT_MEMBERS less users and open invitations. */
+export async function freeSeats(
+	db: Database,
+	accountId: string,
+	now = Date.now()
+): Promise<number> {
+	const [[members], pending] = await Promise.all([
+		db.select({ value: count() }).from(users).where(eq(users.accountId, accountId)),
+		listPendingInvitations(db, accountId, now)
+	]);
+	const open = pending.filter((invitation) => !invitation.expired).length;
+	return Math.max(0, MAX_ACCOUNT_MEMBERS - members.value - open);
+}
+
+async function sentToday(db: Database, accountId: string, now: number): Promise<number> {
+	const [recent] = await db
+		.select({ value: count() })
+		.from(invitations)
+		.where(
+			and(eq(invitations.accountId, accountId), gt(invitations.createdAt, new Date(now - DAY)))
+		);
+	return recent.value;
+}
+
+/** Deletes the invitations of all accounts that expired more than INVITATION_RETENTION ago. */
+function purgeOldInvitations(db: Database, now: number) {
+	return db
+		.delete(invitations)
+		.where(lt(invitations.expiresAt, new Date(now - INVITATION_RETENTION)));
 }
 
 export type InvitationInput = { email: string };
 
 export type CreateInvitationResult =
 	| { ok: true; id: string; email: string; token: string }
-	| { ok: false; reason: 'member' | 'already-invited' | 'too-many' };
+	| { ok: false; reason: 'member' | 'already-invited' | 'full' | 'too-many' };
 
 /**
  * Invites an address as a manager. Refused when a user of the account has the address, when the
- * account has an open invitation for it (the owner revokes that one first) or has sent
- * MAX_INVITATIONS_PER_DAY within a day. An address with a user in another account is invited all
+ * account has an invitation for it that is neither accepted nor revoked (the owner sends that one
+ * again), when the account has no free seat or has sent MAX_INVITATIONS_PER_DAY within a day. An address with a user in another account is invited all
  * the same, so the answer says nothing about other accounts; accepting refuses it later.
  * Returns the token for the mail, which is never stored.
  */
@@ -115,19 +157,14 @@ export async function createInvitation(
 	if (pending.some((invitation) => invitation.email === email)) {
 		return { ok: false, reason: 'already-invited' };
 	}
-	const [recent] = await db
-		.select({ value: count() })
-		.from(invitations)
-		.where(
-			and(
-				eq(invitations.accountId, context.accountId),
-				gt(invitations.createdAt, new Date(now - DAY))
-			)
-		);
-	if (recent.value >= MAX_INVITATIONS_PER_DAY) return { ok: false, reason: 'too-many' };
+	if ((await freeSeats(db, context.accountId, now)) < 1) return { ok: false, reason: 'full' };
+	if ((await sentToday(db, context.accountId, now)) >= MAX_INVITATIONS_PER_DAY) {
+		return { ok: false, reason: 'too-many' };
+	}
 	const id = crypto.randomUUID();
 	const token = generateToken();
 	await runBatch(db, [
+		purgeOldInvitations(db, now),
 		db.insert(invitations).values({
 			id,
 			accountId: context.accountId,
@@ -186,6 +223,60 @@ export async function revokeInvitation(
 		)
 	]);
 	return true;
+}
+
+export type ResendInvitationResult =
+	| { ok: true; id: string; email: string; token: string }
+	| { ok: false; reason: 'missing' | 'full' | 'too-many' };
+
+/**
+ * Sends an open or expired invitation again: it is revoked and replaced by a new one with a new
+ * link and a new week of validity, so the old link leads nowhere. Counts towards the daily limit;
+ * an expired invitation needs a free seat again. Returns the new token for the mail.
+ */
+export async function resendInvitation(
+	db: Database,
+	context: AuditContext,
+	invitationId: string,
+	now = Date.now()
+): Promise<ResendInvitationResult> {
+	const invitation = (await listPendingInvitations(db, context.accountId, now)).find(
+		(pending) => pending.id === invitationId
+	);
+	if (!invitation) return { ok: false, reason: 'missing' };
+	if (invitation.expired && (await freeSeats(db, context.accountId, now)) < 1) {
+		return { ok: false, reason: 'full' };
+	}
+	if ((await sentToday(db, context.accountId, now)) >= MAX_INVITATIONS_PER_DAY) {
+		return { ok: false, reason: 'too-many' };
+	}
+	const id = crypto.randomUUID();
+	const token = generateToken();
+	await runBatch(db, [
+		purgeOldInvitations(db, now),
+		db
+			.update(invitations)
+			.set({ revokedAt: new Date(now) })
+			.where(eq(invitations.id, invitation.id)),
+		db.insert(invitations).values({
+			id,
+			accountId: context.accountId,
+			email: invitation.email,
+			tokenHash: await hashToken(token),
+			expiresAt: new Date(now + INVITATION_LIFETIME),
+			invitedBy: context.userId,
+			createdAt: new Date(now)
+		}),
+		auditEntry(
+			db,
+			context,
+			'invitation',
+			id,
+			'invite',
+			`Einladung an ${invitation.email} erneut geschickt`
+		)
+	]);
+	return { ok: true, id, email: invitation.email, token };
 }
 
 /**
