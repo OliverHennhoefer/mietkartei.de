@@ -21,7 +21,7 @@ Unterstützt wird der aktuelle Stand des Hauptzweigs `main`: Er läuft unter app
 
 ## Ablauf nach einer Meldung
 
-Die Projektverantwortlichen prüfen die Meldung, fragen bei Bedarf nach weiteren Informationen und stimmen die nächsten Schritte mit dir ab. Eine Veröffentlichung der Einzelheiten und eine mögliche Namensnennung sollen gemeinsam besprochen werden.
+Das Projekt folgt dem Prinzip der koordinierten Offenlegung (Coordinated Vulnerability Disclosure). Die Projektverantwortlichen prüfen die Meldung, fragen bei Bedarf nach weiteren Informationen und stimmen die nächsten Schritte mit dir ab. Eine Veröffentlichung der Einzelheiten und eine mögliche Namensnennung sollen gemeinsam besprochen werden.
 
 Nach einer Behebung werden relevante Informationen in den Versionshinweisen dokumentiert. Ausführliche technische Angaben werden so veröffentlicht, dass betroffene Personen Gelegenheit zur Aktualisierung haben.
 
