@@ -654,13 +654,22 @@ export async function changeRole(
 	if (!user) return 'missing';
 	if (user.role === 'owner') return 'owner';
 	if (user.role === role) return 'unchanged';
+	// Both statements leave an owner alone, so a handover to this member in the meantime stands.
+	const ofMember = and(
+		eq(users.accountId, context.accountId),
+		eq(users.id, user.id),
+		ne(users.role, 'owner')
+	);
+	const viewer = db
+		.select({ id: users.id })
+		.from(users)
+		.where(
+			and(eq(users.accountId, context.accountId), eq(users.id, user.id), eq(users.role, 'viewer'))
+		);
 	await runBatch(db, [
-		db
-			.update(users)
-			.set({ role })
-			.where(and(eq(users.accountId, context.accountId), eq(users.id, user.id))),
+		db.update(users).set({ role }).where(ofMember),
 		...(role === 'viewer'
-			? [db.delete(apiKeys).where(and(eq(apiKeys.userId, user.id), eq(apiKeys.scope, 'write')))]
+			? [db.delete(apiKeys).where(and(inArray(apiKeys.userId, viewer), eq(apiKeys.scope, 'write')))]
 			: []),
 		auditEntry(
 			db,

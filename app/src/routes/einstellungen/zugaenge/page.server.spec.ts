@@ -2,7 +2,12 @@ import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { auditLog, invitations, outbox, users } from '#lib/server/db/schema.ts';
-import { createInvitation, leaveAccount, transferOwnership } from '#lib/server/invitations.ts';
+import {
+	changeRole,
+	createInvitation,
+	leaveAccount,
+	transferOwnership
+} from '#lib/server/invitations.ts';
 import {
 	contextA,
 	managerA,
@@ -220,6 +225,19 @@ describe('transfer', () => {
 		const [owner] = await db.select({ role: users.role }).from(users).where(eq(users.id, 'user-a'));
 		expect(owner.role).toBe('owner');
 		expect(await db.select().from(auditLog)).toEqual([]);
+	});
+
+	it('does not change the role of a member who became the owner in the meantime', async () => {
+		const promoted = racing(() => {
+			db.update(users).set({ role: 'manager' }).where(eq(users.id, 'user-a')).run();
+			db.update(users).set({ role: 'owner' }).where(eq(users.id, 'manager-a')).run();
+		});
+		await changeRole(promoted, contextA, 'manager-a', 'viewer');
+		const [owner] = await db
+			.select({ role: users.role })
+			.from(users)
+			.where(eq(users.id, 'manager-a'));
+		expect(owner.role).toBe('owner');
 	});
 
 	it('does not delete a member who became the owner in the meantime', async () => {
