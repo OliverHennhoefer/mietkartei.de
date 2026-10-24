@@ -19,17 +19,17 @@ Die Abrechnung braucht drei Dinge, die du einmal anlegst und danach jedes Jahr w
 
 Die gezahlten Vorauszahlungen liest mietkartei aus dem Mietkonto. Wenn du deine [Kontoauszüge importierst](kontoauszuege-importieren.md), stimmen sie ohne weitere Arbeit.
 
-## 1. Belege erfassen
+## 1. Umlageschlüssel prüfen
+
+Jede Kostenart hat einen Standardschlüssel: Heizung und Warmwasser nach Verbrauch und Fläche (70/30), alles andere nach Wohnfläche. Brauchst du etwas anderes, etwa Müll nach Personen, änderst du das einmal bei der Kostenart, bevor du die Belege erfasst. Jeder Beleg übernimmt den Schlüssel beim Speichern. Bei Belegen, die du schon erfasst hast, änderst du den Schlüssel im Beleg selbst. Welche Schlüssel es gibt und wann welcher passt, steht unter [Umlageschlüssel](umlageschluessel.md).
+
+## 2. Belege erfassen
 
 Unter **Betriebskosten → Belege → Beleg erfassen** trägst du jede Rechnung ein: Objekt, Kostenart, Zeitraum und Betrag, auf Wunsch mit dem eingescannten Beleg. Die 17 Kostenarten aus § 2 Betriebskostenverordnung sind vorbelegt, etwa Grundsteuer, Wasser, Müllabfuhr, Gebäudeversicherung oder Hausmeister.
 
 Mit **Speichern und nächsten Beleg** bleiben Objekt und Zeitraum für die nächste Rechnung stehen. Ab dem zweiten Jahr bietet dir das Formular die Belege der Vorjahre zum Übernehmen an, sodass du oft nur noch den Betrag änderst.
 
 Eine Rechnung, die nicht genau das Abrechnungsjahr abdeckt, etwa eine Versicherung von Juli bis Juni, rechnet mietkartei tagesgenau auf den Abrechnungszeitraum herunter.
-
-## 2. Umlageschlüssel prüfen
-
-Jede Kostenart hat einen Standardschlüssel: Heizung und Warmwasser nach Verbrauch und Fläche (70/30), alles andere nach Wohnfläche. Brauchst du etwas anderes, etwa Müll nach Personen, änderst du das einmal bei der Kostenart. Welche Schlüssel es gibt und wann welcher passt, steht unter [Umlageschlüssel](umlageschluessel.md).
 
 ## 3. Entwurf erstellen und prüfen
 
