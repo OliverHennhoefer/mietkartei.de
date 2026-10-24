@@ -255,7 +255,8 @@ export async function createCostItem(
 /**
  * Updates the item. Per-unit amounts belong to a direct key on one property, so they go when
  * the key is no longer direct or the property changes. Receipts move with the item to its new
- * property, so /dokumente files them where the item now is.
+ * property, so /dokumente files them where the item now is; the link to an insurance policy,
+ * which belongs to the old property, goes.
  */
 export async function updateCostItem(
 	db: Database,
@@ -273,7 +274,7 @@ export async function updateCostItem(
 	await runBatch(db, [
 		db
 			.update(costItems)
-			.set(input)
+			.set(moved ? { ...input, insurancePolicyId: null } : input)
 			.where(and(eq(costItems.accountId, accountId), eq(costItems.id, costItemId))),
 		...(amountsStay
 			? []

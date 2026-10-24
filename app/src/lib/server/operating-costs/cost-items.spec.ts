@@ -11,7 +11,8 @@ import { deleteProperty } from '../deletion';
 import { QUOTAS } from '../quotas';
 import { openFileStorage } from '../storage/fs';
 import type { Storage } from '../storage';
-import { contextA, contextB, seedUnit, testDatabase } from '../testing';
+import { createPolicy, linkCostItemToPolicy } from '../insurance';
+import { contextA, contextB, integrityProblems, seedUnit, testDatabase } from '../testing';
 import { createCircle } from './circles';
 import {
 	createCostItem,
@@ -348,6 +349,34 @@ describe('cost items', () => {
 			propertyId,
 			costItemId: untouched
 		});
+	});
+
+	it('drops the link to the insurance policy of the property it leaves', async () => {
+		const other = await seedUnit(db, 'a', { propertyName: 'Anderes Haus' });
+		const policy = await createPolicy(db, contextA, propertyId, {
+			kind: 'building',
+			insurer: 'Versicherung AG',
+			policyNumber: null,
+			annualPremium: 120000,
+			renewalDate: '2026-01-01',
+			noticeMonths: 3,
+			endDate: null,
+			note: null
+		});
+		if (!policy.ok) throw new Error('setup failed');
+		const id = await create(contextA);
+		await linkCostItemToPolicy(db, 'a', id, policy.id);
+		expect(await getCostItem(db, 'a', id)).toMatchObject({ insurancePolicyId: policy.id });
+
+		expect(await updateCostItem(db, contextA, id, input({ description: 'Neu' }))).toEqual({
+			ok: true
+		});
+		expect(await getCostItem(db, 'a', id)).toMatchObject({ insurancePolicyId: policy.id });
+		expect(await updateCostItem(db, contextA, id, input({ propertyId: other.propertyId }))).toEqual(
+			{ ok: true }
+		);
+		expect(await getCostItem(db, 'a', id)).toMatchObject({ insurancePolicyId: null });
+		expect(await integrityProblems(db)).toEqual([]);
 	});
 
 	it('goes with its property, and so does its receipt', async () => {

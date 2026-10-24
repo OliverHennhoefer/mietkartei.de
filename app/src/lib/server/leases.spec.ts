@@ -7,9 +7,11 @@ import {
 	leasePersons,
 	leaseTenants,
 	leaseUnits,
+	operatingCostStatements,
 	payments,
 	rentCharges,
-	rentChanges
+	rentChanges,
+	statementResults
 } from './db/schema';
 import {
 	addLeasePersons,
@@ -27,7 +29,15 @@ import {
 } from './leases';
 import { deleteLease } from './deletion';
 import { ensureCharges, postCharge } from './ledger';
-import { contextA, contextB, leaseInput, seedTenant, seedUnit, testDatabase } from './testing';
+import {
+	contextA,
+	contextB,
+	integrityProblems,
+	leaseInput,
+	seedTenant,
+	seedUnit,
+	testDatabase
+} from './testing';
 
 let db: Database;
 
@@ -397,6 +407,45 @@ describe('updateLease', () => {
 		expect((await getLease(db, 'a', result.id))!.startDate).toBe('2025-01-01');
 		// Before both rows: fine.
 		expect(await move('2025-03-01')).toEqual({ ok: true });
+	});
+
+	it('keeps a unit in every property whose statement settled the lease', async () => {
+		const home = await seedUnit(db, 'a', { propertyName: 'Haus' });
+		const away = await seedUnit(db, 'a', { propertyName: 'Anderes Haus' });
+		const result = await createLease(db, contextA, leaseInput(home.unitId));
+		if (!result.ok) throw new Error('setup failed');
+		const [statement] = await db
+			.insert(operatingCostStatements)
+			.values({
+				accountId: 'a',
+				propertyId: home.propertyId,
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				status: 'approved'
+			})
+			.returning({ id: operatingCostStatements.id });
+		await db.insert(statementResults).values({
+			accountId: 'a',
+			statementId: statement.id,
+			leaseId: result.id,
+			balance: 0,
+			result: '{}'
+		});
+
+		expect(await updateLease(db, contextA, result.id, leaseInput(away.unitId))).toEqual({
+			ok: false,
+			reason: 'settled-property'
+		});
+		// Another unit elsewhere may come along, as long as one stays in the settled property.
+		expect(
+			await updateLease(
+				db,
+				contextA,
+				result.id,
+				leaseInput(away.unitId, { extraUnitIds: [home.unitId] })
+			)
+		).toEqual({ ok: true });
+		expect(await integrityProblems(db)).toEqual([]);
 	});
 });
 
