@@ -289,8 +289,7 @@ describe('write operations', () => {
 		const withoutKey = categories.find((row) => !row.allocationKeyId)!;
 		await expect(
 			write('create_cost_item', { ...base, categoryId: withoutKey.id })
-		).rejects.toMatchObject({ status: 400 }););
-		}
+		).rejects.toMatchObject({ status: 400 });
 		await expect(write('create_cost_item', { ...base, propertyId: 'other' })).rejects.toMatchObject(
 			{ status: 404 }
 		);
