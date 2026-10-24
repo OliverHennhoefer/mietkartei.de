@@ -92,6 +92,25 @@ describe('with REGISTRATION_EMAILS', () => {
 		expect(await db.select().from(users)).toHaveLength(2);
 	});
 
+	it('withdraws the request when its mail cannot be sent, answering the same', async () => {
+		env.MAIL_TRANSPORT = 'resend';
+		const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response('down', { status: 500 }))
+		);
+		try {
+			expect(await register({ email: 'neu@example.org' })).toEqual({ data: { sent: true } });
+			await vi.waitFor(async () => {
+				expect(await db.select().from(registrationRequests)).toEqual([]);
+			});
+			expect(errors).toHaveBeenCalled();
+		} finally {
+			env.MAIL_TRANSPORT = 'outbox';
+			errors.mockRestore();
+		}
+	});
+
 	it('answers the same for a listed address that already has an account, without a mail', async () => {
 		expect(await register({ email: 'a@example.org' })).toEqual({ data: { sent: true } });
 		expect(await db.select().from(outbox)).toEqual([]);
