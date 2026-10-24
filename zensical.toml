@@ -69,6 +69,10 @@ mietkartei ist eine Open-Source-Hausverwaltung für Privatvermieter in Deutschla
 [project.plugins.llmstxt.sections]
 Dokumentation = [
   { "index.md" = "Überblick über die Dokumentation" },
+  { "anleitungen/nebenkostenabrechnung.md" = "Nebenkostenabrechnung Schritt für Schritt: Belege, Entwurf, Freigabe, Zustellung" },
+  { "anleitungen/umlageschluessel.md" = "Umlageschlüssel für die Betriebskosten und wann welcher passt" },
+  { "anleitungen/kontoauszuege-importieren.md" = "Kontoauszüge als camt.053 oder CSV importieren und Mietverträgen zuordnen" },
+  { "anleitungen/von-excel-umsteigen.md" = "Objekte, Mieter, Mietverträge und Zahlungen per CSV aus Excel übernehmen" },
   { "selbst-hosten.md" = "mietkartei mit Docker oder aus dem Quellcode betreiben" },
 ]
 
