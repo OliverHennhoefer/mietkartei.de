@@ -85,6 +85,16 @@ export const stripeEvents = sqliteTable('stripe_events', {
 	receivedAt: createdAt()
 });
 
+/**
+ * Addresses that have had a free trial, as keyed fingerprints (see trials.ts). They outlive the
+ * account, so deleting it and registering again with the same address starts no second trial.
+ */
+export const trialClaims = sqliteTable('trial_claims', {
+	/** HMAC-SHA-256 of the canonical address, hex. */
+	id: text('id').primaryKey(),
+	createdAt: createdAt()
+});
+
 export const buildingUses = ['residential', 'non_residential'] as const;
 export type BuildingUse = (typeof buildingUses)[number];
 

@@ -11,7 +11,10 @@ const env = vi.hoisted(() => ({
 	TURNSTILE_SECRET_KEY: '',
 	MAIL_TRANSPORT: 'outbox',
 	MAIL_API_KEY: '',
-	MAIL_FROM: 'mietkartei <noreply@mietkartei.de>'
+	MAIL_FROM: 'mietkartei <noreply@mietkartei.de>',
+	STRIPE_SECRET_KEY: '',
+	STRIPE_PRICE_ID: '',
+	TRIAL_FINGERPRINT_KEY: ''
 }));
 vi.mock('$app/env/private', () => env);
 

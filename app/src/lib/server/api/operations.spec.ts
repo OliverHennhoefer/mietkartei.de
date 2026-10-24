@@ -21,7 +21,8 @@ import { runOperation } from './request';
 const env = vi.hoisted(() => ({
 	BILLING_REQUIRED: false,
 	STRIPE_SECRET_KEY: '',
-	STRIPE_PRICE_ID: ''
+	STRIPE_PRICE_ID: '',
+	FREE_ACCOUNT_EMAILS: ''
 }));
 vi.mock('$app/env/private', () => env);
 

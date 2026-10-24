@@ -218,6 +218,13 @@
       "when": 1792865766309,
       "tag": "0030_global_consumer_price_index",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1792868840871,
+      "tag": "0031_trial_claims",
+      "breakpoints": true
     }
   ]
 }

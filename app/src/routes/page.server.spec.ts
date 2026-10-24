@@ -23,6 +23,7 @@ const env = vi.hoisted(() => ({
 	DEMO: false,
 	STRIPE_SECRET_KEY: '',
 	STRIPE_PRICE_ID: '',
+	FREE_ACCOUNT_EMAILS: '',
 	BILLING_REQUIRED: false,
 	GENESIS_API_TOKEN: ''
 }));

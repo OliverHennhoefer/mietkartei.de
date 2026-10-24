@@ -1,17 +1,23 @@
 import { error, type RequestEvent } from '@sveltejs/kit';
 import { and, eq, isNull, lt } from 'drizzle-orm';
-import { BILLING_REQUIRED, STRIPE_PRICE_ID, STRIPE_SECRET_KEY } from '$app/env/private';
+import {
+	BILLING_REQUIRED,
+	FREE_ACCOUNT_EMAILS,
+	STRIPE_PRICE_ID,
+	STRIPE_SECRET_KEY
+} from '$app/env/private';
 import { dayOf, formatDate } from '../dates';
 import { subscriptionStatusLabels } from '../labels';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import { accounts, stripeEvents, type SubscriptionStatus } from './db/schema';
+import { accounts, stripeEvents, users, type SubscriptionStatus } from './db/schema';
 import { cancelSubscription, getSubscription, listSubscriptions, StripeError } from './stripe';
 
 // Subscriptions through Stripe. The hosted variant configures the keys; self-hosting leaves them
 // unset, and then nothing about billing is shown. Every account starts with a 30-day trial; with
-// BILLING_REQUIRED an account whose trial ended without a subscription may only read.
+// BILLING_REQUIRED an account whose trial ended without a subscription may only read. Accounts
+// whose owner is in FREE_ACCOUNT_EMAILS (family, friends) never pay.
 
 export function billingEnabled(): boolean {
 	return Boolean(STRIPE_SECRET_KEY && STRIPE_PRICE_ID);
@@ -26,9 +32,18 @@ export type BillingAccount = {
 	trialEndsAt: Date | null;
 	currentPeriodEnd: Date | null;
 	createdAt: Date;
+	/** The owner's address is in FREE_ACCOUNT_EMAILS. */
+	free?: boolean;
 };
 
-export type BillingState = 'trialing' | 'active' | 'past_due' | 'canceled' | 'expired';
+export type BillingState = 'free' | 'trialing' | 'active' | 'past_due' | 'canceled' | 'expired';
+
+/** Whether an owner's address is in FREE_ACCOUNT_EMAILS. */
+export function isFreeEmail(email: string | null | undefined, list = FREE_ACCOUNT_EMAILS): boolean {
+	if (!email || !list) return false;
+	const address = email.trim().toLowerCase();
+	return list.split(',').some((entry) => entry.trim().toLowerCase() === address);
+}
 
 /** When the free trial ends: the stored date, else 30 days after the account was created. */
 export function trialEnd(account: BillingAccount): Date {
@@ -42,11 +57,12 @@ export function trialDaysLeft(account: BillingAccount, now: Date): number {
 }
 
 /**
- * What the account may do at `now`: `trialing` (free trial or a Stripe trial), `active`,
+ * What the account may do at `now`: `free` (the owner never pays, whatever Stripe says), `trialing` (free trial or a Stripe trial), `active`,
  * `past_due` (a payment failed, Stripe retries), `canceled` (the subscription ended) or
  * `expired` (the trial ended and no subscription was ever started).
  */
 export function billingState(account: BillingAccount, now: Date): BillingState {
+	if (account.free) return 'free';
 	switch (account.subscriptionStatus) {
 		case 'active':
 			return 'active';
@@ -83,6 +99,7 @@ export function noticeFor(
 	const href = '/abo';
 	const state = billingState(account, now);
 	switch (state) {
+		case 'free':
 		case 'active':
 			return undefined;
 		case 'trialing': {
@@ -163,9 +180,12 @@ export function refusesWrite(
 
 const READ_ONLY_MESSAGE = 'Dein Konto ist nur noch lesbar, bis ein Abo abgeschlossen ist.';
 
-/** The billing columns of the account; undefined when it does not exist. */
+/**
+ * The billing columns of the account, and whether its owner's address makes it free; undefined
+ * when it does not exist.
+ */
 export async function getBillingAccount(db: Database, accountId: string) {
-	const [account] = await db
+	const [row] = await db
 		.select({
 			id: accounts.id,
 			subscriptionStatus: accounts.subscriptionStatus,
@@ -174,11 +194,15 @@ export async function getBillingAccount(db: Database, accountId: string) {
 			stripeCustomerId: accounts.stripeCustomerId,
 			stripeSubscriptionId: accounts.stripeSubscriptionId,
 			stripeCheckoutSessionId: accounts.stripeCheckoutSessionId,
-			createdAt: accounts.createdAt
+			createdAt: accounts.createdAt,
+			ownerEmail: users.email
 		})
 		.from(accounts)
+		.leftJoin(users, and(eq(users.accountId, accounts.id), eq(users.role, 'owner')))
 		.where(eq(accounts.id, accountId));
-	return account;
+	if (!row) return undefined;
+	const { ownerEmail, ...account } = row;
+	return { ...account, free: isFreeEmail(ownerEmail) };
 }
 
 /**

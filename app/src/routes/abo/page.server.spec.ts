@@ -9,6 +9,7 @@ import { actions, load } from './+page.server';
 const env = vi.hoisted(() => ({
 	STRIPE_SECRET_KEY: 'sk_test_unit',
 	STRIPE_PRICE_ID: 'price_unit',
+	FREE_ACCOUNT_EMAILS: '',
 	STRIPE_WEBHOOK_SECRET: 'whsec_unit',
 	STRIPE_API_BASE: 'http://stripe.test',
 	BILLING_REQUIRED: false,
@@ -46,6 +47,7 @@ afterEach(() => {
 	vi.restoreAllMocks();
 	env.STRIPE_SECRET_KEY = 'sk_test_unit';
 	env.ORIGIN = 'https://app.mietkartei.de';
+	env.FREE_ACCOUNT_EMAILS = '';
 });
 
 function event(action: 'checkout' | 'portal') {
@@ -172,6 +174,15 @@ describe('checkout', () => {
 		expect(calls).toEqual([]);
 	});
 
+	it('refuses a free account, which needs no subscription', async () => {
+		env.FREE_ACCOUNT_EMAILS = 'a@example.org';
+		expect((await run('checkout')).failure).toMatchObject({
+			status: 400,
+			data: { message: 'Dein Konto ist kostenlos, du brauchst kein Abo.' }
+		});
+		expect(calls).toEqual([]);
+	});
+
 	it('does not send the owner to Stripe without a trusted origin', async () => {
 		vi.spyOn(console, 'warn').mockImplementation(() => {});
 		env.ORIGIN = '';
@@ -278,6 +289,12 @@ describe('load', () => {
 			success: true
 		});
 		expect(data.trialEnd).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+	});
+
+	it('shows a free account without asking Stripe for the price', async () => {
+		env.FREE_ACCOUNT_EMAILS = 'andere@example.org, A@example.org';
+		expect(await show()).toMatchObject({ data: { state: 'free', price: null } });
+		expect(calls).toEqual([]);
 	});
 
 	it('says monatlich for a price without a fixed amount', async () => {
