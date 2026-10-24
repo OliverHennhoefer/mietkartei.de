@@ -104,6 +104,53 @@
 		accountOpen = false;
 	});
 
+	function setData(element: HTMLElement, key: string, value: string | undefined) {
+		if (element.dataset[key] === value) return;
+		if (value === undefined) delete element.dataset[key];
+		else element.dataset[key] = value;
+	}
+
+	/** Labels every body and footer cell of a table with its column heading, for the stacked rows on a phone. */
+	function labelTableCells() {
+		for (const table of document.querySelectorAll<HTMLTableElement>('table.table')) {
+			const headings = [...(table.tHead?.rows[0]?.cells ?? [])].flatMap((cell) =>
+				Array<string>(cell.colSpan).fill(cell.textContent?.trim() ?? '')
+			);
+			for (const body of [...table.tBodies, ...(table.tFoot ? [table.tFoot] : [])]) {
+				for (const row of body.rows) {
+					let column = 0;
+					for (const cell of row.cells) {
+						// Actions and a lone button speak for themselves; an empty cell is left out.
+						const action =
+							cell.classList.contains('actions') ||
+							cell.matches(':has(> form:only-child), :has(> button:only-child)');
+						const blank =
+							!cell.textContent?.trim() && !cell.querySelector('input, select, button, img, svg');
+						const label = cell.colSpan === 1 && !action && !blank ? headings[column] : '';
+						setData(cell, 'label', label || undefined);
+						setData(cell, 'blank', blank ? '' : undefined);
+						column += cell.colSpan;
+					}
+				}
+			}
+		}
+	}
+
+	// Tables come and go with navigation, forms and dialogs, so the labels follow every change.
+	$effect(() => {
+		let frame = 0;
+		const observer = new MutationObserver(() => {
+			cancelAnimationFrame(frame);
+			frame = requestAnimationFrame(labelTableCells);
+		});
+		labelTableCells();
+		observer.observe(document.body, { childList: true, subtree: true });
+		return () => {
+			cancelAnimationFrame(frame);
+			observer.disconnect();
+		};
+	});
+
 	const sections = $derived(settingsSections(data.role, data.billingEnabled));
 	// A settings page opened by its address renders the dialog itself (see SettingsFrame).
 	const onSettingsPage = $derived(!!settingsSectionOf(page.url.pathname));
