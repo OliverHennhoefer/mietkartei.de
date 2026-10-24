@@ -1375,7 +1375,15 @@ export function computeStatement(
 		let undistributed = 0;
 		const sumOf = (amounts: number[]) => amounts.reduce((sum, amount) => sum + amount, 0);
 
-		type LeasePart = { amount: number; shares: string[]; method?: SplitMethod };
+		// A lease's share texts, each with its unit. A unit that bears nothing over all components
+		// (the Stellplatz without area next to the flat) only shows when no unit of the lease bears
+		// anything; a unit that bears something keeps every component, its 0 kWh too.
+		type LeasePart = {
+			amount: number;
+			shares: { unitId: string; text: string }[];
+			unitAmounts: Map<string, number>;
+			method?: SplitMethod;
+		};
 		const partsByLease = new Map<string, LeasePart>();
 		for (const component of components) {
 			const unitAmounts = component.direct ?? distributeCents(component.amount, component.weights);
@@ -1411,12 +1419,18 @@ export function computeStatement(
 				const parts = distributeCents(unitAmount, weights);
 				undistributed += unitAmount - sumOf(parts);
 				occupancy.leases.forEach((occupant, i) => {
-					const part = partsByLease.get(occupant.lease.id) ?? { amount: 0, shares: [] };
+					const part: LeasePart = partsByLease.get(occupant.lease.id) ?? {
+						amount: 0,
+						shares: [],
+						unitAmounts: new Map()
+					};
 					part.amount += parts[i];
+					part.unitAmounts.set(unit.id, (part.unitAmounts.get(unit.id) ?? 0) + parts[i]);
 					if (method) part.method = method;
 					if (parts[i] !== 0 || occupancy.leases.length === 1) {
 						const detail = details[i] ? ` · ${details[i]}` : '';
-						part.shares.push(`${component.label}${component.unitShare(unitIndex)}${detail}`);
+						const text = `${component.label}${component.unitShare(unitIndex)}${detail}`;
+						part.shares.push({ unitId: unit.id, text });
 					}
 					partsByLease.set(occupant.lease.id, part);
 				});
@@ -1439,6 +1453,10 @@ export function computeStatement(
 		summary.unallocated = allocated - summary.allocated;
 		unallocatedTotal += summary.unallocated;
 
+		const shareText = (part: LeasePart) => {
+			const bearing = part.shares.filter((share) => part.unitAmounts.get(share.unitId) !== 0);
+			return (bearing.length > 0 ? bearing : part.shares).map((share) => share.text).join(' · ');
+		};
 		for (const [leaseId, part] of partsByLease) {
 			const accumulator = accumulators.get(leaseId);
 			if (!accumulator) continue;
@@ -1467,7 +1485,7 @@ export function computeStatement(
 				itemTotal: total,
 				allocated,
 				keyTotal: components.map((c) => `${c.label}${c.keyTotal}`).join(' · '),
-				share: part.shares.join(' · '),
+				share: shareText(part),
 				method: part.method,
 				amount: part.amount,
 				co2

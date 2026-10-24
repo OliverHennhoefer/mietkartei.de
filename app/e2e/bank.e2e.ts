@@ -224,18 +224,17 @@ test('imports a file without a known header through a column mapping', async ({ 
 		.locator('input[name="file"]')
 		.setInputFiles(path.join(import.meta.dirname, 'fixtures', 'bank-generic.csv'));
 	await page.getByRole('button', { name: 'Datei prüfen' }).click();
+	// The column names are known, so the mapping is proposed and the preview follows right away.
 	await expect(
-		page.getByText('Format nicht erkannt; ordne die Spalten der Datei zu.')
+		page.getByText('Format nicht erkannt; die Spalten sind nach ihren Namen zugeordnet.')
 	).toBeVisible();
-	await expect(page.getByText('Bitte wähle die Spalte mit dem Buchungstag.')).toBeVisible();
 
 	// The accessible name of a select is its label alone; the label's text would include the options.
 	const mapping = (name: string) => page.getByRole('combobox', { name, exact: true });
-	await mapping('Buchungstag').selectOption('Datum');
-	await mapping('Betrag').selectOption('Betrag');
-	await mapping('Name der Gegenseite (optional)').selectOption('Name');
-	await mapping('Verwendungszweck (optional)').selectOption('Text');
-	await page.getByRole('button', { name: 'Vorschau aktualisieren' }).click();
+	await expect(mapping('Buchungstag')).toHaveValue('Datum');
+	await expect(mapping('Betrag')).toHaveValue('Betrag');
+	await expect(mapping('Name der Gegenseite (optional)')).toHaveValue('Name');
+	await expect(mapping('Verwendungszweck (optional)')).toHaveValue('Text');
 	await expect(page.getByRole('status')).toContainText(
 		'3 Zeilen: 2 neu, 0 Duplikate, 0 per Regel zugeordnet, 1 ungültig.'
 	);

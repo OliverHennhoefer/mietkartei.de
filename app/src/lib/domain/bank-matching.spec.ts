@@ -13,6 +13,7 @@ import {
 	mapRecords,
 	normalizeIban,
 	parseBankFile,
+	proposeGenericMapping,
 	rememberedRule,
 	ruleMatches,
 	splitComdirectText,
@@ -244,6 +245,43 @@ describe('genericHeaderRow', () => {
 	it('is -1 for an empty file or one without columns', () => {
 		expect(genericHeaderRow([])).toBe(-1);
 		expect(genericHeaderRow([['Kontoauszug']])).toBe(-1);
+	});
+});
+
+describe('proposeGenericMapping', () => {
+	it('maps the columns by their names, ignoring case and spaces', () => {
+		expect(proposeGenericMapping(['Datum', ' name ', 'Verwendungszweck', 'BETRAG'])).toEqual({
+			bookingDate: 'Datum',
+			valueDate: '',
+			amount: 'BETRAG',
+			counterpartName: ' name ',
+			counterpartIban: '',
+			purpose: 'Verwendungszweck'
+		});
+	});
+
+	it('gives every column to one field only and prefers the earlier name', () => {
+		expect(proposeGenericMapping(['Buchungstag', 'Datum', 'Wertstellung', 'IBAN', 'Text'])).toEqual(
+			{
+				bookingDate: 'Buchungstag',
+				valueDate: 'Wertstellung',
+				amount: '',
+				counterpartName: '',
+				counterpartIban: 'IBAN',
+				purpose: 'Text'
+			}
+		);
+	});
+
+	it('leaves every field empty for unknown names', () => {
+		expect(Object.values(proposeGenericMapping(['Spalte 1', 'Spalte 2']))).toEqual([
+			'',
+			'',
+			'',
+			'',
+			'',
+			''
+		]);
 	});
 });
 

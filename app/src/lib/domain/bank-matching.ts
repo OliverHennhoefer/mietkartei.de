@@ -182,6 +182,52 @@ export function genericHeaderRow(rows: string[][]): number {
 	return rows.findIndex((row) => row.length === width);
 }
 
+/** The fields a generic file maps by hand, in the order the import page shows them. */
+export type GenericField =
+	'bookingDate' | 'valueDate' | 'amount' | 'counterpartName' | 'counterpartIban' | 'purpose';
+
+/** Column names that mean a field, lower case; earlier names win over later ones. */
+const genericSynonyms: Record<GenericField, readonly string[]> = {
+	bookingDate: ['buchungstag', 'buchungsdatum', 'buchung', 'datum', 'date', 'booking date'],
+	valueDate: ['valuta', 'valutadatum', 'wertstellung', 'wertstellungsdatum', 'value date'],
+	amount: ['betrag', 'betrag (eur)', 'betrag (€)', 'betrag in eur', 'umsatz', 'amount'],
+	counterpartName: [
+		'name',
+		'gegenseite',
+		'name der gegenseite',
+		'auftraggeber/empfänger',
+		'empfänger',
+		'zahlungsempfänger',
+		'auftraggeber',
+		'begünstigter',
+		'name zahlungsbeteiligter'
+	],
+	counterpartIban: ['iban', 'iban der gegenseite', 'iban zahlungsbeteiligter', 'kontonummer/iban'],
+	purpose: ['verwendungszweck', 'zweck', 'buchungstext', 'text', 'beschreibung', 'purpose']
+};
+
+/**
+ * A first mapping for a generic file from its column names, so a file headed "Datum; Name;
+ * Verwendungszweck; Betrag" needs no selects at all. Each field takes the first unused column
+ * that is one of its names; '' where none is. The landlord can still change every select.
+ */
+export function proposeGenericMapping(columns: readonly string[]): Record<GenericField, string> {
+	const normalized = columns.map((column) => column.trim().toLowerCase());
+	const used = new Set<number>();
+	const mapping = {} as Record<GenericField, string>;
+	for (const field of Object.keys(genericSynonyms) as GenericField[]) {
+		mapping[field] = '';
+		for (const synonym of genericSynonyms[field]) {
+			const index = normalized.findIndex((name, at) => !used.has(at) && name === synonym);
+			if (index < 0) continue;
+			mapping[field] = columns[index];
+			used.add(index);
+			break;
+		}
+	}
+	return mapping;
+}
+
 export type ParsedBankFile = {
 	/** The column names of the header row, for the mapping selects of a generic file. */
 	columns: string[];

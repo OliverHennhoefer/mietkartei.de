@@ -87,8 +87,9 @@ export const defaultKeys: readonly DefaultKey[] = [
 ];
 
 /**
- * The key a seeded allocable category gets; everything not listed gets Wohnfläche, the fallback
- * of § 556a (1) BGB. A combined heating and hot water system gets none: § 9 HeizKV splits its
+ * The key a seeded category gets; everything not listed gets Wohnfläche, the fallback of § 556a
+ * (1) BGB. The landlord categories get it too, although nothing of them is allocated: a Beleg
+ * needs a key, and asking for one on the Verwaltervergütung would only be in the way. A combined heating and hot water system gets none: § 9 HeizKV splits its
  * costs into heating and hot water first, and that split comes from the meter service.
  */
 const defaultKeyByCategory: Record<string, string | null> = {
@@ -136,7 +137,7 @@ export async function ensureDefaults(db: Database, accountId: string): Promise<b
 		.map((key) => ({ id: crypto.randomUUID(), accountId, propertyId: null, ...key }));
 	for (const key of keys) keyIdByName.set(key.name, key.id);
 	const keyIdFor = (category: DefaultCategory) => {
-		const keyName = category.allocable ? defaultKeyNameFor(category.name) : null;
+		const keyName = defaultKeyNameFor(category.name);
 		return keyName === null ? null : (keyIdByName.get(keyName) ?? null);
 	};
 	const categories = [...defaultCategories, ...defaultLandlordCategories].map((category) => ({
