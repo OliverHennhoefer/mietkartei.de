@@ -42,7 +42,7 @@ export function requireUser(locals: App.Locals): SessionUser {
 /** Owners only: invitations, bank accounts, the subscription, deleting the account. */
 export function requireOwner(locals: App.Locals): SessionUser {
 	const user = requireUser(locals);
-	if (user.role !== 'owner') error(403, 'Das dürfen nur Vermieter, keine Mitverwalter.');
+	if (user.role !== 'owner') error(403, 'Das darf nur der Vermieter des Kontos.');
 	return user;
 }
 

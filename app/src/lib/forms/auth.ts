@@ -1,4 +1,5 @@
 import type { LandlordInput } from '../server/accounts';
+import type { MemberRole } from '../server/db/schema';
 import { MIN_PASSWORD_LENGTH } from '../validation';
 import { FormParser, type ParseResult } from './fields';
 
@@ -61,17 +62,30 @@ export function parsePasswordChange(form: FormData): ParseResult<PasswordChangeI
 	return parser.result(() => ({ currentPassword, ...fields }));
 }
 
-export type InvitationFormInput = { email: string; role: 'manager' };
+/** memberRoles of the schema, which this client-side module may not import. */
+const memberRoles: readonly MemberRole[] = ['manager', 'viewer'];
+
+export type InvitationFormInput = { email: string; role: MemberRole };
 
 /**
- * The "Einladen" form. An account has one owner, so invitations are for managers only: the form
- * has no role field, and a posted role other than manager is refused.
+ * The "Einladen" form. An account has one owner, so invitations are for managers and viewers
+ * only; without a role field the invitee becomes a manager.
  */
 export function parseInvitation(form: FormData): ParseResult<InvitationFormInput> {
 	const parser = new FormParser<InvitationFormInput>(form);
 	const email = parser.email('email');
-	if (parser.raw('role')) parser.oneOf('role', ['manager'] as const);
-	return parser.result(() => ({ email, role: 'manager' }));
+	const role = parser.oneOf('role', memberRoles, { required: false }) ?? 'manager';
+	return parser.result(() => ({ email, role }));
+}
+
+export type RoleFormInput = { userId: string; role: MemberRole };
+
+/** The role picker of a member on the Zugänge page. */
+export function parseRoleChange(form: FormData): ParseResult<RoleFormInput> {
+	const parser = new FormParser<RoleFormInput>(form);
+	const userId = parser.text('userId', { max: 100 });
+	const role = parser.oneOf('role', memberRoles);
+	return parser.result(() => ({ userId, role: role! }));
 }
 
 export type AcceptInvitationInput = { name: string; password: string; passwordConfirm: string };

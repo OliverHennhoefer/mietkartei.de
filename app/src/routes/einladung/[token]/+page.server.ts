@@ -8,7 +8,7 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const invitation = await findInvitation(locals.db, params.token);
 	if (!invitation) error(404, 'Diese Einladung gibt es nicht.');
-	return { email: invitation.email, status: invitation.status };
+	return { email: invitation.email, role: invitation.role, status: invitation.status };
 };
 
 export const actions: Actions = {

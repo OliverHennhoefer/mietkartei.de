@@ -30,7 +30,9 @@
 		</p>
 	{:else}
 		<p class="muted">
-			Du wurdest als Mitverwalter eingeladen. Lege dein Zugangskonto an, um mitzuarbeiten.
+			{data.role === 'viewer'
+				? 'Du wurdest mit Lesezugriff eingeladen. Lege dein Zugangskonto an, um die Daten einzusehen.'
+				: 'Du wurdest als Mitverwalter eingeladen. Lege dein Zugangskonto an, um mitzuarbeiten.'}
 		</p>
 		<form method="POST" class="card" use:enhance>
 			<label>

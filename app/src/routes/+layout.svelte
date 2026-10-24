@@ -6,6 +6,7 @@
 	import Icon, { type IconName } from '#lib/components/Icon.svelte';
 	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
 	import { settingsSectionOf, settingsSections } from '#lib/settings.ts';
+	import { viewerWritesOn } from '#lib/viewer-paths.ts';
 	import { goto, preloadData } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -13,7 +14,7 @@
 	import type { LayoutProps } from './$types';
 	import Subscription from './abo/+page.svelte';
 	import Account from './einstellungen/konto/+page.svelte';
-	import Managers from './einstellungen/mitverwalter/+page.svelte';
+	import Members from './einstellungen/zugaenge/+page.svelte';
 	import ApiKeys from './einstellungen/api-schluessel/+page.svelte';
 	import Export from './einstellungen/export/+page.svelte';
 	import Profile from './einstellungen/profil/+page.svelte';
@@ -38,7 +39,7 @@
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const settingsViews: Record<string, Component<any>> = {
 		'/einstellungen/profil': Profile,
-		'/einstellungen/mitverwalter': Managers,
+		'/einstellungen/zugaenge': Members,
 		'/einstellungen/vpi': PriceIndex,
 		'/einstellungen/protokoll': AuditLog,
 		'/einstellungen/export': Export,
@@ -292,6 +293,12 @@
 						<a href="https://mietkartei.de">Mehr über mietkartei</a>
 					</p>
 				{/if}
+				{#if data.role === 'viewer'}
+					<p class="billing-notice info" role="note">
+						<Icon name="info" size={16} />
+						<span>Du hast Lesezugriff und kannst nichts ändern.</span>
+					</p>
+				{/if}
 				{#if data.notice}
 					<!-- The subscription notice stays in this bar, so it never pushes the page down. -->
 					<p
@@ -382,7 +389,18 @@
 				</p>
 			</nav>
 		{/if}
-		<main id="main-content" class="site-main" tabindex="-1" inert={open}>
+		<!-- Viewers see forms that write without their buttons; the hook refuses them all the same.
+		     Settings pages and the pages of viewer-paths.ts keep theirs, where viewers manage their
+		     own sign-in, calendar link and API keys. -->
+		<main
+			id="main-content"
+			class="site-main"
+			class:read-only={data.role === 'viewer' &&
+				!onSettingsPage &&
+				!viewerWritesOn(page.url.pathname)}
+			tabindex="-1"
+			inert={open}
+		>
 			{#if !data.email}
 				<!-- Signed out, / only leads back to /anmelden, so the logo goes to the homepage. -->
 				<a href="https://mietkartei.de" class="auth-brand">

@@ -36,7 +36,7 @@
 	{#if data.isOwner}
 		<p>
 			Das löscht dein Konto mit allen Objekten, Mietern, Mietverträgen, Zahlungen, Abrechnungen und
-			Dokumenten endgültig, auch die Zugänge aller Mitverwalter. Lade vorher den
+			Dokumenten endgültig, auch alle weiteren Zugänge. Lade vorher den
 			<a href="/einstellungen/export">Export</a> herunter.
 		</p>
 		{#if data.subscriptionRuns}

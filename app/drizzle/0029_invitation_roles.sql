@@ -1,0 +1,1 @@
+ALTER TABLE `invitations` ADD `role` text DEFAULT 'manager' NOT NULL;

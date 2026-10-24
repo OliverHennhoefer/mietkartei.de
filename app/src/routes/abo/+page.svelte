@@ -21,7 +21,7 @@
 <PageHeader title="Abo" lead="Testphase, Abo und Zahlung über Stripe." />
 
 {#if !data.owner}
-	<p class="muted">Das Abo verwaltet der Vermieter des Kontos, nicht die Mitverwalter.</p>
+	<p class="muted">Das Abo verwaltet der Vermieter des Kontos.</p>
 {:else}
 	{#if data.success}
 		<Alert tone="success">

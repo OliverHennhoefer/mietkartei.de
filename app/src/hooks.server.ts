@@ -3,6 +3,7 @@ import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
 import { DEMO, E2E } from '$app/env/private';
 import { validateSession } from '#lib/server/auth.ts';
 import { enforceBilling } from '#lib/server/billing.ts';
+import { enforceRole } from '#lib/server/roles.ts';
 import { applySecurityHeaders } from '#lib/server/security-headers.ts';
 import { deleteSessionCookie, getSessionToken, setSessionCookie } from '#lib/server/session.ts';
 import { isForeignKeyError } from '#lib/server/db/errors.ts';
@@ -99,6 +100,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 	// With BILLING_REQUIRED, an account without subscription after the trial may only read.
 	if (event.locals.user) await enforceBilling(event);
+	// Viewers only read.
+	enforceRole(event);
 	const response = await resolve(event);
 	applySecurityHeaders(response.headers, {
 		https: event.url.protocol === 'https:',
