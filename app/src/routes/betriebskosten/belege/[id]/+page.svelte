@@ -91,6 +91,7 @@
 		keys={data.keys}
 		circles={data.circles}
 		item={data.item}
+		history={data.history}
 		errors={itemForm && 'errors' in itemForm ? itemForm.errors : undefined}
 		values={itemForm && 'values' in itemForm ? itemForm.values : undefined}
 	/>

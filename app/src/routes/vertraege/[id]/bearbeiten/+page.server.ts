@@ -88,9 +88,14 @@ export const actions: Actions = {
 					? {
 							startDate: `Am ${formatDate(outcome.date ?? result.data.startDate)} beginnt schon eine spätere Mietänderung oder ein Eintrag im Personenstand. Der Beginn muss davor liegen; lösche oder verschiebe die späteren Einträge zuerst.`
 						}
-					: outcome.reason === 'unknown-unit'
-						? { unitId: 'Eine der Einheiten gibt es nicht.' }
-						: { tenantIds: 'Einen der Mieter gibt es nicht.' };
+					: outcome.reason === 'settled-property'
+						? {
+								unitId:
+									'Für dieses Objekt gibt es schon eine Betriebskostenabrechnung mit diesem Vertrag. Der Vertrag muss dort eine Einheit behalten; lege für die neue Einheit einen neuen Vertrag an.'
+							}
+						: outcome.reason === 'unknown-unit'
+							? { unitId: 'Eine der Einheiten gibt es nicht.' }
+							: { tenantIds: 'Einen der Mieter gibt es nicht.' };
 			return fail(400, { errors, values, depositWarning: depositWarning(result.data) });
 		}
 		// A new start, end, due day or ledger start moves the months on the ledger.

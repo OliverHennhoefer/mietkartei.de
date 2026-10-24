@@ -14,6 +14,7 @@ import {
 	deleteCharge,
 	deletePayment,
 	ensureCharges,
+	lastPayment,
 	listBalances,
 	listLedger,
 	paymentEntry,
@@ -303,7 +304,7 @@ describe('createPayment and deletePayment', () => {
 			note: 'Überweisung'
 		});
 
-		expect(await deletePayment(db, contextA, id!)).toBe(true);
+		expect(await deletePayment(db, contextA, id!)).toBe('deleted');
 		expect(await db.select().from(payments)).toEqual([]);
 		const audit = await db.select().from(auditLog).where(eq(auditLog.entityId, leaseId));
 		expect(audit.map((entry) => [entry.action, entry.summary])).toEqual([
@@ -334,9 +335,37 @@ describe('createPayment and deletePayment', () => {
 		expect(await db.select().from(payments)).toEqual([]);
 
 		const foreign = await createPayment(db, contextB, { ...payment, leaseId: foreignLeaseId });
-		expect(await deletePayment(db, contextA, foreign!)).toBe(false);
+		expect(await deletePayment(db, contextA, foreign!)).toBe('missing');
 		expect(await db.select().from(payments)).toHaveLength(1);
 		expect(await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'))).toHaveLength(1);
+	});
+});
+
+describe('lastPayment', () => {
+	it('finds the latest incoming payment, with the note of a manual one only', async () => {
+		expect(await lastPayment(db, 'a', leaseId)).toBeUndefined();
+		const base = { leaseId, source: 'manual' as const };
+		await createPayment(db, contextA, { ...base, date: '2025-02-03', amount: 80000, note: 'bar' });
+		await createPayment(db, contextA, {
+			...base,
+			date: '2025-03-03',
+			amount: 85000,
+			note: 'Überweisung'
+		});
+		await createPayment(db, contextA, {
+			...base,
+			date: '2025-03-10',
+			amount: -2500,
+			note: 'Rückzahlung'
+		});
+		expect(await lastPayment(db, 'a', leaseId)).toEqual({
+			date: '2025-03-03',
+			amount: 85000,
+			note: 'Überweisung'
+		});
+		await db.update(payments).set({ source: 'bank' }).where(eq(payments.note, 'Überweisung'));
+		expect((await lastPayment(db, 'a', leaseId))?.note).toBeNull();
+		expect(await lastPayment(db, 'b', leaseId)).toBeUndefined();
 	});
 });
 

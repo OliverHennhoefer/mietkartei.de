@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+	type AnySQLiteColumn,
 	index,
 	integer,
 	primaryKey,
@@ -358,7 +359,11 @@ export const depositTransactions = sqliteTable(
 		 * the column with a bare REFERENCES, and a referenced transaction is never deleted (undo
 		 * deletes the movement first, a bank account with matched transactions is kept).
 		 */
-		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id),
+		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id, {
+			// Checked at the end of the statement, so deleting the whole account still works; a bank
+			// account with assigned transactions is refused by the banking module before that.
+			onDelete: 'no action'
+		}),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -426,7 +431,9 @@ export const rentCharges = sqliteTable(
 		/** The statement or CO₂ split this charge comes from. */
 		referenceId: text('reference_id'),
 		/** A correction or a late delivery reverses a statement's charge: a row of its own. */
-		reversesChargeId: text('reverses_charge_id'),
+		reversesChargeId: text('reverses_charge_id').references((): AnySQLiteColumn => rentCharges.id, {
+			onDelete: 'cascade'
+		}),
 		note: text('note'),
 		createdAt: createdAt()
 	},
@@ -467,7 +474,11 @@ export const payments = sqliteTable(
 		note: text('note'),
 		source: text('source', { enum: paymentSources }).notNull().default('manual'),
 		/** The bank transaction the payment was assigned from; no delete action, as above. */
-		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id),
+		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id, {
+			// Checked at the end of the statement, so deleting the whole account still works; a bank
+			// account with assigned transactions is refused by the banking module before that.
+			onDelete: 'no action'
+		}),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -636,7 +647,11 @@ export const expenses = sqliteTable(
 		category: text('category', { enum: expenseCategories }).notNull(),
 		description: text('description').notNull(),
 		/** The bank transaction the expense was assigned from; no delete action, as for payments. */
-		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id),
+		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id, {
+			// Checked at the end of the statement, so deleting the whole account still works; a bank
+			// account with assigned transactions is refused by the banking module before that.
+			onDelete: 'no action'
+		}),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -903,6 +918,7 @@ export const operatingCostStatements = sqliteTable(
 		periodEnd: text('period_end').notNull(),
 		version: integer('version').notNull().default(1),
 		status: text('status', { enum: statementStatuses }).notNull().default('draft'),
+		/** No foreign key: it points at an approved version, and approved versions are never deleted. */
 		correctsId: text('corrects_id'),
 		/** JSON of the computed StatementResult (property level): stored on creation, frozen on approval. */
 		result: text('result'),

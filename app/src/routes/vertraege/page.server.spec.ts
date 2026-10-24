@@ -264,9 +264,12 @@ describe('vertraege/[id]', () => {
 			source: 'manual',
 			note: null
 		});
+		expect(await overview(paid)).toMatchObject({
+			data: { deletion: { blockers: [{ text: expect.stringContaining('1\u00a0Zahlung') }] } }
+		});
 		expect(await run(leaseActions.delete, { params: { id: paid }, form: {} })).toMatchObject({
 			fail: 400,
-			data: { message: expect.stringContaining('Zahlungen') }
+			data: { deleteError: expect.any(String) }
 		});
 		expect(await run(leaseActions.delete, { params: { id }, form: {} })).toEqual({
 			redirect: '/vertraege'

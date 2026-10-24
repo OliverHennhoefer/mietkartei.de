@@ -17,7 +17,7 @@ import {
 	payments,
 	type BankTransactionStatus
 } from '../db/schema';
-import { expenseSummary, resolveScope, scopeLabels } from '../expenses';
+import { expenseScopeValue, expenseSummary, resolveScope, scopeLabels } from '../expenses';
 import { paymentEntry } from '../ledger';
 import { leaseLabel, type LeaseSummary } from '../leases';
 import { ruleEntry } from './rules';
@@ -202,6 +202,58 @@ export async function leaseByIban(db: Database, accountId: string): Promise<Map<
 	);
 	for (const row of rows) if (row.iban) result.set(row.iban, row.leaseId);
 	return result;
+}
+
+/** What an earlier expense from the same counterpart was booked as: the expense form's preset. */
+export type ExpensePreset = { category: Expense['category']; scope: string; description: string };
+
+/**
+ * The last expense booked from each counterpart, by IBAN and by name (lowercased), so a payee
+ * booked once (Stadtwerke, the insurer) comes back with the same category, scope and description.
+ * One query.
+ */
+export async function expenseByCounterpart(
+	db: Database,
+	accountId: string
+): Promise<{ byIban: Map<string, ExpensePreset>; byName: Map<string, ExpensePreset> }> {
+	const rows = await db
+		.select({
+			iban: bankTransactions.counterpartIban,
+			name: bankTransactions.counterpartName,
+			category: expenses.category,
+			propertyId: expenses.propertyId,
+			unitId: expenses.unitId,
+			description: expenses.description
+		})
+		.from(expenses)
+		.innerJoin(bankTransactions, eq(expenses.bankTransactionId, bankTransactions.id))
+		.where(eq(expenses.accountId, accountId))
+		.orderBy(asc(expenses.createdAt));
+	const byIban = new Map<string, ExpensePreset>();
+	const byName = new Map<string, ExpensePreset>();
+	for (const row of rows) {
+		const preset: ExpensePreset = {
+			category: row.category,
+			scope: expenseScopeValue(row),
+			description: row.description
+		};
+		if (row.iban) byIban.set(row.iban, preset);
+		const name = row.name?.trim().toLowerCase();
+		if (name) byName.set(name, preset);
+	}
+	return { byIban, byName };
+}
+
+/** The preset of a transaction: the IBAN's, else the name's. */
+export function expensePreset(
+	transaction: Pick<BankTransaction, 'counterpartIban' | 'counterpartName'>,
+	presets: { byIban: Map<string, ExpensePreset>; byName: Map<string, ExpensePreset> }
+): ExpensePreset | undefined {
+	const name = transaction.counterpartName?.trim().toLowerCase();
+	return (
+		(transaction.counterpartIban ? presets.byIban.get(transaction.counterpartIban) : undefined) ??
+		(name ? presets.byName.get(name) : undefined)
+	);
 }
 
 /** What the suggestion looks for per lease: the tenants' last names and the unit names. */

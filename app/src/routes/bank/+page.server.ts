@@ -9,6 +9,8 @@ import {
 	assignExpense,
 	assignTransaction,
 	countUnmatched,
+	expenseByCounterpart,
+	expensePreset,
 	getTransaction,
 	ignoreTransaction,
 	leaseByIban,
@@ -28,7 +30,7 @@ import type { Actions, PageServerLoad } from './$types';
 
 // Umsätze: the review list. A fixed number of queries whatever the page shows: the bank
 // accounts, the transactions, the open count, the leases (with units and tenants), the rules,
-// the earlier assignments by IBAN, the properties and units for the expense select, and the
+// the earlier assignments by IBAN, the earlier expenses by counterpart, the properties and units for the expense select, and the
 // payments, deposit movements and expenses of the listed rows.
 
 export type StatusFilter = BankTransactionStatus | 'all';
@@ -49,15 +51,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const status = transactionId ? 'all' : statusOf(url.searchParams.get('status'));
 	const bankAccountId = transactionId ? null : url.searchParams.get('konto') || null;
 
-	const [bankAccounts, listed, openCount, leases, rules, byIban, scopes] = await Promise.all([
-		listBankAccounts(locals.db, accountId),
-		listTransactions(locals.db, accountId, { status, bankAccountId, transactionId }),
-		countUnmatched(locals.db, accountId),
-		listLeases(locals.db, accountId),
-		listRules(locals.db, accountId),
-		leaseByIban(locals.db, accountId),
-		scopeOptions(locals.db, accountId)
-	]);
+	const [bankAccounts, listed, openCount, leases, rules, byIban, scopes, presets] =
+		await Promise.all([
+			listBankAccounts(locals.db, accountId),
+			listTransactions(locals.db, accountId, { status, bankAccountId, transactionId }),
+			countUnmatched(locals.db, accountId),
+			listLeases(locals.db, accountId),
+			listRules(locals.db, accountId),
+			leaseByIban(locals.db, accountId),
+			scopeOptions(locals.db, accountId),
+			expenseByCounterpart(locals.db, accountId)
+		]);
 	const assignments = await listAssignments(
 		locals.db,
 		accountId,
@@ -70,6 +74,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			row.status === 'unmatched'
 				? (suggestLease(row, { rules, leaseByIban: byIban, leases: hints }) ?? null)
 				: null,
+		expensePreset: row.status === 'unmatched' ? (expensePreset(row, presets) ?? null) : null,
 		assignments: (assignments.get(row.id) ?? []) as Assignment[]
 	}));
 	return {

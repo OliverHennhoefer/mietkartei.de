@@ -224,6 +224,23 @@ describe('storeDocument', () => {
 		expect(await db.select().from(documents)).toEqual([]);
 	});
 
+	it('refuses a unit or cost item of another property than the one given', async () => {
+		const here = await seedUnit(db, 'a', { propertyName: 'Hier' });
+		const there = await seedUnit(db, 'a', { propertyName: 'Dort' });
+		const costItemId = await seedCostItem(db, 'a', there.propertyId);
+		for (const links of [
+			{ propertyId: here.propertyId, unitId: there.unitId },
+			{ propertyId: here.propertyId, costItemId }
+		]) {
+			expect(await storeDocument(db, contextA, { ...pdf, links }, { storage })).toEqual({
+				ok: false,
+				reason: 'unknown-link'
+			});
+		}
+		const links = { propertyId: there.propertyId, unitId: there.unitId, costItemId };
+		expect((await storeDocument(db, contextA, { ...pdf, links }, { storage })).ok).toBe(true);
+	});
+
 	it('removes the object again when the row cannot be written', async () => {
 		// The uploader must exist; an unknown user id makes the insert fail.
 		const ghost = { accountId: 'a', userId: 'ghost' };

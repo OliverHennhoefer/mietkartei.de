@@ -5,6 +5,8 @@ import { loadAnalysis } from './analysis';
 import { createBankAccount } from './bank/accounts';
 import {
 	assignExpense,
+	expenseByCounterpart,
+	expensePreset,
 	getTransaction,
 	listAssignments,
 	undoAssignment
@@ -18,8 +20,14 @@ import {
 	payments,
 	units
 } from './db/schema';
-import { createExpense, deleteExpense, listExpenses, scopeOptions } from './expenses';
-import { deleteProperty } from './properties';
+import {
+	createExpense,
+	deleteExpense,
+	expenseSuggestions,
+	listExpenses,
+	scopeOptions
+} from './expenses';
+import { deleteProperty, deleteUnit } from './deletion';
 import { contextA, contextB, seedLease, seedUnit, testDatabase } from './testing';
 
 let db: Database;
@@ -35,7 +43,11 @@ function form(values: Record<string, string>): FormData {
 
 const bankAccountIds: Record<string, string> = {};
 
-async function seedTransaction(accountId: string, amount: number): Promise<string> {
+async function seedTransaction(
+	accountId: string,
+	amount: number,
+	counterpart: { counterpartName?: string; counterpartIban?: string } = {}
+): Promise<string> {
 	const id = crypto.randomUUID();
 	await db.insert(bankTransactions).values({
 		id,
@@ -45,7 +57,8 @@ async function seedTransaction(accountId: string, amount: number): Promise<strin
 		amount,
 		counterpartName: 'Sanitär Meier',
 		purpose: 'Rechnung 4711',
-		fingerprint: id
+		fingerprint: id,
+		...counterpart
 	});
 	return id;
 }
@@ -155,7 +168,7 @@ describe('expenses', () => {
 		).toEqual({ ok: false, reason: 'unknown-scope' });
 	});
 
-	it('keeps the expense when its property is deleted, as one of the whole portfolio', async () => {
+	it('keeps the property and unit an expense is booked on', async () => {
 		await createExpense(db, contextA, {
 			date: '2026-03-05',
 			amount: 100,
@@ -163,9 +176,10 @@ describe('expenses', () => {
 			scope: { kind: 'unit', id: unitId },
 			description: 'x'
 		});
-		expect(await deleteProperty(db, contextA, propertyId)).toBe('deleted');
+		expect(await deleteUnit(db, contextA, unitId)).toBe('in-use');
+		expect(await deleteProperty(db, contextA, propertyId)).toBe('in-use');
 		const [row] = await listExpenses(db, 'a');
-		expect(row).toMatchObject({ propertyId: null, unitId: null, scopeLabel: 'Gesamter Bestand' });
+		expect(row).toMatchObject({ propertyId, unitId });
 	});
 
 	it('offers each property with its units', async () => {
@@ -177,6 +191,33 @@ describe('expenses', () => {
 			'EG links',
 			'OG'
 		]);
+	});
+	it('suggests each description once, with the category and scope it was booked with last', async () => {
+		const base = { amount: 1000, scope: { kind: 'portfolio' as const } };
+		await createExpense(db, contextA, {
+			...base,
+			date: '2026-01-10',
+			category: 'other',
+			description: 'Heizungswartung'
+		});
+		await createExpense(db, contextA, {
+			...base,
+			date: '2026-02-10',
+			category: 'management',
+			description: 'Steuerberatung'
+		});
+		await createExpense(db, contextA, {
+			...base,
+			date: '2026-03-10',
+			category: 'maintenance',
+			scope: { kind: 'property', id: propertyId },
+			description: 'Heizungswartung'
+		});
+		expect(await expenseSuggestions(db, 'a')).toEqual([
+			{ description: 'Heizungswartung', category: 'maintenance', scope: `property:${propertyId}` },
+			{ description: 'Steuerberatung', category: 'management', scope: '' }
+		]);
+		expect(await expenseSuggestions(db, 'b')).toEqual([]);
 	});
 });
 
@@ -240,6 +281,42 @@ describe('bank transactions as expenses', () => {
 		]);
 		expect([first, second].sort()).toEqual(['assigned', 'not-open']);
 		expect(await db.select().from(expenses)).toHaveLength(1);
+	});
+	it('presets the next expense to a counterpart like the last one, by IBAN, else by name', async () => {
+		const iban = 'DE89370400440532013000';
+		const first = await seedTransaction('a', -5000, { counterpartIban: iban });
+		await assignExpense(db, contextA, first, {
+			category: 'other',
+			scope: { kind: 'portfolio' },
+			description: 'Erste Rechnung'
+		});
+		const second = await seedTransaction('a', -7000, { counterpartIban: iban });
+		await assignExpense(db, contextA, second, {
+			category: 'maintenance',
+			scope: { kind: 'unit', id: unitId },
+			description: 'Heizungswartung'
+		});
+		const presets = await expenseByCounterpart(db, 'a');
+		const latest = {
+			category: 'maintenance',
+			scope: `unit:${unitId}`,
+			description: 'Heizungswartung'
+		};
+		// The IBAN wins over the name; without an IBAN the name decides, whatever its case.
+		expect(expensePreset({ counterpartIban: iban, counterpartName: 'Jemand' }, presets)).toEqual(
+			latest
+		);
+		expect(
+			expensePreset({ counterpartIban: null, counterpartName: ' sanitär meier ' }, presets)
+		).toEqual(latest);
+		expect(
+			expensePreset(
+				{ counterpartIban: 'DE02120300000000202051', counterpartName: 'Fremd' },
+				presets
+			)
+		).toBeUndefined();
+		const foreign = await expenseByCounterpart(db, 'b');
+		expect(foreign.byIban.size + foreign.byName.size).toBe(0);
 	});
 });
 

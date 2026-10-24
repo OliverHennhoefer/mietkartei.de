@@ -4,7 +4,7 @@ import { createSession } from '#lib/server/auth.ts';
 import type { Database } from '#lib/server/db/index.ts';
 import { accounts } from '#lib/server/db/schema.ts';
 import { outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
-import { handle } from './hooks.server';
+import { handle, handleError } from './hooks.server';
 
 const env = vi.hoisted(() => ({
 	DEMO: false,
@@ -152,5 +152,24 @@ describe('handle', () => {
 		expect((await send('/objekte/neu', { method: 'POST', cookies })).result).toMatchObject({
 			error: 403
 		});
+	});
+});
+
+describe('handleError', () => {
+	it('answers a foreign key violation as a conflict and keeps other errors generic', async () => {
+		const event = routeEvent(await testDatabase());
+		const conflict = await handleError({
+			kind: 'unknown',
+			error: new Error('Failed query', { cause: new Error('FOREIGN KEY constraint failed') }),
+			event
+		});
+		expect(conflict).toMatchObject({
+			status: 409,
+			message: expect.stringContaining('Lade die Seite neu')
+		});
+		const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+		expect(await handleError({ kind: 'unknown', error: new Error('boom'), event })).toBeUndefined();
+		expect(log).toHaveBeenCalled();
+		log.mockRestore();
 	});
 });

@@ -1,5 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { firstOfMonth, monthOf, today } from '#lib/dates.ts';
+import { addMonthsToMonth, firstOfMonth, monthOf, today } from '#lib/dates.ts';
 import { depositWarning, parseLease, parseOpeningBalance } from '#lib/forms/leases.ts';
 import { parseCents } from '#lib/money.ts';
 import { createLease, listUnitsWithProperty } from '#lib/server/leases.ts';
@@ -16,9 +16,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		listUnitsWithProperty(locals.db, accountId),
 		listTenants(locals.db, accountId)
 	]);
+	// A new lease usually starts on the first of next month.
 	const defaults: Record<string, string> = {
 		unitId: url.searchParams.get('unitId') ?? '',
-		tenantIds: url.searchParams.get('tenantId') ?? ''
+		tenantIds: url.searchParams.get('tenantId') ?? '',
+		startDate: firstOfMonth(addMonthsToMonth(monthOf(today()), 1))
 	};
 	return { units, tenants, defaults };
 };

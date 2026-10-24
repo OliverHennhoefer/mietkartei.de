@@ -1,6 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { listLeases } from '#lib/server/leases.ts';
-import { deleteUnit, getUnit } from '#lib/server/properties.ts';
+import { deleteUnit, unitDeletion } from '#lib/server/deletion.ts';
+import { getUnit } from '#lib/server/properties.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -9,9 +10,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const accountId = requireAccount(locals);
 	const unit = await getUnit(locals.db, accountId, params.unitId);
 	if (!unit || unit.propertyId !== params.id) error(404, 'Diese Einheit gibt es nicht.');
-	const leases = await listLeases(locals.db, accountId, { unitId: unit.id });
+	const [leases, deletion] = await Promise.all([
+		listLeases(locals.db, accountId, { unitId: unit.id }),
+		unitDeletion(locals.db, accountId, unit.id)
+	]);
 	return {
 		unit,
+		deletion,
 		leases: leases.map((lease) => ({
 			id: lease.id,
 			startDate: lease.startDate,
@@ -34,7 +39,7 @@ export const actions: Actions = {
 		if (outcome === 'in-use') {
 			return fail(400, {
 				deleteError:
-					'Die Einheit kann nicht gelöscht werden, solange ein Mietvertrag auf ihr liegt, auch ein beendeter: Er bleibt mit Mietkonto und Kaution erhalten. Die Mietverträge der Einheit stehen oben; einen Mietvertrag ohne Zahlungen, Korrekturen, Kautionsbewegungen und Abrechnungen kannst du auf seiner Seite löschen.'
+					'Das Löschen geht nicht mehr, weil sich inzwischen etwas geändert hat; die Gründe stehen unten.'
 			});
 		}
 		redirect(303, `/objekte/${params.id}`);

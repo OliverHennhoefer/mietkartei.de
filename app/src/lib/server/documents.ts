@@ -57,7 +57,11 @@ const linkTables: [keyof DocumentLinks, LinkedTable][] = [
 	['costItemId', costItems]
 ];
 
-/** Whether every given link points at a row of the account; one query per given link kind. */
+/**
+ * Whether every given link points at a row of the account, and a unit or cost item given with a
+ * property belongs to it, so the document is not filed under two properties; one query per
+ * given link kind.
+ */
 async function linksBelongToAccount(
 	db: Database,
 	accountId: string,
@@ -71,6 +75,20 @@ async function linksBelongToAccount(
 			.from(table)
 			.where(and(eq(table.accountId, accountId), eq(table.id, id)));
 		if (!row) return false;
+	}
+	if (links.propertyId && links.unitId) {
+		const [unit] = await db
+			.select({ propertyId: units.propertyId })
+			.from(units)
+			.where(eq(units.id, links.unitId));
+		if (unit.propertyId !== links.propertyId) return false;
+	}
+	if (links.propertyId && links.costItemId) {
+		const [item] = await db
+			.select({ propertyId: costItems.propertyId })
+			.from(costItems)
+			.where(eq(costItems.id, links.costItemId));
+		if (item.propertyId !== links.propertyId) return false;
 	}
 	return true;
 }

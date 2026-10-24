@@ -2,6 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { isIsoDate } from '#lib/dates.ts';
 import { calendarYear } from '#lib/domain/operating-costs.ts';
 import {
+	costItemHistory,
 	createCostItem,
 	ensureDefaults,
 	listCategories,
@@ -17,11 +18,12 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const accountId = requireAccount(locals);
 	await ensureDefaults(locals.db, accountId);
-	const [properties, categories, keys, circles] = await Promise.all([
+	const [properties, categories, keys, circles, history] = await Promise.all([
 		listProperties(locals.db, accountId),
 		listCategories(locals.db, accountId),
 		listKeys(locals.db, accountId),
-		listCircles(locals.db, accountId)
+		listCircles(locals.db, accountId),
+		costItemHistory(locals.db, accountId)
 	]);
 	// ?versicherung=<id>&von=<start> comes from the Versicherungen tab: the Beleg of that
 	// insurance year.
@@ -29,7 +31,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const start = url.searchParams.get('von');
 	if (policyId && start && isIsoDate(start)) {
 		const prefill = await insurancePrefill(locals.db, accountId, policyId, start);
-		if (prefill) return { properties, categories, keys, circles, prefill };
+		if (prefill) return { properties, categories, keys, circles, history, prefill };
 	}
 	// ?property= and ?year= come from the list, ?from=/?to= from "Speichern und nächsten Beleg".
 	const propertyParam = url.searchParams.get('property');
@@ -43,7 +45,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			: year && /^\d{4}$/.test(year)
 				? calendarYear(Number(year))
 				: undefined;
-	return { properties, categories, keys, circles, prefill: { propertyId, ...period } };
+	return {
+		properties,
+		categories,
+		keys,
+		circles,
+		history,
+		prefill: { propertyId, ...period }
+	};
 };
 
 export const actions: Actions = {

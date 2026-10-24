@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { closeLaunchNotice } from './launch-notice';
 import { owner } from './owner';
 import { linkInMailTo, mailTo } from './outbox';
 import { pdfText } from './pdf-text';
@@ -106,6 +107,7 @@ test('changes the name, the password and the address, which sign out the other b
 	await signInAs(other, id, baseURL!);
 	const page = await context.newPage();
 	const otherPage = await other.newPage();
+	await closeLaunchNotice(otherPage);
 
 	await page.goto('/einstellungen/profil');
 	const profile = page.locator('form[action="?/profile"]');
