@@ -62,7 +62,11 @@ export async function parseCostItemForm(
 		fuel: resolved.fuel,
 		fuelKwh: resolved.fuelKwh,
 		co2Kg: resolved.co2Kg,
-		co2Cost: resolved.co2Cost
+		co2Cost: resolved.co2Cost,
+		associationTotal: resolved.associationTotal,
+		associationKey: resolved.associationKey,
+		associationKeyTotal: resolved.associationKeyTotal,
+		associationKeyShare: resolved.associationKeyShare
 	};
 	return { ok: true, parsed: { input, receipt: resolved.receipt, values } };
 }

@@ -71,6 +71,10 @@ function input(overrides: Partial<CostItemInput> = {}): CostItemInput {
 		fuelKwh: null,
 		co2Kg: null,
 		co2Cost: null,
+		associationTotal: null,
+		associationKey: null,
+		associationKeyTotal: null,
+		associationKeyShare: null,
 		...overrides
 	};
 }

@@ -70,7 +70,7 @@ Ein Schlüssel hat dieselben Rechte wie du und sieht alle Daten deines Kontos, a
 - eine Zahlung auf dem Mietkonto buchen,
 - eine Aufgabe anlegen,
 - eine Aufgabe erledigen,
-- einen Beleg der Betriebskosten erfassen.
+- einen Beleg der Betriebskosten erfassen, bei einer Eigentumswohnung mit den Zahlen der Hausgeldabrechnung.
 
 Löschen oder ändern kann der Assistent nichts. Gute Clients fragen vor jedem Schreiben nach, ob sie das wirklich tun sollen. Jede Änderung steht unter deinem Namen im **Änderungsprotokoll**.
 

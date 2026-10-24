@@ -24,6 +24,10 @@ describe('parseProperty', () => {
 				street: 'Lindenstraße 4',
 				postalCode: '10115',
 				city: 'Berlin',
+				kind: 'building',
+				associationManager: null,
+				ownershipShare: null,
+				ownershipShareTotal: null,
 				buildingUse: 'residential',
 				state: null,
 				vacancyPersons: 1,
@@ -52,6 +56,10 @@ describe('parseProperty', () => {
 				street: 'Am Markt 1',
 				postalCode: '04109',
 				city: 'Leipzig',
+				kind: 'building',
+				associationManager: null,
+				ownershipShare: null,
+				ownershipShareTotal: null,
 				buildingUse: 'non_residential',
 				state: 'SN',
 				vacancyPersons: 0,
@@ -85,6 +93,70 @@ describe('parseProperty', () => {
 		]);
 		expect(result.errors.postalCode).toBe('Die Postleitzahl hat fünf Ziffern.');
 		expect(result.values.postalCode).toBe('1011');
+	});
+
+	it('reads the Verwalter and the MEA of an Eigentumswohnung', () => {
+		const result = parseProperty(
+			form({
+				name: 'ETW Lindenstraße',
+				street: 'Lindenstraße 4',
+				postalCode: '10115',
+				city: 'Berlin',
+				kind: 'condominium',
+				associationManager: ' Hausverwaltung Meier ',
+				ownershipShare: '85,5',
+				ownershipShareTotal: '1000'
+			})
+		);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data).toMatchObject({
+			kind: 'condominium',
+			associationManager: 'Hausverwaltung Meier',
+			ownershipShare: 85.5,
+			ownershipShareTotal: 1000
+		});
+	});
+
+	it('drops the WEG fields of a building', () => {
+		const result = parseProperty(
+			form({
+				name: 'Haus',
+				street: 'Am Markt 1',
+				postalCode: '04109',
+				city: 'Leipzig',
+				kind: 'building',
+				associationManager: 'Meier',
+				ownershipShare: '85',
+				ownershipShareTotal: '1000'
+			})
+		);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data).toMatchObject({
+			kind: 'building',
+			associationManager: null,
+			ownershipShare: null,
+			ownershipShareTotal: null
+		});
+	});
+
+	it('wants both MEA figures, the share at most the total', () => {
+		const base = {
+			name: 'ETW',
+			street: 'Am Markt 1',
+			postalCode: '04109',
+			city: 'Leipzig',
+			kind: 'condominium'
+		};
+		const half = parseProperty(form({ ...base, ownershipShare: '85' }));
+		expect(half.ok).toBe(false);
+		if (!half.ok) expect(Object.keys(half.errors)).toEqual(['ownershipShareTotal']);
+		const larger = parseProperty(
+			form({ ...base, ownershipShare: '1200', ownershipShareTotal: '1000' })
+		);
+		expect(larger.ok).toBe(false);
+		if (!larger.ok) expect(Object.keys(larger.errors)).toEqual(['ownershipShare']);
 	});
 
 	it('rejects a fractional vacancy count', () => {

@@ -99,7 +99,14 @@ export const trialClaims = sqliteTable('trial_claims', {
 export const buildingUses = ['residential', 'non_residential'] as const;
 export type BuildingUse = (typeof buildingUses)[number];
 
-/** Objekt: a building or plot with one or more units. */
+/**
+ * building = the landlord's own building, whose bills they receive themselves; condominium = an
+ * Eigentumswohnung in a WEG, whose costs come from the Verwalter's Hausgeldabrechnung.
+ */
+export const propertyKinds = ['building', 'condominium'] as const;
+export type PropertyKind = (typeof propertyKinds)[number];
+
+/** Objekt: a building or plot with one or more units, or an Eigentumswohnung in a WEG. */
 export const properties = sqliteTable(
 	'properties',
 	{
@@ -109,6 +116,12 @@ export const properties = sqliteTable(
 		street: text('street').notNull(),
 		postalCode: text('postal_code').notNull(),
 		city: text('city').notNull(),
+		kind: text('kind', { enum: propertyKinds }).notNull().default('building'),
+		/** For a condominium: the WEG-Verwalter, who sends the Hausgeldabrechnung. */
+		associationManager: text('association_manager'),
+		/** For a condominium: its Miteigentumsanteil (MEA) and the MEA of the whole WEG, e.g. 85 of 1000. */
+		ownershipShare: real('ownership_share'),
+		ownershipShareTotal: real('ownership_share_total'),
 		/** Wohngebäude or Nichtwohngebäude (§ 8 CO2KostAufG: 50/50 split for the latter). */
 		buildingUse: text('building_use', { enum: buildingUses }).notNull().default('residential'),
 		/** Bundesland, for its public holidays in due dates and deadlines; null counts nationwide only. */
@@ -860,6 +873,15 @@ export const costItems = sqliteTable(
 		fuelKwh: real('fuel_kwh'),
 		co2Kg: real('co2_kg'),
 		co2Cost: integer('co2_cost'),
+		/**
+		 * For a cost of a WEG, from the Hausgeldabrechnung: the cost of the whole WEG, the key the
+		 * Verwalter split it by and the property's share of that key (e.g. 4200 € by MEA, 85 of
+		 * 1000), so the tenant can follow how `amount` came about (§ 556a Abs. 3 BGB). All or none.
+		 */
+		associationTotal: integer('association_total'),
+		associationKey: text('association_key'),
+		associationKeyTotal: real('association_key_total'),
+		associationKeyShare: real('association_key_share'),
 		/** The Versicherung whose premium this Beleg holds, when it was entered from the policy. */
 		insurancePolicyId: text('insurance_policy_id').references(() => insurancePolicies.id, {
 			onDelete: 'set null'

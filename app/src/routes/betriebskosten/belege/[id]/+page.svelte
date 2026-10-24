@@ -67,6 +67,15 @@
 	<dd>{formatDate(data.item.periodStart)} – {formatDate(data.item.periodEnd)}</dd>
 	<dt>Betrag</dt>
 	<dd><Money cents={data.item.amount} /> {data.item.allocable ? '' : '(nicht umlagefähig)'}</dd>
+	{#if data.item.associationTotal !== null}
+		<dt>WEG</dt>
+		<dd>
+			Gesamt <Money cents={data.item.associationTotal} /> · {data.item.associationKey}
+			{formatNumber(data.item.associationKeyShare ?? 0)} von {formatNumber(
+				data.item.associationKeyTotal ?? 0
+			)}
+		</dd>
+	{/if}
 	{#if data.item.fuel}
 		<dt>Brennstoff</dt>
 		<dd>

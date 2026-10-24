@@ -7,6 +7,10 @@ import { address, contextA, contextB, testDatabase } from './testing';
 const property = {
 	...address,
 	name: 'Haus',
+	kind: 'building' as const,
+	associationManager: null,
+	ownershipShare: null,
+	ownershipShareTotal: null,
 	buildingUse: 'residential' as const,
 	state: null,
 	vacancyPersons: 1,

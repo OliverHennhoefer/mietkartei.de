@@ -13,6 +13,7 @@ export type Field =
 			maxLength?: number;
 	  }
 	| { type: 'integer'; description: string; minimum?: number; maximum?: number }
+	| { type: 'number'; description: string; minimum?: number; maximum?: number }
 	| { type: 'boolean'; description: string };
 
 export type InputSchema = {
@@ -75,10 +76,15 @@ function parseValue(name: string, raw: unknown, field: Field, fromText: boolean)
 			}
 			return value;
 		}
-		case 'integer': {
-			const value = fromText && typeof raw === 'string' && /^-?\d+$/.test(raw) ? Number(raw) : raw;
-			if (typeof value !== 'number' || !Number.isSafeInteger(value)) {
+		case 'integer':
+		case 'number': {
+			const pattern = field.type === 'integer' ? /^-?\d+$/ : /^-?\d+(\.\d+)?$/;
+			const value = fromText && typeof raw === 'string' && pattern.test(raw) ? Number(raw) : raw;
+			if (field.type === 'integer' && (typeof value !== 'number' || !Number.isSafeInteger(value))) {
 				throw new InputError(`"${name}" must be an integer.`);
+			}
+			if (typeof value !== 'number' || !Number.isFinite(value)) {
+				throw new InputError(`"${name}" must be a number.`);
 			}
 			if (field.minimum !== undefined && value < field.minimum) {
 				throw new InputError(`"${name}" must be at least ${field.minimum}.`);

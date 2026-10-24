@@ -244,9 +244,78 @@ describe('parseCostItem', () => {
 				fuelKwh: null,
 				co2Kg: null,
 				co2Cost: null,
+				associationTotal: null,
+				associationKey: null,
+				associationKeyTotal: null,
+				associationKeyShare: null,
 				receipt: null
 			}
 		});
+	});
+
+	it('reads the WEG figures, with MEA as the default key', () => {
+		const result = parseCostItem(
+			formDataOf({
+				...fields,
+				amount: '357,00',
+				associationTotal: '4.200,00',
+				associationKey: '',
+				associationKeyTotal: '1000',
+				associationKeyShare: '85'
+			})
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toMatchObject({
+				amount: 35700,
+				associationTotal: 420000,
+				associationKey: 'MEA',
+				associationKeyTotal: 1000,
+				associationKeyShare: 85
+			});
+		}
+	});
+
+	it('ignores the key of the WEG without its total', () => {
+		// The form fills the key from the MEA of the property; a Grundsteuer has no WEG total.
+		const result = parseCostItem(
+			formDataOf({
+				...fields,
+				associationKey: 'MEA',
+				associationKeyTotal: '1000',
+				associationKeyShare: '85'
+			})
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toMatchObject({
+				associationTotal: null,
+				associationKey: null,
+				associationKeyTotal: null,
+				associationKeyShare: null
+			});
+		}
+	});
+
+	it('wants the key with the WEG total, the share at most the key total', () => {
+		const missing = parseCostItem(formDataOf({ ...fields, associationTotal: '4200' }));
+		expect(missing.ok).toBe(false);
+		if (!missing.ok) {
+			expect(Object.keys(missing.errors).sort()).toEqual([
+				'associationKeyShare',
+				'associationKeyTotal'
+			]);
+		}
+		const larger = parseCostItem(
+			formDataOf({
+				...fields,
+				associationTotal: '4200',
+				associationKeyTotal: '1000',
+				associationKeyShare: '1001'
+			})
+		);
+		expect(larger.ok).toBe(false);
+		if (!larger.ok) expect(Object.keys(larger.errors)).toEqual(['associationKeyShare']);
 	});
 
 	it('reads an explicit key and circle', () => {

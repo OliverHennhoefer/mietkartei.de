@@ -45,6 +45,8 @@ const MAX_PERIOD_MONTHS = 12;
 const DEADLINE_MONTHS = 12;
 /** § 556 Abs. 3 Satz 5 BGB: the tenant may object within a year after receiving it. */
 const OBJECTION_MONTHS = 12;
+/** A WEG share that differs from its key by more than this (cents) is pointed out. */
+const ASSOCIATION_TOLERANCE = 100;
 /** § 9a Abs. 2 HeizKV: estimated consumption for more than a quarter of the area is a problem. */
 const ESTIMATED_AREA_LIMIT = 0.25;
 /** §§ 7, 8 HeizKV: the share of heating and hot water cost that must follow consumption. */
@@ -154,6 +156,21 @@ export type StatementItem = {
 	co2Cost: number | null;
 	/** For a `direct` key: the amount of each unit. */
 	unitAmounts: { unitId: string; amount: number }[];
+	/** For a cost of a WEG: how the Verwalter arrived at `amount`. */
+	association: AssociationShare | null;
+};
+
+/**
+ * A cost of a WEG from the Hausgeldabrechnung: the cost of the whole WEG and the key the
+ * Verwalter split it by, e.g. 4200 € by MEA, 85 of 1000; the item's amount is the property's share.
+ */
+export type AssociationShare = {
+	/** Cents, for the item's whole period. */
+	total: number;
+	/** E.g. `MEA`. */
+	key: string;
+	keyTotal: number;
+	keyShare: number;
 };
 
 export type Landlord = {
@@ -201,7 +218,8 @@ export type WarningCode =
 	| 'flat_lease'
 	| 'deadline_passed'
 	| 'unknown_key'
-	| 'unknown_category';
+	| 'unknown_category'
+	| 'association_mismatch';
 
 /** A finding of the computation; the draft page links `href` as the way to fix it. */
 export type StatementWarning = {
@@ -262,6 +280,8 @@ export type CostLine = {
 	/** The lease's share in cents (Dein Anteil). */
 	amount: number;
 	co2?: Co2Disclosure;
+	/** For a cost of a WEG: its figures, the total prorated to the period like `itemTotal`. */
+	association?: AssociationShare;
 };
 
 /** A share the lease would have had, kept by the landlord because of a Pauschale. */
@@ -1278,6 +1298,20 @@ export function computeStatement(
 		allocableTotal += total;
 		const heating = category.consumptionBased;
 
+		if (item.association && item.association.keyTotal > 0) {
+			const { total: associationTotal, keyTotal, keyShare, key: keyLabel } = item.association;
+			const expected = Math.round((associationTotal * keyShare) / keyTotal);
+			if (Math.abs(expected - item.amount) > ASSOCIATION_TOLERANCE) {
+				warn(ctx, {
+					code: 'association_mismatch',
+					blocking: false,
+					itemId: item.id,
+					href: `/betriebskosten/belege/${item.id}`,
+					message: `Beim Beleg „${item.description}“ ergeben ${formatNumber(keyShare)} von ${formatNumber(keyTotal)} ${keyLabel} der Gesamtkosten der WEG (${formatCents(associationTotal)}) ${formatCents(expected)}, eingetragen sind ${formatCents(item.amount)}; prüfe die Werte aus der Hausgeldabrechnung.`
+				});
+			}
+		}
+
 		const circleUnits =
 			key.kind === 'direct'
 				? input.units.filter((unit) => item.unitAmounts.some((entry) => entry.unitId === unit.id))
@@ -1380,7 +1414,8 @@ export function computeStatement(
 		// anything; a unit that bears something keeps every component, its 0 kWh too.
 		type LeasePart = {
 			amount: number;
-			shares: { unitId: string; text: string }[];
+			/** `detail` is the split between the unit's leases, e.g. `365 von 365 Tagen`. */
+			shares: { unitId: string; text: string; detail: string }[];
 			unitAmounts: Map<string, number>;
 			method?: SplitMethod;
 		};
@@ -1428,9 +1463,11 @@ export function computeStatement(
 					part.unitAmounts.set(unit.id, (part.unitAmounts.get(unit.id) ?? 0) + parts[i]);
 					if (method) part.method = method;
 					if (parts[i] !== 0 || occupancy.leases.length === 1) {
-						const detail = details[i] ? ` · ${details[i]}` : '';
-						const text = `${component.label}${component.unitShare(unitIndex)}${detail}`;
-						part.shares.push({ unitId: unit.id, text });
+						const detail = details[i] ?? '';
+						const text =
+							`${component.label}${component.unitShare(unitIndex)}` +
+							(detail ? ` · ${detail}` : '');
+						part.shares.push({ unitId: unit.id, text, detail });
 					}
 					partsByLease.set(occupant.lease.id, part);
 				});
@@ -1453,10 +1490,25 @@ export function computeStatement(
 		summary.unallocated = allocated - summary.allocated;
 		unallocatedTotal += summary.unallocated;
 
+		// A WEG cost shows how the Verwalter split it first (§ 556a Abs. 3 BGB); within a property
+		// of one unit, the key of the property only repeats it, so only the split between leases
+		// follows.
+		const association = item.association
+			? { ...item.association, total: proRata(item.association.total, itemOverlap, itemDays) }
+			: undefined;
+		const associationText = association
+			? `Gesamt ${formatCents(association.total)} · ${association.key} ${formatNumber(association.keyShare)} von ${formatNumber(association.keyTotal)} · Anteil ${formatCents(total)}`
+			: '';
+		const ownKey = !association || circleUnits.length > 1;
 		const shareText = (part: LeasePart) => {
 			const bearing = part.shares.filter((share) => part.unitAmounts.get(share.unitId) !== 0);
-			return (bearing.length > 0 ? bearing : part.shares).map((share) => share.text).join(' · ');
+			const shares = bearing.length > 0 ? bearing : part.shares;
+			const texts = ownKey
+				? shares.map((share) => share.text)
+				: [...new Set(shares.map((share) => share.detail).filter(Boolean))];
+			return [associationText, ...texts].filter(Boolean).join(' · ');
 		};
+		const componentKeyTotal = components.map((c) => `${c.label}${c.keyTotal}`).join(' · ');
 		for (const [leaseId, part] of partsByLease) {
 			const accumulator = accumulators.get(leaseId);
 			if (!accumulator) continue;
@@ -1479,16 +1531,21 @@ export function computeStatement(
 				supplier: item.supplier,
 				categoryName: category.name,
 				betrkvItem: category.betrkvItem,
-				keyName: key.name,
+				keyName: association
+					? `${association.key} der WEG${ownKey ? `, dann ${key.name}` : ''}`
+					: key.name,
 				keyKind: key.kind,
 				heating,
 				itemTotal: total,
 				allocated,
-				keyTotal: components.map((c) => `${c.label}${c.keyTotal}`).join(' · '),
+				keyTotal: association
+					? [formatNumber(association.keyTotal), ...(ownKey ? [componentKeyTotal] : [])].join(' · ')
+					: componentKeyTotal,
 				share: shareText(part),
 				method: part.method,
 				amount: part.amount,
-				co2
+				co2,
+				association
 			});
 		}
 	}

@@ -85,7 +85,11 @@ describe('storeReceipt', () => {
 			fuel: null,
 			fuelKwh: null,
 			co2Kg: null,
-			co2Cost: null
+			co2Cost: null,
+			associationTotal: null,
+			associationKey: null,
+			associationKeyTotal: null,
+			associationKeyShare: null
 		});
 		if (!item.ok) throw new Error('setup failed');
 		// A row stands in for a full storage; the quota only reads the documents table.

@@ -118,7 +118,7 @@ export const operations: Operation[] = [
 	{
 		name: 'get_property',
 		description:
-			'Returns one property with its units (Einheiten) and who occupies each unit today.',
+			'Returns one property with its units (Einheiten) and who occupies each unit today. kind is "building" for an own building or "condominium" for an Eigentumswohnung in a WEG, which then has associationManager (Verwalter), ownershipShare (its MEA) and ownershipShareTotal (MEA of the WEG).',
 		method: 'GET',
 		path: '/properties/{id}',
 		scope: 'read',
@@ -554,7 +554,7 @@ export const operations: Operation[] = [
 	},
 	{
 		name: 'create_cost_item',
-		description: `Records a cost item (Beleg) of the operating costs, e.g. an invoice for property tax or insurance, for the period it covers. Without allocationKeyId the category's default key applies. Heating costs with CO₂ data are entered in the app. ${AMOUNTS}`,
+		description: `Records a cost item (Beleg) of the operating costs, e.g. an invoice for property tax or insurance, for the period it covers. Without allocationKeyId the category's default key applies. Heating costs with CO₂ data are entered in the app. For an Eigentumswohnung (property kind "condominium"), a cost from the Hausgeldabrechnung takes amount = the unit's share and associationTotal, associationKeyTotal and associationKeyShare from the Verwalter (e.g. 420000 cents by MEA, 85 of 1000), so the tenant's statement shows how the share came about. ${AMOUNTS}`,
 		method: 'POST',
 		path: '/cost-items',
 		scope: 'write',
@@ -578,6 +578,30 @@ export const operations: Operation[] = [
 				allocable: {
 					type: 'boolean',
 					description: 'May be passed on to tenants; defaults to the category’s setting.'
+				},
+				associationTotal: {
+					type: 'integer',
+					minimum: -MAX_AMOUNT,
+					maximum: MAX_AMOUNT,
+					description:
+						'WEG only: the cost of the whole WEG in cents, from the Hausgeldabrechnung. Needs associationKeyTotal and associationKeyShare.'
+				},
+				associationKey: {
+					type: 'string',
+					maxLength: 50,
+					description: 'WEG only: the Verwalter’s key, e.g. "MEA" (the default) or "Wohnfläche".'
+				},
+				associationKeyTotal: {
+					type: 'number',
+					minimum: 0,
+					maximum: 1_000_000_000,
+					description: 'WEG only: the key’s total in the WEG, e.g. 1000 MEA.'
+				},
+				associationKeyShare: {
+					type: 'number',
+					minimum: 0,
+					maximum: 1_000_000_000,
+					description: 'WEG only: the unit’s share of the key, e.g. 85 MEA.'
 				}
 			},
 			['propertyId', 'categoryId', 'description', 'periodStart', 'periodEnd', 'amount']
@@ -588,6 +612,23 @@ export const operations: Operation[] = [
 			if (!description) invalid('"description" must not be empty.');
 			if (String(input.periodEnd) < String(input.periodStart)) {
 				invalid('"periodEnd" lies before "periodStart".');
+			}
+			const associationGiven = [
+				input.associationTotal,
+				input.associationKeyTotal,
+				input.associationKeyShare
+			].filter((value) => value !== undefined).length;
+			if (associationGiven !== 0 && associationGiven !== 3) {
+				invalid(
+					'Pass "associationTotal", "associationKeyTotal" and "associationKeyShare" together.'
+				);
+			}
+			if (associationGiven === 3) {
+				if (Number(input.associationKeyTotal) <= 0)
+					invalid('"associationKeyTotal" must be above 0.');
+				if (Number(input.associationKeyShare) > Number(input.associationKeyTotal)) {
+					invalid('"associationKeyShare" must not exceed "associationKeyTotal".');
+				}
 			}
 			await ensureDefaults(db, accountId);
 			const category = await getCategory(db, accountId, String(input.categoryId));
@@ -621,7 +662,13 @@ export const operations: Operation[] = [
 				fuel: null,
 				fuelKwh: null,
 				co2Kg: null,
-				co2Cost: null
+				co2Cost: null,
+				associationTotal: associationGiven ? Number(input.associationTotal) : null,
+				associationKey: associationGiven
+					? (input.associationKey as string | undefined) || 'MEA'
+					: null,
+				associationKeyTotal: associationGiven ? Number(input.associationKeyTotal) : null,
+				associationKeyShare: associationGiven ? Number(input.associationKeyShare) : null
 			});
 			if (!created.ok) {
 				const what = {
