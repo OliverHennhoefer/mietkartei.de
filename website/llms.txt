@@ -20,9 +20,13 @@ Für wen: Privatvermieter, die für große Verwaltungsprogramme zu klein und fü
 - [Startseite](https://mietkartei.de/): Überblick über das Produkt
 - [Demo](https://demo.mietkartei.de/): eigener Beispielbestand ohne Anmeldung, wird nach 24 Stunden gelöscht
 - [Neuigkeiten](https://mietkartei.de/neuigkeiten/): Mietrecht für private Vermieter und Neues aus mietkartei, auch als [RSS-Feed](https://mietkartei.de/neuigkeiten/feed.xml)
-- [Dokumentation](https://docs.mietkartei.de/): Anleitungen zu mietkartei
+- [Dokumentation](https://docs.mietkartei.de/): Anleitungen zu mietkartei, als ein Textdokument unter [llms-full.txt](https://docs.mietkartei.de/llms-full.txt)
 - [Selbst hosten](https://docs.mietkartei.de/selbst-hosten/): mietkartei mit Docker oder aus dem Quellcode betreiben
 - [Quellcode auf GitHub](https://github.com/OliverHennhoefer/mietkartei.de): Code, Fehlerberichte und Funktionswünsche
+
+## Neuigkeiten
+
+<!-- news -->
 
 ## Optional
 
