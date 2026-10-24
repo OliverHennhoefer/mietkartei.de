@@ -97,6 +97,48 @@ describe('mietkonto', () => {
 		expect((await listLedger(db, 'a', leaseId)).paid).toBe(0);
 	});
 
+	it('links a payment from the bank to its transaction and keeps it', async () => {
+		const bank = await createBankAccount(db, contextA, {
+			name: 'Mietkonto',
+			iban: 'DE02120300000000202051',
+			bic: null,
+			holder: 'Oliver'
+		});
+		if (!bank.ok) throw new Error('setup failed');
+		await db.insert(bankTransactions).values({
+			id: 't-miete',
+			accountId: 'a',
+			bankAccountId: bank.id,
+			bookingDate: '2026-03-02',
+			amount: 80000,
+			counterpartName: 'Max Müller',
+			purpose: 'Miete März',
+			fingerprint: 't-miete'
+		});
+		await assignTransaction(db, contextA, 't-miete', {
+			target: 'rent',
+			parts: [{ leaseId, amount: 80000 }],
+			remember: false
+		});
+		const rows = (
+			(await tab(loadLedger)) as {
+				data: {
+					rows: { id: string; kind: string; deletable: boolean; bankTransactionId: string }[];
+				};
+			}
+		).data.rows;
+		const payment = rows.find((row) => row.kind === 'payment')!;
+		expect(payment).toMatchObject({
+			deletable: false,
+			fromBank: true,
+			bankTransactionId: 't-miete'
+		});
+		expect(await act(ledgerActions.deletePayment, { id: payment.id })).toEqual({
+			fail: 400,
+			data: { message: expect.stringContaining('stammt aus einem Umsatz') }
+		});
+	});
+
 	it('posts and deletes a correction', async () => {
 		expect(
 			await act(ledgerActions.adjustment, {
