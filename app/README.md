@@ -62,7 +62,7 @@ Mit `npm run dev:cloudflare` läuft die Entwicklungsumgebung stattdessen gegen e
 ```sh
 npm run lint          # Prettier und ESLint
 npm run check         # Typprüfung mit svelte-check
-npm run test:unit     # Unit-Tests mit Vitest
+npm run test:unit     # Unit-Tests mit Vitest, für Node und für Cloudflare (*.cloudflare.spec.ts)
 npm run test:coverage # Unit-Tests einmal mit Testabdeckung, Bericht in coverage/
 npm run test:e2e      # End-to-End-Tests mit Playwright gegen einen Produktions-Build
 DEPLOY_TARGET=cloudflare npm run test:e2e   # dieselben Tests in workerd mit lokaler D1
