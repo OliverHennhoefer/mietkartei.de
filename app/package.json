@@ -34,6 +34,7 @@
 		"#lib/*": "./src/lib/*"
 	},
 	"dependencies": {
+		"bankdata-germany": "^2.2602.0",
 		"better-sqlite3": "^13.0.2",
 		"drizzle-orm": "^0.45.2",
 		"fflate": "^0.8.3",

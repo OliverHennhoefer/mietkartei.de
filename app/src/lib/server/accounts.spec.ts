@@ -113,6 +113,13 @@ describe('updateLandlord and getLandlord', () => {
 		});
 	});
 
+	it('takes the bank name from the IBAN when it is left empty', async () => {
+		await updateLandlord(db, contextA, { ...block, bankName: null });
+		expect((await getLandlord(db, 'a')).bankName).toBe('Commerzbank');
+		await updateLandlord(db, contextA, { ...block, iban: null, bankName: null });
+		expect((await getLandlord(db, 'a')).bankName).toBeNull();
+	});
+
 	it('empties fields set to null and does not leak into another account', async () => {
 		await updateLandlord(db, contextB, block);
 		await updateLandlord(db, contextA, { ...block, street: 'Nebenweg 2' });

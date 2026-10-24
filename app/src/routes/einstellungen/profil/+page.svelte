@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
+	import Field from '#lib/components/Field.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import { MIN_PASSWORD_LENGTH } from '#lib/validation.ts';
 	import type { PageProps } from './$types';
@@ -200,15 +201,17 @@
 				/>
 				{#if landlordErrors?.iban}<span class="error">{landlordErrors.iban}</span>{/if}
 			</label>
-			<label>
-				Bank
+			<Field
+				label="Bank"
+				error={landlordErrors?.bankName}
+				hint="Leer lassen, dann ergänzen wir die Bank aus der IBAN."
+			>
 				<input
 					name="bankName"
 					defaultValue={landlordValues.bankName ?? ''}
 					aria-invalid={landlordErrors?.bankName ? 'true' : undefined}
 				/>
-				{#if landlordErrors?.bankName}<span class="error">{landlordErrors.bankName}</span>{/if}
-			</label>
+			</Field>
 			<div class="form-actions">
 				<button type="submit">Absender speichern</button>
 			</div>

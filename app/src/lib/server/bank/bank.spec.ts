@@ -100,6 +100,19 @@ describe('bank accounts', () => {
 		expect(await listBankAccounts(db, 'b')).toMatchObject([{ name: 'Fremd', transactionCount: 0 }]);
 	});
 
+	it('takes a missing BIC from the IBAN and keeps a given one', async () => {
+		const [own] = await listBankAccounts(db, 'a');
+		expect(own.bic).toBe('BYLADEM1001');
+		await createBankAccount(db, contextA, {
+			...konto,
+			name: 'Zweitkonto',
+			iban: 'DE89370400440532013000',
+			bic: 'COBADEFF'
+		});
+		const second = (await listBankAccounts(db, 'a')).find((row) => row.name === 'Zweitkonto');
+		expect(second?.bic).toBe('COBADEFF');
+	});
+
 	it('refuses to delete an account with assigned transactions, deletes otherwise', async () => {
 		await importSparkasse();
 		const [incoming] = (await openTransactions()).filter((row) => row.amount > 0);
