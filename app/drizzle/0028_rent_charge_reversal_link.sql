@@ -16,7 +16,7 @@ CREATE TABLE `__new_rent_charges` (
 	`created_at` integer DEFAULT (unixepoch('subsec') * 1000) NOT NULL,
 	FOREIGN KEY (`account_id`) REFERENCES `accounts`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`lease_id`) REFERENCES `leases`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`reverses_charge_id`) REFERENCES `rent_charges`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`reverses_charge_id`) REFERENCES `__new_rent_charges`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 INSERT INTO `__new_rent_charges`("id", "account_id", "lease_id", "period", "due_date", "base_rent", "operating_cost_prepayment", "heating_cost_prepayment", "amount", "kind", "reference_id", "reverses_charge_id", "note", "created_at") SELECT "id", "account_id", "lease_id", "period", "due_date", "base_rent", "operating_cost_prepayment", "heating_cost_prepayment", "amount", "kind", "reference_id", "reverses_charge_id", "note", "created_at" FROM `rent_charges`;--> statement-breakpoint
