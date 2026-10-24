@@ -20,6 +20,13 @@ mietkartei ist die Hausverwaltung von Vermietern für Vermieter: Mieten, Bankums
 
 Nach der Anmeldung führt dich die Übersicht durch die ersten Schritte: Objekt und Einheiten anlegen, Mieter erfassen, Mietvertrag mit Miete und Kaution anlegen, Bankverbindung hinzufügen und Kostenarten prüfen. Hast du deine Daten schon in einer Tabelle, übernimmt die Datenübernahme sie per CSV.
 
+## Anleitungen
+
+- [Nebenkostenabrechnung erstellen](anleitungen/nebenkostenabrechnung.md): von den Belegen bis zum PDF für jeden Mieter.
+- [Umlageschlüssel](anleitungen/umlageschluessel.md): welcher Schlüssel für welche Kostenart passt.
+- [Kontoauszüge importieren](anleitungen/kontoauszuege-importieren.md): Mietzahlungen per camt.053 oder CSV zuordnen.
+- [Von Excel umsteigen](anleitungen/von-excel-umsteigen.md): Objekte, Mieter, Verträge und Zahlungen per CSV übernehmen.
+
 ## Hilfe und Mitmachen
 
 - Fragen beantworten wir über die [Hilfe-Seite](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/SUPPORT.md).

@@ -16,6 +16,12 @@ overrides/
 """
 nav = [
   { "Dokumentation" = "index.md" },
+  { "Anleitungen" = [
+    { "Nebenkostenabrechnung erstellen" = "anleitungen/nebenkostenabrechnung.md" },
+    { "Umlageschlüssel" = "anleitungen/umlageschluessel.md" },
+    { "Kontoauszüge importieren" = "anleitungen/kontoauszuege-importieren.md" },
+    { "Von Excel umsteigen" = "anleitungen/von-excel-umsteigen.md" },
+  ] },
   { "Selbst hosten" = "selbst-hosten.md" },
 ]
 
