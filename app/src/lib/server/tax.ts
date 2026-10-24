@@ -99,6 +99,7 @@ export async function loadTaxOverview(
 					.select({
 						leaseId: rentCharges.leaseId,
 						period: rentCharges.period,
+						dueDate: rentCharges.dueDate,
 						kind: rentCharges.kind,
 						baseRent: rentCharges.baseRent,
 						operatingCostPrepayment: rentCharges.operatingCostPrepayment,

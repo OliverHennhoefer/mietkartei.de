@@ -66,6 +66,8 @@ export type TaxLease = { id: string; unitId: string };
 export type TaxCharge = {
 	leaseId: string;
 	period: string;
+	/** Null while not due, e.g. a Nachzahlung before the statement reached the tenant. */
+	dueDate: string | null;
 	kind: RentChargeKind;
 	baseRent: number;
 	operatingCostPrepayment: number;
@@ -206,7 +208,16 @@ function rentLine(kind: UnitKind): TaxLineKey {
 	return 'apartments';
 }
 
-/** What each lease paid in the year, split like the charges of the year's months. */
+/**
+ * Whether a charge belongs to the year: a month's rent by its month; a statement result, CO₂
+ * credit or adjustment by its due date, since a statement for last year is settled this year.
+ */
+function chargeInYear(charge: TaxCharge, year: number): boolean {
+	if (charge.kind === 'rent') return inYear(charge.period, year);
+	return charge.dueDate !== null && inYear(charge.dueDate, year);
+}
+
+/** What each lease paid in the year, split like the charges that fell due in it. */
 function leaseIncome(input: TaxInput): TaxLeaseIncome[] {
 	const unitKind = new Map(input.units.map((unit) => [unit.id, unit.kind]));
 	return input.leases.flatMap((lease): TaxLeaseIncome[] => {
@@ -215,7 +226,7 @@ function leaseIncome(input: TaxInput): TaxLeaseIncome[] {
 		let settlements = 0;
 		let other = 0;
 		for (const charge of input.charges) {
-			if (charge.leaseId !== lease.id || !inYear(charge.period, input.year)) continue;
+			if (charge.leaseId !== lease.id || !chargeInYear(charge, input.year)) continue;
 			if (charge.kind === 'rent') {
 				baseRent += charge.baseRent;
 				prepayments += charge.amount - charge.baseRent;
@@ -390,21 +401,31 @@ export function taxOverview(input: TaxInput): TaxOverview {
 	// Hausgeld: what was paid less the Zuführung zur Rücklage, split like the Verwalter's costs;
 	// what the Verwalter spent from the reserve counts as Erhaltung.
 	const fees = sum('association_fee');
-	const statement = input.associationStatements.find((row) => inYear(row.periodStart, year));
-	if (statement) {
-		const deductible = fees - statement.reserveContribution;
-		const allocated = share(
-			deductible,
-			statement.allocableCosts,
-			statement.allocableCosts + statement.nonAllocableCosts
+	// A Wirtschaftsjahr counts for the calendar year it starts in; two short ones add up.
+	const statements = input.associationStatements.filter((row) => inYear(row.periodStart, year));
+	if (statements.length > 0) {
+		const total = (pick: (row: TaxAssociationStatement) => number) =>
+			statements.reduce((sum, row) => sum + pick(row), 0);
+		const allocable = total((row) => row.allocableCosts);
+		const nonAllocable = total((row) => row.nonAllocableCosts);
+		// Only Hausgeld actually paid can have gone into the reserve; an unpaid Zuführung is no refund.
+		const reserve = Math.min(
+			total((row) => row.reserveContribution),
+			Math.max(fees, 0)
 		);
+		const deductible = fees - reserve;
+		const allocated = share(deductible, allocable, allocable + nonAllocable);
 		add('allocatedCosts', 'Hausgeld, umlagefähiger Anteil', allocated);
 		add('unallocatedCosts', 'Hausgeld, nicht umlagefähiger Anteil', deductible - allocated);
-		add('maintenance', 'Entnahme aus der Erhaltungsrücklage', statement.reserveWithdrawal);
-		if (statement.reserveContribution !== 0) {
+		add(
+			'maintenance',
+			'Entnahme aus der Erhaltungsrücklage',
+			total((row) => row.reserveWithdrawal)
+		);
+		if (reserve !== 0) {
 			nonDeductible.push({
 				label: 'Zuführung zur Erhaltungsrücklage',
-				amount: statement.reserveContribution,
+				amount: reserve,
 				reason: 'Zählt erst, wenn der Verwalter das Geld ausgibt'
 			});
 		}

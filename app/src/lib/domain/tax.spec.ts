@@ -22,6 +22,7 @@ function rents(leaseId: string, year = 2025): TaxCharge[] {
 	return Array.from({ length: 12 }, (_, index) => ({
 		leaseId,
 		period: `${year}-${String(index + 1).padStart(2, '0')}`,
+		dueDate: `${year}-${String(index + 1).padStart(2, '0')}-03`,
 		kind: 'rent' as const,
 		baseRent: 600_00,
 		operatingCostPrepayment: 150_00,
@@ -130,6 +131,26 @@ describe('taxOverview', () => {
 		);
 		expect(line(overview, 'settlements')).toMatchObject({ line: 21, amount: 100_00 });
 		expect(line(overview, 'otherIncome')).toMatchObject({ line: 29, amount: 5_00 });
+	});
+
+	it('counts a statement result in the year it falls due, not in its period', () => {
+		const lastYear = {
+			...rents('l1')[0],
+			period: '2024-12',
+			kind: 'statement_balance' as const,
+			baseRent: 0,
+			amount: 300_00
+		};
+		const charges = [
+			...rents('l1'),
+			{ ...lastYear, dueDate: '2025-02-15' },
+			{ ...lastYear, dueDate: null, amount: 999_00 }
+		];
+		const payments = [...input().payments, { leaseId: 'l1', date: '2025-02-10', amount: 300_00 }];
+		const overview = taxOverview(input({ charges, payments }));
+		expect(line(overview, 'settlements')?.amount).toBe(300_00);
+		expect(line(overview, 'apartments')?.amount).toBe(7_200_00);
+		expect(overview.leases[0].prorated).toBe(false);
 	});
 
 	it('splits payments that differ from the charges proportionally and says so', () => {
@@ -244,6 +265,35 @@ describe('taxOverview', () => {
 		expect(overview.nonDeductible).toMatchObject([
 			{ label: 'Zuführung zur Erhaltungsrücklage', amount: 400_00 }
 		]);
+
+		// Two short Wirtschaftsjahre add up; without payments no Zuführung is excluded.
+		const half = {
+			allocableCosts: 900_00,
+			nonAllocableCosts: 300_00,
+			reserveContribution: 200_00,
+			reserveWithdrawal: 50_00
+		};
+		const split = taxOverview(
+			input({
+				property: condominium,
+				expenses: fees,
+				associationStatements: [
+					{ ...half, periodStart: '2025-01-01' },
+					{ ...half, periodStart: '2025-07-01' }
+				]
+			})
+		);
+		expect(line(split, 'allocatedCosts')?.amount).toBe(1_950_00);
+		expect(line(split, 'maintenance')?.amount).toBe(100_00);
+		const unpaid = taxOverview(
+			input({
+				property: condominium,
+				associationStatements: [{ ...half, periodStart: '2025-01-01' }]
+			})
+		);
+		expect(line(unpaid, 'allocatedCosts')).toBeUndefined();
+		expect(line(unpaid, 'unallocatedCosts')).toBeUndefined();
+		expect(unpaid.nonDeductible).toEqual([]);
 
 		const missing = taxOverview(input({ property: condominium, expenses: fees }));
 		expect(line(missing, 'unallocatedCosts')?.amount).toBe(3_000_00);
