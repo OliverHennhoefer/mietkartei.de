@@ -39,6 +39,18 @@ describe('api-schluessel', () => {
 		expect(await authenticateApiKey(db, key)).toMatchObject({ scope: 'write' });
 	});
 
+	it('refuses an eleventh key', async () => {
+		for (let index = 1; index <= 10; index++) {
+			await create({ name: `Schlüssel ${index}`, lifetimeDays: '30' });
+		}
+		expect(await create({ name: 'Noch einer', lifetimeDays: '30' })).toEqual({
+			fail: 400,
+			data: {
+				refused: 'Du hast schon 10 API-Schlüssel. Widerrufe einen, um einen neuen anzulegen.'
+			}
+		});
+	});
+
 	it('checks the form', async () => {
 		expect(await create({ name: '', scope: 'admin', lifetimeDays: '7' })).toMatchObject({
 			fail: 400,

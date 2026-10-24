@@ -83,6 +83,8 @@ describe('/mcp', () => {
 
 	it('refuses bodies over 64 KB', async () => {
 		expect((await post(' '.repeat(70 * 1024))).status).toBe(413);
+		// A declared length over the limit is refused before the body is read.
+		expect((await post('{}', { 'content-length': String(1024 * 1024) })).status).toBe(413);
 	});
 
 	it('offers no event stream', async () => {

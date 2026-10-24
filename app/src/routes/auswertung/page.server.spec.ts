@@ -1,7 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
+import { createBankAccount } from '#lib/server/bank/accounts.ts';
+import { assignExpense } from '#lib/server/bank/transactions.ts';
+import { bankTransactions } from '#lib/server/db/schema.ts';
 import { listExpenses } from '#lib/server/expenses.ts';
-import { outcome, routeEvent, seedLease, seedUnit, testDatabase } from '#lib/server/testing.ts';
+import {
+	contextA,
+	outcome,
+	routeEvent,
+	seedLease,
+	seedUnit,
+	testDatabase
+} from '#lib/server/testing.ts';
 import { actions, load as loadExpenses } from './ausgaben/+page.server';
 import { load } from './+page.server';
 
@@ -58,6 +68,39 @@ describe('auswertung/ausgaben', () => {
 			data: { deleted: expense.id }
 		});
 		expect(await run(actions.delete, { form: { id: expense.id } })).toMatchObject({ fail: 404 });
+	});
+
+	it('keeps an expense booked from a bank transaction, which is undone under Bank', async () => {
+		const bank = await createBankAccount(db, contextA, {
+			name: 'Mietkonto',
+			iban: 'DE02120300000000202051',
+			bic: null,
+			holder: 'Oliver'
+		});
+		if (!bank.ok) throw new Error('setup failed');
+		await db.insert(bankTransactions).values({
+			id: 't1',
+			accountId: 'a',
+			bankAccountId: bank.id,
+			bookingDate: `${year}-03-05`,
+			amount: -12050,
+			counterpartName: 'Hausmeister GmbH',
+			purpose: 'Rechnung',
+			fingerprint: 't1'
+		});
+		await assignExpense(db, contextA, 't1', {
+			category: 'operating_costs',
+			scope: { kind: 'property', id: propertyId },
+			description: 'Hausmeister'
+		});
+		const [expense] = await listExpenses(db, 'a');
+		expect(await run(actions.delete, { form: { id: expense.id } })).toEqual({
+			fail: 400,
+			data: {
+				message: 'Diese Ausgabe stammt aus einem Bankumsatz; hebe die Zuordnung unter Bank auf.'
+			}
+		});
+		expect(await listExpenses(db, 'a')).toHaveLength(1);
 	});
 
 	it('offers every year back to the earliest expense', async () => {

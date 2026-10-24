@@ -269,6 +269,13 @@ describe('load', () => {
 		expect(data.trialEnd).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 	});
 
+	it('says monatlich for a price without a fixed amount', async () => {
+		answers['GET /v1/prices/price_unit'] = () => ({
+			body: { id: 'price_unit', unit_amount: null }
+		});
+		expect(await show()).toMatchObject({ data: { price: 'monatlich' } });
+	});
+
 	it('still opens when Stripe does not answer with a price', async () => {
 		await db
 			.update(accounts)

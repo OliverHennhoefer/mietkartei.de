@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
 import type { Database } from '#lib/server/db/index.ts';
-import { documents } from '#lib/server/db/schema.ts';
+import { costItems, documents } from '#lib/server/db/schema.ts';
+import { createPolicy } from '#lib/server/insurance.ts';
 import {
 	createCircle,
 	getCostItem,
@@ -120,6 +122,23 @@ describe('belege/neu', () => {
 		expect(item).toMatchObject({ amount: 48000, receipts: [{ name: 'Rechnung.pdf' }] });
 	});
 
+	it('links the new item to the insurance policy it was entered for', async () => {
+		const policy = await createPolicy(db, contextA, propertyId, {
+			kind: 'building',
+			insurer: 'Allianz',
+			policyNumber: null,
+			annualPremium: 120000,
+			renewalDate: '2025-01-01',
+			noticeMonths: 3,
+			endDate: null,
+			note: null
+		});
+		if (!policy.ok) throw new Error('setup failed');
+		const id = itemIdOf(await create(fields({ insurancePolicyId: policy.id })));
+		const [row] = await db.select().from(costItems).where(eq(costItems.id, id));
+		expect(row.insurancePolicyId).toBe(policy.id);
+	});
+
 	it('goes on to the next item with the same property and period', async () => {
 		expect(await create(fields({ next: '1' }))).toEqual({
 			redirect: `/betriebskosten/belege/neu?property=${propertyId}&from=2025-01-01&to=2025-12-31`
@@ -211,6 +230,17 @@ describe('belege/[id]', () => {
 			redirect: `/betriebskosten/belege/${itemId}`
 		});
 		expect(await db.select().from(documents)).toEqual([]);
+	});
+
+	it('refuses a receipt that is too large and keeps the item without it', async () => {
+		const huge = new File([new Uint8Array(11 * 1024 * 1024)], 'gross.pdf', {
+			type: 'application/pdf'
+		});
+		expect(await act('upload', { receipt: huge })).toMatchObject({
+			fail: 400,
+			data: { form: 'upload', errors: { receipt: expect.any(String) } }
+		});
+		expect((await getCostItem(db, 'a', itemId))!.receipts).toEqual([]);
 	});
 
 	it('splits per unit only for an item with the direct key', async () => {
