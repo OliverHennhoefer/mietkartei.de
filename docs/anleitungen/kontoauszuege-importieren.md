@@ -17,7 +17,7 @@ Unter **Bank → Konten** legst du das Konto an, auf dem die Mieten eingehen, mi
 
 Lade im Online-Banking die Umsätze des gewünschten Zeitraums herunter. Am besten eignet sich **camt.053**, ein XML-Format, das jede Bank anbietet. Oft heißt es „Kontoauszug als XML“ oder „camt“. Mehrere Dateien darfst du als ZIP hochladen.
 
-CSV-Exporte von **Sparkasse, Volksbank, ING, DKB und comdirect** erkennt mietkartei ebenfalls. Bei anderen CSV-Dateien ordnest du einmal zu, welche Spalte Datum, Betrag, Name und Verwendungszweck enthält.
+CSV-Exporte von **Sparkasse, Volksbank, ING, DKB und comdirect** erkennt mietkartei ebenfalls. Bei anderen CSV-Dateien ordnest du zu, welche Spalte Datum, Betrag, Name und Verwendungszweck enthält. Heißen die Spalten so wie üblich, etwa „Datum“, „Betrag“, „Name“ und „Verwendungszweck“, schlägt mietkartei die Zuordnung selbst vor und zeigt gleich die Vorschau; du prüfst sie nur noch.
 
 ## 3. Importieren
 

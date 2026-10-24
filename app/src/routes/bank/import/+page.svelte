@@ -76,8 +76,10 @@
 			<strong>{accountNames.get(preview.bankAccountId) ?? 'unbekanntes Konto'}</strong>:
 			{#if preview.presetName}
 				Format <strong>{preview.presetName}</strong> erkannt.
-			{:else}
+			{:else if preview.mappingError}
 				Format nicht erkannt; ordne die Spalten der Datei zu.
+			{:else}
+				Format nicht erkannt; die Spalten sind nach ihren Namen zugeordnet. Prüfe die Zuordnung.
 			{/if}
 		</p>
 

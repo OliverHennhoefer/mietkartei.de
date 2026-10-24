@@ -257,6 +257,28 @@ describe('bank/import', () => {
 		});
 	});
 
+	it('proposes the columns of an unknown format from their names and previews right away', async () => {
+		const own = new File(
+			['Datum;Name;Verwendungszweck;Betrag\n01.10.2026;Erika;Miete;850,00'],
+			'eigen.csv'
+		);
+		expect(await run(importActions.preview, { form: { bankAccountId, file: own } })).toMatchObject({
+			data: {
+				preview: {
+					preset: 'generic',
+					mapping: {
+						bookingDate: 'Datum',
+						amount: 'Betrag',
+						counterpartName: 'Name',
+						purpose: 'Verwendungszweck'
+					},
+					mappingError: null,
+					counts: { new: 1 }
+				}
+			}
+		});
+	});
+
 	it('imports the lines of a camt file that belong to the chosen account', async () => {
 		const statement = (iban: string, amount: string, name: string) => `
     <Stmt>

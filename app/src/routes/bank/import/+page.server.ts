@@ -3,6 +3,7 @@ import {
 	base64ToBytes,
 	bytesToBase64,
 	GENERIC_PRESET_ID,
+	proposeGenericMapping,
 	type ColumnMapping
 } from '#lib/domain/bank-matching.ts';
 import { parseBankUpload, restrictToAccount, type ParsedUpload } from '#lib/domain/camt.ts';
@@ -104,12 +105,22 @@ export const actions: Actions = {
 		const file = await readFile(input);
 		if (!file) return failed('Bitte wähle eine Datei aus.', {});
 
-		const generic: ColumnMapping | null =
+		let generic: ColumnMapping | null =
 			input.preset === GENERIC_PRESET_ID && !mappingError(input.mapping)
 				? toColumnMapping(input.mapping)
 				: null;
-		const upload = await readRows(locals.db, accountId, input.bankAccountId, file.bytes, generic);
+		let upload = await readRows(locals.db, accountId, input.bankAccountId, file.bytes, generic);
 		if (!upload.ok) return failed(upload.reason, {});
+		// The first look at a file without a known format proposes the columns from their names;
+		// when that finds the date and the amount, the preview follows right away.
+		if (!upload.file.preset && input.preset === '') {
+			input.mapping = proposeGenericMapping(upload.file.columns);
+			if (!mappingError(input.mapping)) {
+				generic = toColumnMapping(input.mapping);
+				upload = await readRows(locals.db, accountId, input.bankAccountId, file.bytes, generic);
+				if (!upload.ok) return failed(upload.reason, {});
+			}
+		}
 		const parsed = upload.file;
 		if (parsed.results.length > MAX_IMPORT_ROWS) return failed(TOO_MANY_ROWS, {});
 
