@@ -213,7 +213,8 @@
 		<div class="brand-bar">
 			<!-- Signed in, the app shows no logo; the favicon names it. -->
 			{#if !data.email}
-				<a href={resolve('/')} class="brand">
+				<!-- Signed out, / only leads back to /anmelden, so the logo goes to the homepage. -->
+				<a href="https://mietkartei.de" class="brand">
 					<picture>
 						<source media="(prefers-color-scheme: dark)" srcset={logoWhite} />
 						<img src={logo} alt="mietkartei" width="52" height="52" />
