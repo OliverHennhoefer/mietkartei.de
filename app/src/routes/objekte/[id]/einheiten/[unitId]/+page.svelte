@@ -1,7 +1,6 @@
 <script lang="ts">
-	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
-	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import DeleteSection from '#lib/components/DeleteSection.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { formatArea, formatNumber, personName } from '#lib/format.ts';
 	import { unitKindLabels } from '#lib/units.ts';
@@ -88,19 +87,12 @@
 	</div>
 {/if}
 
-<h2>Einheit löschen</h2>
-{#if form?.deleteError}
-	<Alert tone="danger"><p>{form.deleteError}</p></Alert>
-{/if}
-<p class="muted">
-	Löscht die Einheit mit ihren Zählern. Eine Einheit, auf der ein Mietvertrag liegt, auch ein
-	beendeter, kann nicht gelöscht werden.
-</p>
-<ConfirmButton
-	action="?/delete"
+<DeleteSection
+	heading="Einheit löschen"
 	label="Einheit löschen"
-	message="Einheit „{data.unit
-		.name}“ mit ihren Zählern löschen? Das lässt sich nicht rückgängig machen."
+	question="Einheit „{data.unit.name}“ löschen?"
+	check={data.deletion}
+	error={form?.deleteError}
 />
 
 <style>

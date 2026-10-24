@@ -1,9 +1,9 @@
-import { and, asc, count, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { personName } from '../format';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import { leaseTenants, tenants } from './db/schema';
+import { tenants } from './db/schema';
 import { assertQuota } from './quotas';
 
 // All queries take the account explicitly, so data of one account can never leak into another.
@@ -68,25 +68,4 @@ export async function updateTenant(
 		auditEntry(db, context, 'tenant', tenantId, 'update', `Mieter ${personName(input)} geändert`)
 	]);
 	return true;
-}
-
-/** A tenant with leases cannot be deleted; the leases keep the history. */
-export async function deleteTenant(
-	db: Database,
-	context: AuditContext,
-	tenantId: string
-): Promise<'deleted' | 'in-use' | 'missing'> {
-	const { accountId } = context;
-	const existing = await getTenant(db, accountId, tenantId);
-	if (!existing) return 'missing';
-	const [{ value }] = await db
-		.select({ value: count() })
-		.from(leaseTenants)
-		.where(eq(leaseTenants.tenantId, tenantId));
-	if (value > 0) return 'in-use';
-	await runBatch(db, [
-		db.delete(tenants).where(and(eq(tenants.accountId, accountId), eq(tenants.id, tenantId))),
-		auditEntry(db, context, 'tenant', tenantId, 'delete', `Mieter ${personName(existing)} gelöscht`)
-	]);
-	return 'deleted';
 }
