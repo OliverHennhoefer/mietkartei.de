@@ -93,7 +93,8 @@ describe('the letter', () => {
 		amount: 130000,
 		previous: null,
 		iban: 'DE02120300000000202051',
-		bankName: 'Testbank'
+		bankName: 'Testbank',
+		interest: 0
 	};
 
 	it('suggests a deadline two weeks after the letter', () => {
@@ -129,6 +130,20 @@ describe('the letter', () => {
 			`Bitte überweist den offenen Betrag von ${formatCents(130000)} spätestens bis zum 24.03.2025.`
 		);
 		expect(text).toContain('seid ihr in Verzug');
+	});
+
+	it('names the accrued default interest from the Mahnung on, not in the reminder', () => {
+		const sentence =
+			`Bis zum 10.03.2025 sind darauf Verzugszinsen von ${formatCents(1234)} aufgelaufen ` +
+			'(fünf Prozentpunkte über dem Basiszinssatz, § 288 Abs. 1 BGB). Wir behalten uns vor, ' +
+			'sie geltend zu machen.';
+		expect(reminderText({ ...content, interest: 1234 })).not.toContain('Verzugszinsen');
+		expect(reminderText({ ...content, level: 2, interest: 1234 })).toContain(sentence);
+		expect(reminderText({ ...content, level: 3, interest: 1234 })).toContain(sentence);
+		expect(reminderText({ ...content, level: 3 })).not.toContain('Verzugszinsen');
+		expect(reminderText({ ...content, level: 2 })).toContain(
+			'Wir behalten uns vor, Verzugszinsen (§ 288 BGB) geltend zu machen.'
+		);
 	});
 
 	it('announces legal steps in the last Mahnung', () => {

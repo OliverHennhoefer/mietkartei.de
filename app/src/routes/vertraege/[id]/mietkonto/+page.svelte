@@ -6,6 +6,7 @@
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
+	import { formatRate } from '#lib/domain/default-interest.ts';
 	import { reminderLevelLabels } from '#lib/domain/reminders.ts';
 	import { formatCents, formatCentsPlain } from '#lib/money.ts';
 	import type { PageProps } from './$types';
@@ -28,6 +29,16 @@
 	};
 	const reminderPdf = (id: string) => `/vertraege/${data.lease.id}/mietkonto/schreiben/${id}`;
 	const latest = $derived(data.reminders.current[0]);
+	const interestBasis = $derived.by(() => {
+		const rate = data.reminders.baseRates.latest;
+		const basis = 'Fünf Prozentpunkte über dem Basiszinssatz (§ 288 Abs. 1 BGB)';
+		return rate
+			? `${basis}, der seit ${formatDate(rate.validFrom)} ${formatRate(rate.rate)} beträgt (Quelle: Deutsche Bundesbank).`
+			: `${basis}.`;
+	});
+	const baseRateError = $derived(
+		data.reminders.baseRates.error ? ` (${data.reminders.baseRates.error})` : ''
+	);
 
 	let paymentForm = $state<HTMLFormElement>();
 
@@ -179,6 +190,20 @@
 			{/if}
 		{/if}
 	</p>
+	{#if data.reminders.interest.amount > 0}
+		<p>
+			Verzugszinsen bis heute: <strong><Money cents={data.reminders.interest.amount} /></strong>
+			<span class="muted">· {interestBasis} Ab der Mahnung nennt das Schreiben den Betrag.</span>
+		</p>
+	{/if}
+	{#if data.reminders.baseRates.outdated}
+		<Alert tone="warning">
+			<p>
+				Der Basiszinssatz für das laufende Halbjahr liegt noch nicht vor{baseRateError}; die
+				Verzugszinsen rechnen bis dahin mit dem letzten bekannten Satz.
+			</p>
+		</Alert>
+	{/if}
 	<div class="table-wrap">
 		<table class="table" aria-label="Offene Posten">
 			<thead>

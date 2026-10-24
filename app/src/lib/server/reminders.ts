@@ -9,9 +9,11 @@ import {
 	reminderText,
 	type OpenItem
 } from '../domain/reminders';
+import { defaultInterest, type InterestResult } from '../domain/default-interest';
 import { formatCents } from '../money';
 import { addressLines, landlordAddress } from './accounts';
 import { auditEntry, type AuditContext } from './audit';
+import { currentBaseRates, type BaseRateState } from './base-rate';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import { payments, paymentReminders, rentCharges, type ReminderLevel } from './db/schema';
@@ -114,6 +116,10 @@ export type ReminderState = {
 	current: ReminderRow[];
 	/** The level the next letter should have. */
 	suggestedLevel: ReminderLevel;
+	/** Verzugszinsen on the open items by `asOf`. */
+	interest: InterestResult;
+	/** The Basiszinssatz the interest is computed with. */
+	baseRates: Omit<BaseRateState, 'rates'> & { latest: { validFrom: IsoDate; rate: number } | null };
 };
 
 /** The open items of a lease on `asOf` with its letters, for the Mietkonto tab. */
@@ -123,9 +129,10 @@ export async function reminderState(
 	leaseId: string,
 	asOf: IsoDate = today()
 ): Promise<ReminderState> {
-	const [items, reminders] = await Promise.all([
+	const [items, reminders, baseRates] = await Promise.all([
 		leaseOpenItems(db, accountId, leaseId, asOf),
-		listReminders(db, accountId, leaseId)
+		listReminders(db, accountId, leaseId),
+		currentBaseRates(db, asOf)
 	]);
 	const current = currentReminders(reminders, items[0]?.dueDate ?? null);
 	return {
@@ -133,7 +140,13 @@ export async function reminderState(
 		overdue: items.reduce((sum, item) => sum + item.open, 0),
 		reminders,
 		current,
-		suggestedLevel: nextLevel(current)
+		suggestedLevel: nextLevel(current),
+		interest: defaultInterest(items, baseRates.rates, asOf),
+		baseRates: {
+			outdated: baseRates.outdated,
+			error: baseRates.error,
+			latest: baseRates.rates.at(-1) ?? null
+		}
 	};
 }
 
@@ -165,10 +178,11 @@ export async function createReminder(
 	if (input.paymentDeadline <= input.date) {
 		return { ok: false, message: 'Die Zahlungsfrist muss nach dem Datum des Schreibens liegen.' };
 	}
-	const [items, reminders, landlord] = await Promise.all([
+	const [items, reminders, landlord, baseRates] = await Promise.all([
 		leaseOpenItems(db, context.accountId, leaseId, input.date),
 		listReminders(db, context.accountId, leaseId),
-		landlordAddress(db, context.accountId)
+		landlordAddress(db, context.accountId),
+		currentBaseRates(db, input.date)
 	]);
 	if (items.length === 0) {
 		return {
@@ -189,7 +203,8 @@ export async function createReminder(
 		amount,
 		previous: previous ?? null,
 		iban: landlord.iban,
-		bankName: landlord.bankName
+		bankName: landlord.bankName,
+		interest: defaultInterest(items, baseRates.rates, input.date).amount
 	});
 	const id = crypto.randomUUID();
 	await runBatch(db, [

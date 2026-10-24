@@ -218,6 +218,13 @@
       "when": 1792867844098,
       "tag": "0030_property_state",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1792868297803,
+      "tag": "0031_base_rates",
+      "breakpoints": true
     }
   ]
 }

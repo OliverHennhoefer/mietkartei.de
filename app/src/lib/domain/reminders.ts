@@ -95,6 +95,8 @@ export type ReminderContent = {
 	previous: SentReminder | null;
 	iban: string | null;
 	bankName: string | null;
+	/** Verzugszinsen accrued by `date` in cents, named from the Mahnung on; 0 leaves them out. */
+	interest: number;
 };
 
 /** The rows of the open items table: due date, posting, open amount. */
@@ -133,6 +135,12 @@ export function reminderText(content: ReminderContent): string {
 	const alreadyPaid =
 		`Falls ${you('du', 'ihr')} in den letzten Tagen schon gezahlt ${you('hast', 'habt')}, ` +
 		`${you('betrachte', 'betrachtet')} dieses Schreiben bitte als gegenstandslos.`;
+	const interest =
+		content.interest > 0
+			? `Bis zum ${formatDate(content.date)} sind darauf Verzugszinsen von ` +
+				`${formatCents(content.interest)} aufgelaufen (fünf Prozentpunkte über dem Basiszinssatz, ` +
+				'§ 288 Abs. 1 BGB). Wir behalten uns vor, sie geltend zu machen.'
+			: 'Wir behalten uns vor, Verzugszinsen (§ 288 BGB) geltend zu machen.';
 	const talk =
 		`Wenn es gerade Schwierigkeiten gibt, ${you('melde dich', 'meldet euch')} bitte bei uns, ` +
 		'dann finden wir gemeinsam eine Lösung.';
@@ -152,8 +160,7 @@ export function reminderText(content: ReminderContent): string {
 			`Bitte ${you('überweise', 'überweist')} den offenen Betrag von ${amount} spätestens bis ` +
 				`zum ${deadline}${toAccount}.`,
 			`Die Miete ist zu festen Terminen fällig; mit dem Ablauf des Fälligkeitstags ${you('bist du', 'seid ihr')} ` +
-				'in Verzug (§ 286 Abs. 2 Nr. 1 BGB). Wir behalten uns vor, Verzugszinsen (§ 288 BGB) ' +
-				'geltend zu machen.',
+				`in Verzug (§ 286 Abs. 2 Nr. 1 BGB). ${interest}`,
 			alreadyPaid,
 			talk
 		);
@@ -165,6 +172,7 @@ export function reminderText(content: ReminderContent): string {
 			'Geht der Betrag bis dahin nicht ein, werden wir ohne weitere Ankündigung rechtliche ' +
 				'Schritte einleiten. Ein Mietrückstand kann außerdem zur fristlosen Kündigung des ' +
 				'Mietverhältnisses berechtigen (§ 543 Abs. 2 Satz 1 Nr. 3 BGB).',
+			...(content.interest > 0 ? [interest] : []),
 			alreadyPaid
 		);
 	}

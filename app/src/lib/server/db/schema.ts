@@ -395,6 +395,25 @@ export const consumerPriceIndex = sqliteTable(
 	]
 );
 
+/**
+ * Basiszinssatz (§ 247 BGB), one table for all accounts: one row per half-year from its first day
+ * (1 January, 1 July), in basis points (152 = 1,52 %). Seeded with the values since 2015 and
+ * fetched from the Deutsche Bundesbank when the current half-year is missing, see base-rate.ts.
+ */
+export const baseRates = sqliteTable('base_rates', {
+	validFrom: text('valid_from').primaryKey(),
+	rate: integer('rate').notNull()
+});
+
+/** The last fetch of a public data source, one row per source (id `bundesbank-base-rate`). */
+export const publicDataFetches = sqliteTable('public_data_fetches', {
+	id: text('id').primaryKey(),
+	attemptedAt: integer('attempted_at', { mode: 'timestamp_ms' }).notNull(),
+	succeededAt: integer('succeeded_at', { mode: 'timestamp_ms' }),
+	/** Why the last attempt failed; null after a success. */
+	error: text('error')
+});
+
 // Rent ledger (Mietkonto)
 
 export const rentChargeKinds = [
