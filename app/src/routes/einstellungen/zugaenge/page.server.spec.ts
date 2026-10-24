@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
-import { invitations, outbox, users } from '#lib/server/db/schema.ts';
-import { createInvitation } from '#lib/server/invitations.ts';
+import { auditLog, invitations, outbox, users } from '#lib/server/db/schema.ts';
+import { createInvitation, leaveAccount, transferOwnership } from '#lib/server/invitations.ts';
 import {
 	contextA,
 	managerA,
@@ -195,5 +195,43 @@ describe('transfer', () => {
 			to: 'm@example.org',
 			subject: 'Du bist jetzt Vermieter in mietkartei'
 		});
+	});
+
+	// The batch runs after the members were read; `before` changes the database in between.
+	function racing(before: () => void): Database {
+		return new Proxy(db, {
+			get(target, property) {
+				const value = Reflect.get(target, property);
+				if (property !== 'transaction') return value;
+				return (fn: () => void) => {
+					before();
+					return target.transaction(fn);
+				};
+			}
+		});
+	}
+
+	it('keeps the owner when the member leaves during the handover', async () => {
+		const gone = racing(() => db.delete(users).where(eq(users.id, 'manager-a')).run());
+		expect(await transferOwnership(gone, contextA, 'manager-a')).toEqual({
+			ok: false,
+			reason: 'missing'
+		});
+		const [owner] = await db.select({ role: users.role }).from(users).where(eq(users.id, 'user-a'));
+		expect(owner.role).toBe('owner');
+		expect(await db.select().from(auditLog)).toEqual([]);
+	});
+
+	it('does not delete a member who became the owner in the meantime', async () => {
+		const promoted = racing(() => {
+			db.update(users).set({ role: 'manager' }).where(eq(users.id, 'user-a')).run();
+			db.update(users).set({ role: 'owner' }).where(eq(users.id, 'manager-a')).run();
+		});
+		await leaveAccount(promoted, { accountId: 'a', userId: 'manager-a' });
+		const [owner] = await db
+			.select({ role: users.role })
+			.from(users)
+			.where(eq(users.id, 'manager-a'));
+		expect(owner.role).toBe('owner');
 	});
 });

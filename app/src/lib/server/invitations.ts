@@ -1,6 +1,20 @@
-import { and, asc, count, desc, eq, gt, gte, isNull, lt, ne, sql } from 'drizzle-orm';
+import {
+	and,
+	asc,
+	count,
+	desc,
+	eq,
+	exists,
+	gt,
+	gte,
+	inArray,
+	isNull,
+	lt,
+	ne,
+	notExists,
+	sql
+} from 'drizzle-orm';
 import { userRoleLabels, userRolePhrases } from '../labels';
-import { revokeAllApiKeys } from './api-keys';
 import { auditEntry, type AuditContext } from './audit';
 import { generateToken, hashPassword, hashToken, normalizeEmail } from './auth';
 import type { Database } from './db';
@@ -450,12 +464,20 @@ export async function acceptInvitation(
 
 /** Deletes a user with their sessions, resets, address changes and API keys. */
 function deleteMember(db: Database, accountId: string, userId: string) {
+	// Every statement only touches a member who is not the owner when the batch runs, so a
+	// handover that promoted them in the meantime is never undone by deleting the new owner.
+	const member = db
+		.select({ id: users.id })
+		.from(users)
+		.where(and(eq(users.accountId, accountId), eq(users.id, userId), ne(users.role, 'owner')));
 	return [
-		db.delete(sessions).where(eq(sessions.userId, userId)),
-		db.delete(passwordResets).where(eq(passwordResets.userId, userId)),
-		db.delete(emailChanges).where(eq(emailChanges.userId, userId)),
-		revokeAllApiKeys(db, userId),
-		db.delete(users).where(and(eq(users.accountId, accountId), eq(users.id, userId)))
+		db.delete(sessions).where(inArray(sessions.userId, member)),
+		db.delete(passwordResets).where(inArray(passwordResets.userId, member)),
+		db.delete(emailChanges).where(inArray(emailChanges.userId, member)),
+		db.delete(apiKeys).where(inArray(apiKeys.userId, member)),
+		db
+			.delete(users)
+			.where(and(eq(users.accountId, accountId), eq(users.id, userId), ne(users.role, 'owner')))
 	] as const;
 }
 
@@ -532,8 +554,9 @@ export type TransferResult =
 /**
  * Hands the account over to another member: they become its owner, the signing-in owner a
  * manager. Both changes run in one batch, the old owner first, so the account never has two
- * owners (the unique index refuses that) nor none. The subscription belongs to the account and
- * stays as it is.
+ * owners (the unique index refuses that). The demotion only happens while the member still
+ * exists, so a member leaving or being removed concurrently cannot leave the account without an
+ * owner; the outcome is read back afterwards. The subscription belongs to the account and stays.
  */
 export async function transferOwnership(
 	db: Database,
@@ -546,24 +569,44 @@ export async function transferOwnership(
 	if (owner?.role !== 'owner') return { ok: false, reason: 'not-owner' };
 	const target = members.find((member) => member.id === userId);
 	if (!target) return { ok: false, reason: 'missing' };
+	const ofTarget = and(eq(users.accountId, context.accountId), eq(users.id, target.id));
 	await runBatch(db, [
 		db
 			.update(users)
 			.set({ role: 'manager' })
-			.where(and(eq(users.accountId, context.accountId), eq(users.id, owner.id))),
+			.where(
+				and(
+					eq(users.accountId, context.accountId),
+					eq(users.id, owner.id),
+					eq(users.role, 'owner'),
+					exists(db.select({ id: users.id }).from(users).where(ofTarget))
+				)
+			),
 		db
 			.update(users)
 			.set({ role: 'owner' })
-			.where(and(eq(users.accountId, context.accountId), eq(users.id, target.id))),
-		auditEntry(
-			db,
-			context,
-			'user',
-			target.id,
-			'update',
-			`${target.name || target.email} ist jetzt ${userRolePhrases.owner} dabei, ${owner.name || owner.email} ${userRolePhrases.manager}`
-		)
+			.where(
+				and(
+					ofTarget,
+					notExists(
+						db
+							.select({ id: users.id })
+							.from(users)
+							.where(and(eq(users.accountId, context.accountId), eq(users.role, 'owner')))
+					)
+				)
+			)
 	]);
+	const [promoted] = await db.select({ role: users.role }).from(users).where(ofTarget);
+	if (promoted?.role !== 'owner') return { ok: false, reason: 'missing' };
+	await auditEntry(
+		db,
+		context,
+		'user',
+		target.id,
+		'update',
+		`${target.name || target.email} ist jetzt ${userRolePhrases.owner} dabei, ${owner.name || owner.email} ${userRolePhrases.manager}`
+	);
 	return { ok: true, email: target.email, name: target.name };
 }
 
