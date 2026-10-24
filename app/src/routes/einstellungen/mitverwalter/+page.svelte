@@ -107,7 +107,7 @@
 	Mitverwalter mit: Mitverwalter bearbeiten alles außer Einladungen und Bankverbindungen. Ein Konto
 	hat höchstens {data.maxMembers} Zugänge, offene Einladungen eingerechnet.
 </p>
-{#if data.freeSeats === 0}
+{#if data.freeSeats <= 0}
 	<p>Alle Plätze sind belegt. Entferne einen Zugang oder ziehe eine Einladung zurück.</p>
 {:else}
 	<form method="POST" action="?/invite" class="card" use:enhance>

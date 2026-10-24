@@ -97,6 +97,21 @@ describe('createInvitation', () => {
 		expect(await invite('frei@example.org', contextB)).toMatchObject({ ok: true });
 	});
 
+	it('never fills more seats than there are, even for simultaneous invitations', async () => {
+		for (let index = 2; index < MAX_ACCOUNT_MEMBERS; index++)
+			await invite(`p-${index}@example.org`);
+		expect(await freeSeats(db, 'a', now)).toBe(1);
+		const results = await Promise.all(
+			['x@example.org', 'y@example.org'].map((email) =>
+				createInvitation(db, contextA, { email }, now)
+			)
+		);
+		expect(results.filter((result) => result.ok).length).toBeLessThanOrEqual(1);
+		expect(await freeSeats(db, 'a', now)).toBeGreaterThanOrEqual(0);
+		const logged = await db.select().from(auditLog);
+		expect(logged).toHaveLength((await listPendingInvitations(db, 'a', now)).length);
+	});
+
 	it('deletes invitations of every account a month after their expiry', async () => {
 		const old = await invite('alt@example.org', contextB);
 		const purgeAt = later + INVITATION_RETENTION + 1;
@@ -215,6 +230,17 @@ describe('resendInvitation', () => {
 		expect(audit.map((entry) => entry.summary)).toEqual([
 			'Einladung an neu@example.org erneut geschickt'
 		]);
+	});
+
+	it('lets only one of two simultaneous resends replace the invitation', async () => {
+		const first = await invite();
+		const results = await Promise.all([
+			resendInvitation(db, contextA, first.id, now),
+			resendInvitation(db, contextA, first.id, now)
+		]);
+		expect(results.filter((result) => result.ok)).toHaveLength(1);
+		expect(results.filter((result) => !result.ok)).toEqual([{ ok: false, reason: 'missing' }]);
+		expect(await listPendingInvitations(db, 'a', now)).toHaveLength(1);
 	});
 
 	it('refuses foreign, revoked and accepted invitations', async () => {

@@ -96,7 +96,10 @@ export async function listPendingInvitations(
 	return rows.map((row) => ({ ...row, expired: row.expiresAt.getTime() <= now }));
 }
 
-/** How many more people the account may invite: MAX_ACCOUNT_MEMBERS less users and open invitations. */
+/**
+ * How many more people the account may invite: MAX_ACCOUNT_MEMBERS less users and open
+ * invitations. Below zero only for a moment, when two invitations raced for the last seat.
+ */
 export async function freeSeats(
 	db: Database,
 	accountId: string,
@@ -107,7 +110,7 @@ export async function freeSeats(
 		listPendingInvitations(db, accountId, now)
 	]);
 	const open = pending.filter((invitation) => !invitation.expired).length;
-	return Math.max(0, MAX_ACCOUNT_MEMBERS - members.value - open);
+	return MAX_ACCOUNT_MEMBERS - members.value - open;
 }
 
 async function sentToday(db: Database, accountId: string, now: number): Promise<number> {
@@ -118,6 +121,21 @@ async function sentToday(db: Database, accountId: string, now: number): Promise<
 			and(eq(invitations.accountId, accountId), gt(invitations.createdAt, new Date(now - DAY)))
 		);
 	return recent.value;
+}
+
+/**
+ * Which limit the account is over after an invitation was stored. Checked again after the write,
+ * because two requests may both pass the checks before either stores its invitation; the one
+ * that finds itself over a limit takes its invitation back.
+ */
+async function exceededLimit(
+	db: Database,
+	accountId: string,
+	now: number
+): Promise<'full' | 'too-many' | undefined> {
+	if ((await freeSeats(db, accountId, now)) < 0) return 'full';
+	if ((await sentToday(db, accountId, now)) > MAX_INVITATIONS_PER_DAY) return 'too-many';
+	return undefined;
 }
 
 /** Deletes the invitations of all accounts that expired more than INVITATION_RETENTION ago. */
@@ -136,8 +154,9 @@ export type CreateInvitationResult =
 /**
  * Invites an address as a manager. Refused when a user of the account has the address, when the
  * account has an invitation for it that is neither accepted nor revoked (the owner sends that one
- * again), when the account has no free seat or has sent MAX_INVITATIONS_PER_DAY within a day. An address with a user in another account is invited all
- * the same, so the answer says nothing about other accounts; accepting refuses it later.
+ * again), when the account has no free seat or has sent MAX_INVITATIONS_PER_DAY within a day.
+ * An address with a user in another account is invited all the same, so the answer says nothing
+ * about other accounts; accepting refuses it later.
  * Returns the token for the mail, which is never stored.
  */
 export async function createInvitation(
@@ -173,16 +192,21 @@ export async function createInvitation(
 			expiresAt: new Date(now + INVITATION_LIFETIME),
 			invitedBy: context.userId,
 			createdAt: new Date(now)
-		}),
-		auditEntry(
-			db,
-			context,
-			'invitation',
-			id,
-			'invite',
-			`${email} als ${userRoleLabels.manager} eingeladen`
-		)
+		})
 	]);
+	const exceeded = await exceededLimit(db, context.accountId, now);
+	if (exceeded) {
+		await db.delete(invitations).where(eq(invitations.id, id));
+		return { ok: false, reason: exceeded };
+	}
+	await auditEntry(
+		db,
+		context,
+		'invitation',
+		id,
+		'invite',
+		`${email} als ${userRoleLabels.manager} eingeladen`
+	);
 	return { ok: true, id, email, token };
 }
 
@@ -250,14 +274,23 @@ export async function resendInvitation(
 	if ((await sentToday(db, context.accountId, now)) >= MAX_INVITATIONS_PER_DAY) {
 		return { ok: false, reason: 'too-many' };
 	}
+	// Only one of two simultaneous resends takes the invitation over.
+	const taken = await db
+		.update(invitations)
+		.set({ revokedAt: new Date(now) })
+		.where(
+			and(
+				eq(invitations.id, invitation.id),
+				isNull(invitations.acceptedAt),
+				isNull(invitations.revokedAt)
+			)
+		)
+		.returning({ id: invitations.id });
+	if (taken.length === 0) return { ok: false, reason: 'missing' };
 	const id = crypto.randomUUID();
 	const token = generateToken();
 	await runBatch(db, [
 		purgeOldInvitations(db, now),
-		db
-			.update(invitations)
-			.set({ revokedAt: new Date(now) })
-			.where(eq(invitations.id, invitation.id)),
 		db.insert(invitations).values({
 			id,
 			accountId: context.accountId,
@@ -266,16 +299,24 @@ export async function resendInvitation(
 			expiresAt: new Date(now + INVITATION_LIFETIME),
 			invitedBy: context.userId,
 			createdAt: new Date(now)
-		}),
-		auditEntry(
-			db,
-			context,
-			'invitation',
-			id,
-			'invite',
-			`Einladung an ${invitation.email} erneut geschickt`
-		)
+		})
 	]);
+	const exceeded = await exceededLimit(db, context.accountId, now);
+	if (exceeded) {
+		await runBatch(db, [
+			db.delete(invitations).where(eq(invitations.id, id)),
+			db.update(invitations).set({ revokedAt: null }).where(eq(invitations.id, invitation.id))
+		]);
+		return { ok: false, reason: exceeded };
+	}
+	await auditEntry(
+		db,
+		context,
+		'invitation',
+		id,
+		'invite',
+		`Einladung an ${invitation.email} erneut geschickt`
+	);
 	return { ok: true, id, email: invitation.email, token };
 }
 
