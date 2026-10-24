@@ -124,11 +124,13 @@ def render_post(layout: str, post: Post) -> str:
             "headline": post.title,
             "description": post.description,
             "datePublished": post.date.isoformat(),
+            "dateModified": post.date.isoformat(),
+            "articleSection": post.category,
             "inLanguage": "de-DE",
             "url": SITE + post.path,
             "mainEntityOfPage": SITE + post.path,
             "image": f"{SITE}/assets/social.png?v=neon",
-            "author": {"@type": "Person", "name": "Oliver Hennhöfer"},
+            "author": {"@type": "Person", "name": "Oliver Hennhöfer", "url": "https://github.com/OliverHennhoefer"},
             "publisher": {"@id": f"{SITE}/#organization"},
         }),
         content=content,
@@ -213,8 +215,12 @@ def render_feed(posts: list[Post]) -> str:
 """
 
 
+def render_llms_links(posts: list[Post]) -> str:
+    return "".join(f"- [{post.title}]({SITE}{post.path}): {post.description}\n" for post in posts)
+
+
 def build_news(website: Path, output: Path) -> None:
-    """Writes the news pages and feed and fills the teaser and sitemap entries of the homepage."""
+    """Writes the news pages and feed and fills the teaser, sitemap and llms.txt entries."""
     posts = read_posts(website / "neuigkeiten")
     layout = (website / "neuigkeiten" / "_layout.html").read_text(encoding="utf-8")
 
@@ -232,6 +238,12 @@ def build_news(website: Path, output: Path) -> None:
     if "<!-- news -->" not in text:
         raise ValueError("website/index.html: missing <!-- news --> marker")
     homepage.write_text(text.replace("<!-- news -->", render_teaser(posts)), encoding="utf-8")
+
+    llms = output / "llms.txt"
+    text = llms.read_text(encoding="utf-8")
+    if "<!-- news -->\n" not in text:
+        raise ValueError("website/llms.txt: missing <!-- news --> marker")
+    llms.write_text(text.replace("<!-- news -->\n", render_llms_links(posts)), encoding="utf-8")
 
     sitemap = output / "sitemap.xml"
     entries = [f"  <url>\n    <loc>{SITE}/neuigkeiten/</loc>\n  </url>\n"]
