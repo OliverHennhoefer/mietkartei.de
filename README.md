@@ -14,7 +14,6 @@ Open Source, nachvollziehbar gerechnet und ohne Einarbeitung.
 [![Testabdeckung](https://codecov.io/gh/OliverHennhoefer/mietkartei.de/graph/badge.svg)](https://codecov.io/gh/OliverHennhoefer/mietkartei.de)
 [![Lizenz: AGPL-3.0](https://img.shields.io/badge/Lizenz-AGPL--3.0-111111)](LICENSE)
 [![Docker-Image](https://img.shields.io/badge/Docker-ghcr.io-2496ed?logo=docker&logoColor=white)](https://github.com/OliverHennhoefer/mietkartei.de/pkgs/container/mietkartei)
-![Status: im Aufbau](https://img.shields.io/badge/Status-im%20Aufbau-d97706)
 
 [**▶ Demo ausprobieren**](https://demo.mietkartei.de) · [Startseite](https://mietkartei.de) · [Dokumentation](https://docs.mietkartei.de) · [Mitmachen](CONTRIBUTING.md)
 
@@ -56,9 +55,6 @@ Wer drei bis zehn Wohnungen vermietet, ist für die großen Verwaltungsprogramme
 
 **Außerdem dabei:** Objekte und Einheiten · Mieter und Mietverträge mit Kaution · Index- und Staffelmiete · Bankimport mit Zuordnungsregeln · Zähler und Abrechnungskreise · Dokumente · Aufgaben und Fristen · Mitverwalter · Datenübernahme per CSV · vollständiger Export · Änderungsprotokoll
 
-> [!IMPORTANT]
-> **mietkartei ist im Aufbau** und ändert sich gerade schnell. Probier es mit den eingebauten Demodaten aus, verwalte damit aber noch keine echten Mieterdaten.
-
 ## Ausprobieren
 
 **[demo.mietkartei.de](https://demo.mietkartei.de)**: ein Klick, und du hast deinen eigenen Beispielbestand mit zwei Häusern, Mietzahlungen, Bankumsätzen und einer fertigen Betriebskostenabrechnung. Ohne Anmeldung, nach 24 Stunden wird alles gelöscht.
@@ -67,7 +63,7 @@ Du willst mietkartei auf deinem eigenen Rechner oder Server betreiben? Das besch
 
 ## Mitmachen
 
-mietkartei entsteht offen, und jede Hilfe zählt: Code, Fehlerberichte, Fachwissen aus der Vermietung, Texte, Gestaltung und Barrierefreiheit. Gerade wer selbst vermietet, weiß am besten, was fehlt.
+mietkartei wird offen entwickelt, und jede Hilfe zählt: Code, Fehlerberichte, Fachwissen aus der Vermietung, Texte, Gestaltung und Barrierefreiheit. Gerade wer selbst vermietet, weiß am besten, was fehlt.
 
 - [Gute Einstiegsaufgaben](https://github.com/OliverHennhoefer/mietkartei.de/issues?q=is%3Aissue+is%3Aopen+label%3A%22guter+einstieg%22) und [wo Hilfe gesucht wird](https://github.com/OliverHennhoefer/mietkartei.de/issues?q=is%3Aissue+is%3Aopen+label%3A%22hilfe+gesucht%22)
 - [Fehler melden](https://github.com/OliverHennhoefer/mietkartei.de/issues/new?template=01-fehler.yml) · [Funktion vorschlagen](https://github.com/OliverHennhoefer/mietkartei.de/issues/new?template=02-funktionswunsch.yml) · [Frage stellen](SUPPORT.md) · [Sicherheitslücke melden](SECURITY.md)

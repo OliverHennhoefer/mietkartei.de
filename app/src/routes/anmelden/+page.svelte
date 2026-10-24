@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import Alert from '#lib/components/Alert.svelte';
+	import { LAUNCH } from '#lib/launch.ts';
 	import type { PageProps } from './$types';
 
-	let { form }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 </script>
 
 <svelte:head>
@@ -12,6 +14,12 @@
 <div class="narrow">
 	<h1>Anmelden</h1>
 	<p class="auth-lead">Melde dich an, um deinen Bestand zu verwalten.</p>
+
+	{#if data.prelaunch}
+		<Alert role="note">
+			mietkartei startet im {LAUNCH}. Bis dahin melden sich hier nur freigeschaltete Vermieter an.
+		</Alert>
+	{/if}
 
 	<form method="POST" class="card" use:enhance>
 		{#if form && 'locked' in form && form.locked}

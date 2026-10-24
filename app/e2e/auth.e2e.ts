@@ -55,7 +55,7 @@ test('closes registration after the first user on a self-hosted instance', async
 test('refuses an address that is not listed on the hosted variant', async ({ page }) => {
 	test.skip(!hosted, 'Self-hosted instances have no list.');
 	await page.goto('/registrieren');
-	await expect(page.getByText('mietkartei ist noch nicht öffentlich.')).toBeVisible();
+	await expect(page.getByText('mietkartei startet im Januar 2027.')).toBeVisible();
 	await page.getByLabel('E-Mail-Adresse').fill('fremd@example.org');
 	await expect(page.getByLabel('Passwort')).toHaveCount(0);
 	await page.getByRole('button', { name: 'Link anfordern' }).click();
