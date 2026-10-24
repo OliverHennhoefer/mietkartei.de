@@ -16,6 +16,7 @@ GitHub uses the issue and pull request templates from the default branch `main`.
 | `labels.json` | German labels and their descriptions |
 | `workflows/labels.yml` | Creates and updates the labels |
 | `workflows/websites.yml` | Checks and deploys homepage and documentation |
+| `workflows/scorecard.yml` | Rates the repository's security practices with OpenSSF Scorecard |
 | `HOMEPAGE.md` | Preview, build and deployment of the homepage |
 | `DOCUMENTATION.md` | Preview, build and deployment of the documentation |
 | `DEPLOYMENT.md` | Cloudflare access, domains and hosting migration |
@@ -55,6 +56,8 @@ These repository settings complement the workflow (Settings → Code security):
 - Code scanning with CodeQL in the default setup
 - Dependabot alerts and Dependabot security updates
 - Private vulnerability reporting, as a second channel next to the email address in [SECURITY.md](../SECURITY.md)
+
+[scorecard.yml](workflows/scorecard.yml) runs [OpenSSF Scorecard](https://github.com/ossf/scorecard) after every push to `main`, on Mondays and when branch protection changes. It uploads its findings to code scanning (Security → Code scanning) and publishes the score to the public Scorecard API, which the badge at `https://api.scorecard.dev/projects/github.com/OliverHennhoefer/mietkartei.de/badge` reads. The results are public as soon as the workflow runs.
 
 ## Deploying the websites
 
