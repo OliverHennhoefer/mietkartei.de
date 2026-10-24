@@ -7,7 +7,8 @@ import {
 	parseLandlord,
 	parseNewPassword,
 	parsePasswordChange,
-	parseProfile
+	parseProfile,
+	parseResetAccount
 } from './auth';
 import { formDataOf } from './fields';
 
@@ -221,6 +222,29 @@ describe('parseDeleteAccount', () => {
 			ok: false,
 			errors: { password: 'Das Passwort stimmt nicht.' },
 			values: {}
+		});
+	});
+});
+
+describe('parseResetAccount', () => {
+	it('needs the confirmation word in any case and the password, and never echoes it', () => {
+		expect(
+			parseResetAccount(formDataOf({ confirmation: ' zurücksetzen ', password: 'geheim' }))
+		).toEqual({ ok: true, data: { confirmation: 'zurücksetzen', password: 'geheim' } });
+		expect(parseResetAccount(formDataOf({}))).toEqual({
+			ok: false,
+			errors: {
+				confirmation: 'Bitte tippe ZURÜCKSETZEN zur Bestätigung.',
+				password: 'Bitte gib dein Passwort an.'
+			},
+			values: { confirmation: '' }
+		});
+		expect(
+			parseResetAccount(formDataOf({ confirmation: 'ZURÜCKSETZEN', password: 'x'.repeat(201) }))
+		).toEqual({
+			ok: false,
+			errors: { password: 'Das Passwort stimmt nicht.' },
+			values: { confirmation: 'ZURÜCKSETZEN' }
 		});
 	});
 });
