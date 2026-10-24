@@ -121,7 +121,7 @@ Index rent proposals need the Verbraucherpreisindex. The app fetches it from the
 1. Register at [genesis.destatis.de](https://genesis.destatis.de) and sign in.
 2. Open **Webservice-Schnittstelle (API)**, which GENESIS shows to signed-in users, and copy the API token.
 3. Store it as a Worker secret: run `npx wrangler secret put GENESIS_API_TOKEN` in `app/` and paste the token, or add it under **Workers & Pages → mietkartei-app → Settings → Variables and Secrets** as type **Secret**. For index proposals in the demo, add the same secret to `mietkartei-demo` (`npx wrangler secret put GENESIS_API_TOKEN --env demo`).
-4. After the next deploy, open `https://app.mietkartei.de/einstellungen/vpi`. The table fills within seconds; a failed fetch is shown on the page with the answer of Destatis and retried six hours later.
+4. After the next deploy, open `https://app.mietkartei.de/einstellungen/vpi`. The table fills within seconds; a failed fetch is shown on the page with the answer of Destatis and retried 30 minutes later.
 
 The page names Destatis as the source with the Datenlizenz Deutschland – Namensnennung – Version 2.0, as the license requires.
 
