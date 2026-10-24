@@ -58,6 +58,8 @@ describe('objekte', () => {
 		});
 		expect(await run(editActions.update, { params, form: property })).toMatchObject({ error: 404 });
 		expect(await run(editActions.delete, { params, form: {} })).toMatchObject({ error: 404 });
+		expect(await run(editActions.archive, { params, form: {} })).toMatchObject({ error: 404 });
+		expect(await run(editActions.restore, { params, form: {} })).toMatchObject({ error: 404 });
 		expect(await run(loadUnit, { params })).toMatchObject({ error: 404 });
 		expect(await run(unitActions.delete, { params, form: {} })).toMatchObject({ error: 404 });
 		expect(await run(loadUnitEdit, { params })).toMatchObject({ error: 404 });
@@ -70,6 +72,40 @@ describe('objekte', () => {
 		expect(await run(loadUnit, { params })).toMatchObject({ error: 404 });
 		expect(await run(unitEditActions.update, { params, form: unit })).toMatchObject({ error: 404 });
 		expect(await run(unitActions.delete, { params, form: {} })).toMatchObject({ error: 404 });
+	});
+});
+
+describe('archive', () => {
+	it('archives a property without running leases, lists it apart and restores it', async () => {
+		const params = { id: propertyId };
+		expect(await run(loadEdit, { params })).toMatchObject({
+			data: { archiving: { archivedAt: null, runningLeases: [] } }
+		});
+		expect(await run(editActions.archive, { params, form: {} })).toEqual({
+			redirect: '/objekte'
+		});
+		expect(await run(load, {})).toMatchObject({
+			data: { properties: [], archived: [{ id: propertyId }] }
+		});
+		expect(await run(editActions.restore, { params, form: {} })).toEqual({
+			redirect: `/objekte/${propertyId}`
+		});
+		expect(await run(load, {})).toMatchObject({
+			data: { properties: [{ id: propertyId }], archived: [] }
+		});
+	});
+
+	it('refuses to archive while a lease runs and names it', async () => {
+		const leaseId = await seedLease(db, 'a', unitId);
+		const params = { id: propertyId };
+		expect(await run(loadEdit, { params })).toMatchObject({
+			data: { archiving: { runningLeases: [{ href: `/vertraege/${leaseId}` }] } }
+		});
+		expect(await run(editActions.archive, { params, form: {} })).toMatchObject({
+			fail: 400,
+			data: { archiveError: expect.any(String) }
+		});
+		expect((await getProperty(db, 'a', propertyId))?.archivedAt).toBeNull();
 	});
 });
 

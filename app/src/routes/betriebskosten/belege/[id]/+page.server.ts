@@ -47,7 +47,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	await ensureDefaults(locals.db, accountId);
 	const item = await itemOf(locals, params.id);
 	const [properties, categories, keys, circles, history] = await Promise.all([
-		listProperties(locals.db, accountId),
+		listProperties(locals.db, accountId, { archived: true }),
 		listCategories(locals.db, accountId),
 		listKeys(locals.db, accountId),
 		listCircles(locals.db, accountId),

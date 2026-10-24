@@ -4,6 +4,7 @@
 	// only h2 sections, no PageHeader. Pages put their primary action buttons in a
 	// <div class="toolbar"> below the tabs, not in the PageHeader actions snippet, because every
 	// tab has actions of its own.
+	import { formatDate } from '#lib/dates.ts';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import Tabs from '#lib/components/Tabs.svelte';
 	import type { LayoutProps } from './$types';
@@ -24,7 +25,10 @@
 
 <PageHeader
 	title={data.property.name}
-	lead="{data.property.street}, {data.property.postalCode} {data.property.city}"
+	lead="{data.property.street}, {data.property.postalCode} {data.property.city}{data.property
+		.archivedAt
+		? ` · archiviert am ${formatDate(data.property.archivedAt)}`
+		: ''}"
 	back={{ href: '/objekte', label: 'Alle Objekte' }}
 />
 

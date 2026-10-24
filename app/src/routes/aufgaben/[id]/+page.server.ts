@@ -17,7 +17,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const task = await getTask(locals.db, accountId, params.id);
 	if (!task) error(404, 'Diese Aufgabe gibt es nicht.');
 	const [properties, leases] = await Promise.all([
-		listProperties(locals.db, accountId),
+		listProperties(locals.db, accountId, { archived: true }),
 		listLeases(locals.db, accountId)
 	]);
 	return {
