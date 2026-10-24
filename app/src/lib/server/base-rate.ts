@@ -1,19 +1,21 @@
 import { asc, eq, sql } from 'drizzle-orm';
+import { findHeaderRow, parseCsv, toRecords } from '../csv';
 import { today, type IsoDate } from '../dates';
 import { halfYearStart, type BaseRate } from '../domain/default-interest';
 import type { Database } from './db';
-import { runBatch } from './db/batch';
+import { chunk, rowsPerStatement, runBatch } from './db/batch';
 import { baseRates, publicDataFetches } from './db/schema';
 
 // The Basiszinssatz (§ 247 BGB), one table for all accounts. The migration seeds the values since
 // 2015; a new half-year is fetched from the time series database of the Deutsche Bundesbank
-// (series BBK01.SU0115, no account needed) the first time a page needs it, at most every
-// REFRESH_AFTER_MS while the Bundesbank has not published it yet. The Bundesbank asks to be named
-// as the source, so the pages that show the rate do.
+// (series BBIN1.M.DE.BBK.BBKBAS2.EUR.ME, formerly BBK01.SU0115; no account needed) the first time
+// a page needs it, at most every REFRESH_AFTER_MS while the Bundesbank has not published it yet.
+// The Bundesbank asks to be named as the source, so the pages that show the rate do.
 
-export const BASE_RATE_SERIES = 'BBK01.SU0115';
+export const BASE_RATE_SERIES = 'BBIN1.M.DE.BBK.BBKBAS2.EUR.ME';
 const FETCH_ID = 'bundesbank-base-rate';
-const BUNDESBANK_URL = 'https://api.statistiken.bundesbank.de/rest/data/BBK01/SU0115';
+const BUNDESBANK_URL =
+	'https://api.statistiken.bundesbank.de/rest/data/BBIN1/M.DE.BBK.BBKBAS2.EUR.ME';
 /** The rate is announced days before the half-year starts; four attempts a day find it in time. */
 export const REFRESH_AFTER_MS = 6 * 60 * 60 * 1000;
 const TIMEOUT_MS = 15_000;
@@ -31,28 +33,21 @@ export async function lastBaseRateFetch(db: Database): Promise<BaseRateFetch | u
 }
 
 /**
- * The half-year rates of the CSV answer of the Bundesbank API (`Accept: text/csv`): semicolons,
- * a header with TIME_PERIOD and OBS_VALUE, decimal points, `.` for a missing value. The period
- * may be a month (2026-07), a day or a half-year (2026-S2); only the values on 1 January and
- * 1 July are kept, in basis points.
+ * The half-year rates of the CSV answer of the Bundesbank API (`Accept: text/csv`, SDMX-CSV):
+ * a header with TIME_PERIOD and OBS_VALUE, comma or semicolon as separator (detected), decimal
+ * points, `.` or nothing for a missing value. The period may be a month (2026-07), a day or a
+ * half-year (2026-S2); only the values on 1 January and 1 July are kept, in basis points.
  */
 export function parseBaseRates(text: string): BaseRate[] {
-	const lines = text
-		.replace(/^\uFEFF/, '')
-		.split(/\r?\n/)
-		.filter((line) => line.trim());
-	const cell = (value: string | undefined) => (value ?? '').trim().replace(/^"(.*)"$/, '$1');
-	const header = (lines[0] ?? '').split(';').map(cell);
-	const periodColumn = header.indexOf('TIME_PERIOD');
-	const valueColumn = header.indexOf('OBS_VALUE');
-	if (periodColumn < 0 || valueColumn < 0) {
+	const rows = parseCsv(text);
+	const headerIndex = findHeaderRow(rows, ['TIME_PERIOD', 'OBS_VALUE']);
+	if (headerIndex < 0) {
 		throw new Error('Die Antwort der Bundesbank ist keine Zeitreihe im erwarteten Format.');
 	}
 	const rates = new Map<IsoDate, number>();
-	for (const line of lines.slice(1)) {
-		const row = line.split(';').map(cell);
-		const validFrom = halfYearOf(row[periodColumn]);
-		const raw = row[valueColumn];
+	for (const record of toRecords(rows, headerIndex)) {
+		const validFrom = halfYearOf(record.TIME_PERIOD);
+		const raw = record.OBS_VALUE ?? '';
 		if (!validFrom || !/^-?\d+(\.\d+)?$/.test(raw)) continue;
 		const rate = Math.round(Number(raw) * 100);
 		if (rate < -500 || rate > 2000) {
@@ -72,7 +67,7 @@ function halfYearOf(period: string | undefined): IsoDate | null {
 	return `${year}-${month ?? (half === '1' ? '01' : '07')}-01`;
 }
 
-/** Downloads series BBK01.SU0115 from the Bundesbank and returns its half-year rates. */
+/** Downloads the Basiszinssatz series from the Bundesbank and returns its half-year rates. */
 export async function downloadBaseRates(fetcher: typeof fetch = fetch): Promise<BaseRate[]> {
 	let response: Response;
 	try {
@@ -89,12 +84,15 @@ export async function downloadBaseRates(fetcher: typeof fetch = fetch): Promise<
 
 /** Stores the rates, replacing the stored rate of a half-year. */
 export async function storeBaseRates(db: Database, rates: readonly BaseRate[]): Promise<void> {
-	await runBatch(db, [
-		db
-			.insert(baseRates)
-			.values([...rates])
-			.onConflictDoUpdate({ target: baseRates.validFrom, set: { rate: sql`excluded.rate` } })
-	]);
+	await runBatch(
+		db,
+		chunk(rates, rowsPerStatement(baseRates)).map((group) =>
+			db
+				.insert(baseRates)
+				.values(group)
+				.onConflictDoUpdate({ target: baseRates.validFrom, set: { rate: sql`excluded.rate` } })
+		)
+	);
 }
 
 export type RefreshOptions = { now?: Date; fetcher?: typeof fetch };
