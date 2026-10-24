@@ -495,4 +495,17 @@
 	nav a[aria-current='page'] {
 		font-weight: 600;
 	}
+	@media (max-width: 40rem) {
+		/* The amount stays top right, however long the purpose. */
+		.head {
+			flex-wrap: nowrap;
+		}
+		.who {
+			min-width: 0;
+		}
+		.amount {
+			align-content: start;
+			white-space: nowrap;
+		}
+	}
 </style>

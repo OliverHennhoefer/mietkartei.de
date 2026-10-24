@@ -344,6 +344,10 @@ button.settings-close {
 	.settings-side a {
 		flex-shrink: 0;
 	}
+	/* Inside, so the sideways scrolling sections do not cut off the focus ring. */
+	.settings-side a:focus-visible {
+		outline-offset: -2px;
+	}
 	.settings-content {
 		padding: 1.5rem 1.25rem 2rem;
 	}
@@ -558,6 +562,9 @@ a:hover {
 
 /* Data stays easy to scan, with horizontal scrolling confined to tables. */
 .table-wrap {
+	/* Positioned, so absolutely positioned content (visually hidden labels) scrolls with the table
+	   instead of widening the page. */
+	position: relative;
 	max-width: 100%;
 	overflow-x: auto;
 	background: var(--color-surface);
@@ -1073,6 +1080,91 @@ dl.details dd {
 	}
 	dl.details {
 		gap: 0.75rem 1rem;
+	}
+
+	/* On a phone each table row becomes a small card: the first cell is its title, every further
+	   cell a line labelled with its column heading (data-label, set by the layout). */
+	table.table,
+	.table tbody,
+	.table tfoot,
+	.table tr,
+	.table td {
+		display: block;
+	}
+	.table thead {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+	.table tbody tr {
+		padding: 0.9rem 1.1rem;
+		border-bottom: 1px solid var(--color-border);
+	}
+	.table tbody tr:last-child {
+		border-bottom: 0;
+	}
+	.table th,
+	.table td {
+		padding: 0;
+		border: 0;
+	}
+	.table td:empty,
+	.table td[data-blank] {
+		display: none;
+	}
+	.table td + td {
+		margin-top: 0.35rem;
+	}
+	.table tbody td:first-child {
+		font-weight: 500;
+	}
+	.table td[data-label]:not(:first-child) {
+		display: flow-root;
+		padding-left: 8.25rem;
+		text-align: left;
+	}
+	.table td[data-label]:not(:first-child)::before {
+		content: attr(data-label);
+		float: left;
+		width: 7.5rem;
+		margin-left: -8.25rem;
+		color: var(--color-muted);
+		font-size: 0.78rem;
+		font-weight: 450;
+		line-height: 1.6rem;
+		hyphens: auto;
+		overflow-wrap: anywhere;
+	}
+	.table .num,
+	.table .actions {
+		text-align: left;
+		white-space: normal;
+	}
+	/* Actions and cells with nothing but a button (unlabelled, see the layout) form one row. */
+	.table td.actions,
+	.table td:has(> form:only-child),
+	.table td:has(> button:only-child) {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 1.25rem;
+		margin-top: 0.6rem;
+		padding-left: 0;
+	}
+	.table .actions > a {
+		padding-block: 0.4rem;
+	}
+	.table tfoot tr {
+		padding: 0.9rem 1.1rem;
+		background: var(--color-subtle);
+		border-top: 1px solid var(--color-border);
+	}
+	.table tfoot td {
+		background: none;
+		border: 0;
 	}
 }
 

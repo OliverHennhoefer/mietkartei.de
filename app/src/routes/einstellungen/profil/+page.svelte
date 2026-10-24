@@ -193,6 +193,8 @@
 				IBAN
 				<input
 					name="iban"
+					autocapitalize="characters"
+					spellcheck="false"
 					defaultValue={landlordValues.iban ?? ''}
 					aria-invalid={landlordErrors?.iban ? 'true' : undefined}
 				/>
