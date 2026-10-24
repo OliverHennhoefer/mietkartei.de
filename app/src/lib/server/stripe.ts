@@ -102,6 +102,8 @@ export async function createCustomer(email: string, accountId: string): Promise<
 /**
  * A Checkout session for the monthly subscription. `trialDays` (1 or more) carries the rest of
  * the app's trial into the subscription; without it the price's own trial settings apply.
+ * Checkout offers a field for promotion codes, which Stripe checks against the coupons set up in
+ * its dashboard (limits, expiry, first-time customers only); the app never sees a code.
  */
 export async function createCheckoutSession(input: {
 	customerId: string;
@@ -120,6 +122,7 @@ export async function createCheckoutSession(input: {
 		line_items: [{ price: input.priceId, quantity: 1 }],
 		success_url: input.successUrl,
 		cancel_url: input.cancelUrl,
+		allow_promotion_codes: true,
 		...trial
 	});
 }

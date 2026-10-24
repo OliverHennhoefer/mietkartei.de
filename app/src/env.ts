@@ -89,6 +89,19 @@ export const variables = defineEnvVars({
 			'only read. Only with the Stripe keys.',
 		schema: (value) => value === 'true'
 	},
+	FREE_ACCOUNT_EMAILS: {
+		description:
+			'Email addresses whose accounts never pay, separated by commas: an account whose owner has ' +
+			'one of them is free, with no trial, notice or read-only state. A secret on the hosted variant.',
+		schema: (value) => value || ''
+	},
+	TRIAL_FINGERPRINT_KEY: {
+		description:
+			'Secret key for the fingerprints of addresses that had a free trial, so an address gets only ' +
+			'one trial, even after its account was deleted. Unset, every new account gets a trial. A ' +
+			'long random string, a secret on the hosted variant.',
+		schema: (value) => value || ''
+	},
 	DEMO: {
 		description:
 			'"true" makes the instance the public demo: every visitor starts an account of their own ' +

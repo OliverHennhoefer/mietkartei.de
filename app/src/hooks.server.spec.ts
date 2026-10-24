@@ -11,7 +11,8 @@ const env = vi.hoisted(() => ({
 	E2E: false,
 	BILLING_REQUIRED: false,
 	STRIPE_SECRET_KEY: '',
-	STRIPE_PRICE_ID: ''
+	STRIPE_PRICE_ID: '',
+	FREE_ACCOUNT_EMAILS: ''
 }));
 vi.mock('$app/env/private', () => env);
 
