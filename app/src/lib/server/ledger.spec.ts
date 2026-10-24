@@ -448,6 +448,17 @@ describe('listLedger', () => {
 			source: 'manual',
 			note: 'Rest'
 		});
+		// createdAt has millisecond resolution; spread the two bookings so the order is defined.
+		const sameDay = await db.select().from(payments).where(eq(payments.date, '2025-02-10'));
+		expect(sameDay).toHaveLength(2);
+		const base = Date.now();
+		for (const payment of sameDay) {
+			const offset = payment.note === 'Rest' ? 1000 : 0;
+			await db
+				.update(payments)
+				.set({ createdAt: new Date(base + offset) })
+				.where(eq(payments.id, payment.id));
+		}
 		const labels = (await listLedger(db, 'a', endedLeaseId)).lines
 			.filter((line) => line.date === '2025-02-10')
 			.map((line) => line.label);
