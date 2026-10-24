@@ -23,7 +23,8 @@ const env = vi.hoisted(() => ({
 vi.mock('$app/env/private', () => env);
 
 const storage = vi.hoisted(() => ({
-	deletePrefix: vi.fn<(prefix: string) => Promise<void>>(async () => {})
+	deletePrefix: vi.fn<(prefix: string) => Promise<void>>(async () => {}),
+	delete: vi.fn<(key: string) => Promise<void>>(async () => {})
 }));
 vi.mock('#lib/server/storage/index.ts', async (original) => ({
 	...(await original<typeof import('#lib/server/storage/index.ts')>()),
@@ -37,6 +38,7 @@ beforeEach(async () => {
 	await setPassword(db, 'user-a');
 	Object.assign(env, { STRIPE_SECRET_KEY: '', STRIPE_PRICE_ID: '' });
 	storage.deletePrefix.mockReset();
+	storage.delete.mockReset();
 });
 
 afterEach(() => {
@@ -157,6 +159,64 @@ describe('delete', () => {
 		vi.spyOn(console, 'error').mockImplementation(() => {});
 		expect(await remove(PASSWORD)).toMatchObject({ fail: 503 });
 		expect(await accountExists('a')).toBe(true);
+	});
+});
+
+describe('reset', () => {
+	function reset(form: Record<string, string>, user?: typeof managerA) {
+		return outcome(() => actions.reset(routeEvent(db, { user, form })));
+	}
+
+	async function propertyCount() {
+		return (await db.select().from(properties).where(eq(properties.accountId, 'a'))).length;
+	}
+
+	it('deletes the data after the typed word and the password and keeps the account', async () => {
+		await seedUnit(db, 'a');
+		await seedUnit(db, 'b');
+		expect(await reset({ confirmation: 'zurücksetzen', password: PASSWORD })).toEqual({
+			redirect: '/'
+		});
+		expect(await propertyCount()).toBe(0);
+		expect(await accountExists('a')).toBe(true);
+		expect(await db.select().from(users).where(eq(users.id, 'user-a'))).toHaveLength(1);
+		expect(await db.select().from(properties).where(eq(properties.accountId, 'b'))).toHaveLength(1);
+		// Only the files of the documents go, never the whole prefix.
+		expect(storage.deletePrefix).not.toHaveBeenCalled();
+	});
+
+	it('refuses a missing word or a wrong password and keeps the data', async () => {
+		await seedUnit(db, 'a');
+		expect(await reset({ confirmation: 'ja', password: PASSWORD })).toEqual({
+			fail: 400,
+			data: { resetErrors: { confirmation: 'Bitte tippe ZURÜCKSETZEN zur Bestätigung.' } }
+		});
+		expect(await reset({ confirmation: 'ZURÜCKSETZEN', password: 'falsch' })).toEqual({
+			fail: 400,
+			data: { resetErrors: { password: 'Das Passwort stimmt nicht.' } }
+		});
+		expect(await propertyCount()).toBe(1);
+	});
+
+	it('is for owners only', async () => {
+		await seedUnit(db, 'a');
+		for (const role of ['manager', 'viewer'] as const) {
+			await db.insert(users).values({
+				id: `${role}-a`,
+				accountId: 'a',
+				email: `${role}@example.org`,
+				passwordHash: 'x',
+				role
+			});
+			await setPassword(db, `${role}-a`);
+			expect(
+				await reset(
+					{ confirmation: 'ZURÜCKSETZEN', password: PASSWORD },
+					{ ...managerA, id: `${role}-a`, role }
+				)
+			).toMatchObject({ error: 403 });
+		}
+		expect(await propertyCount()).toBe(1);
 	});
 });
 
