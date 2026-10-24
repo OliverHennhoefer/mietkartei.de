@@ -6,6 +6,7 @@ Die gewählte Bildmarke für **mietkartei** verbindet geordnete Registereinträg
 | --- | --- |
 | [mark.svg](mark.svg), [mark-white.svg](mark-white.svg) | Schwarze und weiße Bildmarke auf transparentem Hintergrund |
 | [lockup.svg](lockup.svg), [lockup-white.svg](lockup-white.svg) | Bildmarke mit der originalen Geist-Medium-Wortmarke |
+| [lockup-auto.svg](lockup-auto.svg) | Dieselbe Kombination, schwarz und im dunklen Modus des Betrachters weiß; für das Repository-README, wo die GitHub-App `<picture>`-Quellen nicht beachtet |
 | [small.svg](small.svg) | Kleine schwarze Fassung mit weiter geöffneter senkrechter Fuge |
 | [favicon.svg](favicon.svg) | Kleine weiße Fassung auf schwarzem Grund |
 | [construction.py](construction.py), [geometry.json](geometry.json) | Reproduzierbare Vektorkonstruktion und Maße |
@@ -28,6 +29,6 @@ Startseite und Impressum zeigen diese Kombination mit 52 Pixeln Höhe, auf klein
 
 ## Quellen und Einsatz
 
-Zum erneuten Erzeugen genügt Python 3: `python3 assets/brand/register/construction.py` vom Repository-Stamm aus. Das Skript verwendet die vorhandene Wortmarke im übergeordneten Ordner und aktualisiert dort auch die gemeinsam eingebundenen Exporte `mark.svg`, `mark-white.svg`, `lockup.svg`, `lockup-white.svg` und `favicon.svg`.
+Zum erneuten Erzeugen genügt Python 3: `python3 assets/brand/register/construction.py` vom Repository-Stamm aus. Das Skript verwendet die vorhandene Wortmarke im übergeordneten Ordner und aktualisiert dort auch die gemeinsam eingebundenen Exporte `mark.svg`, `mark-white.svg`, `lockup.svg`, `lockup-white.svg`, `lockup-auto.svg` und `favicon.svg`.
 
 Startseite, Impressum, Dokumentationskopf und Repository-README verwenden Bildmarke und Wortmarke zusammen. Die Anwendung behält das freistehende Zeichen. Die Webseiten-Builds übernehmen die gemeinsamen Exporte aus dem übergeordneten Ordner.

@@ -2,7 +2,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/brand/lockup-white.svg">
-  <img src="assets/brand/lockup.svg" alt="mietkartei" width="280">
+  <img src="assets/brand/lockup-auto.svg" alt="mietkartei" width="280">
 </picture>
 
 ### Die Hausverwaltung von Vermietern für Vermieter.
@@ -25,14 +25,7 @@ Open Source, nachvollziehbar gerechnet und ohne Einarbeitung.
 
 ## Warum mietkartei?
 
-Wer drei bis zehn Wohnungen vermietet, ist für die großen Verwaltungsprogramme zu klein und für Excel zu groß. mietkartei ist für genau diese Lücke gebaut.
-
-|  |  |
-| --- | --- |
-| **Fachlich genau** | Kostenarten nach Betriebskostenverordnung, tagesgenaue Umlage, CO₂-Kostenaufteilung. Jeder Betrag zeigt seinen Rechenweg. |
-| **Einfach** | Ein Bestand, ein Mietkonto pro Vertrag, eine Übersicht. Keine Buchhaltungskenntnisse nötig. |
-| **Offen** | Der komplette Code unter AGPL-3.0. Deine Daten passen in eine einzige SQLite-Datei und lassen sich jederzeit exportieren. |
-| **Bequem** | Selbst gehostet als ein Docker-Container oder einfach gehostet unter [app.mietkartei.de](https://app.mietkartei.de). Beides läuft mit demselben Code. |
+Gebaut für Vermieter mit drei bis zehn Wohnungen: zu klein für die großen Verwaltungsprogramme, zu groß für Excel.
 
 ## So sieht es aus
 
