@@ -10,7 +10,7 @@ import {
 } from './auth';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import { emailChanges, passwordResets, sessions, users } from './db/schema';
+import { emailChanges, oauthCodes, passwordResets, sessions, users } from './db/schema';
 import type { Mail } from './mail';
 
 // Password resets (Passwort zurücksetzen): a link with a random token, valid for one hour. Only
@@ -89,6 +89,7 @@ export async function resetPassword(
 		db.delete(passwordResets).where(eq(passwordResets.userId, user.id)),
 		db.delete(emailChanges).where(eq(emailChanges.userId, user.id)),
 		revokeAllApiKeys(db, user.id),
+		db.delete(oauthCodes).where(eq(oauthCodes.userId, user.id)),
 		auditEntry(
 			db,
 			{ accountId: user.accountId, userId: null },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applySecurityHeaders } from './security-headers';
+import { allowFormRedirect, applySecurityHeaders } from './security-headers';
 
 describe('applySecurityHeaders', () => {
 	it('forbids framing, referrers and device APIs', () => {
@@ -40,5 +40,21 @@ describe('applySecurityHeaders', () => {
 		const headers = new Headers({ 'Referrer-Policy': 'no-referrer' });
 		applySecurityHeaders(headers, { https: false, signedIn: false });
 		expect(headers.get('Referrer-Policy')).toBe('no-referrer');
+	});
+});
+
+describe('allowFormRedirect', () => {
+	it('adds the origin to form-action and leaves responses without a policy alone', () => {
+		const headers = new Headers({
+			'content-security-policy':
+				"default-src 'self'; form-action 'self' https://x.example; base-uri 'none'"
+		});
+		allowFormRedirect(headers, 'https://claude.ai');
+		expect(headers.get('content-security-policy')).toBe(
+			"default-src 'self'; form-action 'self' https://x.example https://claude.ai; base-uri 'none'"
+		);
+		const plain = new Headers();
+		allowFormRedirect(plain, 'https://claude.ai');
+		expect(plain.has('content-security-policy')).toBe(false);
 	});
 });
