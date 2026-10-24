@@ -265,6 +265,20 @@ describe('resendInvitation', () => {
 		expect(await freeSeats(db, 'a', now)).toBe(0);
 	});
 
+	it('neither lists nor resends an invitation past its retention', async () => {
+		const old = await invite();
+		const past = later + INVITATION_RETENTION + 1;
+		expect(await listPendingInvitations(db, 'a', past)).toEqual([]);
+		expect(await resendInvitation(db, contextA, old.id, past)).toEqual({
+			ok: false,
+			reason: 'missing'
+		});
+		// So the address can be invited anew.
+		expect(await createInvitation(db, contextA, { email: 'neu@example.org' }, past)).toMatchObject({
+			ok: true
+		});
+	});
+
 	it('refuses foreign, revoked and accepted invitations', async () => {
 		const foreign = await invite('b-neu@example.org', contextB);
 		expect(await resendInvitation(db, contextA, foreign.id, now)).toEqual({

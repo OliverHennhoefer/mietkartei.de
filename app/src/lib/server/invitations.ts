@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, isNull, lt, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, gte, isNull, lt, ne, sql } from 'drizzle-orm';
 import { userRoleLabels, userRolePhrases } from '../labels';
 import { revokeAllApiKeys } from './api-keys';
 import { auditEntry, type AuditContext } from './audit';
@@ -73,7 +73,7 @@ export type PendingInvitation = {
 
 /**
  * Invitations of the account that are neither accepted nor revoked, newest first: the open ones and
- * the expired ones, which the owner may send again until they are deleted.
+ * the expired ones within INVITATION_RETENTION, which the owner may send again.
  */
 export async function listPendingInvitations(
 	db: Database,
@@ -93,7 +93,9 @@ export async function listPendingInvitations(
 			and(
 				eq(invitations.accountId, accountId),
 				isNull(invitations.acceptedAt),
-				isNull(invitations.revokedAt)
+				isNull(invitations.revokedAt),
+				// Past their retention they are only waiting for the next purge.
+				gte(invitations.expiresAt, new Date(now - INVITATION_RETENTION))
 			)
 		)
 		.orderBy(desc(invitations.createdAt));
