@@ -456,6 +456,8 @@
 	.amount {
 		display: grid;
 		justify-items: end;
+		/* The rows keep their height when the details beside them are taller. */
+		align-content: start;
 		gap: 0.25rem;
 		font-size: 1.1rem;
 	}
@@ -504,7 +506,6 @@
 			min-width: 0;
 		}
 		.amount {
-			align-content: start;
 			white-space: nowrap;
 		}
 	}
