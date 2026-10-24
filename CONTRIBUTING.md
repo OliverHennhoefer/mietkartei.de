@@ -43,7 +43,7 @@ npm run test:unit -- --run
 npm run test:e2e
 ```
 
-Der GitHub-Actions-Ablauf **App** führt diese Prüfungen für jeden Pull Request aus, der die Anwendung betrifft, testet sie auf Node.js und in der Cloudflare-Laufzeit und baut das Docker-Image. Änderst du das Datenbankschema, erzeuge mit `npm run db:generate` eine Migration und committe sie mit.
+Der GitHub-Actions-Ablauf **App** führt diese Prüfungen für jeden Pull Request aus, der die Anwendung betrifft, testet sie auf Node.js und in der Cloudflare-Laufzeit und baut das Docker-Image. Codecov meldet dabei, wie viel der neuen und geänderten Zeilen die Unit-Tests abdecken; unter 90 % schlägt diese Prüfung fehl. Änderst du das Datenbankschema, erzeuge mit `npm run db:generate` eine Migration und committe sie mit.
 
 Für Änderungen an der öffentlichen Startseite führe `python3 scripts/build_homepage.py` aus und prüfe die Vorschau gemäß der [Startseitenanleitung](.github/HOMEPAGE.md).
 

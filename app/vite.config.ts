@@ -83,7 +83,18 @@ export default defineConfig({
 					name: 'server',
 					environment: 'node',
 					include: ['src/**/*.{test,spec}.{js,ts}'],
-					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
+					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}', 'src/**/*.cloudflare.spec.ts']
+				}
+			},
+			{
+				// The same modules built for the cloudflare target, to test which binding each one
+				// picks there. Their coverage is merged with the node run.
+				extends: './vite.config.ts',
+				define: { __DEPLOY_TARGET__: JSON.stringify('cloudflare') },
+				test: {
+					name: 'cloudflare',
+					environment: 'node',
+					include: ['src/**/*.cloudflare.spec.ts']
 				}
 			}
 		]
