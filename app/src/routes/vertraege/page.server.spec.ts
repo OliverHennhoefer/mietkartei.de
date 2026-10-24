@@ -143,6 +143,30 @@ describe('vertraege/neu', () => {
 		});
 	});
 
+	it('charges a lease that ended before this month from its start', async () => {
+		const id = idOf(
+			await run(newActions.create, {
+				form: { ...lease(), startDate: '2025-11-01', endDate: '2026-01-31' }
+			})
+		);
+		expect(await getLease(db, 'a', id)).toMatchObject({ ledgerStart: null });
+		expect((await listLedger(db, 'a', id)).lines).toHaveLength(3);
+	});
+
+	it('keeps every tenant and gives no deposit hint without amounts or for a commercial lease', async () => {
+		const second = await seedTenant(db, 'a', { lastName: 'Zweite' });
+		const failed = (form: Record<string, string | string[]>) =>
+			run(newActions.create, { form: { ...lease(), startDate: '', ...form } });
+		expect(await failed({ tenantIds: [tenantId, second], baseRent: '' })).toMatchObject({
+			fail: 400,
+			data: { values: { tenantIds: `${tenantId},${second}` }, depositWarning: undefined }
+		});
+		expect(await failed({ kind: 'commercial', securityDeposit: '5000,00' })).toMatchObject({
+			fail: 400,
+			data: { depositWarning: undefined }
+		});
+	});
+
 	it('refuses a unit or tenant of another account', async () => {
 		const other = await seedUnit(db, 'b');
 		expect(

@@ -154,6 +154,22 @@ describe('bank', () => {
 		for (const action of ['assign', 'ignore', 'undo', 'reopen'] as const) {
 			expect(await run(actions[action], { form }), action).toMatchObject({ error: 404 });
 		}
+		expect(
+			await run(actions.expense, {
+				form: { id: foreign.id, category: 'operating_costs', scope: '', description: 'x' }
+			})
+		).toMatchObject({ error: 404 });
+	});
+
+	it('answers 404 when the form names no transaction', async () => {
+		for (const action of ['assign', 'ignore', 'undo', 'reopen'] as const) {
+			expect(await run(actions[action], { form: {} }), action).toMatchObject({ error: 404 });
+		}
+		expect(
+			await run(actions.expense, {
+				form: { category: 'operating_costs', scope: '', description: 'x' }
+			})
+		).toMatchObject({ error: 404 });
 	});
 });
 
