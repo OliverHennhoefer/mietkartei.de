@@ -8,6 +8,7 @@ import {
 	listIndexValues,
 	parseGenesisTable,
 	REFRESH_AFTER_MS,
+	RETRY_AFTER_MS,
 	refreshIndexValues
 } from './consumer-price-index';
 import { testDatabase } from './testing';
@@ -25,19 +26,29 @@ const header =
 	'2_variable_attribute_code;2_variable_attribute_label;value;value_unit;value_variable_code;' +
 	'value_variable_label;value_q';
 
-function row(year: string, month: string, value: string, measure = 'PREIS1') {
+function row(
+	year: string,
+	month: string,
+	value: string,
+	measure = 'PREIS1',
+	unit = '2020=100',
+	label = 'Verbraucherpreisindex'
+) {
 	return (
 		`61111;Verbraucherpreisindex für Deutschland;JAHR;Jahr;${year};DINSG;Deutschland insgesamt;` +
-		`DG;Deutschland;MONAT;Monate;MONAT${month};Monat ${month};${value};2020=100;${measure};` +
-		'Verbraucherpreisindex;e'
+		`DG;Deutschland;MONAT;Monate;MONAT${month};Monat ${month};${value};${unit};${measure};` +
+		`${label};e`
 	);
 }
 
-// A part of table 61111-0002: the index, a rate of change and a month not published yet.
+// A part of table 61111-0002: the index, its rates of change under the same measure code (one of
+// them 0,0 without a sign), another measure and a month not published yet.
 const table = [
 	header,
 	row('2025', '12', '122,7'),
-	row('2025', '12', '2,6', 'PREIS1__Veraenderung_zum_Vorjahresmonat'),
+	row('2025', '12', '0,0', 'PREIS1', 'Prozent', 'Veränderung zum Vorjahresmonat'),
+	row('2025', '12', '+0,3', 'PREIS1', '%', 'Veränderung zum Vormonat'),
+	row('2025', '12', '2,6', 'PREIS2'),
 	row('2026', '01', '122,8'),
 	row('2026', '02', '...'),
 	''
@@ -61,7 +72,7 @@ describe('parseGenesisTable', () => {
 		).toThrow('keine Monate');
 		expect(() =>
 			parseGenesisTable(`${header}\n${row('2026', '01', '122,8')}\n${row('2026', '01', '1,0')}`)
-		).toThrow('mehrere Werte');
+		).toThrow('mehrere Werte: 122,8 2020=100 Verbraucherpreisindex und 1,0 2020=100');
 	});
 });
 
@@ -142,13 +153,17 @@ describe('refreshIndexValues', () => {
 		});
 		expect(await listIndexValues(db)).toHaveLength(1);
 
+		// A failure is tried again after half an hour, not after six.
+		const early = vi.fn();
+		await refreshIndexValues(db, { token: 't', now: later(RETRY_AFTER_MS - 1), fetcher: early });
+		expect(early).not.toHaveBeenCalled();
 		await refreshIndexValues(db, {
 			token: 't',
-			now: later(REFRESH_AFTER_MS),
+			now: later(RETRY_AFTER_MS),
 			fetcher: async () => new Response(table)
 		});
 		expect(await lastIndexFetch(db)).toMatchObject({
-			succeededAt: later(REFRESH_AFTER_MS),
+			succeededAt: later(RETRY_AFTER_MS),
 			error: null
 		});
 	});
