@@ -54,16 +54,6 @@
 	</Alert>
 {/if}
 
-{#if data.newDamageReports > 0}
-	<Alert tone="warning">
-		<a href="/schadensmeldungen"
-			>{data.newDamageReports === 1
-				? 'Eine neue Schadensmeldung'
-				: `${data.newDamageReports} neue Schadensmeldungen`}</a
-		> aus dem Mieterportal.
-	</Alert>
-{/if}
-
 {#if data.firstRun}
 	<section class="card first-run" aria-labelledby="first-run">
 		<h2 id="first-run">Erste Schritte</h2>

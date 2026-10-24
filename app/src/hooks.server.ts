@@ -24,16 +24,13 @@ const publicPrefixes = [
 	'/einladung/',
 	'/e-mail-bestaetigen/',
 	// Calendar apps subscribe without a session; the token in the path is the credential.
-	'/api/calendar/',
-	// Tenants open their portal through a link, without an account.
-	'/mieterportal/'
+	'/api/calendar/'
 ];
 
 /**
  * Paths whose posts check a password, hash a new one, create an account or send a reset mail,
  * counted per client address: the forms above, the pages of registration, reset and invitation
- * links, the account deletion, which asks for the password again, and the reports sent through a
- * Mieterportal link, which anyone with the link may post.
+ * links, and the account deletion, which asks for the password again.
  */
 const authPaths = new Set([
 	'/anmelden',
@@ -42,12 +39,7 @@ const authPaths = new Set([
 	'/passwort-vergessen',
 	'/einstellungen/konto'
 ]);
-const authPrefixes = [
-	'/registrieren/',
-	'/passwort-zuruecksetzen/',
-	'/einladung/',
-	'/mieterportal/'
-];
+const authPrefixes = ['/registrieren/', '/passwort-zuruecksetzen/', '/einladung/'];
 
 function isAuthPath(pathname: string): boolean {
 	return authPaths.has(pathname) || authPrefixes.some((prefix) => pathname.startsWith(prefix));
