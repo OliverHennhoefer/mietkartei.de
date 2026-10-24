@@ -4,7 +4,7 @@ import { getProperty, getUnit } from '#lib/server/properties.ts';
 import { outcome, routeEvent, seedLease, seedUnit, testDatabase } from '#lib/server/testing.ts';
 import { load as loadProperty } from './[id]/+layout.server';
 import { actions as propertyActions, load as loadUnits } from './[id]/+page.server';
-import { actions as editActions } from './[id]/bearbeiten/+page.server';
+import { actions as editActions, load as loadEdit } from './[id]/bearbeiten/+page.server';
 import { actions as unitActions, load as loadUnit } from './[id]/einheiten/[unitId]/+page.server';
 import {
 	actions as unitEditActions,
@@ -98,16 +98,31 @@ describe('objekte/[id]', () => {
 
 	it('keeps a property and unit with a lease and names the lease', async () => {
 		const leaseId = await seedLease(db, 'a', unitId);
+		expect(await run(loadEdit, { params: params() })).toMatchObject({
+			data: {
+				deletion: {
+					blockers: [
+						{
+							links: [{ href: `/vertraege/${leaseId}`, label: expect.stringContaining('EG links') }]
+						}
+					]
+				}
+			}
+		});
 		expect(await run(editActions.delete, { params: params(), form: {} })).toMatchObject({
 			fail: 400,
-			data: { blockingLeases: [{ id: leaseId, label: expect.stringContaining('EG links') }] }
+			data: { deleteError: expect.any(String) }
 		});
 		expect(await run(unitActions.delete, { params: params(), form: {} })).toMatchObject({
 			fail: 400,
 			data: { deleteError: expect.any(String) }
 		});
 		expect(await run(loadUnit, { params: params() })).toMatchObject({
-			data: { unit: { id: unitId }, leases: [{ id: leaseId, main: true }] }
+			data: {
+				unit: { id: unitId },
+				leases: [{ id: leaseId, main: true }],
+				deletion: { blockers: [{ links: [{ href: `/vertraege/${leaseId}` }] }] }
+			}
 		});
 	});
 

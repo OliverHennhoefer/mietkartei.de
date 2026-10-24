@@ -53,12 +53,11 @@ test('comes back to the lease form with the new tenant preselected', async ({ pa
 	await expect(page).toHaveURL(/\/vertraege\/neu\?tenantId=[^&]+$/);
 });
 
-test('refuses to delete a tenant on a lease and lists the lease on the tenant page', async ({
+test('keeps a tenant on a lease and names the lease instead of offering to delete', async ({
 	page
 }) => {
 	const lastName = `Gebunden-${suffix()}`;
 	const { tenantId } = await seedLease(page.request, { tenant: { lastName } });
-	page.on('dialog', (dialog) => dialog.accept());
 
 	await page.goto(`/mieter/${tenantId}`);
 	const leases = page.getByRole('list', { name: 'Mietverträge' });
@@ -70,9 +69,11 @@ test('refuses to delete a tenant on a lease and lists the lease on the tenant pa
 		`/dokumente?tenantId=${tenantId}`
 	);
 
-	await page.getByRole('button', { name: 'Mieter löschen' }).click();
-	await expect(page.getByRole('alert')).toContainText('steht auf einem Mietvertrag');
-	await expect(page.getByRole('heading', { level: 1 })).toContainText(lastName);
+	await expect(page.getByText('Der Mieter steht auf einem Mietvertrag')).toBeVisible();
+	await expect(
+		page.getByRole('list', { name: 'Was das Löschen verhindert' }).getByRole('link')
+	).toHaveAttribute('href', /\/vertraege\/[^/]+$/);
+	await expect(page.getByRole('button', { name: 'Mieter löschen' })).toHaveCount(0);
 
 	await page.goto('/mieter');
 	const row = page.getByRole('table', { name: 'Mieter' }).getByRole('row', { name: lastName });

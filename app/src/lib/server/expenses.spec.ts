@@ -27,7 +27,7 @@ import {
 	listExpenses,
 	scopeOptions
 } from './expenses';
-import { deleteProperty } from './properties';
+import { deleteProperty, deleteUnit } from './deletion';
 import { contextA, contextB, seedLease, seedUnit, testDatabase } from './testing';
 
 let db: Database;
@@ -168,7 +168,7 @@ describe('expenses', () => {
 		).toEqual({ ok: false, reason: 'unknown-scope' });
 	});
 
-	it('keeps the expense when its property is deleted, as one of the whole portfolio', async () => {
+	it('keeps the property and unit an expense is booked on', async () => {
 		await createExpense(db, contextA, {
 			date: '2026-03-05',
 			amount: 100,
@@ -176,9 +176,10 @@ describe('expenses', () => {
 			scope: { kind: 'unit', id: unitId },
 			description: 'x'
 		});
-		expect(await deleteProperty(db, contextA, propertyId)).toBe('deleted');
+		expect(await deleteUnit(db, contextA, unitId)).toBe('in-use');
+		expect(await deleteProperty(db, contextA, propertyId)).toBe('in-use');
 		const [row] = await listExpenses(db, 'a');
-		expect(row).toMatchObject({ propertyId: null, unitId: null, scopeLabel: 'Gesamter Bestand' });
+		expect(row).toMatchObject({ propertyId, unitId });
 	});
 
 	it('offers each property with its units', async () => {
