@@ -51,7 +51,8 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 				kind: lease.kind,
 				startDate: lease.startDate,
 				terminatedAt: date,
-				terminatedBy: 'tenant'
+				terminatedBy: 'tenant',
+				state: lease.property.state
 			})
 		},
 		deadlines: lease.endDate ? leaseEndDeadlines(lease.endDate) : null
@@ -130,7 +131,8 @@ export const actions: Actions = {
 			kind: lease.kind,
 			startDate: lease.startDate,
 			terminatedAt: result.data.terminatedAt,
-			terminatedBy: result.data.terminatedBy
+			terminatedBy: result.data.terminatedBy,
+			state: lease.property.state
 		});
 		if (result.data.endDate < earliest && !result.data.earlyEndAgreed) {
 			const law = lease.kind === 'commercial' ? '§ 580a Abs. 2 BGB' : '§ 573c BGB';

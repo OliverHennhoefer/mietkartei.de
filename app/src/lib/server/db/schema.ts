@@ -10,6 +10,7 @@ import {
 	uniqueIndex
 } from 'drizzle-orm/sqlite-core';
 import { unitKinds } from '../../units';
+import { germanStates, type GermanState } from '../../working-days';
 
 // Every record belongs to an account. The hosted variant serves many accounts from one database;
 // a self-hosted instance simply has a single account. Amounts are integer euro cents, dates are
@@ -100,6 +101,8 @@ export const properties = sqliteTable(
 		city: text('city').notNull(),
 		/** Wohngebäude or Nichtwohngebäude (§ 8 CO2KostAufG: 50/50 split for the latter). */
 		buildingUse: text('building_use', { enum: buildingUses }).notNull().default('residential'),
+		/** Bundesland, for its public holidays in due dates and deadlines; null counts nationwide only. */
+		state: text('state', { enum: germanStates }).$type<GermanState>(),
 		/** Persons a vacant unit counts with in the persons key; that share stays with the landlord. */
 		vacancyPersons: integer('vacancy_persons').notNull().default(1),
 		notes: text('notes'),

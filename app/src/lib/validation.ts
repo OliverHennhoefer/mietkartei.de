@@ -1,7 +1,8 @@
 import { FormParser, type FieldErrors, type ParseResult } from './forms/fields';
-import { buildingUseLabels } from './labels';
+import { buildingUseLabels, stateLabels } from './labels';
 import type { BuildingUse } from './server/db/schema';
 import { unitKinds, type UnitKind } from './units';
+import type { GermanState } from './working-days';
 
 export type { FieldErrors, ParseResult };
 
@@ -11,6 +12,8 @@ export type PropertyInput = {
 	postalCode: string;
 	city: string;
 	buildingUse: BuildingUse;
+	/** Bundesland for the public holidays; null when not given. */
+	state: GermanState | null;
 	/** Persons a vacant unit counts with in the persons key, 0–10. */
 	vacancyPersons: number;
 	notes: string | null;
@@ -27,6 +30,7 @@ export type UnitInput = {
 
 // validation.ts is also loaded in the browser, so the enum comes from the labels, not the schema.
 const buildingUses = Object.keys(buildingUseLabels) as BuildingUse[];
+const states = Object.keys(stateLabels) as GermanState[];
 
 function text(form: FormData, name: string): string {
 	const value = form.get(name);
@@ -52,6 +56,7 @@ export function parseProperty(form: FormData): ParseResult<PropertyInput> {
 	else if (city.length > 100) parser.fail('city', 'Höchstens 100 Zeichen.');
 
 	const buildingUse = parser.oneOf('buildingUse', buildingUses, { required: false });
+	const state = parser.oneOf('state', states, { required: false });
 	const vacancyPersons = parser.number('vacancyPersons', {
 		required: false,
 		integer: true,
@@ -66,6 +71,7 @@ export function parseProperty(form: FormData): ParseResult<PropertyInput> {
 		postalCode,
 		city,
 		buildingUse: buildingUse ?? 'residential',
+		state,
 		vacancyPersons: vacancyPersons ?? 1,
 		notes
 	}));

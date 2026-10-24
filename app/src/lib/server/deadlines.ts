@@ -373,7 +373,7 @@ export async function listDeadlines(
 				covered += instalments[index];
 				if (received >= covered) continue;
 				const month = monthOf(addMonths(lease.startDate, index));
-				const dueDate = nthWorkingDay(month, Math.max(1, lease.rentDueDay));
+				const dueDate = nthWorkingDay(month, Math.max(1, lease.rentDueDay), lease.property.state);
 				push({
 					kind: 'deposit_instalment',
 					date: dueDate < lease.startDate ? lease.startDate : dueDate,

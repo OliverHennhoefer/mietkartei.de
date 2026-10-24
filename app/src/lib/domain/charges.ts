@@ -1,5 +1,5 @@
 import { monthOf, monthsInRange, type IsoDate, type IsoMonth } from '../dates';
-import { nthWorkingDay } from '../working-days';
+import { nthWorkingDay, type GermanState } from '../working-days';
 import { monthlyAmounts, total, type RentChange } from './rents';
 
 // The monthly rent charges (Sollstellungen) a lease should have, derived from its term and the
@@ -9,7 +9,7 @@ import { monthlyAmounts, total, type RentChange } from './rents';
 export type ExpectedCharge = {
 	period: IsoMonth;
 	/**
-	 * The n-th working day of the month (§ 556b BGB), public holidays skipped; in the first month
+	 * The n-th working day of the month (§ 556b BGB), public holidays of the state skipped; in the first month
 	 * not before the start of the charges.
 	 */
 	dueDate: IsoDate;
@@ -27,6 +27,8 @@ export type ChargeTerm = {
 	ledgerStart: IsoDate | null;
 	/** The rent is due on the n-th working day of the month. */
 	rentDueDay: number;
+	/** Bundesland of the property, whose holidays are no working days. */
+	state: GermanState | null;
 };
 
 /**
@@ -61,7 +63,7 @@ export function expectedRentCharges(
 		if (amounts.days === 0) continue;
 		// A term starting after the due day of its first month owes that month's rent from its
 		// start, not before it (a lease from 15 January is not in arrears on 6 January).
-		const dueDate = nthWorkingDay(period, lease.rentDueDay);
+		const dueDate = nthWorkingDay(period, lease.rentDueDay, lease.state);
 		charges.push({
 			period,
 			dueDate: dueDate < start ? start : dueDate,

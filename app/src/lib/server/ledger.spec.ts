@@ -12,6 +12,7 @@ import {
 	bankTransactions,
 	leases,
 	payments,
+	properties,
 	rentCharges,
 	rentChanges
 } from './db/schema';
@@ -76,6 +77,15 @@ describe('ensureCharges', () => {
 		} finally {
 			QUOTAS.rentCharges.max = max;
 		}
+	});
+
+	it('skips the holidays of the Bundesland of the property and moves due dates when it changes', async () => {
+		await ensureCharges(db, 'a', [leaseId], '2025-01');
+		expect((await rentRows(leaseId)).map((row) => row.dueDate)).toEqual(['2025-01-06']);
+		// Heilige Drei Könige on Mon 6 January is a holiday in Bavaria.
+		await db.update(properties).set({ state: 'BY' }).where(eq(properties.accountId, 'a'));
+		expect(await ensureCharges(db, 'a', [leaseId], '2025-01')).toMatchObject({ updated: 1 });
+		expect((await rentRows(leaseId)).map((row) => row.dueDate)).toEqual(['2025-01-07']);
 	});
 
 	it('inserts one rent charge per month up to untilMonth, and nothing twice', async () => {
