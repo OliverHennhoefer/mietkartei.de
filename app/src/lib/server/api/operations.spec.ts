@@ -77,6 +77,8 @@ describe('operations', () => {
 			currentRent: { baseRent: 60000 }
 		});
 		expect(await run('list_leases', { status: 'upcoming' })).toEqual([]);
+		expect(await run('list_leases', { status: 'active' })).toHaveLength(1);
+		expect(await run('list_leases', { status: 'ended' })).toEqual([]);
 		expect(await run('list_leases', { tenantId: ids.tenantId })).toHaveLength(1);
 	});
 
@@ -120,6 +122,7 @@ describe('operations', () => {
 		for (const deadline of deadlines) expect(deadline).not.toHaveProperty('href');
 		expect(await run('list_tasks')).toMatchObject([{ title: 'Rauchmelder prüfen' }]);
 		expect(await run('list_tasks', { status: 'done' })).toEqual([]);
+		expect(await run('list_tasks', { status: 'all' })).toHaveLength(1);
 	});
 
 	it('do not find rows of another account', async () => {
@@ -227,7 +230,12 @@ describe('write operations', () => {
 			lease: null
 		});
 		await expect(write('create_task', { title: 'x', leaseId: 'other' })).rejects.toMatchObject({
-			status: 404
+			status: 404,
+			message: expect.stringContaining('Lease')
+		});
+		await expect(write('create_task', { title: 'x', propertyId: 'other' })).rejects.toMatchObject({
+			status: 404,
+			message: expect.stringContaining('Property')
 		});
 		await expect(write('complete_task', { id: 'other' })).rejects.toMatchObject({ status: 404 });
 	});
@@ -271,6 +279,18 @@ describe('write operations', () => {
 		await expect(
 			write('create_cost_item', { ...base, periodEnd: '2025-12-31' })
 		).rejects.toMatchObject({ status: 400 });
+		await expect(write('create_cost_item', { ...base, description: '' })).rejects.toMatchObject({
+			status: 400
+		});
+		const categories = (await run('list_cost_categories')) as {
+			id: string;
+			allocationKeyId: string | null;
+		}[];
+		const withoutKey = categories.find((row) => !row.allocationKeyId)!;
+		await expect(
+			write('create_cost_item', { ...base, categoryId: withoutKey.id })
+		).rejects.toMatchObject({ status: 400 }););
+		}
 		await expect(write('create_cost_item', { ...base, propertyId: 'other' })).rejects.toMatchObject(
 			{ status: 404 }
 		);
