@@ -8,6 +8,7 @@ import {
 	listIndexValues,
 	parseGenesisTable,
 	REFRESH_AFTER_MS,
+	RETRY_AFTER_MS,
 	refreshIndexValues
 } from './consumer-price-index';
 import { testDatabase } from './testing';
@@ -152,13 +153,17 @@ describe('refreshIndexValues', () => {
 		});
 		expect(await listIndexValues(db)).toHaveLength(1);
 
+		// A failure is tried again after half an hour, not after six.
+		const early = vi.fn();
+		await refreshIndexValues(db, { token: 't', now: later(RETRY_AFTER_MS - 1), fetcher: early });
+		expect(early).not.toHaveBeenCalled();
 		await refreshIndexValues(db, {
 			token: 't',
-			now: later(REFRESH_AFTER_MS),
+			now: later(RETRY_AFTER_MS),
 			fetcher: async () => new Response(table)
 		});
 		expect(await lastIndexFetch(db)).toMatchObject({
-			succeededAt: later(REFRESH_AFTER_MS),
+			succeededAt: later(RETRY_AFTER_MS),
 			error: null
 		});
 	});
