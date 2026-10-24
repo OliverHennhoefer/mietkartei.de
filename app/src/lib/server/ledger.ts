@@ -358,24 +358,29 @@ export async function createPayment(
 	return id;
 }
 
-/** Deletes a payment of the account. A bank assignment is undone by the banking feature. */
+/**
+ * Deletes a payment of the account. One assigned from a bank transaction is undone by the banking
+ * feature, which also resets the transaction; deleting it here would leave the transaction
+ * marked as matched.
+ */
 export async function deletePayment(
 	db: Database,
 	context: AuditContext,
 	paymentId: string
-): Promise<boolean> {
+): Promise<'deleted' | 'from-bank' | 'missing'> {
 	const [payment] = await db
 		.select()
 		.from(payments)
 		.where(and(eq(payments.accountId, context.accountId), eq(payments.id, paymentId)));
-	if (!payment) return false;
+	if (!payment) return 'missing';
+	if (payment.bankTransactionId) return 'from-bank';
 	await runBatch(db, [
 		db
 			.delete(payments)
 			.where(and(eq(payments.accountId, context.accountId), eq(payments.id, paymentId))),
 		auditEntry(db, context, 'lease', payment.leaseId, 'delete', paymentSummary(payment, 'gelöscht'))
 	]);
-	return true;
+	return 'deleted';
 }
 
 export type LedgerLine = {

@@ -14,7 +14,6 @@ import {
 import {
 	addLeasePersons,
 	createLease,
-	deleteLease,
 	deleteLeasePersons,
 	endLease,
 	getLease,
@@ -26,6 +25,7 @@ import {
 	listUnitsWithProperty,
 	updateLease
 } from './leases';
+import { deleteLease } from './deletion';
 import { ensureCharges, postCharge } from './ledger';
 import { contextA, contextB, leaseInput, seedTenant, seedUnit, testDatabase } from './testing';
 

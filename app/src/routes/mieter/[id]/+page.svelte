@@ -1,7 +1,6 @@
 <script lang="ts">
-	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
-	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import DeleteSection from '#lib/components/DeleteSection.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { personName } from '#lib/format.ts';
@@ -28,10 +27,6 @@
 		<a href="/mieter/{data.tenant.id}/bearbeiten" class="button">Bearbeiten</a>
 	{/snippet}
 </PageHeader>
-
-{#if form?.deleteError}
-	<Alert tone="danger"><p>{form.deleteError}</p></Alert>
-{/if}
 
 <h2>Kontakt</h2>
 <dl class="details">
@@ -78,11 +73,13 @@
 <h2>Dokumente</h2>
 <p><a href="/dokumente?tenantId={data.tenant.id}">Dokumente dieses Mieters</a></p>
 
-<h2>Löschen</h2>
-<p class="muted small">
-	Ein Mieter, der auf einem Mietvertrag steht, bleibt erhalten; die Verträge sind die Historie.
-</p>
-<ConfirmButton action="?/delete" label="Mieter löschen" message="Diesen Mieter wirklich löschen?" />
+<DeleteSection
+	heading="Löschen"
+	label="Mieter löschen"
+	question="Mieter {personName(data.tenant)} löschen?"
+	check={data.deletion}
+	error={form?.deleteError}
+/>
 
 <style>
 	.notes {

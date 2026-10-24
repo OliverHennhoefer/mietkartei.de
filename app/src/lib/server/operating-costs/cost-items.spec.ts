@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '../db';
 import { auditLog, costItemUnitAmounts, costItems, documents, units } from '../db/schema';
 import { getDocument, storeDocument } from '../documents';
-import { deleteProperty } from '../properties';
+import { deleteProperty } from '../deletion';
 import { QUOTAS } from '../quotas';
 import { openFileStorage } from '../storage/fs';
 import type { Storage } from '../storage';
@@ -350,7 +350,7 @@ describe('cost items', () => {
 		});
 	});
 
-	it('goes with its property; the receipt stays as a document without the links', async () => {
+	it('goes with its property, and so does its receipt', async () => {
 		const id = await create(contextA);
 		const stored = await storeDocument(
 			db,
@@ -365,12 +365,9 @@ describe('cost items', () => {
 		);
 		if (!stored.ok) throw new Error('setup failed');
 
-		expect(await deleteProperty(db, contextA, propertyId)).toBe('deleted');
+		expect(await deleteProperty(db, contextA, propertyId, { storage })).toBe('deleted');
 		expect(await getCostItem(db, 'a', id)).toBeUndefined();
-		expect(await getDocument(db, 'a', stored.id)).toMatchObject({
-			propertyId: null,
-			costItemId: null
-		});
+		expect(await getDocument(db, 'a', stored.id)).toBeUndefined();
 	});
 
 	it('does not leak into another account', async () => {
