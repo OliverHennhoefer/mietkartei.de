@@ -4,6 +4,7 @@ import { listAuditLog } from '../audit';
 import type { Database } from '../db';
 import { accounts } from '../db/schema';
 import { createPayment, listLedger } from '../ledger';
+import { QUOTAS } from '../quotas';
 import { createTask } from '../tasks';
 import {
 	contextA,
@@ -173,6 +174,19 @@ describe('write operations', () => {
 		});
 		// Reading goes on.
 		expect(await run('list_tasks')).toHaveLength(1);
+	});
+
+	it('answer a reached quota as a refusal', async () => {
+		const max = QUOTAS.tasks.max;
+		QUOTAS.tasks.max = 1;
+		try {
+			await expect(write('create_task', { title: 'Noch eine' })).rejects.toMatchObject({
+				status: 409,
+				code: 'refused'
+			});
+		} finally {
+			QUOTAS.tasks.max = max;
+		}
 	});
 
 	it('book a payment on the rent account, audited under the key’s user', async () => {
