@@ -23,15 +23,24 @@ import {
 	undoAssignment
 } from './transactions';
 
-// Lets a test hold every import after its analysis (listLeases is its last read) until the next
-// macrotask, so two commits of one file both analyse before either writes, as two requests do.
-const slowAnalysis = vi.hoisted(() => ({ on: false }));
+// Lets a test hold two imports after their analysis (listLeases is its last read) until both got
+// there, so two commits of one file both analyse before either writes, as two requests do.
+const slowAnalysis = vi.hoisted(() => ({ on: false, waiting: [] as (() => void)[] }));
 vi.mock('../leases', async (original) => {
 	const actual = await original<typeof import('../leases')>();
 	return {
 		...actual,
 		listLeases: async (...args: Parameters<typeof actual.listLeases>) => {
-			if (slowAnalysis.on) await new Promise((resolve) => setTimeout(resolve, 0));
+			if (slowAnalysis.on) {
+				await new Promise<void>((resolve) => {
+					slowAnalysis.waiting.push(resolve);
+					if (slowAnalysis.waiting.length === 2) {
+						// Once: the retry of the commit that loses must not wait for a third.
+						slowAnalysis.on = false;
+						for (const release of slowAnalysis.waiting.splice(0)) release();
+					}
+				});
+			}
 			return actual.listLeases(...args);
 		}
 	};
@@ -63,6 +72,7 @@ let foreignBankAccountId: string;
 
 beforeEach(async () => {
 	slowAnalysis.on = false;
+	slowAnalysis.waiting = [];
 	db = await testDatabase();
 	const { unitId } = await seedUnit(db, 'a');
 	const { unitId: secondUnit } = await seedUnit(db, 'a', { name: 'Stellplatz 1' });
@@ -603,6 +613,17 @@ describe('transaction helpers', () => {
 		);
 		expect(leaseHints(summaries)).toEqual(
 			expect.arrayContaining([{ id: leaseId, lastNames: ['Müller'], unitNames: ['EG links'] }])
+		);
+	});
+
+	it('lets the suggestion look for the extra units of a lease too', async () => {
+		const { unitId: garage } = await seedUnit(db, 'a', { name: 'Garage 2' });
+		const lease = (await getLease(db, 'a', leaseId))!;
+		await updateLease(db, contextA, leaseId, { ...leaseInputOf(lease), extraUnitIds: [garage] });
+		expect(leaseHints(await listLeases(db, 'a'))).toEqual(
+			expect.arrayContaining([
+				{ id: leaseId, lastNames: ['Müller'], unitNames: ['EG links', 'Garage 2'] }
+			])
 		);
 	});
 
