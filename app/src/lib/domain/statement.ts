@@ -1419,7 +1419,7 @@ export function computeStatement(
 				const parts = distributeCents(unitAmount, weights);
 				undistributed += unitAmount - sumOf(parts);
 				occupancy.leases.forEach((occupant, i) => {
-					const part = partsByLease.get(occupant.lease.id) ?? {
+					const part: LeasePart = partsByLease.get(occupant.lease.id) ?? {
 						amount: 0,
 						shares: [],
 						unitAmounts: new Map()
