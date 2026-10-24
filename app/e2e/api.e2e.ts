@@ -2,7 +2,8 @@ import { expect, request, test } from '@playwright/test';
 import { seedForeignLease, seedLease } from './seed';
 
 // The owner creates an API key on its settings page; a client without the browser's cookies then
-// reads through the REST API and the MCP server with it, and the key is revoked again.
+// reads through the REST API and the MCP server with it, and the key is revoked again. A key that
+// may write adds a task through the MCP server.
 
 const suffix = crypto.randomUUID().slice(0, 6);
 const keyName = `Claude ${suffix}`;
@@ -72,4 +73,34 @@ test('creates an API key, reads with it through REST and MCP, and revokes it', a
 	await expect(page.getByText('Der API-Schlüssel wurde widerrufen.')).toBeVisible();
 	expect((await client.get('/api/v1/leases')).status()).toBe(401);
 	await client.dispose();
+});
+
+test('lets an assistant with a write key add a task that the page then shows', async ({
+	page,
+	baseURL
+}) => {
+	const title = `Rauchmelder prüfen ${suffix}`;
+	await page.goto('/einstellungen/api-schluessel');
+	await page.getByLabel('Name').fill(`Schreiben ${suffix}`);
+	await page.getByLabel('Rechte').selectOption({ label: 'Lesen und schreiben' });
+	await page.getByRole('button', { name: 'Schlüssel anlegen' }).click();
+	const key = (await page.locator('.key code').textContent())!;
+
+	const client = await request.newContext({
+		baseURL,
+		extraHTTPHeaders: { authorization: `Bearer ${key}`, 'cf-connecting-ip': '192.0.2.7' }
+	});
+	const called = await client.post('/mcp', {
+		data: {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'tools/call',
+			params: { name: 'create_task', arguments: { title, dueDate: '2030-01-15' } }
+		}
+	});
+	expect((await called.json()).result.isError).toBeUndefined();
+	await client.dispose();
+
+	await page.goto('/aufgaben');
+	await expect(page.getByRole('list', { name: 'Offene Aufgaben' })).toContainText(title);
 });

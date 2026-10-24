@@ -54,6 +54,19 @@ describe('handleMessage', () => {
 		});
 	});
 
+	it('lists the writing tools only for a write key', async () => {
+		const names = (caller: ApiCaller) => listTools(caller).map((tool) => tool.name);
+		expect(names(reader)).not.toContain('record_payment');
+		expect(names({ ...reader, scope: 'write' })).toContain('record_payment');
+		const create = listTools({ ...reader, scope: 'write' }).find(
+			(tool) => tool.name === 'create_task'
+		);
+		expect(create?.annotations.readOnlyHint).toBe(false);
+		expect(
+			await call('tools/call', { name: 'create_task', arguments: { title: 'x' } })
+		).toMatchObject({ error: { code: -32602 } });
+	});
+
 	it('calls a tool with the data of the key’s account only', async () => {
 		await seedUnit(db, 'a', { propertyName: 'Lindenhaus' });
 		await seedUnit(db, 'b', { propertyName: 'Fremdes Haus' });

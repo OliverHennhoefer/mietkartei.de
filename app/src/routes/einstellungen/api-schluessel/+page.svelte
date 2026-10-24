@@ -125,6 +125,13 @@
 	die persönlichen Daten deiner Mieter. Gib ihn nur Programmen, denen du vertraust. Wenn du dein
 	Passwort änderst, werden alle deine Schlüssel widerrufen.
 </p>
+{#if data.scopes.length > 1}
+	<p class="muted">
+		Ein Schlüssel zum Schreiben darf zusätzlich Zahlungen buchen, Aufgaben anlegen und erledigen
+		sowie Belege erfassen. Löschen oder ändern kann er nichts. Jede Änderung steht unter deinem
+		Namen im Protokoll.
+	</p>
+{/if}
 <form method="POST" action="?/create" class="card" use:enhance>
 	<label>
 		Name
