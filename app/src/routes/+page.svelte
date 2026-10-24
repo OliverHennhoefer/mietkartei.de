@@ -49,8 +49,8 @@
 
 {#if data.prelaunch}
 	<Alert role="note">
-		mietkartei startet im {LAUNCH}. Bis dahin kann ein Update noch Daten verwerfen; lade dir unter
-		<a href="/einstellungen/export">Export</a> regelmäßig eine Sicherung herunter.
+		mietkartei startet im {LAUNCH}. Bis dahin kann ein Update noch Daten verwerfen{#if data.role === 'owner'};
+			lade dir unter <a href="/einstellungen/export">Export</a> regelmäßig eine Sicherung herunter{/if}.
 	</Alert>
 {/if}
 
