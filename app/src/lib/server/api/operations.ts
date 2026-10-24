@@ -1,5 +1,6 @@
 import { today } from '../../dates';
 import { loadAnalysis } from '../analysis';
+import { listAssociationStatements } from '../association-statements';
 import { applyCategoryDefaults } from '../../domain/operating-costs';
 import { personName } from '../../format';
 import { repeatOptions } from '../../task-templates';
@@ -339,6 +340,19 @@ export const operations: Operation[] = [
 				propertyId: input.propertyId as string | undefined,
 				year: input.year as number | undefined
 			})
+	},
+	{
+		name: 'list_association_statements',
+		description: `Lists the Hausgeldabrechnungen of Eigentumswohnungen (properties of kind "condominium"), newest Wirtschaftsjahr first: the unit's allocable and non-allocable costs, the Zuführung zur Erhaltungsrücklage and the Hausgeld due under the Wirtschaftsplan, reconciled against the Hausgeld paid (expenses of category association_fee) and the allocable cost items with WEG figures. computedBalance and statedBalance are positive for a Nachzahlung; settlement is what remains after the Hausgeld paid; findings name what does not add up. The Zuführung zur Rücklage is not deductible for tax until the Verwalter spends it. ${AMOUNTS}`,
+		method: 'GET',
+		path: '/association-statements',
+		scope: 'read',
+		readOnly: true,
+		input: schema({
+			propertyId: { type: 'string', description: 'Only Hausgeldabrechnungen of this property.' }
+		}),
+		run: ({ db, caller }, input) =>
+			listAssociationStatements(db, caller.user.accountId, input.propertyId as string | undefined)
 	},
 	{
 		name: 'list_statements',

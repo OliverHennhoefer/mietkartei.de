@@ -149,7 +149,8 @@ export const subscriptionStatusLabels: Record<SubscriptionStatus, string> = {
 };
 
 export const expenseCategoryLabels: Record<ExpenseCategory, string> = {
-	operating_costs: 'Betriebskosten und Hausgeld',
+	operating_costs: 'Betriebskosten',
+	association_fee: 'Hausgeld (WEG)',
 	maintenance: 'Instandhaltung und Reparaturen',
 	financing: 'Finanzierung (Zins und Tilgung)',
 	management: 'Verwaltung, Beratung und Gebühren',
@@ -225,6 +226,7 @@ export const auditEntityLabels: Record<string, string> = {
 	cost_item: 'Beleg',
 	meter: 'Zähler',
 	insurance_policy: 'Versicherung',
+	association_statement: 'Hausgeldabrechnung',
 	calendar_feed: 'Kalender-Link',
 	meter_reading: 'Zählerstand',
 	statement: 'Betriebskostenabrechnung',

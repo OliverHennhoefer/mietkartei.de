@@ -14,6 +14,7 @@ import {
 	emailChanges,
 	expenses,
 	insurancePolicies,
+	associationStatements,
 	invitations,
 	leasePersons,
 	leases,
@@ -78,6 +79,11 @@ export const QUOTAS = {
 	co2CostSplits: { table: co2CostSplits, max: 50_000, label: 'CO₂-Kostenaufteilungen' },
 	tasks: { table: tasks, max: 20_000, label: 'Aufgaben' },
 	insurancePolicies: { table: insurancePolicies, max: 2_000, label: 'Versicherungen' },
+	associationStatements: {
+		table: associationStatements,
+		max: 5_000,
+		label: 'Hausgeldabrechnungen'
+	},
 	/** Closed invitations stay until a month after their expiry; this bounds them in between. */
 	invitations: { table: invitations, max: 500, label: 'Einladungen' },
 	/** Requests to change an email address; each user may make five a day. */
