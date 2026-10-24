@@ -1398,6 +1398,20 @@ describe('computeStatement edge cases', () => {
 		]);
 	});
 
+	it('keeps the zero consumption of a flat that bears the area part of a mixed key', () => {
+		const input = scenario();
+		input.meters = input.meters.map((entry) =>
+			entry.id === 'm-dg'
+				? { ...entry, readings: [reading('2025-01-01', 0), reading('2025-12-31', 0)] }
+				: entry
+		);
+		const result = computeStatement(input, options);
+		const dg = result.leases.find((entry) => entry.leaseId === 'l-dg')!;
+		const heating = dg.lines.find((line) => line.categoryName === 'Heizung')!;
+		expect(heating.share).toMatch(/^70 % nach Verbrauch: 0 von /);
+		expect(heating.share).toContain('30 % nach Fläche');
+	});
+
 	it('ignores leases whose units are not in the property and building meters', () => {
 		const input = scenario();
 		input.leases = [
