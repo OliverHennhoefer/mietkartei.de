@@ -253,6 +253,13 @@
       "when": 1792878817518,
       "tag": "0035_condominiums",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1792879701379,
+      "tag": "0036_association_statements",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ApiCaller } from '../api-keys';
+import { createAssociationStatement } from '../association-statements';
 import { listAuditLog } from '../audit';
 import type { Database } from '../db';
 import { accounts } from '../db/schema';
@@ -356,6 +357,23 @@ describe('write operations', () => {
 				associationKeyShare: 1001
 			})
 		).rejects.toMatchObject({ status: 400 });
+	});
+
+	it('list the Hausgeldabrechnungen with their reconciliation', async () => {
+		await createAssociationStatement(db, contextA, ids.propertyId, {
+			periodStart: '2025-01-01',
+			periodEnd: '2025-12-31',
+			allocableCosts: 180000,
+			nonAllocableCosts: 60000,
+			reserveContribution: 40000,
+			feesDue: 300000,
+			statedBalance: null,
+			note: null
+		});
+		expect(await run('list_association_statements', { propertyId: ids.propertyId })).toMatchObject([
+			{ costsTotal: 280000, computedBalance: -20000, feesPaid: 0, feesOutstanding: 300000 }
+		]);
+		expect(await run('list_association_statements', { propertyId: 'other' })).toEqual([]);
 	});
 
 	it('refuse cost items of unknown rows or with a wrong period', async () => {

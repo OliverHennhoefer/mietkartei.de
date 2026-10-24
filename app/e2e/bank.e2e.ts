@@ -202,14 +202,14 @@ test('books an outgoing line as an expense and undoes it', async ({ page }) => {
 	await page.goto('/bank');
 	const outgoing = card(page, `Hausmeister ${suffix}`);
 	// Money paid out without a lease suggestion opens the expense form right away.
-	await outgoing.getByLabel('Kategorie').selectOption({ label: 'Betriebskosten und Hausgeld' });
+	await outgoing.getByLabel('Kategorie').selectOption({ label: 'Hausgeld (WEG)' });
 	await expect(outgoing.getByLabel('Beschreibung')).toHaveValue('Hausmeister GmbH');
 	await outgoing.getByRole('button', { name: 'Als Ausgabe buchen' }).click();
 	await expect(card(page, `Hausmeister ${suffix}`)).toHaveCount(0);
 
 	await page.goto('/bank?status=matched');
 	const booked = card(page, `Hausmeister ${suffix}`);
-	await expect(booked).toContainText('Ausgabe 120,50 € (Betriebskosten und Hausgeld)');
+	await expect(booked).toContainText('Ausgabe 120,50 € (Hausgeld (WEG))');
 	page.on('dialog', (dialog) => dialog.accept());
 	await booked.getByRole('button', { name: 'Zuordnung aufheben' }).click();
 	await expect(card(page, `Hausmeister ${suffix}`)).toHaveCount(0);

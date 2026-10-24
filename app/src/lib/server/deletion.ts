@@ -13,6 +13,7 @@ import {
 	documents,
 	expenses,
 	insurancePolicies,
+	associationStatements,
 	leaseTenants,
 	leaseUnits,
 	leases,
@@ -363,41 +364,51 @@ export async function propertyDeletion(
 	const unitIds = await unitIdsOf(db, accountId, propertyId);
 	const costItemIds = await costItemIdsOf(db, accountId, propertyId);
 	const ofProperty = (column: SQLiteColumn) => and(eq(column, propertyId));
-	const [leaseList, expenseCount, statementCount, policyCount, taskCount, meterLine, orphaned] =
-		await Promise.all([
-			leasesOnUnits(db, accountId, unitIds),
-			countRows(
-				db,
-				expenses,
-				and(eq(expenses.accountId, accountId), eq(expenses.propertyId, propertyId))
-			).then(
-				async (direct) =>
-					direct +
-					(await countIn(
-						db,
-						expenses,
-						expenses.unitId,
-						unitIds,
-						ne(expenses.propertyId, propertyId)
-					))
-			),
-			countRows(
-				db,
-				operatingCostStatements,
-				and(
-					eq(operatingCostStatements.accountId, accountId),
-					ofProperty(operatingCostStatements.propertyId)
-				)
-			),
-			countRows(
-				db,
-				insurancePolicies,
-				and(eq(insurancePolicies.accountId, accountId), ofProperty(insurancePolicies.propertyId))
-			),
-			countRows(db, tasks, and(eq(tasks.accountId, accountId), ofProperty(tasks.propertyId))),
-			meterLines(db, accountId, eq(meters.propertyId, propertyId)),
-			orphanedDocuments(db, accountId, { propertyIds: [propertyId], unitIds, costItemIds })
-		]);
+	const [
+		leaseList,
+		expenseCount,
+		statementCount,
+		policyCount,
+		associationCount,
+		taskCount,
+		meterLine,
+		orphaned
+	] = await Promise.all([
+		leasesOnUnits(db, accountId, unitIds),
+		countRows(
+			db,
+			expenses,
+			and(eq(expenses.accountId, accountId), eq(expenses.propertyId, propertyId))
+		).then(
+			async (direct) =>
+				direct +
+				(await countIn(db, expenses, expenses.unitId, unitIds, ne(expenses.propertyId, propertyId)))
+		),
+		countRows(
+			db,
+			operatingCostStatements,
+			and(
+				eq(operatingCostStatements.accountId, accountId),
+				ofProperty(operatingCostStatements.propertyId)
+			)
+		),
+		countRows(
+			db,
+			insurancePolicies,
+			and(eq(insurancePolicies.accountId, accountId), ofProperty(insurancePolicies.propertyId))
+		),
+		countRows(
+			db,
+			associationStatements,
+			and(
+				eq(associationStatements.accountId, accountId),
+				ofProperty(associationStatements.propertyId)
+			)
+		),
+		countRows(db, tasks, and(eq(tasks.accountId, accountId), ofProperty(tasks.propertyId))),
+		meterLines(db, accountId, eq(meters.propertyId, propertyId)),
+		orphanedDocuments(db, accountId, { propertyIds: [propertyId], unitIds, costItemIds })
+	]);
 	return {
 		blockers: [
 			...leasesBlocker(leaseList, 'den Einheiten des Objekts'),
@@ -414,6 +425,7 @@ export async function propertyDeletion(
 				' (Entwürfe)'
 			),
 			...line(policyCount, 'Versicherung', 'Versicherungen'),
+			...line(associationCount, 'Hausgeldabrechnung', 'Hausgeldabrechnungen'),
 			...documentsLine(orphaned),
 			'die Umlageschlüssel und Abrechnungskreise des Objekts'
 		],

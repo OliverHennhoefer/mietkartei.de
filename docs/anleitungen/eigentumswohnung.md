@@ -37,6 +37,24 @@ Nicht umlagefähige Positionen der Hausgeldabrechnung, etwa die Verwaltervergüt
 
 Den Entwurf erstellst du wie bei jedem Objekt, siehe [Nebenkostenabrechnung erstellen](nebenkostenabrechnung.md). In der Kostenaufstellung stehen bei den Positionen aus der Hausgeldabrechnung die Gesamtkosten der WEG, der Schlüssel des Verwalters und der Anteil deiner Wohnung. Hat das Objekt mehrere Einheiten, etwa Wohnung und Stellplatz, folgt dahinter, wie der Anteil auf die Einheiten verteilt ist.
 
+## 4. Hausgeldabrechnung abgleichen
+
+Bei einer Eigentumswohnung hat das Objekt den Reiter **Hausgeld**. Dort erfasst du je Wirtschaftsjahr die Summen der Hausgeldabrechnung, jeweils mit dem Anteil deiner Wohnung:
+
+- umlagefähige Kosten,
+- nicht umlagefähige Kosten,
+- Zuführung zur Erhaltungsrücklage,
+- Hausgeld laut Wirtschaftsplan, also die Vorauszahlungen, die du im Jahr zahlen solltest,
+- auf Wunsch das Ergebnis laut Verwalter, als Nachzahlung oder Guthaben.
+
+Das monatliche Hausgeld erfasst du als Ausgabe mit der Kategorie **Hausgeld (WEG)**, von Hand oder aus deinen [Kontoauszügen](kontoauszuege-importieren.md). mietkartei gleicht dann drei Dinge ab:
+
+- **Ergebnis:** Stimmt das Ergebnis des Verwalters mit Kosten minus Hausgeld laut Wirtschaftsplan überein?
+- **Hausgeld:** Hast du so viel gezahlt, wie der Wirtschaftsplan vorsieht? Fehlt etwas, zeigt mietkartei den Rückstand. Unter **Mit dem gezahlten Hausgeld** steht, was du nach deinen tatsächlichen Zahlungen noch zahlst oder zurückbekommst.
+- **Belege:** Sind die umlagefähigen Kosten vollständig als Belege mit den Zahlen der WEG erfasst? Fehlt ein Teil, fehlt er auch in der Nebenkostenabrechnung deines Mieters.
+
+Die Zuführung zur Erhaltungsrücklage zählt bei der Steuer erst, wenn der Verwalter das Geld für eine Maßnahme ausgibt. mietkartei führt sie deshalb getrennt.
+
 ## Über die Schnittstelle
 
-KI-Assistenten und eigene Programme können solche Belege über die [Schnittstelle](ki-assistenten.md) anlegen. `create_cost_item` nimmt dafür `associationTotal`, `associationKey`, `associationKeyTotal` und `associationKeyShare` entgegen.
+KI-Assistenten und eigene Programme können solche Belege über die [Schnittstelle](ki-assistenten.md) anlegen. `create_cost_item` nimmt dafür `associationTotal`, `associationKey`, `associationKeyTotal` und `associationKeyShare` entgegen. `list_association_statements` liefert die Hausgeldabrechnungen mit dem Abgleich.

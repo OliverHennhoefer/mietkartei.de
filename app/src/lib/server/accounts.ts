@@ -24,6 +24,7 @@ import {
 	emailChanges,
 	expenses,
 	insurancePolicies,
+	associationStatements,
 	invitations,
 	leasePersons,
 	leases,
@@ -114,6 +115,7 @@ function landlordDataDeletes(db: Database, accountId: string) {
 	const scoped = [
 		tasks,
 		insurancePolicies,
+		associationStatements,
 		co2CostSplits,
 		statementResults,
 		operatingCostStatements,
