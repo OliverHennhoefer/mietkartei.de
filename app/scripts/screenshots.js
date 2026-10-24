@@ -73,7 +73,9 @@ try {
 			path: path.join(folder, `${name}.png`),
 			clip: { x: 0, y: 0, width: 1280, height: 640 }
 		});
-		console.log(path.relative(path.resolve(import.meta.dirname, '../..'), path.join(folder, `${name}.png`)));
+		console.log(
+			path.relative(path.resolve(import.meta.dirname, '../..'), path.join(folder, `${name}.png`))
+		);
 	}
 
 	// The guides: the bank page while its suggestions are still open, then the setup pages.
