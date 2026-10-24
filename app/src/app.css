@@ -1287,9 +1287,15 @@ dl.details dd {
 	}
 }
 
-/* Viewers (Lesezugriff): forms that write and links to create or edit pages are hidden. */
-.read-only form[method='POST' i],
+/*
+ * Viewers (Lesezugriff): forms that write keep showing the values they hold, but lose their
+ * buttons and take no input; links to create or edit pages are hidden.
+ */
+.read-only form[method='POST' i] :is(button, input[type='submit']),
 .read-only a[href$='/neu'],
 .read-only a[href$='/bearbeiten'] {
 	display: none !important;
+}
+.read-only form[method='POST' i] :is(input, select, textarea) {
+	pointer-events: none;
 }

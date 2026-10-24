@@ -6,6 +6,7 @@
 	import Icon, { type IconName } from '#lib/components/Icon.svelte';
 	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
 	import { settingsSectionOf, settingsSections } from '#lib/settings.ts';
+	import { viewerWritesOn } from '#lib/viewer-paths.ts';
 	import { goto, preloadData } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -388,12 +389,15 @@
 				</p>
 			</nav>
 		{/if}
-		<!-- Viewers see no forms that write; the hook refuses them all the same. Settings pages keep
-		     theirs, where viewers change their own profile, calendar link and API keys. -->
+		<!-- Viewers see forms that write without their buttons; the hook refuses them all the same.
+		     Settings pages and the pages of viewer-paths.ts keep theirs, where viewers manage their
+		     own sign-in, calendar link and API keys. -->
 		<main
 			id="main-content"
 			class="site-main"
-			class:read-only={data.role === 'viewer' && !onSettingsPage}
+			class:read-only={data.role === 'viewer' &&
+				!onSettingsPage &&
+				!viewerWritesOn(page.url.pathname)}
 			tabindex="-1"
 			inert={open}
 		>
