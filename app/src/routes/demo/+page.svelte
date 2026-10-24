@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import Icon from '#lib/components/Icon.svelte';
 
 	// The one page of the demo meant for search engines and link previews.
 	const title = 'Demo ausprobieren | mietkartei';
@@ -27,7 +26,6 @@
 </svelte:head>
 
 <div class="narrow">
-	<div class="auth-icon"><Icon name="home" size={25} /></div>
 	<h1>mietkartei ausprobieren</h1>
 	<p class="auth-lead">
 		Du bekommst einen eigenen Beispielbestand: zwei Häuser, fünf Mietverträge, zwei Jahre
