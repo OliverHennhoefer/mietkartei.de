@@ -1,3 +1,4 @@
+import { strToU8, zipSync } from 'fflate';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from './db';
 import { consumerPriceIndex } from './db/schema';
@@ -65,8 +66,9 @@ describe('parseGenesisTable', () => {
 });
 
 describe('downloadIndexValues', () => {
-	it('posts the table request with the token in the username header', async () => {
-		const fetcher = vi.fn(async () => new Response(table));
+	it('posts the table request with the token in the username header and unzips the answer', async () => {
+		const archive = zipSync({ '61111-0002_flat.csv': strToU8(table) });
+		const fetcher = vi.fn(async () => new Response(archive));
 		expect(await downloadIndexValues('token', fetcher)).toHaveLength(2);
 		const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
 		expect(url).toBe('https://genesis.destatis.de/genesisWS/rest/2020/data/tablefile');
@@ -84,6 +86,9 @@ describe('downloadIndexValues', () => {
 		await expect(
 			downloadIndexValues('token', async () => new Response('', { status: 503 }))
 		).rejects.toThrow('Status 503');
+		await expect(
+			downloadIndexValues('token', async () => new Response(strToU8('PK\u0003\u0004kaputt')))
+		).rejects.toThrow('Das Archiv von Destatis ist beschädigt.');
 		await expect(
 			downloadIndexValues('token', async () => {
 				throw new TypeError('fetch failed');

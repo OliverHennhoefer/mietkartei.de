@@ -1,4 +1,5 @@
 import { desc, eq, sql } from 'drizzle-orm';
+import { strFromU8, unzipSync } from 'fflate';
 import { GENESIS_API_TOKEN } from '$app/env/private';
 import type { IsoMonth } from '../dates';
 import type { IndexPoint, IndexValueRow } from '../domain/index-rent';
@@ -88,6 +89,24 @@ export function parseGenesisTable(text: string): IndexPoint[] {
 	return [...values].map(([month, value]) => ({ month, value }));
 }
 
+/**
+ * The text of a GENESIS answer: a table download comes as a ZIP archive with one CSV file, an
+ * error as plain JSON. Only codes and numbers are read, so the encoding of labels does not matter.
+ */
+function genesisText(bytes: Uint8Array): string {
+	const zipped = bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
+	if (!zipped) return strFromU8(bytes);
+	let files: Record<string, Uint8Array>;
+	try {
+		files = unzipSync(bytes);
+	} catch (cause) {
+		throw new Error('Das Archiv von Destatis ist beschädigt.', { cause });
+	}
+	const [csv] = Object.values(files);
+	if (!csv) throw new Error('Das Archiv von Destatis ist leer.');
+	return strFromU8(csv);
+}
+
 /** Downloads table 61111-0002 from GENESIS with the API token and returns its index values. */
 export async function downloadIndexValues(
 	token: string,
@@ -113,7 +132,7 @@ export async function downloadIndexValues(
 	} catch (cause) {
 		throw new Error('Destatis war nicht erreichbar.', { cause });
 	}
-	const text = await response.text();
+	const text = genesisText(new Uint8Array(await response.arrayBuffer()));
 	if (!response.ok) throw new Error(`Destatis antwortete mit Status ${response.status}.`);
 	// Errors (a wrong token, a table that must be ordered as a job) come as JSON with a status.
 	if (text.trimStart().startsWith('{')) {
