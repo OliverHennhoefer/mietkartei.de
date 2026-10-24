@@ -1,0 +1,57 @@
+name: Release
+
+# A published release gets the source archive, its checksum and a SLSA provenance that ties the
+# archive to this repository, the tag and this workflow. Self-hosters can check a download with
+# `sha256sum -c SHA256SUMS` and `slsa-verifier verify-artifact`. The Docker image is attested in
+# app.yml when it is pushed.
+"on":
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    name: Source archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      hashes: ${{ steps.archive.outputs.hashes }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build archive and checksum
+        id: archive
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          name="mietkartei-${TAG#v}"
+          git archive --format=tar.gz --prefix="$name/" -o "$name.tar.gz" HEAD
+          sha256sum "$name.tar.gz" > SHA256SUMS
+          echo "hashes=$(base64 -w0 SHA256SUMS)" >> "$GITHUB_OUTPUT"
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" mietkartei-*.tar.gz SHA256SUMS --clobber --repo "$GITHUB_REPOSITORY"
+
+  # The generator must be referenced by tag, not by commit: it verifies its own ref when it signs.
+  provenance:
+    name: SLSA provenance
+    needs: [archive]
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    with:
+      base64-subjects: ${{ needs.archive.outputs.hashes }}
+      provenance-name: mietkartei.intoto.jsonl
+      upload-assets: true
