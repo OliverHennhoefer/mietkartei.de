@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNotNull, isNull, lt } from 'drizzle-orm';
+import { and, asc, count, eq, isNotNull, isNull, lt, or } from 'drizzle-orm';
 import { dayOf, formatDate } from '../dates';
 import { auditEntry, type AuditContext } from './audit';
 import { generateToken, hashToken, type SessionUser } from './auth';
@@ -173,9 +173,10 @@ export async function authenticateApiKey(
 	now = Date.now()
 ): Promise<ApiCaller | undefined> {
 	if (!key.startsWith(API_KEY_PREFIX)) return undefined;
-	const id = await hashToken(key);
+	const hash = await hashToken(key);
 	const [row] = await db
 		.select({
+			id: apiKeys.id,
 			scope: apiKeys.scope,
 			expiresAt: apiKeys.expiresAt,
 			accessExpiresAt: apiKeys.accessExpiresAt,
@@ -190,8 +191,10 @@ export async function authenticateApiKey(
 		})
 		.from(apiKeys)
 		.innerJoin(users, eq(apiKeys.userId, users.id))
-		.where(eq(apiKeys.id, id));
+		// A key is found by its id, an app's access token by its own column; see the schema.
+		.where(or(eq(apiKeys.id, hash), eq(apiKeys.accessHash, hash)));
 	if (!row) return undefined;
+	const { id } = row;
 	if (row.expiresAt.getTime() <= now) {
 		await db.delete(apiKeys).where(eq(apiKeys.id, id));
 		return undefined;

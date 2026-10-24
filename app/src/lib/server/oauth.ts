@@ -297,7 +297,7 @@ async function newTokens(now: number) {
 		accessToken,
 		refreshToken,
 		row: {
-			id: await hashToken(accessToken),
+			accessHash: await hashToken(accessToken),
 			prefix: accessToken.slice(0, API_KEY_PREFIX.length + 6),
 			refreshHash: await hashToken(refreshToken),
 			accessExpiresAt: new Date(now + ACCESS_TOKEN_LIFETIME),
@@ -365,9 +365,11 @@ async function exchangeCode(
 	if (!row) throw invalidGrant('The user or the client no longer exists.');
 	const scope = row.role === 'viewer' ? 'read' : code.scope;
 	const tokens = await newTokens(now);
+	const id = crypto.randomUUID();
 	await runBatch(db, [
 		db.insert(apiKeys).values({
 			...tokens.row,
+			id,
 			accountId: row.accountId,
 			userId: code.userId,
 			clientId: code.clientId,
@@ -378,7 +380,7 @@ async function exchangeCode(
 			db,
 			{ accountId: row.accountId, userId: code.userId },
 			'api_key',
-			tokens.row.id,
+			id,
 			'create',
 			`„${row.client}“ verbunden (${scopeLabels[scope]})`
 		)

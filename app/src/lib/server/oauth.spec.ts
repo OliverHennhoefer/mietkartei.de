@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { authenticateApiKey, listApiKeys, listConnectedApps, revokeApiKey } from './api-keys';
 import { listAuditLog } from './audit';
+import { changePassword } from './auth';
 import type { Database } from './db';
 import { apiKeys, oauthClients, oauthCodes, users } from './db/schema';
 import {
@@ -19,7 +20,8 @@ import {
 	registerClient,
 	type AuthorizationRequest
 } from './oauth';
-import { contextA, ownerA, testDatabase } from './testing';
+import { requestPasswordReset, resetPassword } from './password-resets';
+import { contextA, ownerA, PASSWORD, setPassword, testDatabase } from './testing';
 
 const ORIGIN = 'https://app.example';
 const REDIRECT = 'https://claude.ai/api/mcp/auth_callback';
@@ -335,6 +337,35 @@ describe('exchangeToken', () => {
 				later + REFRESH_TOKEN_LIFETIME
 			)
 		).rejects.toMatchObject({ code: 'invalid_grant' });
+	});
+
+	it('drops approved codes when the password is changed or reset', async () => {
+		await setPassword(db, 'user-a');
+		await codeFor(await authorizationRequest());
+		await changePassword(db, contextA, {
+			currentPassword: PASSWORD,
+			password: 'ein-neues-passwort-42',
+			keepToken: undefined
+		});
+		expect(await db.select().from(oauthCodes)).toEqual([]);
+		await codeFor(await authorizationRequest());
+		const reset = await requestPasswordReset(db, 'a@example.org');
+		await resetPassword(db, reset!.token, 'noch-ein-passwort-42');
+		expect(await db.select().from(oauthCodes)).toEqual([]);
+	});
+
+	it('keeps the connection id across refreshes, so disconnecting still works', async () => {
+		const first = await tokensFor();
+		const [before] = await listConnectedApps(db, contextA);
+		const second = await exchange({
+			grant_type: 'refresh_token',
+			refresh_token: first.refresh_token
+		});
+		const [after] = await listConnectedApps(db, contextA);
+		expect(after.id).toBe(before.id);
+		expect((await authenticateApiKey(db, second.access_token))?.keyId).toBe(before.id);
+		expect(await revokeApiKey(db, contextA, before.id)).toBe(true);
+		expect(await authenticateApiKey(db, second.access_token)).toBeUndefined();
 	});
 
 	it('ends with the connection when the user disconnects the app', async () => {

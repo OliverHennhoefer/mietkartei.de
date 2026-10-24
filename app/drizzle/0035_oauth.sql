@@ -30,6 +30,7 @@ CREATE TABLE `api_keys` (
 	`expires_at` integer NOT NULL,
 	`last_used_at` integer,
 	`client_id` text,
+	`access_hash` text,
 	`refresh_hash` text,
 	`access_expires_at` integer,
 	`created_at` integer DEFAULT (unixepoch('subsec') * 1000) NOT NULL,
@@ -40,4 +41,5 @@ CREATE TABLE `api_keys` (
 --> statement-breakpoint
 CREATE INDEX `api_keys_account_id_idx` ON `api_keys` (`account_id`);--> statement-breakpoint
 CREATE INDEX `api_keys_user_id_idx` ON `api_keys` (`user_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `api_keys_access_hash_unique` ON `api_keys` (`access_hash`);--> statement-breakpoint
 CREATE UNIQUE INDEX `api_keys_refresh_hash_unique` ON `api_keys` (`refresh_hash`);

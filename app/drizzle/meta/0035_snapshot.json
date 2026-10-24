@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "13a257d5-5f0f-474d-98bf-811bd822037f",
+  "id": "c23a67e7-808d-40dc-ab7f-882c8895fb60",
   "prevId": "e50abf81-6061-45c8-8674-65158ae0d08b",
   "tables": {
     "accounts": {
@@ -409,6 +409,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "access_hash": {
+          "name": "access_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "refresh_hash": {
           "name": "refresh_hash",
           "type": "text",
@@ -446,6 +453,13 @@
             "user_id"
           ],
           "isUnique": false
+        },
+        "api_keys_access_hash_unique": {
+          "name": "api_keys_access_hash_unique",
+          "columns": [
+            "access_hash"
+          ],
+          "isUnique": true
         },
         "api_keys_refresh_hash_unique": {
           "name": "api_keys_refresh_hash_unique",

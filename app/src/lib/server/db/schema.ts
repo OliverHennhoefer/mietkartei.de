@@ -1232,10 +1232,10 @@ export const oauthClients = sqliteTable('oauth_clients', {
  * id is the SHA-256 hash of the key, never the key itself; `prefix` is its first characters, so
  * the list of keys can tell them apart.
  *
- * An app connected by OAuth holds a row as well, with `clientId` set: the key is its access token,
- * replaced together with the refresh token on every refresh (so the id changes), and only valid
- * until `accessExpiresAt`; `expiresAt` is when the refresh token runs out. Everything that revokes
- * keys therefore disconnects apps too.
+ * An app connected by OAuth holds a row as well, with `clientId` set and a random id that stays
+ * the same: its access token is found by `accessHash`, replaced together with the refresh token on
+ * every refresh, and only valid until `accessExpiresAt`; `expiresAt` is when the refresh token
+ * runs out. Everything that revokes keys therefore disconnects apps too.
  */
 export const apiKeys = sqliteTable(
 	'api_keys',
@@ -1251,6 +1251,8 @@ export const apiKeys = sqliteTable(
 		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
 		lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
 		clientId: text('client_id').references(() => oauthClients.id, { onDelete: 'cascade' }),
+		/** SHA-256 of the access token of an OAuth app. */
+		accessHash: text('access_hash'),
 		/** SHA-256 of the refresh token of an OAuth app. */
 		refreshHash: text('refresh_hash'),
 		accessExpiresAt: integer('access_expires_at', { mode: 'timestamp_ms' }),
@@ -1259,6 +1261,7 @@ export const apiKeys = sqliteTable(
 	(table) => [
 		index('api_keys_account_id_idx').on(table.accountId),
 		index('api_keys_user_id_idx').on(table.userId),
+		uniqueIndex('api_keys_access_hash_unique').on(table.accessHash),
 		uniqueIndex('api_keys_refresh_hash_unique').on(table.refreshHash)
 	]
 );
