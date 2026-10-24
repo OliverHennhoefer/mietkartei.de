@@ -150,7 +150,15 @@ export const taskCategoryLabels: Record<TaskCategory, string> = {
 
 export const userRoleLabels: Record<UserRole, string> = {
 	owner: 'Vermieter',
-	manager: 'Mitverwalter'
+	manager: 'Mitverwalter',
+	viewer: 'Lesezugriff'
+};
+
+/** The role in a sentence: „… arbeitet als Mitverwalter mit“, „… ist jetzt mit Lesezugriff dabei“. */
+export const userRolePhrases: Record<UserRole, string> = {
+	owner: 'als Vermieter',
+	manager: 'als Mitverwalter',
+	viewer: 'mit Lesezugriff'
 };
 
 /** The verbs of the audit log (AuditAction in schema.ts), for /einstellungen/protokoll. */

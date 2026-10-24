@@ -6,10 +6,16 @@ describe('settingsSections', () => {
 		settingsSections(role, billing).map((section) => section.href);
 
 	it('leaves owner-only sections out for managers', () => {
-		expect(hrefs('owner', false)).toContain('/einstellungen/mitverwalter');
-		expect(hrefs('manager', false)).not.toContain('/einstellungen/mitverwalter');
+		expect(hrefs('owner', false)).toContain('/einstellungen/zugaenge');
+		expect(hrefs('manager', false)).not.toContain('/einstellungen/zugaenge');
 		expect(hrefs('manager', false)).not.toContain('/einstellungen/export');
 		expect(hrefs('manager', false)).toContain('/einstellungen/api-schluessel');
+	});
+
+	it('leaves the import out for viewers', () => {
+		expect(hrefs('manager', false)).toContain('/datenuebernahme');
+		expect(hrefs('viewer', false)).not.toContain('/datenuebernahme');
+		expect(hrefs('viewer', false)).toContain('/einstellungen/profil');
 	});
 
 	it('shows the subscription only where the instance bills', () => {

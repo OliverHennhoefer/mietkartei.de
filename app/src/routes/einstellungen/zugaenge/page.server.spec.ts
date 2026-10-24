@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { invitations, outbox, users } from '#lib/server/db/schema.ts';
@@ -36,7 +37,13 @@ describe('mitverwalter', () => {
 		expect(await outcome(() => load(routeEvent(db, { user: managerA })))).toMatchObject({
 			error: 403
 		});
-		for (const action of [actions.invite, actions.resend, actions.revoke, actions.remove]) {
+		for (const action of [
+			actions.invite,
+			actions.resend,
+			actions.revoke,
+			actions.role,
+			actions.remove
+		]) {
 			expect(await outcome(() => action(routeEvent(db, manager)))).toMatchObject({ error: 403 });
 		}
 	});
@@ -118,6 +125,24 @@ describe('mitverwalter', () => {
 		expect(await revoke(created.id)).toMatchObject({ fail: 404 });
 		expect(await revoke('')).toMatchObject({ fail: 400 });
 		expect(await db.select().from(invitations)).toHaveLength(1);
+	});
+
+	it('invites a viewer and changes the role of a member', async () => {
+		expect(
+			await outcome(() =>
+				actions.invite(routeEvent(db, { form: { email: 'leser@example.org', role: 'viewer' } }))
+			)
+		).toEqual({ data: { invited: 'leser@example.org' } });
+		const [mail] = await db.select().from(outbox);
+		expect(mail.text).toContain('mit Lesezugriff');
+		const role = (userId: string, role: string) =>
+			outcome(() => actions.role(routeEvent(db, { form: { userId, role } })));
+		expect(await role('manager-a', 'viewer')).toEqual({ data: { roleChanged: true } });
+		const [manager] = await db.select().from(users).where(eq(users.id, 'manager-a'));
+		expect(manager.role).toBe('viewer');
+		expect(await role('manager-a', 'owner')).toMatchObject({ fail: 400 });
+		expect(await role('user-a', 'viewer')).toMatchObject({ fail: 400 });
+		expect(await role('user-b', 'viewer')).toMatchObject({ fail: 404 });
 	});
 
 	it('removes managers, but neither oneself nor another account’s user', async () => {

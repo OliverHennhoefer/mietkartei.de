@@ -3,7 +3,15 @@ import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { authenticate, createSession, validateSession } from './auth';
 import type { Database } from './db';
-import { auditLog, emailChanges, invitations, passwordResets, sessions, users } from './db/schema';
+import {
+	apiKeys,
+	auditLog,
+	emailChanges,
+	invitations,
+	passwordResets,
+	sessions,
+	users
+} from './db/schema';
 import {
 	INVITATION_LIFETIME,
 	INVITATION_RETENTION,
@@ -18,6 +26,7 @@ import {
 	inviterName,
 	listAccountUsers,
 	listPendingInvitations,
+	changeRole,
 	removeUser,
 	resendInvitation,
 	revokeInvitation
@@ -379,7 +388,7 @@ describe('findInvitation and acceptInvitation', () => {
 				'a',
 				result.userId,
 				'create',
-				'Neu Mitverwalter hat die Einladung angenommen und ist jetzt Mitverwalter'
+				'Neu Mitverwalter hat die Einladung angenommen und ist jetzt als Mitverwalter dabei'
 			]
 		]);
 	});
@@ -466,20 +475,122 @@ describe('removeUser', () => {
 	});
 });
 
+describe('viewers', () => {
+	it('invites, resends and registers a viewer with that role', async () => {
+		const created = await createInvitation(
+			db,
+			contextA,
+			{ email: 'leser@example.org', role: 'viewer' },
+			now
+		);
+		if (!created.ok) throw new Error(created.reason);
+		expect(created.role).toBe('viewer');
+		const resent = await resendInvitation(db, contextA, created.id, now);
+		if (!resent.ok) throw new Error(resent.reason);
+		expect(resent.role).toBe('viewer');
+		const accepted = await acceptInvitation(
+			db,
+			resent.token,
+			{ name: 'Lea Leser', password: 'passwort-von-lea' },
+			now
+		);
+		if (!accepted.ok) throw new Error(accepted.reason);
+		const [user] = await db.select().from(users).where(eq(users.id, accepted.userId));
+		expect(user.role).toBe('viewer');
+		const audit = await db.select().from(auditLog);
+		expect(audit.map((entry) => entry.summary)).toEqual(
+			expect.arrayContaining([
+				'leser@example.org mit Lesezugriff eingeladen',
+				'Lea Leser hat die Einladung angenommen und ist jetzt mit Lesezugriff dabei'
+			])
+		);
+	});
+});
+
+describe('changeRole', () => {
+	beforeEach(async () => {
+		await db.insert(users).values({
+			id: 'manager-a',
+			accountId: 'a',
+			email: 'm@example.org',
+			passwordHash: 'x',
+			role: 'manager',
+			name: 'Max'
+		});
+	});
+
+	it('turns a manager into a viewer, drops their write keys and logs it', async () => {
+		await db.insert(apiKeys).values([
+			{
+				id: 'key-read',
+				accountId: 'a',
+				userId: 'manager-a',
+				name: 'Lesen',
+				prefix: 'mk_r',
+				scope: 'read',
+				expiresAt: new Date(later)
+			},
+			{
+				id: 'key-write',
+				accountId: 'a',
+				userId: 'manager-a',
+				name: 'Schreiben',
+				prefix: 'mk_w',
+				scope: 'write',
+				expiresAt: new Date(later)
+			}
+		]);
+		expect(await changeRole(db, contextA, 'manager-a', 'viewer')).toBe('changed');
+		const [user] = await db.select().from(users).where(eq(users.id, 'manager-a'));
+		expect(user.role).toBe('viewer');
+		expect((await db.select().from(apiKeys)).map((key) => key.id)).toEqual(['key-read']);
+		expect(await changeRole(db, contextA, 'manager-a', 'viewer')).toBe('unchanged');
+		expect(await changeRole(db, contextA, 'manager-a', 'manager')).toBe('changed');
+		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'update'));
+		expect(audit.map((entry) => entry.summary)).toEqual([
+			'Max ist jetzt mit Lesezugriff dabei',
+			'Max ist jetzt als Mitverwalter dabei'
+		]);
+	});
+
+	it('changes neither oneself, the owner nor another account’s user', async () => {
+		expect(await changeRole(db, contextA, 'user-a', 'viewer')).toBe('self');
+		expect(await changeRole(db, contextA, 'user-b', 'viewer')).toBe('missing');
+		const manager = { accountId: 'a', userId: 'manager-a' };
+		expect(await changeRole(db, manager, 'user-a', 'viewer')).toBe('owner');
+	});
+});
+
 describe('invitationMail', () => {
 	it('names the inviter, the role and the link', () => {
-		const mail = invitationMail('neu@example.org', 'https://app.example/einladung/t0k', 'Erika');
+		const mail = invitationMail(
+			'neu@example.org',
+			'https://app.example/einladung/t0k',
+			'Erika',
+			'manager'
+		);
 		expect(mail.to).toBe('neu@example.org');
-		expect(mail.text).toContain('Erika lädt dich ein');
-		expect(mail.text).toContain('Mitverwalter');
+		expect(mail.text).toContain(
+			'Erika lädt dich ein, in mietkartei als Mitverwalter mitzuarbeiten.'
+		);
 		expect(mail.text).toContain('https://app.example/einladung/t0k');
+		const viewer = invitationMail(
+			'neu@example.org',
+			'https://app.example/einladung/t0k',
+			'Erika',
+			'viewer'
+		);
+		expect(viewer.text).toContain(
+			'Erika lädt dich ein, die Daten in mietkartei mit Lesezugriff einzusehen.'
+		);
 	});
 
 	it('prints nothing of the name that a mail program would turn into a link', () => {
 		const mail = invitationMail(
 			'neu@example.org',
 			'https://app.example/einladung/t0k',
-			'Klicke https://evil.example/x oder www.evil.example\nboese.example.org, Erika'
+			'Klicke https://evil.example/x oder www.evil.example\nboese.example.org, Erika',
+			'manager'
 		);
 		expect(mail.text).toContain('Klicke oder Erika lädt dich ein');
 		expect(mail.text).not.toMatch(/evil|boese/);

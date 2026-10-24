@@ -1,8 +1,9 @@
 import { fail } from '@sveltejs/kit';
 import { ORIGIN } from '$app/env/private';
-import { parseInvitation, type InvitationFormInput } from '#lib/forms/auth.ts';
+import { parseInvitation, parseRoleChange, type InvitationFormInput } from '#lib/forms/auth.ts';
 import type { FieldErrors } from '#lib/forms/fields.ts';
 import {
+	changeRole,
 	createInvitation,
 	deliverInvitation,
 	freeSeats,
@@ -19,7 +20,8 @@ import { MAIL_LINKS_UNAVAILABLE, mailLinkOrigin } from '#lib/server/mail-links.t
 import { auditContext, requireOwner } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
-// Owners only: who has access to the account, open invitations, and the form to invite.
+// Owners only: who has access to the account and with which role, invitations, and the form to
+// invite.
 
 const FULL = `Ein Konto hat höchstens ${MAX_ACCOUNT_MEMBERS} Zugänge, offene Einladungen eingerechnet. Entferne einen Zugang oder ziehe eine Einladung zurück.`;
 const TOO_MANY =
@@ -63,14 +65,19 @@ export const actions: Actions = {
 							? FULL
 							: TOO_MANY;
 			const errors: FieldErrors<InvitationFormInput> = { email: message };
-			return fail(400, { errors, values: { email: result.data.email } });
+			return fail(400, { errors, values: result.data });
 		}
 		// The token is in the mail only; the database holds its hash.
 		const sent = await deliverInvitation(
 			locals.db,
 			auditContext(locals),
 			created.id,
-			invitationMail(created.email, `${origin}/einladung/${created.token}`, user.name),
+			invitationMail(
+				created.email,
+				`${origin}/einladung/${created.token}`,
+				user.name,
+				created.role
+			),
 			(mail) => sendMail(locals.db, mail)
 		);
 		if (!sent) {
@@ -78,7 +85,7 @@ export const actions: Actions = {
 				email:
 					'Die Einladung konnte nicht verschickt werden und wurde zurückgezogen. Bitte versuche es später noch einmal.'
 			};
-			return fail(502, { errors, values: { email: created.email } });
+			return fail(502, { errors, values: { email: created.email, role: created.role } });
 		}
 		return { invited: created.email };
 	},
@@ -108,7 +115,7 @@ export const actions: Actions = {
 			locals.db,
 			auditContext(locals),
 			resent.id,
-			invitationMail(resent.email, `${origin}/einladung/${resent.token}`, user.name),
+			invitationMail(resent.email, `${origin}/einladung/${resent.token}`, user.name, resent.role),
 			(mail) => sendMail(locals.db, mail)
 		);
 		if (!sent) {
@@ -130,6 +137,26 @@ export const actions: Actions = {
 			return fail(404, { refused: 'Diese Einladung gibt es nicht mehr.' });
 		}
 		return { revoked: true };
+	},
+
+	role: async ({ request, locals }) => {
+		requireOwner(locals);
+		const result = parseRoleChange(await request.formData());
+		if (!result.ok) return fail(400, { refused: 'Bitte wähle eine gültige Rolle aus.' });
+		const changed = await changeRole(
+			locals.db,
+			auditContext(locals),
+			result.data.userId,
+			result.data.role
+		);
+		if (changed === 'self') {
+			return fail(400, { refused: 'Deine eigene Rolle kannst du nicht ändern.' });
+		}
+		if (changed === 'owner') {
+			return fail(400, { refused: 'Die Rolle des Vermieters kann niemand ändern.' });
+		}
+		if (changed === 'missing') return fail(404, { refused: 'Diesen Zugang gibt es nicht.' });
+		return { roleChanged: true };
 	},
 
 	remove: async ({ request, locals }) => {

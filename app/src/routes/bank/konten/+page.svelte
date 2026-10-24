@@ -18,7 +18,7 @@
 <h2>Bankverbindungen</h2>
 
 {#if data.ownerOnly}
-	<p>Bankverbindungen sind nur für Vermieter sichtbar, nicht für Mitverwalter.</p>
+	<p>Bankverbindungen sieht nur der Vermieter des Kontos.</p>
 {:else}
 	{#if message}
 		<Alert tone="danger"><p>{message}</p></Alert>

@@ -1286,3 +1286,10 @@ dl.details dd {
 		box-shadow: none;
 	}
 }
+
+/* Viewers (Lesezugriff): forms that write and links to create or edit pages are hidden. */
+.read-only form[method='POST' i],
+.read-only a[href$='/neu'],
+.read-only a[href$='/bearbeiten'] {
+	display: none !important;
+}

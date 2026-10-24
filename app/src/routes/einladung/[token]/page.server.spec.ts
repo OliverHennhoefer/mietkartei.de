@@ -27,7 +27,7 @@ function accept(fields: Record<string, string>, params = { token }) {
 describe('einladung', () => {
 	it('shows the invited address and 404 for unknown links', async () => {
 		expect(await outcome(() => load(routeEvent(db, { user: null, params: { token } })))).toEqual({
-			data: { email: 'neu@example.org', status: 'open' }
+			data: { email: 'neu@example.org', role: 'manager', status: 'open' }
 		});
 		expect(
 			await outcome(() => load(routeEvent(db, { user: null, params: { token: 'x' } })))

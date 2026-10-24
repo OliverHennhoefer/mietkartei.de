@@ -11,9 +11,11 @@
 	const errors = $derived(form && 'errors' in form ? form.errors : undefined);
 	const values = $derived(form && 'values' in form ? form.values : undefined);
 	const refused = $derived(form && 'refused' in form ? form.refused : undefined);
+	/** memberRoles of the schema, which a page may not import. */
+	const memberRoles = ['manager', 'viewer'] as const;
 </script>
 
-<PageHeader title="Mitverwalter" />
+<PageHeader title="Zugänge" />
 
 {#if refused}
 	<Alert tone="danger"><p>{refused}</p></Alert>
@@ -21,11 +23,13 @@
 	<Alert tone="success"><p>Die Einladung an {form.invited} ist unterwegs.</p></Alert>
 {:else if form && 'revoked' in form}
 	<Alert tone="success"><p>Die Einladung wurde zurückgezogen.</p></Alert>
+{:else if form && 'roleChanged' in form}
+	<Alert tone="success"><p>Die Rolle wurde geändert.</p></Alert>
 {:else if form && 'removed' in form}
 	<Alert tone="success"><p>Der Zugang wurde entfernt.</p></Alert>
 {/if}
 
-<h2>Zugänge</h2>
+<h2>Personen</h2>
 <div class="table-wrap">
 	<table class="table" aria-label="Zugänge">
 		<thead>
@@ -44,7 +48,23 @@
 						{#if user.id === data.userId}<span class="muted">(du)</span>{/if}
 					</td>
 					<td>{user.email}</td>
-					<td>{userRoleLabels[user.role]}</td>
+					<td>
+						{#if user.role === 'owner' || user.id === data.userId}
+							{userRoleLabels[user.role]}
+						{:else}
+							<form method="POST" action="?/role" class="inline role" use:enhance>
+								<input type="hidden" name="userId" value={user.id} />
+								<select name="role" aria-label="Rolle von {user.name ?? user.email}">
+									{#each memberRoles as role (role)}
+										<option value={role} selected={role === user.role}
+											>{userRoleLabels[role]}</option
+										>
+									{/each}
+								</select>
+								<button type="submit" class="secondary small">Ändern</button>
+							</form>
+						{/if}
+					</td>
 					<td class="actions">
 						{#if user.id !== data.userId}
 							<ConfirmButton
@@ -72,6 +92,7 @@
 			<thead>
 				<tr>
 					<th>E-Mail-Adresse</th>
+					<th>Rolle</th>
 					<th>Status</th>
 					<th class="actions"></th>
 				</tr>
@@ -80,6 +101,7 @@
 				{#each data.invitations as invitation (invitation.id)}
 					<tr>
 						<td>{invitation.email}</td>
+						<td>{userRoleLabels[invitation.role]}</td>
 						<td>
 							{invitation.expired ? 'Abgelaufen am' : 'Gültig bis'}
 							{formatDateTime(invitation.expiresAt)}
@@ -103,9 +125,10 @@
 
 <h2>Einladen</h2>
 <p class="muted">
-	Die eingeladene Person bekommt eine E-Mail mit einem Link, der sieben Tage gilt, und arbeitet als
-	Mitverwalter mit: Mitverwalter bearbeiten alles außer Einladungen und Bankverbindungen. Ein Konto
-	hat höchstens {data.maxMembers} Zugänge, offene Einladungen eingerechnet.
+	Die eingeladene Person bekommt eine E-Mail mit einem Link, der sieben Tage gilt. Mitverwalter
+	bearbeiten alles außer Zugängen, Bankverbindungen, Abo und Export; mit Lesezugriff sieht die
+	Person alles, ändert aber nichts. Ein Konto hat höchstens {data.maxMembers} Zugänge, offene Einladungen
+	eingerechnet.
 </p>
 {#if data.freeSeats <= 0}
 	<p>Alle Plätze sind belegt. Entferne einen Zugang oder ziehe eine Einladung zurück.</p>
@@ -122,6 +145,16 @@
 			/>
 			{#if errors?.email}<span class="error">{errors.email}</span>{/if}
 		</label>
+		<label>
+			Rolle
+			<select name="role">
+				{#each memberRoles as role (role)}
+					<option value={role} selected={role === (values?.role ?? 'manager')}
+						>{userRoleLabels[role]}</option
+					>
+				{/each}
+			</select>
+		</label>
 		<div class="form-actions">
 			<button type="submit">Einladen</button>
 		</div>
@@ -134,5 +167,10 @@
 	}
 	.inline + .inline {
 		margin-left: 0.5rem;
+	}
+	.role {
+		display: inline-flex;
+		gap: 0.5rem;
+		align-items: center;
 	}
 </style>

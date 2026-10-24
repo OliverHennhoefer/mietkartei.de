@@ -98,7 +98,8 @@ Viele Begriffe des Mietrechts haben keine genaue englische Entsprechung. Verwend
 | Fristenkalender             | `calendarFeed`            | Geheimer Link je Zugang, über den eine Kalender-App Fristen und fällige Aufgaben abonniert (iCalendar)                                                             |
 | Ausgabe                     | `expense`                 | Geld, das der Vermieter für ein Objekt, eine Einheit oder den ganzen Bestand ausgibt, von Hand erfasst oder aus einem Bankumsatz zugeordnet                        |
 | Auswertung                  | `analysis`                | Kennzahlen zu Einnahmen, Ausgaben und Leerstand über einen Zeitraum; wird berechnet, nicht gespeichert                                                             |
-| Mitverwalter                | `manager`                 | Person, die der Vermieter in sein Konto einlädt; Rolle neben `owner`, dem Vermieter. Sie bearbeitet alles außer Einladungen und Bankverbindungen                   |
+| Mitverwalter                | `manager`                 | Person, die der Vermieter in sein Konto einlädt; Rolle neben `owner`, dem Vermieter. Sie bearbeitet alles außer Zugängen, Bankverbindungen, Abo und Export          |
+| Lesezugriff                 | `viewer`                  | Person, die der Vermieter in sein Konto einlädt und die alles sieht, aber nichts ändert                                                                            |
 
 ### Pfade
 

@@ -94,6 +94,14 @@ describe('authenticateApiKey', () => {
 		});
 	});
 
+	it('lets a viewer only read, whatever the key says', async () => {
+		const { key } = await create();
+		await db.update(apiKeys).set({ scope: 'write' });
+		expect((await authenticateApiKey(db, key))?.scope).toBe('write');
+		await db.update(users).set({ role: 'viewer' }).where(eq(users.id, 'user-a'));
+		expect((await authenticateApiKey(db, key))?.scope).toBe('read');
+	});
+
 	it('refuses unknown, malformed and expired keys and deletes the expired one', async () => {
 		const now = Date.now();
 		const { key } = await create(contextA, now);

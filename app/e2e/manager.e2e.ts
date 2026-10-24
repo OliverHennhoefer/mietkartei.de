@@ -16,9 +16,9 @@ test('the owner invites a manager, who registers through the link', async ({
 	await page.goto('/einstellungen');
 	await page
 		.getByRole('navigation', { name: 'Einstellungen' })
-		.getByRole('link', { name: 'Mitverwalter' })
+		.getByRole('link', { name: 'Zugänge' })
 		.click();
-	await expect(page.getByRole('heading', { level: 1, name: 'Mitverwalter' })).toBeVisible();
+	await expect(page.getByRole('heading', { level: 1, name: 'Zugänge' })).toBeVisible();
 	await expect(page.getByRole('table', { name: 'Zugänge' })).toContainText('(du)');
 
 	// The feature tests, which have all finished, leave seeded managers and invitations in the
@@ -64,10 +64,10 @@ test('the owner invites a manager, who registers through the link', async ({
 	const objekte = await invitee.goto('/objekte');
 	expect(objekte?.status()).toBe(200);
 	await expect(invitee.getByRole('heading', { level: 1, name: 'Objekte' })).toBeVisible();
-	const forbidden = await invitee.goto('/einstellungen/mitverwalter');
+	const forbidden = await invitee.goto('/einstellungen/zugaenge');
 	expect(forbidden?.status()).toBe(403);
-	await expect(invitee.getByText('Das dürfen nur Vermieter, keine Mitverwalter.')).toBeVisible();
-	const invite = await invitee.request.post('/einstellungen/mitverwalter?/invite', {
+	await expect(invitee.getByText('Das darf nur der Vermieter des Kontos.')).toBeVisible();
+	const invite = await invitee.request.post('/einstellungen/zugaenge?/invite', {
 		form: { email: 'durch-mitverwalter@example.org' },
 		headers: { origin: baseURL! }
 	});
@@ -93,7 +93,7 @@ test('the owner invites a manager, who registers through the link', async ({
 	// Bank accounts are the owner's too: the page says so, the actions answer 403.
 	await invitee.goto('/bank/konten');
 	await expect(
-		invitee.getByText('Bankverbindungen sind nur für Vermieter sichtbar, nicht für Mitverwalter.')
+		invitee.getByText('Bankverbindungen sieht nur der Vermieter des Kontos.')
 	).toBeVisible();
 	const createBankAccount = await invitee.request.post('/bank/konten?/create', {
 		form: { name: 'Fremdkonto', iban: 'DE89370400440532013000', holder: 'Max Mitverwalter' },
@@ -102,9 +102,7 @@ test('the owner invites a manager, who registers through the link', async ({
 	expect(createBankAccount.status()).toBe(403);
 	// So is the subscription: the page says who manages it, the actions answer 403.
 	await invitee.goto('/abo');
-	await expect(
-		invitee.getByText('Das Abo verwaltet der Vermieter des Kontos, nicht die Mitverwalter.')
-	).toBeVisible();
+	await expect(invitee.getByText('Das Abo verwaltet der Vermieter des Kontos.')).toBeVisible();
 	await expect(invitee.getByRole('button', { name: 'Abo abschließen' })).toHaveCount(0);
 	const checkout = await invitee.request.post('/abo?/checkout', {
 		form: {},
@@ -117,7 +115,7 @@ test('the owner invites a manager, who registers through the link', async ({
 	await expect(hub.getByRole('link', { name: 'Profil' })).toBeVisible();
 	await expect(hub.getByRole('link', { name: 'Protokoll' })).toBeVisible();
 	await expect(hub.getByRole('link', { name: 'Konto' })).toBeVisible();
-	await expect(hub.getByRole('link', { name: 'Mitverwalter' })).toHaveCount(0);
+	await expect(hub.getByRole('link', { name: 'Zugänge' })).toHaveCount(0);
 	await expect(hub.getByRole('link', { name: 'Export' })).toHaveCount(0);
 
 	// The used link cannot be used again.
@@ -132,9 +130,26 @@ test('the owner invites a manager, who registers through the link', async ({
 	await expect(invitations.getByRole('row', { name: new RegExp(manager.email) })).toHaveCount(0);
 	await page.goto('/einstellungen/protokoll?entity=user');
 	await expect(page.getByRole('table', { name: 'Protokoll' })).toContainText(
-		'Max Mitverwalter hat die Einladung angenommen und ist jetzt Mitverwalter'
+		'Max Mitverwalter hat die Einladung angenommen und ist jetzt als Mitverwalter dabei'
 	);
-	await page.goto('/einstellungen/mitverwalter');
+	await page.goto('/einstellungen/zugaenge');
+
+	// With Lesezugriff, the manager still reads but can change nothing.
+	const people = page.getByRole('table', { name: 'Zugänge' });
+	await people.getByLabel('Rolle von Max Mitverwalter').selectOption('viewer');
+	await people
+		.getByRole('row', { name: /Max Mitverwalter/ })
+		.getByRole('button', { name: 'Ändern' })
+		.click();
+	await expect(page.getByText('Die Rolle wurde geändert.')).toBeVisible();
+	await invitee.goto('/objekte');
+	await expect(invitee.getByText('Du hast Lesezugriff und kannst nichts ändern.')).toBeVisible();
+	expect((await invitee.goto('/objekte/neu'))?.status()).toBe(403);
+	const write = await invitee.request.post('/objekte/neu', {
+		form: { name: 'Fremdobjekt' },
+		headers: { origin: baseURL! }
+	});
+	expect(write.status()).toBe(403);
 
 	// A second invitation is sent again and revoked before anyone uses it; its links then lead nowhere.
 	const second = 'zweite-einladung@example.org';

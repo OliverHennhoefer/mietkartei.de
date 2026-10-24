@@ -173,5 +173,7 @@ export async function authenticateApiKey(
 			.set({ lastUsedAt: new Date(now) })
 			.where(eq(apiKeys.id, id));
 	}
-	return { user: row.user, scope: row.scope, keyId: id };
+	// A viewer only reads, whatever the key says.
+	const scope = row.user.role === 'viewer' ? 'read' : row.scope;
+	return { user: row.user, scope, keyId: id };
 }

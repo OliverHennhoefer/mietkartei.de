@@ -1104,8 +1104,11 @@ export const tasks = sqliteTable(
 	(table) => [index('tasks_account_id_idx').on(table.accountId)]
 );
 
-export const userRoles = ['owner', 'manager'] as const;
+export const userRoles = ['owner', 'manager', 'viewer'] as const;
 export type UserRole = (typeof userRoles)[number];
+/** The roles an owner gives others: by invitation or by changing a member's role. */
+export const memberRoles = ['manager', 'viewer'] as const;
+export type MemberRole = (typeof memberRoles)[number];
 
 /** A person who signs in. Each user works in exactly one account. */
 export const users = sqliteTable(
@@ -1116,7 +1119,10 @@ export const users = sqliteTable(
 		/** Stored trimmed and in lower case; unique across all accounts. */
 		email: text('email').notNull().unique(),
 		passwordHash: text('password_hash').notNull(),
-		/** Owners manage invitations and bank accounts; managers edit everything else. */
+		/**
+		 * Owners manage invitations and bank accounts; managers edit everything else; viewers only
+		 * read (the hook refuses their writes).
+		 */
 		role: text('role', { enum: userRoles }).notNull().default('owner'),
 		name: text('name'),
 		createdAt: createdAt()
@@ -1191,7 +1197,7 @@ export const apiKeys = sqliteTable(
 );
 
 /**
- * An invitation to join the account as a manager. Only the hash of the link token is stored.
+ * An invitation to join the account as a manager or viewer. Only the hash of the link token is stored.
  * Revoked and resent invitations stay, so the daily limit of invitations counts them too; every
  * invitation is deleted a month after its expiry.
  */
@@ -1201,6 +1207,7 @@ export const invitations = sqliteTable(
 		id: id(),
 		accountId: accountId(),
 		email: text('email').notNull(),
+		role: text('role', { enum: memberRoles }).notNull().default('manager'),
 		tokenHash: text('token_hash').notNull().unique(),
 		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
 		invitedBy: text('invited_by').references(() => users.id, { onDelete: 'set null' }),
