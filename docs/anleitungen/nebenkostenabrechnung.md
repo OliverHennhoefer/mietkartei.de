@@ -48,9 +48,9 @@ Ein Entwurf rechnet bei jedem Öffnen neu. Fehlt ein Beleg, trägst du ihn nach 
 
 ## 4. Freigeben und zustellen
 
-Stimmt alles, klickst du **Freigeben**. Ab dann ändert sich die Abrechnung nicht mehr: Nachzahlungen und Guthaben werden auf den Mietkonten gebucht und jeder Mieter bekommt seine Abrechnung als PDF mit Kostenaufstellung, Umlageschlüsseln, CO₂-Angaben und Vorauszahlungen.
+Stimmt alles, klickst du **Freigeben**. Ab dann ändert sich die Abrechnung nicht mehr, und Nachzahlungen und Guthaben werden auf den Mietkonten gebucht. Für jeden Mietvertrag steht dann ein PDF mit Kostenaufstellung, Umlageschlüsseln, CO₂-Angaben und Vorauszahlungen bereit.
 
-Trag danach ein, wann die Abrechnung beim Mieter angekommen ist. Davon hängen zwei Fristen ab:
+Die Freigabe verschickt nichts. Lade die PDFs herunter und stell sie deinen Mietern selbst zu, per Post, per E-Mail oder persönlich. Trag danach ein, wann die Abrechnung beim Mieter angekommen ist. Davon hängen zwei Fristen ab:
 
 - **Abrechnungsfrist:** Die Abrechnung muss dem Mieter spätestens zwölf Monate nach Ende des Abrechnungszeitraums zugehen (§ 556 Abs. 3 BGB). Kommt sie später an, kannst du eine Nachzahlung in der Regel nicht mehr verlangen. mietkartei bucht sie dann wieder aus.
 - **Einwendungsfrist:** Der Mieter kann bis zum Ende des zwölften Monats nach Zugang Einwände erheben.
