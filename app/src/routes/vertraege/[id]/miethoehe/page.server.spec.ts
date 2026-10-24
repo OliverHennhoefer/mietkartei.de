@@ -1,10 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
+import { consumerPriceIndex } from '#lib/server/db/schema.ts';
 import { getLease } from '#lib/server/leases.ts';
-import { addIndexValue } from '#lib/server/rent-adjustments.ts';
 import { listRentChanges } from '#lib/server/rents.ts';
 import {
-	contextA,
 	outcome,
 	routeEvent,
 	seedLease,
@@ -134,7 +133,9 @@ describe('miethoehe', () => {
 
 	it('proposes an index change, approves it and prints the letter', async () => {
 		expect(await act('propose')).toMatchObject({ fail: 400, data: { source: 'propose' } });
-		await addIndexValue(db, contextA, { month: '2026-01', value: 124.3, baseYear: '2020' });
+		await db
+			.insert(consumerPriceIndex)
+			.values({ month: '2026-01', value: 124.3, baseYear: '2020' });
 		expect(await act('propose')).toEqual({ data: { source: 'propose', saved: true } });
 		const proposal = (await listRentChanges(db, 'a', leaseId)).find(
 			(row) => row.status === 'proposed'

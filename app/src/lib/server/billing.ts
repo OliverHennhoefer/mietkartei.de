@@ -17,7 +17,7 @@ export function billingEnabled(): boolean {
 	return Boolean(STRIPE_SECRET_KEY && STRIPE_PRICE_ID);
 }
 
-export const TRIAL_DAYS = 30;
+const TRIAL_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** The columns of an account the billing rules read. */
@@ -62,7 +62,7 @@ export function billingState(account: BillingAccount, now: Date): BillingState {
 }
 
 /** The states in which a read-only instance refuses writes. */
-export function isReadOnly(state: BillingState): boolean {
+function isReadOnly(state: BillingState): boolean {
 	return state === 'expired' || state === 'canceled';
 }
 
@@ -161,7 +161,7 @@ export function refusesWrite(
 	return !writableActions.get(path)?.has(action);
 }
 
-export const READ_ONLY_MESSAGE = 'Dein Konto ist nur noch lesbar, bis ein Abo abgeschlossen ist.';
+const READ_ONLY_MESSAGE = 'Dein Konto ist nur noch lesbar, bis ein Abo abgeschlossen ist.';
 
 /** The billing columns of the account; undefined when it does not exist. */
 export async function getBillingAccount(db: Database, accountId: string) {

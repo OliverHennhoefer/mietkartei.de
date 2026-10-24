@@ -55,6 +55,13 @@ export const variables = defineEnvVars({
 		description: 'Sender address, e.g. "mietkartei <noreply@mietkartei.de>".',
 		schema: (value) => value || 'mietkartei <noreply@mietkartei.de>'
 	},
+	GENESIS_API_TOKEN: {
+		description:
+			'API token of a GENESIS-Online account of Destatis (free registration at ' +
+			'genesis.destatis.de). Set, the app fetches the Verbraucherpreisindex for index rents ' +
+			'from Destatis; unset, it has no VPI values. A secret on the hosted variant.',
+		schema: (value) => value || ''
+	},
 	STRIPE_SECRET_KEY: {
 		description:
 			'Stripe secret key (sk_test_… in test mode). Together with STRIPE_PRICE_ID it turns on the ' +

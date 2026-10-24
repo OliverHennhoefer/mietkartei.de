@@ -369,6 +369,33 @@ describe('updateLease', () => {
 		);
 	});
 
+	it('names a changed operating cost prepayment in the log, and nothing when nothing changed', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const tenantId = await seedTenant(db, 'a');
+		const result = await createLease(db, contextA, leaseInput(unitId, { tenantIds: [tenantId] }));
+		if (!result.ok) throw new Error(result.reason);
+		const update = (overrides: Parameters<typeof leaseInput>[1]) =>
+			updateLease(
+				db,
+				contextA,
+				result.id,
+				leaseInput(unitId, { tenantIds: [tenantId], ...overrides })
+			);
+		const summaries = async () =>
+			(await db.select().from(auditLog).where(eq(auditLog.action, 'update'))).map(
+				(entry) => entry.summary
+			);
+		expect(await update({ operatingCostPrepayment: 16000 })).toEqual({ ok: true });
+		expect(await summaries()).toEqual([
+			'Mietvertrag geändert: Betriebskostenvorauszahlung 160,00\u00a0€'
+		]);
+		expect(await update({ operatingCostPrepayment: 16000 })).toEqual({ ok: true });
+		expect((await summaries()).sort()).toEqual([
+			'Mietvertrag geändert',
+			'Mietvertrag geändert: Betriebskostenvorauszahlung 160,00\u00a0€'
+		]);
+	});
+
 	it('refuses a start date on or after a later rent change or persons row instead of failing', async () => {
 		const { unitId } = await seedUnit(db, 'a');
 		const tenantId = await seedTenant(db, 'a');

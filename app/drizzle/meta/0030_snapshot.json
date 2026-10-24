@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "80d66c4a-558c-48ea-abce-268764279657",
+  "id": "3d8db373-ebcb-4567-8dd0-73323d6137d3",
   "prevId": "42b81e3a-5fd4-4d7e-ac08-fa3c50cc11d8",
   "tables": {
     "accounts": {
@@ -1374,15 +1374,8 @@
     "consumer_price_index": {
       "name": "consumer_price_index",
       "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "account_id": {
-          "name": "account_id",
+        "base_year": {
+          "name": "base_year",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1401,50 +1394,56 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "base_year": {
-          "name": "base_year",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'2020'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(unixepoch('subsec') * 1000)"
         }
       },
-      "indexes": {
-        "consumer_price_index_unique": {
-          "name": "consumer_price_index_unique",
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "consumer_price_index_base_year_month_pk": {
           "columns": [
-            "account_id",
             "base_year",
             "month"
           ],
-          "isUnique": true
+          "name": "consumer_price_index_base_year_month_pk"
         }
       },
-      "foreignKeys": {
-        "consumer_price_index_account_id_accounts_id_fk": {
-          "name": "consumer_price_index_account_id_accounts_id_fk",
-          "tableFrom": "consumer_price_index",
-          "tableTo": "accounts",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "consumer_price_index_fetches": {
+      "name": "consumer_price_index_fetches",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "attempted_at": {
+          "name": "attempted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "succeeded_at": {
+          "name": "succeeded_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
+      "indexes": {},
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -4252,13 +4251,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'residential'"
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         },
         "vacancy_persons": {
           "name": "vacancy_persons",

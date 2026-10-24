@@ -1,17 +1,37 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
-	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
-	import Field from '#lib/components/Field.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
-	import { formatMonth } from '#lib/dates.ts';
+	import { formatDateTime } from '#lib/dates.ts';
 	import { formatIndexValue } from '#lib/domain/index-rent.ts';
 	import type { PageProps } from './$types';
 
-	let { data, form }: PageProps = $props();
+	let { data }: PageProps = $props();
 
-	const errors = $derived(form && 'errors' in form ? form.errors : undefined);
-	const values = $derived(form && 'values' in form ? form.values : undefined);
+	const monthNames = [
+		'Jan',
+		'Feb',
+		'Mär',
+		'Apr',
+		'Mai',
+		'Jun',
+		'Jul',
+		'Aug',
+		'Sep',
+		'Okt',
+		'Nov',
+		'Dez'
+	];
+
+	// One row per year, newest first, with the twelve months as columns.
+	const years = $derived.by(() => {
+		const byYear: Record<string, (number | undefined)[]> = {};
+		for (const { month, value } of data.values) {
+			const [year, number] = month.split('-');
+			byYear[year] ??= Array<number | undefined>(12).fill(undefined);
+			byYear[year][Number(number) - 1] = value;
+		}
+		return Object.entries(byYear).sort(([a], [b]) => b.localeCompare(a));
+	});
 </script>
 
 <PageHeader
@@ -21,86 +41,80 @@
 
 <Alert tone="info">
 	<p>
-		Die Werte stammen vom Statistischen Bundesamt (Destatis): Verbraucherpreisindex für Deutschland,
-		Basisjahr 2020 = 100. Du trägst sie von Hand ein; ein Abruf ist nicht eingebaut. Für einen
-		Vorschlag zählt der neueste Monat.
+		Mietkartei ruft die Werte selbst beim Statistischen Bundesamt (Destatis) ab:
+		Verbraucherpreisindex für Deutschland, Basisjahr 2020 = 100. Neue Monate erscheinen hier wenige
+		Stunden nach der Veröffentlichung. Für einen Vorschlag zählt der neueste Monat.
 	</p>
 </Alert>
 
-<h2>Werte</h2>
-{#if form && 'deleted' in form}
-	<Alert tone="success"><p>Der Wert wurde gelöscht.</p></Alert>
+{#if !data.configured}
+	<Alert tone="warning">
+		<p>
+			Auf dieser Installation ist kein Abruf eingerichtet. Dafür braucht es den API-Token eines
+			kostenlosen Kontos bei GENESIS-Online in der Variablen <code>GENESIS_API_TOKEN</code>.
+		</p>
+	</Alert>
+{:else if data.lastFetch?.error}
+	<Alert tone="warning">
+		<p>
+			Der letzte Abruf am {formatDateTime(data.lastFetch.attemptedAt)} ist fehlgeschlagen: {data
+				.lastFetch.error} Mietkartei versucht es in einer halben Stunde wieder.
+		</p>
+	</Alert>
 {/if}
-{#if data.values.length === 0}
-	<p>Noch keine Werte eingetragen.</p>
+
+<h2>Werte</h2>
+{#if years.length === 0}
+	<p>Noch keine Werte abgerufen.</p>
 {:else}
 	<div class="table-wrap">
-		<table class="table" aria-label="VPI-Werte">
+		<table class="table index-grid" aria-label="VPI-Werte">
 			<thead>
 				<tr>
-					<th>Monat</th>
-					<th class="num">Wert</th>
-					<th>Basisjahr</th>
-					<th class="actions"></th>
+					<th>Jahr</th>
+					{#each monthNames as name (name)}
+						<th class="num">{name}</th>
+					{/each}
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.values as value (value.id)}
+				{#each years as [year, months] (year)}
 					<tr>
-						<td>{formatMonth(value.month)}</td>
-						<td class="num">{formatIndexValue(value.value)}</td>
-						<td>{value.baseYear}</td>
-						<td class="actions">
-							<ConfirmButton
-								action="?/delete"
-								label="Löschen"
-								message="Den Wert für {formatMonth(value.month)} löschen?"
-							>
-								<input type="hidden" name="id" value={value.id} />
-							</ConfirmButton>
-						</td>
+						<td>{year}</td>
+						{#each months as value, index (index)}
+							<td class="num">{value === undefined ? '' : formatIndexValue(value)}</td>
+						{/each}
 					</tr>
 				{/each}
 			</tbody>
 		</table>
 	</div>
 {/if}
+<p class="muted small">
+	{#if data.lastFetch?.succeededAt}Zuletzt abgerufen am {formatDateTime(
+			data.lastFetch.succeededAt
+		)}.
+	{/if}Datenquelle: Statistisches Bundesamt (Destatis), GENESIS-Online, Tabelle 61111-0002;
+	<a href="https://www.govdata.de/dl-de/by-2-0" rel="external noopener" target="_blank"
+		>Datenlizenz Deutschland – Namensnennung – Version 2.0</a
+	>.
+</p>
 
-<h2>Wert eintragen</h2>
-{#if form && 'refusal' in form}
-	<Alert tone="danger"><p>{form.refusal}</p></Alert>
-{:else if form && 'added' in form && form.added}
-	<Alert tone="success"><p>Der Wert für {formatMonth(form.added)} wurde eingetragen.</p></Alert>
-{/if}
-<form method="POST" action="?/add" class="card" use:enhance>
-	<Field label="Monat" error={errors?.month}>
-		<input
-			type="month"
-			name="month"
-			defaultValue={values?.month ?? ''}
-			aria-invalid={errors?.month ? 'true' : undefined}
-			required
-		/>
-	</Field>
-	<Field label="Indexwert" error={errors?.value} hint="Mit einer Nachkommastelle, z. B. 124,3">
-		<input
-			name="value"
-			inputmode="decimal"
-			defaultValue={values?.value ?? ''}
-			aria-invalid={errors?.value ? 'true' : undefined}
-			required
-		/>
-	</Field>
-	<Field label="Basisjahr" error={errors?.baseYear}>
-		<input
-			name="baseYear"
-			inputmode="numeric"
-			defaultValue={values?.baseYear ?? '2020'}
-			aria-invalid={errors?.baseYear ? 'true' : undefined}
-			required
-		/>
-	</Field>
-	<div class="form-actions">
-		<button type="submit">Wert eintragen</button>
-	</div>
-</form>
+<style>
+	/* Thirteen columns fit the settings dialog with narrower cells; a phone stacks them anyway. */
+	@media (min-width: 40.0625rem) {
+		.index-grid th,
+		.index-grid td {
+			padding: 0.6rem 0.3rem;
+			font-size: 0.875rem;
+		}
+		.index-grid th:first-child,
+		.index-grid td:first-child {
+			padding-left: 1rem;
+		}
+		.index-grid th:last-child,
+		.index-grid td:last-child {
+			padding-right: 1rem;
+		}
+	}
+</style>

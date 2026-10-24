@@ -6,7 +6,16 @@ import { createSession, hashPassword, normalizeEmail } from './auth';
 import type { Database } from './db';
 import { chunk, rowsPerStatement, runBatch } from './db/batch';
 import * as schema from './db/schema';
-import { accounts, properties, tenants, units, userRoles, users, type UserRole } from './db/schema';
+import {
+	accounts,
+	consumerPriceIndex,
+	properties,
+	tenants,
+	units,
+	userRoles,
+	users,
+	type UserRole
+} from './db/schema';
 import { newLeaseStatements, type LeaseInput } from './leases';
 
 // Seeds data for the end-to-end tests, behind POST /api/e2e/seed (only when E2E is set). A feature's
@@ -204,8 +213,9 @@ async function clearTables(db: Database, accountId: string, body: Row): Promise<
 		const table = findTable(name);
 		if (!table) return bad(`Unbekannte Tabelle „${name}“.`);
 		const { accountId: column } = getTableColumns(table);
-		if (!column) return bad(`Die Tabelle „${name}“ gehört zu keinem Konto.`);
-		statements.push(db.delete(table).where(eq(column, accountId)));
+		if (table === consumerPriceIndex) statements.push(db.delete(table));
+		else if (!column) return bad(`Die Tabelle „${name}“ gehört zu keinem Konto.`);
+		else statements.push(db.delete(table).where(eq(column, accountId)));
 	}
 	await runBatch(db, statements);
 	return { status: 200, body: { cleared: body.tables } };
@@ -254,7 +264,7 @@ async function seedSession(db: Database, accountId: string, body: Row): Promise<
  * its initial rent and persons), `foreignLease` (the same in a second account no e2e user belongs
  * to, for the 404 checks), `rows` (raw rows of any table), `user` (a second user of the owner's
  * account), `session` (a signed-in browser of such a user) or `clear` (the owner's rows of the
- * given tables). Returns the HTTP status and body for the route.
+ * given tables, all rows of the shared VPI table). Returns the HTTP status and body for the route.
  */
 export async function seed(db: Database, body: unknown): Promise<SeedResult> {
 	if (!isPlainObject(body)) return bad('Der Körper ist ein JSON-Objekt mit „op“.');

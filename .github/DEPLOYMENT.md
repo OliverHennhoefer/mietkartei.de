@@ -114,6 +114,17 @@ The app sends password reset links, invitations and the confirmation of a new em
 
 Links in mails point to the host Cloudflare routed the request to, so the hosted app needs no `ORIGIN`.
 
+### Consumer price index (Destatis)
+
+Index rent proposals need the Verbraucherpreisindex. The app fetches it from the GENESIS web service of Destatis (table 61111-0002, base year 2020 = 100) into one table shared by all accounts, at most every six hours, when someone opens the VPI settings or the Miethöhe tab of a lease. GENESIS has no guest access, so the app needs the API token of a free GENESIS account. Without it the app has no VPI values and refuses index proposals.
+
+1. Register at [genesis.destatis.de](https://genesis.destatis.de) and sign in.
+2. Open **Webservice-Schnittstelle (API)**, which GENESIS shows to signed-in users, and copy the API token.
+3. Store it as a Worker secret: run `npx wrangler secret put GENESIS_API_TOKEN` in `app/` and paste the token, or add it under **Workers & Pages → mietkartei-app → Settings → Variables and Secrets** as type **Secret**. For index proposals in the demo, add the same secret to `mietkartei-demo` (`npx wrangler secret put GENESIS_API_TOKEN --env demo`).
+4. After the next deploy, open `https://app.mietkartei.de/einstellungen/vpi`. The table fills within seconds; a failed fetch is shown on the page with the answer of Destatis and retried 30 minutes later.
+
+The page names Destatis as the source with the Datenlizenz Deutschland – Namensnennung – Version 2.0, as the license requires.
+
 ### Subscription (Stripe)
 
 The hosted app charges a monthly subscription through Stripe Checkout and the Stripe Customer Portal. Every account has a 30-day trial; once it ends, `BILLING_REQUIRED` decides whether an account without a running subscription can only read. The app shows nothing about billing until both `STRIPE_SECRET_KEY` and `STRIPE_PRICE_ID` are set, so it can be deployed before Stripe is ready. Set everything up in **test mode** first (the toggle in the Stripe dashboard); live mode repeats the same steps with live keys.

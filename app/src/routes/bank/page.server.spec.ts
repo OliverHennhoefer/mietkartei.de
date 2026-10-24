@@ -88,6 +88,22 @@ describe('bank', () => {
 			fail: 400,
 			data: { expenseErrors: { scope: 'Dieser Umsatz ist nicht mehr offen.' } }
 		});
+		// A property of another account is no scope of this one.
+		const { rent } = await importFile();
+		const foreign = await seedUnit(db, 'b');
+		expect(
+			await run(actions.expense, {
+				form: {
+					id: rent.id,
+					category: 'operating_costs',
+					scope: `property:${foreign.propertyId}`,
+					description: 'Hausmeister'
+				}
+			})
+		).toMatchObject({
+			fail: 400,
+			data: { expenseErrors: { scope: 'Diese Zuordnung gibt es nicht.' } }
+		});
 		const page = (await run(load, { url: `/bank?umsatz=${janitor.id}` })) as {
 			data: { transactions: { assignments: unknown[] }[]; scopes: unknown[] };
 		};
@@ -111,6 +127,9 @@ describe('bank', () => {
 		});
 		expect(await run(load, { url: '/bank?status=quatsch' })).toMatchObject({
 			data: { status: 'unmatched' }
+		});
+		expect(await run(load, { url: '/bank?status=all' })).toMatchObject({
+			data: { status: 'all', transactions: [{}, {}] }
 		});
 	});
 

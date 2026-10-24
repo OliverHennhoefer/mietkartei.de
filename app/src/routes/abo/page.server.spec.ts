@@ -227,6 +227,17 @@ describe('portal', () => {
 		expect((await run('portal')).failure).toMatchObject({ status: 502 });
 	});
 
+	it('lets an unreachable network through as an error instead of hiding it', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => {
+				throw new TypeError('fetch failed');
+			})
+		);
+		await expect(run('portal')).rejects.toThrow('fetch failed');
+		await expect(run('checkout')).rejects.toThrow('fetch failed');
+	});
+
 	it('needs a customer and a trusted origin', async () => {
 		vi.spyOn(console, 'warn').mockImplementation(() => {});
 		env.ORIGIN = '';
@@ -267,6 +278,13 @@ describe('load', () => {
 			success: true
 		});
 		expect(data.trialEnd).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+	});
+
+	it('says monatlich for a price without a fixed amount', async () => {
+		answers['GET /v1/prices/price_unit'] = () => ({
+			body: { id: 'price_unit', unit_amount: null }
+		});
+		expect(await show()).toMatchObject({ data: { price: 'monatlich' } });
 	});
 
 	it('still opens when Stripe does not answer with a price', async () => {

@@ -159,20 +159,15 @@ describe('referenceIndex', () => {
 });
 
 describe('latestIndex', () => {
-	it('picks the newest month of a single base year', () => {
+	it('picks the newest month', () => {
 		expect(latestIndex(values)).toEqual({
 			ok: true,
 			latest: { month: '2026-01', value: 124.3, baseYear: '2020' }
 		});
 	});
 
-	it('refuses an empty table and mixed base years', () => {
+	it('refuses an empty table', () => {
 		expect(latestIndex([])).toEqual({ ok: false, reason: 'none' });
-		expect(latestIndex([...values, { month: '2026-02', value: 131.9, baseYear: '2015' }])).toEqual({
-			ok: false,
-			reason: 'mixed',
-			baseYears: ['2015', '2020']
-		});
 	});
 });
 
@@ -263,7 +258,7 @@ describe('indexSituation', () => {
 	});
 
 	it('refuses VPI values of another base year than the reference', () => {
-		// The lease's reference is on base 2020; the account only has values on base 2025.
+		// The lease's reference is on base 2020; the table only has values on base 2025.
 		const situation = indexSituation(
 			lease,
 			[initial],
@@ -273,7 +268,7 @@ describe('indexSituation', () => {
 		expect(situation.proposal).toBeUndefined();
 		expect(situation.refusal).toBe(
 			'Der Bezugsindex beruht auf dem Basisjahr 2020, die VPI-Werte auf dem Basisjahr 2025. ' +
-				'Trage die VPI-Werte zum Basisjahr 2020 ein oder den Bezugsindex umgerechnet im Mietvertrag.'
+				'Trage den Bezugsindex im Mietvertrag auf das Basisjahr 2025 umgerechnet ein.'
 		);
 	});
 
@@ -295,14 +290,6 @@ describe('indexSituation', () => {
 			).refusal
 		).toContain('Bezugsindex');
 		expect(indexSituation(lease, [initial], [], today).refusal).toContain('keine Werte');
-		expect(
-			indexSituation(
-				lease,
-				[initial],
-				[...values, { month: '2026-02', value: 131.9, baseYear: '2015' }],
-				today
-			).refusal
-		).toContain('mehreren Basisjahren (2015, 2020)');
 		expect(
 			indexSituation(
 				lease,

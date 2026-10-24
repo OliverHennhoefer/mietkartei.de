@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5a5a1c67-e708-4c47-9264-5fe24f33fc23",
-  "prevId": "80d66c4a-558c-48ea-abce-268764279657",
+  "id": "ff7ba077-ac5c-46bf-b09f-c272459aefca",
+  "prevId": "3d8db373-ebcb-4567-8dd0-73323d6137d3",
   "tables": {
     "accounts": {
       "name": "accounts",
@@ -951,30 +951,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "base_rates": {
-      "name": "base_rates",
-      "columns": {
-        "valid_from": {
-          "name": "valid_from",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "rate": {
-          "name": "rate",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "billing_circle_units": {
       "name": "billing_circle_units",
       "columns": {
@@ -1398,15 +1374,8 @@
     "consumer_price_index": {
       "name": "consumer_price_index",
       "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "account_id": {
-          "name": "account_id",
+        "base_year": {
+          "name": "base_year",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1425,50 +1394,56 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "base_year": {
-          "name": "base_year",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'2020'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(unixepoch('subsec') * 1000)"
         }
       },
-      "indexes": {
-        "consumer_price_index_unique": {
-          "name": "consumer_price_index_unique",
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "consumer_price_index_base_year_month_pk": {
           "columns": [
-            "account_id",
             "base_year",
             "month"
           ],
-          "isUnique": true
+          "name": "consumer_price_index_base_year_month_pk"
         }
       },
-      "foreignKeys": {
-        "consumer_price_index_account_id_accounts_id_fk": {
-          "name": "consumer_price_index_account_id_accounts_id_fk",
-          "tableFrom": "consumer_price_index",
-          "tableTo": "accounts",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "consumer_price_index_fetches": {
+      "name": "consumer_price_index_fetches",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "attempted_at": {
+          "name": "attempted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "succeeded_at": {
+          "name": "succeeded_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
+      "indexes": {},
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -4332,44 +4307,6 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "public_data_fetches": {
-      "name": "public_data_fetches",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "attempted_at": {
-          "name": "attempted_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "succeeded_at": {
-          "name": "succeeded_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { validateSession, verifyPassword } from './auth';
 import type { Database } from './db';
 import {
+	auditLog,
 	consumerPriceIndex,
 	leasePersons,
 	leaseTenants,
@@ -238,6 +239,15 @@ describe('seed user', () => {
 		expect(
 			await seed(db, { op: 'user', email: 'c@example.org', password: 'x', role: 'admin' })
 		).toMatchObject({ status: 400 });
+		for (const body of [
+			{ email: ' ', password: 'x', role: 'owner' },
+			{ email: 'c@example.org', password: '', role: 'owner' },
+			{ email: 'c@example.org', password: 'x', role: 'manager', name: 42 }
+		]) {
+			expect(await seed(db, { op: 'user', ...body }), JSON.stringify(body)).toMatchObject({
+				status: 400
+			});
+		}
 		expect(await db.select().from(users)).toHaveLength(2);
 	});
 });
@@ -263,20 +273,26 @@ describe('seed session', () => {
 });
 
 describe('seed clear', () => {
-	it('removes only the owner’s rows of the named tables', async () => {
-		await db.insert(consumerPriceIndex).values([
-			{ accountId: 'a', month: '2025-01', value: 121 },
-			{ accountId: 'a', month: '2026-01', value: 124.3 },
-			{ accountId: 'b', month: '2025-01', value: 121 }
-		]);
+	const entry = (accountId: string) => ({
+		accountId,
+		entity: 'task',
+		entityId: 't',
+		action: 'create',
+		summary: 'Aufgabe angelegt'
+	});
+
+	it('removes only the owner’s rows of the named tables and empties the VPI table', async () => {
+		await db.insert(auditLog).values([entry('a'), entry('a'), entry('b')]);
+		await db.insert(consumerPriceIndex).values({ month: '2025-01', value: 121, baseYear: '2020' });
 		const lease = (await seed(db, { op: 'lease' })).body as SeedLeaseResult;
 
 		const result = await seed(db, {
 			op: 'clear',
-			tables: ['leases', 'consumer_price_index']
+			tables: ['leases', 'audit_log', 'consumer_price_index']
 		});
 		expect(result.status).toBe(200);
-		expect(await db.select().from(consumerPriceIndex)).toMatchObject([{ accountId: 'b' }]);
+		expect(await db.select().from(auditLog)).toMatchObject([{ accountId: 'b' }]);
+		expect(await db.select().from(consumerPriceIndex)).toEqual([]);
 		expect(await db.select().from(leases)).toEqual([]);
 		expect(await db.select().from(rentChanges)).toEqual([]);
 		// Tables not named stay as they are.
@@ -284,17 +300,19 @@ describe('seed clear', () => {
 	});
 
 	it('refuses tables without an account and unknown tables without deleting anything', async () => {
-		await db.insert(consumerPriceIndex).values({ accountId: 'a', month: '2025-01', value: 121 });
-		expect(
-			await seed(db, { op: 'clear', tables: ['consumerPriceIndex', 'sessions'] })
-		).toMatchObject({
+		await db.insert(auditLog).values(entry('a'));
+		expect(await seed(db, { op: 'clear', tables: ['auditLog', 'sessions'] })).toMatchObject({
 			status: 400,
 			body: { message: 'Die Tabelle „sessions“ gehört zu keinem Konto.' }
 		});
-		expect(await seed(db, { op: 'clear', tables: ['consumerPriceIndex', 'nope'] })).toMatchObject({
+		expect(await seed(db, { op: 'clear', tables: ['auditLog', 'nope'] })).toMatchObject({
 			status: 400
 		});
-		expect(await db.select().from(consumerPriceIndex)).toHaveLength(1);
+		expect(await seed(db, { op: 'clear', tables: 'auditLog' })).toMatchObject({
+			status: 400,
+			body: { message: 'Bitte gib die Tabellen als Liste von Namen an.' }
+		});
+		expect(await db.select().from(auditLog)).toHaveLength(1);
 	});
 });
 

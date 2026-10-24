@@ -450,6 +450,31 @@ describe('listLedger', () => {
 		expect(ledger).toMatchObject({ charged: 240000, paid: 220000, balance: 20000 });
 	});
 
+	it('keeps payments of the same day in the order they were booked', async () => {
+		await createPayment(db, contextA, {
+			leaseId: endedLeaseId,
+			date: '2025-02-10',
+			amount: 1000,
+			source: 'manual',
+			note: 'Rest'
+		});
+		// createdAt has millisecond resolution; spread the two bookings so the order is defined.
+		const sameDay = await db.select().from(payments).where(eq(payments.date, '2025-02-10'));
+		expect(sameDay).toHaveLength(2);
+		const base = Date.now();
+		for (const payment of sameDay) {
+			const offset = payment.note === 'Rest' ? 1000 : 0;
+			await db
+				.update(payments)
+				.set({ createdAt: new Date(base + offset) })
+				.where(eq(payments.id, payment.id));
+		}
+		const labels = (await listLedger(db, 'a', endedLeaseId)).lines
+			.filter((line) => line.date === '2025-02-10')
+			.map((line) => line.label);
+		expect(labels).toEqual(['Zahlung', 'Rest']);
+	});
+
 	it('limits the lines to a window and carries the balance over', async () => {
 		const ledger = await listLedger(db, 'a', endedLeaseId, {
 			from: '2025-02-01',

@@ -378,22 +378,29 @@ export const depositTransactions = sqliteTable(
 	]
 );
 
-/** Verbraucherpreisindex values entered per account, for indexed rents. */
+/**
+ * Verbraucherpreisindex values for Germany, shared by all accounts: fetched from Destatis (GENESIS
+ * table 61111-0002), see consumer-price-index.ts.
+ */
 export const consumerPriceIndex = sqliteTable(
 	'consumer_price_index',
 	{
-		id: id(),
-		accountId: accountId(),
+		baseYear: text('base_year').notNull(),
 		/** YYYY-MM */
 		month: text('month').notNull(),
-		value: real('value').notNull(),
-		baseYear: text('base_year').notNull().default('2020'),
-		createdAt: createdAt()
+		value: real('value').notNull()
 	},
-	(table) => [
-		uniqueIndex('consumer_price_index_unique').on(table.accountId, table.baseYear, table.month)
-	]
+	(table) => [primaryKey({ columns: [table.baseYear, table.month] })]
 );
+
+/** The single row (id `destatis`) of the last fetch of the consumer price index. */
+export const consumerPriceIndexFetches = sqliteTable('consumer_price_index_fetches', {
+	id: text('id').primaryKey(),
+	attemptedAt: integer('attempted_at', { mode: 'timestamp_ms' }).notNull(),
+	succeededAt: integer('succeeded_at', { mode: 'timestamp_ms' }),
+	/** Why the last attempt failed; null after a success. */
+	error: text('error')
+});
 
 /**
  * Basiszinssatz (§ 247 BGB), one table for all accounts: one row per half-year from its first day

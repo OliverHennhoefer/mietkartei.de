@@ -30,7 +30,7 @@ import { recipientLines } from './rent-adjustments';
 export type ReminderRow = typeof paymentReminders.$inferSelect;
 
 /** The letters of a lease, newest first. */
-export async function listReminders(
+async function listReminders(
 	db: Database,
 	accountId: string,
 	leaseId: string

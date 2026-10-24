@@ -10,7 +10,7 @@ import {
 	actions as unitEditActions,
 	load as loadUnitEdit
 } from './[id]/einheiten/[unitId]/bearbeiten/+page.server';
-import { actions as newActions } from './neu/+page.server';
+import { actions as newActions, load as loadNew } from './neu/+page.server';
 import { load } from './+page.server';
 
 // The property pages: list, new, the property with its units, editing and deleting both.
@@ -38,6 +38,8 @@ describe('objekte', () => {
 	});
 
 	it('creates a property and opens it', async () => {
+		expect(await run(loadNew, {})).toEqual({ data: {} });
+		expect(await run(loadNew, { user: null })).toEqual({ redirect: '/anmelden' });
 		const result = await run(newActions.create, { form: property });
 		const id = 'redirect' in result ? result.redirect.split('/').at(-1)! : '';
 		expect((await getProperty(db, 'a', id))?.name).toBe('Gartenhaus');

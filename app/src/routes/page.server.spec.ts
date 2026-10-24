@@ -23,7 +23,8 @@ const env = vi.hoisted(() => ({
 	DEMO: false,
 	STRIPE_SECRET_KEY: '',
 	STRIPE_PRICE_ID: '',
-	BILLING_REQUIRED: false
+	BILLING_REQUIRED: false,
+	GENESIS_API_TOKEN: ''
 }));
 vi.mock('$app/env/private', () => env);
 
@@ -106,10 +107,13 @@ describe('mietkonto', () => {
 			source: 'manual',
 			note: null
 		});
+		// Starts next month: nothing due yet, listed after A by its name.
+		const third = await seedUnit(db, 'a', { name: 'C' });
+		const upcoming = await seedLease(db, 'a', third.unitId, { startDate: '2026-04-01' });
 		expect(await run(loadBalances, { url: '/mietkonto' })).toMatchObject({
 			data: {
-				leaseCount: 2,
-				rows: [{ leaseId: owing }, { leaseId: paid, balance: -20000 }],
+				leaseCount: 3,
+				rows: [{ leaseId: owing }, { leaseId: paid, balance: -20000 }, { leaseId: upcoming }],
 				stats: { arrearsCount: 1, creditTotal: 20000, creditCount: 1 }
 			}
 		});

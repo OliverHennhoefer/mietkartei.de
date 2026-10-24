@@ -9,7 +9,6 @@ CREATE TABLE `public_data_fetches` (
 	`succeeded_at` integer,
 	`error` text
 );
-
 --> statement-breakpoint
 -- Basiszinssatz since 2015 as published by the Deutsche Bundesbank, in basis points.
 INSERT INTO `base_rates` (`valid_from`, `rate`) VALUES

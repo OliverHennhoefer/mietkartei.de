@@ -25,7 +25,7 @@ export const residentialTiers: ReadonlyArray<readonly [number, number]> = [
 ];
 
 /** § 8: non-residential buildings split half and half. */
-export const NON_RESIDENTIAL_LANDLORD_PERCENT = 50;
+const NON_RESIDENTIAL_LANDLORD_PERCENT = 50;
 
 /** The landlord's share in percent for the given emissions per m² and year. */
 export function landlordSharePercent(kgPerSquareMetre: number, use: BuildingUse): number {
