@@ -6,7 +6,15 @@ import { formatCents } from '../money';
 import { auditEntry } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import { auditLog, leases, payments, rentCharges, rentChanges } from './db/schema';
+import { createBankAccount } from './bank/accounts';
+import {
+	auditLog,
+	bankTransactions,
+	leases,
+	payments,
+	rentCharges,
+	rentChanges
+} from './db/schema';
 import { createLease } from './leases';
 import {
 	chargeEntry,
@@ -320,6 +328,35 @@ describe('createPayment and deletePayment', () => {
 		expect(audit.at(-1)?.summary).toBe(`Rückzahlung ${formatCents(2500)} vom 03.04.2025 gebucht`);
 	});
 
+	it('leaves a payment from a bank transaction to the bank page', async () => {
+		const created = await createBankAccount(db, contextA, {
+			name: 'Mietkonto',
+			iban: 'DE02120300000000202051',
+			bic: null,
+			holder: 'Erika Vermieter'
+		});
+		if (!created.ok) throw new Error('setup failed');
+		const [transaction] = await db
+			.insert(bankTransactions)
+			.values({
+				accountId: 'a',
+				bankAccountId: created.id,
+				bookingDate: '2025-04-03',
+				amount: 65000,
+				fingerprint: 'f'
+			})
+			.returning({ id: bankTransactions.id });
+		const entry = paymentEntry(db, contextA, {
+			...payment,
+			leaseId,
+			source: 'bank',
+			bankTransactionId: transaction.id
+		});
+		await runBatch(db, [entry.statement]);
+		expect(await deletePayment(db, contextA, entry.id)).toBe('from-bank');
+		expect(await db.select().from(payments)).toHaveLength(1);
+	});
+
 	it('builds a statement for the banking feature to run in its own batch', async () => {
 		const entry = paymentEntry(db, contextA, { ...payment, leaseId, source: 'bank' });
 		await runBatch(db, [entry.statement]);
@@ -382,6 +419,7 @@ describe('listLedger', () => {
 		await pay('2025-03-05', 100000, 'Nachzahlung');
 		await pay('2025-01-03', 80000);
 		await pay('2025-02-10', 50000);
+		await pay('2025-03-20', -10000);
 	});
 
 	it('interleaves charges and payments with a running balance, charges first on a day', async () => {
@@ -395,9 +433,11 @@ describe('listLedger', () => {
 			['2025-02-05', 'charge', 'Miete Februar 2025', 80000, 80000],
 			['2025-02-10', 'payment', 'Zahlung', 50000, 30000],
 			['2025-03-05', 'charge', 'Miete März 2025', 80000, 110000],
-			['2025-03-05', 'payment', 'Nachzahlung', 100000, 10000]
+			['2025-03-05', 'payment', 'Nachzahlung', 100000, 10000],
+			// A refund to the tenant raises the balance again.
+			['2025-03-20', 'payment', 'Rückzahlung', -10000, 20000]
 		]);
-		expect(ledger).toMatchObject({ charged: 240000, paid: 230000, balance: 10000 });
+		expect(ledger).toMatchObject({ charged: 240000, paid: 220000, balance: 20000 });
 	});
 
 	it('limits the lines to a window and carries the balance over', async () => {
@@ -416,7 +456,7 @@ describe('listLedger', () => {
 		await postCharge(db, contextA, { leaseId: endedLeaseId, ...adjustment, period: '2025-03' });
 		const ledger = await listLedger(db, 'a', endedLeaseId, { from: '2025-05-01' });
 		expect(ledger.lines.map((line) => [line.label, line.amount, line.balance])).toEqual([
-			['Korrektur März 2025: Mietminderung Heizung', -5000, 5000]
+			['Korrektur März 2025: Mietminderung Heizung', -5000, 15000]
 		]);
 	});
 
