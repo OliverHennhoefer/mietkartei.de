@@ -23,7 +23,8 @@ const env = vi.hoisted(() => ({
 	DEMO: false,
 	STRIPE_SECRET_KEY: '',
 	STRIPE_PRICE_ID: '',
-	BILLING_REQUIRED: false
+	BILLING_REQUIRED: false,
+	GENESIS_API_TOKEN: ''
 }));
 vi.mock('$app/env/private', () => env);
 

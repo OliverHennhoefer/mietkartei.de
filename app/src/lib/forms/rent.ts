@@ -1,13 +1,12 @@
 import type {
 	ApprovalInput,
 	GraduatedStepInput,
-	IndexValueInput,
 	ManualChangeInput
 } from '../server/rent-adjustments';
 import { FormParser, type ParseResult } from './fields';
 
-// Parsers of the rent feature: the manual change, a Staffel step, the approval of an index
-// proposal and a VPI value. Whether the lease allows the change is checked by the server module.
+// Parsers of the rent feature: the manual change, a Staffel step and the approval of an index
+// proposal. Whether the lease allows the change is checked by the server module.
 
 export type ManualChangeOptions = {
 	/**
@@ -71,27 +70,4 @@ export function parseApproval(
 		parser.fail('validFrom', 'Die neue Miete kann erst nach der Zustellung gelten.');
 	}
 	return parser.result(() => ({ deliveredOn: deliveredOn!, validFrom }));
-}
-
-/** A VPI value: month, value with at most one decimal, base year (four digits, default 2020). */
-export function parseIndexValue(form: FormData): ParseResult<IndexValueInput> {
-	const parser = new FormParser<IndexValueInput>(form);
-	const month = parser.month('month');
-	const raw = parser.raw('value');
-	let value: number | null = null;
-	if (!raw) parser.fail('value', 'Bitte gib den Indexwert an.');
-	else if (!/^\d{1,4}([.,]\d)?$/.test(raw)) {
-		parser.fail(
-			'value',
-			'Bitte gib den Indexwert mit höchstens einer Nachkommastelle an, z. B. 121,4.'
-		);
-	} else {
-		value = Number(raw.replace(',', '.'));
-		if (value <= 0) parser.fail('value', 'Der Indexwert muss größer als 0 sein.');
-	}
-	const baseYear = parser.raw('baseYear') || '2020';
-	if (!/^(19|20)\d{2}$/.test(baseYear)) {
-		parser.fail('baseYear', 'Bitte gib das Basisjahr mit vier Ziffern an, z. B. 2020.');
-	}
-	return parser.result(() => ({ month: month!, value: value!, baseYear }));
 }
