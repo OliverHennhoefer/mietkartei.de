@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { closeLaunchNotice } from './launch-notice';
 import { linkInMailTo } from './outbox';
+import { clearTables } from './seed';
 
 // Project "manager", with the owner's storage state. The owner invites a manager through the
 // page, the manager registers through the link from the mail in a browser context of their own.
@@ -19,12 +20,23 @@ test('the owner invites a manager, who registers through the link', async ({
 		.click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Mitverwalter' })).toBeVisible();
 	await expect(page.getByRole('table', { name: 'Zugänge' })).toContainText('(du)');
+
+	// The feature tests, which have all finished, leave seeded managers and invitations in the
+	// account. They are removed, so the account has free seats for this test.
+	page.on('dialog', (dialog) => dialog.accept());
+	await clearTables(page.request, ['invitations']);
+	await page.reload();
+	const remove = page
+		.getByRole('table', { name: 'Zugänge' })
+		.getByRole('button', { name: 'Entfernen' });
+	for (let left = await remove.count(); left > 0; left--) {
+		await remove.first().click();
+		await expect(remove).toHaveCount(left - 1);
+	}
 	await page.getByLabel('E-Mail-Adresse').fill(manager.email);
 	await page.getByRole('button', { name: 'Einladen' }).click();
 	await expect(page.getByRole('status')).toContainText(`Die Einladung an ${manager.email}`);
-	await expect(page.getByRole('table', { name: 'Offene Einladungen' })).toContainText(
-		manager.email
-	);
+	await expect(page.getByRole('table', { name: 'Einladungen' })).toContainText(manager.email);
 	const link = await linkInMailTo(page.request, manager.email, '/einladung/');
 
 	// The same address cannot be invited twice while the invitation is open.
@@ -114,7 +126,7 @@ test('the owner invites a manager, who registers through the link', async ({
 
 	// The owner sees the new user instead of the invitation, and the log names the acceptance.
 	// Other tests may leave invitations of their own, so only these rows are checked.
-	const invitations = page.getByRole('table', { name: 'Offene Einladungen' });
+	const invitations = page.getByRole('table', { name: 'Einladungen' });
 	await page.reload();
 	await expect(page.getByRole('table', { name: 'Zugänge' })).toContainText('Max Mitverwalter');
 	await expect(invitations.getByRole('row', { name: new RegExp(manager.email) })).toHaveCount(0);
@@ -124,12 +136,23 @@ test('the owner invites a manager, who registers through the link', async ({
 	);
 	await page.goto('/einstellungen/mitverwalter');
 
-	// A second invitation is revoked before anyone uses it; its link then leads nowhere.
+	// A second invitation is sent again and revoked before anyone uses it; its links then lead nowhere.
 	const second = 'zweite-einladung@example.org';
 	await page.getByLabel('E-Mail-Adresse').fill(second);
 	await page.getByRole('button', { name: 'Einladen' }).click();
 	await expect(invitations).toContainText(second);
+	const firstLink = await linkInMailTo(page.request, second, '/einladung/');
+
+	// Sending it again replaces the link.
+	await invitations
+		.getByRole('row', { name: new RegExp(second) })
+		.getByRole('button', { name: 'Erneut senden' })
+		.click();
+	await expect(page.getByRole('status')).toContainText(`Die Einladung an ${second}`);
+	await expect(invitations.getByRole('row', { name: new RegExp(second) })).toHaveCount(1);
+	expect((await page.request.get(firstLink)).status()).toBe(404);
 	const secondLink = await linkInMailTo(page.request, second, '/einladung/');
+	expect(secondLink).not.toBe(firstLink);
 	await invitations
 		.getByRole('row', { name: new RegExp(second) })
 		.getByRole('button', { name: 'Zurückziehen' })
@@ -139,7 +162,6 @@ test('the owner invites a manager, who registers through the link', async ({
 	expect((await page.request.get(secondLink)).status()).toBe(404);
 
 	// Removing the manager ends their access at once, including the open session.
-	page.on('dialog', (dialog) => dialog.accept());
 	const users = page.getByRole('table', { name: 'Zugänge' });
 	await users
 		.getByRole('row', { name: /Max Mitverwalter/ })

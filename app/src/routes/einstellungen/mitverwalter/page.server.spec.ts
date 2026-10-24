@@ -36,7 +36,7 @@ describe('mitverwalter', () => {
 		expect(await outcome(() => load(routeEvent(db, { user: managerA })))).toMatchObject({
 			error: 403
 		});
-		for (const action of [actions.invite, actions.revoke, actions.remove]) {
+		for (const action of [actions.invite, actions.resend, actions.revoke, actions.remove]) {
 			expect(await outcome(() => action(routeEvent(db, manager)))).toMatchObject({ error: 403 });
 		}
 	});
@@ -48,7 +48,9 @@ describe('mitverwalter', () => {
 			data: {
 				userId: 'user-a',
 				users: [expect.anything(), expect.anything()],
-				invitations: [{ email: 'neu@example.org' }]
+				invitations: [{ email: 'neu@example.org', expired: false }],
+				freeSeats: 2,
+				maxMembers: 5
 			}
 		});
 	});
@@ -82,6 +84,29 @@ describe('mitverwalter', () => {
 		vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('down', { status: 500 }));
 		expect(await invite('neu@example.org')).toMatchObject({ fail: 502 });
 		expect(await outcome(() => load(routeEvent(db)))).toMatchObject({ data: { invitations: [] } });
+	});
+
+	it('sends an invitation again with a new link', async () => {
+		const created = await createInvitation(db, contextA, { email: 'neu@example.org' });
+		if (!created.ok) throw new Error(created.reason);
+		const resend = (invitationId: string) =>
+			outcome(() => actions.resend(routeEvent(db, { form: { invitationId } })));
+		expect(await resend(created.id)).toEqual({ data: { invited: 'neu@example.org' } });
+		const [mail] = await db.select().from(outbox);
+		expect(mail.to).toBe('neu@example.org');
+		expect(mail.text).toMatch(/http:\/\/localhost\/einladung\/[\w-]{43}/);
+		expect(await resend(created.id)).toMatchObject({ fail: 404 });
+		expect(await resend('')).toMatchObject({ fail: 400 });
+	});
+
+	it('refuses to invite beyond the seats of the account', async () => {
+		await invite('eins@example.org');
+		await invite('zwei@example.org');
+		await invite('drei@example.org');
+		expect(await invite('vier@example.org')).toMatchObject({
+			fail: 400,
+			data: { errors: { email: expect.stringContaining('höchstens 5 Zugänge') } }
+		});
 	});
 
 	it('revokes an invitation once', async () => {

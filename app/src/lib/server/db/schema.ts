@@ -1192,7 +1192,8 @@ export const apiKeys = sqliteTable(
 
 /**
  * An invitation to join the account as a manager. Only the hash of the link token is stored.
- * Revoked invitations stay, so the daily limit of invitations counts them too.
+ * Revoked and resent invitations stay, so the daily limit of invitations counts them too; every
+ * invitation is deleted a month after its expiry.
  */
 export const invitations = sqliteTable(
 	'invitations',

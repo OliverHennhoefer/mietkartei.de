@@ -63,16 +63,16 @@
 	</table>
 </div>
 
-<h2>Offene Einladungen</h2>
+<h2>Einladungen</h2>
 {#if data.invitations.length === 0}
-	<p class="muted">Keine offenen Einladungen.</p>
+	<p class="muted">Keine Einladungen.</p>
 {:else}
 	<div class="table-wrap">
-		<table class="table" aria-label="Offene Einladungen">
+		<table class="table" aria-label="Einladungen">
 			<thead>
 				<tr>
 					<th>E-Mail-Adresse</th>
-					<th>Gültig bis</th>
+					<th>Status</th>
 					<th class="actions"></th>
 				</tr>
 			</thead>
@@ -80,9 +80,16 @@
 				{#each data.invitations as invitation (invitation.id)}
 					<tr>
 						<td>{invitation.email}</td>
-						<td>{formatDateTime(invitation.expiresAt)}</td>
+						<td>
+							{invitation.expired ? 'Abgelaufen am' : 'Gültig bis'}
+							{formatDateTime(invitation.expiresAt)}
+						</td>
 						<td class="actions">
-							<form method="POST" action="?/revoke" use:enhance>
+							<form method="POST" action="?/resend" class="inline" use:enhance>
+								<input type="hidden" name="invitationId" value={invitation.id} />
+								<button type="submit" class="secondary small">Erneut senden</button>
+							</form>
+							<form method="POST" action="?/revoke" class="inline" use:enhance>
 								<input type="hidden" name="invitationId" value={invitation.id} />
 								<button type="submit" class="secondary small">Zurückziehen</button>
 							</form>
@@ -97,21 +104,35 @@
 <h2>Einladen</h2>
 <p class="muted">
 	Die eingeladene Person bekommt eine E-Mail mit einem Link, der sieben Tage gilt, und arbeitet als
-	Mitverwalter mit: Mitverwalter bearbeiten alles außer Einladungen und Bankverbindungen.
+	Mitverwalter mit: Mitverwalter bearbeiten alles außer Einladungen und Bankverbindungen. Ein Konto
+	hat höchstens {data.maxMembers} Zugänge, offene Einladungen eingerechnet.
 </p>
-<form method="POST" action="?/invite" class="card" use:enhance>
-	<label>
-		E-Mail-Adresse
-		<input
-			name="email"
-			type="email"
-			defaultValue={values?.email ?? ''}
-			aria-invalid={errors?.email ? 'true' : undefined}
-			required
-		/>
-		{#if errors?.email}<span class="error">{errors.email}</span>{/if}
-	</label>
-	<div class="form-actions">
-		<button type="submit">Einladen</button>
-	</div>
-</form>
+{#if data.freeSeats <= 0}
+	<p>Alle Plätze sind belegt. Entferne einen Zugang oder ziehe eine Einladung zurück.</p>
+{:else}
+	<form method="POST" action="?/invite" class="card" use:enhance>
+		<label>
+			E-Mail-Adresse
+			<input
+				name="email"
+				type="email"
+				defaultValue={values?.email ?? ''}
+				aria-invalid={errors?.email ? 'true' : undefined}
+				required
+			/>
+			{#if errors?.email}<span class="error">{errors.email}</span>{/if}
+		</label>
+		<div class="form-actions">
+			<button type="submit">Einladen</button>
+		</div>
+	</form>
+{/if}
+
+<style>
+	.inline {
+		display: inline;
+	}
+	.inline + .inline {
+		margin-left: 0.5rem;
+	}
+</style>
