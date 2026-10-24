@@ -1,7 +1,7 @@
 <script lang="ts">
 	import favicon from '../../../assets/brand/favicon.svg';
-	import logo from '../../../assets/brand/mark.svg';
-	import logoWhite from '../../../assets/brand/mark-white.svg';
+	import lockup from '../../../assets/brand/lockup-highlight.svg';
+	import lockupWhite from '../../../assets/brand/lockup-highlight-white.svg';
 	import { untrack, type Component } from 'svelte';
 	import Icon, { type IconName } from '#lib/components/Icon.svelte';
 	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
@@ -209,22 +209,11 @@
 
 <div class="app-shell" class:authenticated={!!data.email}>
 	<a class="skip-link" href="#main-content">Zum Inhalt</a>
-	<header class="site-header">
-		<div class="brand-bar">
-			<!-- Signed in, the app shows no logo; the favicon names it. -->
-			{#if !data.email}
-				<!-- Signed out, / only leads back to /anmelden, so the logo goes to the homepage. -->
-				<a href="https://mietkartei.de" class="brand">
-					<picture>
-						<source media="(prefers-color-scheme: dark)" srcset={logoWhite} />
-						<img src={logo} alt="mietkartei" width="52" height="52" />
-					</picture>
-				</a>
-				<a href="https://mietkartei.de" class="back-home small">
-					<Icon name="arrow-left" size={16} />
-					<span>mietkartei.de</span>
-				</a>
-			{:else}
+	<!-- Signed out, the pages show only the logo above their form, no header. -->
+	{#if data.email}
+		<header class="site-header">
+			<!-- The app shows no logo; the favicon names it. -->
+			<div class="brand-bar">
 				<button
 					bind:this={menuButton}
 					type="button"
@@ -236,9 +225,7 @@
 				>
 					<Icon name={open ? 'close' : 'menu'} size={20} />
 				</button>
-			{/if}
-		</div>
-		{#if data.email}
+			</div>
 			<div class="workspace-bar">
 				{#if data.demo}
 					<p class="billing-notice info" role="note">
@@ -302,8 +289,8 @@
 					{/if}
 				</div>
 			</div>
-		{/if}
-	</header>
+		</header>
+	{/if}
 
 	<div class="site-layout">
 		{#if data.email}
@@ -334,6 +321,15 @@
 			</nav>
 		{/if}
 		<main id="main-content" class="site-main" tabindex="-1" inert={open}>
+			{#if !data.email}
+				<!-- Signed out, / only leads back to /anmelden, so the logo goes to the homepage. -->
+				<a href="https://mietkartei.de" class="auth-brand">
+					<picture>
+						<source media="(prefers-color-scheme: dark)" srcset={lockupWhite} />
+						<img src={lockup} alt="mietkartei" width="489" height="96" />
+					</picture>
+				</a>
+			{/if}
 			{@render children()}
 		</main>
 	</div>
