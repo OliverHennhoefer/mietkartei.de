@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Alert from '#lib/components/Alert.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import { pluralize } from '#lib/format.ts';
@@ -45,16 +44,6 @@
 	title="Übersicht"
 	lead="Rückstände, Leerstand, Bankumsätze und Fristen auf einen Blick."
 />
-
-{#if data.newDamageReports > 0}
-	<Alert tone="warning">
-		<a href="/schadensmeldungen"
-			>{data.newDamageReports === 1
-				? 'Eine neue Schadensmeldung'
-				: `${data.newDamageReports} neue Schadensmeldungen`}</a
-		> aus dem Mieterportal.
-	</Alert>
-{/if}
 
 {#if data.firstRun}
 	<section class="card first-run" aria-labelledby="first-run">
