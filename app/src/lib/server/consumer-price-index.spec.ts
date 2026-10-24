@@ -42,12 +42,14 @@ function row(
 }
 
 // A part of table 61111-0002: the index, its rates of change under the same measure code (one of
-// them 0,0 without a sign), another measure and a month not published yet.
+// them 0,0 without a sign, one not marked as a rate at all), another measure and a month not
+// published yet.
 const table = [
 	header,
 	row('2025', '12', '122,7'),
 	row('2025', '12', '0,0', 'PREIS1', 'Prozent', 'Veränderung zum Vorjahresmonat'),
 	row('2025', '12', '+0,3', 'PREIS1', '%', 'Veränderung zum Vormonat'),
+	row('2025', '12', '2,1', 'PREIS1', '2020=100', 'Verbraucherpreisindex'),
 	row('2025', '12', '2,6', 'PREIS2'),
 	row('2026', '01', '122,8'),
 	row('2026', '02', '...'),
@@ -71,8 +73,8 @@ describe('parseGenesisTable', () => {
 			parseGenesisTable(`${header}\n${row('2026', '01', '1').replaceAll('MONAT', 'QUARTAL')}`)
 		).toThrow('keine Monate');
 		expect(() =>
-			parseGenesisTable(`${header}\n${row('2026', '01', '122,8')}\n${row('2026', '01', '1,0')}`)
-		).toThrow('mehrere Werte: 122,8 2020=100 Verbraucherpreisindex und 1,0 2020=100');
+			parseGenesisTable(`${header}\n${row('2026', '01', '122,8')}\n${row('2026', '01', '121,0')}`)
+		).toThrow('mehrere Werte: 122,8 2020=100 Verbraucherpreisindex und 121,0 2020=100');
 	});
 });
 
