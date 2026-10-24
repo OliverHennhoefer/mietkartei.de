@@ -236,6 +236,17 @@
 	<link rel="icon" href={favicon} type="image/svg+xml" />
 	<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
 	<meta name="theme-color" content="#181818" media="(prefers-color-scheme: dark)" />
+	<!-- The link preview of every app page; the demo page adds its own title and description. -->
+	<meta property="og:site_name" content="mietkartei" />
+	<meta property="og:locale" content="de_DE" />
+	<meta property="og:image" content="https://mietkartei.de/assets/social.png?v=neon" />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
+	<meta
+		property="og:image:alt"
+		content="mietkartei: Vermieten. Mit Überblick. Mieten, Bankumsätze und die Betriebskostenabrechnung ohne Excel-Chaos, daneben die Übersicht der App."
+	/>
+	<meta name="twitter:card" content="summary_large_image" />
 </svelte:head>
 
 <svelte:window
