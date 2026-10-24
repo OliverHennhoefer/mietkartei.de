@@ -58,7 +58,7 @@
 	<Alert tone="warning">
 		<p>
 			Der letzte Abruf am {formatDateTime(data.lastFetch.attemptedAt)} ist fehlgeschlagen: {data
-				.lastFetch.error} Mietkartei versucht es in einigen Stunden wieder.
+				.lastFetch.error} Mietkartei versucht es in einer halben Stunde wieder.
 		</p>
 	</Alert>
 {/if}

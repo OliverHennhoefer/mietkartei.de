@@ -21,6 +21,8 @@ const FIRST_YEAR = 1991;
 const FETCH_ID = 'destatis';
 /** Destatis publishes once a month; four attempts a day find a new value within hours. */
 export const REFRESH_AFTER_MS = 6 * 60 * 60 * 1000;
+/** A failed attempt is repeated sooner, so a fix on either side shows within the hour. */
+export const RETRY_AFTER_MS = 30 * 60 * 1000;
 const TIMEOUT_MS = 15_000;
 const GENESIS_URL = 'https://genesis.destatis.de/genesisWS/rest/2020/data/tablefile';
 
@@ -49,7 +51,9 @@ function cell(value: string | undefined): string {
 /**
  * The monthly index values of a GENESIS "flat file CSV" (ffcsv) of table 61111-0002: one row per
  * year, month and measure, separated by semicolons, with decimal commas and `...` for values not
- * published yet. Only the index itself (measure PREIS1) is taken, not the rates of change.
+ * published yet. Only the index itself (measure PREIS1) is taken. The rates of change to the
+ * previous month and year come with the same measure code, but in percent: they are told apart by
+ * their unit or label (and carry a sign, `+0,3`, except for `0,0`).
  */
 export function parseGenesisTable(text: string): IndexPoint[] {
 	const lines = text.split(/\r?\n/).filter((line) => line.trim());
@@ -57,6 +61,8 @@ export function parseGenesisTable(text: string): IndexPoint[] {
 	const timeColumn = header.indexOf('time');
 	const valueColumn = header.indexOf('value');
 	const measureColumn = header.indexOf('value_variable_code');
+	const unitColumn = header.indexOf('value_unit');
+	const labelColumn = header.indexOf('value_variable_label');
 	if (timeColumn < 0 || valueColumn < 0) {
 		throw new Error('Die Antwort von Destatis ist keine Tabelle im erwarteten Format.');
 	}
@@ -71,22 +77,32 @@ export function parseGenesisTable(text: string): IndexPoint[] {
 		header[monthColumn].replace('_variable_code', '_variable_attribute_code')
 	);
 
-	const values = new Map<IsoMonth, number>();
+	const isRate = (row: string[]) =>
+		/%|prozent|veränderung/i.test(`${row[unitColumn] ?? ''} ${row[labelColumn] ?? ''}`);
+	const describe = (row: string[]) =>
+		[row[valueColumn], row[unitColumn], row[labelColumn]].filter(Boolean).join(' ');
+
+	const values = new Map<IsoMonth, { value: number; row: string[] }>();
 	for (const row of rows) {
 		if (measureColumn >= 0 && row[measureColumn] !== 'PREIS1') continue;
+		if (isRate(row)) continue;
 		const year = row[timeColumn];
 		const month = /^MONAT(\d{2})$/.exec(row[attributeColumn] ?? '')?.[1];
 		const raw = row[valueColumn];
 		if (!/^\d{4}$/.test(year) || !month || !/^\d+(,\d+)?$/.test(raw)) continue;
 		const value = Number(raw.replace(',', '.'));
 		const key = `${year}-${month}`;
-		if (values.has(key) && values.get(key) !== value) {
-			throw new Error(`Die Tabelle von Destatis enthält für ${key} mehrere Werte.`);
+		const other = values.get(key);
+		if (other && other.value !== value) {
+			throw new Error(
+				`Die Tabelle von Destatis enthält für ${key} mehrere Werte: ` +
+					`${describe(other.row)} und ${describe(row)}.`
+			);
 		}
-		values.set(key, value);
+		values.set(key, { value, row });
 	}
 	if (values.size === 0) throw new Error('Die Tabelle von Destatis enthält keine Indexwerte.');
-	return [...values].map(([month, value]) => ({ month, value }));
+	return [...values].map(([month, { value }]) => ({ month, value }));
 }
 
 /**
@@ -172,14 +188,15 @@ export type RefreshOptions = { token: string; now?: Date; fetcher?: typeof fetch
 
 /**
  * Fetches the values again when there is a token and the last attempt is older than
- * REFRESH_AFTER_MS. The attempt is recorded first, so a failing service is not asked on every
+ * REFRESH_AFTER_MS, or RETRY_AFTER_MS after a failure. The attempt is recorded first, so a failing service is not asked on every
  * page view. A failure is recorded and logged, never thrown: the stored values stay usable.
  */
 export async function refreshIndexValues(db: Database, options: RefreshOptions): Promise<void> {
 	if (!options.token) return;
 	const now = options.now ?? new Date();
 	const last = await lastIndexFetch(db);
-	if (last && now.getTime() - last.attemptedAt.getTime() < REFRESH_AFTER_MS) return;
+	const wait = last?.error ? RETRY_AFTER_MS : REFRESH_AFTER_MS;
+	if (last && now.getTime() - last.attemptedAt.getTime() < wait) return;
 	await db
 		.insert(consumerPriceIndexFetches)
 		.values({ id: FETCH_ID, attemptedAt: now })
