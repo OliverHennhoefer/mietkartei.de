@@ -33,7 +33,8 @@ export class InputError extends Error {}
 
 /**
  * Checks the input against the schema and returns it typed. With `fromText`, values arrive as
- * strings (query and path of a REST call) and integers and booleans are converted first.
+ * strings (query and path of a REST call) and integers and booleans are converted first. Blank
+ * strings are dropped, as if the parameter was not sent.
  */
 export function parseInput(
 	input: unknown,
@@ -48,7 +49,8 @@ export function parseInput(
 	for (const [name, raw] of Object.entries(input as Record<string, unknown>)) {
 		const field = schema.properties[name];
 		if (!field) throw new InputError(`Unknown parameter "${name}".`);
-		if (raw === undefined || raw === null || (fromText && raw === '')) continue;
+		// A blank string counts as left out, so an empty optional id never reaches a foreign key.
+		if (raw === undefined || raw === null || (typeof raw === 'string' && !raw.trim())) continue;
 		result[name] = parseValue(name, raw, field, fromText);
 	}
 	for (const name of schema.required ?? []) {

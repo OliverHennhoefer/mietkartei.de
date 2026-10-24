@@ -19,6 +19,10 @@ describe('parseInput', () => {
 		).toEqual({ id: 'abc', from: '2026-01-31', year: 2026, all: false });
 	});
 
+	it('drops blank strings', () => {
+		expect(parseInput({ id: 'a', status: ' ', from: '' }, fields)).toEqual({ id: 'a' });
+	});
+
 	it('converts the text of a query string', () => {
 		expect(parseInput({ id: 'a', year: '2026', all: 'true', status: '' }, fields, true)).toEqual({
 			id: 'a',
@@ -29,6 +33,7 @@ describe('parseInput', () => {
 
 	it.each([
 		[{}, 'Missing parameter "id".'],
+		[{ id: '  ' }, 'Missing parameter "id".'],
 		[{ id: 'a', other: 1 }, 'Unknown parameter "other".'],
 		[{ id: 'abcdef' }, 'at most 5 characters'],
 		[{ id: 'a', from: '31.01.2026' }, 'YYYY-MM-DD'],

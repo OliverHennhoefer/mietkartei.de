@@ -1,24 +1,37 @@
 import { today } from '../../dates';
+import { applyCategoryDefaults } from '../../domain/operating-costs';
 import { personName } from '../../format';
+import { repeatOptions } from '../../task-templates';
 import type { ApiCaller } from '../api-keys';
+import type { AuditContext } from '../audit';
 import type { Database } from '../db';
-import type { ApiKeyScope } from '../db/schema';
+import { taskCategories, type ApiKeyScope, type TaskCategory } from '../db/schema';
 import { listDeadlines } from '../deadlines';
 import { depositSummary, listDepositMovements } from '../deposits';
 import { getLease, leaseLabel, listLeases, type LeaseSummary } from '../leases';
-import { listBalances, listLedger } from '../ledger';
-import { listCostItems } from '../operating-costs/cost-items';
+import { createPayment, listBalances, listLedger } from '../ledger';
+import {
+	createCostItem,
+	ensureDefaults,
+	getCategory,
+	getCostItem,
+	listCategories,
+	listCostItems,
+	listKeys
+} from '../operating-costs';
 import { getProperty, propertyOverview, unitsWithOccupancy } from '../properties';
 import { listRentChanges } from '../rents';
 import { getStatement, listStatements } from '../statements';
-import { listTasks } from '../tasks';
+import { createTask, getTask, listTasks, setDone } from '../tasks';
 import { getTenant, listTenants } from '../tenants';
 import { schema, type InputSchema } from './input';
 
 // The operations of the API, described once: the REST routes under /api/v1 and the tools of the
 // MCP server under /mcp both dispatch to this list, so both always offer the same data with the
-// same checks. Every operation reads through the functions the pages use, scoped to the account
-// of the key's user.
+// same checks. Every operation reads and writes through the functions the pages use, scoped to the
+// account of the key's user; writes are audited under that user like a change on the page. Only a
+// few writes are offered, each one adding something and none deleting: a payment, a task (and
+// ticking it off), a cost item.
 
 export type ApiContext = { db: Database; caller: ApiCaller };
 
@@ -55,6 +68,18 @@ function notFound(what: string): never {
 const AMOUNTS = 'Amounts are integer euro cents; dates are YYYY-MM-DD.';
 
 const id = (what: string) => ({ type: 'string' as const, description: `The id of the ${what}.` });
+
+/** The largest amount a write accepts, as the forms do: 100 million euros, in cents. */
+const MAX_AMOUNT = 100_000_000_00;
+
+/** Writes are audited as changes of the key's user. */
+function auditContextOf(caller: ApiCaller): AuditContext {
+	return { accountId: caller.user.accountId, userId: caller.user.id };
+}
+
+function invalid(message: string): never {
+	throw new ApiError(400, 'invalid_input', message);
+}
 
 /** A lease in lists: who rents what, from when, for how much. */
 function leaseEntry(lease: LeaseSummary) {
@@ -320,6 +345,234 @@ export const operations: Operation[] = [
 			if (status === 'open') return open;
 			if (status === 'done') return done;
 			return [...open, ...done];
+		}
+	},
+	{
+		name: 'list_cost_categories',
+		description:
+			'Lists the cost categories (Kostenarten) with their § 2 BetrKV number, whether they may be passed on to tenants, and their default allocation key (Umlageschlüssel). Use their ids for create_cost_item.',
+		method: 'GET',
+		path: '/cost-categories',
+		scope: 'read',
+		readOnly: true,
+		input: schema(),
+		async run({ db, caller }) {
+			const { accountId } = caller.user;
+			await ensureDefaults(db, accountId);
+			const [categories, keys] = await Promise.all([
+				listCategories(db, accountId),
+				listKeys(db, accountId)
+			]);
+			const keyName = new Map(keys.map((key) => [key.id, key.name]));
+			return categories.map((category) => ({
+				...category,
+				allocationKeyName: category.allocationKeyId
+					? (keyName.get(category.allocationKeyId) ?? null)
+					: null
+			}));
+		}
+	},
+	{
+		name: 'list_allocation_keys',
+		description:
+			'Lists the allocation keys (Umlageschlüssel) of the operating costs, e.g. by floor area or by persons.',
+		method: 'GET',
+		path: '/allocation-keys',
+		scope: 'read',
+		readOnly: true,
+		input: schema(),
+		async run({ db, caller }) {
+			await ensureDefaults(db, caller.user.accountId);
+			return listKeys(db, caller.user.accountId);
+		}
+	},
+	{
+		name: 'record_payment',
+		description: `Books a payment of the tenant on the rent account (Mietkonto) of a lease, e.g. a rent transfer. A negative amount is a refund to the tenant. Check get_rent_ledger first, so a payment is not booked twice. ${AMOUNTS}`,
+		method: 'POST',
+		path: '/leases/{id}/payments',
+		scope: 'write',
+		readOnly: false,
+		input: schema(
+			{
+				id: id('lease'),
+				date: { type: 'string', format: 'date', description: 'The day the money came in.' },
+				amount: {
+					type: 'integer',
+					minimum: -MAX_AMOUNT,
+					maximum: MAX_AMOUNT,
+					description: 'In cents; positive = received, negative = refunded.'
+				},
+				note: { type: 'string', maxLength: 200, description: 'Shown in the rent account.' }
+			},
+			['id', 'date', 'amount']
+		),
+		async run({ db, caller }, input) {
+			if (input.amount === 0) invalid('"amount" must not be 0.');
+			const paymentId = await createPayment(db, auditContextOf(caller), {
+				leaseId: String(input.id),
+				date: String(input.date),
+				amount: Number(input.amount),
+				source: 'manual',
+				note: (input.note as string | undefined) || null
+			});
+			if (!paymentId) notFound('Lease');
+			return { id: paymentId, leaseId: input.id, date: input.date, amount: input.amount };
+		}
+	},
+	{
+		name: 'create_task',
+		description:
+			'Writes down a task (Aufgabe) for the landlord, optionally due on a date, repeating, and linked to a property or a lease.',
+		method: 'POST',
+		path: '/tasks',
+		scope: 'write',
+		readOnly: false,
+		input: schema(
+			{
+				title: { type: 'string', maxLength: 200, description: 'What to do, in German.' },
+				category: {
+					type: 'string',
+					enum: taskCategories,
+					description: 'maintenance, inspection, insurance or other (default).'
+				},
+				dueDate: { type: 'string', format: 'date', description: 'When it is due.' },
+				repeatMonths: {
+					type: 'integer',
+					minimum: 1,
+					maximum: 120,
+					description: `Repeat every this many months once done: ${repeatOptions.map((option) => option.months).join(', ')}. Needs dueDate.`
+				},
+				propertyId: { type: 'string', description: 'The property it concerns.' },
+				leaseId: { type: 'string', description: 'The lease it concerns.' },
+				note: { type: 'string', maxLength: 2000, description: 'Details.' }
+			},
+			['title']
+		),
+		async run({ db, caller }, input) {
+			const title = String(input.title);
+			const repeatMonths = (input.repeatMonths as number | undefined) ?? null;
+			if (repeatMonths && !repeatOptions.some((option) => option.months === repeatMonths)) {
+				invalid(
+					`"repeatMonths" must be one of ${repeatOptions.map((option) => option.months).join(', ')}.`
+				);
+			}
+			if (repeatMonths && !input.dueDate) invalid('A repeating task needs "dueDate".');
+			if (input.propertyId && input.leaseId) invalid('Link either "propertyId" or "leaseId".');
+			const result = await createTask(db, auditContextOf(caller), {
+				title,
+				category: (input.category as TaskCategory | undefined) ?? 'other',
+				dueDate: (input.dueDate as string | undefined) ?? null,
+				repeatMonths,
+				propertyId: (input.propertyId as string | undefined) ?? null,
+				leaseId: (input.leaseId as string | undefined) ?? null,
+				note: (input.note as string | undefined) || null
+			});
+			if (!result.ok) {
+				notFound(result.reason === 'unknown-lease' ? 'Lease' : 'Property');
+			}
+			return getTask(db, caller.user.accountId, result.id);
+		}
+	},
+	{
+		name: 'complete_task',
+		description: 'Ticks off an open task. A repeating task gets an open copy due at its next date.',
+		method: 'POST',
+		path: '/tasks/{id}/done',
+		scope: 'write',
+		readOnly: false,
+		input: schema({ id: id('task') }, ['id']),
+		async run({ db, caller }, input) {
+			const { accountId } = caller.user;
+			const task = await getTask(db, accountId, String(input.id));
+			if (!task) notFound('Task');
+			if (task.done) throw new ApiError(409, 'already_done', 'The task is already done.');
+			await setDone(db, auditContextOf(caller), task.id, true);
+			return getTask(db, accountId, task.id);
+		}
+	},
+	{
+		name: 'create_cost_item',
+		description: `Records a cost item (Beleg) of the operating costs, e.g. an invoice for property tax or insurance, for the period it covers. Without allocationKeyId the category's default key applies. Heating costs with CO₂ data are entered in the app. ${AMOUNTS}`,
+		method: 'POST',
+		path: '/cost-items',
+		scope: 'write',
+		readOnly: false,
+		input: schema(
+			{
+				propertyId: id('property'),
+				categoryId: { type: 'string', description: 'The id of the cost category (Kostenart).' },
+				allocationKeyId: { type: 'string', description: 'Overrides the category’s key.' },
+				description: { type: 'string', maxLength: 200, description: 'E.g. "Grundsteuer 2026".' },
+				supplier: { type: 'string', maxLength: 200, description: 'Who issued the invoice.' },
+				invoiceDate: { type: 'string', format: 'date', description: 'The invoice’s date.' },
+				periodStart: { type: 'string', format: 'date', description: 'First day it covers.' },
+				periodEnd: { type: 'string', format: 'date', description: 'Last day it covers.' },
+				amount: {
+					type: 'integer',
+					minimum: -MAX_AMOUNT,
+					maximum: MAX_AMOUNT,
+					description: 'In cents, gross; negative for a credit note.'
+				},
+				allocable: {
+					type: 'boolean',
+					description: 'May be passed on to tenants; defaults to the category’s setting.'
+				}
+			},
+			['propertyId', 'categoryId', 'description', 'periodStart', 'periodEnd', 'amount']
+		),
+		async run({ db, caller }, input) {
+			const { accountId } = caller.user;
+			const description = String(input.description);
+			if (!description) invalid('"description" must not be empty.');
+			if (String(input.periodEnd) < String(input.periodStart)) {
+				invalid('"periodEnd" lies before "periodStart".');
+			}
+			await ensureDefaults(db, accountId);
+			const category = await getCategory(db, accountId, String(input.categoryId));
+			if (!category) notFound('Cost category');
+			const resolved = applyCategoryDefaults(
+				{
+					allocationKeyId: (input.allocationKeyId as string | undefined) ?? null,
+					billingCircleId: null,
+					circleFromCategory: true,
+					fuel: null,
+					fuelKwh: null,
+					co2Kg: null
+				},
+				category
+			);
+			if (!resolved) {
+				invalid('The category has no default allocation key; pass "allocationKeyId".');
+			}
+			const created = await createCostItem(db, auditContextOf(caller), {
+				propertyId: String(input.propertyId),
+				categoryId: category.id,
+				allocationKeyId: resolved.allocationKeyId,
+				billingCircleId: resolved.billingCircleId,
+				description,
+				supplier: (input.supplier as string | undefined) || null,
+				invoiceDate: (input.invoiceDate as string | undefined) ?? null,
+				periodStart: String(input.periodStart),
+				periodEnd: String(input.periodEnd),
+				amount: Number(input.amount),
+				allocable: (input.allocable as boolean | undefined) ?? category.allocable,
+				fuel: null,
+				fuelKwh: null,
+				co2Kg: null,
+				co2Cost: null
+			});
+			if (!created.ok) {
+				const what = {
+					missing: 'Cost item',
+					'unknown-property': 'Property',
+					'unknown-category': 'Cost category',
+					'unknown-key': 'Allocation key',
+					'unknown-circle': 'Billing circle'
+				}[created.reason];
+				notFound(what);
+			}
+			return getCostItem(db, accountId, created.id);
 		}
 	}
 ];

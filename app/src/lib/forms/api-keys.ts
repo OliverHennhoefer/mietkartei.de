@@ -11,7 +11,7 @@ export function parseApiKey(
 ): ParseResult<ApiKeyInput> {
 	const parser = new FormParser<ApiKeyInput>(form);
 	const name = parser.text('name', { max: 100 });
-	const scope = scopes.length > 1 ? parser.oneOf('scope', scopes) : scopes[0];
+	const scope = parser.oneOf('scope', scopes, { required: false }) ?? scopes[0];
 	const days = Number(parser.raw('lifetimeDays'));
 	const lifetimeDays = API_KEY_LIFETIMES.find((allowed) => allowed === days);
 	if (!lifetimeDays) parser.fail('lifetimeDays', 'Bitte wähle eine Gültigkeit aus.');

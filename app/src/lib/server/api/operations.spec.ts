@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ApiCaller } from '../api-keys';
+import { listAuditLog } from '../audit';
 import type { Database } from '../db';
-import { createPayment } from '../ledger';
+import { accounts } from '../db/schema';
+import { createPayment, listLedger } from '../ledger';
 import { createTask } from '../tasks';
 import {
 	contextA,
@@ -24,9 +26,11 @@ vi.mock('$app/env/private', () => env);
 
 let db: Database;
 const reader: ApiCaller = { user: ownerA, scope: 'read', keyId: 'key-a' };
+const writer: ApiCaller = { ...reader, scope: 'write' };
 let ids: { propertyId: string; unitId: string; tenantId: string; leaseId: string };
 
 beforeEach(async () => {
+	Object.assign(env, { BILLING_REQUIRED: false, STRIPE_SECRET_KEY: '', STRIPE_PRICE_ID: '' });
 	db = await testDatabase();
 	const { propertyId, unitId } = await seedUnit(db, 'a');
 	const tenantId = await seedTenant(db, 'a');
@@ -142,6 +146,140 @@ describe('operations', () => {
 			code: 'invalid_input'
 		});
 		await expect(run('get_lease')).rejects.toThrow(ApiError);
+	});
+});
+
+const write = (name: string, input: Record<string, unknown> = {}) =>
+	runOperation(db, writer, operationByName.get(name)!, input);
+
+describe('write operations', () => {
+	it('are refused to read keys', async () => {
+		await expect(
+			runOperation(db, reader, operationByName.get('create_task')!, { title: 'x' })
+		).rejects.toMatchObject({ status: 403, code: 'forbidden' });
+	});
+
+	it('are refused while the account may only read', async () => {
+		Object.assign(env, { BILLING_REQUIRED: true, STRIPE_SECRET_KEY: 'sk', STRIPE_PRICE_ID: 'p' });
+		await db
+			.update(accounts)
+			.set({ createdAt: new Date('2020-01-01'), subscriptionStatus: 'none' });
+		await expect(write('create_task', { title: 'x' })).rejects.toMatchObject({
+			status: 403,
+			code: 'read_only'
+		});
+		// Reading goes on.
+		expect(await run('list_tasks')).toHaveLength(1);
+	});
+
+	it('book a payment on the rent account, audited under the key’s user', async () => {
+		const payment = (await write('record_payment', {
+			id: ids.leaseId,
+			date: '2025-01-05',
+			amount: 80000,
+			note: 'Miete Januar'
+		})) as { id: string };
+		const ledger = await listLedger(db, 'a', ids.leaseId, { to: '2025-01-31' });
+		expect(ledger.lines).toContainEqual(
+			expect.objectContaining({ kind: 'payment', id: payment.id, amount: 80000 })
+		);
+		const [entry] = await listAuditLog(db, 'a');
+		expect(entry).toMatchObject({ entity: 'lease', userEmail: 'a@example.org' });
+		await expect(
+			write('record_payment', { id: ids.leaseId, date: '2025-01-05', amount: 0 })
+		).rejects.toMatchObject({ status: 400 });
+		await expect(
+			write('record_payment', { id: 'other', date: '2025-01-05', amount: 100 })
+		).rejects.toMatchObject({ status: 404 });
+	});
+
+	it('create a task and tick it off, a repeating one with its next copy', async () => {
+		const task = (await write('create_task', {
+			title: 'Heizung warten',
+			category: 'maintenance',
+			dueDate: '2026-11-01',
+			repeatMonths: 12,
+			propertyId: ids.propertyId
+		})) as { id: string; property: { id: string } };
+		expect(task).toMatchObject({ title: 'Heizung warten', property: { id: ids.propertyId } });
+		expect(await write('complete_task', { id: task.id })).toMatchObject({ done: true });
+		await expect(write('complete_task', { id: task.id })).rejects.toMatchObject({ status: 409 });
+		const open = (await run('list_tasks')) as { title: string; dueDate: string }[];
+		expect(open).toContainEqual(
+			expect.objectContaining({ title: 'Heizung warten', dueDate: '2027-11-01' })
+		);
+	});
+
+	it('refuse invalid tasks', async () => {
+		for (const input of [
+			{ title: '' },
+			{ title: 'x', repeatMonths: 7, dueDate: '2026-01-01' },
+			{ title: 'x', repeatMonths: 12 },
+			{ title: 'x', propertyId: ids.propertyId, leaseId: ids.leaseId }
+		]) {
+			await expect(write('create_task', input), JSON.stringify(input)).rejects.toMatchObject({
+				status: 400
+			});
+		}
+		expect(await write('create_task', { title: 'x', propertyId: ' ', leaseId: '' })).toMatchObject({
+			title: 'x',
+			property: null,
+			lease: null
+		});
+		await expect(write('create_task', { title: 'x', leaseId: 'other' })).rejects.toMatchObject({
+			status: 404
+		});
+		await expect(write('complete_task', { id: 'other' })).rejects.toMatchObject({ status: 404 });
+	});
+
+	it('record a cost item with the key of its category', async () => {
+		const categories = (await run('list_cost_categories')) as {
+			id: string;
+			name: string;
+			allocationKeyId: string | null;
+			allocationKeyName: string | null;
+		}[];
+		const category = categories.find((row) => row.allocationKeyId)!;
+		expect(category.allocationKeyName).toBeTruthy();
+		const item = await write('create_cost_item', {
+			propertyId: ids.propertyId,
+			categoryId: category.id,
+			description: 'Versicherung 2026',
+			periodStart: '2026-01-01',
+			periodEnd: '2026-12-31',
+			amount: 45000
+		});
+		expect(item).toMatchObject({
+			categoryId: category.id,
+			allocationKeyId: category.allocationKeyId,
+			amount: 45000,
+			categoryName: category.name
+		});
+		expect(await run('list_allocation_keys')).not.toEqual([]);
+	});
+
+	it('refuse cost items of unknown rows or with a wrong period', async () => {
+		const [category] = (await run('list_cost_categories')) as { id: string }[];
+		const base = {
+			propertyId: ids.propertyId,
+			categoryId: category.id,
+			description: 'Beleg',
+			periodStart: '2026-01-01',
+			periodEnd: '2026-12-31',
+			amount: 100
+		};
+		await expect(
+			write('create_cost_item', { ...base, periodEnd: '2025-12-31' })
+		).rejects.toMatchObject({ status: 400 });
+		await expect(write('create_cost_item', { ...base, propertyId: 'other' })).rejects.toMatchObject(
+			{ status: 404 }
+		);
+		await expect(write('create_cost_item', { ...base, categoryId: 'other' })).rejects.toMatchObject(
+			{ status: 404 }
+		);
+		await expect(
+			write('create_cost_item', { ...base, allocationKeyId: 'other' })
+		).rejects.toMatchObject({ status: 404 });
 	});
 });
 

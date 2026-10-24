@@ -95,11 +95,38 @@ describe('/api/v1', () => {
 		expect((await call('/nothing')).status).toBe(404);
 	});
 
+	it('writes with a write key from a JSON body and refuses read keys', async () => {
+		const created = await createApiKey(db, contextA, {
+			name: 'Schreiben',
+			scope: 'write',
+			lifetimeDays: 30
+		});
+		if (!created.ok) throw new Error(created.reason);
+		const body = JSON.stringify({ title: 'Rauchmelder prüfen', dueDate: '2026-12-01' });
+		expect((await call('/tasks', { method: 'POST', body })).body.error.code).toBe('forbidden');
+		const task = await call('/tasks', { method: 'POST', body, key: created.key });
+		expect(task.status).toBe(200);
+		expect(task.body.data).toMatchObject({ title: 'Rauchmelder prüfen', done: false });
+		const done = await call(`/tasks/${task.body.data.id}/done`, {
+			method: 'POST',
+			key: created.key
+		});
+		expect(done.body.data).toMatchObject({ done: true });
+		expect((await call('/tasks', { method: 'POST', body: '[1]', key: created.key })).status).toBe(
+			400
+		);
+		expect(
+			(await call('/tasks', { method: 'POST', body: '{"title":', key: created.key })).body.error
+				.code
+		).toBe('invalid_json');
+	});
+
 	it('answers 400 for invalid parameters and 405 for the wrong method', async () => {
 		const invalid = await call('/cost-items?year=zwanzig');
 		expect(invalid.status).toBe(400);
 		expect(invalid.body.error.message).toBe('"year" must be an integer.');
 		expect((await call('/leases?sort=name')).status).toBe(400);
 		expect((await call('/leases', { method: 'POST', body: '{}' })).status).toBe(405);
+		expect((await call('/tasks/x/done')).status).toBe(405);
 	});
 });

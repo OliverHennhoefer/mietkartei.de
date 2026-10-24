@@ -29,14 +29,26 @@ describe('api-schluessel', () => {
 		};
 		expect(loaded.data.keys).toMatchObject([{ name: 'Claude' }]);
 		expect(JSON.stringify(loaded.data)).not.toContain(key);
-		expect(loaded.data.scopes).toEqual(['read']);
+		expect(loaded.data.scopes).toEqual(['read', 'write']);
 		expect(loaded.data.origin).toBe('http://localhost');
 	});
 
+	it('creates a key that may write when asked to', async () => {
+		const result = await create({ name: 'Skript', scope: 'write', lifetimeDays: '30' });
+		const { key } = (result as { data: { created: { key: string } } }).data.created;
+		expect(await authenticateApiKey(db, key)).toMatchObject({ scope: 'write' });
+	});
+
 	it('checks the form', async () => {
-		expect(await create({ name: '', lifetimeDays: '7' })).toMatchObject({
+		expect(await create({ name: '', scope: 'admin', lifetimeDays: '7' })).toMatchObject({
 			fail: 400,
-			data: { errors: { name: expect.any(String), lifetimeDays: expect.any(String) } }
+			data: {
+				errors: {
+					name: expect.any(String),
+					scope: expect.any(String),
+					lifetimeDays: expect.any(String)
+				}
+			}
 		});
 	});
 
