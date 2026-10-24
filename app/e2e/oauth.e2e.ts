@@ -1,5 +1,6 @@
 import { expect, request, test } from '@playwright/test';
 import { watchCspViolations } from './csp';
+import { closeLaunchNotice } from './launch-notice';
 import { owner } from './owner';
 
 // An assistant such as the claude.ai connector connects by OAuth: it finds the authorization
@@ -123,6 +124,7 @@ test('brings a visitor through the sign-in to the consent page and back to the a
 		extraHTTPHeaders: { 'cf-connecting-ip': '192.0.2.9' }
 	});
 	const page = await context.newPage();
+	await closeLaunchNotice(page);
 	const violations = watchCspViolations(page);
 	const query = new URLSearchParams({
 		client_id,
