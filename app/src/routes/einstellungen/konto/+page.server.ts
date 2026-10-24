@@ -1,5 +1,10 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { parseDeleteAccount, parseResetAccount, type ResetAccountInput } from '#lib/forms/auth.ts';
+import {
+	confirmPasswordError,
+	parseDeleteAccount,
+	parseResetAccount,
+	type ResetAccountInput
+} from '#lib/forms/auth.ts';
 import { deleteAccount, resetAccount } from '#lib/server/accounts.ts';
 import { confirmPassword } from '#lib/server/auth.ts';
 import {
@@ -18,6 +23,18 @@ import {
 	requireUser
 } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
+
+/**
+ * Leaving and deleting the account ask for the password again; that is the confirmation. Wrong
+ * passwords count like failed sign-ins, so a stolen session cannot guess it. Returns the failure
+ * to answer with, or undefined when the password is right.
+ */
+async function refusePassword(locals: App.Locals, form: FormData) {
+	const result = parseDeleteAccount(form);
+	if (!result.ok) return fail(400, { errors: result.errors });
+	const checked = await confirmPassword(locals.db, auditContext(locals), result.data.password);
+	if (checked !== 'ok') return fail(400, { errors: { password: confirmPasswordError(checked) } });
+}
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const user = requireUser(locals);
@@ -42,20 +59,12 @@ export const actions: Actions = {
 		}
 		redirect(303, '/');
 	},
-	// Managers and viewers end their own access; the password again is the confirmation.
+	// Managers and viewers end their own access.
 	leave: async (event) => {
 		const { request, locals } = event;
 		requireUser(locals);
-		const result = parseDeleteAccount(await request.formData());
-		if (!result.ok) return fail(400, { errors: result.errors });
-		const checked = await confirmPassword(locals.db, auditContext(locals), result.data.password);
-		if (checked !== 'ok') {
-			const password =
-				checked === 'locked'
-					? 'Zu viele Fehlversuche. Bitte warte 15 Minuten.'
-					: 'Das Passwort stimmt nicht.';
-			return fail(400, { errors: { password } });
-		}
+		const refused = await refusePassword(locals, await request.formData());
+		if (refused) return refused;
 		if ((await leaveAccount(locals.db, auditContext(locals))) !== 'left') {
 			return fail(400, {
 				failed: 'Als Vermieter kannst du das Konto nicht verlassen, nur löschen oder übergeben.'
@@ -74,11 +83,9 @@ export const actions: Actions = {
 		const context = auditContext(locals);
 		const checked = await confirmPassword(locals.db, context, result.data.password);
 		if (checked !== 'ok') {
-			const password =
-				checked === 'locked'
-					? 'Zu viele Fehlversuche. Bitte warte 15 Minuten.'
-					: 'Das Passwort stimmt nicht.';
-			const resetErrors: Partial<Record<keyof ResetAccountInput, string>> = { password };
+			const resetErrors: Partial<Record<keyof ResetAccountInput, string>> = {
+				password: confirmPasswordError(checked)
+			};
 			return fail(400, { resetErrors });
 		}
 		// No storage given: the default adapter of the target deletes the documents' files. A
@@ -93,21 +100,11 @@ export const actions: Actions = {
 		}
 		redirect(303, '/');
 	},
-	// Deleting the account asks for the password again; that is the confirmation. Wrong passwords
-	// count like failed sign-ins, so a stolen session cannot guess it.
 	delete: async (event) => {
 		const { request, locals } = event;
 		const user = requireOwner(locals);
-		const result = parseDeleteAccount(await request.formData());
-		if (!result.ok) return fail(400, { errors: result.errors });
-		const checked = await confirmPassword(locals.db, auditContext(locals), result.data.password);
-		if (checked !== 'ok') {
-			const password =
-				checked === 'locked'
-					? 'Zu viele Fehlversuche. Bitte warte 15 Minuten.'
-					: 'Das Passwort stimmt nicht.';
-			return fail(400, { errors: { password } });
-		}
+		const refused = await refusePassword(locals, await request.formData());
+		if (refused) return refused;
 		// A running subscription ends first, so nobody keeps paying for a deleted account.
 		if (!(await cancelSubscriptionOf(locals.db, user.accountId))) {
 			return fail(502, {

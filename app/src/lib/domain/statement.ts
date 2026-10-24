@@ -40,15 +40,15 @@ import { monthlyAmounts, type RentChange } from './rents';
 // approval and the PDF prints the per-lease part.
 
 /** § 556 Abs. 3 BGB: at most one year per statement. */
-export const MAX_PERIOD_MONTHS = 12;
+const MAX_PERIOD_MONTHS = 12;
 /** § 556 Abs. 3 BGB: the statement must reach the tenant within a year after the period. */
-export const DEADLINE_MONTHS = 12;
+const DEADLINE_MONTHS = 12;
 /** § 556 Abs. 3 Satz 5 BGB: the tenant may object within a year after receiving it. */
-export const OBJECTION_MONTHS = 12;
+const OBJECTION_MONTHS = 12;
 /** § 9a Abs. 2 HeizKV: estimated consumption for more than a quarter of the area is a problem. */
-export const ESTIMATED_AREA_LIMIT = 0.25;
+const ESTIMATED_AREA_LIMIT = 0.25;
 /** §§ 7, 8 HeizKV: the share of heating and hot water cost that must follow consumption. */
-export const HEIZKV_CONSUMPTION_PERCENT = { min: 50, max: 70 };
+const HEIZKV_CONSUMPTION_PERCENT = { min: 50, max: 70 };
 
 // Input
 

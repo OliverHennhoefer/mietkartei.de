@@ -69,7 +69,7 @@ type Statement = BatchItem<'sqlite'>;
  * A Nachzahlung is due this many days after the statement reached the tenant (decided on
  * 21.10.2026), a Guthaben this many days after the approval.
  */
-export const DUE_DAYS = 30;
+const DUE_DAYS = 30;
 
 export type StatementRow = typeof operatingCostStatements.$inferSelect;
 
@@ -1306,7 +1306,7 @@ function greeting(statement: LeaseStatement): string {
 }
 
 /** The subject line of the letter, also the start of the file name. */
-export function statementSubject(statement: LeaseStatement): string {
+function statementSubject(statement: LeaseStatement): string {
 	return `Betriebskostenabrechnung ${periodLabel(statement.period.start, statement.period.end)}`;
 }
 

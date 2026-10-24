@@ -13,7 +13,7 @@ import { ApiError, permits, toJson, type Operation } from './operations';
 // browser call the API.
 
 /** The key of `Authorization: Bearer mk_…`, or undefined. */
-export function bearerToken(request: Request): string | undefined {
+function bearerToken(request: Request): string | undefined {
 	const header = request.headers.get('authorization');
 	const match = header?.match(/^Bearer\s+(\S+)\s*$/i);
 	return match?.[1];

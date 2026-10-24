@@ -142,6 +142,13 @@ export function parseDeleteAccount(form: FormData): ParseResult<DeleteAccountInp
 	return parser.result(() => ({ password: value }));
 }
 
+/** Why a password asked for again (resetting, deleting, leaving, handing over the account) failed. */
+export function confirmPasswordError(reason: 'wrong-password' | 'locked' | 'missing'): string {
+	return reason === 'locked'
+		? 'Zu viele Fehlversuche. Bitte warte 15 Minuten.'
+		: 'Das Passwort stimmt nicht.';
+}
+
 /** The word typed to confirm the reset, so it is never clicked through by accident. */
 export const RESET_CONFIRMATION = 'ZURÜCKSETZEN';
 
