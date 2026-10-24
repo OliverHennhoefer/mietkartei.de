@@ -61,6 +61,28 @@
             "screenshot": "https://mietkartei.de/assets/screenshots/abrechnung-mieter.png",
             "softwareHelp": "https://docs.mietkartei.de/",
             "codeRepository": "https://github.com/OliverHennhoefer/mietkartei.de",
+            "offers": [
+              {
+                "@type": "Offer",
+                "name": "Selbst betrieben (Open Source)",
+                "price": "0",
+                "priceCurrency": "EUR",
+                "url": "https://docs.mietkartei.de/selbst-hosten/"
+              },
+              {
+                "@type": "Offer",
+                "name": "Gehostet unter app.mietkartei.de",
+                "price": "8",
+                "priceCurrency": "EUR",
+                "url": "https://app.mietkartei.de/anmelden",
+                "priceSpecification": {
+                  "@type": "UnitPriceSpecification",
+                  "price": "8",
+                  "priceCurrency": "EUR",
+                  "billingDuration": "P1M"
+                }
+              }
+            ],
             "featureList": [
               "Betriebskostenabrechnung mit tagesgenauer Umlage und CO₂-Kostenaufteilung",
               "Mietkonto mit Soll und Ist je Mietvertrag",
@@ -131,7 +153,7 @@
           </div>
           <div>
             <h3>Was kostet mietkartei?</h3>
-            <p>Selbst betrieben ist mietkartei kostenlos, der Code steht unter der AGPL-3.0. Die gehostete Version unter app.mietkartei.de testest du 30 Tage kostenlos, danach läuft sie als monatliches Abo, das jederzeit kündbar ist.</p>
+            <p>mietkartei ist Open Source: Der komplette Code steht unter der AGPL-3.0, und selbst betrieben als Docker-Container kostet mietkartei nichts, ohne Einschränkungen. Wer sich um nichts kümmern möchte, nutzt die gehostete Version unter app.mietkartei.de für 8 € im Monat, mit 30 Tagen kostenlosem Test und jederzeit kündbar.</p>
           </div>
           <div>
             <h3>Wie erstelle ich damit die Nebenkostenabrechnung?</h3>
