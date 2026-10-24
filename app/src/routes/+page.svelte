@@ -146,6 +146,15 @@
 		display: grid;
 		gap: 0.5rem;
 	}
+	/* An open step sits on the neon block of the logo; a done one goes back to plain text. */
+	.steps li:not(.done) a {
+		padding: 0 0.2em;
+		background: var(--color-highlight);
+		color: var(--color-highlight-text);
+		text-decoration-color: currentColor;
+		-webkit-box-decoration-break: clone;
+		box-decoration-break: clone;
+	}
 	.steps .done a {
 		text-decoration: line-through;
 	}
