@@ -1262,6 +1262,25 @@ describe('helpers', () => {
 });
 
 describe('computeStatement edge cases', () => {
+	it('takes 70 % for a mixed key without a share and heat meters for a key without a kind', () => {
+		const reference = computeStatement(scenario(), options);
+		const defaults = scenario();
+		defaults.keys[3] = key('k-heat', 'Heizung', 'mixed', { meterKind: null });
+		const result = computeStatement(defaults, options);
+		expect(result.leases.map((lease) => lease.costsTotal)).toEqual(
+			reference.leases.map((lease) => lease.costsTotal)
+		);
+	});
+
+	it('names a meter by its number when a reading is missing', () => {
+		const input = scenario();
+		input.meters[2] = meter('m-dg', 'dg', [reading('2025-01-01', 0)], { serialNumber: '4711' });
+		const messages = computeStatement(input, options).property.warnings.map((w) => w.message);
+		expect(messages.some((message) => message.includes('Zähler Wärme 4711 der Einheit DG'))).toBe(
+			true
+		);
+	});
+
 	it('splits water by days at a change without a reading', () => {
 		// Wasser 100 € by cold water: EG 50, OG 40, DG 10 m³. The OG was not read on 30 June, so
 		// its 40 € split by days: A 181 of 365 days = 19,836… → 19,84 €, B 184 days → 20,16 €.
