@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { seedLease } from './seed';
 
-// Tenants: create, edit, list and delete. The lease that blocks a delete is seeded, not clicked
+// Tenants: create, edit, list, archive and delete. The lease that blocks a delete is seeded, not clicked
 // together, so this file drives only the tenant pages.
 
 const suffix = () => crypto.randomUUID().slice(0, 6);
@@ -74,6 +74,10 @@ test('keeps a tenant on a lease and names the lease instead of offering to delet
 		page.getByRole('list', { name: 'Was das Löschen verhindert' }).getByRole('link')
 	).toHaveAttribute('href', /\/vertraege\/[^/]+$/);
 	await expect(page.getByRole('button', { name: 'Mieter löschen' })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Mieter archivieren' })).toHaveCount(0);
+	await expect(
+		page.getByRole('list', { name: 'Was das Archivieren verhindert' }).getByRole('link')
+	).toHaveAttribute('href', /\/vertraege\/[^/]+$/);
 
 	await page.goto('/mieter');
 	const row = page.getByRole('table', { name: 'Mieter' }).getByRole('row', { name: lastName });
@@ -93,6 +97,32 @@ test('deletes a tenant without a lease', async ({ page }) => {
 	await expect(page).toHaveURL(/\/mieter$/);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Mieter');
 	await expect(page.getByText(lastName)).toHaveCount(0);
+});
+
+test('archives a tenant without a running lease and brings them back', async ({ page }) => {
+	const lastName = `Ausgezogen-${suffix()}`;
+	page.on('dialog', (dialog) => dialog.accept());
+	await page.goto('/mieter/neu');
+	await page.getByLabel('Vorname').fill('Anna');
+	await page.getByLabel('Nachname').fill(lastName);
+	await page.getByRole('button', { name: 'Mieter anlegen' }).click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Anna ${lastName}`);
+
+	await page.getByRole('button', { name: 'Mieter archivieren' }).click();
+	await expect(page).toHaveURL(/\/mieter$/);
+	await expect(page.getByRole('table', { name: 'Mieter' })).not.toContainText(lastName);
+	await page.getByText(/^Archiviert \(\d+\)$/).click();
+	await page
+		.getByRole('list', { name: 'Archivierte Mieter' })
+		.getByRole('link', { name: `Anna ${lastName}` })
+		.click();
+	await expect(page.getByText(/^Archiviert am \d{2}\.\d{2}\.\d{4}\.$/)).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Mietvertrag anlegen' })).toHaveCount(0);
+
+	await page.getByRole('button', { name: 'Aus dem Archiv holen' }).click();
+	await expect(page.getByRole('button', { name: 'Mieter archivieren' })).toBeVisible();
+	await page.goto('/mieter');
+	await expect(page.getByRole('table', { name: 'Mieter' })).toContainText(lastName);
 });
 
 test('answers unknown tenants with 404', async ({ page }) => {

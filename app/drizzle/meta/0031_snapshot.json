@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ff7ba077-ac5c-46bf-b09f-c272459aefca",
+  "id": "c146c9e1-41da-4cdc-a209-b3dd7d9ef3b8",
   "prevId": "3d8db373-ebcb-4567-8dd0-73323d6137d3",
   "tables": {
     "accounts": {
@@ -4252,13 +4252,6 @@
           "autoincrement": false,
           "default": "'residential'"
         },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "vacancy_persons": {
           "name": "vacancy_persons",
           "type": "integer",
@@ -4269,6 +4262,13 @@
         },
         "notes": {
           "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "archived_at": {
+          "name": "archived_at",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -5209,6 +5209,13 @@
         },
         "notes": {
           "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "archived_at": {
+          "name": "archived_at",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

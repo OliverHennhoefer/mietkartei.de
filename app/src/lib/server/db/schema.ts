@@ -106,6 +106,8 @@ export const properties = sqliteTable(
 		/** Persons a vacant unit counts with in the persons key; that share stays with the landlord. */
 		vacancyPersons: integer('vacancy_persons').notNull().default(1),
 		notes: text('notes'),
+		/** The day it was archived (e.g. sold); hidden from lists and selects, its history stays. */
+		archivedAt: text('archived_at'),
 		createdAt: createdAt()
 	},
 	(table) => [index('properties_account_id_idx').on(table.accountId)]
@@ -151,6 +153,8 @@ export const tenants = sqliteTable(
 		postalCode: text('postal_code'),
 		city: text('city'),
 		notes: text('notes'),
+		/** The day it was archived (moved out); hidden from lists and selects, its history stays. */
+		archivedAt: text('archived_at'),
 		createdAt: createdAt()
 	},
 	(table) => [index('tenants_account_id_idx').on(table.accountId)]

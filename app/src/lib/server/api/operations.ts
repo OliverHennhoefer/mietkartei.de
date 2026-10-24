@@ -104,7 +104,7 @@ export const operations: Operation[] = [
 	{
 		name: 'list_properties',
 		description:
-			'Lists all properties (Objekte) of the account with their address and the number of units, running leases and vacant units today.',
+			'Lists all properties (Objekte) of the account with their address and the number of units, running leases and vacant units today. archivedAt is set for archived (e.g. sold) properties.',
 		method: 'GET',
 		path: '/properties',
 		scope: 'read',
@@ -131,13 +131,14 @@ export const operations: Operation[] = [
 	},
 	{
 		name: 'list_tenants',
-		description: 'Lists all tenants (Mieter) of the account with their contact details.',
+		description:
+			'Lists all tenants (Mieter) of the account with their contact details. archivedAt is set for archived tenants (e.g. moved out).',
 		method: 'GET',
 		path: '/tenants',
 		scope: 'read',
 		readOnly: true,
 		input: schema(),
-		run: ({ db, caller }) => listTenants(db, caller.user.accountId)
+		run: ({ db, caller }) => listTenants(db, caller.user.accountId, { archived: true })
 	},
 	{
 		name: 'get_tenant',

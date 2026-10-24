@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { personName } from '../format';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
@@ -21,11 +21,21 @@ export type TenantInput = {
 	notes: string | null;
 };
 
-export async function listTenants(db: Database, accountId: string) {
+/** Archived tenants only with `archived: true`, e.g. for the list's archive or the API. */
+export async function listTenants(
+	db: Database,
+	accountId: string,
+	options: { archived?: boolean } = {}
+) {
 	return db
 		.select()
 		.from(tenants)
-		.where(eq(tenants.accountId, accountId))
+		.where(
+			and(
+				eq(tenants.accountId, accountId),
+				options.archived ? undefined : isNull(tenants.archivedAt)
+			)
+		)
 		.orderBy(asc(tenants.lastName), asc(tenants.firstName), asc(tenants.createdAt));
 }
 

@@ -76,7 +76,12 @@ export const actions: Actions = {
 			const errors =
 				result.reason === 'unknown-unit'
 					? { unitId: 'Diese Einheit gibt es nicht.' }
-					: { tenantIds: 'Einen der Mieter gibt es nicht.' };
+					: result.reason === 'archived'
+						? {
+								tenantIds:
+									'Das Objekt oder einer der Mieter ist archiviert. Hol es zuerst aus dem Archiv.'
+							}
+						: { tenantIds: 'Einen der Mieter gibt es nicht.' };
 			return fail(400, { errors, values, depositWarning: warningFor(values) });
 		}
 

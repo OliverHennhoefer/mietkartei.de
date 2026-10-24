@@ -26,7 +26,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	await ensureDefaults(locals.db, accountId);
 	const key = await getKey(locals.db, accountId, params.id);
 	if (!key) error(404, keyMessages.missing);
-	const properties = await listProperties(locals.db, accountId);
+	const properties = await listProperties(locals.db, accountId, { archived: true });
 	// Shares exist for a custom key of one property: one input per unit of that property.
 	const custom = key.kind === 'custom' && key.propertyId !== null;
 	const [units, shares] = custom

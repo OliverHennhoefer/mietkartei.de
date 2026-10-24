@@ -222,15 +222,22 @@
     {
       "idx": 31,
       "version": "6",
-      "when": 1792869302926,
-      "tag": "0031_property_state",
+      "when": 1792868731793,
+      "tag": "0031_archive_properties_and_tenants",
       "breakpoints": true
     },
     {
       "idx": 32,
       "version": "6",
-      "when": 1792869303637,
-      "tag": "0032_base_rates",
+      "when": 1792869923698,
+      "tag": "0032_property_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1792869924510,
+      "tag": "0033_base_rates",
       "breakpoints": true
     }
   ]
