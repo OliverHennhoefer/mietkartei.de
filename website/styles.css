@@ -101,13 +101,20 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .news li a:hover span { text-decoration: underline; text-underline-offset: 3px; }
 .news time { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
 
-/* Below the first screen: the hero keeps the full viewport height. */
-.faq { padding-block: clamp(48px, 8vh, 96px); border-top: 1px solid var(--line); }
-.faq > h2 { margin: 0; font-size: clamp(28px, 3.2vw, 40px); font-weight: 500; letter-spacing: -.04em; line-height: 1.1; }
-.faq-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 64px; margin-top: clamp(28px, 4vh, 48px); }
-.faq h3 { margin: 0 0 8px; font-size: 16px; font-weight: 500; letter-spacing: -.015em; line-height: 1.4; }
-.faq p { margin: 0; max-width: 560px; color: var(--muted); font-size: 15px; line-height: 1.7; }
-.faq a { text-underline-offset: 3px; }
+.faq-page { display: block; width: 100%; max-width: 1080px; padding-block: 64px 88px; }
+.faq-page h1 { font-size: clamp(40px, 6vw, 64px); letter-spacing: -.045em; line-height: 1.05; }
+.faq-page .lead a, .faq-item a { text-underline-offset: 3px; }
+.faq-nav ul { display: flex; flex-wrap: wrap; gap: 8px; margin: 28px 0 0; padding: 0; list-style: none; }
+.faq-nav a { display: inline-block; padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; text-decoration: none; transition: border-color 140ms; }
+.faq-nav a:hover { border-color: var(--foreground); }
+.faq-group { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 24px 64px; margin-top: 56px; padding-top: 28px; border-top: 1px solid var(--line); scroll-margin-top: 24px; }
+.faq-group h2 { margin: 0; font-size: 11px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.faq-items { display: grid; gap: 32px; }
+.faq-item h3 { margin: 0 0 10px; font-size: 18px; font-weight: 500; letter-spacing: -.02em; line-height: 1.4; }
+/* The neon block of the homepage intro; black text on it in both colour schemes. */
+.faq-item h3 mark { padding: .02em .22em; background: var(--highlight); color: #000; font-weight: 600; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.faq-item p { margin: 0; max-width: 640px; color: var(--muted); font-size: 16px; line-height: 1.7; }
+.faq-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; margin-top: 64px; padding-top: 32px; border-top: 1px solid var(--line); }
 
 .article { display: block; width: 100%; max-width: 720px; padding-block: 64px 88px; }
 .article h1 { font-size: clamp(34px, 4.6vw, 52px); letter-spacing: -.045em; line-height: 1.08; }
@@ -170,7 +177,7 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
   .shot-detail { left: auto; right: -12px; bottom: -64px; width: 44%; }
   .footer { align-items: flex-start; flex-direction: column; gap: 8px; }
   .news { margin-top: 0; }
-  .faq-list { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .faq-group { grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 40px; }
   .news li a { flex-direction: column; gap: 2px; }
   .news li span { white-space: normal; }
 }

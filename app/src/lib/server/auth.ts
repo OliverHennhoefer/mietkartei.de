@@ -7,6 +7,7 @@ import {
 	apiKeys,
 	emailChanges,
 	loginAttempts,
+	oauthCodes,
 	sessions,
 	users,
 	type UserRole
@@ -376,6 +377,7 @@ export async function changePassword(
 		db.delete(sessions).where(await otherSessions(user.id, input.keepToken)),
 		db.delete(emailChanges).where(eq(emailChanges.userId, user.id)),
 		db.delete(apiKeys).where(eq(apiKeys.userId, user.id)),
+		db.delete(oauthCodes).where(eq(oauthCodes.userId, user.id)),
 		auditEntry(
 			db,
 			{ accountId: context.accountId, userId: null },

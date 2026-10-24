@@ -73,7 +73,12 @@ describe('/mcp', () => {
 	});
 
 	it('refuses requests without a key and from other origins', async () => {
-		expect((await post('{}', { authorization: '' })).status).toBe(401);
+		const anonymous = await post('{}', { authorization: '' });
+		expect(anonymous.status).toBe(401);
+		// Tells OAuth clients where to find how to get a token.
+		expect(anonymous.headers.get('www-authenticate')).toBe(
+			'Bearer realm="mietkartei", resource_metadata="http://localhost/.well-known/oauth-protected-resource/mcp"'
+		);
 		const foreign = await post('{}', { origin: 'https://evil.example' });
 		expect(foreign.status).toBe(403);
 		expect(

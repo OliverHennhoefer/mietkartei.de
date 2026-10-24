@@ -6,6 +6,7 @@ import {
 	createApiKey,
 	DEFAULT_API_KEY_LIFETIME,
 	listApiKeys,
+	listConnectedApps,
 	MAX_API_KEYS_PER_USER,
 	revokeApiKey
 } from '#lib/server/api-keys.ts';
@@ -15,6 +16,7 @@ import type { Actions, PageServerLoad } from './$types';
 
 // The API keys of the signed-in user: create one for the API or an assistant (MCP), see the ones
 // that exist, revoke them. Every user manages their own keys; a key has the rights of its user.
+// The apps connected by OAuth (#lib/server/oauth.ts) are listed here as well and revoked alike.
 
 /** Write keys are offered only once there is something to write, and never to viewers. */
 const writable = operations.some((operation) => operation.scope === 'write');
@@ -26,6 +28,7 @@ function scopesOf(locals: App.Locals): ApiKeyScope[] {
 export const load: PageServerLoad = async ({ locals, url }) => {
 	return {
 		keys: await listApiKeys(locals.db, auditContext(locals)),
+		apps: await listConnectedApps(locals.db, auditContext(locals)),
 		scopes: scopesOf(locals),
 		lifetimes: API_KEY_LIFETIMES,
 		defaultLifetime: DEFAULT_API_KEY_LIFETIME,
@@ -50,7 +53,9 @@ export const actions: Actions = {
 	revoke: async ({ request, locals }) => {
 		const id = (await request.formData()).get('keyId');
 		if (typeof id !== 'string' || !(await revokeApiKey(locals.db, auditContext(locals), id))) {
-			return fail(404, { refused: 'Diesen API-Schlüssel gibt es nicht mehr.' });
+			return fail(404, {
+				refused: 'Diesen API-Schlüssel oder diese Verbindung gibt es nicht mehr.'
+			});
 		}
 		return { revoked: true };
 	}
