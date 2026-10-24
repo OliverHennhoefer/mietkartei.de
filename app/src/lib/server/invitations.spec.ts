@@ -243,6 +243,19 @@ describe('resendInvitation', () => {
 		expect(await listPendingInvitations(db, 'a', now)).toHaveLength(1);
 	});
 
+	it('keeps the seat of a full account while it resends, even against a new invitation', async () => {
+		const first = await invite('p-1@example.org');
+		for (let index = 2; index < MAX_ACCOUNT_MEMBERS; index++)
+			await invite(`p-${index}@example.org`);
+		const [resent, created] = await Promise.all([
+			resendInvitation(db, contextA, first.id, now),
+			createInvitation(db, contextA, { email: 'neu@example.org' }, now)
+		]);
+		expect(resent.ok).toBe(true);
+		expect(created).toEqual({ ok: false, reason: 'full' });
+		expect(await freeSeats(db, 'a', now)).toBe(0);
+	});
+
 	it('refuses foreign, revoked and accepted invitations', async () => {
 		const foreign = await invite('b-neu@example.org', contextB);
 		expect(await resendInvitation(db, contextA, foreign.id, now)).toEqual({

@@ -103,13 +103,16 @@ export async function listPendingInvitations(
 export async function freeSeats(
 	db: Database,
 	accountId: string,
-	now = Date.now()
+	now = Date.now(),
+	excluding?: string
 ): Promise<number> {
 	const [[members], pending] = await Promise.all([
 		db.select({ value: count() }).from(users).where(eq(users.accountId, accountId)),
 		listPendingInvitations(db, accountId, now)
 	]);
-	const open = pending.filter((invitation) => !invitation.expired).length;
+	const open = pending.filter(
+		(invitation) => !invitation.expired && invitation.id !== excluding
+	).length;
 	return MAX_ACCOUNT_MEMBERS - members.value - open;
 }
 
@@ -126,14 +129,16 @@ async function sentToday(db: Database, accountId: string, now: number): Promise<
 /**
  * Which limit the account is over after an invitation was stored. Checked again after the write,
  * because two requests may both pass the checks before either stores its invitation; the one
- * that finds itself over a limit takes its invitation back.
+ * that finds itself over a limit takes its invitation back. `replacing` is the invitation a
+ * resend is about to revoke, whose seat the new one takes over.
  */
 async function exceededLimit(
 	db: Database,
 	accountId: string,
-	now: number
+	now: number,
+	replacing?: string
 ): Promise<'full' | 'too-many' | undefined> {
-	if ((await freeSeats(db, accountId, now)) < 0) return 'full';
+	if ((await freeSeats(db, accountId, now, replacing)) < 0) return 'full';
 	if ((await sentToday(db, accountId, now)) > MAX_INVITATIONS_PER_DAY) return 'too-many';
 	return undefined;
 }
@@ -254,8 +259,8 @@ export type ResendInvitationResult =
 	| { ok: false; reason: 'missing' | 'full' | 'too-many' };
 
 /**
- * Sends an open or expired invitation again: it is revoked and replaced by a new one with a new
- * link and a new week of validity, so the old link leads nowhere. Counts towards the daily limit;
+ * Sends an open or expired invitation again: it is replaced by a new one with a new link and a
+ * new week of validity and then revoked, so the old link leads nowhere. Counts towards the daily limit;
  * an expired invitation needs a free seat again. Returns the new token for the mail.
  */
 export async function resendInvitation(
@@ -274,19 +279,8 @@ export async function resendInvitation(
 	if ((await sentToday(db, context.accountId, now)) >= MAX_INVITATIONS_PER_DAY) {
 		return { ok: false, reason: 'too-many' };
 	}
-	// Only one of two simultaneous resends takes the invitation over.
-	const taken = await db
-		.update(invitations)
-		.set({ revokedAt: new Date(now) })
-		.where(
-			and(
-				eq(invitations.id, invitation.id),
-				isNull(invitations.acceptedAt),
-				isNull(invitations.revokedAt)
-			)
-		)
-		.returning({ id: invitations.id });
-	if (taken.length === 0) return { ok: false, reason: 'missing' };
+	// The replacement is stored before the old invitation is revoked, so the old one keeps its
+	// seat until then and no other request can take it in between.
 	const id = crypto.randomUUID();
 	const token = generateToken();
 	await runBatch(db, [
@@ -301,13 +295,27 @@ export async function resendInvitation(
 			createdAt: new Date(now)
 		})
 	]);
-	const exceeded = await exceededLimit(db, context.accountId, now);
+	const exceeded = await exceededLimit(db, context.accountId, now, invitation.id);
 	if (exceeded) {
-		await runBatch(db, [
-			db.delete(invitations).where(eq(invitations.id, id)),
-			db.update(invitations).set({ revokedAt: null }).where(eq(invitations.id, invitation.id))
-		]);
+		await db.delete(invitations).where(eq(invitations.id, id));
 		return { ok: false, reason: exceeded };
+	}
+	// Only one of two simultaneous resends revokes the old invitation; the other takes its
+	// replacement back.
+	const revoked = await db
+		.update(invitations)
+		.set({ revokedAt: new Date(now) })
+		.where(
+			and(
+				eq(invitations.id, invitation.id),
+				isNull(invitations.acceptedAt),
+				isNull(invitations.revokedAt)
+			)
+		)
+		.returning({ id: invitations.id });
+	if (revoked.length === 0) {
+		await db.delete(invitations).where(eq(invitations.id, id));
+		return { ok: false, reason: 'missing' };
 	}
 	await auditEntry(
 		db,
