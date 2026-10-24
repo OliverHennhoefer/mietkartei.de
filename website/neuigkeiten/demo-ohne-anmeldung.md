@@ -18,4 +18,4 @@ Du brauchst dafür kein Konto und keine E-Mail-Adresse. Nach 24 Stunden wird der
 
 ## Und danach
 
-Wenn dir mietkartei gefällt, legst du unter [app.mietkartei.de](https://app.mietkartei.de/anmelden) ein Konto an oder betreibst es [selbst mit Docker](https://docs.mietkartei.de/selbst-hosten/). Fehlt dir etwas, freuen wir uns über einen [Funktionswunsch auf GitHub](https://github.com/OliverHennhoefer/mietkartei.de/issues/new?template=02-funktionswunsch.yml).
+Wenn dir mietkartei gefällt, legst du unter [app.mietkartei.de](https://app.mietkartei.de/registrieren) ein Konto an oder betreibst es [selbst mit Docker](https://docs.mietkartei.de/selbst-hosten/). Fehlt dir etwas, freuen wir uns über einen [Funktionswunsch auf GitHub](https://github.com/OliverHennhoefer/mietkartei.de/issues/new?template=02-funktionswunsch.yml).

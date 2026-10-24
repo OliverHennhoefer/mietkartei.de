@@ -65,7 +65,8 @@ def inline(text: str) -> str:
     text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
     return re.sub(
         r"\[(.+?)\]\((https?://[^)\s]+|/[^)\s]*)\)",
-        lambda m: f'<a href="{html.escape(m.group(2))}">{m.group(1)}</a>',
+        # The text is already escaped above; only quotes remain to keep the attribute intact.
+        lambda m: f'<a href="{m.group(2).replace(chr(34), "&quot;")}">{m.group(1)}</a>',
         text,
     )
 
