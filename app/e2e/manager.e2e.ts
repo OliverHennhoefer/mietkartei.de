@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { closeLaunchNotice } from './launch-notice';
 import { linkInMailTo } from './outbox';
 
 // Project "manager", with the owner's storage state. The owner invites a manager through the
@@ -34,6 +35,7 @@ test('the owner invites a manager, who registers through the link', async ({
 	// The invitee has no session of their own yet.
 	const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
 	const invitee = await context.newPage();
+	await closeLaunchNotice(invitee);
 	await invitee.goto(link);
 	await expect(invitee.getByRole('heading', { level: 1, name: 'Einladung' })).toBeVisible();
 	await expect(invitee.getByLabel('E-Mail-Adresse')).toHaveValue(manager.email);
