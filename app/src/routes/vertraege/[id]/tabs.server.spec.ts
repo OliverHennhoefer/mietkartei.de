@@ -8,6 +8,7 @@ import { outcome, routeEvent, seedLease, seedUnit, testDatabase } from '#lib/ser
 import { actions as co2Actions, load as loadCo2 } from './co2/+page.server';
 import { actions as depositActions, load as loadDeposit } from './kaution/+page.server';
 import { actions as ledgerActions, load as loadLedger } from './mietkonto/+page.server';
+import { GET as reminderPdf } from './mietkonto/schreiben/[reminderId]/+server';
 
 // The Mietkonto, Kaution and CO₂ tabs of a lease. The layout answers 404 for another account's
 // lease; the actions run without it, so each must refuse a foreign lease on its own.
@@ -132,6 +133,13 @@ describe('mietkonto reminders', () => {
 			data: { reminderId: string };
 		};
 		expect(created.data.reminderId).toEqual(expect.any(String));
+		const pdf = (id: string, reminderId: string) =>
+			outcome(() => reminderPdf(routeEvent(db, { params: { id, reminderId } })));
+		const printed = (await pdf(leaseId, created.data.reminderId)) as { data: Response };
+		expect(printed.data.headers.get('Content-Type')).toBe('application/pdf');
+		expect(new TextDecoder().decode((await printed.data.arrayBuffer()).slice(0, 5))).toBe('%PDF-');
+		// The letter is only found under its own lease.
+		expect(await pdf(foreignLeaseId, created.data.reminderId)).toMatchObject({ error: 404 });
 		expect(await act(ledgerActions.deleteReminder, { id: created.data.reminderId })).toEqual({
 			data: { deleted: 'reminder' }
 		});

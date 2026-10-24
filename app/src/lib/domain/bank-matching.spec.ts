@@ -289,6 +289,24 @@ describe('mapRecord', () => {
 			}
 		});
 	});
+
+	it('reads a value date when there is one, else none, and an empty cell for a column the file lacks', () => {
+		const withValue = { ...mapping, valueDate: 'Valuta', externalId: 'Ref' };
+		const row = (Valuta: string) =>
+			mapRecord({ Datum: '01.10.2026', Valuta, Betrag: '5', Name: 'A', Text: 'B' }, withValue);
+		expect(row('02.10.2026')).toMatchObject({ ok: true, row: { valueDate: '2026-10-02' } });
+		expect(row('irgendwann')).toMatchObject({ ok: true, row: { valueDate: null } });
+		expect(row('')).toMatchObject({ ok: true, row: { valueDate: null, externalId: null } });
+	});
+
+	it('maps a record without the skip column as usual', () => {
+		const skip = { column: 'Status', value: 'Vorgemerkt', reason: 'vorgemerkt' };
+		const record = { Datum: '01.10.2026', Betrag: '5', Name: 'A', Text: 'B' };
+		expect(mapRecords([record, { ...record, Status: 'Vorgemerkt' }], mapping, skip)).toEqual([
+			expect.objectContaining({ ok: true }),
+			{ ok: false, reason: 'vorgemerkt' }
+		]);
+	});
 });
 
 describe('fingerprints', () => {
@@ -346,6 +364,8 @@ describe('ibans', () => {
 	it('normalizes and formats in groups of four', () => {
 		expect(normalizeIban(' de12 5001 0517 5407 3249 31 ')).toBe('DE12500105175407324931');
 		expect(normalizeIban('')).toBeNull();
+		expect(normalizeIban(null)).toBeNull();
+		expect(formatIban(' ')).toBe('');
 		expect(formatIban('DE12500105175407324931')).toBe('DE12 5001 0517 5407 3249 31');
 	});
 });

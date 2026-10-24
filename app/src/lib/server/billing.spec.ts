@@ -406,6 +406,9 @@ describe('with a database', () => {
 				{ status: 200, body: { status: 'canceled' } }
 			);
 			expect(await cancelSubscriptionOf(db, 'a')).toBe(true);
+			// Neither cancelling nor reading the subscription works: it may still bill.
+			stripeAnswers(running, { status: 500, body: {} }, { status: 500, body: {} });
+			expect(await cancelSubscriptionOf(db, 'a')).toBe(false);
 			// Unknown to Stripe.
 			stripeAnswers(running, { status: 404, body: {} });
 			expect(await cancelSubscriptionOf(db, 'a')).toBe(true);
@@ -488,6 +491,22 @@ describe('with a database', () => {
 				stripeSubscriptionId: 'sub_b',
 				subscriptionStatus: 'active',
 				stripeCheckoutSessionId: null
+			});
+		});
+
+		it('takes the place of a stored one Stripe does not know, and retries when Stripe fails', async () => {
+			await subscribed();
+			stripeAnswers({ status: 500, body: {} });
+			const event = { id: 'evt_b', type: 'checkout.session.completed' };
+			await expect(applySubscriptionUpdate(db, event, completedB)).rejects.toThrow();
+			expect(await stripeEventSeen(db, 'evt_b')).toBe(false);
+			expect(await row('a')).toMatchObject({ stripeSubscriptionId: 'sub_a' });
+
+			stripeAnswers({ status: 404, body: {} });
+			await applySubscriptionUpdate(db, event, completedB);
+			expect(await row('a')).toMatchObject({
+				stripeSubscriptionId: 'sub_b',
+				subscriptionStatus: 'active'
 			});
 		});
 

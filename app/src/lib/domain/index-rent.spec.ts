@@ -322,6 +322,44 @@ describe('indexSituation', () => {
 	});
 });
 
+describe('index rent with an unordered or incomplete history', () => {
+	const indexed = (validFrom: string, indexMonth: string, indexValue: number) =>
+		change({ validFrom, reason: 'indexed', indexMonth, indexValue });
+
+	it('takes the latest change whatever the order of the history', () => {
+		const history = [
+			indexed('2026-01-01', '2025-10', 123),
+			initial,
+			indexed('2025-01-01', '2024-10', 120)
+		];
+		expect(referenceIndex(history, lease, '2026-12-01')).toMatchObject({ month: '2025-10' });
+		const steps = [
+			change({ validFrom: '2026-02-01', reason: 'graduated' }),
+			change({ validFrom: '2025-01-01' })
+		];
+		expect(nextGraduatedStepAllowed(steps)).toBe('2027-02-01');
+	});
+
+	it('takes a lease that starts after the effective date as of its start', () => {
+		const later = change({ validFrom: '2027-03-01' });
+		const situation = indexSituation(
+			{ ...lease, kind: 'commercial' },
+			[later],
+			values,
+			'2026-10-20'
+		);
+		expect(situation.provisionalFrom).toBe('2026-12-01');
+		expect(situation.proposal).toMatchObject({ currentBaseRent: 60000 });
+		expect(situation.refusal).toBeUndefined();
+	});
+
+	it('refuses without any rent', () => {
+		const situation = indexSituation(lease, [], values, '2026-10-20');
+		expect(situation.proposal).toBeUndefined();
+		expect(situation.refusal).toBe('Dem Mietvertrag fehlt die aktuelle Miete.');
+	});
+});
+
 describe('greeting', () => {
 	it('addresses the tenants by salutation in the informal register of the letter', () => {
 		// The letter says "dein Mietvertrag", so the greeting is "Guten Tag", not "Sehr geehrte".

@@ -308,6 +308,54 @@ describe('bank/import', () => {
 			})
 		).toMatchObject({ fail: 400, data: { errors: { file: 'Bitte prüfe die Datei zuerst.' } } });
 	});
+
+	it('refuses to commit a file it cannot read or map, or into another account', async () => {
+		const commit = (form: Record<string, string>) => run(importActions.commit, { form });
+		const own = btoa('Datum;Wert;Text\n01.10.2026;850,00;Miete');
+		expect(await commit({ content: own })).toMatchObject({ fail: 400 });
+		expect(await commit({ bankAccountId, content: btoa('nur Text') })).toMatchObject({
+			fail: 400,
+			data: { errors: { file: expect.any(String) } }
+		});
+		expect(await commit({ bankAccountId, content: own })).toMatchObject({
+			fail: 400,
+			data: { errors: { file: 'Bitte ordne die Spalten zu.' } }
+		});
+		// A file without its own IBAN is only refused when the rows are booked.
+		const foreignBank = await createBankAccount(db, contextB, { ...konto, name: 'Fremd' });
+		if (!foreignBank.ok) throw new Error('setup failed');
+		const mapped = { preset: 'generic', bookingDate: 'Datum', amount: 'Wert', purpose: 'Text' };
+		expect(await commit({ bankAccountId: foreignBank.id, content: own, ...mapped })).toMatchObject({
+			fail: 400,
+			data: { errors: { file: 'Diese Bankverbindung gibt es nicht.' } }
+		});
+		expect(
+			await run(importActions.preview, {
+				form: { bankAccountId: foreignBank.id, content: own, ...mapped }
+			})
+		).toMatchObject({
+			fail: 400,
+			data: { errors: { file: 'Diese Bankverbindung gibt es nicht.' } }
+		});
+	});
+
+	it('refuses a file of more than 10.000 lines', async () => {
+		const lines = Array.from({ length: 10_001 }, (_, i) => `01.10.2026;${i},00;Zeile`);
+		const content = btoa(['Datum;Wert;Text', ...lines].join('\n'));
+		const form = {
+			bankAccountId,
+			content,
+			preset: 'generic',
+			bookingDate: 'Datum',
+			amount: 'Wert'
+		};
+		for (const action of [importActions.preview, importActions.commit]) {
+			expect(await run(action, { form })).toMatchObject({
+				fail: 400,
+				data: { errors: { file: expect.stringContaining('höchstens 10.000 Zeilen') } }
+			});
+		}
+	});
 });
 
 describe('bank/konten', () => {

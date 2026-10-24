@@ -265,6 +265,26 @@ describe('resendInvitation', () => {
 		expect(await freeSeats(db, 'a', now)).toBe(0);
 	});
 
+	it('sends only one of two simultaneous resends that would pass the daily limit', async () => {
+		const first = await invite('eins@example.org');
+		const second = await invite('zwei@example.org');
+		for (let index = 2; index < MAX_INVITATIONS_PER_DAY - 1; index++) {
+			const resent = await resendInvitation(db, contextA, first.id, now);
+			if (!resent.ok) throw new Error(resent.reason);
+			first.id = resent.id;
+		}
+		const results = await Promise.all([
+			resendInvitation(db, contextA, first.id, now),
+			resendInvitation(db, contextA, second.id, now)
+		]);
+		expect(results.filter((result) => result.ok)).toHaveLength(1);
+		expect(results.filter((result) => !result.ok)).toEqual([{ ok: false, reason: 'too-many' }]);
+		// The refused resend took its replacement back; both addresses keep one invitation.
+		expect(
+			(await listPendingInvitations(db, 'a', now)).map((pending) => pending.email).sort()
+		).toEqual(['eins@example.org', 'zwei@example.org']);
+	});
+
 	it('neither lists nor resends an invitation past its retention', async () => {
 		const old = await invite();
 		const past = later + INVITATION_RETENTION + 1;
