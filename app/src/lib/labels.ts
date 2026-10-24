@@ -2,6 +2,7 @@ import type {
 	AllocationKeyKind,
 	BankTransactionStatus,
 	BuildingUse,
+	DamageReportStatus,
 	DepositTransactionKind,
 	ExpenseCategory,
 	Fuel,
@@ -122,6 +123,13 @@ export const subscriptionStatusLabels: Record<SubscriptionStatus, string> = {
 	canceled: 'Gekündigt'
 };
 
+/** As the landlord and the tenants in the portal both see it. */
+export const damageReportStatusLabels: Record<DamageReportStatus, string> = {
+	new: 'Eingegangen',
+	in_progress: 'In Bearbeitung',
+	done: 'Erledigt'
+};
+
 export const expenseCategoryLabels: Record<ExpenseCategory, string> = {
 	operating_costs: 'Betriebskosten und Hausgeld',
 	maintenance: 'Instandhaltung und Reparaturen',
@@ -196,6 +204,8 @@ export const auditEntityLabels: Record<string, string> = {
 	statement: 'Betriebskostenabrechnung',
 	document: 'Dokument',
 	task: 'Aufgabe',
+	damageReport: 'Schadensmeldung',
+	portalLink: 'Mieterportal',
 	expense: 'Ausgabe',
 	vpi: 'Verbraucherpreisindex',
 	import: 'Datenübernahme'

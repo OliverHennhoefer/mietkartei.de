@@ -67,9 +67,11 @@ export const exportTables: AccountTable[] = [
 	schema.operatingCostStatements,
 	schema.statementResults,
 	schema.co2CostSplits,
-	schema.documents,
 	schema.tasks,
-	schema.insurancePolicies
+	schema.insurancePolicies,
+	schema.portalLinks,
+	schema.damageReports,
+	schema.documents
 ];
 
 /**
