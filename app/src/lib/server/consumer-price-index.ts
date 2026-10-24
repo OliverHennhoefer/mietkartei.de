@@ -49,7 +49,9 @@ function cell(value: string | undefined): string {
 /**
  * The monthly index values of a GENESIS "flat file CSV" (ffcsv) of table 61111-0002: one row per
  * year, month and measure, separated by semicolons, with decimal commas and `...` for values not
- * published yet. Only the index itself (measure PREIS1) is taken, not the rates of change.
+ * published yet. Only the index itself (measure PREIS1) is taken. The rates of change to the
+ * previous month and year come with the same measure code, but in percent: they are told apart by
+ * their unit or label (and carry a sign, `+0,3`, except for `0,0`).
  */
 export function parseGenesisTable(text: string): IndexPoint[] {
 	const lines = text.split(/\r?\n/).filter((line) => line.trim());
@@ -57,6 +59,8 @@ export function parseGenesisTable(text: string): IndexPoint[] {
 	const timeColumn = header.indexOf('time');
 	const valueColumn = header.indexOf('value');
 	const measureColumn = header.indexOf('value_variable_code');
+	const unitColumn = header.indexOf('value_unit');
+	const labelColumn = header.indexOf('value_variable_label');
 	if (timeColumn < 0 || valueColumn < 0) {
 		throw new Error('Die Antwort von Destatis ist keine Tabelle im erwarteten Format.');
 	}
@@ -71,22 +75,32 @@ export function parseGenesisTable(text: string): IndexPoint[] {
 		header[monthColumn].replace('_variable_code', '_variable_attribute_code')
 	);
 
-	const values = new Map<IsoMonth, number>();
+	const isRate = (row: string[]) =>
+		/%|prozent|veränderung/i.test(`${row[unitColumn] ?? ''} ${row[labelColumn] ?? ''}`);
+	const describe = (row: string[]) =>
+		[row[valueColumn], row[unitColumn], row[labelColumn]].filter(Boolean).join(' ');
+
+	const values = new Map<IsoMonth, { value: number; row: string[] }>();
 	for (const row of rows) {
 		if (measureColumn >= 0 && row[measureColumn] !== 'PREIS1') continue;
+		if (isRate(row)) continue;
 		const year = row[timeColumn];
 		const month = /^MONAT(\d{2})$/.exec(row[attributeColumn] ?? '')?.[1];
 		const raw = row[valueColumn];
 		if (!/^\d{4}$/.test(year) || !month || !/^\d+(,\d+)?$/.test(raw)) continue;
 		const value = Number(raw.replace(',', '.'));
 		const key = `${year}-${month}`;
-		if (values.has(key) && values.get(key) !== value) {
-			throw new Error(`Die Tabelle von Destatis enthält für ${key} mehrere Werte.`);
+		const other = values.get(key);
+		if (other && other.value !== value) {
+			throw new Error(
+				`Die Tabelle von Destatis enthält für ${key} mehrere Werte: ` +
+					`${describe(other.row)} und ${describe(row)}.`
+			);
 		}
-		values.set(key, value);
+		values.set(key, { value, row });
 	}
 	if (values.size === 0) throw new Error('Die Tabelle von Destatis enthält keine Indexwerte.');
-	return [...values].map(([month, value]) => ({ month, value }));
+	return [...values].map(([month, { value }]) => ({ month, value }));
 }
 
 /**
