@@ -17,6 +17,7 @@ GitHub uses the issue and pull request templates from the default branch `main`.
 | `workflows/labels.yml` | Creates and updates the labels |
 | `workflows/websites.yml` | Checks and deploys homepage and documentation |
 | `workflows/scorecard.yml` | Rates the repository's security practices with OpenSSF Scorecard |
+| `workflows/release.yml` | Attaches the source archive, checksum and SLSA provenance to a published release |
 | `HOMEPAGE.md` | Preview, build and deployment of the homepage |
 | `DOCUMENTATION.md` | Preview, build and deployment of the documentation |
 | `DEPLOYMENT.md` | Cloudflare access, domains and hosting migration |
@@ -83,5 +84,7 @@ Release notes are aimed at users and self-hosters and are therefore written in G
 6. Generate the release notes and review them. `release.yml` sorts the entries into German categories; "Weitere Änderungen" collects contributions without a matching category. The behavior is described in [GitHub's documentation on release notes](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes).
 7. Add required upgrade steps and known limitations. Update the supported versions in [SECURITY.md](../SECURITY.md) if needed.
 8. Publish the release after a final review.
+
+Publishing runs [release.yml](workflows/release.yml): it attaches the source archive, `SHA256SUMS` and a SLSA provenance (`mietkartei.intoto.jsonl`) to the release. The app workflow pushes the versioned Docker image with a build provenance attestation. Check afterwards that the three assets are on the release. The OpenSSF Scorecard counts them for Signed-Releases.
 
 When changing the confidential reporting channel, keep [SECURITY.md](../SECURITY.md) and [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) consistent.
