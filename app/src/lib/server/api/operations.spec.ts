@@ -3,6 +3,7 @@ import type { ApiCaller } from '../api-keys';
 import { listAuditLog } from '../audit';
 import type { Database } from '../db';
 import { accounts } from '../db/schema';
+import { createExpense } from '../expenses';
 import { createPayment, listLedger } from '../ledger';
 import { QUOTAS } from '../quotas';
 import { createTask } from '../tasks';
@@ -22,7 +23,8 @@ const env = vi.hoisted(() => ({
 	BILLING_REQUIRED: false,
 	STRIPE_SECRET_KEY: '',
 	STRIPE_PRICE_ID: '',
-	FREE_ACCOUNT_EMAILS: ''
+	FREE_ACCOUNT_EMAILS: '',
+	GENESIS_API_TOKEN: ''
 }));
 vi.mock('$app/env/private', () => env);
 
@@ -127,6 +129,40 @@ describe('operations', () => {
 		expect(await run('list_tasks', { status: 'all' })).toHaveLength(1);
 	});
 
+	it('return the dunning state, the expenses and the analysis', async () => {
+		const state = (await run('get_reminder_state', { id: ids.leaseId })) as {
+			items: { open: number }[];
+			overdue: number;
+			reminders: unknown[];
+			suggestedLevel: number;
+		};
+		expect(state.overdue).toBeGreaterThan(0);
+		expect(state.overdue).toBe(state.items.reduce((sum, item) => sum + item.open, 0));
+		expect(state).toMatchObject({ reminders: [], suggestedLevel: 1 });
+
+		await createExpense(db, contextA, {
+			date: '2025-03-05',
+			amount: 125000,
+			category: 'maintenance',
+			scope: { kind: 'unit', id: ids.unitId },
+			description: 'Bad'
+		});
+		expect(await run('list_expenses', { from: '2025-01-01' })).toMatchObject([
+			{ description: 'Bad', amount: 125000, scopeLabel: 'EG links · Haus' }
+		]);
+		expect(await run('list_expenses', { to: '2024-12-31' })).toEqual([]);
+
+		const year = (await run('get_analysis', { year: 2025 })) as {
+			totals: { expenses: number; charged: number };
+			series: unknown[];
+		};
+		expect(year.totals.expenses).toBe(125000);
+		expect(year.totals.charged).toBeGreaterThan(0);
+		expect(year.series).toHaveLength(12);
+		const all = (await run('get_analysis', { allYears: true })) as { totals: { expenses: number } };
+		expect(all.totals.expenses).toBe(125000);
+	});
+
 	it('do not find rows of another account', async () => {
 		const [otherLease] = (await runOperation(
 			db,
@@ -139,6 +175,7 @@ describe('operations', () => {
 			['get_tenant', otherLease.tenants[0].id],
 			['get_lease', otherLease.id],
 			['get_rent_ledger', otherLease.id],
+			['get_reminder_state', otherLease.id],
 			['get_statement', otherLease.id]
 		]) {
 			await expect(run(name, { id }), name).rejects.toMatchObject({ status: 404 });

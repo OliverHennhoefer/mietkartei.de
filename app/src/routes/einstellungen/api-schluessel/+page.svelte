@@ -31,6 +31,11 @@
 	lead="Damit greifen eigene Programme oder ein KI-Assistent wie Claude auf deine Daten zu."
 />
 
+<p class="muted">
+	Wie du Claude oder einen anderen Assistenten einrichtest und was er darf, steht in der
+	<a href="https://docs.mietkartei.de/anleitungen/ki-assistenten/">Anleitung</a>.
+</p>
+
 {#if refused}
 	<Alert tone="danger"><p>{refused}</p></Alert>
 {:else if form && 'revoked' in form}

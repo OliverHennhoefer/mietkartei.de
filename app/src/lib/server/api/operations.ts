@@ -1,4 +1,5 @@
 import { today } from '../../dates';
+import { loadAnalysis } from '../analysis';
 import { applyCategoryDefaults } from '../../domain/operating-costs';
 import { personName } from '../../format';
 import { repeatOptions } from '../../task-templates';
@@ -8,6 +9,7 @@ import type { Database } from '../db';
 import { taskCategories, type ApiKeyScope, type TaskCategory } from '../db/schema';
 import { listDeadlines } from '../deadlines';
 import { depositSummary, listDepositMovements } from '../deposits';
+import { listExpenses } from '../expenses';
 import { getLease, leaseLabel, listLeases, type LeaseSummary } from '../leases';
 import { createPayment, listBalances, listLedger } from '../ledger';
 import {
@@ -20,6 +22,7 @@ import {
 	listKeys
 } from '../operating-costs';
 import { getProperty, propertyOverview, unitsWithOccupancy } from '../properties';
+import { reminderState } from '../reminders';
 import { listRentChanges } from '../rents';
 import { getStatement, listStatements } from '../statements';
 import { createTask, getTask, listTasks, setDone } from '../tasks';
@@ -257,6 +260,63 @@ export const operations: Operation[] = [
 				return { ...balance, label: lease?.label, tenants: lease?.tenants ?? [] };
 			});
 		}
+	},
+	{
+		name: 'get_reminder_state',
+		description: `Returns the dunning state (Mahnwesen) of one lease today: the open items oldest first, the overdue total, the reminders and dunning letters (Zahlungserinnerung, Mahnungen) already sent, the level the next letter should have, and the default interest (Verzugszinsen, § 288 BGB) on the open items with the Basiszinssatz it uses. Letters are written in the app. ${AMOUNTS}`,
+		method: 'GET',
+		path: '/leases/{id}/reminders',
+		scope: 'read',
+		readOnly: true,
+		input: schema({ id: id('lease') }, ['id']),
+		async run({ db, caller }, input) {
+			const { accountId } = caller.user;
+			const lease = await getLease(db, accountId, String(input.id));
+			if (!lease) notFound('Lease');
+			return reminderState(db, accountId, lease.id);
+		}
+	},
+	{
+		name: 'list_expenses',
+		description: `Lists the expenses (Ausgaben) the landlord paid out, newest first, e.g. repairs, loan interest or management fees, each for a unit, a property or the whole portfolio. Unlike cost items they are not passed on to tenants. ${AMOUNTS}`,
+		method: 'GET',
+		path: '/expenses',
+		scope: 'read',
+		readOnly: true,
+		input: schema({
+			from: { type: 'string', format: 'date', description: 'Earliest day to include.' },
+			to: { type: 'string', format: 'date', description: 'Latest day to include.' }
+		}),
+		run: ({ db, caller }, input) =>
+			listExpenses(db, caller.user.accountId, {
+				from: input.from as string | undefined,
+				to: input.to as string | undefined
+			})
+	},
+	{
+		name: 'get_analysis',
+		description: `Returns the analysis (Auswertung) of one calendar year or of all years: rent charged and received, expenses, net income, collection and vacancy rate, rent per m², a monthly (or yearly) series, expenses by category and the figures per property and unit. Use it for income questions, e.g. for the tax return (Anlage V). ${AMOUNTS}`,
+		method: 'GET',
+		path: '/analysis',
+		scope: 'read',
+		readOnly: true,
+		input: schema({
+			year: {
+				type: 'integer',
+				minimum: 1900,
+				maximum: 2100,
+				description: 'The calendar year; defaults to the current one.'
+			},
+			allYears: { type: 'boolean', description: 'All years with data instead of one year.' },
+			propertyId: { type: 'string', description: 'Only this property.' }
+		}),
+		run: ({ db, caller }, input) =>
+			loadAnalysis(db, caller.user.accountId, {
+				period: input.allYears
+					? 'all'
+					: ((input.year as number | undefined) ?? Number(today().slice(0, 4))),
+				propertyId: (input.propertyId as string | undefined) ?? null
+			})
 	},
 	{
 		name: 'list_cost_items',

@@ -4,7 +4,11 @@ import type { Database } from '#lib/server/db/index.ts';
 import { contextA, seedUnit, testDatabase } from '#lib/server/testing.ts';
 import { DELETE, GET, POST } from './+server';
 
-vi.mock('$app/env/private', () => ({ BILLING_REQUIRED: false, STRIPE_SECRET_KEY: '' }));
+vi.mock('$app/env/private', () => ({
+	BILLING_REQUIRED: false,
+	STRIPE_SECRET_KEY: '',
+	GENESIS_API_TOKEN: ''
+}));
 
 let db: Database;
 let key: string;
