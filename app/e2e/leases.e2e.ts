@@ -33,6 +33,8 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	await page.goto(`/vertraege/neu?unitId=${unitId}&tenantId=${tenantId}`);
 	await expect(page.locator('select[name="unitId"]')).toHaveValue(unitId);
 	await expect(page.getByRole('checkbox', { name: tenantName })).toBeChecked();
+	// The start defaults to the first of next month.
+	await expect(page.locator('input[name="startDate"]')).toHaveValue(/^\d{4}-\d{2}-01$/);
 	await page.getByLabel('Beginn', { exact: true }).fill('2025-01-01');
 	// Amounts by name: the hints of other fields mention Kaltmiete and Kaution too.
 	await page.locator('input[name="baseRent"]').fill('600,00');

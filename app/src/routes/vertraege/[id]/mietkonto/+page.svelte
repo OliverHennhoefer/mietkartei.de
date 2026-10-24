@@ -28,6 +28,18 @@
 	};
 	const reminderPdf = (id: string) => `/vertraege/${data.lease.id}/mietkonto/schreiben/${id}`;
 	const latest = $derived(data.reminders.current[0]);
+
+	let paymentForm = $state<HTMLFormElement>();
+
+	/** Fills the payment form like the last payment: today, its amount and its note. */
+	function repeatLastPayment() {
+		const last = data.lastPayment;
+		if (!last || !paymentForm) return;
+		const amount = paymentForm.elements.namedItem('amount');
+		const note = paymentForm.elements.namedItem('note');
+		if (amount instanceof HTMLInputElement) amount.value = formatCentsPlain(last.amount);
+		if (note instanceof HTMLInputElement) note.value = last.note ?? '';
+	}
 </script>
 
 <!-- The heading and tab bar come from +layout.svelte; this page is the "Mietkonto" tab. -->
@@ -289,7 +301,26 @@
 {/if}
 
 <h2>Zahlung buchen</h2>
-<form method="POST" action="?/payment" class="card" aria-label="Zahlung buchen" use:enhance>
+<form
+	method="POST"
+	action="?/payment"
+	class="card"
+	aria-label="Zahlung buchen"
+	bind:this={paymentForm}
+	use:enhance
+>
+	{#if data.lastPayment}
+		<p class="form-wide last-payment muted small">
+			<span>
+				Letzte Zahlung: {formatCents(data.lastPayment.amount)} am {formatDate(
+					data.lastPayment.date
+				)}{data.lastPayment.note ? ` („${data.lastPayment.note}“)` : ''}
+			</span>
+			<button type="button" class="secondary small" onclick={repeatLastPayment}>
+				Wie letzte Zahlung
+			</button>
+		</p>
+	{/if}
 	<Field label="Datum" error={paymentErrors?.date}>
 		<input
 			type="date"
@@ -376,6 +407,13 @@
 </form>
 
 <style>
+	.last-payment {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.25rem 0.75rem;
+		margin: 0;
+	}
 	.balance {
 		display: flex;
 		flex-wrap: wrap;

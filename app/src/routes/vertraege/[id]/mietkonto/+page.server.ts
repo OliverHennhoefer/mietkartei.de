@@ -9,6 +9,7 @@ import {
 	createPayment,
 	deleteCharge,
 	deletePayment,
+	lastPayment,
 	listLedger,
 	listLedgerLineDetails,
 	postCharge,
@@ -44,10 +45,11 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 	// details are read after it.
 	const ledger = await listLedger(locals.db, accountId, lease.id, { from });
 	const currentDate = today();
-	const [details, reminders, landlord] = await Promise.all([
+	const [details, reminders, landlord, latestPayment] = await Promise.all([
 		listLedgerLineDetails(locals.db, accountId, lease.id),
 		reminderState(locals.db, accountId, lease.id, currentDate),
-		landlordAddress(locals.db, accountId)
+		landlordAddress(locals.db, accountId),
+		lastPayment(locals.db, accountId, lease.id)
 	]);
 
 	const shown = ledger.lines.filter((line) => line.date <= to);
@@ -80,6 +82,7 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 		balanceText: balanceSentence(ledger.balance),
 		today: currentDate,
 		paymentDefault: ledger.balance > 0 ? ledger.balance : total(lease.currentRent),
+		lastPayment: latestPayment ?? null,
 		reminders,
 		paymentDeadlineDefault: defaultPaymentDeadline(currentDate),
 		landlordComplete: landlord.complete

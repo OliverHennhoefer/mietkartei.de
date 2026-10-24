@@ -81,6 +81,11 @@ test('shows arrears, books and deletes a payment and a correction', async ({ pag
 	await paymentForm.getByRole('button', { name: 'Zahlung buchen' }).click();
 	await expect(page.getByText('Zahlung gebucht.')).toBeVisible();
 	await expect(await balance(page)).toHaveText('Saldo: Rückstand 3.200,00 €');
+	// "Wie letzte Zahlung" repeats the amount and the note of the payment just booked.
+	await paymentForm.getByRole('button', { name: 'Wie letzte Zahlung' }).click();
+	await expect(paymentForm.getByLabel('Betrag in €')).toHaveValue('800,00');
+	await expect(paymentForm.getByLabel('Vermerk (optional)')).toHaveValue(`Überweisung ${suffix}`);
+	await page.reload();
 	const paymentRow = ledger.locator('tr', { hasText: `Überweisung ${suffix}` });
 	await expect(paymentRow).toContainText('800,00 €');
 	await expect(paymentForm.getByLabel('Betrag in €')).toHaveValue('3.200,00');
