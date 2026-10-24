@@ -34,8 +34,8 @@ for filename in ("uebersicht.png", "abrechnung-mieter.png"):
 for filename in (
     "mark.svg",
     "mark-white.svg",
-    "lockup.svg",
-    "lockup-white.svg",
+    "lockup-highlight.svg",
+    "lockup-highlight-white.svg",
     "favicon.svg",
     "apple-touch-icon.png",
 ):

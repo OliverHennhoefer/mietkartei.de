@@ -94,6 +94,29 @@ def lockup(ink,adaptive=False):
     return svg.replace(f' fill="{ink}"','') if adaptive else svg
 
 
+HIGHLIGHT='#F5FF00'
+
+
+def lockup_highlight(ink):
+    # Flush neon block behind "kartei"; the letters on the block stay black in both schemes.
+    variant=ET.parse(ROOT.parent/'variants'/'geist-highlight.svg').getroot()
+    for element in variant.iter():
+        element.tag=element.tag.rsplit('}',1)[-1]
+    block=variant.find('rect').attrib
+    miet,kartei=variant.findall('path')
+    scale=WORDMARK_HEIGHT/774.8
+    width=math.ceil(WORDMARK_X+float(variant.get('viewBox').split()[2])*scale)
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} 96" role="img" aria-label="mietkartei mit Registerfaltung">
+  {paths(ink,transform=LOCKUP_TRANSFORM)}
+  <g transform="translate({WORDMARK_X} {n(19-(850.8-738.8)*scale)}) scale({n(scale)})">
+    <rect x="{block['x']}" y="{block['y']}" width="{block['width']}" height="{block['height']}" fill="{HIGHLIGHT}"/>
+    <path fill="{ink}" transform="{miet.get('transform')}" d="{miet.get('d')}"/>
+    <path fill="#000" transform="{kartei.get('transform')}" d="{kartei.get('d')}"/>
+  </g>
+</svg>
+'''
+
+
 def clean(value):
     if isinstance(value,float):return round(value,6)
     if isinstance(value,(list,tuple)):return [clean(item) for item in value]
@@ -105,6 +128,7 @@ if __name__=='__main__':
     for ink,suffix in (('#000',''),('#fff','-white')):
         (ROOT/f'mark{suffix}.svg').write_text(svg(ink))
         (ROOT/f'lockup{suffix}.svg').write_text(lockup(ink))
+        (ROOT/f'lockup-highlight{suffix}.svg').write_text(lockup_highlight(ink))
     (ROOT/'lockup-auto.svg').write_text(lockup('#000',adaptive=True))
     (ROOT/'small.svg').write_text(svg('#000',small=True))
     (ROOT/'favicon.svg').write_text(svg('#fff',small=True,favicon=True))
@@ -122,6 +146,7 @@ if __name__=='__main__':
                   'gap':WORDMARK_X-48-LOCKUP_MARK_HEIGHT/2},
         'normalization':TRANSFORM,'viewBox':[0,0,96,96],
     }),indent=2)+'\n')
-    for filename in ('mark.svg','mark-white.svg','favicon.svg','lockup.svg','lockup-white.svg','lockup-auto.svg'):
+    for filename in ('mark.svg','mark-white.svg','favicon.svg','lockup.svg','lockup-white.svg','lockup-auto.svg',
+                     'lockup-highlight.svg','lockup-highlight-white.svg'):
         (ROOT.parent/filename).write_bytes((ROOT/filename).read_bytes())
     print('Chosen register SVG masters, lockups, favicon and shared exports written.')

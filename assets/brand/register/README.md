@@ -7,6 +7,7 @@ Die gewählte Bildmarke für **mietkartei** verbindet geordnete Registereinträg
 | [mark.svg](mark.svg), [mark-white.svg](mark-white.svg) | Schwarze und weiße Bildmarke auf transparentem Hintergrund |
 | [lockup.svg](lockup.svg), [lockup-white.svg](lockup-white.svg) | Bildmarke mit der originalen Geist-Medium-Wortmarke |
 | [lockup-auto.svg](lockup-auto.svg) | Dieselbe Kombination, schwarz und im dunklen Modus des Betrachters weiß; für das Repository-README, wo die GitHub-App `<picture>`-Quellen nicht beachtet |
+| [lockup-highlight.svg](lockup-highlight.svg), [lockup-highlight-white.svg](lockup-highlight-white.svg) | Bildmarke und Wortmarke mit bündigem Block in Neon-Gelb (`#F5FF00`) hinter „kartei“; „kartei“ bleibt auf dem Block in beiden Fassungen schwarz. Signatur der Webseite |
 | [small.svg](small.svg) | Kleine schwarze Fassung mit weiter geöffneter senkrechter Fuge |
 | [favicon.svg](favicon.svg) | Kleine weiße Fassung auf schwarzem Grund |
 | [construction.py](construction.py), [geometry.json](geometry.json) | Reproduzierbare Vektorkonstruktion und Maße |
@@ -25,10 +26,10 @@ Die kleine Fassung öffnet die senkrechte Fuge so weit, dass sie bei 16 Pixeln E
 
 In der gemeinsamen Signatur ist die Bildmarke auf 78 Einheiten Höhe vergrößert. Die originalen Geist-Konturen behalten ihre Höhe von 58 Einheiten. Beide sind vertikal zentriert, mit 21 Einheiten Abstand. Dadurch erhält das Zeichen neben dem Namen mehr Gewicht. Die gemeinsame Zeichenfläche misst 469 × 96 Einheiten.
 
-Startseite und Impressum zeigen diese Kombination mit 52 Pixeln Höhe, auf kleinen Bildschirmen mit 44 Pixeln. Der Dokumentationskopf verwendet 44 beziehungsweise 40 Pixel. Die Anwendung zeigt das freistehende Zeichen in einer 52 × 52 Pixel großen Fläche.
+Startseite, Impressum und Neuigkeiten zeigen die Fassung mit gelbem Block mit 52 Pixeln Höhe, auf kleinen Bildschirmen mit 44 Pixeln. Der Dokumentationskopf verwendet 44 beziehungsweise 40 Pixel. Die Anwendung zeigt das freistehende Zeichen in einer 52 × 52 Pixel großen Fläche.
 
 ## Quellen und Einsatz
 
-Zum erneuten Erzeugen genügt Python 3: `python3 assets/brand/register/construction.py` vom Repository-Stamm aus. Das Skript verwendet die vorhandene Wortmarke im übergeordneten Ordner und aktualisiert dort auch die gemeinsam eingebundenen Exporte `mark.svg`, `mark-white.svg`, `lockup.svg`, `lockup-white.svg`, `lockup-auto.svg` und `favicon.svg`.
+Zum erneuten Erzeugen genügt Python 3: `python3 assets/brand/register/construction.py` vom Repository-Stamm aus. Das Skript verwendet die vorhandene Wortmarke im übergeordneten Ordner und aktualisiert dort auch die gemeinsam eingebundenen Exporte `mark.svg`, `mark-white.svg`, `lockup.svg`, `lockup-white.svg`, `lockup-auto.svg`, `lockup-highlight.svg`, `lockup-highlight-white.svg` und `favicon.svg`. Die Fassung mit Block übernimmt die Konturen und das Rechteck aus [geist-highlight.svg](../variants/geist-highlight.svg).
 
 Startseite, Impressum, Dokumentationskopf und Repository-README verwenden Bildmarke und Wortmarke zusammen. Die Anwendung behält das freistehende Zeichen. Die Webseiten-Builds übernehmen die gemeinsamen Exporte aus dem übergeordneten Ordner.
