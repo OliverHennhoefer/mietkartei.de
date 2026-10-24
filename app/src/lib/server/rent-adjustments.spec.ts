@@ -3,16 +3,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { addMonthsToMonth, firstOfMonth, monthOf, today } from '../dates';
 import { effectiveFrom } from '../domain/index-rent';
 import type { Database } from './db';
-import { auditLog, rentCharges } from './db/schema';
+import { auditLog, consumerPriceIndex, rentCharges } from './db/schema';
 import { createLease, getLease, leaseInputOf, updateLease, type LeaseSummary } from './leases';
 import { ensureCharges } from './ledger';
 import {
 	addGraduatedStep,
-	addIndexValue,
 	approveChange,
-	deleteIndexValue,
 	indexLetter,
-	listIndexValues,
 	manualChange,
 	proposeIndexChange,
 	removeChange,
@@ -59,10 +56,9 @@ beforeEach(async () => {
 	foreignLeaseId = foreign.id;
 });
 
-async function seedValues(accountId = 'a') {
-	const context = accountId === 'a' ? contextA : contextB;
-	await addIndexValue(db, context, vpi2025);
-	await addIndexValue(db, context, vpi2026);
+/** The VPI table is shared by all accounts. */
+async function seedValues() {
+	await db.insert(consumerPriceIndex).values([vpi2025, vpi2026]);
 }
 
 async function summaries(accountId: string) {
@@ -79,38 +75,6 @@ async function chargeOf(id: string, period: string) {
 		.then((rows) => rows.filter((row) => row.period === period));
 	return row;
 }
-
-describe('VPI values', () => {
-	it('adds, lists newest first, refuses a duplicate month and deletes', async () => {
-		const first = await addIndexValue(db, contextA, vpi2025);
-		expect(first.ok).toBe(true);
-		await addIndexValue(db, contextA, vpi2026);
-		expect(await addIndexValue(db, contextA, vpi2026)).toEqual({
-			ok: false,
-			message: 'Für Januar 2026 (Basisjahr 2020) gibt es schon einen Wert. Lösche ihn zuerst.'
-		});
-		expect((await listIndexValues(db, 'a')).map((row) => [row.month, row.value])).toEqual([
-			['2026-01', 124.3],
-			['2025-01', 121]
-		]);
-
-		expect(await deleteIndexValue(db, contextA, first.ok ? first.id : '')).toBe(true);
-		expect((await listIndexValues(db, 'a')).map((row) => row.month)).toEqual(['2026-01']);
-		expect(await summaries('a')).toEqual([
-			'create: Mietvertrag angelegt',
-			'create: VPI Januar 2025 = 121,0 (Basisjahr 2020) eingetragen',
-			'create: VPI Januar 2026 = 124,3 (Basisjahr 2020) eingetragen',
-			'delete: VPI Januar 2025 = 121,0 (Basisjahr 2020) gelöscht'
-		]);
-	});
-
-	it('does not leak into another account', async () => {
-		const own = await addIndexValue(db, contextA, vpi2026);
-		expect(await listIndexValues(db, 'b')).toEqual([]);
-		expect(await deleteIndexValue(db, contextB, own.ok ? own.id : '')).toBe(false);
-		expect(await listIndexValues(db, 'a')).toHaveLength(1);
-	});
-});
 
 describe('proposeIndexChange and approveChange', () => {
 	it('stores the proposal and approves it with letter and delivery date', async () => {
@@ -229,14 +193,16 @@ describe('proposeIndexChange and approveChange', () => {
 	});
 
 	it('refuses VPI values of another base year than the lease reference', async () => {
-		// The lease's reference January 2024 = 118,2 is on base 2020; the account only has a
-		// value on base 2025, which cannot be divided by it.
-		await addIndexValue(db, contextA, { month: '2026-01', value: 104.1, baseYear: '2025' });
+		// The lease's reference January 2024 = 118,2 is on base 2020; the table only has a value
+		// on base 2025, which cannot be divided by it.
+		await db
+			.insert(consumerPriceIndex)
+			.values({ month: '2026-01', value: 104.1, baseYear: '2025' });
 		expect(await proposeIndexChange(db, contextA, leaseId)).toEqual({
 			ok: false,
 			message:
 				'Der Bezugsindex beruht auf dem Basisjahr 2020, die VPI-Werte auf dem Basisjahr 2025. ' +
-				'Trage die VPI-Werte zum Basisjahr 2020 ein oder den Bezugsindex umgerechnet im Mietvertrag.'
+				'Trage den Bezugsindex im Mietvertrag auf das Basisjahr 2025 umgerechnet ein.'
 		});
 		// With the reference on base 2025 the proposal is made and records the base year.
 		const lease = await getLease(db, 'a', leaseId);
@@ -253,13 +219,13 @@ describe('proposeIndexChange and approveChange', () => {
 	it('refuses without VPI values and names the reason', async () => {
 		expect(await proposeIndexChange(db, contextA, leaseId)).toEqual({
 			ok: false,
-			message: 'Es sind noch keine Werte des Verbraucherpreisindex eingetragen.'
+			message: 'Es liegen noch keine Werte des Verbraucherpreisindex vor.'
 		});
 		expect(await listRentChanges(db, 'a', leaseId)).toHaveLength(1);
 	});
 
 	it('does not leak into another account', async () => {
-		await seedValues('b');
+		await seedValues();
 		expect(await proposeIndexChange(db, contextA, foreignLeaseId)).toBeUndefined();
 		const proposed = await proposeIndexChange(db, contextB, foreignLeaseId);
 		const changeId = proposed?.ok ? proposed.id : '';
@@ -277,8 +243,6 @@ describe('proposeIndexChange and approveChange', () => {
 		).toBeUndefined();
 		const [, change] = await listRentChanges(db, 'b', foreignLeaseId);
 		expect(change.status).toBe('proposed');
-		// Account a has no VPI values, so its own lease cannot see b's.
-		expect(await proposeIndexChange(db, contextA, leaseId)).toMatchObject({ ok: false });
 	});
 });
 
@@ -534,7 +498,7 @@ describe('removeChange', () => {
 	});
 
 	it('does not delete a change of another account or of another lease', async () => {
-		await seedValues('b');
+		await seedValues();
 		const proposed = await proposeIndexChange(db, contextB, foreignLeaseId);
 		const proposedId = proposed?.ok ? proposed.id : '';
 		expect(await removeChange(db, contextA, foreignLeaseId, proposedId)).toBeUndefined();
@@ -600,7 +564,7 @@ describe('indexLetter', () => {
 	});
 
 	it('does not leak into another account', async () => {
-		await seedValues('b');
+		await seedValues();
 		const proposed = await proposeIndexChange(db, contextB, foreignLeaseId);
 		const changeId = proposed?.ok ? proposed.id : '';
 		await approveChange(db, contextB, foreignLeaseId, changeId, {

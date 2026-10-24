@@ -205,6 +205,5 @@ export const auditEntityLabels: Record<string, string> = {
 	document: 'Dokument',
 	task: 'Aufgabe',
 	expense: 'Ausgabe',
-	vpi: 'Verbraucherpreisindex',
 	import: 'Datenübernahme'
 };

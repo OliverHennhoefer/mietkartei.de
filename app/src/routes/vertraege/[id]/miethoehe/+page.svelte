@@ -186,10 +186,8 @@
 				{formatIndexValue(situation.latest.latest.value)} ({formatMonth(
 					situation.latest.latest.month
 				)}, Basisjahr {situation.latest.latest.baseYear})
-			{:else if situation.latest.reason === 'none'}
-				keine Werte eingetragen
 			{:else}
-				mehrere Basisjahre ({situation.latest.baseYears.join(', ')})
+				noch keine Werte
 			{/if}
 			· <a href="/einstellungen/vpi">VPI-Werte</a>
 		</dd>

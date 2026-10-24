@@ -15,7 +15,6 @@ import {
 	billingCircleUnits,
 	calendarFeeds,
 	co2CostSplits,
-	consumerPriceIndex,
 	costCategories,
 	costItems,
 	costItemUnitAmounts,
@@ -146,7 +145,6 @@ function landlordDataDeletes(db: Database, accountId: string) {
 		db.delete(tenants).where(eq(tenants.accountId, accountId)),
 		db.delete(units).where(eq(units.accountId, accountId)),
 		db.delete(properties).where(eq(properties.accountId, accountId)),
-		db.delete(consumerPriceIndex).where(eq(consumerPriceIndex.accountId, accountId)),
 		db.delete(auditLog).where(eq(auditLog.accountId, accountId))
 	];
 }

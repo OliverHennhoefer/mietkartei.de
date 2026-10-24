@@ -1,7 +1,8 @@
 import { unzipSync, strFromU8 } from 'fflate';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
-import { listIndexValues } from '#lib/server/rent-adjustments.ts';
+import { auditEntry } from '#lib/server/audit.ts';
+import { consumerPriceIndex } from '#lib/server/db/schema.ts';
 import {
 	managerA,
 	memoryStorage,
@@ -14,7 +15,7 @@ import { GET as download } from './export/herunterladen/+server';
 import { load as loadExport } from './export/+page.server';
 import { load as loadLog } from './protokoll/+page.server';
 import { load as loadSettings } from './+page.server';
-import { actions as vpiActions, load as loadVpi } from './vpi/+page.server';
+import { load as loadVpi } from './vpi/+page.server';
 
 // The smaller settings pages: VPI values, the audit log and the data export.
 
@@ -42,30 +43,35 @@ describe('einstellungen', () => {
 });
 
 describe('vpi', () => {
-	it('adds a value once per month and deletes it', async () => {
-		const form = { month: '2026-01', value: '124,3', baseYear: '2020' };
-		expect(await run(vpiActions.add, { form })).toEqual({ data: { added: '2026-01' } });
-		expect(await run(vpiActions.add, { form })).toMatchObject({
-			fail: 400,
-			data: { refusal: expect.any(String), values: { value: '124,3' } }
+	it('shows the shared values and that nothing is fetched without a token', async () => {
+		await db.insert(consumerPriceIndex).values([
+			{ month: '2025-01', value: 121, baseYear: '2020' },
+			{ month: '2026-01', value: 124.3, baseYear: '2020' }
+		]);
+		expect(await run(loadVpi)).toEqual({
+			data: {
+				values: [
+					{ month: '2026-01', value: 124.3 },
+					{ month: '2025-01', value: 121 }
+				],
+				configured: false,
+				lastFetch: null
+			}
 		});
-		expect(await run(vpiActions.add, { form: { ...form, value: '' } })).toMatchObject({
-			fail: 400
-		});
-		expect(await run(loadVpi)).toMatchObject({ data: { values: [{ month: '2026-01' }] } });
-		const [value] = await listIndexValues(db, 'a');
-		expect(await run(vpiActions.delete, { form: {} })).toMatchObject({ error: 404 });
-		expect(await run(vpiActions.delete, { form: { id: value.id } })).toEqual({
-			data: { deleted: true }
-		});
-		expect(await run(vpiActions.delete, { form: { id: value.id } })).toMatchObject({ error: 404 });
 	});
 });
 
 describe('protokoll', () => {
 	it('lists the log, narrowed to one entity on request', async () => {
 		await seedTenant(db, 'a');
-		await run(vpiActions.add, { form: { month: '2026-01', value: '124,3', baseYear: '2020' } });
+		await auditEntry(
+			db,
+			{ accountId: 'a', userId: null },
+			'task',
+			't',
+			'create',
+			'Aufgabe angelegt'
+		);
 		const all = (await run(loadLog, { url: '/x' })) as {
 			data: { entries: { entity: string }[]; entities: string[] };
 		};
