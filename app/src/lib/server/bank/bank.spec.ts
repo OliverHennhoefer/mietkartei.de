@@ -604,8 +604,6 @@ describe('transaction helpers', () => {
 		expect(
 			expensePreset({ counterpartIban: null, counterpartName: ' Stadtwerke ' }, presets)
 		).toMatchObject({ description: 'Wasser' });
-		expect(
-			expensePreset({ counterpartIban: null, counterpartName: '' }, presets)
-		).toBeUndefined();
+		expect(expensePreset({ counterpartIban: null, counterpartName: '' }, presets)).toBeUndefined();
 	});
 });

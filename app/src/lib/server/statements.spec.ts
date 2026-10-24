@@ -951,7 +951,7 @@ describe('approving a correction after the deadline', () => {
 			(row) => row.referenceId === correction.id && row.amount === -6278
 		)!;
 		expect(reversal.dueDate).toBe('2027-02-04');
-		expect(reversal.note).toContain('in Höhe von 62,78 € ausgeschlossen');
+		expect(reversal.note).toContain('in Höhe von 62,78\u00a0€ ausgeschlossen');
 		expect(
 			(await getStatement(db, 'a', correction.id))!.leaseResults.find(
 				(row) => row.leaseId === leaseIds.ogA
@@ -1335,7 +1335,12 @@ describe('statementLetter variants', () => {
 			],
 			landlord: { ...base.landlord, city: 'Potsdam' }
 		});
-		expect(letter.recipient).toEqual(['Kim Klein', 'Frau Anna Alt', 'Neue Str. 1', '20095 Hamburg']);
+		expect(letter.recipient).toEqual([
+			'Kim Klein',
+			'Frau Anna Alt',
+			'Neue Str. 1',
+			'20095 Hamburg'
+		]);
 		expect(letter.date.startsWith('Potsdam, ')).toBe(true);
 		expect(letter.blocks![0]).toEqual({ paragraph: 'Guten Tag Kim Klein, Frau Alt,' });
 	});
@@ -1363,39 +1368,39 @@ describe('statementLetter variants', () => {
 			landlord: { ...base.landlord, iban: 'DE02120300000000202051', bankName: 'Testbank' }
 		});
 		expect(paragraphs).toContain(
-			'Bitte überweise die Nachzahlung von 105,99 € innerhalb von 30 Tagen nach Zugang dieser Abrechnung auf das Konto IBAN DE02120300000000202051 bei der Testbank.'
+			'Bitte überweise die Nachzahlung von 105,99\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung auf das Konto IBAN DE02120300000000202051 bei der Testbank.'
 		);
 	});
 
 	it('says that nothing is owed when costs and prepayments match', () => {
 		const paragraphs = paragraphsOf({ ...base, balance: 0, posted: 0 });
 		expect(paragraphs).toContain(
-			'Kosten gesamt 1.185,99 €, geleistete Vorauszahlungen 1.080,00 €: Kosten und Vorauszahlungen gleichen sich aus.'
+			'Kosten gesamt 1.185,99\u00a0€, geleistete Vorauszahlungen 1.080,00\u00a0€: Kosten und Vorauszahlungen gleichen sich aus.'
 		);
 		expect(paragraphs).toContain('Es ist nichts zu zahlen und nichts zu erstatten.');
 	});
 
 	it('refunds a Guthaben without a date before approval', () => {
 		expect(paragraphsOf({ ...base, balance: -500, posted: null, dueDate: null })).toContain(
-			'Das Guthaben von 5,00 € erstatten wir dir oder verrechnen es mit der nächsten Miete.'
+			'Das Guthaben von 5,00\u00a0€ erstatten wir dir oder verrechnen es mit der nächsten Miete.'
 		);
 	});
 
 	it('explains what is left of a late Nachzahlung', () => {
 		const late = 'Die Abrechnung erreicht dich nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB)';
 		expect(paragraphsOf({ ...base, posted: 0 })).toContain(
-			`${late}; die Nachzahlung von 105,99 € wird nicht verlangt.`
+			`${late}; die Nachzahlung von 105,99\u00a0€ wird nicht verlangt.`
 		);
 
 		const unpaid = paragraphsOf({ ...base, unpaidPrepayments: 3000, posted: 3000 });
-		expect(unpaid.some((p) => p.includes('hast du 30,00 € nicht geleistet'))).toBe(true);
+		expect(unpaid.some((p) => p.includes('hast du 30,00\u00a0€ nicht geleistet'))).toBe(true);
 		expect(unpaid).toContain(
-			`${late}; von der Nachzahlung verlangen wir nur die 30,00 € Vorauszahlungen, die du nicht geleistet hast. Bitte überweise die Nachzahlung von 30,00 € innerhalb von 30 Tagen nach Zugang dieser Abrechnung.`
+			`${late}; von der Nachzahlung verlangen wir nur die 30,00\u00a0€ Vorauszahlungen, die du nicht geleistet hast. Bitte überweise die Nachzahlung von 30,00\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.`
 		);
 
 		// A late correction keeps the result claimed in time.
 		expect(paragraphsOf({ ...base, posted: 5000 })).toContain(
-			'Nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB) gilt das rechtzeitig abgerechnete Ergebnis. Bitte überweise die Nachzahlung von 50,00 € innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
+			'Nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB) gilt das rechtzeitig abgerechnete Ergebnis. Bitte überweise die Nachzahlung von 50,00\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
 		);
 	});
 
@@ -1420,7 +1425,7 @@ describe('statementLetter variants', () => {
 			]
 		});
 		expect(paragraphs).toContain(
-			'Nicht enthalten (nicht umlagefähig): Instandhaltung 123,45 €, Verwaltungskosten 5,00 €.'
+			'Nicht enthalten (nicht umlagefähig): Instandhaltung 123,45\u00a0€, Verwaltungskosten 5,00\u00a0€.'
 		);
 	});
 });

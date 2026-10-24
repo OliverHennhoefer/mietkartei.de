@@ -1306,7 +1306,10 @@ describe('computeStatement edge cases', () => {
 
 	it('cannot split CO₂ for a circle of parking spaces without area', () => {
 		const input = scenario();
-		input.units = [...input.units, { id: 'sp', name: 'Stellplatz', kind: 'parking', floorArea: null }];
+		input.units = [
+			...input.units,
+			{ id: 'sp', name: 'Stellplatz', kind: 'parking', floorArea: null }
+		];
 		input.circles = [{ id: 'c-sp', name: 'Tiefgarage', unitIds: ['sp'] }];
 		input.items = input.items.map((entry) =>
 			entry.id === 'i-heizung' ? { ...entry, billingCircleId: 'c-sp' } : entry
@@ -1337,7 +1340,10 @@ describe('computeStatement edge cases', () => {
 		];
 		input.meters = [
 			...input.meters,
-			meter('m-haus', null as unknown as string, [reading('2025-01-01', 0), reading('2025-12-31', 5000)])
+			meter('m-haus', null as unknown as string, [
+				reading('2025-01-01', 0),
+				reading('2025-12-31', 5000)
+			])
 		];
 		const result = computeStatement(input, options);
 		expect(result.leases.map((entry) => entry.leaseId)).not.toContain('l-fremd');
