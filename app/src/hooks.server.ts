@@ -15,13 +15,16 @@ const publicPaths = new Set([
 	'/passwort-vergessen',
 	// Stripe's deliveries carry a signature instead of a session.
 	'/api/webhooks/stripe',
-	'/health'
+	'/health',
+	'/robots.txt'
 ]);
 const publicPrefixes = [
 	'/registrieren/',
 	'/passwort-zuruecksetzen/',
 	'/einladung/',
 	'/e-mail-bestaetigen/',
+	// Calendar apps subscribe without a session; the token in the path is the credential.
+	'/api/calendar/',
 	// Tenants open their portal through a link, without an account.
 	'/mieterportal/'
 ];
@@ -50,9 +53,17 @@ function isAuthPath(pathname: string): boolean {
 	return authPaths.has(pathname) || authPrefixes.some((prefix) => pathname.startsWith(prefix));
 }
 
+/**
+ * The API and the MCP server authenticate with an API key in the Authorization header and answer
+ * in JSON, never with the session cookie or a redirect; see #lib/server/api/request.ts.
+ */
+function isApiPath(pathname: string): boolean {
+	return pathname === '/api/v1' || pathname.startsWith('/api/v1/') || pathname === '/mcp';
+}
+
 function isPublic(pathname: string): boolean {
 	// The demo has no sign-in: visitors start a demo account instead.
-	if (DEMO) return pathname === '/demo' || pathname === '/health';
+	if (DEMO) return pathname === '/demo' || pathname === '/health' || pathname === '/robots.txt';
 	if (publicPaths.has(pathname)) return true;
 	if (publicPrefixes.some((prefix) => pathname.startsWith(prefix))) return true;
 	// Test-only endpoints, e.g. the seed. Only enabled by the end-to-end test server.
@@ -62,6 +73,15 @@ function isPublic(pathname: string): boolean {
 export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.db = await getDatabase();
 	event.locals.user = undefined;
+	if (isApiPath(event.url.pathname)) {
+		const response = await resolve(event);
+		// Answers hold personal data like signed-in pages, so they are not cached either.
+		applySecurityHeaders(response.headers, {
+			https: event.url.protocol === 'https:',
+			signedIn: true
+		});
+		return response;
+	}
 
 	const token = getSessionToken(event);
 	if (token) {
@@ -91,5 +111,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 		https: event.url.protocol === 'https:',
 		signedIn: Boolean(event.locals.user)
 	});
+	// Only the demo's start page belongs in search engines; see routes/robots.txt.
+	if (!(DEMO && event.url.pathname === '/demo')) {
+		response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+	}
 	return response;
 };

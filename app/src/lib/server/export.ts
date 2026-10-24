@@ -30,13 +30,14 @@ type AccountTable = SQLiteTable & { accountId: SQLiteColumn };
 
 /**
  * Every table with an accountId column, parents before children. The spec checks that no table
- * of the schema is missing here, so a new table cannot be forgotten.
+ * of the schema is missing here or in unexportedTables, so a new table cannot be forgotten.
  */
 export const exportTables: AccountTable[] = [
 	schema.users,
 	schema.emailChanges,
 	schema.invitations,
 	schema.auditLog,
+	schema.calendarFeeds,
 	schema.properties,
 	schema.units,
 	schema.tenants,
@@ -51,6 +52,7 @@ export const exportTables: AccountTable[] = [
 	schema.bankImports,
 	schema.bankTransactions,
 	schema.payments,
+	schema.paymentReminders,
 	schema.expenses,
 	schema.matchingRules,
 	schema.allocationKeys,
@@ -66,10 +68,17 @@ export const exportTables: AccountTable[] = [
 	schema.statementResults,
 	schema.co2CostSplits,
 	schema.tasks,
+	schema.insurancePolicies,
 	schema.portalLinks,
 	schema.damageReports,
 	schema.documents
 ];
+
+/**
+ * Tables with an accountId column that stay out of the export: API keys are credentials, not the
+ * landlord's data, and even their hashes have no use outside this instance.
+ */
+export const unexportedTables: AccountTable[] = [schema.apiKeys];
 
 /** The tables of the schema that carry an accountId column, for the completeness check. */
 export function accountTables(): AccountTable[] {

@@ -9,6 +9,7 @@ describe('settingsSections', () => {
 		expect(hrefs('owner', false)).toContain('/einstellungen/mitverwalter');
 		expect(hrefs('manager', false)).not.toContain('/einstellungen/mitverwalter');
 		expect(hrefs('manager', false)).not.toContain('/einstellungen/export');
+		expect(hrefs('manager', false)).toContain('/einstellungen/api-schluessel');
 	});
 
 	it('shows the subscription only where the instance bills', () => {

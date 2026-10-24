@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { linkValue, type TaskFormErrors } from '../forms/tasks';
+	import { taskCategoryLabels } from '../labels';
+	import type { TaskCategory } from '../server/db/schema';
+	import { repeatOptions } from '../task-templates';
 	import Field from './Field.svelte';
 
 	// The fields of the task form, shared by the list page (create) and the task page (edit).
@@ -15,6 +18,9 @@
 		properties: { id: string; name: string }[];
 		leases: { id: string; label: string; active: boolean }[];
 	} = $props();
+
+	// From the label table: a component must not import the server schema.
+	const taskCategories = Object.keys(taskCategoryLabels) as TaskCategory[];
 </script>
 
 <Field label="Aufgabe" error={errors?.title}>
@@ -26,6 +32,15 @@
 		required
 	/>
 </Field>
+<Field label="Art" error={errors?.category}>
+	<select name="category" aria-invalid={errors?.category ? 'true' : undefined}>
+		{#each taskCategories as category (category)}
+			<option value={category} selected={(values.category || 'other') === category}>
+				{taskCategoryLabels[category]}
+			</option>
+		{/each}
+	</select>
+</Field>
 <Field label="Fällig am (optional)" error={errors?.dueDate}>
 	<input
 		type="date"
@@ -33,6 +48,23 @@
 		defaultValue={values.dueDate ?? ''}
 		aria-invalid={errors?.dueDate ? 'true' : undefined}
 	/>
+</Field>
+<Field
+	label="Wiederholen"
+	hint="Erledigt, kommt die Aufgabe nach dieser Zeit ab dem Fälligkeitsdatum wieder."
+	error={errors?.repeatMonths}
+>
+	<select name="repeatMonths" aria-invalid={errors?.repeatMonths ? 'true' : undefined}>
+		<option value="" selected={!values.repeatMonths}>nicht</option>
+		{#each repeatOptions as option (option.months)}
+			<option
+				value={String(option.months)}
+				selected={values.repeatMonths === String(option.months)}
+			>
+				{option.label}
+			</option>
+		{/each}
+	</select>
 </Field>
 <Field label="Gehört zu (optional)" error={errors?.link}>
 	<select name="link" aria-invalid={errors?.link ? 'true' : undefined}>

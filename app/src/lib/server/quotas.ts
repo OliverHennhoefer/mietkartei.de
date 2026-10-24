@@ -15,6 +15,7 @@ import {
 	depositTransactions,
 	emailChanges,
 	expenses,
+	insurancePolicies,
 	invitations,
 	leasePersons,
 	leases,
@@ -22,6 +23,7 @@ import {
 	meterReadings,
 	meters,
 	operatingCostStatements,
+	paymentReminders,
 	payments,
 	properties,
 	rentChanges,
@@ -46,6 +48,11 @@ export const QUOTAS = {
 	leasePersons: { table: leasePersons, max: 20_000, label: 'Einträge zur Personenzahl' },
 	depositTransactions: { table: depositTransactions, max: 20_000, label: 'Kautionsbuchungen' },
 	payments: { table: payments, max: 200_000, label: 'Zahlungen' },
+	paymentReminders: {
+		table: paymentReminders,
+		max: 50_000,
+		label: 'Zahlungserinnerungen und Mahnungen'
+	},
 	/** Mostly the monthly rent charges, which every lease generates on its own. */
 	rentCharges: { table: rentCharges, max: 1_000_000, label: 'Sollstellungen' },
 	rentChanges: { table: rentChanges, max: 50_000, label: 'Mietänderungen' },
@@ -74,6 +81,7 @@ export const QUOTAS = {
 	co2CostSplits: { table: co2CostSplits, max: 50_000, label: 'CO₂-Kostenaufteilungen' },
 	tasks: { table: tasks, max: 20_000, label: 'Aufgaben' },
 	damageReports: { table: damageReports, max: 20_000, label: 'Schadensmeldungen' },
+	insurancePolicies: { table: insurancePolicies, max: 2_000, label: 'Versicherungen' },
 	/** Accepted, expired and revoked invitations stay, so this also bounds the users of an account. */
 	invitations: { table: invitations, max: 500, label: 'Einladungen' },
 	/** Requests to change an email address; each user may make five a day. */

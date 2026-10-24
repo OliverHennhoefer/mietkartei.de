@@ -1,6 +1,6 @@
 ---
 title: Dokumentation
-description: Die Dokumentation zu mietkartei.de ist in Arbeit.
+description: Anleitungen zu mietkartei, der Open-Source-Hausverwaltung für Privatvermieter. Die Dokumentation entsteht gerade.
 hide:
   - navigation
   - toc

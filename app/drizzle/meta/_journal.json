@@ -166,8 +166,29 @@
     {
       "idx": 23,
       "version": "6",
-      "when": 1792796283814,
-      "tag": "0023_tenant_portal",
+      "when": 1792796296092,
+      "tag": "0023_recurring_deadlines",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1792797287883,
+      "tag": "0024_payment_reminders",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1792798622152,
+      "tag": "0025_api_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1792800908917,
+      "tag": "0026_tenant_portal",
       "breakpoints": true
     }
   ]

@@ -18,9 +18,11 @@ export type SettingsSection = {
 const sections: SettingsSection[] = [
 	{ href: '/einstellungen/profil', label: 'Profil', icon: 'user' },
 	{ href: '/einstellungen/mitverwalter', label: 'Mitverwalter', icon: 'people', ownerOnly: true },
+	{ href: '/einstellungen/kalender', label: 'Kalender', icon: 'calendar' },
 	{ href: '/einstellungen/vpi', label: 'Verbraucherpreisindex', icon: 'trend' },
 	{ href: '/einstellungen/protokoll', label: 'Protokoll', icon: 'history' },
 	{ href: '/einstellungen/export', label: 'Export', icon: 'download', ownerOnly: true },
+	{ href: '/einstellungen/api-schluessel', label: 'API-Schlüssel', icon: 'key' },
 	{ href: '/datenuebernahme', label: 'Datenübernahme', icon: 'file', page: true },
 	{ href: '/abo', label: 'Abo', icon: 'card', billingOnly: true },
 	{ href: '/einstellungen/konto', label: 'Konto', icon: 'settings' }

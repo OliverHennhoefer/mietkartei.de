@@ -303,6 +303,9 @@ export async function createTaskFromReport(
 		.join('\n\n');
 	const created = await createTask(db, context, {
 		title: `Schaden: ${report.title}`.slice(0, 200),
+		// A repair is closest to Wartung among the task categories.
+		category: 'maintenance',
+		repeatMonths: null,
 		dueDate: null,
 		propertyId: null,
 		leaseId: report.lease?.id ?? null,

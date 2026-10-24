@@ -41,9 +41,13 @@ After changing the originals in `assets/brand/`, run `python scripts/prepare_doc
 | `zensical.toml` | Language, domain and appearance |
 | `docs/wrangler.toml` | Cloudflare Worker for the documentation domain |
 | `docs/_headers` | HTTP response headers for Cloudflare |
+| `docs/robots.txt` | Instructions for search engines, pointing to the generated `sitemap.xml` |
+| `docs/overrides/main.html` | Theme override: tab titles as `Page \| mietkartei` and link previews (Open Graph) |
 | `.github/workflows/websites.yml` | Required check and deployment of both websites |
 
 The header combines the larger register symbol with the original Geist wordmark. The combination is 44px high on desktop and 40px on smaller screens. Dark mode inverts the complete black signature to white, and the browser icon uses the small white symbol on black. The [brand assets](../assets/brand/README.md) contain the vector construction, shared exports and the earlier Geist wordmarks with their original font and license. The page uses the same locally hosted Geist font as the homepage and app, with system fonts as a fallback. Search stays disabled for the single placeholder page.
+
+Every page needs `title` and `description` in its front matter: they become the tab title, the search engine description and the link preview. Zensical generates `sitemap.xml` from `site_url`, and its `llmstxt` plugin writes `llms.txt` and `llms-full.txt` for AI assistants; add each new page to the `llmstxt` sections in `zensical.toml`.
 
 ## Cloudflare and domain
 

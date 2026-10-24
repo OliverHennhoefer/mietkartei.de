@@ -12,6 +12,7 @@ import {
 	statementResults,
 	units
 } from './db/schema';
+import { createPolicy } from './insurance';
 import { createLease, type LeaseInput } from './leases';
 import { contextA, contextB, leaseInput, seedTenant, seedUnit, testDatabase } from './testing';
 
@@ -571,6 +572,46 @@ describe('CO₂ reimbursement', () => {
 		expect(rows.map(brief)).toEqual([['2027-02-10', 'CO₂-Kostenanteil 2025 erstatten', false]]);
 		expect(rows[0]).toMatchObject({ href: `/vertraege/${leaseId}/co2`, leaseId });
 		expect(rows[0].detail).toMatch(/^45,00\s€ · /);
+	});
+});
+
+describe('Versicherungen', () => {
+	const policy = {
+		kind: 'building' as const,
+		insurer: 'Allianz',
+		policyNumber: null,
+		annualPremium: 1200_00,
+		renewalDate: '2020-01-01',
+		noticeMonths: 3,
+		endDate: null,
+		note: null
+	};
+
+	it('names the last day to cancel before the next renewal still open', async () => {
+		const { propertyId } = await seedUnit(db, 'a', { propertyName: 'Haus' });
+		// 2027-01-01's deadline (30.09.2026) has passed on TODAY, so the row is for 2028.
+		const created = await createPolicy(db, contextA, propertyId, policy);
+		if (!created.ok) throw new Error('create');
+		expect(await list()).toEqual([
+			{
+				kind: 'insurance_notice',
+				date: '2027-09-30',
+				title: 'Kündigungsfrist Wohngebäudeversicherung',
+				detail: 'Allianz · Haus: kündbar zum 31.12.2027, sonst verlängert sie sich um ein Jahr.',
+				href: `/objekte/${propertyId}/versicherungen/${created.id}`,
+				propertyId,
+				overdue: false
+			}
+		]);
+	});
+
+	it('shows the end of cover of a cancelled policy until it has passed', async () => {
+		const { propertyId } = await seedUnit(db, 'a', { propertyName: 'Haus' });
+		await createPolicy(db, contextA, propertyId, { ...policy, endDate: '2026-12-31' });
+		await createPolicy(db, contextA, propertyId, { ...policy, endDate: '2026-01-31' });
+		expect((await list()).map((row) => [row.kind, row.date, row.title])).toEqual([
+			['insurance_end', '2026-12-31', 'Wohngebäudeversicherung endet']
+		]);
 	});
 });
 

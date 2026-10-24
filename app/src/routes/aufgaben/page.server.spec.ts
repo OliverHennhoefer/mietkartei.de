@@ -65,6 +65,37 @@ describe('aufgaben', () => {
 		});
 	});
 
+	it('fills the create form from a template and ignores unknown ones', async () => {
+		expect(await run(load, { url: '/aufgaben?vorlage=rauchwarnmelder' })).toMatchObject({
+			data: {
+				template: {
+					key: 'rauchwarnmelder',
+					title: 'Rauchwarnmelder prüfen',
+					category: 'inspection',
+					repeatMonths: '12'
+				}
+			}
+		});
+		expect(await run(load, { url: '/aufgaben?vorlage=unbekannt' })).toMatchObject({
+			data: { template: null }
+		});
+	});
+
+	it('creates a repeating task whose done copy comes back', async () => {
+		const id = await createTask({
+			title: 'Heizung warten',
+			category: 'maintenance',
+			dueDate: '2026-09-15',
+			repeatMonths: '12'
+		});
+		await run(actions.done, { form: { id, done: 'true' } });
+		const { open } = await listTasks(db, 'a');
+		expect(open).toMatchObject([
+			{ title: 'Heizung warten', category: 'maintenance', repeatMonths: 12 }
+		]);
+		expect(open[0].dueDate! > '2026-09-15').toBe(true);
+	});
+
 	it('deletes a task from the list once', async () => {
 		const id = await createTask({ title: 'Weg' });
 		expect(await run(actions.delete, { form: { id } })).toEqual({ data: { deleted: id } });
@@ -104,7 +135,9 @@ describe('aufgaben/[id]', () => {
 	it("answers 404 for another account's task and leaves it as it is", async () => {
 		const foreign = await storeTask(db, contextB, {
 			title: 'Fremd',
+			category: 'other',
 			dueDate: null,
+			repeatMonths: null,
 			propertyId: null,
 			leaseId: null,
 			note: null

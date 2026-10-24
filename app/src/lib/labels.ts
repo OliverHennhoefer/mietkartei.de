@@ -7,6 +7,7 @@ import type {
 	ExpenseCategory,
 	Fuel,
 	HeatingCostModel,
+	InsuranceKind,
 	LeaseKind,
 	MeterKind,
 	OperatingCostModel,
@@ -15,6 +16,7 @@ import type {
 	RentModel,
 	StatementStatus,
 	SubscriptionStatus,
+	TaskCategory,
 	TerminatedBy,
 	UserRole
 } from './server/db/schema';
@@ -137,6 +139,23 @@ export const expenseCategoryLabels: Record<ExpenseCategory, string> = {
 	other: 'Sonstiges'
 };
 
+export const insuranceKindLabels: Record<InsuranceKind, string> = {
+	building: 'Wohngebäudeversicherung',
+	liability: 'Haus- und Grundbesitzerhaftpflicht',
+	glass: 'Glasversicherung',
+	oil_tank: 'Gewässerschadenhaftpflicht',
+	rent_loss: 'Mietausfallversicherung',
+	legal: 'Vermieterrechtsschutz',
+	other: 'Sonstige Versicherung'
+};
+
+export const taskCategoryLabels: Record<TaskCategory, string> = {
+	maintenance: 'Wartung',
+	inspection: 'Prüfung',
+	insurance: 'Versicherung',
+	other: 'Sonstiges'
+};
+
 export const userRoleLabels: Record<UserRole, string> = {
 	owner: 'Vermieter',
 	manager: 'Mitverwalter'
@@ -165,6 +184,7 @@ export const auditEntityLabels: Record<string, string> = {
 	account: 'Konto',
 	user: 'Zugang',
 	invitation: 'Einladung',
+	api_key: 'API-Schlüssel',
 	property: 'Objekt',
 	unit: 'Einheit',
 	tenant: 'Mieter',
@@ -178,6 +198,8 @@ export const auditEntityLabels: Record<string, string> = {
 	billing_circle: 'Abrechnungskreis',
 	cost_item: 'Beleg',
 	meter: 'Zähler',
+	insurance_policy: 'Versicherung',
+	calendar_feed: 'Kalender-Link',
 	meter_reading: 'Zählerstand',
 	statement: 'Betriebskostenabrechnung',
 	document: 'Dokument',
