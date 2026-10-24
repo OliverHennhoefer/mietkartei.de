@@ -424,6 +424,15 @@ describe('addGraduatedStep', () => {
 		).toMatchObject({ ok: true });
 	});
 
+	it('refuses a second step on the same day', async () => {
+		const step = { validFrom: '2026-01-01', baseRent: 62000 };
+		expect(await addGraduatedStep(db, contextA, graduatedId, step)).toMatchObject({ ok: true });
+		expect(await addGraduatedStep(db, contextA, graduatedId, { ...step, baseRent: 63000 })).toEqual(
+			{ ok: false, message: 'Am 01.01.2026 gibt es schon eine Mietänderung.' }
+		);
+		expect(await listRentChanges(db, 'a', graduatedId)).toHaveLength(2);
+	});
+
 	it('refuses a lease without Staffelmiete and a foreign lease', async () => {
 		expect(
 			await addGraduatedStep(db, contextA, leaseId, { validFrom: '2026-01-01', baseRent: 62000 })

@@ -616,6 +616,17 @@ describe('transaction helpers', () => {
 		);
 	});
 
+	it('lets the suggestion look for the extra units of a lease too', async () => {
+		const { unitId: garage } = await seedUnit(db, 'a', { name: 'Garage 2' });
+		const lease = (await getLease(db, 'a', leaseId))!;
+		await updateLease(db, contextA, leaseId, { ...leaseInputOf(lease), extraUnitIds: [garage] });
+		expect(leaseHints(await listLeases(db, 'a'))).toEqual(
+			expect.arrayContaining([
+				{ id: leaseId, lastNames: ['Müller'], unitNames: ['EG links', 'Garage 2'] }
+			])
+		);
+	});
+
 	it('names a transaction without counterpart and finds the expense preset by IBAN or name', () => {
 		expect(
 			transactionLabel({ amount: -1250, bookingDate: '2026-10-02', counterpartName: '' })

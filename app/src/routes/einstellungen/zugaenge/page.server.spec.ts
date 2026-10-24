@@ -228,6 +228,28 @@ describe('transfer', () => {
 		});
 	});
 
+	it('refuses to change or remove the new owner from a page opened before the handover', async () => {
+		await setPassword(db, 'user-a');
+		expect(await transfer('manager-a', PASSWORD)).toEqual({ redirect: '/' });
+		const stale = (action: 'role' | 'remove') =>
+			outcome(() =>
+				actions[action](routeEvent(db, { form: { userId: 'manager-a', role: 'viewer' } }))
+			);
+		expect(await stale('role')).toEqual({
+			fail: 400,
+			data: { refused: 'Die Rolle des Vermieters kann niemand ändern.' }
+		});
+		expect(await stale('remove')).toEqual({
+			fail: 400,
+			data: { refused: 'Den Zugang des Vermieters kann niemand entfernen.' }
+		});
+		const [owner] = await db
+			.select({ role: users.role })
+			.from(users)
+			.where(eq(users.id, 'manager-a'));
+		expect(owner.role).toBe('owner');
+	});
+
 	// The batch runs after the members were read; `before` changes the database in between.
 	function racing(before: () => void): Database {
 		return new Proxy(db, {
