@@ -34,7 +34,7 @@ Then open [http://127.0.0.1:8002](http://127.0.0.1:8002). Rebuild the output aft
 | `.github/workflows/websites.yml` | Checks and deploys homepage and documentation |
 | `dist/homepage/` | Generated output; not committed |
 
-The build copies only the listed public files, the two homepage screenshots, the black and white register symbols and wordmark combinations, the favicon and the original font with its OFL license. The font and brand SVGs are maintained in `assets/brand/`. Both the homepage and legal-notice header combine the larger register symbol with the Geist wordmark, using `lockup.svg` in light mode and `lockup-white.svg` in dark mode. The combination is 52px high on desktop and 44px on smaller screens. The favicon uses the small register symbol on a black background. Earlier wordmarks and design studies are not copied into the public output. Page-specific illustrations live in `website/assets/`.
+The build copies only the listed public files, the two homepage screenshots, the black and white register symbols and wordmark combinations, the favicon and the original font with its OFL license. The font and brand SVGs are maintained in `assets/brand/`. Both the homepage and legal-notice header combine the larger register symbol with the Geist wordmark, using `lockup.svg` in light mode and `lockup-white.svg` in dark mode. The combination is 52px high on desktop and 44px on smaller screens. The favicon uses the small register symbol on a black background. Next to `favicon.svg`, the build ships `/favicon.ico` (16, 32 and 48 px) for Safari and crawlers and `apple-touch-icon.png` (180 px) for home screen icons, both rendered from `favicon.svg`. Earlier wordmarks and design studies are not copied into the public output. Page-specific illustrations live in `website/assets/`.
 
 ## News
 
@@ -54,7 +54,7 @@ The build renders `/neuigkeiten/` (all posts, newest first), `/neuigkeiten/<slug
 
 ## Search engines and AI search
 
-Each page has a German title in the form `Page | mietkartei`, a description of at most about 160 characters and a canonical URL. The homepage also carries Open Graph tags for link previews and structured data (`Organization`, `WebSite`, `SoftwareApplication`) as JSON-LD. When the product changes, keep the description, the `featureList` in the JSON-LD and `llms.txt` in line with the README. A new page needs its own title, description and canonical URL and an entry in `sitemap.xml`.
+Each page has a German title in the form `Page | mietkartei` (the homepage: `mietkartei – Hausverwaltung für Privatvermieter`), a description of at most about 160 characters and a canonical URL. The homepage also carries Open Graph tags for link previews and structured data (`Organization`, `WebSite`, `SoftwareApplication`) as JSON-LD. When the product changes, keep the description, the `featureList` in the JSON-LD and `llms.txt` in line with the README. A new page needs its own title, description and canonical URL and an entry in `sitemap.xml`.
 
 The legal notice is available at `/impressum/`. Keep the provider and contact details current and remove optional details that do not apply.
 

@@ -37,10 +37,14 @@ for filename in (
     "lockup.svg",
     "lockup-white.svg",
     "favicon.svg",
+    "apple-touch-icon.png",
 ):
     destination = OUTPUT / "assets" / "brand" / filename
     destination.parent.mkdir(parents=True, exist_ok=True)
     copyfile(ROOT / "assets" / "brand" / filename, destination)
+
+# Browsers without SVG favicons (Safari) and crawlers ask for /favicon.ico at the root.
+copyfile(ROOT / "assets" / "brand" / "favicon.ico", OUTPUT / "favicon.ico")
 
 for filename in ("Geist.ttf", "OFL.txt"):
     destination = OUTPUT / "assets" / "fonts" / "geist" / filename
