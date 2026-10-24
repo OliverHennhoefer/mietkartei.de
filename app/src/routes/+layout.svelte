@@ -14,6 +14,7 @@
 	import Subscription from './abo/+page.svelte';
 	import Account from './einstellungen/konto/+page.svelte';
 	import Managers from './einstellungen/mitverwalter/+page.svelte';
+	import ApiKeys from './einstellungen/api-schluessel/+page.svelte';
 	import Export from './einstellungen/export/+page.svelte';
 	import Profile from './einstellungen/profil/+page.svelte';
 	import AuditLog from './einstellungen/protokoll/+page.svelte';
@@ -41,6 +42,7 @@
 		'/einstellungen/vpi': PriceIndex,
 		'/einstellungen/protokoll': AuditLog,
 		'/einstellungen/export': Export,
+		'/einstellungen/api-schluessel': ApiKeys,
 		'/abo': Subscription,
 		'/einstellungen/konto': Account
 	};
@@ -50,7 +52,8 @@
 			label: 'Alltag',
 			sections: [
 				{ href: '/', label: 'Übersicht', icon: 'home' },
-				{ href: '/aufgaben', label: 'Aufgaben', icon: 'check' }
+				{ href: '/aufgaben', label: 'Aufgaben', icon: 'check' },
+				{ href: '/schadensmeldungen', label: 'Schadensmeldungen', icon: 'tool' }
 			]
 		},
 		{

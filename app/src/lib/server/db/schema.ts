@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+	type AnySQLiteColumn,
 	index,
 	integer,
 	primaryKey,
@@ -474,6 +475,41 @@ export const payments = sqliteTable(
 		index('payments_account_id_idx').on(table.accountId),
 		index('payments_lease_id_date_idx').on(table.leaseId, table.date),
 		index('payments_bank_transaction_id_idx').on(table.bankTransactionId)
+	]
+);
+
+/** 1 = Zahlungserinnerung, 2 = Mahnung, 3 = letzte Mahnung. */
+export const reminderLevels = [1, 2, 3] as const;
+export type ReminderLevel = (typeof reminderLevels)[number];
+
+/**
+ * Zahlungserinnerung or Mahnung: a letter about the overdue amounts of a lease. The open items
+ * and the paragraphs are stored as written, so a later payment or correction cannot change a
+ * letter that was already sent.
+ */
+export const paymentReminders = sqliteTable(
+	'payment_reminders',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		level: integer('level').$type<ReminderLevel>().notNull(),
+		/** The date of the letter; the open items are those on this day. */
+		date: text('date').notNull(),
+		/** The day the tenant is asked to pay by. */
+		paymentDeadline: text('payment_deadline').notNull(),
+		/** The overdue total on `date`. */
+		amount: integer('amount').notNull(),
+		/** Rows of the open items table: due date, posting, open amount. */
+		items: text('items', { mode: 'json' }).notNull().$type<string[][]>(),
+		letterText: text('letter_text').notNull(),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('payment_reminders_account_id_idx').on(table.accountId),
+		index('payment_reminders_lease_id_date_idx').on(table.leaseId, table.date)
 	]
 );
 
@@ -969,6 +1005,10 @@ export const documents = sqliteTable(
 		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
 		tenantId: text('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
 		costItemId: text('cost_item_id').references(() => costItems.id, { onDelete: 'set null' }),
+		/** A photo a tenant attached to a damage report; deleted with the report. */
+		damageReportId: text('damage_report_id').references((): AnySQLiteColumn => damageReports.id, {
+			onDelete: 'set null'
+		}),
 		uploadedBy: text('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
 		createdAt: createdAt()
 	},
@@ -1053,6 +1093,59 @@ export const tasks = sqliteTable(
 	(table) => [index('tasks_account_id_idx').on(table.accountId)]
 );
 
+/**
+ * The Mieterportal link of a lease: the tenants open it without signing in to report damage and
+ * follow their reports. The link holds a random token, the database only its SHA-256, so the
+ * landlord sees the link once and replaces it to see it again. One link per lease; deleting the
+ * row locks the old link out.
+ */
+export const portalLinks = sqliteTable(
+	'portal_links',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.unique()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		tokenHash: text('token_hash').notNull().unique(),
+		createdAt: createdAt()
+	},
+	(table) => [index('portal_links_account_id_idx').on(table.accountId)]
+);
+
+export const damageReportStatuses = ['new', 'in_progress', 'done'] as const;
+export type DamageReportStatus = (typeof damageReportStatuses)[number];
+
+/** Schadensmeldung: what a tenant reported through the Mieterportal, and how far it got. */
+export const damageReports = sqliteTable(
+	'damage_reports',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
+		title: text('title').notNull(),
+		description: text('description').notNull(),
+		/** Where in the unit, e.g. "Bad, Waschbecken". */
+		location: text('location'),
+		urgent: bool('urgent', false),
+		/** Who reported and how to reach them, as the tenant typed it. */
+		reporterName: text('reporter_name'),
+		reporterPhone: text('reporter_phone'),
+		status: text('status', { enum: damageReportStatuses }).notNull().default('new'),
+		/** The landlord's answer, shown to the tenants in the portal. */
+		reply: text('reply'),
+		/** The task the landlord made of the report, while it exists. */
+		taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+		updatedAt: integer('updated_at', { mode: 'timestamp_ms' }),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('damage_reports_account_id_idx').on(table.accountId),
+		index('damage_reports_lease_id_idx').on(table.leaseId)
+	]
+);
+
 export const userRoles = ['owner', 'manager'] as const;
 export type UserRole = (typeof userRoles)[number];
 
@@ -1108,6 +1201,35 @@ export const sessions = sqliteTable(
 		createdAt: createdAt()
 	},
 	(table) => [index('sessions_user_id_idx').on(table.userId)]
+);
+
+export const apiKeyScopes = ['read', 'write'] as const;
+export type ApiKeyScope = (typeof apiKeyScopes)[number];
+
+/**
+ * A key for the API and the MCP server, created by a user and acting with that user's rights. The
+ * id is the SHA-256 hash of the key, never the key itself; `prefix` is its first characters, so
+ * the list of keys can tell them apart.
+ */
+export const apiKeys = sqliteTable(
+	'api_keys',
+	{
+		id: text('id').primaryKey(),
+		accountId: accountId(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		prefix: text('prefix').notNull(),
+		scope: text('scope', { enum: apiKeyScopes }).notNull().default('read'),
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+		lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('api_keys_account_id_idx').on(table.accountId),
+		index('api_keys_user_id_idx').on(table.userId)
+	]
 );
 
 /**
