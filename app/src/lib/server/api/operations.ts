@@ -263,7 +263,7 @@ export const operations: Operation[] = [
 	},
 	{
 		name: 'get_reminder_state',
-		description: `Returns the dunning state (Mahnwesen) of one lease today: the open items oldest first, the overdue total, the reminders and dunning letters (Zahlungserinnerung, Mahnungen) already sent, the level the next letter should have, and the default interest (Verzugszinsen, § 288 BGB) on the open items with the Basiszinssatz it uses. Letters are written in the app. ${AMOUNTS}`,
+		description: `Returns the dunning state (Mahnwesen) of one lease today: the open items oldest first, the overdue total, the reminders and dunning letters (Zahlungserinnerung, Mahnungen) already sent, the level the next letter should have, and the default interest (Verzugszinsen, § 288 BGB) on the open items with the Basiszinssatz it uses. Interest rates are in basis points (152 = 1.52 %). Letters are written in the app. ${AMOUNTS}`,
 		method: 'GET',
 		path: '/leases/{id}/reminders',
 		scope: 'read',

@@ -161,6 +161,11 @@ describe('operations', () => {
 		expect(year.series).toHaveLength(12);
 		const all = (await run('get_analysis', { allYears: true })) as { totals: { expenses: number } };
 		expect(all.totals.expenses).toBe(125000);
+		// Without a year, the current one; another property's figures stay out.
+		const current = (await run('get_analysis', { propertyId: 'other' })) as {
+			totals: { expenses: number; charged: number };
+		};
+		expect(current.totals).toMatchObject({ expenses: 0, charged: 0 });
 	});
 
 	it('do not find rows of another account', async () => {
