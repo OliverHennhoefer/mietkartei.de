@@ -194,40 +194,32 @@ test('opens a unit, shows its lease and edits the unit', async ({ page }) => {
 	await expect(details).toContainText('Balkon nach Süden');
 });
 
-test('refuses to delete a property or unit that has a lease', async ({ page }) => {
+test('names the lease that keeps a property or unit instead of offering to delete it', async ({
+	page
+}) => {
 	const unitName = `Wohnung ${suffix()}`;
 	const { propertyId, unitId, leaseId } = await seedLease(page.request, {
 		unit: { name: unitName }
 	});
 
+	// The page says up front what keeps the property and links the lease; there is no button.
 	await page.goto(`/objekte/${propertyId}/bearbeiten`);
-	// The URL check below needs the enhanced form; a click before hydration posts natively.
-	await page.waitForLoadState('networkidle');
-	acceptNextDialog(page);
-	await page.getByRole('button', { name: 'Objekt löschen' }).click();
-	await expect(page.getByRole('alert')).toContainText(
-		'Das Objekt kann nicht gelöscht werden, solange Mietverträge auf seinen Einheiten liegen, auch beendete'
-	);
-	// The refusal names and links the lease that blocks it.
-	const blocking = page.getByRole('list', { name: 'Mietverträge auf dem Objekt' });
+	await expect(
+		page.getByText('Auf den Einheiten des Objekts liegt ein Mietvertrag, auch beendete zählen')
+	).toBeVisible();
+	const blocking = page.getByRole('list', { name: 'Was das Löschen verhindert' });
 	await expect(blocking.getByRole('listitem')).toHaveText([
-		new RegExp(`^${unitName}: Erika Muster-[0-9a-f]{4}, seit 01\\.01\\.2025$`)
+		new RegExp(`^${unitName} · .+: Erika Muster-[0-9a-f]{4}, seit 01\\.01\\.2025$`)
 	]);
 	await expect(blocking.getByRole('link')).toHaveAttribute('href', `/vertraege/${leaseId}`);
-	await expect(page).toHaveURL(new RegExp(`/objekte/${propertyId}/bearbeiten$`));
+	await expect(page.getByRole('button', { name: 'Objekt löschen' })).toHaveCount(0);
 
 	await page.goto(`/objekte/${propertyId}/einheiten/${unitId}`);
-	acceptNextDialog(page);
-	await page.getByRole('button', { name: 'Einheit löschen' }).click();
-	await expect(page.getByRole('alert')).toContainText(
-		'Die Einheit kann nicht gelöscht werden, solange ein Mietvertrag auf ihr liegt, auch ein beendeter'
-	);
-	// Nothing was deleted.
-	await page.goto(`/objekte/${propertyId}`);
-	await expect(page.getByRole('list', { name: 'Einheiten' }).getByRole('listitem')).toHaveCount(1);
+	await expect(page.getByText('Auf der Einheit liegt ein Mietvertrag')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Einheit löschen' })).toHaveCount(0);
 });
 
-test('deletes a unit without a lease and refuses the property while an ended lease remains', async ({
+test('deletes a unit without a lease and keeps the property while an ended lease remains', async ({
 	page
 }) => {
 	const { propertyId } = await seedLease(page.request, {
@@ -249,19 +241,15 @@ test('deletes a unit without a lease and refuses the property while an ended lea
 	await expect(units.getByRole('listitem')).toHaveCount(1);
 	await expect(units).not.toContainText(unitName);
 
-	// The remaining unit has an ended lease, which still blocks deleting the property, so the
-	// refusal says so and names the lease.
+	// The remaining unit has an ended lease, which still keeps the property; the page names it.
 	await page.goto(`/objekte/${propertyId}/bearbeiten`);
-	acceptNextDialog(page);
-	await page.getByRole('button', { name: 'Objekt löschen' }).click();
-	const refusal = page.getByRole('alert');
-	await expect(refusal).toContainText(
-		'Das Objekt kann nicht gelöscht werden, solange Mietverträge auf seinen Einheiten liegen, auch beendete: Sie bleiben mit Mietkonto und Kaution erhalten.'
-	);
-	await expect(refusal).toContainText(/Es liegt 1\sMietvertrag darauf/);
 	await expect(
-		refusal.getByRole('list', { name: 'Mietverträge auf dem Objekt' }).getByRole('listitem')
-	).toHaveText([/seit 01\.01\.2024 bis 31\.12\.2024$/]);
+		page.getByText('Sie bleiben mit Mietkonto und Kaution erhalten.', { exact: false })
+	).toBeVisible();
+	await expect(
+		page.getByRole('list', { name: 'Was das Löschen verhindert' }).getByRole('listitem')
+	).toHaveText([/01\.01\.2024 bis 31\.12\.2024$/]);
+	await expect(page.getByRole('button', { name: 'Objekt löschen' })).toHaveCount(0);
 });
 
 test('deletes a property without leases', async ({ page }) => {
@@ -279,6 +267,9 @@ test('deletes a property without leases', async ({ page }) => {
 	await expect(page.getByRole('list', { name: 'Einheiten' })).toContainText('Garage');
 
 	await page.getByRole('link', { name: 'Bearbeiten' }).click();
+	await expect(
+		page.getByRole('list', { name: 'Was mitgelöscht wird' }).getByRole('listitem')
+	).toHaveText(['1\u00a0Einheit', 'die Umlageschlüssel und Abrechnungskreise des Objekts']);
 	acceptNextDialog(page);
 	await page.getByRole('button', { name: 'Objekt löschen' }).click();
 	await expect(page).toHaveURL(/\/objekte$/);

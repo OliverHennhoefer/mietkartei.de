@@ -2,10 +2,10 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { formatDate, today } from '#lib/dates.ts';
 import { leaseEndDeadlines, proposedEndDate } from '#lib/domain/lease-end.ts';
 import { parseLeaseEnd, parseLeasePersons } from '#lib/forms/leases.ts';
+import { deleteLease, leaseDeletion } from '#lib/server/deletion.ts';
 import { depositSummary, listDepositMovements } from '#lib/server/deposits.ts';
 import {
 	addLeasePersons,
-	deleteLease,
 	deleteLeasePersons,
 	endLease,
 	getLease,
@@ -23,15 +23,17 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 	const accountId = requireAccount(locals);
 	const { lease } = await parent();
 	const date = today();
-	const [persons, rent, ledger, movements] = await Promise.all([
+	const [persons, rent, ledger, movements, deletion] = await Promise.all([
 		listLeasePersons(locals.db, accountId, lease.id),
 		rentOnDate(locals.db, accountId, lease.id, date),
 		listLedger(locals.db, accountId, lease.id),
-		listDepositMovements(locals.db, accountId, lease.id)
+		listDepositMovements(locals.db, accountId, lease.id),
+		leaseDeletion(locals.db, accountId, lease.id)
 	]);
 	const current = rent ?? lease.currentRent;
 	return {
 		persons,
+		deletion,
 		currentRent: {
 			baseRent: current.baseRent,
 			operatingCostPrepayment: current.operatingCostPrepayment,
@@ -161,8 +163,8 @@ export const actions: Actions = {
 		if (outcome === 'missing') notFound();
 		if (outcome === 'in-use') {
 			return fail(400, {
-				message:
-					'Auf diesem Mietvertrag wurden schon Zahlungen, Korrekturen, Kautionsbewegungen oder Abrechnungen gebucht; er lässt sich nicht löschen, damit die Historie bleibt. Beende den Vertrag stattdessen mit „Vertrag beenden“.'
+				deleteError:
+					'Das Löschen geht nicht mehr, weil sich inzwischen etwas geändert hat; die Gründe stehen unten.'
 			});
 		}
 		redirect(303, '/vertraege');

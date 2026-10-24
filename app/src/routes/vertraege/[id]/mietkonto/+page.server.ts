@@ -141,10 +141,9 @@ export const actions: Actions = {
 		if (!detail || detail.kind !== 'payment') {
 			return fail(400, { message: 'Diese Zahlung gibt es nicht mehr.' });
 		}
-		if (detail.source === 'bank') return fail(400, { message: bankPaymentMessage });
-		if (!(await deletePayment(locals.db, context, id))) {
-			return fail(400, { message: 'Diese Zahlung gibt es nicht mehr.' });
-		}
+		const outcome = await deletePayment(locals.db, context, id);
+		if (outcome === 'from-bank') return fail(400, { message: bankPaymentMessage });
+		if (outcome === 'missing') return fail(400, { message: 'Diese Zahlung gibt es nicht mehr.' });
 		return { deleted: 'payment' as const };
 	},
 

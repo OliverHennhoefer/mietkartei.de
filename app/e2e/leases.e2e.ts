@@ -125,10 +125,10 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	await expect(outstanding).toContainText(/900,00\s€/);
 	await expect(page.getByRole('list', { name: 'Raten' })).toBeVisible();
 
-	// The lease now carries money, so it cannot be deleted, only ended.
+	// The lease now carries money, so it cannot be deleted, only ended; the page says so.
 	await page.goto(leaseUrl);
-	await page.getByRole('button', { name: 'Mietvertrag löschen' }).click();
-	await expect(page.getByRole('alert')).toContainText('Vertrag beenden');
+	await expect(page.getByText(/Kautionsbewegung.*„Vertrag beenden“ beendet/)).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Mietvertrag löschen' })).toHaveCount(0);
 
 	// Vertrag beenden: a tenant's notice received on 2 March 2026 ends the lease on 31 May 2026
 	// at the earliest (§ 573c BGB); the form proposes that date, and an earlier one is refused

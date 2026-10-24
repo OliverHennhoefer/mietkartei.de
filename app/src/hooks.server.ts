@@ -1,10 +1,11 @@
 import { error, redirect } from '@sveltejs/kit';
-import type { Handle } from '@sveltejs/kit/hooks';
+import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
 import { DEMO, E2E } from '$app/env/private';
 import { validateSession } from '#lib/server/auth.ts';
 import { enforceBilling } from '#lib/server/billing.ts';
 import { applySecurityHeaders } from '#lib/server/security-headers.ts';
 import { deleteSessionCookie, getSessionToken, setSessionCookie } from '#lib/server/session.ts';
+import { isForeignKeyError } from '#lib/server/db/errors.ts';
 import { getDatabase } from '#lib/server/db/index.ts';
 import { getAuthLimiter } from '#lib/server/rate-limit/index.ts';
 
@@ -108,4 +109,21 @@ export const handle: Handle = async ({ event, resolve }) => {
 		response.headers.set('X-Robots-Tag', 'noindex, nofollow');
 	}
 	return response;
+};
+
+/**
+ * Unknown errors are logged as by SvelteKit's default hook. A foreign key violation means the page
+ * acted on a record that another tab or person changed meanwhile: a conflict, and reloading
+ * resolves it, so it gets a message that says so instead of the generic one.
+ */
+export const handleError: HandleServerError = ({ kind, error }) => {
+	if (kind !== 'unknown') return;
+	if (isForeignKeyError(error)) {
+		return {
+			status: 409,
+			message:
+				'Die Änderung wurde nicht gespeichert, weil ein Eintrag, auf den sie sich bezieht, inzwischen geändert oder gelöscht wurde. Lade die Seite neu und versuche es noch einmal.'
+		};
+	}
+	console.error(error);
 };

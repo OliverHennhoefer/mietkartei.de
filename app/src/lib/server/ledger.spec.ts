@@ -303,7 +303,7 @@ describe('createPayment and deletePayment', () => {
 			note: 'Überweisung'
 		});
 
-		expect(await deletePayment(db, contextA, id!)).toBe(true);
+		expect(await deletePayment(db, contextA, id!)).toBe('deleted');
 		expect(await db.select().from(payments)).toEqual([]);
 		const audit = await db.select().from(auditLog).where(eq(auditLog.entityId, leaseId));
 		expect(audit.map((entry) => [entry.action, entry.summary])).toEqual([
@@ -334,7 +334,7 @@ describe('createPayment and deletePayment', () => {
 		expect(await db.select().from(payments)).toEqual([]);
 
 		const foreign = await createPayment(db, contextB, { ...payment, leaseId: foreignLeaseId });
-		expect(await deletePayment(db, contextA, foreign!)).toBe(false);
+		expect(await deletePayment(db, contextA, foreign!)).toBe('missing');
 		expect(await db.select().from(payments)).toHaveLength(1);
 		expect(await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'))).toHaveLength(1);
 	});
