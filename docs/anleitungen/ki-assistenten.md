@@ -15,9 +15,20 @@ mietkartei hat einen MCP-Server. Über ihn kann ein KI-Assistent wie Claude dein
 
 MCP steht für Model Context Protocol, einen offenen Standard, über den KI-Assistenten mit anderen Programmen sprechen. Die Adresse des Servers ist `https://app.mietkartei.de/mcp`. Betreibst du mietkartei selbst, nimmst du stattdessen deine eigene Adresse mit `/mcp` am Ende.
 
-## API-Schlüssel anlegen
+## claude.ai, Claude-App und ChatGPT
 
-Der Assistent meldet sich mit einem API-Schlüssel an. Den legst du in mietkartei unter **Einstellungen → API-Schlüssel** an:
+Hier brauchst du keinen Schlüssel. Du trägst nur die Adresse ein und meldest dich bei mietkartei an:
+
+1. Füge in den Einstellungen deines Assistenten einen eigenen Connector hinzu. Bei Claude heißt das **Einstellungen → Connectors → Eigenen Connector hinzufügen**. Bei ChatGPT findest du es unter den Apps bzw. Connectors, je nach Tarif mit eingeschaltetem Entwicklermodus.
+2. Gib als Adresse `https://app.mietkartei.de/mcp` ein. Weitere Angaben wie eine Client-ID brauchst du nicht.
+3. Beim Verbinden öffnet sich mietkartei. Melde dich an, falls nötig. Danach siehst du, welche App zugreifen möchte und wohin es danach weitergeht.
+4. Wähle die Rechte (**Nur lesen** oder **Lesen und schreiben**) und klicke auf **Erlauben**.
+
+Die Verbindung erscheint danach unter **Einstellungen → API-Schlüssel → Verbundene Apps**. Dort trennst du sie auch wieder. Nutzt die App die Verbindung 90 Tage lang nicht, endet sie von selbst.
+
+## Andere Assistenten: API-Schlüssel anlegen
+
+Claude Code, Claude Desktop, Cursor und eigene Programme melden sich mit einem API-Schlüssel an. Den legst du in mietkartei unter **Einstellungen → API-Schlüssel** an:
 
 1. Gib dem Schlüssel einen Namen, an dem du ihn wiedererkennst, etwa „Claude auf dem Laptop“.
 2. Wähle die Rechte: **Nur lesen** reicht für Fragen. **Lesen und schreiben** braucht es, wenn der Assistent auch etwas eintragen soll.
@@ -56,16 +67,13 @@ Clients, die nur lokale MCP-Server starten, verbinden sich über das Hilfsprogra
 
 Danach startest du den Client neu.
 
-!!! note "claude.ai und ChatGPT im Browser"
-    Die Connectors von claude.ai und ChatGPT melden sich per OAuth an und können keinen API-Schlüssel mitschicken. Dort lässt sich mietkartei deshalb noch nicht verbinden.
-
 ## Was der Assistent darf
 
-Ein Schlüssel hat dieselben Rechte wie du und sieht alle Daten deines Kontos, auch die persönlichen Daten deiner Mieter. Gib ihn nur Programmen, denen du vertraust.
+Ein Schlüssel oder eine verbundene App hat dieselben Rechte wie du und sieht alle Daten deines Kontos, auch die persönlichen Daten deiner Mieter. Gib ihn nur Programmen, denen du vertraust.
 
 **Lesen** kann der Assistent Objekte und Einheiten, Mieter, Mietverträge mit Mietänderungen und Kaution, das Mietkonto jedes Vertrags, Salden und Rückstände, den Mahnstand mit Verzugszinsen, Belege, Kostenarten und Umlageschlüssel, Betriebskostenabrechnungen, Ausgaben, die Auswertung, Fristen und Aufgaben.
 
-**Schreiben** darf ein Schlüssel mit Schreibrechten nur vier Dinge, die etwas hinzufügen:
+**Schreiben** darf der Assistent mit Schreibrechten nur vier Dinge, die etwas hinzufügen:
 
 - eine Zahlung auf dem Mietkonto buchen,
 - eine Aufgabe anlegen,
@@ -76,9 +84,9 @@ Löschen oder ändern kann der Assistent nichts. Gute Clients fragen vor jedem S
 
 Außerdem gilt:
 
-- Hast du als Mitverwalter nur **Lesezugriff** auf ein Konto, darf auch dein Schlüssel nur lesen, egal welche Rechte du beim Anlegen gewählt hast.
+- Hast du als Mitverwalter nur **Lesezugriff** auf ein Konto, darf auch der Assistent nur lesen, egal welche Rechte du beim Anlegen gewählt hast.
 - Läuft dein Testzeitraum ohne Abo ab, ist das Konto schreibgeschützt, auch für den Assistenten.
-- Änderst du dein Passwort, werden alle deine Schlüssel widerrufen. Einzelne Schlüssel widerrufst du unter **Einstellungen → API-Schlüssel**.
+- Änderst du dein Passwort, werden alle deine Schlüssel widerrufen und alle Apps getrennt. Einzelne Schlüssel und Apps widerrufst du unter **Einstellungen → API-Schlüssel**.
 
 Mahnungen, Mieterhöhungen und Abrechnungen erstellst du weiterhin in mietkartei selbst. Der Assistent kann dir aber sagen, was ansteht und welche Beträge offen sind.
 
