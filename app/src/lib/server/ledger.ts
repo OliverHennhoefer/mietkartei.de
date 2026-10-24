@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import {
 	dayOf,
@@ -655,4 +655,31 @@ export async function listLedgerLineDetails(
 		};
 	}
 	return details;
+}
+
+/** The latest payment received on a lease, for "Wie letzte Zahlung" on the payment form. */
+export type LastPayment = { date: IsoDate; amount: number; note: string | null };
+
+/** The latest incoming payment of the lease (by date, then entry), refunds left out. One select. */
+export async function lastPayment(
+	db: Database,
+	accountId: string,
+	leaseId: string
+): Promise<LastPayment | undefined> {
+	const [row] = await db
+		.select({
+			date: payments.date,
+			amount: payments.amount,
+			note: payments.note,
+			source: payments.source
+		})
+		.from(payments)
+		.where(
+			and(eq(payments.accountId, accountId), eq(payments.leaseId, leaseId), gt(payments.amount, 0))
+		)
+		.orderBy(desc(payments.date), desc(payments.createdAt))
+		.limit(1);
+	if (!row) return undefined;
+	// The note of a bank payment is the transfer's purpose ("Miete Oktober"), not one to repeat.
+	return { date: row.date, amount: row.amount, note: row.source === 'manual' ? row.note : null };
 }

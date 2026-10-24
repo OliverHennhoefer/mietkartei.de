@@ -32,6 +32,16 @@ test('enters an expense and finds it in the analysis of its property', async ({ 
 		})
 	).toContainText(`${unitName} · ${propertyName}`);
 
+	// The description again brings its category and scope along.
+	await page.goto('/auswertung/ausgaben');
+	await page.waitForLoadState('networkidle');
+	await page.getByLabel('Beschreibung').fill(`Therme ${suffix}`);
+	await page.getByLabel('Beschreibung').blur();
+	await expect(page.getByLabel('Kategorie').locator('option:checked')).toHaveText(
+		'Instandhaltung und Reparaturen'
+	);
+	await expect(page.getByLabel('Betrifft').locator('option:checked')).toHaveText(unitName);
+
 	await page.goto(`/auswertung?jahr=${year}&objekt=${propertyId}`);
 	const tiles = page.getByRole('list', { name: `Kennzahlen ${year}` });
 	await expect(tiles.getByRole('listitem').filter({ hasText: `Ausgaben ${year}` })).toContainText(
