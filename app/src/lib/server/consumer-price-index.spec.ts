@@ -1,7 +1,7 @@
 import { strToU8, zipSync } from 'fflate';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from './db';
-import { consumerPriceIndex } from './db/schema';
+import { consumerPriceIndex, consumerPriceIndexFetches } from './db/schema';
 import {
 	downloadIndexValues,
 	lastIndexFetch,
@@ -154,6 +154,20 @@ describe('refreshIndexValues', () => {
 			error: 'Destatis antwortete mit Status 500.'
 		});
 		expect(await listIndexValues(db)).toHaveLength(1);
+
+		// An attempt that never ends (cancelled with the request) says so instead of keeping the
+		// earlier error.
+		void refreshIndexValues(db, {
+			token: 't',
+			now: later(RETRY_AFTER_MS),
+			fetcher: () => new Promise<Response>(() => {})
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(await lastIndexFetch(db)).toMatchObject({
+			attemptedAt: later(RETRY_AFTER_MS),
+			error: expect.stringContaining('abgebrochen')
+		});
+		await db.update(consumerPriceIndexFetches).set({ attemptedAt: now, error: 'x' });
 
 		// A failure is tried again after half an hour, not after six.
 		const early = vi.fn();

@@ -21,6 +21,7 @@ const FIRST_YEAR = 1991;
 const FETCH_ID = 'destatis';
 /** Smaller values are rates of change, should one come without a unit or label saying so. */
 const MIN_INDEX_VALUE = 20;
+const INTERRUPTED = 'Der Abruf wurde abgebrochen, bevor Destatis vollständig geantwortet hat.';
 /** Destatis publishes once a month; four attempts a day find a new value within hours. */
 export const REFRESH_AFTER_MS = 6 * 60 * 60 * 1000;
 /** A failed attempt is repeated sooner, so a fix on either side shows within the hour. */
@@ -201,10 +202,14 @@ export async function refreshIndexValues(db: Database, options: RefreshOptions):
 	const last = await lastIndexFetch(db);
 	const wait = last?.error ? RETRY_AFTER_MS : REFRESH_AFTER_MS;
 	if (last && now.getTime() - last.attemptedAt.getTime() < wait) return;
+	// Until the attempt ends, the record says it did not: an attempt the platform cancels (the
+	// visitor left, a limit was hit) never reaches the catch below and would otherwise leave the
+	// error of an earlier attempt under this attempt's time.
+	const claim = { attemptedAt: now, error: INTERRUPTED };
 	await db
 		.insert(consumerPriceIndexFetches)
-		.values({ id: FETCH_ID, attemptedAt: now })
-		.onConflictDoUpdate({ target: consumerPriceIndexFetches.id, set: { attemptedAt: now } });
+		.values({ id: FETCH_ID, ...claim })
+		.onConflictDoUpdate({ target: consumerPriceIndexFetches.id, set: claim });
 	try {
 		await storeIndexValues(db, await downloadIndexValues(options.token, options.fetcher));
 		await db
