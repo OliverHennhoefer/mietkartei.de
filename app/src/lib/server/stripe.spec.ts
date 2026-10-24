@@ -95,6 +95,16 @@ describe('stripeRequest', () => {
 		await expect(stripeRequest('/v1/charges', {})).rejects.toThrow('Your card was declined.');
 	});
 
+	it('names the plain text of an answer that is not JSON', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response('Bad Gateway', { status: 502 }))
+		);
+		await expect(stripeRequest('/v1/charges', {})).rejects.toThrow(
+			'Stripe answered 502: Bad Gateway'
+		);
+	});
+
 	it('builds a subscription checkout with the remaining trial days', async () => {
 		const calls = fakeFetch(200, { id: 'cs_1', url: 'http://stripe.test/pay' });
 		const session = await createCheckoutSession({
@@ -195,6 +205,16 @@ describe('verifyWebhookSignature', () => {
 		expect(await verifyWebhookSignature(payload, null, secret, timestamp)).toBe(false);
 		expect(await verifyWebhookSignature(payload, 'v1=abc', secret, timestamp)).toBe(false);
 		expect(await verifyWebhookSignature(payload, header, '', timestamp)).toBe(false);
+		// A malformed timestamp or an empty v1 entry counts as missing.
+		expect(await verifyWebhookSignature(payload, `t=soon,v1=${expected}`, secret, timestamp)).toBe(
+			false
+		);
+		expect(await verifyWebhookSignature(payload, `t=${timestamp},v1=`, secret, timestamp)).toBe(
+			false
+		);
+		expect(await verifyWebhookSignature(payload, `t=${timestamp},v1=abc`, secret, timestamp)).toBe(
+			false
+		);
 	});
 
 	it('refuses timestamps outside the five-minute tolerance', async () => {

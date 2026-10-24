@@ -387,4 +387,34 @@ describe('loadAnalysis', () => {
 		expect(created.years).toEqual([2026, 2025, 2024]);
 		expect(created.totals.vacantDays).toBe(700);
 	});
+
+	it('counts a parking space let with the flat from the lease start, even if entered later', async () => {
+		// The flat exists since 2025; the parking space was entered in 2026 but has been let with
+		// the flat from January to June 2025. Both stand empty from July: 2 × 184 days.
+		await db
+			.update(units)
+			.set({ createdAt: new Date('2025-01-01T00:00:00Z') })
+			.where(eq(units.id, unitId));
+		const [parking] = await db
+			.insert(units)
+			.values({
+				accountId: 'a',
+				propertyId,
+				name: 'Stellplatz 1',
+				kind: 'parking',
+				createdAt: new Date('2026-02-01T00:00:00Z')
+			})
+			.returning({ id: units.id });
+		await seedLease(db, 'a', unitId, {
+			startDate: '2025-01-01',
+			endDate: '2025-06-30',
+			extraUnitIds: [parking.id]
+		});
+		const page = await loadAnalysis(db, 'a', {
+			period: 2025,
+			propertyId: null,
+			today: '2026-03-31'
+		});
+		expect(page.totals.vacantDays).toBe(2 * 184);
+	});
 });
