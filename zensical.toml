@@ -68,6 +68,8 @@ Dokumentation = [
 
 [project.extra]
 generator = false
+# The logo leads to the homepage, not to the start of the documentation.
+homepage = "https://mietkartei.de/"
 
 [project.validation]
 invalid_links = true
