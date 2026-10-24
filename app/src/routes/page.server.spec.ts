@@ -128,6 +128,7 @@ describe('layout', () => {
 				role: 'owner',
 				billingEnabled: false,
 				demo: false,
+				prelaunch: false,
 				notice: undefined
 			}
 		});

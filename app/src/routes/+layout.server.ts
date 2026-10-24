@@ -9,6 +9,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		role: locals.user?.role,
 		billingEnabled: billingEnabled(),
 		demo: DEMO,
+		// The hosted variant before its public launch; the demo and self-hosted instances never are.
+		prelaunch: __DEPLOY_TARGET__ === 'cloudflare' && !DEMO,
 		notice: locals.user ? await billingNotice(locals) : undefined
 	};
 };

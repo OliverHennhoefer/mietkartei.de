@@ -17,7 +17,7 @@ Verwende fiktive Daten und entferne Zugangsdaten aus Beispielen und Anhängen. W
 
 ## Unterstützter Stand
 
-Das Projekt befindet sich im Aufbau und hat noch keine veröffentlichten Softwareversionen. Sicherheitsmeldungen zum aktuellen Hauptzweig `main` werden geprüft. Mit der ersten Softwareveröffentlichung ergänzen wir hier die unterstützten Versionen.
+Unterstützt wird der aktuelle Stand des Hauptzweigs `main`: Er läuft unter app.mietkartei.de und steckt im jeweils neuesten Docker-Image. Sicherheitsmeldungen beziehen sich auf diesen Stand, Korrekturen erscheinen dort.
 
 ## Ablauf nach einer Meldung
 

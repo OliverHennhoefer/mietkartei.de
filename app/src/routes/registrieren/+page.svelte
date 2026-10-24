@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
+	import { LAUNCH } from '#lib/launch.ts';
 	import { MIN_PASSWORD_LENGTH } from '#lib/validation.ts';
 	import type { PageProps } from './$types';
 
@@ -31,9 +32,9 @@
 	{:else}
 		{#if data.restricted}
 			<p>
-				mietkartei ist noch nicht öffentlich. Ein Konto anlegen können nur freigeschaltete
-				E-Mail-Adressen. Du bekommst einen Link, mit dem du die Adresse bestätigst und dein Passwort
-				wählst.
+				{#if data.prelaunch}mietkartei startet im {LAUNCH}. Bis dahin{:else}Hier{/if} können nur freigeschaltete
+				E-Mail-Adressen ein Konto anlegen. Du bekommst einen Link, mit dem du die Adresse bestätigst und
+				dein Passwort wählst.
 			</p>
 		{/if}
 		<form
