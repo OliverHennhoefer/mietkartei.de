@@ -204,7 +204,7 @@
 			<Field
 				label="Bank"
 				error={landlordErrors?.bankName}
-				hint="Leer lassen, dann ergänzen wir die Bank aus der IBAN."
+				hint="Leer lassen, dann ergänzen wir sie bei deutschen Konten aus der Bankleitzahl."
 			>
 				<input
 					name="bankName"

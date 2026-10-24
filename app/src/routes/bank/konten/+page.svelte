@@ -94,7 +94,7 @@
 		<Field
 			label="BIC (optional)"
 			error={errors?.bic}
-			hint="Bleibt das Feld leer, ergänzen wir die BIC bei deutschen IBANs aus dem Bankleitzahlenverzeichnis der Bundesbank."
+			hint="Bleibt das Feld leer, ergänzen wir sie bei deutschen Konten aus dem Bankleitzahlenverzeichnis der Bundesbank."
 		>
 			<input
 				name="bic"
