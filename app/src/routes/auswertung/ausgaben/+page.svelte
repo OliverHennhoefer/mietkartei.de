@@ -17,6 +17,28 @@
 		form && 'values' in form ? (form.values as Record<string, string>) : {}
 	);
 	const total = $derived(data.expenses.reduce((sum, expense) => sum + expense.amount, 0));
+
+	let createForm = $state<HTMLFormElement>();
+
+	/**
+	 * A description used before brings its category and scope along, as long as no category is
+	 * chosen yet: the same payee is usually booked the same way.
+	 */
+	function descriptionPicked(event: Event & { currentTarget: HTMLInputElement }) {
+		const suggestion = data.suggestions.find(
+			(candidate) => candidate.description === event.currentTarget.value
+		);
+		const category = createForm?.elements.namedItem('category');
+		const scope = createForm?.elements.namedItem('scope');
+		if (!suggestion || !(category instanceof HTMLSelectElement) || category.value) return;
+		category.value = suggestion.category;
+		if (
+			scope instanceof HTMLSelectElement &&
+			[...scope.options].some((option) => option.value === suggestion.scope)
+		) {
+			scope.value = suggestion.scope;
+		}
+	}
 </script>
 
 <div class="toolbar">
@@ -88,7 +110,7 @@
 {/if}
 
 <h2>Ausgabe erfassen</h2>
-<form method="POST" action="?/create" class="card" use:enhance>
+<form method="POST" action="?/create" class="card" bind:this={createForm} use:enhance>
 	<div class="fields">
 		<Field label="Datum" error={errors?.date}>
 			<input
@@ -96,6 +118,19 @@
 				name="date"
 				defaultValue={values.date ?? data.today}
 				aria-invalid={errors?.date ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		<Field label="Beschreibung" error={errors?.description}>
+			<input
+				name="description"
+				maxlength="200"
+				placeholder="z. B. Heizungswartung"
+				defaultValue={values.description ?? ''}
+				list={data.suggestions.length ? 'expense-descriptions' : undefined}
+				autocomplete="off"
+				onchange={descriptionPicked}
+				aria-invalid={errors?.description ? 'true' : undefined}
 				required
 			/>
 		</Field>
@@ -131,17 +166,12 @@
 				{/each}
 			</select>
 		</Field>
-		<Field label="Beschreibung" error={errors?.description}>
-			<input
-				name="description"
-				maxlength="200"
-				placeholder="z. B. Heizungswartung"
-				defaultValue={values.description ?? ''}
-				aria-invalid={errors?.description ? 'true' : undefined}
-				required
-			/>
-		</Field>
 	</div>
+	<datalist id="expense-descriptions">
+		{#each data.suggestions as suggestion (suggestion.description)}
+			<option value={suggestion.description}></option>
+		{/each}
+	</datalist>
 	<div class="form-actions">
 		<button type="submit">Ausgabe erfassen</button>
 		{#if form && 'created' in form}

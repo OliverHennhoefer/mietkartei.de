@@ -78,12 +78,35 @@
 	}
 
 	/**
-	 * The expense form starts open for money paid out that no lease is suggested for, and after
-	 * its own refusal; otherwise the lease assignment is what the row is usually for.
+	 * A field of the expense form: what was typed before an error, else what the last expense to
+	 * the same counterpart was booked as.
+	 */
+	function expenseValue(
+		transaction: (typeof data.transactions)[number],
+		name: 'category' | 'scope'
+	): string {
+		if (formId === transaction.id) return values?.[name] ?? '';
+		return transaction.expensePreset?.[name] ?? '';
+	}
+
+	function expenseDescription(transaction: (typeof data.transactions)[number]): string {
+		if (formId === transaction.id && values?.description !== undefined) return values.description;
+		return (
+			transaction.expensePreset?.description ??
+			(transaction.counterpartName || transaction.purpose)
+		).slice(0, 200);
+	}
+
+	/**
+	 * The expense form starts open for money paid out, or from a counterpart booked as an expense
+	 * before, that no lease is suggested for, and after its own refusal; otherwise the lease
+	 * assignment is what the row is usually for.
 	 */
 	function expenseOpen(transaction: (typeof data.transactions)[number]): boolean {
 		if (formId === transaction.id && expenseErrors) return true;
-		return transaction.amount < 0 && !transaction.suggestion;
+		return (
+			(transaction.amount < 0 || transaction.expensePreset !== null) && !transaction.suggestion
+		);
 	}
 
 	const categoryEntries = Object.entries(expenseCategoryLabels);
@@ -322,6 +345,11 @@
 							use:enhance={submitting(transaction.id)}
 						>
 							<input type="hidden" name="id" value={transaction.id} />
+							{#if transaction.expensePreset}
+								<p class="muted small preset">
+									Vorbelegt wie die letzte Ausgabe an diesen Empfänger.
+								</p>
+							{/if}
 							<label>
 								Kategorie
 								<select
@@ -330,11 +358,11 @@
 										? 'true'
 										: undefined}
 								>
-									<option value="" selected={rowValue(transaction, 'category') === ''}>
+									<option value="" selected={expenseValue(transaction, 'category') === ''}>
 										– bitte wählen –
 									</option>
 									{#each categoryEntries as [value, label] (value)}
-										<option {value} selected={rowValue(transaction, 'category') === value}>
+										<option {value} selected={expenseValue(transaction, 'category') === value}>
 											{label}
 										</option>
 									{/each}
@@ -351,7 +379,7 @@
 										? 'true'
 										: undefined}
 								>
-									<option value="" selected={rowValue(transaction, 'scope') === ''}>
+									<option value="" selected={expenseValue(transaction, 'scope') === ''}>
 										Gesamter Bestand
 									</option>
 									{#each data.scopes as group (group.id)}
@@ -359,7 +387,7 @@
 											{#each group.options as option (option.value)}
 												<option
 													value={option.value}
-													selected={rowValue(transaction, 'scope') === option.value}
+													selected={expenseValue(transaction, 'scope') === option.value}
 												>
 													{option.label}
 												</option>
@@ -376,9 +404,7 @@
 								<input
 									name="description"
 									maxlength="200"
-									defaultValue={formId === transaction.id && values?.description !== undefined
-										? values.description
-										: (transaction.counterpartName || transaction.purpose).slice(0, 200)}
+									defaultValue={expenseDescription(transaction)}
 									aria-invalid={formId === transaction.id && expenseErrors?.description
 										? 'true'
 										: undefined}
@@ -470,7 +496,8 @@
 	.assign .split,
 	.assign .inline,
 	.assign .row,
-	.assign .error {
+	.assign .error,
+	.assign .preset {
 		grid-column: 1 / -1;
 	}
 	.split-fields {
@@ -482,6 +509,9 @@
 	.expense {
 		border-top: 1px solid var(--color-border);
 		padding-top: 0.75rem;
+	}
+	.preset {
+		margin: 0;
 	}
 	.expense .assign {
 		border-top: none;

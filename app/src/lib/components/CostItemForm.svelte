@@ -1,17 +1,19 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { today } from '../dates';
+	import { formatDate, today } from '../dates';
 	import { CIRCLE_FROM_CATEGORY, defaultCostPeriod } from '../domain/operating-costs';
 	import type { FieldErrors } from '../forms/fields';
 	import type { CostItemForm } from '../forms/operating-costs';
 	import { fuelLabels } from '../labels';
-	import { formatCentsPlain } from '../money';
+	import { formatCents, formatCentsPlain } from '../money';
 	import type { Fuel } from '../server/db/schema';
-	import type { CostItemSummary } from '../server/operating-costs/cost-items';
+	import type { CostItemHistory, CostItemSummary } from '../server/operating-costs/cost-items';
 
 	// The one form of a Beleg, for creating (/belege/neu) and editing (/belege/[id]). The key and
 	// circle selects offer "Standard der Kostenart", which the action resolves to the category's
-	// defaults. Keys and circles are narrowed to the chosen property.
+	// defaults. Keys and circles are narrowed to the chosen property. Earlier items feed the
+	// suggestions of the text fields and, when creating, the "Übernehmen" of the last item of the
+	// chosen property and category.
 
 	// The fuel list comes from the labels: schema.ts is server-only code.
 	const fuels = Object.keys(fuelLabels) as Fuel[];
@@ -23,6 +25,7 @@
 		keys,
 		circles,
 		item,
+		history,
 		prefill,
 		errors,
 		values,
@@ -34,6 +37,7 @@
 		keys: { id: string; name: string; propertyId: string | null }[];
 		circles: { id: string; name: string; propertyId: string; propertyName: string }[];
 		item?: CostItemSummary;
+		history?: CostItemHistory;
 		prefill?: {
 			propertyId?: string;
 			periodStart?: string;
@@ -87,6 +91,47 @@
 		if (category) allocable = category.allocable;
 	}
 
+	let formElement = $state<HTMLFormElement>();
+	const lastItem = $derived(
+		item
+			? undefined
+			: history?.last.find(
+					(candidate) => candidate.propertyId === propertyId && candidate.categoryId === categoryId
+				)
+	);
+
+	/** Sets a field of the form; a select only to one of its options. */
+	function setField(name: string, value: string) {
+		const field = formElement?.elements.namedItem(name);
+		if (field instanceof HTMLSelectElement) {
+			if ([...field.options].some((option) => option.value === value)) field.value = value;
+		} else if (field instanceof HTMLInputElement) {
+			field.value = value;
+		}
+	}
+
+	/**
+	 * Fills the form from the last item of the property and category: the yearly bill usually
+	 * repeats with the same supplier, key and circle. A year in the description moves to the year
+	 * of the period entered.
+	 */
+	function copyLast() {
+		if (!lastItem || !formElement) return;
+		const start = formElement.elements.namedItem('periodStart');
+		const year = start instanceof HTMLInputElement ? start.value.slice(0, 4) : '';
+		const lastYear = lastItem.periodEnd.slice(0, 4);
+		setField(
+			'description',
+			/^\d{4}$/.test(year)
+				? lastItem.description.replace(new RegExp(`\\b${lastYear}\\b`, 'g'), year)
+				: lastItem.description
+		);
+		setField('supplier', lastItem.supplier ?? '');
+		setField('amount', formatCentsPlain(lastItem.amount));
+		setField('allocationKeyId', lastItem.allocationKeyId);
+		setField('billingCircleId', lastItem.billingCircleId ?? '');
+	}
+
 	const fuelChoice = $derived(value('fuel', item?.fuel ?? ''));
 	const keyChoice = $derived(value('allocationKeyId', item?.allocationKeyId ?? ''));
 	const circleChoice = $derived(
@@ -94,7 +139,14 @@
 	);
 </script>
 
-<form method="POST" {action} class="card" enctype="multipart/form-data" use:enhance>
+<form
+	method="POST"
+	{action}
+	class="card"
+	enctype="multipart/form-data"
+	bind:this={formElement}
+	use:enhance
+>
 	{#if prefill?.insurancePolicyId}
 		<input type="hidden" name="insurancePolicyId" value={prefill.insurancePolicyId} />
 	{/if}
@@ -129,6 +181,15 @@
 		</select>
 		{#if errors?.categoryId}<span class="error">{errors.categoryId}</span>{/if}
 	</label>
+	{#if lastItem}
+		<p class="form-wide last muted small">
+			<span>
+				Letzter Beleg dieser Kostenart: {lastItem.supplier ?? lastItem.description} ·
+				{formatCents(lastItem.amount)} · bis {formatDate(lastItem.periodEnd)}
+			</span>
+			<button type="button" class="secondary small" onclick={copyLast}>Übernehmen</button>
+		</p>
+	{/if}
 	<label>
 		Umlageschlüssel
 		<select name="allocationKeyId" aria-invalid={errors?.allocationKeyId ? 'true' : undefined}>
@@ -159,6 +220,8 @@
 		<input
 			name="description"
 			defaultValue={value('description', item?.description ?? prefill?.description ?? '')}
+			list={history?.descriptions.length ? 'cost-item-descriptions' : undefined}
+			autocomplete="off"
 			placeholder="z. B. Grundsteuer 2025"
 			aria-invalid={errors?.description ? 'true' : undefined}
 			required
@@ -170,6 +233,8 @@
 		<input
 			name="supplier"
 			defaultValue={value('supplier', item?.supplier ?? prefill?.supplier ?? '')}
+			list={history?.suppliers.length ? 'cost-item-suppliers' : undefined}
+			autocomplete="off"
 			aria-invalid={errors?.supplier ? 'true' : undefined}
 		/>
 		{#if errors?.supplier}<span class="error">{errors.supplier}</span>{/if}
@@ -296,6 +361,15 @@
 		{#if errors?.receipt}<span class="error">{errors.receipt}</span>{/if}
 	</label>
 
+	{#if history}
+		<datalist id="cost-item-descriptions">
+			{#each history.descriptions as text (text)}<option value={text}></option>{/each}
+		</datalist>
+		<datalist id="cost-item-suppliers">
+			{#each history.suppliers as text (text)}<option value={text}></option>{/each}
+		</datalist>
+	{/if}
+
 	<div class="form-actions">
 		<button type="submit">Speichern</button>
 		{#if withNext}
@@ -307,6 +381,13 @@
 </form>
 
 <style>
+	.last {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.25rem 0.75rem;
+		margin: 0;
+	}
 	.fuel {
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius);

@@ -14,6 +14,7 @@ import type { Storage } from '../storage';
 import { contextA, contextB, seedUnit, testDatabase } from '../testing';
 import { createCircle } from './circles';
 import {
+	costItemHistory,
 	createCostItem,
 	deleteCostItem,
 	getCostItem,
@@ -213,6 +214,31 @@ describe('cost items', () => {
 		expect(ids(await listCostItems(db, 'a', { year: 2026 }))).toEqual([heizung]);
 		expect(ids(await listCostItems(db, 'a', { year: 2024 }))).toEqual([undated]);
 		expect(await listCostItemYears(db, 'a')).toEqual([2026, 2025, 2024]);
+	});
+
+	it('remembers the texts and the last item per property and category for the next one', async () => {
+		await create(contextA);
+		await create(contextA, {
+			description: 'Grundsteuer 2026',
+			periodStart: '2026-01-01',
+			periodEnd: '2026-12-31',
+			amount: 125000
+		});
+		await create(contextA, {
+			categoryId: categoryId['Straßenreinigung und Müllbeseitigung'],
+			description: 'Müllabfuhr',
+			supplier: 'BSR'
+		});
+		const history = await costItemHistory(db, 'a');
+		expect(history.descriptions).toEqual(['Grundsteuer 2026', 'Müllabfuhr', 'Grundsteuer 2025']);
+		expect(history.suppliers).toEqual(['Stadt Berlin', 'BSR']);
+		expect(history.last).toHaveLength(2);
+		expect(history.last.find((row) => row.categoryId === categoryId.Grundsteuer)).toMatchObject({
+			description: 'Grundsteuer 2026',
+			amount: 125000,
+			periodEnd: '2026-12-31'
+		});
+		expect(await costItemHistory(db, 'b')).toEqual({ descriptions: [], suppliers: [], last: [] });
 	});
 
 	it('offers every year a period overlaps, also the years in between', async () => {

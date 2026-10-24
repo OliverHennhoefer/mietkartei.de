@@ -4,6 +4,7 @@ import { parseExpense } from '#lib/forms/expenses.ts';
 import {
 	createExpense,
 	deleteExpense,
+	expenseSuggestions,
 	firstExpenseYear,
 	listExpenses,
 	scopeOptions
@@ -23,10 +24,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		Number.isInteger(requested) && requested >= 1900 && requested <= currentYear + 1
 			? requested
 			: currentYear;
-	const [expenses, scopes, firstYear] = await Promise.all([
+	const [expenses, scopes, firstYear, suggestions] = await Promise.all([
 		listExpenses(locals.db, accountId, { from: `${year}-01-01`, to: `${year}-12-31` }),
 		scopeOptions(locals.db, accountId),
-		firstExpenseYear(locals.db, accountId)
+		firstExpenseYear(locals.db, accountId),
+		expenseSuggestions(locals.db, accountId)
 	]);
 	// The last six years, and back to the earliest expense, so every expense can be reached.
 	const oldest = Math.min(currentYear - 5, firstYear ?? currentYear, year);
@@ -34,7 +36,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	for (let candidate = Math.max(currentYear, year); candidate >= oldest; candidate--) {
 		years.push(candidate);
 	}
-	return { year, years, today: date, expenses, scopes };
+	return { year, years, today: date, expenses, scopes, suggestions };
 };
 
 export const actions: Actions = {
