@@ -42,7 +42,7 @@ Keep label names used in the issue forms or in `release.yml` consistent with the
 
 [dependabot.yml](dependabot.yml) checks the listed dependencies for new versions on Mondays at 07:00 in the Europe/Berlin time zone and opens pull requests when needed. The proposals are labeled "abhängigkeiten" and "wartung". The supported options are listed in the [Dependabot documentation](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference).
 
-Before merging such changes, check them for new permissions and effects on the workflow. Keep the actions in use pinned to specific commit IDs.
+Before merging such changes, check them for new permissions and effects on the workflow. Keep the actions in use pinned to specific commit IDs, the Docker base image in `app/Dockerfile` to its digest, and the docs build dependencies to hashes. To change the Zensical version, edit `docs/requirements.in` and regenerate the locked file in `docs/` with `pip-compile --generate-hashes --allow-unsafe --strip-extras -o requirements.txt requirements.in` (pip-tools); CI installs it with `--require-hashes`. Dependabot updates the digest and the hashes along with the versions.
 
 ## Supply-chain and security checks
 

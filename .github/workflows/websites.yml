@@ -86,7 +86,7 @@ jobs:
 
       - name: Install Zensical
         if: steps.changes.outputs.docs == 'true'
-        run: python -m pip install --disable-pip-version-check -r docs/requirements.txt
+        run: python -m pip install --disable-pip-version-check --require-hashes -r docs/requirements.txt
 
       - name: Build docs and check internal links
         if: steps.changes.outputs.docs == 'true'
