@@ -8,7 +8,7 @@ hide:
 
 # Dokumentation
 
-mietkartei ist die Hausverwaltung von Vermietern für Vermieter: Mieten, Bankumsätze und die Betriebskostenabrechnung für deine paar Wohnungen an einem Ort, mit nachvollziehbarem Rechenweg zu jedem Betrag.
+mietkartei ist die Hausverwaltung von Vermietern für Vermieter: Mieten, Bankumsätze und die Betriebskostenabrechnung für private Vermieter an einem Ort, mit nachvollziehbarem Rechenweg zu jedem Betrag.
 
 ## Loslegen
 
