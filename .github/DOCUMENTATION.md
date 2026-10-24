@@ -37,7 +37,8 @@ After changing the originals in `assets/brand/`, run `python scripts/prepare_doc
 | `docs/assets/stylesheets/` | Styles for the documentation only |
 | `docs/assets/brand/` | Generated copies of the selected branding, favicon and Geist with its license |
 | `scripts/prepare_docs_assets.py` | Copies the shared branding, favicon and font before preview and build |
-| `docs/requirements.txt` | Pinned Zensical version |
+| `docs/requirements.in` | Zensical version to install |
+| `docs/requirements.txt` | All docs build dependencies with pinned versions and hashes, generated from `requirements.in` |
 | `zensical.toml` | Language, domain and appearance |
 | `docs/wrangler.toml` | Cloudflare Worker for the documentation domain |
 | `docs/_headers` | HTTP response headers for Cloudflare |

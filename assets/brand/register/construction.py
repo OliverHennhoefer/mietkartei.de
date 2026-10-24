@@ -94,6 +94,34 @@ def lockup(ink,adaptive=False):
     return svg.replace(f' fill="{ink}"','') if adaptive else svg
 
 
+HIGHLIGHT='#F5FF00'
+HIGHLIGHT_GAP=4
+HIGHLIGHT_PADDING=12
+
+
+def lockup_highlight(ink):
+    # Geist Semibold with a neon block behind "kartei". The block is exactly as tall as the mark,
+    # so both share their top and bottom edge; "kartei" stays black on it in both schemes.
+    outlines=json.loads((ROOT.parent/'variants'/'geist-semibold-outlines.json').read_text())
+    miet,kartei=outlines['miet'],outlines['kartei']
+    scale=WORDMARK_HEIGHT/774.8
+    baseline=19+738.8*scale
+    miet_x=WORDMARK_X+24*scale-miet['bounds'][0]*scale
+    block_left=miet_x+miet['bounds'][2]*scale+HIGHLIGHT_GAP
+    kartei_x=block_left+HIGHLIGHT_PADDING-kartei['bounds'][0]*scale
+    block_right=kartei_x+kartei['bounds'][2]*scale+HIGHLIGHT_PADDING
+    top=48-LOCKUP_MARK_HEIGHT/2
+    def word(part,x,fill):
+        return f'<path fill="{fill}" transform="translate({n(x)} {n(baseline)}) scale({n(scale)} -{n(scale)})" d="{part['d']}"/>'
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {math.ceil(block_right)} 96" role="img" aria-label="mietkartei mit Registerfaltung">
+  {paths(ink,transform=LOCKUP_TRANSFORM)}
+  <rect x="{n(block_left)}" y="{n(top)}" width="{n(block_right-block_left)}" height="{n(LOCKUP_MARK_HEIGHT)}" fill="{HIGHLIGHT}"/>
+  {word(miet,miet_x,ink)}
+  {word(kartei,kartei_x,'#000')}
+</svg>
+'''
+
+
 def clean(value):
     if isinstance(value,float):return round(value,6)
     if isinstance(value,(list,tuple)):return [clean(item) for item in value]
@@ -105,6 +133,7 @@ if __name__=='__main__':
     for ink,suffix in (('#000',''),('#fff','-white')):
         (ROOT/f'mark{suffix}.svg').write_text(svg(ink))
         (ROOT/f'lockup{suffix}.svg').write_text(lockup(ink))
+        (ROOT/f'lockup-highlight{suffix}.svg').write_text(lockup_highlight(ink))
     (ROOT/'lockup-auto.svg').write_text(lockup('#000',adaptive=True))
     (ROOT/'small.svg').write_text(svg('#000',small=True))
     (ROOT/'favicon.svg').write_text(svg('#fff',small=True,favicon=True))
@@ -122,6 +151,7 @@ if __name__=='__main__':
                   'gap':WORDMARK_X-48-LOCKUP_MARK_HEIGHT/2},
         'normalization':TRANSFORM,'viewBox':[0,0,96,96],
     }),indent=2)+'\n')
-    for filename in ('mark.svg','mark-white.svg','favicon.svg','lockup.svg','lockup-white.svg','lockup-auto.svg'):
+    for filename in ('mark.svg','mark-white.svg','favicon.svg','lockup.svg','lockup-white.svg','lockup-auto.svg',
+                     'lockup-highlight.svg','lockup-highlight-white.svg'):
         (ROOT.parent/filename).write_bytes((ROOT/filename).read_bytes())
     print('Chosen register SVG masters, lockups, favicon and shared exports written.')
