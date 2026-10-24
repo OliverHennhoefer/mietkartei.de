@@ -7,8 +7,8 @@ description: mietkartei auf dem eigenen Rechner oder Server betreiben.
 
 mietkartei läuft als ein einziger Docker-Container. Alle Daten liegen in einer SQLite-Datei, hochgeladene Dokumente als Dateien daneben. Wenn du erst einmal nur schauen willst, nimm die [Demo](https://demo.mietkartei.de): Dort musst du nichts installieren.
 
-!!! warning "Im Aufbau"
-    mietkartei ändert sich gerade schnell, und Updates können Daten verwerfen. Verwalte damit noch keine echten Mieterdaten und betreibe die Anwendung nur auf deinem eigenen Rechner oder in einem geschützten Netz.
+!!! tip "Erreichbarkeit"
+    Der Befehl unten macht mietkartei nur auf deinem eigenen Rechner erreichbar. Den Betrieb auf einem Server beschreibt die [Serveranleitung](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/.github/SELF_HOSTING.md) (englisch).
 
 ## Mit Docker
 

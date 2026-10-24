@@ -82,7 +82,6 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .documentation > span { font-size: 18px; font-weight: 400; }
 .footer { border-top: 1px solid var(--line); padding-top: clamp(14px, 2.2vh, 20px); font-size: 12px; line-height: 1.5; color: var(--muted); }
 .status { display: inline-flex; align-items: baseline; gap: 10px; }
-.dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: #d97706; transform: translateY(-1px); }
 .footer-links { display: flex; flex-wrap: wrap; gap: 6px 24px; }
 .footer a { text-decoration: none; text-underline-offset: 3px; }
 .footer a:hover { color: var(--foreground); text-decoration: underline; }

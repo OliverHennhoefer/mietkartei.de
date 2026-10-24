@@ -104,23 +104,3 @@ body[data-md-color-scheme="slate"][data-md-color-primary] {
 .md-content {
   margin-inline: auto;
 }
-
-.md-typeset .docs-draft {
-  margin-inline: auto;
-  max-width: 30rem;
-  padding-block: 3rem;
-  text-align: center;
-}
-
-.md-typeset .docs-draft h1 {
-  font-size: clamp(2.4rem, 6vw, 3.8rem);
-  line-height: 1.1;
-  margin: 0.6rem 0 1.4rem;
-}
-
-.md-typeset .docs-draft .docs-draft__eyebrow {
-  color: var(--md-default-fg-color--light);
-  font-size: 0.65rem;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-}

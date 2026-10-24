@@ -3,6 +3,7 @@
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import { pluralize } from '#lib/format.ts';
+	import { LAUNCH } from '#lib/launch.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -45,6 +46,13 @@
 	title="Übersicht"
 	lead="Rückstände, Leerstand, Bankumsätze und Fristen auf einen Blick."
 />
+
+{#if data.prelaunch}
+	<Alert role="note">
+		mietkartei startet im {LAUNCH}. Bis dahin kann ein Update noch Daten verwerfen; lade dir unter
+		<a href="/einstellungen/export">Export</a> regelmäßig eine Sicherung herunter.
+	</Alert>
+{/if}
 
 {#if data.newDamageReports > 0}
 	<Alert tone="warning">
