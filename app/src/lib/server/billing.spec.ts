@@ -84,7 +84,8 @@ describe('noticeFor', () => {
 		expect(noticeFor(account(), new Date('2026-01-20T12:00:00.000Z'), true)).toEqual({
 			text: 'Deine Testphase endet am 31.01.2026.',
 			href: '/abo',
-			tone: 'info'
+			tone: 'info',
+			highlight: true
 		});
 		// 23 January noon: 8 days left → still info; 24 January noon: 7 days → warning.
 		expect(noticeFor(account(), new Date('2026-01-23T12:00:00.000Z'), true)?.tone).toBe('info');

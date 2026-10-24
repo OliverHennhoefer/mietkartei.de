@@ -104,6 +104,53 @@
 		accountOpen = false;
 	});
 
+	function setData(element: HTMLElement, key: string, value: string | undefined) {
+		if (element.dataset[key] === value) return;
+		if (value === undefined) delete element.dataset[key];
+		else element.dataset[key] = value;
+	}
+
+	/** Labels every body and footer cell of a table with its column heading, for the stacked rows on a phone. */
+	function labelTableCells() {
+		for (const table of document.querySelectorAll<HTMLTableElement>('table.table')) {
+			const headings = [...(table.tHead?.rows[0]?.cells ?? [])].flatMap((cell) =>
+				Array<string>(cell.colSpan).fill(cell.textContent?.trim() ?? '')
+			);
+			for (const body of [...table.tBodies, ...(table.tFoot ? [table.tFoot] : [])]) {
+				for (const row of body.rows) {
+					let column = 0;
+					for (const cell of row.cells) {
+						// Actions and a lone button speak for themselves; an empty cell is left out.
+						const action =
+							cell.classList.contains('actions') ||
+							cell.matches(':has(> form:only-child), :has(> button:only-child)');
+						const blank =
+							!cell.textContent?.trim() && !cell.querySelector('input, select, button, img, svg');
+						const label = cell.colSpan === 1 && !action && !blank ? headings[column] : '';
+						setData(cell, 'label', label || undefined);
+						setData(cell, 'blank', blank ? '' : undefined);
+						column += cell.colSpan;
+					}
+				}
+			}
+		}
+	}
+
+	// Tables come and go with navigation, forms and dialogs, so the labels follow every change.
+	$effect(() => {
+		let frame = 0;
+		const observer = new MutationObserver(() => {
+			cancelAnimationFrame(frame);
+			frame = requestAnimationFrame(labelTableCells);
+		});
+		labelTableCells();
+		observer.observe(document.body, { childList: true, subtree: true });
+		return () => {
+			cancelAnimationFrame(frame);
+			observer.disconnect();
+		};
+	});
+
 	const sections = $derived(settingsSections(data.role, data.billingEnabled));
 	// A settings page opened by its address renders the dialog itself (see SettingsFrame).
 	const onSettingsPage = $derived(!!settingsSectionOf(page.url.pathname));
@@ -189,6 +236,17 @@
 	<link rel="icon" href={favicon} type="image/svg+xml" />
 	<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
 	<meta name="theme-color" content="#181818" media="(prefers-color-scheme: dark)" />
+	<!-- The link preview of every app page; the demo page adds its own title and description. -->
+	<meta property="og:site_name" content="mietkartei" />
+	<meta property="og:locale" content="de_DE" />
+	<meta property="og:image" content="https://mietkartei.de/assets/social.png?v=neon" />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
+	<meta
+		property="og:image:alt"
+		content="mietkartei: Vermieten. Mit Überblick. Mieten, Bankumsätze und die Betriebskostenabrechnung ohne Excel-Chaos, daneben die Übersicht der App."
+	/>
+	<meta name="twitter:card" content="summary_large_image" />
 </svelte:head>
 
 <svelte:window
@@ -236,7 +294,11 @@
 				{/if}
 				{#if data.notice}
 					<!-- The subscription notice stays in this bar, so it never pushes the page down. -->
-					<p class="billing-notice {data.notice.tone}" role="note">
+					<p
+						class="billing-notice {data.notice.tone}"
+						class:highlight={data.notice.highlight}
+						role="note"
+					>
 						<Icon name={data.notice.tone === 'info' ? 'info' : 'alert'} size={16} />
 						<span>{data.notice.text}</span>
 						<a

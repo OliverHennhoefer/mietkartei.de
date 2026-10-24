@@ -58,7 +58,7 @@
 				<dd>{formatDate(data.currentPeriodEnd)}</dd>
 			{/if}
 			<dt>Preis</dt>
-			<dd>{data.price}, jederzeit kündbar</dd>
+			<dd><mark class="highlight">{data.price}</mark>, jederzeit kündbar</dd>
 		</dl>
 
 		{#if data.state === 'active'}
@@ -96,7 +96,7 @@
 				</form>
 			{:else}
 				<form method="POST" action="?/checkout" use:enhance>
-					<button type="submit">Abo abschließen</button>
+					<button type="submit" class="highlight">Abo abschließen</button>
 				</form>
 				{#if data.hasSubscription}
 					<form method="POST" action="?/portal" use:enhance>

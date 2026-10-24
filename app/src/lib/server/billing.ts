@@ -66,7 +66,13 @@ export function isReadOnly(state: BillingState): boolean {
 	return state === 'expired' || state === 'canceled';
 }
 
-export type BillingNotice = { text: string; href: string; tone: 'info' | 'warning' | 'danger' };
+/** `highlight` marks the trial notice with the brand's neon block, the only one that is temporary. */
+export type BillingNotice = {
+	text: string;
+	href: string;
+	tone: 'info' | 'warning' | 'danger';
+	highlight?: true;
+};
 
 /** The notice for an account, given the state and whether writes are refused after the trial. */
 export function noticeFor(
@@ -84,7 +90,12 @@ export function noticeFor(
 			if (account.subscriptionStatus === 'trialing') return undefined;
 			const end = trialEnd(account);
 			const tone = trialDaysLeft(account, now) <= 7 ? 'warning' : 'info';
-			return { text: `Deine Testphase endet am ${formatDate(dayOf(end))}.`, href, tone };
+			return {
+				text: `Deine Testphase endet am ${formatDate(dayOf(end))}.`,
+				href,
+				tone,
+				highlight: true
+			};
 		}
 		case 'past_due':
 			return { text: 'Die letzte Zahlung ist fehlgeschlagen.', href, tone: 'warning' };

@@ -83,6 +83,8 @@
 		<Field label="IBAN" error={errors?.iban}>
 			<input
 				name="iban"
+				autocapitalize="characters"
+				spellcheck="false"
 				defaultValue={values?.iban ?? ''}
 				placeholder="DE00 0000 0000 0000 0000 00"
 				aria-invalid={errors?.iban ? 'true' : undefined}
@@ -92,6 +94,8 @@
 		<Field label="BIC (optional)" error={errors?.bic}>
 			<input
 				name="bic"
+				autocapitalize="characters"
+				spellcheck="false"
 				defaultValue={values?.bic ?? ''}
 				aria-invalid={errors?.bic ? 'true' : undefined}
 			/>

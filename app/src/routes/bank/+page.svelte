@@ -456,6 +456,8 @@
 	.amount {
 		display: grid;
 		justify-items: end;
+		/* The rows keep their height when the details beside them are taller. */
+		align-content: start;
 		gap: 0.25rem;
 		font-size: 1.1rem;
 	}
@@ -494,5 +496,17 @@
 	}
 	nav a[aria-current='page'] {
 		font-weight: 600;
+	}
+	@media (max-width: 40rem) {
+		/* The amount stays top right, however long the purpose. */
+		.head {
+			flex-wrap: nowrap;
+		}
+		.who {
+			min-width: 0;
+		}
+		.amount {
+			white-space: nowrap;
+		}
 	}
 </style>
