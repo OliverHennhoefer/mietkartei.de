@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import { RESET_CONFIRMATION } from '#lib/forms/auth.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -36,8 +37,8 @@
 		<p>
 			Probier mietkartei mit einem kleinen Beispielbestand aus: zwei Objekte, fünf Mietverträge,
 			zwei Jahre Mietzahlungen, ein Bankkonto mit offenen Umsätzen, Belege des Vorjahres und zwei
-			Aufgaben. Das geht nur, solange dein Konto noch kein Objekt hat. Wenn du fertig bist, löschst
-			du das Konto unten und fängst neu an.
+			Aufgaben. Das geht nur, solange dein Konto noch kein Objekt hat. Wenn du fertig bist, setzt du
+			das Konto unten auf Werkseinstellungen zurück und fängst neu an.
 		</p>
 		{#if form?.demoFailed}
 			<Alert tone="danger"><p>{form.demoFailed}</p></Alert>
@@ -50,6 +51,55 @@
 
 {#if form?.failed}
 	<Alert tone="danger"><p>{form.failed}</p></Alert>
+{/if}
+
+{#if data.isOwner}
+	<section class="card danger-zone reset" aria-labelledby="zuruecksetzen">
+		<h2 id="zuruecksetzen">Auf Werkseinstellungen zurücksetzen</h2>
+		<p>
+			Das löscht alle Daten deines Kontos endgültig: Objekte, Einheiten, Mieter, Mietverträge,
+			Zahlungen, Bankumsätze, Belege, Abrechnungen, Aufgaben, Dokumente und das Protokoll. Dein
+			Konto bleibt bestehen, ebenso deine Anmeldung, die weiteren Zugänge mit ihren Rollen, die
+			API-Schlüssel, dein Absender und dein Abo. Lade vorher den
+			<a href="/einstellungen/export">Export</a> herunter.
+		</p>
+		{#if form?.resetFailed}
+			<Alert tone="danger"><p>{form.resetFailed}</p></Alert>
+		{/if}
+		<form method="POST" action="?/reset" class="form" use:enhance>
+			<label>
+				Tippe {RESET_CONFIRMATION} zur Bestätigung
+				<input
+					name="confirmation"
+					autocomplete="off"
+					spellcheck="false"
+					maxlength="50"
+					aria-invalid={form?.resetErrors?.confirmation ? 'true' : undefined}
+					required
+				/>
+				{#if form?.resetErrors?.confirmation}
+					<span class="error">{form.resetErrors.confirmation}</span>
+				{/if}
+			</label>
+			<label>
+				Passwort
+				<input
+					name="password"
+					type="password"
+					autocomplete="current-password"
+					maxlength="200"
+					aria-invalid={form?.resetErrors?.password ? 'true' : undefined}
+					required
+				/>
+				{#if form?.resetErrors?.password}
+					<span class="error">{form.resetErrors.password}</span>
+				{/if}
+			</label>
+			<div class="form-actions">
+				<button type="submit" class="danger">Alle Daten löschen</button>
+			</div>
+		</form>
+	</section>
 {/if}
 
 <section class="card danger-zone" aria-labelledby="konto-loeschen">
@@ -93,6 +143,9 @@
 	}
 	.leave {
 		margin-top: 1.5rem;
+	}
+	.reset {
+		margin-bottom: 1.5rem;
 	}
 	.danger-zone {
 		max-width: 45rem;

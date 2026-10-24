@@ -1,6 +1,11 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { confirmPasswordError, parseDeleteAccount } from '#lib/forms/auth.ts';
-import { deleteAccount } from '#lib/server/accounts.ts';
+import {
+	confirmPasswordError,
+	parseDeleteAccount,
+	parseResetAccount,
+	type ResetAccountInput
+} from '#lib/forms/auth.ts';
+import { deleteAccount, resetAccount } from '#lib/server/accounts.ts';
 import { confirmPassword } from '#lib/server/auth.ts';
 import {
 	billingEnabled,
@@ -67,6 +72,33 @@ export const actions: Actions = {
 		}
 		deleteSessionCookie(event);
 		redirect(303, '/anmelden');
+	},
+	// The reset deletes all data but keeps the account, its users and the subscription. The typed
+	// word and the password again are the confirmation; errors carry their own keys, because the
+	// deletion form on the same page has a password field too.
+	reset: async ({ request, locals }) => {
+		requireOwner(locals);
+		const result = parseResetAccount(await request.formData());
+		if (!result.ok) return fail(400, { resetErrors: result.errors });
+		const context = auditContext(locals);
+		const checked = await confirmPassword(locals.db, context, result.data.password);
+		if (checked !== 'ok') {
+			const resetErrors: Partial<Record<keyof ResetAccountInput, string>> = {
+				password: confirmPasswordError(checked)
+			};
+			return fail(400, { resetErrors });
+		}
+		// No storage given: the default adapter of the target deletes the documents' files. A
+		// failure leaves the data (or at least most of it) in place, so the owner can try again.
+		try {
+			await resetAccount(locals.db, context);
+		} catch (error) {
+			console.error('[account] The account was not reset:', error);
+			return fail(503, {
+				resetFailed: 'Das Konto konnte nicht zurückgesetzt werden. Bitte versuche es erneut.'
+			});
+		}
+		redirect(303, '/');
 	},
 	delete: async (event) => {
 		const { request, locals } = event;

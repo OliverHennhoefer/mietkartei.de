@@ -142,9 +142,27 @@ export function parseDeleteAccount(form: FormData): ParseResult<DeleteAccountInp
 	return parser.result(() => ({ password: value }));
 }
 
-/** Why a password asked for again (deleting, leaving or handing over the account) was refused. */
+/** Why a password asked for again (resetting, deleting, leaving, handing over the account) failed. */
 export function confirmPasswordError(reason: 'wrong-password' | 'locked' | 'missing'): string {
 	return reason === 'locked'
 		? 'Zu viele Fehlversuche. Bitte warte 15 Minuten.'
 		: 'Das Passwort stimmt nicht.';
+}
+
+/** The word typed to confirm the reset, so it is never clicked through by accident. */
+export const RESET_CONFIRMATION = 'ZURÜCKSETZEN';
+
+export type ResetAccountInput = { confirmation: string; password: string };
+
+/** The "Auf Werkseinstellungen zurücksetzen" form: the confirmation word and the password. */
+export function parseResetAccount(form: FormData): ParseResult<ResetAccountInput> {
+	const parser = new FormParser<ResetAccountInput>(form);
+	const confirmation = parser.raw('confirmation');
+	if (confirmation.toUpperCase() !== RESET_CONFIRMATION) {
+		parser.fail('confirmation', `Bitte tippe ${RESET_CONFIRMATION} zur Bestätigung.`);
+	}
+	const value = password(form, 'password');
+	if (!value) parser.fail('password', 'Bitte gib dein Passwort an.');
+	else if (value.length > 200) parser.fail('password', 'Das Passwort stimmt nicht.');
+	return parser.result(() => ({ confirmation, password: value }));
 }
