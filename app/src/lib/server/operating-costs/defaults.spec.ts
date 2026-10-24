@@ -103,8 +103,8 @@ describe('ensureDefaults', () => {
 			['Gemeinschaftsantenne und Breitbandnetz', 'Wohnfläche'],
 			['Wascheinrichtungen', 'Wohnfläche'],
 			['Sonstige Betriebskosten', 'Wohnfläche'],
-			['Verwaltungskosten (nicht umlagefähig)', null],
-			['Instandhaltung (nicht umlagefähig)', null]
+			['Verwaltungskosten (nicht umlagefähig)', 'Wohnfläche'],
+			['Instandhaltung (nicht umlagefähig)', 'Wohnfläche']
 		]);
 	});
 

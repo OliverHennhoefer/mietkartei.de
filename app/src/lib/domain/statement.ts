@@ -1375,7 +1375,14 @@ export function computeStatement(
 		let undistributed = 0;
 		const sumOf = (amounts: number[]) => amounts.reduce((sum, amount) => sum + amount, 0);
 
-		type LeasePart = { amount: number; shares: string[]; method?: SplitMethod };
+		// A lease's share per unit; a unit that bears nothing (the Stellplatz without area next to
+		// the flat) only shows when no unit of the lease bears anything.
+		type LeasePart = {
+			amount: number;
+			shares: string[];
+			zeroShares: string[];
+			method?: SplitMethod;
+		};
 		const partsByLease = new Map<string, LeasePart>();
 		for (const component of components) {
 			const unitAmounts = component.direct ?? distributeCents(component.amount, component.weights);
@@ -1411,12 +1418,17 @@ export function computeStatement(
 				const parts = distributeCents(unitAmount, weights);
 				undistributed += unitAmount - sumOf(parts);
 				occupancy.leases.forEach((occupant, i) => {
-					const part = partsByLease.get(occupant.lease.id) ?? { amount: 0, shares: [] };
+					const part = partsByLease.get(occupant.lease.id) ?? {
+						amount: 0,
+						shares: [],
+						zeroShares: []
+					};
 					part.amount += parts[i];
 					if (method) part.method = method;
 					if (parts[i] !== 0 || occupancy.leases.length === 1) {
 						const detail = details[i] ? ` · ${details[i]}` : '';
-						part.shares.push(`${component.label}${component.unitShare(unitIndex)}${detail}`);
+						const share = `${component.label}${component.unitShare(unitIndex)}${detail}`;
+						(parts[i] !== 0 ? part.shares : part.zeroShares).push(share);
 					}
 					partsByLease.set(occupant.lease.id, part);
 				});
@@ -1467,7 +1479,7 @@ export function computeStatement(
 				itemTotal: total,
 				allocated,
 				keyTotal: components.map((c) => `${c.label}${c.keyTotal}`).join(' · '),
-				share: part.shares.join(' · '),
+				share: (part.shares.length > 0 ? part.shares : part.zeroShares).join(' · '),
 				method: part.method,
 				amount: part.amount,
 				co2

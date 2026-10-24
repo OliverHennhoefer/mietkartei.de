@@ -1382,6 +1382,22 @@ describe('computeStatement edge cases', () => {
 		});
 	});
 
+	it('leaves out the share of a parking space without area that is let with the flat', () => {
+		const input = scenario();
+		input.units = [
+			...input.units,
+			{ id: 'sp', name: 'Stellplatz', kind: 'parking', floorArea: null }
+		];
+		input.leases = input.leases.map((entry) =>
+			entry.id === 'l-eg' ? { ...entry, unitIds: [...entry.unitIds, 'sp'] } : entry
+		);
+		const eg = computeStatement(input, options).leases.find((entry) => entry.leaseId === 'l-eg')!;
+		// Not "72,5 m² von 184,5 m² · 365 von 365 Tagen · 0 m² von 184,5 m² · 365 von 365 Tagen".
+		expect(eg.lines.filter((line) => line.keyKind === 'area').map((line) => line.share)).toEqual([
+			'72,5\u00a0m² von 184,5\u00a0m² · 365 von 365 Tagen'
+		]);
+	});
+
 	it('ignores leases whose units are not in the property and building meters', () => {
 		const input = scenario();
 		input.leases = [
