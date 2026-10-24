@@ -40,7 +40,7 @@ export type TransactionFilter = {
 	limit?: number;
 };
 
-export const DEFAULT_LIMIT = 200;
+const DEFAULT_LIMIT = 200;
 
 /** Newest first; identical lines of one day in the order they stood in the file. */
 export async function listTransactions(

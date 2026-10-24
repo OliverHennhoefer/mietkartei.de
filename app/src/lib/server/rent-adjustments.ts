@@ -42,7 +42,7 @@ function refuse(message: string): AdjustmentResult {
 // Rent changes
 
 /** One change of the lease, or undefined when it is not the lease's or not the account's. */
-export async function getRentChange(
+async function getRentChange(
 	db: Database,
 	accountId: string,
 	leaseId: string,

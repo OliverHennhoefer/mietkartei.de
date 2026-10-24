@@ -36,7 +36,7 @@ export type InsuranceYear = DateRange & { amount: number; costItemId: string | n
 export type InsurancePolicyWithYears = InsurancePolicy & { years: InsuranceYear[] };
 
 /** "Wohngebäudeversicherung (Allianz)" for audit lines and Belege. */
-export function policyLabel(policy: { kind: InsuranceKind; insurer: string }): string {
+function policyLabel(policy: { kind: InsuranceKind; insurer: string }): string {
 	return `${insuranceKindLabels[policy.kind]} (${policy.insurer})`;
 }
 

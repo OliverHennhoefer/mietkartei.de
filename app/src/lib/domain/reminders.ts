@@ -14,7 +14,7 @@ export const reminderLevelLabels: Record<ReminderLevel, string> = {
 };
 
 /** Days between the letter and the payment deadline the form suggests. */
-export const DEFAULT_PAYMENT_DAYS = 14;
+const DEFAULT_PAYMENT_DAYS = 14;
 
 export function defaultPaymentDeadline(date: IsoDate): IsoDate {
 	return addDays(date, DEFAULT_PAYMENT_DAYS);

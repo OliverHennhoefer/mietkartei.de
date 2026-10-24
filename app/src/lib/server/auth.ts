@@ -321,6 +321,16 @@ export async function checkCurrentPassword(
 	return locked ? 'locked' : 'wrong-password';
 }
 
+/** The signed-in user with their password hash, looked up in their account. */
+export async function signedInUser(db: Database, context: AuditContext) {
+	if (!context.userId) return undefined;
+	const [user] = await db
+		.select({ id: users.id, email: users.email, passwordHash: users.passwordHash })
+		.from(users)
+		.where(and(eq(users.id, context.userId), eq(users.accountId, context.accountId)));
+	return user;
+}
+
 /**
  * checkCurrentPassword for the signed-in user, looked up in their account: the confirmation the
  * account deletion asks for. 'missing' when the user is not in the account.
@@ -330,11 +340,7 @@ export async function confirmPassword(
 	context: AuditContext,
 	password: string
 ): Promise<'ok' | 'wrong-password' | 'locked' | 'missing'> {
-	if (!context.userId) return 'missing';
-	const [user] = await db
-		.select({ email: users.email, passwordHash: users.passwordHash })
-		.from(users)
-		.where(and(eq(users.id, context.userId), eq(users.accountId, context.accountId)));
+	const user = await signedInUser(db, context);
 	if (!user) return 'missing';
 	return checkCurrentPassword(db, user, password);
 }
@@ -357,11 +363,7 @@ export async function changePassword(
 	context: AuditContext,
 	input: { currentPassword: string; password: string; keepToken: string | undefined }
 ): Promise<{ ok: true } | { ok: false; reason: 'wrong-password' | 'locked' | 'missing' }> {
-	if (!context.userId) return { ok: false, reason: 'missing' };
-	const [user] = await db
-		.select({ id: users.id, email: users.email, passwordHash: users.passwordHash })
-		.from(users)
-		.where(and(eq(users.id, context.userId), eq(users.accountId, context.accountId)));
+	const user = await signedInUser(db, context);
 	if (!user) return { ok: false, reason: 'missing' };
 	const checked = await checkCurrentPassword(db, user, input.currentPassword);
 	if (checked !== 'ok') return { ok: false, reason: checked };

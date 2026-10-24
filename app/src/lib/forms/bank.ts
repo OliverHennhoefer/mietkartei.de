@@ -102,7 +102,7 @@ export function toColumnMapping(mapping: MappingFields): ColumnMapping {
 	};
 }
 
-export const assignmentTargets = ['rent', 'deposit'] as const;
+const assignmentTargets = ['rent', 'deposit'] as const;
 export type AssignmentTarget = (typeof assignmentTargets)[number];
 
 export type AssignmentInput = {

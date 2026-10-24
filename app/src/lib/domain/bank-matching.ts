@@ -47,7 +47,7 @@ export type BankPreset = {
 export const GENERIC_PRESET_ID = 'generic';
 
 /** The exports this import understands without a column mapping; the first match wins. */
-export const bankPresets: readonly BankPreset[] = [
+const bankPresets: readonly BankPreset[] = [
 	{
 		id: 'sparkasse-camt',
 		name: 'Sparkasse (CSV-CAMT)',
