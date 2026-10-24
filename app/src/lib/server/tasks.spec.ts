@@ -123,6 +123,31 @@ describe('listTasks', () => {
 		expect(done.map((task) => task.title)).toEqual(['Erledigt 2', 'Erledigt 1']);
 	});
 
+	it('keeps tasks due on the same day in the order they were created', async () => {
+		const first = await createTask(db, contextA, input({ title: 'Zuerst', dueDate: '2026-10-01' }));
+		const second = await createTask(
+			db,
+			contextA,
+			input({ title: 'Danach', dueDate: '2026-10-01' })
+		);
+		const third = await createTask(
+			db,
+			contextA,
+			input({ title: 'Zuletzt', dueDate: '2026-10-01' })
+		);
+		if (!first.ok || !second.ok || !third.ok) throw new Error('setup failed');
+		// createdAt has millisecond resolution; spread the rows so the order is defined.
+		const base = Date.now();
+		for (const [index, id] of [third.id, first.id, second.id].entries()) {
+			await db
+				.update(tasks)
+				.set({ createdAt: new Date(base + index * 1000) })
+				.where(eq(tasks.id, id));
+		}
+		const { open } = await listTasks(db, 'a');
+		expect(open.map((task) => task.title)).toEqual(['Zuletzt', 'Zuerst', 'Danach']);
+	});
+
 	it('does not leak into another account', async () => {
 		const mine = await createTask(db, contextA, input({ title: 'Meine' }));
 		const theirs = await createTask(db, contextB, input({ title: 'Fremde' }));

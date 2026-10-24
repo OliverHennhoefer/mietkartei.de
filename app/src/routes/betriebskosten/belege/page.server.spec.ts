@@ -3,6 +3,8 @@ import { eq } from 'drizzle-orm';
 import type { Database } from '#lib/server/db/index.ts';
 import { costItems, documents } from '#lib/server/db/schema.ts';
 import { createPolicy } from '#lib/server/insurance.ts';
+import { MAX_ACCOUNT_DOCUMENT_BYTES } from '#lib/server/documents.ts';
+import { documentErrorMessage } from '#lib/forms/documents.ts';
 import {
 	createCircle,
 	getCostItem,
@@ -239,6 +241,22 @@ describe('belege/[id]', () => {
 		expect(await act('upload', { receipt: huge })).toMatchObject({
 			fail: 400,
 			data: { form: 'upload', errors: { receipt: expect.any(String) } }
+		});
+		expect((await getCostItem(db, 'a', itemId))!.receipts).toEqual([]);
+	});
+
+	it('refuses a receipt when the storage of the account is full', async () => {
+		await db.insert(documents).values({
+			id: 'voll',
+			accountId: 'a',
+			name: 'voll.pdf',
+			mimeType: 'application/pdf',
+			size: MAX_ACCOUNT_DOCUMENT_BYTES,
+			storageKey: 'a/voll'
+		});
+		expect(await act('upload', { receipt: pdf() })).toEqual({
+			fail: 400,
+			data: { form: 'upload', errors: { receipt: documentErrorMessage('quota') } }
 		});
 		expect((await getCostItem(db, 'a', itemId))!.receipts).toEqual([]);
 	});
