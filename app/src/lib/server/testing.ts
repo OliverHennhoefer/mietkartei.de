@@ -223,7 +223,11 @@ export function routeEvent(db: Database, options: RouteEventOptions = {}): never
 		locals: { db, user: options.user === undefined ? ownerA : (options.user ?? undefined) },
 		params: options.params ?? {},
 		url,
-		request: new Request(url, body ? { method: 'POST', body } : undefined),
+		// Browsers send the page's origin with a form post.
+		request: new Request(
+			url,
+			body ? { method: 'POST', body, headers: { origin: url.origin } } : undefined
+		),
 		cookies: {
 			get: (name: string) => jar.get(name),
 			getAll: () => [...jar].map(([name, value]) => ({ name, value })),

@@ -19,6 +19,15 @@ describe('load', () => {
 	it('sends signed-in users home and a new instance to the registration', async () => {
 		expect(await outcome(() => load(routeEvent(db)))).toEqual({ redirect: '/' });
 		expect(await outcome(() => load(routeEvent(db, { user: null })))).toEqual({ data: undefined });
+		const next = '/oauth/authorize?client_id=x';
+		const url = `/anmelden?weiter=${encodeURIComponent(next)}`;
+		expect(await outcome(() => load(routeEvent(db, { url })))).toEqual({ redirect: next });
+		for (const unsafe of ['//evil.example', '/\\evil.example', 'https://evil.example']) {
+			const foreign = `/anmelden?weiter=${encodeURIComponent(unsafe)}`;
+			expect(await outcome(() => load(routeEvent(db, { url: foreign })))).toEqual({
+				redirect: '/'
+			});
+		}
 		await db.delete(users);
 		expect(await outcome(() => load(routeEvent(db, { user: null })))).toEqual({
 			redirect: '/registrieren'
@@ -33,6 +42,19 @@ describe('sign in', () => {
 			redirect: '/'
 		});
 		expect(cookies.get('session')).toMatch(/^[\w-]{43}$/);
+	});
+
+	it('returns to the page that sent the visitor to sign in', async () => {
+		const result = await outcome(() =>
+			actions.default(
+				routeEvent(db, {
+					user: null,
+					url: '/anmelden?weiter=%2Foauth%2Fauthorize%3Fclient_id%3Dx',
+					form: { email: 'a@example.org', password: PASSWORD }
+				})
+			)
+		);
+		expect(result).toEqual({ redirect: '/oauth/authorize?client_id=x' });
 	});
 
 	it('refuses missing, overlong and wrong credentials without a cookie', async () => {

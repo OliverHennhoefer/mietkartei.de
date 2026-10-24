@@ -20,6 +20,8 @@ declare global {
 			db: Database;
 			/** Set for signed-in requests; the hook redirects everything else to the sign-in page. */
 			user: SessionUser | undefined;
+			/** An origin outside the app a form on the page redirects to, see allowFormRedirect. */
+			formRedirectOrigin?: string;
 		}
 		// interface PageData {}
 		interface PageState {

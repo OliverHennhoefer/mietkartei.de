@@ -3,8 +3,17 @@ import { createSession, hasUsers, signIn } from '#lib/server/auth.ts';
 import { setSessionCookie } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ locals }) => {
-	if (locals.user) redirect(303, '/');
+/**
+ * Where to go after signing in: ?weiter=<path>, e.g. back to the consent page of an app. Only paths
+ * of this app, so a link cannot send someone elsewhere.
+ */
+function nextPath(url: URL): string {
+	const next = url.searchParams.get('weiter');
+	return next && /^\/(?![/\\])/.test(next) ? next : '/';
+}
+
+export const load: PageServerLoad = async ({ locals, url }) => {
+	if (locals.user) redirect(303, nextPath(url));
 	// A new instance has no users yet; the first one has to register.
 	if (!(await hasUsers(locals.db))) redirect(303, '/registrieren');
 };
@@ -32,6 +41,6 @@ export const actions: Actions = {
 
 		const session = await createSession(event.locals.db, result.userId);
 		setSessionCookie(event, session.token, session.expiresAt);
-		redirect(303, '/');
+		redirect(303, nextPath(event.url));
 	}
 };
