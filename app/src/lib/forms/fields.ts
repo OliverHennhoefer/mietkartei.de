@@ -229,7 +229,7 @@ export function isValidIban(iban: string): boolean {
 }
 
 /** Builds a FormData from a plain object, for tests. Files are appended as they are. */
-export function formDataOf(entries: Record<string, string | File | (string | File)[]>): FormData {
+export function formDataOf(entries: Record<string, string | string[] | File>): FormData {
 	const data = new FormData();
 	for (const [name, value] of Object.entries(entries)) {
 		if (Array.isArray(value)) for (const item of value) data.append(name, item);

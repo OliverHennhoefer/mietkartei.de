@@ -194,8 +194,8 @@ export type RouteEventOptions = {
 	params?: Record<string, string>;
 	/** Path and query, e.g. '/objekte?neu=1'. */
 	url?: string;
-	/** Posts these fields as a form; an array posts the field once per value, e.g. several files. */
-	form?: Record<string, string | File | (string | File)[]>;
+	/** Posts these fields as a form; an array posts the field once per value. */
+	form?: Record<string, string | string[] | File>;
 	/** The cookie jar; the test keeps it to look at what the route set. */
 	cookies?: Map<string, string>;
 	/** What the layouts above the page loaded. */

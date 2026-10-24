@@ -1,7 +1,6 @@
 import { count, eq } from 'drizzle-orm';
 import { countUnmatched } from '#lib/server/bank/transactions.ts';
 import { listBankAccounts } from '#lib/server/bank/accounts.ts';
-import { countNewDamageReports } from '#lib/server/damage-reports.ts';
 import { costCategories } from '#lib/server/db/schema.ts';
 import { countDeadlines } from '#lib/server/deadlines.ts';
 import { listLeases, listUnitsWithProperty } from '#lib/server/leases.ts';
@@ -43,8 +42,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		deadlines,
 		openTasks,
 		bankAccounts,
-		[categories],
-		newDamageReports
+		[categories]
 	] = await Promise.all([
 		listProperties(locals.db, accountId),
 		listTenants(locals.db, accountId),
@@ -58,8 +56,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		locals.db
 			.select({ value: count() })
 			.from(costCategories)
-			.where(eq(costCategories.accountId, accountId)),
-		countNewDamageReports(locals.db, accountId)
+			.where(eq(costCategories.accountId, accountId))
 	]);
 
 	// Rückstand is what is overdue today, not this month's rent before its due day.
@@ -82,7 +79,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 	};
 	return {
 		firstRun: firstRun.leases && firstRun.bankAccounts ? null : firstRun,
-		newDamageReports,
 		tiles: {
 			arrearsTotal: arrears.reduce((sum, balance) => sum + balance.overdue, 0),
 			arrearsCount: arrears.length,
