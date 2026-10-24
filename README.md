@@ -7,7 +7,7 @@
 
 ### Die Hausverwaltung von Vermietern für Vermieter.
 
-Mieten, Bankumsätze und die Betriebskostenabrechnung für deine paar Wohnungen.<br>
+Mieten, Bankumsätze und die Betriebskostenabrechnung für private Vermieter an einem Ort.<br>
 Open Source, nachvollziehbar gerechnet und ohne Einarbeitung.
 
 [![App](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/app.yml/badge.svg)](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/app.yml)
