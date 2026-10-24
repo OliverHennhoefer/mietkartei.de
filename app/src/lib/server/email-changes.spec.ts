@@ -176,7 +176,8 @@ describe('confirmEmailChange', () => {
 		});
 		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'update'));
 		expect(audit.map((entry) => entry.summary)).toContain('E-Mail-Adresse geändert');
-		expect(audit.every((entry) => !entry.summary.includes('example.org'))).toBe(true);
+		// No address, old or new, ends up in the log.
+		for (const entry of audit) expect(entry.summary).not.toContain('@');
 	});
 
 	it('ends every session when the browser has none of the user', async () => {
