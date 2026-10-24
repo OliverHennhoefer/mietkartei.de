@@ -98,6 +98,9 @@ describe('downloadIndexValues', () => {
 			'Destatis meldet: Fehler bei der Anmeldung.'
 		);
 		await expect(
+			downloadIndexValues('token', async () => new Response('{ kaputt'))
+		).rejects.toThrow('Destatis antwortete ohne Tabelle.');
+		await expect(
 			downloadIndexValues('token', async () => new Response('', { status: 503 }))
 		).rejects.toThrow('Status 503');
 		await expect(
