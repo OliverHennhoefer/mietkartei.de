@@ -249,7 +249,11 @@
 				{/if}
 				{#if data.notice}
 					<!-- The subscription notice stays in this bar, so it never pushes the page down. -->
-					<p class="billing-notice {data.notice.tone}" role="note">
+					<p
+						class="billing-notice {data.notice.tone}"
+						class:highlight={data.notice.highlight}
+						role="note"
+					>
 						<Icon name={data.notice.tone === 'info' ? 'info' : 'alert'} size={16} />
 						<span>{data.notice.text}</span>
 						<a

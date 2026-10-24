@@ -24,6 +24,10 @@
 	/* Charts: money in dark, money out mid-grey; told apart by lightness, never by hue alone. */
 	--color-chart-income: #202020;
 	--color-chart-expense: #8c8c8c;
+	/* The neon block of the logo; used sparingly, only around the subscription. Black text on it
+	   in both colour schemes. */
+	--color-highlight: #f5ff00;
+	--color-highlight-text: #000;
 	--radius: 10px;
 	--sidebar-width: 15.5rem;
 	--header-height: 4rem;
@@ -173,6 +177,14 @@ textarea {
 }
 .billing-notice.danger {
 	color: var(--color-danger);
+}
+.billing-notice.highlight {
+	padding: 0.1rem 0.5rem;
+	background: var(--color-highlight);
+	color: var(--color-highlight-text);
+}
+.billing-notice.highlight a {
+	text-decoration-color: currentColor;
 }
 
 /* The account button top right and its menu. */
@@ -882,6 +894,24 @@ button.danger:hover,
 	background: var(--color-danger-subtle);
 	border-color: var(--color-danger-border);
 	color: var(--color-danger);
+}
+button.highlight,
+.button.highlight {
+	background: var(--color-highlight);
+	color: var(--color-highlight-text);
+	border-color: var(--color-highlight);
+	font-weight: 600;
+}
+button.highlight:hover,
+.button.highlight:hover {
+	background: color-mix(in srgb, var(--color-highlight), #000 6%);
+	border-color: transparent;
+}
+mark.highlight {
+	padding: 0 0.2em;
+	background: var(--color-highlight);
+	color: var(--color-highlight-text);
+	font-weight: 600;
 }
 button.link {
 	min-height: auto;
