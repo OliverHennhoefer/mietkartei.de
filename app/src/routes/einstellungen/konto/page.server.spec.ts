@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
-import { accounts, auditLog, outbox, properties, users } from '#lib/server/db/schema.ts';
+import { accounts, auditLog, documents, outbox, properties, users } from '#lib/server/db/schema.ts';
 import {
 	managerA,
 	outcome,
@@ -194,6 +194,23 @@ describe('reset', () => {
 		expect(await reset({ confirmation: 'ZURÜCKSETZEN', password: 'falsch' })).toEqual({
 			fail: 400,
 			data: { resetErrors: { password: 'Das Passwort stimmt nicht.' } }
+		});
+		expect(await propertyCount()).toBe(1);
+	});
+
+	it('keeps the data when the files cannot be deleted', async () => {
+		await seedUnit(db, 'a');
+		await db.insert(documents).values({
+			accountId: 'a',
+			name: 'Beleg.pdf',
+			mimeType: 'application/pdf',
+			size: 1,
+			storageKey: 'a/beleg'
+		});
+		storage.delete.mockRejectedValue(new Error('R2 nicht erreichbar'));
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		expect(await reset({ confirmation: 'ZURÜCKSETZEN', password: PASSWORD })).toMatchObject({
+			fail: 503
 		});
 		expect(await propertyCount()).toBe(1);
 	});
