@@ -1260,3 +1260,87 @@ describe('helpers', () => {
 		expect(personsOn([], '2025-01-01')).toBe(1);
 	});
 });
+
+describe('computeStatement edge cases', () => {
+	it('blocks items whose category or key is gone and skips items outside the period', () => {
+		const input = scenario();
+		input.items = [
+			...input.items,
+			item('i-ohne-art', 'Ohne Kostenart', 'c-geloescht', 'k-area', 10000),
+			item('i-ohne-schluessel', 'Ohne Schlüssel', 'c-grundsteuer', 'k-geloescht', 10000),
+			item('i-2024', 'Grundsteuer 2024', 'c-grundsteuer', 'k-area', 120000, {
+				periodStart: '2024-01-01',
+				periodEnd: '2024-12-31'
+			})
+		];
+		const result = computeStatement(input, options);
+		expect(
+			result.property.warnings
+				.filter((warning) => warning.blocking)
+				.map((warning) => [warning.code, warning.itemId])
+		).toEqual([
+			['unknown_category', 'i-ohne-art'],
+			['unknown_key', 'i-ohne-schluessel']
+		]);
+		expect(result.property.items.map((entry) => entry.itemId)).not.toContain('i-2024');
+		// The two broken items count as costs but go to no lease.
+		expect(result.property.costsTotal).toBe(620000 + 20000);
+		expect(result.leases.reduce((sum, lease) => sum + lease.costsTotal, 0)).toBe(
+			computeStatement(scenario(), options).leases.reduce((sum, lease) => sum + lease.costsTotal, 0)
+		);
+	});
+
+	it('shares a circle item among the circle units only and splits CO₂ per circle', () => {
+		const input = scenario();
+		input.circles = [{ id: 'c-og-dg', name: 'Hinterhaus', unitIds: ['og', 'dg'] }];
+		input.items = input.items.map((entry) =>
+			entry.id === 'i-hausmeister' ? { ...entry, billingCircleId: 'c-og-dg' } : entry
+		);
+		const result = computeStatement(input, options);
+		const hausmeister = (leaseId: string) =>
+			lineAmounts(result.leases.find((lease) => lease.leaseId === leaseId)!).Hauswart ?? 0;
+		// 900 € over two units: EG pays nothing, OG and DG 450 € each by the days of their leases.
+		expect(hausmeister('l-eg')).toBe(0);
+		expect(hausmeister('l-og-a') + hausmeister('l-og-b')).toBe(45000);
+	});
+
+	it('cannot split CO₂ for a circle of parking spaces without area', () => {
+		const input = scenario();
+		input.units = [...input.units, { id: 'sp', name: 'Stellplatz', kind: 'parking', floorArea: null }];
+		input.circles = [{ id: 'c-sp', name: 'Tiefgarage', unitIds: ['sp'] }];
+		input.items = input.items.map((entry) =>
+			entry.id === 'i-heizung' ? { ...entry, billingCircleId: 'c-sp' } : entry
+		);
+		const result = computeStatement(input, options);
+		expect(result.property.warnings).toContainEqual({
+			code: 'co2_missing_area',
+			blocking: true,
+			itemId: 'i-heizung',
+			href: '/objekte/p',
+			message:
+				'Für die CO₂-Kostenaufteilung des Belegs „Gasrechnung“ fehlt die Wohnfläche der Einheiten; ohne sie lässt sich der Anteil des Vermieters nicht bestimmen.'
+		});
+	});
+
+	it('ignores leases whose units are not in the property and building meters', () => {
+		const input = scenario();
+		input.leases = [
+			...input.leases,
+			lease(
+				'l-fremd',
+				['nachbarhaus'],
+				{ start: '2025-01-01', end: null },
+				1,
+				{ operating: 10000, heating: 5000, months: months(1, 12) },
+				{ salutation: 'Herr', firstName: 'Fritz', lastName: 'Fremd' }
+			)
+		];
+		input.meters = [
+			...input.meters,
+			meter('m-haus', null as unknown as string, [reading('2025-01-01', 0), reading('2025-12-31', 5000)])
+		];
+		const result = computeStatement(input, options);
+		expect(result.leases.map((entry) => entry.leaseId)).not.toContain('l-fremd');
+		expect(result.property.costsTotal).toBe(620000);
+	});
+});

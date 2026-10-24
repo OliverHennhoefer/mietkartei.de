@@ -300,5 +300,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          docker push --all-tags "$IMAGE"
+          # GHCR now and then rejects a push with "unknown blob"; layers already pushed are kept,
+          # so a later attempt only sends what is missing.
+          for attempt in 1 2 3; do
+            if docker push --all-tags "$IMAGE"; then
+              docker logout ghcr.io
+              exit 0
+            fi
+            echo "::warning::Push attempt $attempt failed, retrying."
+            sleep $((attempt * 10))
+          done
           docker logout ghcr.io
+          exit 1
