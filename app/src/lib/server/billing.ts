@@ -124,12 +124,12 @@ const writablePaths = new Set(['/abo', '/abmelden', '/api/webhooks/stripe']);
 const writablePrefixes = ['/passwort-zuruecksetzen/', '/e-mail-bestaetigen/', '/registrieren/'];
 
 /**
- * Form actions that still work while the account is read-only: leaving the service (deleting the
- * account), securing the sign-in (name, email, password) and withdrawing an API key's access must
- * never depend on paying.
+ * Form actions that still work while the account is read-only: leaving the service (deleting or
+ * leaving the account), securing the sign-in (name, email, password) and withdrawing an API key's
+ * access must never depend on paying.
  */
 const writableActions = new Map([
-	['/einstellungen/konto', new Set(['delete'])],
+	['/einstellungen/konto', new Set(['delete', 'leave'])],
 	['/einstellungen/profil', new Set(['profile', 'password'])],
 	['/einstellungen/api-schluessel', new Set(['revoke'])]
 ]);

@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
-import { accounts, properties, users } from '#lib/server/db/schema.ts';
+import { accounts, auditLog, outbox, properties, users } from '#lib/server/db/schema.ts';
 import {
 	managerA,
 	outcome,
@@ -17,7 +17,8 @@ const env = vi.hoisted(() => ({
 	STRIPE_SECRET_KEY: '',
 	STRIPE_PRICE_ID: '',
 	STRIPE_API_BASE: 'http://stripe.test',
-	BILLING_REQUIRED: false
+	BILLING_REQUIRED: false,
+	MAIL_TRANSPORT: 'outbox'
 }));
 vi.mock('$app/env/private', () => env);
 
@@ -100,6 +101,21 @@ describe('delete', () => {
 		expect(await accountExists('a')).toBe(true);
 	});
 
+	it('tells the other users that their access ended', async () => {
+		await db.insert(users).values({
+			id: 'manager-a',
+			accountId: 'a',
+			email: 'm@example.org',
+			passwordHash: 'x',
+			role: 'manager'
+		});
+		expect(await remove(PASSWORD)).toEqual({ redirect: '/anmelden' });
+		const mails = await db.select().from(outbox);
+		expect(mails.map((mail) => [mail.to, mail.subject])).toEqual([
+			['m@example.org', 'Dein Zugang zu mietkartei wurde beendet']
+		]);
+	});
+
 	it('is for owners only', async () => {
 		await db.insert(users).values({
 			id: 'manager-a',
@@ -132,5 +148,46 @@ describe('delete', () => {
 		vi.spyOn(console, 'error').mockImplementation(() => {});
 		expect(await remove(PASSWORD)).toMatchObject({ fail: 503 });
 		expect(await accountExists('a')).toBe(true);
+	});
+});
+
+describe('leave', () => {
+	beforeEach(async () => {
+		await db.insert(users).values({
+			id: 'manager-a',
+			accountId: 'a',
+			email: 'm@example.org',
+			passwordHash: 'x',
+			role: 'manager',
+			name: 'Max'
+		});
+		await setPassword(db, 'manager-a');
+	});
+
+	function leave(user: typeof managerA, password: string, cookies = new Map<string, string>()) {
+		return outcome(() => actions.leave(routeEvent(db, { user, form: { password }, cookies })));
+	}
+
+	it('ends a manager’s access after the password and signs out', async () => {
+		expect(await leave(managerA, 'falsch')).toMatchObject({ fail: 400 });
+		const cookies = new Map([['session', 'token']]);
+		expect(await leave(managerA, PASSWORD, cookies)).toEqual({ redirect: '/anmelden' });
+		expect(cookies.size).toBe(0);
+		expect((await db.select().from(users)).map((user) => user.id).sort()).toEqual([
+			'user-a',
+			'user-b'
+		]);
+		const [entry] = await db.select().from(auditLog).where(eq(auditLog.entityId, 'manager-a'));
+		expect(entry).toMatchObject({ userId: null, summary: 'Max hat das Konto verlassen' });
+		expect(await accountExists('a')).toBe(true);
+	});
+
+	it('refuses the owner', async () => {
+		expect(
+			await outcome(() => actions.leave(routeEvent(db, { form: { password: PASSWORD } })))
+		).toMatchObject({
+			fail: 400
+		});
+		expect(await db.select().from(users).where(eq(users.id, 'user-a'))).toHaveLength(1);
 	});
 });

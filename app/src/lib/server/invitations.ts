@@ -1,6 +1,20 @@
-import { and, asc, count, desc, eq, gt, gte, isNull, lt, ne, sql } from 'drizzle-orm';
+import {
+	and,
+	asc,
+	count,
+	desc,
+	eq,
+	exists,
+	gt,
+	gte,
+	inArray,
+	isNull,
+	lt,
+	ne,
+	notExists,
+	sql
+} from 'drizzle-orm';
 import { userRoleLabels, userRolePhrases } from '../labels';
-import { revokeAllApiKeys } from './api-keys';
 import { auditEntry, type AuditContext } from './audit';
 import { generateToken, hashPassword, hashToken, normalizeEmail } from './auth';
 import type { Database } from './db';
@@ -448,11 +462,30 @@ export async function acceptInvitation(
 	return { ok: true, userId, accountId: invitation.accountId };
 }
 
+/** Deletes a user with their sessions, resets, address changes and API keys. */
+function deleteMember(db: Database, accountId: string, userId: string) {
+	// Every statement only touches a member who is not the owner when the batch runs, so a
+	// handover that promoted them in the meantime is never undone by deleting the new owner.
+	const member = db
+		.select({ id: users.id })
+		.from(users)
+		.where(and(eq(users.accountId, accountId), eq(users.id, userId), ne(users.role, 'owner')));
+	return [
+		db.delete(sessions).where(inArray(sessions.userId, member)),
+		db.delete(passwordResets).where(inArray(passwordResets.userId, member)),
+		db.delete(emailChanges).where(inArray(emailChanges.userId, member)),
+		db.delete(apiKeys).where(inArray(apiKeys.userId, member)),
+		db
+			.delete(users)
+			.where(and(eq(users.accountId, accountId), eq(users.id, userId), ne(users.role, 'owner')))
+	] as const;
+}
+
 /**
- * Removes a manager or viewer of the account with their sessions, resets, API keys and address changes. Neither
- * oneself nor an owner can be removed, so the account always keeps its owner. References to the
- * user in other tables are set to null by the schema; the audit log keeps the name in its
- * summaries.
+ * Removes a manager or viewer of the account with their sessions, resets, API keys and address
+ * changes. Neither oneself nor an owner can be removed, so the account always keeps its owner.
+ * References to the user in other tables are set to null by the schema; the audit log keeps the
+ * name in its summaries.
  */
 export async function removeUser(
 	db: Database,
@@ -473,11 +506,7 @@ export async function removeUser(
 	if (!user) return 'missing';
 	if (user.role === 'owner') return 'owner';
 	await runBatch(db, [
-		db.delete(sessions).where(eq(sessions.userId, user.id)),
-		db.delete(passwordResets).where(eq(passwordResets.userId, user.id)),
-		db.delete(emailChanges).where(eq(emailChanges.userId, user.id)),
-		revokeAllApiKeys(db, user.id),
-		db.delete(users).where(and(eq(users.accountId, context.accountId), eq(users.id, user.id))),
+		...deleteMember(db, context.accountId, user.id),
 		auditEntry(
 			db,
 			context,
@@ -488,6 +517,122 @@ export async function removeUser(
 		)
 	]);
 	return 'removed';
+}
+
+/**
+ * The signed-in manager or viewer leaves the account: their access is deleted as removeUser
+ * deletes it. The owner cannot leave; they delete the account or hand it over first.
+ */
+export async function leaveAccount(
+	db: Database,
+	context: AuditContext
+): Promise<'left' | 'owner' | 'missing'> {
+	const [user] = await db
+		.select({ id: users.id, email: users.email, name: users.name, role: users.role })
+		.from(users)
+		.where(and(eq(users.accountId, context.accountId), eq(users.id, context.userId ?? '')));
+	if (!user) return 'missing';
+	if (user.role === 'owner') return 'owner';
+	await runBatch(db, [
+		...deleteMember(db, context.accountId, user.id),
+		auditEntry(
+			db,
+			{ accountId: context.accountId, userId: null },
+			'user',
+			user.id,
+			'delete',
+			`${user.name || user.email} hat das Konto verlassen`
+		)
+	]);
+	return 'left';
+}
+
+export type TransferResult =
+	| { ok: true; email: string; name: string | null }
+	| { ok: false; reason: 'missing' | 'self' | 'not-owner' };
+
+/**
+ * Hands the account over to another member: they become its owner, the signing-in owner a
+ * manager. Both changes run in one batch, the old owner first, so the account never has two
+ * owners (the unique index refuses that). The demotion only happens while the member still
+ * exists, so a member leaving or being removed concurrently cannot leave the account without an
+ * owner; the outcome is read back afterwards. The subscription belongs to the account and stays.
+ */
+export async function transferOwnership(
+	db: Database,
+	context: AuditContext,
+	userId: string
+): Promise<TransferResult> {
+	if (userId === context.userId) return { ok: false, reason: 'self' };
+	const members = await listAccountUsers(db, context.accountId);
+	const owner = members.find((member) => member.id === context.userId);
+	if (owner?.role !== 'owner') return { ok: false, reason: 'not-owner' };
+	const target = members.find((member) => member.id === userId);
+	if (!target) return { ok: false, reason: 'missing' };
+	const ofTarget = and(eq(users.accountId, context.accountId), eq(users.id, target.id));
+	await runBatch(db, [
+		db
+			.update(users)
+			.set({ role: 'manager' })
+			.where(
+				and(
+					eq(users.accountId, context.accountId),
+					eq(users.id, owner.id),
+					eq(users.role, 'owner'),
+					exists(db.select({ id: users.id }).from(users).where(ofTarget))
+				)
+			),
+		db
+			.update(users)
+			.set({ role: 'owner' })
+			.where(
+				and(
+					ofTarget,
+					notExists(
+						db
+							.select({ id: users.id })
+							.from(users)
+							.where(and(eq(users.accountId, context.accountId), eq(users.role, 'owner')))
+					)
+				)
+			)
+	]);
+	const [promoted] = await db.select({ role: users.role }).from(users).where(ofTarget);
+	if (promoted?.role !== 'owner') return { ok: false, reason: 'missing' };
+	await auditEntry(
+		db,
+		context,
+		'user',
+		target.id,
+		'update',
+		`${target.name || target.email} ist jetzt ${userRolePhrases.owner} dabei, ${owner.name || owner.email} ${userRolePhrases.manager}`
+	);
+	return { ok: true, email: target.email, name: target.name };
+}
+
+/** The mail to a person whose access ended: removed by the owner, or with the whole account. */
+export function accessEndedMail(to: string, reason: 'removed' | 'account-deleted'): Mail {
+	const what =
+		reason === 'removed'
+			? 'Der Vermieter hat deinen Zugang zu seinem Konto in mietkartei entfernt.'
+			: 'Der Vermieter hat sein Konto in mietkartei gelöscht, und damit auch deinen Zugang.';
+	return {
+		to,
+		subject: 'Dein Zugang zu mietkartei wurde beendet',
+		text: `Hallo,\n\n${what} Du kannst dich nicht mehr anmelden.\n`
+	};
+}
+
+/** The mail to the new owner after a handover. */
+export function ownershipMail(to: string, from: string | null): Mail {
+	return {
+		to,
+		subject: 'Du bist jetzt Vermieter in mietkartei',
+		text:
+			'Hallo,\n\n' +
+			`${inviterName(from)} hat dir das Konto in mietkartei übergeben. Du verwaltest jetzt die ` +
+			'Zugänge, die Bankverbindungen und das Abo des Kontos.\n'
+	};
 }
 
 /**
@@ -509,13 +654,22 @@ export async function changeRole(
 	if (!user) return 'missing';
 	if (user.role === 'owner') return 'owner';
 	if (user.role === role) return 'unchanged';
+	// Both statements leave an owner alone, so a handover to this member in the meantime stands.
+	const ofMember = and(
+		eq(users.accountId, context.accountId),
+		eq(users.id, user.id),
+		ne(users.role, 'owner')
+	);
+	const viewer = db
+		.select({ id: users.id })
+		.from(users)
+		.where(
+			and(eq(users.accountId, context.accountId), eq(users.id, user.id), eq(users.role, 'viewer'))
+		);
 	await runBatch(db, [
-		db
-			.update(users)
-			.set({ role })
-			.where(and(eq(users.accountId, context.accountId), eq(users.id, user.id))),
+		db.update(users).set({ role }).where(ofMember),
 		...(role === 'viewer'
-			? [db.delete(apiKeys).where(and(eq(apiKeys.userId, user.id), eq(apiKeys.scope, 'write')))]
+			? [db.delete(apiKeys).where(and(inArray(apiKeys.userId, viewer), eq(apiKeys.scope, 'write')))]
 			: []),
 		auditEntry(
 			db,

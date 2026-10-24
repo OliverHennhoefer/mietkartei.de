@@ -1,8 +1,10 @@
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { ORIGIN } from '$app/env/private';
 import { parseInvitation, parseRoleChange, type InvitationFormInput } from '#lib/forms/auth.ts';
 import type { FieldErrors } from '#lib/forms/fields.ts';
+import { confirmPassword } from '#lib/server/auth.ts';
 import {
+	accessEndedMail,
 	changeRole,
 	createInvitation,
 	deliverInvitation,
@@ -11,11 +13,13 @@ import {
 	listAccountUsers,
 	listPendingInvitations,
 	MAX_ACCOUNT_MEMBERS,
+	ownershipMail,
 	removeUser,
 	resendInvitation,
-	revokeInvitation
+	revokeInvitation,
+	transferOwnership
 } from '#lib/server/invitations.ts';
-import { sendMail } from '#lib/server/mail.ts';
+import { sendMail, sendMailInBackground } from '#lib/server/mail.ts';
 import { MAIL_LINKS_UNAVAILABLE, mailLinkOrigin } from '#lib/server/mail-links.ts';
 import { auditContext, requireOwner } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -160,12 +164,15 @@ export const actions: Actions = {
 	},
 
 	remove: async ({ request, locals }) => {
-		requireOwner(locals);
+		const user = requireOwner(locals);
 		const form = await request.formData();
 		const userId = form.get('userId');
 		if (typeof userId !== 'string' || !userId) {
 			return fail(400, { refused: 'Diesen Zugang gibt es nicht.' });
 		}
+		const member = (await listAccountUsers(locals.db, user.accountId)).find(
+			(candidate) => candidate.id === userId
+		);
 		const removed = await removeUser(locals.db, auditContext(locals), userId);
 		if (removed === 'self') {
 			return fail(400, { refused: 'Deinen eigenen Zugang kannst du nicht entfernen.' });
@@ -173,7 +180,38 @@ export const actions: Actions = {
 		if (removed === 'owner') {
 			return fail(400, { refused: 'Den Zugang des Vermieters kann niemand entfernen.' });
 		}
-		if (removed === 'missing') return fail(404, { refused: 'Diesen Zugang gibt es nicht.' });
+		if (removed === 'missing' || !member) {
+			return fail(404, { refused: 'Diesen Zugang gibt es nicht.' });
+		}
+		await sendMailInBackground(locals.db, accessEndedMail(member.email, 'removed'));
 		return { removed: true };
+	},
+
+	// Handing the account over asks for the password again, like deleting it.
+	transfer: async ({ request, locals }) => {
+		const user = requireOwner(locals);
+		const form = await request.formData();
+		const userId = form.get('userId');
+		const password = form.get('password');
+		if (typeof userId !== 'string' || !userId) {
+			return fail(400, { refused: 'Bitte wähle aus, wem du das Konto übergibst.' });
+		}
+		if (typeof password !== 'string' || !password) {
+			return fail(400, { refused: 'Bitte gib dein Passwort ein.' });
+		}
+		const checked = await confirmPassword(locals.db, auditContext(locals), password);
+		if (checked !== 'ok') {
+			return fail(400, {
+				refused:
+					checked === 'locked'
+						? 'Zu viele Fehlversuche. Bitte warte 15 Minuten.'
+						: 'Das Passwort stimmt nicht.'
+			});
+		}
+		const result = await transferOwnership(locals.db, auditContext(locals), userId);
+		if (!result.ok) return fail(404, { refused: 'Diesen Zugang gibt es nicht.' });
+		await sendMailInBackground(locals.db, ownershipMail(result.email, user.name));
+		// The page is the owner's; the former owner is a manager now.
+		redirect(303, '/');
 	}
 };
