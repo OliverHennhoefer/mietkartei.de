@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import Icon from '#lib/components/Icon.svelte';
 
 	// The one page of the demo meant for search engines and link previews.
 	const title = 'Demo ausprobieren | mietkartei';
