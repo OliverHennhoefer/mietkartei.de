@@ -63,12 +63,13 @@ try {
 	await page.getByRole('button', { name: 'Demodaten anlegen' }).click();
 	await page.getByRole('button', { name: 'Demodaten anlegen' }).waitFor({ state: 'detached' });
 
-	/** @param {string} name @param {string} url @param {number} [height] */
-	async function shoot(name, url, height = 800) {
-		await page.goto(url);
+	// All screenshots have the same size, so the README can show them one below the other.
+	/** @param {string} name @param {string} [url] */
+	async function shoot(name, url) {
+		if (url) await page.goto(url);
 		await page.screenshot({
 			path: path.join(output, `${name}.png`),
-			clip: { x: 0, y: 0, width: 1280, height }
+			clip: { x: 0, y: 0, width: 1280, height: 640 }
 		});
 		console.log(`assets/screenshots/${name}.png`);
 	}
@@ -91,18 +92,20 @@ try {
 		await card.getByRole('button', { name: 'Zuordnen', exact: true }).click();
 		await card.waitFor({ state: 'detached' });
 	}
-	await shoot('uebersicht', '/', 560);
-	await shoot('mietkonto', '/mietkonto', 640);
+	await shoot('uebersicht', '/');
+	await shoot('mietkonto', '/mietkonto');
 
 	await page.goto('/betriebskosten');
 	await page.getByRole('button', { name: 'Entwurf erstellen' }).click();
 	await page.waitForURL(/\/betriebskosten\/abrechnungen\//);
-	// One tenant's share, with the allocation key worked out per cost category.
-	await page
-		.locator('section.lease')
-		.filter({ hasText: 'Anna Schmidt' })
-		.screenshot({ path: path.join(output, 'abrechnung-mieter.png') });
-	console.log('assets/screenshots/abrechnung-mieter.png');
+	// One tenant's share, with the allocation key worked out per cost category, at the top below
+	// the sticky header.
+	const share = page.locator('section.lease').filter({ hasText: 'Anna Schmidt' });
+	await share.evaluate((section) => {
+		const header = document.querySelector('.site-header')?.getBoundingClientRect().height ?? 0;
+		window.scrollTo(0, section.getBoundingClientRect().top + window.scrollY - header - 24);
+	});
+	await shoot('abrechnung-mieter');
 } finally {
 	await browser.close();
 	server.kill();

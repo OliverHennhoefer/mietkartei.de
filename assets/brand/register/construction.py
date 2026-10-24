@@ -78,16 +78,20 @@ def svg(ink,small=False,favicon=False):
 '''
 
 
-def lockup(ink):
+def lockup(ink,adaptive=False):
+    # adaptive: black ink that turns white when the viewer prefers a dark scheme, for places
+    # like the GitHub app that ignore <picture> sources.
+    style='<style>g{fill:#000}@media (prefers-color-scheme:dark){g{fill:#fff}}</style>\n  ' if adaptive else ''
     wordmark=ET.parse(ROOT.parent/'logo.svg').getroot()
     for element in wordmark.iter():
         element.tag=element.tag.rsplit('}',1)[-1]
     content=''.join(ET.tostring(e,encoding='unicode') for e in wordmark if e.tag in ('path','g'))
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {LOCKUP_WIDTH} 96" role="img" aria-label="mietkartei mit Registerfaltung">
-  {paths(ink,transform=LOCKUP_TRANSFORM)}
+    svg=f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {LOCKUP_WIDTH} 96" role="img" aria-label="mietkartei mit Registerfaltung">
+  {style}{paths(ink,transform=LOCKUP_TRANSFORM)}
   <g transform="translate({WORDMARK_X} 19) scale({n(WORDMARK_HEIGHT/774.8)})" fill="{ink}">{content}</g>
 </svg>
 '''
+    return svg.replace(f' fill="{ink}"','') if adaptive else svg
 
 
 def clean(value):
@@ -101,6 +105,7 @@ if __name__=='__main__':
     for ink,suffix in (('#000',''),('#fff','-white')):
         (ROOT/f'mark{suffix}.svg').write_text(svg(ink))
         (ROOT/f'lockup{suffix}.svg').write_text(lockup(ink))
+    (ROOT/'lockup-auto.svg').write_text(lockup('#000',adaptive=True))
     (ROOT/'small.svg').write_text(svg('#000',small=True))
     (ROOT/'favicon.svg').write_text(svg('#fff',small=True,favicon=True))
     (ROOT/'geometry.json').write_text(json.dumps(clean({
@@ -117,6 +122,6 @@ if __name__=='__main__':
                   'gap':WORDMARK_X-48-LOCKUP_MARK_HEIGHT/2},
         'normalization':TRANSFORM,'viewBox':[0,0,96,96],
     }),indent=2)+'\n')
-    for filename in ('mark.svg','mark-white.svg','favicon.svg','lockup.svg','lockup-white.svg'):
+    for filename in ('mark.svg','mark-white.svg','favicon.svg','lockup.svg','lockup-white.svg','lockup-auto.svg'):
         (ROOT.parent/filename).write_bytes((ROOT/filename).read_bytes())
     print('Chosen register SVG masters, lockups, favicon and shared exports written.')

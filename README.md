@@ -2,7 +2,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/brand/lockup-white.svg">
-  <img src="assets/brand/lockup.svg" alt="mietkartei" width="280">
+  <img src="assets/brand/lockup-auto.svg" alt="mietkartei" width="280">
 </picture>
 
 ### Die Hausverwaltung von Vermietern für Vermieter.
@@ -10,7 +10,8 @@
 Mieten, Bankumsätze und die Betriebskostenabrechnung für private Vermieter an einem Ort.<br>
 Open Source, nachvollziehbar gerechnet und ohne Einarbeitung.
 
-[![App](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/app.yml/badge.svg)](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/app.yml)
+[![Tests](https://img.shields.io/github/actions/workflow/status/OliverHennhoefer/mietkartei.de/app.yml?branch=main&label=Tests)](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/app.yml)
+[![Dokumentation](https://img.shields.io/github/actions/workflow/status/OliverHennhoefer/mietkartei.de/websites.yml?branch=main&label=Doku)](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/websites.yml)
 [![Testabdeckung](https://codecov.io/gh/OliverHennhoefer/mietkartei.de/graph/badge.svg)](https://codecov.io/gh/OliverHennhoefer/mietkartei.de)
 [![Lizenz: AGPL-3.0](https://img.shields.io/badge/Lizenz-AGPL--3.0-111111)](LICENSE)
 [![Docker-Image](https://img.shields.io/badge/Docker-ghcr.io-2496ed?logo=docker&logoColor=white)](https://github.com/OliverHennhoefer/mietkartei.de/pkgs/container/mietkartei)
@@ -25,51 +26,32 @@ Open Source, nachvollziehbar gerechnet und ohne Einarbeitung.
 
 ## Warum mietkartei?
 
-Wer drei bis zehn Wohnungen vermietet, ist für die großen Verwaltungsprogramme zu klein und für Excel zu groß. mietkartei ist für genau diese Lücke gebaut.
-
-|  |  |
-| --- | --- |
-| **Fachlich genau** | Kostenarten nach Betriebskostenverordnung, tagesgenaue Umlage, CO₂-Kostenaufteilung. Jeder Betrag zeigt seinen Rechenweg. |
-| **Einfach** | Ein Bestand, ein Mietkonto pro Vertrag, eine Übersicht. Keine Buchhaltungskenntnisse nötig. |
-| **Offen** | Der komplette Code unter AGPL-3.0. Deine Daten passen in eine einzige SQLite-Datei und lassen sich jederzeit exportieren. |
-| **Bequem** | Selbst gehostet als ein Docker-Container oder einfach gehostet unter [app.mietkartei.de](https://app.mietkartei.de). Beides läuft mit demselben Code. |
+Gebaut für Vermieter mit drei bis zehn Wohnungen: zu klein für die großen Verwaltungsprogramme, zu groß für Excel.
 
 ## So sieht es aus
 
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <b>Betriebskostenabrechnung</b><br>
-      Belege erfassen, Umlageschlüssel wählen, fertig. Jeder Mieter sieht, wie sich sein Anteil berechnet, und bekommt die Abrechnung als PDF.
-    </td>
-    <td width="50%" valign="top">
-      <b>Mietkonto</b><br>
-      Soll und Ist für jeden Mietvertrag. Rückstände stehen oben, Kontoauszüge ordnet mietkartei per Vorschlag den Verträgen zu.
-    </td>
-  </tr>
-  <tr>
-    <td><img src="assets/screenshots/abrechnung-mieter.png" alt="Anteil eines Mieters in der Betriebskostenabrechnung mit Umlageschlüssel je Kostenart"></td>
-    <td><img src="assets/screenshots/mietkonto.png" alt="Mietkonto mit Saldo, Rückständen und letzter Zahlung je Mietvertrag"></td>
-  </tr>
-</table>
+**Betriebskostenabrechnung:** Belege erfassen, Umlageschlüssel wählen, fertig. Jeder Mieter sieht, wie sich sein Anteil berechnet, und bekommt die Abrechnung als PDF.
+
+<img src="assets/screenshots/abrechnung-mieter.png" alt="Anteil eines Mieters in der Betriebskostenabrechnung mit Umlageschlüssel je Kostenart" width="900">
+
+**Mietkonto:** Soll und Ist für jeden Mietvertrag. Rückstände stehen oben, Kontoauszüge ordnet mietkartei per Vorschlag den Verträgen zu.
+
+<img src="assets/screenshots/mietkonto.png" alt="Mietkonto mit Saldo, Rückständen und letzter Zahlung je Mietvertrag" width="900">
 
 **Außerdem dabei:** Objekte und Einheiten · Mieter und Mietverträge mit Kaution · Index- und Staffelmiete · Bankimport mit Zuordnungsregeln · Zähler und Abrechnungskreise · Dokumente · Aufgaben und Fristen · Mitverwalter · Datenübernahme per CSV · vollständiger Export · Änderungsprotokoll
 
 ## Ausprobieren
 
-**[demo.mietkartei.de](https://demo.mietkartei.de)**: ein Klick, und du hast deinen eigenen Beispielbestand mit zwei Häusern, Mietzahlungen, Bankumsätzen und einer fertigen Betriebskostenabrechnung. Ohne Anmeldung, nach 24 Stunden wird alles gelöscht.
-
-Du willst mietkartei auf deinem eigenen Rechner oder Server betreiben? Das beschreibt die [Anleitung zum Selbsthosten](https://docs.mietkartei.de/selbst-hosten/).
+- **[Demo](https://demo.mietkartei.de):** eigener Beispielbestand mit fertiger Betriebskostenabrechnung, ohne Anmeldung, nach 24 Stunden gelöscht.
+- **[Selbst hosten](https://docs.mietkartei.de/selbst-hosten/):** als Docker-Container auf dem eigenen Rechner oder Server.
 
 ## Mitmachen
 
-mietkartei wird offen entwickelt, und jede Hilfe zählt: Code, Fehlerberichte, Fachwissen aus der Vermietung, Texte, Gestaltung und Barrierefreiheit. Gerade wer selbst vermietet, weiß am besten, was fehlt.
+Du vermietest selbst? Dann weißt du am besten, was fehlt. Jede Hilfe zählt: Code, Fehlerberichte, Fachwissen, Texte, Gestaltung, Barrierefreiheit.
 
-- [Gute Einstiegsaufgaben](https://github.com/OliverHennhoefer/mietkartei.de/issues?q=is%3Aissue+is%3Aopen+label%3A%22guter+einstieg%22) und [wo Hilfe gesucht wird](https://github.com/OliverHennhoefer/mietkartei.de/issues?q=is%3Aissue+is%3Aopen+label%3A%22hilfe+gesucht%22)
-- [Fehler melden](https://github.com/OliverHennhoefer/mietkartei.de/issues/new?template=01-fehler.yml) · [Funktion vorschlagen](https://github.com/OliverHennhoefer/mietkartei.de/issues/new?template=02-funktionswunsch.yml) · [Frage stellen](SUPPORT.md) · [Sicherheitslücke melden](SECURITY.md)
-- Den Einstieg erklärt [CONTRIBUTING.md](CONTRIBUTING.md), für die Zusammenarbeit gilt unser [Verhaltenskodex](CODE_OF_CONDUCT.md).
+**[Einstiegsaufgaben](https://github.com/OliverHennhoefer/mietkartei.de/issues?q=is%3Aissue+is%3Aopen+label%3A%22guter+einstieg%22)** · [Hilfe gesucht](https://github.com/OliverHennhoefer/mietkartei.de/issues?q=is%3Aissue+is%3Aopen+label%3A%22hilfe+gesucht%22) · [Fehler melden](https://github.com/OliverHennhoefer/mietkartei.de/issues/new?template=01-fehler.yml) · [Funktion vorschlagen](https://github.com/OliverHennhoefer/mietkartei.de/issues/new?template=02-funktionswunsch.yml) · [Frage stellen](SUPPORT.md) · [Sicherheitslücke melden](SECURITY.md)
 
-Issues und Dokumentation schreiben wir auf Deutsch, Code, Commits und Pull Requests auf Englisch. Wenn dir mietkartei gefällt, hilft schon ein ⭐, damit andere Vermieter das Projekt finden.
+Los geht's mit [CONTRIBUTING.md](CONTRIBUTING.md), es gilt der [Verhaltenskodex](CODE_OF_CONDUCT.md). Issues und Doku auf Deutsch, Code, Commits und Pull Requests auf Englisch. Gefällt dir mietkartei? Ein ⭐ hilft anderen Vermietern, es zu finden.
 
 <details>
 <summary><b>Aufbau des Repositorys</b></summary>
@@ -83,7 +65,3 @@ Issues und Dokumentation schreiben wir auf Deutsch, Code, Commits und Pull Reque
 | [`.github/`](.github/) | Workflows, Vorlagen sowie Anleitungen zu [Deployment](.github/DEPLOYMENT.md), [Betrieb auf einem Server](.github/SELF_HOSTING.md) und [Pflege](.github/MAINTENANCE.md) |
 
 </details>
-
-## Lizenz
-
-[GNU Affero General Public License, Version 3](LICENSE). Beiträge stehen unter derselben Lizenz, eine Contributor License Agreement gibt es nicht. Die gehostete Variante unter app.mietkartei.de läuft mit genau dem Code aus diesem Repository.
