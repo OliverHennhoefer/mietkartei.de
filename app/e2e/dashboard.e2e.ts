@@ -16,7 +16,7 @@ const startDate = firstOfMonth(monthOf(addMonths(currentMonth, -2)));
 const nextMonth = firstOfMonth(monthOf(addMonths(currentMonth, 1)));
 // The seeded rent falls due on the third working day, so the current month's rent is overdue
 // only from then on.
-const dueRents = nthWorkingDay(monthOf(currentMonth), 3) <= today() ? 3 : 2;
+const dueRents = nthWorkingDay(monthOf(currentMonth), 3, null) <= today() ? 3 : 2;
 // Sorts before every other test's property, so its vacant unit is among the five listed.
 const propertyName = `AAA Übersicht ${suffix}`;
 

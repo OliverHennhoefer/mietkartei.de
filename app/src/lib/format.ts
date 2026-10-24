@@ -8,6 +8,17 @@ export function formatNumber(value: number, fractionDigits = 2): string {
 	return new Intl.NumberFormat('de-DE', { maximumFractionDigits: fractionDigits }).format(value);
 }
 
+/**
+ * A decimal as typed into a form field, read like the form parser does: `5.025,5` and `5025.5`
+ * are both 5025.5. Null for an empty or malformed entry.
+ */
+export function parseDecimal(input: string): number | null {
+	const value = input.trim();
+	if (!value) return null;
+	const parsed = Number(value.includes(',') ? value.replace(/\./g, '').replace(',', '.') : value);
+	return Number.isFinite(parsed) ? parsed : null;
+}
+
 /** `72.5` → `72,5 m²`. */
 export function formatArea(squareMetres: number): string {
 	return `${number.format(squareMetres)}\u00a0m²`;

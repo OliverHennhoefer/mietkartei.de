@@ -7,8 +7,8 @@
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import { formatDate } from '#lib/dates.ts';
-	import { residentialTiers } from '#lib/domain/co2.ts';
-	import { formatArea, formatNumber } from '#lib/format.ts';
+	import { behgHint, co2KgFromKwh, residentialTiers } from '#lib/domain/co2.ts';
+	import { formatArea, formatNumber, parseDecimal } from '#lib/format.ts';
 	import { fuelLabels } from '#lib/labels.ts';
 	import { formatCents } from '#lib/money.ts';
 	import type { Fuel } from '#lib/server/db/schema.ts';
@@ -35,6 +35,31 @@
 
 	/** `72.5` → `72,5`, as the form field expects it. */
 	const areaInput = $derived(dwellingArea > 0 ? String(dwellingArea).replace('.', ',') : '');
+
+	/** The fields the BEHG hint reads, as typed; null until the user types after a submit. */
+	let typed = $state<Record<string, string> | null>(null);
+	$effect(() => {
+		void form;
+		typed = null;
+	});
+	const field = (name: string, fallback: string) => typed?.[name] ?? values?.[name] ?? fallback;
+
+	/** The cost the emissions of the year have at the BEHG price, under the CO₂ cost field. */
+	const costHint = $derived.by(() => {
+		const fuel = field('fuel', 'gas');
+		const kg =
+			parseDecimal(field('co2Kg', '')) ?? co2KgFromKwh(fuel, parseDecimal(field('fuelKwh', '')));
+		const year = Number(field('year', String(data.defaults.year)));
+		const behg = kg === null ? null : behgHint(year, kg);
+		return behg ? `Wie auf der Rechnung angegeben. ${behg}` : 'Wie auf der Rechnung angegeben.';
+	});
+
+	function readFields(element: HTMLFormElement) {
+		const entries = new FormData(element);
+		typed = Object.fromEntries(
+			['year', 'fuel', 'fuelKwh', 'co2Kg'].map((name) => [name, String(entries.get(name) ?? '')])
+		);
+	}
 
 	/** Anlage 1 names ten tiers; a non-residential building is split half and half (§ 8). */
 	function tierLabel(landlordPercent: number): string {
@@ -69,7 +94,13 @@
 	<Alert tone="info"><p>{hint}</p></Alert>
 {/if}
 
-<form method="POST" action="?/create" class="card" use:enhance>
+<form
+	method="POST"
+	action="?/create"
+	class="card"
+	use:enhance
+	oninput={(event) => readFields(event.currentTarget)}
+>
 	<Field label="Jahr" error={errors?.year}>
 		<input
 			name="year"
@@ -108,7 +139,7 @@
 			aria-invalid={errors?.co2Kg ? 'true' : undefined}
 		/>
 	</Field>
-	<Field label="CO₂-Kosten in €" error={errors?.co2Cost} hint="Wie auf der Rechnung angegeben.">
+	<Field label="CO₂-Kosten in €" error={errors?.co2Cost} hint={costHint}>
 		<input
 			name="co2Cost"
 			inputmode="decimal"

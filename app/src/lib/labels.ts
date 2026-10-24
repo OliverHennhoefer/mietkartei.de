@@ -19,6 +19,7 @@ import type {
 	TerminatedBy,
 	UserRole
 } from './server/db/schema';
+import type { GermanState } from './working-days';
 
 // German labels for the enums in the schema, so every page uses the same words.
 
@@ -53,6 +54,25 @@ export const terminatedByLabels: Record<TerminatedBy, string> = {
 export const buildingUseLabels: Record<BuildingUse, string> = {
 	residential: 'Wohngebäude',
 	non_residential: 'Nichtwohngebäude'
+};
+
+export const stateLabels: Record<GermanState, string> = {
+	BW: 'Baden-Württemberg',
+	BY: 'Bayern',
+	BE: 'Berlin',
+	BB: 'Brandenburg',
+	HB: 'Bremen',
+	HH: 'Hamburg',
+	HE: 'Hessen',
+	MV: 'Mecklenburg-Vorpommern',
+	NI: 'Niedersachsen',
+	NW: 'Nordrhein-Westfalen',
+	RP: 'Rheinland-Pfalz',
+	SL: 'Saarland',
+	SN: 'Sachsen',
+	ST: 'Sachsen-Anhalt',
+	SH: 'Schleswig-Holstein',
+	TH: 'Thüringen'
 };
 
 export const fuelLabels: Record<Fuel, string> = {

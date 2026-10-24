@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { formatDate, today } from '../dates';
+	import { behgHint, co2KgFromKwh } from '../domain/co2';
 	import { CIRCLE_FROM_CATEGORY, defaultCostPeriod } from '../domain/operating-costs';
+	import { parseDecimal } from '../format';
 	import type { FieldErrors } from '../forms/fields';
 	import type { CostItemForm } from '../forms/operating-costs';
 	import { fuelLabels } from '../labels';
@@ -133,6 +135,46 @@
 	}
 
 	const fuelChoice = $derived(value('fuel', item?.fuel ?? ''));
+
+	/** The fields the BEHG hint reads, as typed; null until the user types after a submit. */
+	let typed = $state<Record<string, string> | null>(null);
+	$effect(() => {
+		void values;
+		typed = null;
+	});
+
+	function readFuelFields(element: HTMLFormElement) {
+		const entries = new FormData(element);
+		typed = Object.fromEntries(
+			['periodStart', 'periodEnd', 'fuel', 'fuelKwh', 'co2Kg'].map((name) => [
+				name,
+				String(entries.get(name) ?? '')
+			])
+		);
+	}
+
+	/**
+	 * What the emissions cost at the BEHG price, for a bill within one calendar year; a period
+	 * across the turn of the year would mix two prices.
+	 */
+	const costHint = $derived.by(() => {
+		const start =
+			typed?.periodStart ??
+			value('periodStart', item?.periodStart ?? prefill?.periodStart ?? period.periodStart);
+		const end =
+			typed?.periodEnd ??
+			value('periodEnd', item?.periodEnd ?? prefill?.periodEnd ?? period.periodEnd);
+		const year = start.slice(0, 4);
+		if (!/^\d{4}$/.test(year) || end.slice(0, 4) !== year) return null;
+		const fuel = typed?.fuel ?? fuelChoice;
+		const kg =
+			parseDecimal(typed?.co2Kg ?? value('co2Kg', item?.co2Kg?.toString() ?? '')) ??
+			co2KgFromKwh(
+				fuel,
+				parseDecimal(typed?.fuelKwh ?? value('fuelKwh', item?.fuelKwh?.toString() ?? ''))
+			);
+		return kg === null ? null : behgHint(Number(year), kg);
+	});
 	const keyChoice = $derived(value('allocationKeyId', item?.allocationKeyId ?? ''));
 	const circleChoice = $derived(
 		value('billingCircleId', item ? (item.billingCircleId ?? '') : CIRCLE_FROM_CATEGORY)
@@ -146,6 +188,7 @@
 	enctype="multipart/form-data"
 	bind:this={formElement}
 	use:enhance
+	oninput={(event) => readFuelFields(event.currentTarget)}
 >
 	{#if prefill?.insurancePolicyId}
 		<input type="hidden" name="insurancePolicyId" value={prefill.insurancePolicyId} />
@@ -350,7 +393,9 @@
 					defaultValue={value('co2Cost', item?.co2Cost ? formatCentsPlain(item.co2Cost) : '')}
 					aria-invalid={errors?.co2Cost ? 'true' : undefined}
 				/>
-				{#if errors?.co2Cost}<span class="error">{errors.co2Cost}</span>{/if}
+				{#if errors?.co2Cost}<span class="error">{errors.co2Cost}</span>{:else if costHint}<span
+						class="muted small">{costHint}</span
+					>{/if}
 			</label>
 		</div>
 	</fieldset>

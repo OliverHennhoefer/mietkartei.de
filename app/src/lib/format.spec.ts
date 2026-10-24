@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatArea, formatNumber, personName, pluralize } from './format';
+import { formatArea, formatNumber, parseDecimal, personName, pluralize } from './format';
 
 describe('format', () => {
 	it('writes numbers and areas the German way', () => {
@@ -19,5 +19,15 @@ describe('format', () => {
 	it('joins first and last name', () => {
 		expect(personName({ firstName: 'Erika', lastName: 'Mustermann' })).toBe('Erika Mustermann');
 		expect(personName({ firstName: '', lastName: 'Mustermann' })).toBe('Mustermann');
+	});
+});
+
+describe('parseDecimal', () => {
+	it('reads German and plain decimals like the form parser', () => {
+		expect(parseDecimal('5.025,5')).toBe(5025.5);
+		expect(parseDecimal('5025.5')).toBe(5025.5);
+		expect(parseDecimal(' 12 ')).toBe(12);
+		expect(parseDecimal('')).toBeNull();
+		expect(parseDecimal('zwölf')).toBeNull();
 	});
 });
