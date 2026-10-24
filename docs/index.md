@@ -26,6 +26,7 @@ Nach der Anmeldung führt dich die Übersicht durch die ersten Schritte: Objekt 
 - [Umlageschlüssel](anleitungen/umlageschluessel.md): welcher Schlüssel für welche Kostenart passt.
 - [Kontoauszüge importieren](anleitungen/kontoauszuege-importieren.md): Mietzahlungen per camt.053 oder CSV zuordnen.
 - [Von Excel umsteigen](anleitungen/von-excel-umsteigen.md): Objekte, Mieter, Verträge und Zahlungen per CSV übernehmen.
+- [KI-Assistenten anbinden](anleitungen/ki-assistenten.md): Claude und andere Assistenten über den MCP-Server mit deinen Daten verbinden.
 
 ## Hilfe und Mitmachen
 

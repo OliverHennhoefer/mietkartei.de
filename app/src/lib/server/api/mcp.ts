@@ -15,8 +15,9 @@ export const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'] as c
 const INSTRUCTIONS =
 	'mietkartei manages rentals of private landlords in Germany: properties (Objekte) with units, ' +
 	'tenants (Mieter), leases (Mietverträge), the rent account (Mietkonto) of each lease, operating ' +
-	'costs (Betriebskosten) with their statements, deadlines and tasks. Amounts are integer euro ' +
-	'cents, dates YYYY-MM-DD. Start with list_properties, list_leases or list_balances and follow ' +
+	'costs (Betriebskosten) with their statements, dunning (Mahnwesen), expenses (Ausgaben), the ' +
+	'analysis (Auswertung), deadlines and tasks. Amounts are integer euro cents, dates YYYY-MM-DD. ' +
+	'Start with list_properties, list_leases or list_balances and follow ' +
 	'the ids. Answer the landlord in German unless asked otherwise.';
 
 type JsonRpcId = string | number | null;

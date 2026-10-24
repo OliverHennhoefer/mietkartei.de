@@ -5,7 +5,11 @@ import { ownerA, seedUnit, testDatabase } from '../testing';
 import { handleMessage, listTools, PROTOCOL_VERSIONS } from './mcp';
 import { operations } from './operations';
 
-vi.mock('$app/env/private', () => ({ BILLING_REQUIRED: false, STRIPE_SECRET_KEY: '' }));
+vi.mock('$app/env/private', () => ({
+	BILLING_REQUIRED: false,
+	STRIPE_SECRET_KEY: '',
+	GENESIS_API_TOKEN: ''
+}));
 
 let db: Database;
 const reader: ApiCaller = { user: ownerA, scope: 'read', keyId: 'key-a' };
