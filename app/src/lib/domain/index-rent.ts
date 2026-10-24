@@ -255,8 +255,8 @@ export type LetterTenant = {
 
 /**
  * "Guten Tag Frau Muster, Herr Beispiel," or "Guten Tag Erika Muster,": the letters to tenants
- * use the informal register of the app ("du"), as the statement letter does, so the greeting is
- * not the formal "Sehr geehrte".
+ * address the tenants formally ("Sie"); "Guten Tag" keeps the greeting plain rather than the
+ * stiff "Sehr geehrte".
  */
 export function greeting(tenants: readonly LetterTenant[]): string {
 	const names = tenants.map((tenant) => {
@@ -317,7 +317,7 @@ export function indexLetterText(content: LetterContent): string {
 	const { figures } = content;
 	const paragraphs = [
 		greeting(content.tenants),
-		`${content.tenants.length > 1 ? 'euer' : 'dein'} Mietvertrag für ${content.unitName} sieht ` +
+		`Ihr Mietvertrag für ${content.unitName} sieht ` +
 			'eine Indexmiete nach § 557b BGB vor: Die ' +
 			'Kaltmiete folgt dem Verbraucherpreisindex für Deutschland des Statistischen Bundesamts ' +
 			`(Basisjahr ${figures.baseYear} = 100).`,

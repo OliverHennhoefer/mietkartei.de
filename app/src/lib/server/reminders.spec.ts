@@ -90,7 +90,7 @@ describe('createReminder', () => {
 			paymentDeadline: '2025-04-04'
 		});
 		const [mahnung] = await db.select().from(paymentReminders).where(eq(paymentReminders.level, 2));
-		expect(mahnung.letterText).toContain('obwohl wir dich am 10.03.2025 daran erinnert haben');
+		expect(mahnung.letterText).toContain('obwohl wir Sie am 10.03.2025 daran erinnert haben');
 		expect(mahnung.letterText).toMatch(
 			/Bis zum 28\.03\.2025 sind darauf Verzugszinsen von [\d,.]+\s€ aufgelaufen/
 		);

@@ -1357,7 +1357,7 @@ export function statementLetter(statement: LeaseStatement): Letter {
 			{ label: 'Kostenart', width: 0.28 },
 			{ label: 'Gesamtkosten', align: 'right', width: 0.18 },
 			{ label: 'Umlageschlüssel', width: 0.36 },
-			{ label: 'Dein Anteil', align: 'right', width: 0.18 }
+			{ label: 'Ihr Anteil', align: 'right', width: 0.18 }
 		],
 		rows: statement.lines.map((line) => [
 			lines(
@@ -1407,7 +1407,7 @@ export function statementLetter(statement: LeaseStatement): Letter {
 	};
 	const unpaid =
 		statement.unpaidPrepayments > 0
-			? `Von den Vorauszahlungen für den Abrechnungszeitraum (${formatCents(chargedTotal)}) hast du ${formatCents(statement.unpaidPrepayments)} nicht geleistet. Die Abrechnung rechnet nur die geleisteten an; die offenen Vorauszahlungen sind im Ergebnis enthalten und werden nicht zusätzlich verlangt.`
+			? `Von den Vorauszahlungen für den Abrechnungszeitraum (${formatCents(chargedTotal)}) haben Sie ${formatCents(statement.unpaidPrepayments)} nicht geleistet. Die Abrechnung rechnet nur die geleisteten an; die offenen Vorauszahlungen sind im Ergebnis enthalten und werden nicht zusätzlich verlangt.`
 			: null;
 
 	const label = balanceLabel(statement.balance);
@@ -1418,14 +1418,14 @@ export function statementLetter(statement: LeaseStatement): Letter {
 	// that is not claimed beyond the unpaid prepayments, or a late correction held to what was
 	// claimed in time.
 	const claimed = statement.posted ?? statement.balance;
-	const late = 'Die Abrechnung erreicht dich nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB)';
+	const late = 'Die Abrechnung erreicht Sie nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB)';
 	const limited =
 		claimed >= statement.balance
 			? null
 			: claimed === 0
 				? `${late}; die Nachzahlung von ${amount} wird nicht verlangt.`
 				: claimed === statement.unpaidPrepayments
-					? `${late}; von der Nachzahlung verlangen wir nur die ${formatCents(claimed)} Vorauszahlungen, die du nicht geleistet hast.`
+					? `${late}; von der Nachzahlung verlangen wir nur die ${formatCents(claimed)} Vorauszahlungen, die Sie nicht geleistet haben.`
 					: 'Nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB) gilt das rechtzeitig abgerechnete Ergebnis.';
 	const claimedAmount = formatCents(Math.abs(claimed));
 	let settlement: string;
@@ -1435,10 +1435,10 @@ export function statementLetter(statement: LeaseStatement): Letter {
 			landlord.bankName ? `bei der ${landlord.bankName}` : null
 		).join(' ');
 		settlement =
-			`Bitte überweise die Nachzahlung von ${claimedAmount} innerhalb von ${DUE_DAYS} Tagen nach Zugang dieser Abrechnung` +
+			`Bitte überweisen Sie die Nachzahlung von ${claimedAmount} innerhalb von ${DUE_DAYS} Tagen nach Zugang dieser Abrechnung` +
 			(account ? ` auf das Konto ${account}.` : '.');
 	} else if (claimed < 0) {
-		settlement = `Das Guthaben von ${claimedAmount} erstatten wir dir${dueDate ? ` bis zum ${dueDate}` : ''} oder verrechnen es mit der nächsten Miete.`;
+		settlement = `Das Guthaben von ${claimedAmount} erstatten wir Ihnen${dueDate ? ` bis zum ${dueDate}` : ''} oder verrechnen es mit der nächsten Miete.`;
 	} else {
 		settlement = limited ? '' : 'Es ist nichts zu zahlen und nichts zu erstatten.';
 	}
@@ -1476,7 +1476,7 @@ export function statementLetter(statement: LeaseStatement): Letter {
 			...excluded.map((paragraph) => ({ paragraph })),
 			{
 				paragraph:
-					'Die Belege kannst du nach Absprache einsehen. Einwendungen gegen diese Abrechnung teile uns bitte innerhalb von zwölf Monaten nach Zugang mit (§ 556 Abs. 3 BGB).'
+					'Die Belege können Sie nach Absprache einsehen. Einwendungen gegen diese Abrechnung teilen Sie uns bitte innerhalb von zwölf Monaten nach Zugang mit (§ 556 Abs. 3 BGB).'
 			}
 		],
 		closing: ['Mit freundlichen Grüßen', '', landlord.name]
