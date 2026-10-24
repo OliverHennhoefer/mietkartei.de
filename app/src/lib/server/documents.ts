@@ -4,15 +4,7 @@ import { storedMimeType } from '../domain/documents';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import {
-	costItems,
-	damageReports,
-	documents,
-	leases,
-	properties,
-	tenants,
-	units
-} from './db/schema';
+import { costItems, documents, leases, properties, tenants, units } from './db/schema';
 import { getStorage, storageKey, type Storage } from './storage';
 
 // Documents (Dokumente): uploaded files such as the signed lease, a receipt or a letter. The
@@ -36,7 +28,6 @@ export type DocumentLinks = {
 	leaseId?: string | null;
 	tenantId?: string | null;
 	costItemId?: string | null;
-	damageReportId?: string | null;
 };
 
 export type DocumentFilter = {
@@ -63,8 +54,7 @@ const linkTables: [keyof DocumentLinks, LinkedTable][] = [
 	['unitId', units],
 	['leaseId', leases],
 	['tenantId', tenants],
-	['costItemId', costItems],
-	['damageReportId', damageReports]
+	['costItemId', costItems]
 ];
 
 /** Whether every given link points at a row of the account; one query per given link kind. */
@@ -136,7 +126,6 @@ export async function storeDocument(
 				leaseId: links.leaseId ?? null,
 				tenantId: links.tenantId ?? null,
 				costItemId: links.costItemId ?? null,
-				damageReportId: links.damageReportId ?? null,
 				uploadedBy: context.userId
 			}),
 			auditEntry(db, context, 'document', id, 'upload', `Dokument ${name} hochgeladen`)
