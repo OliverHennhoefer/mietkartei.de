@@ -14,5 +14,5 @@ __pycache__/
 # Lokale Anweisungen und Einstellungen für KI-Agenten
 /AGENTS.md
 CLAUDE.local.md
-.claude/settings.local.json
+/.claude/
 AGENTS.override.md
