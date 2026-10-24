@@ -234,3 +234,75 @@ describe('analyse', () => {
 		expect(analyse(data, year).units.find((unit) => unit.id === 'hof1')!.vacantDays).toBe(0);
 	});
 });
+
+describe('analyse with overlapping and partial data', () => {
+	it('counts days covered by overlapping leases of a unit once', () => {
+		// The OG had a second lease from October that overlaps the one from July; the unit was
+		// still vacant from January to June only.
+		const base = input();
+		const { units } = analyse(
+			{
+				...base,
+				leases: [
+					...base.leases,
+					{
+						id: 'l-og-2',
+						unitId: 'og',
+						extraUnitIds: [],
+						startDate: '2026-06-15',
+						endDate: '2026-08-31'
+					},
+					{
+						id: 'l-og-3',
+						unitId: 'og',
+						extraUnitIds: [],
+						startDate: '2026-08-01',
+						endDate: '2026-09-30'
+					}
+				]
+			},
+			year
+		);
+		expect(units.find((unit) => unit.id === 'og')!.vacantDays).toBe(165);
+	});
+
+	it('leaves out money of units in another property and expenses of a unit not in view', () => {
+		const base = input();
+		const result = analyse(
+			{
+				...base,
+				// A Nebenkosten charge has no area share; a payment and an expense outside the
+				// months of the series still count in the totals of their dates only.
+				charges: [
+					...base.charges,
+					{
+						leaseId: 'l-eg',
+						period: '2026-03',
+						kind: 'adjustment' as const,
+						baseRent: 0,
+						amount: 5000
+					}
+				],
+				expenses: [
+					...base.expenses,
+					{
+						id: 'e5',
+						date: '2026-04-01',
+						amount: 700,
+						category: 'other' as const,
+						propertyId: 'hof',
+						unitId: 'hof1',
+						description: 'Schloss'
+					}
+				]
+			},
+			{ ...year, propertyId: 'haus' }
+		);
+		expect(result.units.map((unit) => unit.id)).toEqual(['eg', 'og']);
+		expect(result.totals.expenses).toBe(150000);
+		const eg = result.units.find((unit) => unit.id === 'eg')!;
+		expect(eg.charged).toBe(12 * 80000 + 5000);
+		// The adjustment adds no base rent and no area, so the rent per m² stays 10 €.
+		expect(eg.rentPerSqm).toBe(10);
+	});
+});
