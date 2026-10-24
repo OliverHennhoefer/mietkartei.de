@@ -122,6 +122,7 @@ describe('stripeRequest', () => {
 		expect(body.get('line_items[0][quantity]')).toBe('1');
 		expect(body.get('success_url')).toBe('http://app/abo?erfolg=1');
 		expect(body.get('subscription_data[trial_period_days]')).toBe('13');
+		expect(body.get('allow_promotion_codes')).toBe('true');
 	});
 
 	it('leaves the trial to the price when no days remain', async () => {

@@ -8,6 +8,8 @@ import {
 	billingState,
 	cancelSubscriptionOf,
 	enforceBilling,
+	getBillingAccount,
+	isFreeEmail,
 	mapSubscriptionStatus,
 	noticeFor,
 	recordStripeEvent,
@@ -20,7 +22,7 @@ import {
 	type BillingAccount
 } from './billing';
 import type { Database } from './db';
-import { accounts, auditLog, stripeEvents } from './db/schema';
+import { accounts, auditLog, stripeEvents, users } from './db/schema';
 import { contextA, testDatabase } from './testing';
 
 // The hosted configuration: keys set and writes refused after the trial.
@@ -29,7 +31,8 @@ vi.mock('$app/env/private', () => ({
 	STRIPE_PRICE_ID: 'price_unit',
 	STRIPE_WEBHOOK_SECRET: 'whsec_unit',
 	STRIPE_API_BASE: 'http://stripe.test',
-	BILLING_REQUIRED: true
+	BILLING_REQUIRED: true,
+	FREE_ACCOUNT_EMAILS: 'frei@example.org'
 }));
 
 // A fake account row: created on 1 January 2026 at noon UTC, so the trial ends on 31 January
@@ -75,6 +78,25 @@ describe('billingState', () => {
 		expect(billingState(account({ subscriptionStatus: 'past_due' }), later)).toBe('past_due');
 		expect(billingState(account({ subscriptionStatus: 'canceled' }), later)).toBe('canceled');
 		expect(billingState(account({ subscriptionStatus: 'trialing' }), later)).toBe('trialing');
+	});
+
+	it('is free for a free account, whatever the trial or Stripe say', () => {
+		const later = new Date('2027-01-01T00:00:00.000Z');
+		expect(billingState(account({ free: true }), later)).toBe('free');
+		expect(billingState(account({ free: true, subscriptionStatus: 'canceled' }), later)).toBe(
+			'free'
+		);
+		expect(noticeFor(account({ free: true }), later, true)).toBeUndefined();
+		expect(refusesWrite('free', 'POST', '/objekte', true)).toBe(false);
+	});
+});
+
+describe('isFreeEmail', () => {
+	it('finds the address in the list, ignoring case and spaces', () => {
+		expect(isFreeEmail('Mama@Example.org', 'papa@example.org, mama@example.org ')).toBe(true);
+		expect(isFreeEmail('mama@example.org', 'papa@example.org')).toBe(false);
+		expect(isFreeEmail('mama@example.org', '')).toBe(false);
+		expect(isFreeEmail(null, 'mama@example.org')).toBe(false);
 	});
 });
 
@@ -208,6 +230,26 @@ describe('with a database', () => {
 		await db.update(accounts).set({ subscriptionStatus: 'active' }).where(eq(accounts.id, 'a'));
 		expect(await apiReadOnly(db, 'a')).toBe(false);
 		expect(await apiReadOnly(db, 'missing')).toBe(false);
+	});
+
+	it('makes an account free by its owner, never by a manager', async () => {
+		const expired = { createdAt: new Date('2020-01-01'), subscriptionStatus: 'none' as const };
+		await db.update(accounts).set(expired).where(eq(accounts.id, 'a'));
+		expect((await getBillingAccount(db, 'a'))?.free).toBe(false);
+		await db.insert(users).values({
+			id: 'manager-a',
+			accountId: 'a',
+			email: 'frei@example.org',
+			passwordHash: 'x',
+			role: 'manager'
+		});
+		expect((await getBillingAccount(db, 'a'))?.free).toBe(false);
+		expect(await apiReadOnly(db, 'a')).toBe(true);
+
+		await db.delete(users).where(eq(users.id, 'manager-a'));
+		await db.update(users).set({ email: 'frei@example.org' }).where(eq(users.id, 'user-a'));
+		expect((await getBillingAccount(db, 'a'))?.free).toBe(true);
+		expect(await apiReadOnly(db, 'a')).toBe(false);
 	});
 
 	it('stores the Stripe customer with an audit entry', async () => {

@@ -12,6 +12,7 @@ import {
 	type UserRole
 } from './db/schema';
 import { DEFAULT_ACCOUNT_ID, ensureDefaultAccount } from './accounts';
+import { claimTrial } from './trials';
 
 // Sign-in uses only WebCrypto, which Node and Workers both provide, so both targets behave the same.
 
@@ -118,7 +119,9 @@ export async function registerUser(
 	if (first) {
 		accountId = await ensureDefaultAccount(db);
 	} else {
-		const [account] = await db.insert(accounts).values({ name: email }).returning();
+		// An address that had a trial before starts without one, even after deleting its account.
+		const trialEndsAt = await claimTrial(db, email);
+		const [account] = await db.insert(accounts).values({ name: email, trialEndsAt }).returning();
 		accountId = account.id;
 	}
 
