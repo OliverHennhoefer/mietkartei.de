@@ -227,6 +227,17 @@ describe('portal', () => {
 		expect((await run('portal')).failure).toMatchObject({ status: 502 });
 	});
 
+	it('lets an unreachable network through as an error instead of hiding it', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => {
+				throw new TypeError('fetch failed');
+			})
+		);
+		await expect(run('portal')).rejects.toThrow('fetch failed');
+		await expect(run('checkout')).rejects.toThrow('fetch failed');
+	});
+
 	it('needs a customer and a trusted origin', async () => {
 		vi.spyOn(console, 'warn').mockImplementation(() => {});
 		env.ORIGIN = '';

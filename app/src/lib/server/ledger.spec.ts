@@ -440,6 +440,20 @@ describe('listLedger', () => {
 		expect(ledger).toMatchObject({ charged: 240000, paid: 220000, balance: 20000 });
 	});
 
+	it('keeps payments of the same day in the order they were booked', async () => {
+		await createPayment(db, contextA, {
+			leaseId: endedLeaseId,
+			date: '2025-02-10',
+			amount: 1000,
+			source: 'manual',
+			note: 'Rest'
+		});
+		const labels = (await listLedger(db, 'a', endedLeaseId)).lines
+			.filter((line) => line.date === '2025-02-10')
+			.map((line) => line.label);
+		expect(labels).toEqual(['Zahlung', 'Rest']);
+	});
+
 	it('limits the lines to a window and carries the balance over', async () => {
 		const ledger = await listLedger(db, 'a', endedLeaseId, {
 			from: '2025-02-01',
