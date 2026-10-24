@@ -172,7 +172,8 @@ export async function instalmentDeadlines(
 	return amounts.map((amount, index) => {
 		const dueDate = nthWorkingDay(
 			addMonthsToMonth(monthOf(lease.startDate), index),
-			lease.rentDueDay
+			lease.rentDueDay,
+			lease.property.state
 		);
 		// The first instalment is due at the start of the tenancy, never before it (a lease starting
 		// on the 15th has its first rent due on the 3rd working day of the month).

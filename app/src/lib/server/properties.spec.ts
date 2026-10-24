@@ -23,6 +23,7 @@ function propertyInput(overrides: Partial<PropertyInput> = {}): PropertyInput {
 		name: 'Haus',
 		...address,
 		buildingUse: 'residential',
+		state: null,
 		vacancyPersons: 1,
 		notes: null,
 		...overrides

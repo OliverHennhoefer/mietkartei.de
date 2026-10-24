@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { co2KgFromKwh, landlordSharePercent, splitCo2Cost } from './co2';
+import { behgCost, behgHint, co2KgFromKwh, landlordSharePercent, splitCo2Cost } from './co2';
 
 describe('landlordSharePercent', () => {
 	it('follows the tiers of Anlage 1 CO2KostAufG for residential buildings', () => {
@@ -62,5 +62,27 @@ describe('co2KgFromKwh', () => {
 		expect(co2KgFromKwh('other', 25000)).toBeNull();
 		expect(co2KgFromKwh(null, 25000)).toBeNull();
 		expect(co2KgFromKwh('gas', null)).toBeNull();
+	});
+});
+
+describe('behgCost and behgHint', () => {
+	it('prices the emissions at the fixed BEHG price of the year, without VAT', () => {
+		expect(behgCost(2025, 5025)).toEqual({ minPrice: 55, maxPrice: 55, min: 27638, max: 27638 });
+		expect(behgCost(2023, 1000)?.min).toBe(3000);
+		expect(behgHint(2024, 5025)).toBe(
+			'CO₂-Preis 2024 nach BEHG: 45 € je Tonne, für 5.025 kg also 226,13\u00a0€ ohne Umsatzsteuer.'
+		);
+	});
+
+	it('gives the corridor of the 2026 auctions as a range', () => {
+		expect(behgCost(2026, 2000)).toEqual({ minPrice: 55, maxPrice: 65, min: 11000, max: 13000 });
+		expect(behgHint(2026, 2000)).toContain('55 bis 65 € je Tonne (Versteigerung)');
+	});
+
+	it('has nothing for a year without a price or without emissions', () => {
+		expect(behgCost(2020, 1000)).toBeNull();
+		expect(behgCost(2027, 1000)).toBeNull();
+		expect(behgCost(2025, 0)).toBeNull();
+		expect(behgHint(2025, Number.NaN)).toBeNull();
 	});
 });

@@ -133,6 +133,7 @@ describe('planImport: properties and units', () => {
 					postalCode: '10115',
 					city: 'Berlin',
 					buildingUse: 'residential',
+					state: null,
 					vacancyPersons: 1,
 					notes: null
 				}

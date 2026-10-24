@@ -40,7 +40,8 @@
 					kind: lease.kind,
 					startDate: lease.startDate,
 					terminatedAt: endAt,
-					terminatedBy: endBy
+					terminatedBy: endBy,
+					state: lease.property.state
 				})
 			: undefined
 	);

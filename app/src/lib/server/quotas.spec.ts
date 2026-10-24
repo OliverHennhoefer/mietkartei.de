@@ -8,6 +8,7 @@ const property = {
 	...address,
 	name: 'Haus',
 	buildingUse: 'residential' as const,
+	state: null,
 	vacancyPersons: 1,
 	notes: null
 };

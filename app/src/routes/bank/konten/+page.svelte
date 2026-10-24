@@ -91,7 +91,11 @@
 				required
 			/>
 		</Field>
-		<Field label="BIC (optional)" error={errors?.bic}>
+		<Field
+			label="BIC (optional)"
+			error={errors?.bic}
+			hint="Bleibt das Feld leer, ergänzen wir sie bei deutschen Konten aus dem Bankleitzahlenverzeichnis der Bundesbank."
+		>
 			<input
 				name="bic"
 				autocapitalize="characters"

@@ -1,5 +1,6 @@
 import { eq, inArray } from 'drizzle-orm';
 import { auditEntry, type AuditContext } from './audit';
+import { bankOfIban } from './bank/bank-codes';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import {
@@ -270,14 +271,21 @@ export type LandlordInput = {
 	bankName: string | null;
 };
 
-/** Sets the sender block of the account, which letters and statements print. */
+/**
+ * Sets the sender block of the account, which letters and statements print. A bank name left
+ * empty is taken from the Bankleitzahlendatei when the IBAN is German.
+ */
 export async function updateLandlord(
 	db: Database,
 	context: AuditContext,
 	input: LandlordInput
 ): Promise<void> {
+	const bankName = input.bankName ?? (input.iban ? bankOfIban(input.iban)?.name : null) ?? null;
 	await runBatch(db, [
-		db.update(accounts).set(input).where(eq(accounts.id, context.accountId)),
+		db
+			.update(accounts)
+			.set({ ...input, bankName })
+			.where(eq(accounts.id, context.accountId)),
 		auditEntry(
 			db,
 			context,
