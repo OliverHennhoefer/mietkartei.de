@@ -149,7 +149,7 @@ export type ScopeGroup = { id: string; label: string; options: { value: string; 
 export async function scopeOptions(db: Database, accountId: string): Promise<ScopeGroup[]> {
 	const [propertyRows, unitRows] = await Promise.all([
 		db
-			.select({ id: properties.id, name: properties.name })
+			.select({ id: properties.id, name: properties.name, archivedAt: properties.archivedAt })
 			.from(properties)
 			.where(eq(properties.accountId, accountId))
 			.orderBy(properties.name),
@@ -159,9 +159,14 @@ export async function scopeOptions(db: Database, accountId: string): Promise<Sco
 			.where(eq(units.accountId, accountId))
 			.orderBy(units.name)
 	]);
-	return propertyRows.map((property) => ({
+	// Archived (sold) properties come last: bills for them can still arrive after the sale.
+	const ordered = [
+		...propertyRows.filter((property) => !property.archivedAt),
+		...propertyRows.filter((property) => property.archivedAt)
+	];
+	return ordered.map((property) => ({
 		id: property.id,
-		label: property.name,
+		label: property.archivedAt ? `${property.name} (archiviert)` : property.name,
 		options: [
 			{ value: scopeValue('property', property.id), label: `${property.name} (ganzes Objekt)` },
 			...unitRows

@@ -222,8 +222,15 @@
     {
       "idx": 31,
       "version": "6",
-      "when": 1792868840871,
-      "tag": "0031_trial_claims",
+      "when": 1792868731793,
+      "tag": "0031_archive_properties_and_tenants",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1792869997353,
+      "tag": "0032_trial_claims",
       "breakpoints": true
     }
   ]

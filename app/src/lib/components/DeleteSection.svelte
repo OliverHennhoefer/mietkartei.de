@@ -10,7 +10,8 @@
 		label,
 		question,
 		check,
-		error
+		error,
+		alternative
 	}: {
 		heading: string;
 		/** The button, e.g. "Mieter löschen". */
@@ -20,6 +21,8 @@
 		check: DeletionCheck;
 		/** A refusal of the action, when the data changed after the page was loaded. */
 		error?: string;
+		/** What to do instead while something blocks the delete, e.g. archiving. */
+		alternative?: string;
 	} = $props();
 
 	const message = $derived(
@@ -43,6 +46,7 @@
 				</ul>
 			{/if}
 		{/each}
+		{#if alternative}<p>{alternative}</p>{/if}
 	</Alert>
 {:else}
 	{#if check.removes.length > 0}

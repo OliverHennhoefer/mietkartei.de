@@ -9,7 +9,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const accountId = requireAccount(locals);
 	await ensureDefaults(locals.db, accountId);
 	const [properties, yearsWithItems] = await Promise.all([
-		listProperties(locals.db, accountId),
+		listProperties(locals.db, accountId, { archived: true }),
 		listCostItemYears(locals.db, accountId)
 	]);
 	const propertyParam = url.searchParams.get('property');
