@@ -260,7 +260,7 @@ export async function signWebhookPayload(
 }
 
 /** The tolerance Stripe recommends against replayed deliveries. */
-export const WEBHOOK_TOLERANCE_SECONDS = 300;
+const WEBHOOK_TOLERANCE_SECONDS = 300;
 
 /**
  * Checks a Stripe-Signature header against the raw body. `now` is in unix seconds; a timestamp

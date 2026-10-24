@@ -1,6 +1,11 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { ORIGIN } from '$app/env/private';
-import { parseInvitation, parseRoleChange, type InvitationFormInput } from '#lib/forms/auth.ts';
+import {
+	confirmPasswordError,
+	parseInvitation,
+	parseRoleChange,
+	type InvitationFormInput
+} from '#lib/forms/auth.ts';
 import type { FieldErrors } from '#lib/forms/fields.ts';
 import { confirmPassword } from '#lib/server/auth.ts';
 import {
@@ -201,12 +206,7 @@ export const actions: Actions = {
 		}
 		const checked = await confirmPassword(locals.db, auditContext(locals), password);
 		if (checked !== 'ok') {
-			return fail(400, {
-				refused:
-					checked === 'locked'
-						? 'Zu viele Fehlversuche. Bitte warte 15 Minuten.'
-						: 'Das Passwort stimmt nicht.'
-			});
+			return fail(400, { refused: confirmPasswordError(checked) });
 		}
 		const result = await transferOwnership(locals.db, auditContext(locals), userId);
 		if (!result.ok) return fail(404, { refused: 'Diesen Zugang gibt es nicht.' });

@@ -9,7 +9,7 @@ import { actionName } from './billing';
 /** Pages that only hold a form to create or edit something, e.g. /objekte/neu. */
 const formPage = /\/(neu|bearbeiten)$/;
 
-export const VIEWER_MESSAGE = 'Du hast Lesezugriff auf dieses Konto und kannst nichts ändern.';
+const VIEWER_MESSAGE = 'Du hast Lesezugriff auf dieses Konto und kannst nichts ändern.';
 
 /** Whether a viewer's request has to be refused: a write outside viewer-paths.ts, or a form page. */
 export function refusesViewer(method: string, pathname: string, action = 'default'): boolean {

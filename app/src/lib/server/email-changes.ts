@@ -5,7 +5,8 @@ import {
 	otherSessions,
 	generateToken,
 	hashToken,
-	normalizeEmail
+	normalizeEmail,
+	signedInUser
 } from './auth';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
@@ -37,11 +38,7 @@ export async function requestEmailChange(
 	input: { email: string; currentPassword: string },
 	now = Date.now()
 ): Promise<RequestEmailChangeResult> {
-	if (!context.userId) return { ok: false, reason: 'missing' };
-	const [user] = await db
-		.select({ id: users.id, email: users.email, passwordHash: users.passwordHash })
-		.from(users)
-		.where(and(eq(users.id, context.userId), eq(users.accountId, context.accountId)));
+	const user = await signedInUser(db, context);
 	if (!user) return { ok: false, reason: 'missing' };
 	const checked = await checkCurrentPassword(db, user, input.currentPassword);
 	if (checked !== 'ok') return { ok: false, reason: checked };

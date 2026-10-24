@@ -29,11 +29,11 @@ export type Meter = {
 };
 
 /** A reading this many days before or after a date is used as the reading on that date. */
-export const EXACT_READING_DAYS = 3;
+const EXACT_READING_DAYS = 3;
 
 const FOREVER: DateRange = { start: '0000-01-01', end: '9999-12-31' };
 
-export function sortReadings(readings: readonly Reading[]): Reading[] {
+function sortReadings(readings: readonly Reading[]): Reading[] {
 	return [...readings].sort((a, b) => (a.readAt < b.readAt ? -1 : a.readAt > b.readAt ? 1 : 0));
 }
 
@@ -142,7 +142,7 @@ export function unitConsumption(meters: readonly Meter[], from: IsoDate, to: Iso
 }
 
 /** Whether the meter is in service on the day. */
-export function inService(meter: Pick<Meter, 'installedAt' | 'removedAt'>, date: IsoDate) {
+function inService(meter: Pick<Meter, 'installedAt' | 'removedAt'>, date: IsoDate) {
 	const range = lifetime(meter);
 	return range.start <= date && date <= range.end;
 }
