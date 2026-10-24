@@ -18,6 +18,7 @@ OUTPUT.mkdir(parents=True)
 for filename in (
     "index.html",
     "impressum/index.html",
+    "fragen/index.html",
     "styles.css",
     "robots.txt",
     "sitemap.xml",
@@ -56,18 +57,18 @@ for filename in ("Geist.ttf", "OFL.txt"):
 
 
 
-def add_faq_json_ld(homepage: Path) -> None:
-    """Adds a FAQPage block built from the questions in the FAQ section, so both stay in step."""
-    text = homepage.read_text(encoding="utf-8")
-    section = re.search(r'<section class="faq".*?</section>', text, re.S)
-    if not section:
-        raise ValueError("website/index.html: missing FAQ section")
-    pairs = re.findall(r"<h3>(.*?)</h3>\s*<p>(.*?)</p>", section.group(0), re.S)
+def add_faq_json_ld(page: Path) -> None:
+    """Adds a FAQPage block built from the questions on the FAQ page, so both stay in step."""
+    text = page.read_text(encoding="utf-8")
+    pairs = re.findall(r'<div class="faq-item">\s*<h3>(.*?)</h3>\s*<p>(.*?)</p>', text, re.S)
+    if not pairs:
+        raise ValueError("website/fragen/index.html: missing FAQ items")
     plain = lambda fragment: html.unescape(re.sub(r"<[^>]+>", "", fragment)).strip()
     faq = {
         "@context": "https://schema.org",
         "@type": "FAQPage",
-        "@id": "https://mietkartei.de/#fragen",
+        "@id": "https://mietkartei.de/fragen/#faq",
+        "url": "https://mietkartei.de/fragen/",
         "inLanguage": "de-DE",
         "mainEntity": [
             {"@type": "Question", "name": plain(q), "acceptedAnswer": {"@type": "Answer", "text": plain(a)}}
@@ -75,10 +76,10 @@ def add_faq_json_ld(homepage: Path) -> None:
         ],
     }
     block = f'<script type="application/ld+json">{json_ld(faq)}</script>\n    <link rel="stylesheet"'
-    homepage.write_text(text.replace('<link rel="stylesheet"', block, 1), encoding="utf-8")
+    page.write_text(text.replace('<link rel="stylesheet"', block, 1), encoding="utf-8")
 
 
-add_faq_json_ld(OUTPUT / "index.html")
+add_faq_json_ld(OUTPUT / "fragen" / "index.html")
 build_news(ROOT / "website", OUTPUT)
 
 print(f"Startseite erzeugt: {OUTPUT}")

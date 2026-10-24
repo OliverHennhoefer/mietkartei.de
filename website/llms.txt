@@ -21,7 +21,7 @@ Für wen: Privatvermieter, die für große Verwaltungsprogramme zu klein und fü
 ## Links
 
 - [Startseite](https://mietkartei.de/): Überblick über das Produkt
-- [Häufige Fragen](https://mietkartei.de/#fragen): Zielgruppe, Kosten, Nebenkostenabrechnung, Bankimport, Datenhaltung und Datenübernahme
+- [Häufige Fragen](https://mietkartei.de/fragen/): Zielgruppe, Kosten, Nebenkostenabrechnung, Bankimport, Datenübernahme, Datenhaltung und Selbsthosten
 - [Demo](https://demo.mietkartei.de/): eigener Beispielbestand ohne Anmeldung, wird nach 24 Stunden gelöscht
 - [Neuigkeiten](https://mietkartei.de/neuigkeiten/): Mietrecht für private Vermieter und Neues aus mietkartei, auch als [RSS-Feed](https://mietkartei.de/neuigkeiten/feed.xml)
 - [Dokumentation](https://docs.mietkartei.de/): Anleitungen zu mietkartei, als ein Textdokument unter [llms-full.txt](https://docs.mietkartei.de/llms-full.txt)
