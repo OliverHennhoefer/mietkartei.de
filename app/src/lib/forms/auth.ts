@@ -141,3 +141,10 @@ export function parseDeleteAccount(form: FormData): ParseResult<DeleteAccountInp
 	else if (value.length > 200) parser.fail('password', 'Das Passwort stimmt nicht.');
 	return parser.result(() => ({ password: value }));
 }
+
+/** Why a password asked for again (deleting, leaving or handing over the account) was refused. */
+export function confirmPasswordError(reason: 'wrong-password' | 'locked' | 'missing'): string {
+	return reason === 'locked'
+		? 'Zu viele Fehlversuche. Bitte warte 15 Minuten.'
+		: 'Das Passwort stimmt nicht.';
+}

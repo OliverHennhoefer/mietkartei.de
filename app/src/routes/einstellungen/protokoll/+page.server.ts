@@ -1,4 +1,4 @@
-import { listAuditEntities, listAuditLog, listAuditLogForEntity } from '#lib/server/audit.ts';
+import { listAuditEntities, listAuditLog } from '#lib/server/audit.ts';
 import { requireAccount } from '#lib/server/session.ts';
 import type { PageServerLoad } from './$types';
 
@@ -11,9 +11,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const requested = url.searchParams.get('entity')?.trim() || '';
 	const entity = requested.length <= 50 ? requested : '';
 	const [entries, entities] = await Promise.all([
-		entity
-			? listAuditLogForEntity(locals.db, accountId, entity, LIMIT)
-			: listAuditLog(locals.db, accountId, LIMIT),
+		listAuditLog(locals.db, accountId, { entity, limit: LIMIT }),
 		listAuditEntities(locals.db, accountId)
 	]);
 	return { entries, entities, entity, limit: LIMIT };

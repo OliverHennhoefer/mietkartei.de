@@ -7,6 +7,27 @@
 	let { data, form }: PageProps = $props();
 </script>
 
+<!-- Deleting and leaving both ask for the password again. -->
+{#snippet passwordForm(action: 'delete' | 'leave', label: string)}
+	<form method="POST" action="?/{action}" class="form" use:enhance>
+		<label>
+			Passwort
+			<input
+				name="password"
+				type="password"
+				autocomplete="current-password"
+				maxlength="200"
+				aria-invalid={form?.errors?.password ? 'true' : undefined}
+				required
+			/>
+			{#if form?.errors?.password}<span class="error">{form.errors.password}</span>{/if}
+		</label>
+		<div class="form-actions">
+			<button type="submit" class="danger">{label}</button>
+		</div>
+	</form>
+{/snippet}
+
 <PageHeader title="Konto" />
 
 {#if data.canLoadDemo}
@@ -42,23 +63,7 @@
 		{#if data.subscriptionRuns}
 			<p>Dein Abo wird dabei sofort gekündigt; danach bucht Stripe nichts mehr ab.</p>
 		{/if}
-		<form method="POST" action="?/delete" class="form" use:enhance>
-			<label>
-				Passwort
-				<input
-					name="password"
-					type="password"
-					autocomplete="current-password"
-					maxlength="200"
-					aria-invalid={form?.errors?.password ? 'true' : undefined}
-					required
-				/>
-				{#if form?.errors?.password}<span class="error">{form.errors.password}</span>{/if}
-			</label>
-			<div class="form-actions">
-				<button type="submit" class="danger">Konto endgültig löschen</button>
-			</div>
-		</form>
+		{@render passwordForm('delete', 'Konto endgültig löschen')}
 	{:else}
 		<p class="muted">Nur der Vermieter kann das Konto löschen.</p>
 	{/if}
@@ -71,23 +76,7 @@
 			Das beendet deinen Zugang zu diesem Konto. Die Daten des Kontos bleiben, du kannst dich aber
 			nicht mehr anmelden, bis der Vermieter dich wieder einlädt.
 		</p>
-		<form method="POST" action="?/leave" class="form" use:enhance>
-			<label>
-				Passwort
-				<input
-					name="password"
-					type="password"
-					autocomplete="current-password"
-					maxlength="200"
-					aria-invalid={form?.errors?.password ? 'true' : undefined}
-					required
-				/>
-				{#if form?.errors?.password}<span class="error">{form.errors.password}</span>{/if}
-			</label>
-			<div class="form-actions">
-				<button type="submit" class="danger">Konto verlassen</button>
-			</div>
-		</form>
+		{@render passwordForm('leave', 'Konto verlassen')}
 	</section>
 {/if}
 

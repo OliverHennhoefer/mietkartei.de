@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { auditEntry, listAuditEntities, listAuditLog, listAuditLogForEntity } from './audit';
+import { auditEntry, listAuditEntities, listAuditLog } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import { users } from './db/schema';
@@ -35,15 +35,15 @@ describe('listAuditLog', () => {
 			['Einheit EG links angelegt', 'Vera Vermieterin', 'a@example.org'],
 			['Objekt Lindenstraße 4 angelegt', 'Vera Vermieterin', 'a@example.org']
 		]);
-		expect(await listAuditLog(db, 'a', 1)).toHaveLength(1);
+		expect(await listAuditLog(db, 'a', { limit: 1 })).toHaveLength(1);
 	});
 });
 
-describe('listAuditLogForEntity and listAuditEntities', () => {
+describe('listAuditLog by entity and listAuditEntities', () => {
 	it('narrow the log to one entity and list the entities of the account', async () => {
-		const properties = await listAuditLogForEntity(db, 'a', 'property');
+		const properties = await listAuditLog(db, 'a', { entity: 'property' });
 		expect(properties.map((entry) => entry.entityId)).toEqual(['p1']);
-		expect(await listAuditLogForEntity(db, 'a', 'nope')).toEqual([]);
+		expect(await listAuditLog(db, 'a', { entity: 'nope' })).toEqual([]);
 		expect(await listAuditEntities(db, 'a')).toEqual(['property', 'unit', 'user']);
 		expect(await listAuditEntities(db, 'b')).toEqual(['property']);
 	});
