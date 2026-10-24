@@ -27,7 +27,7 @@ Open Source, nachvollziehbar gerechnet und ohne Einarbeitung.
 
 ## Warum mietkartei?
 
-Gebaut für Vermieter mit drei bis zehn Wohnungen: zu klein für die großen Verwaltungsprogramme, zu groß für Excel.
+Gebaut für private Vermieter, von der einzelnen Wohnung bis zu rund zwanzig: zu klein für die großen Verwaltungsprogramme, aber mehr, als eine Excel-Tabelle sauber trägt.
 
 ## So sieht es aus
 

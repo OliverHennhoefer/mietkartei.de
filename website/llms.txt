@@ -1,6 +1,6 @@
 # mietkartei
 
-> mietkartei ist eine Open-Source-Hausverwaltung für Privatvermieter in Deutschland, gedacht für drei bis zehn Wohnungen. Sie führt Mieten, Bankumsätze und die Betriebskostenabrechnung (Nebenkostenabrechnung) an einem Ort und zeigt zu jedem Betrag den Rechenweg. Sie wird in Deutschland entwickelt und läuft gehostet unter app.mietkartei.de, mit Datenbank und Dokumenten in der EU, oder selbst betrieben als ein Docker-Container. Der Code steht unter der AGPL-3.0.
+> mietkartei ist eine Open-Source-Hausverwaltung für Privatvermieter in Deutschland, gedacht für eine einzelne Wohnung bis zu rund zwanzig Wohnungen. Sie führt Mieten, Bankumsätze und die Betriebskostenabrechnung (Nebenkostenabrechnung) an einem Ort und zeigt zu jedem Betrag den Rechenweg. Sie wird in Deutschland entwickelt und läuft gehostet unter app.mietkartei.de, mit Datenbank und Dokumenten in der EU, oder selbst betrieben als ein Docker-Container. Der Code steht unter der AGPL-3.0.
 
 Zum Ausprobieren gibt es eine Demo mit Beispieldaten unter https://demo.mietkartei.de, ohne Anmeldung.
 
