@@ -113,6 +113,24 @@ const camt053v8 = `<?xml version="1.0" encoding="UTF-8"?>
   </BkToCstmrStmt>
 </Document>`;
 
+describe('entries that are not imported', () => {
+	it('leaves out information entries and batches without details get a purpose', () => {
+		const info = camt053v8.replace('<Cd>BOOK</Cd>', '<Cd>INFO</Cd>');
+		expect(parseCamt(info)?.results).toEqual([
+			{ ok: false, reason: 'Nicht gebucht (nur Information)' }
+		]);
+		// Two transactions whose amounts do not add up to the entry cannot be split.
+		const batch = camt053v8
+			.replace(
+				'</TxDtls></NtryDtls>',
+				'</TxDtls><TxDtls><Amt Ccy="EUR">10.00</Amt></TxDtls></NtryDtls>'
+			)
+			.replace('<AddtlTxInf>Abschlag Strom Allgemein</AddtlTxInf>', '');
+		const [row] = parseCamt(batch)!.results;
+		expect(row).toMatchObject({ ok: true, row: { purpose: 'Sammelbuchung mit 2 Posten' } });
+	});
+});
+
 describe('parseCamtAmount', () => {
 	it('reads decimals with a dot and up to two places', () => {
 		expect(parseCamtAmount('850.00')).toBe(85000);
@@ -326,6 +344,25 @@ describe('parseBankUpload', () => {
 		expect(parseBankUpload(strToU8(''))).toEqual({
 			ok: false,
 			reason: 'Die Datei enthält keine Tabelle mit Spalten.'
+		});
+	});
+
+	it('refuses broken XML and a ZIP that would unpack too large', () => {
+		expect(parseBankUpload(strToU8('<?xml version="1.0"?><Document><BkToCstmrStmt>'))).toEqual({
+			ok: false,
+			reason: 'Die XML-Datei ist kein lesbarer camt-Kontoauszug.'
+		});
+		// fflate takes the size from the archive's directory; a forged size is refused before
+		// anything is unpacked.
+		const zip = zipSync({ 'a.xml': strToU8(camt053v8) });
+		const view = new DataView(zip.buffer);
+		for (let offset = 0; offset < zip.length - 4; offset++) {
+			if (view.getUint32(offset, true) === 0x02014b50)
+				view.setUint32(offset + 24, 60 * 1024 * 1024, true);
+		}
+		expect(parseBankUpload(zip)).toEqual({
+			ok: false,
+			reason: 'Die ZIP-Datei lässt sich nicht entpacken.'
 		});
 	});
 

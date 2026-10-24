@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Database } from './index';
 import { chunk, chunkIds, rowsPerStatement, runBatch } from './batch';
@@ -26,6 +26,16 @@ describe('runBatch', () => {
 			['Eins', 'Leipzig'],
 			['Zwei', 'Berlin']
 		]);
+	});
+
+	it('hands the statements to batch on D1 and skips an empty list', async () => {
+		const batch = vi.fn(async () => []);
+		const d1 = { batch } as unknown as Database;
+		const statements = [db.insert(properties).values({ accountId: 'a', name: 'Eins', ...address })];
+		await runBatch(d1, []);
+		expect(batch).not.toHaveBeenCalled();
+		await runBatch(d1, statements);
+		expect(batch).toHaveBeenCalledWith(statements);
 	});
 
 	it('rolls everything back when one statement fails', async () => {

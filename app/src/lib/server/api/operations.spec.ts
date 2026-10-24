@@ -4,6 +4,7 @@ import { listAuditLog } from '../audit';
 import type { Database } from '../db';
 import { accounts } from '../db/schema';
 import { createPayment, listLedger } from '../ledger';
+import { QUOTAS } from '../quotas';
 import { createTask } from '../tasks';
 import {
 	contextA,
@@ -77,6 +78,8 @@ describe('operations', () => {
 			currentRent: { baseRent: 60000 }
 		});
 		expect(await run('list_leases', { status: 'upcoming' })).toEqual([]);
+		expect(await run('list_leases', { status: 'active' })).toHaveLength(1);
+		expect(await run('list_leases', { status: 'ended' })).toEqual([]);
 		expect(await run('list_leases', { tenantId: ids.tenantId })).toHaveLength(1);
 	});
 
@@ -120,6 +123,7 @@ describe('operations', () => {
 		for (const deadline of deadlines) expect(deadline).not.toHaveProperty('href');
 		expect(await run('list_tasks')).toMatchObject([{ title: 'Rauchmelder prüfen' }]);
 		expect(await run('list_tasks', { status: 'done' })).toEqual([]);
+		expect(await run('list_tasks', { status: 'all' })).toHaveLength(1);
 	});
 
 	it('do not find rows of another account', async () => {
@@ -170,6 +174,19 @@ describe('write operations', () => {
 		});
 		// Reading goes on.
 		expect(await run('list_tasks')).toHaveLength(1);
+	});
+
+	it('answer a reached quota as a refusal', async () => {
+		const max = QUOTAS.tasks.max;
+		QUOTAS.tasks.max = 1;
+		try {
+			await expect(write('create_task', { title: 'Noch eine' })).rejects.toMatchObject({
+				status: 409,
+				code: 'refused'
+			});
+		} finally {
+			QUOTAS.tasks.max = max;
+		}
 	});
 
 	it('book a payment on the rent account, audited under the key’s user', async () => {
@@ -227,7 +244,12 @@ describe('write operations', () => {
 			lease: null
 		});
 		await expect(write('create_task', { title: 'x', leaseId: 'other' })).rejects.toMatchObject({
-			status: 404
+			status: 404,
+			message: expect.stringContaining('Lease')
+		});
+		await expect(write('create_task', { title: 'x', propertyId: 'other' })).rejects.toMatchObject({
+			status: 404,
+			message: expect.stringContaining('Property')
 		});
 		await expect(write('complete_task', { id: 'other' })).rejects.toMatchObject({ status: 404 });
 	});
@@ -270,6 +292,17 @@ describe('write operations', () => {
 		};
 		await expect(
 			write('create_cost_item', { ...base, periodEnd: '2025-12-31' })
+		).rejects.toMatchObject({ status: 400 });
+		await expect(write('create_cost_item', { ...base, description: '' })).rejects.toMatchObject({
+			status: 400
+		});
+		const categories = (await run('list_cost_categories')) as {
+			id: string;
+			allocationKeyId: string | null;
+		}[];
+		const withoutKey = categories.find((row) => !row.allocationKeyId)!;
+		await expect(
+			write('create_cost_item', { ...base, categoryId: withoutKey.id })
 		).rejects.toMatchObject({ status: 400 });
 		await expect(write('create_cost_item', { ...base, propertyId: 'other' })).rejects.toMatchObject(
 			{ status: 404 }

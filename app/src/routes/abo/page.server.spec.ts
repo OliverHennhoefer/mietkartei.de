@@ -43,7 +43,9 @@ beforeEach(async () => {
 
 afterEach(() => {
 	vi.unstubAllGlobals();
+	vi.restoreAllMocks();
 	env.STRIPE_SECRET_KEY = 'sk_test_unit';
+	env.ORIGIN = 'https://app.mietkartei.de';
 });
 
 function event(action: 'checkout' | 'portal') {
@@ -157,6 +159,50 @@ describe('checkout', () => {
 		const { failure } = await run('checkout');
 		expect(failure).toMatchObject({ status: 502 });
 	});
+
+	it('refuses a second subscription while one runs', async () => {
+		await db
+			.update(accounts)
+			.set({ stripeSubscriptionId: 'sub_1', subscriptionStatus: 'active' })
+			.where(eq(accounts.id, 'a'));
+		expect((await run('checkout')).failure).toMatchObject({
+			status: 400,
+			data: { message: 'Du hast bereits ein laufendes Abo.' }
+		});
+		expect(calls).toEqual([]);
+	});
+
+	it('does not send the owner to Stripe without a trusted origin', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		env.ORIGIN = '';
+		expect((await run('checkout')).failure).toMatchObject({ status: 503 });
+		expect(calls).toEqual([]);
+	});
+
+	it('reuses the stored customer', async () => {
+		await db.update(accounts).set({ stripeCustomerId: 'cus_old' }).where(eq(accounts.id, 'a'));
+		answers['POST /v1/checkout/sessions'] = session('cs_1', 'open', CHECKOUT_URL);
+		await run('checkout');
+		expect(calls).toEqual(['POST /v1/checkout/sessions']);
+	});
+
+	it('answers 502 when Stripe fails, also while looking up the stored session', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		answers['POST /v1/customers'] = () => ({ status: 500, body: {} });
+		expect((await run('checkout')).failure).toMatchObject({ status: 502 });
+
+		answers['POST /v1/customers'] = () => ({ body: { id: 'cus_a' } });
+		await db.update(accounts).set({ stripeCheckoutSessionId: 'cs_1' }).where(eq(accounts.id, 'a'));
+		answers['GET /v1/checkout/sessions/cs_1'] = () => ({ status: 500, body: {} });
+		expect((await run('checkout')).failure).toMatchObject({ status: 502 });
+		expect(calls).not.toContain('POST /v1/checkout/sessions');
+	});
+
+	it('is not there when the instance does not bill', async () => {
+		env.STRIPE_SECRET_KEY = '';
+		await expect(run('checkout')).rejects.toMatchObject({ status: 404 });
+		await expect(run('portal')).rejects.toMatchObject({ status: 404 });
+	});
 });
 
 describe('portal', () => {
@@ -174,6 +220,23 @@ describe('portal', () => {
 			body: { url: 'https://billing.stripe.com.evil.example/p' }
 		});
 		expect((await run('portal')).failure).toMatchObject({ status: 502 });
+	});
+
+	it('answers 502 when Stripe fails', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		expect((await run('portal')).failure).toMatchObject({ status: 502 });
+	});
+
+	it('needs a customer and a trusted origin', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		env.ORIGIN = '';
+		expect((await run('portal')).failure).toMatchObject({ status: 503 });
+		await db.update(accounts).set({ stripeCustomerId: null }).where(eq(accounts.id, 'a'));
+		expect((await run('portal')).failure).toMatchObject({
+			status: 400,
+			data: { message: 'Es gibt noch kein Abo.' }
+		});
+		expect(calls).toEqual([]);
 	});
 });
 

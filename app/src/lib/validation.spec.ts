@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseProperty, parseUnit } from './validation';
+import { parseCredentials, parseProperty, parseUnit } from './validation';
 
 function form(entries: Record<string, string>) {
 	const data = new FormData();
@@ -160,5 +160,37 @@ describe('parseUnit', () => {
 		expect(result.ok).toBe(false);
 		if (result.ok) return;
 		expect(Object.keys(result.errors)).toEqual(['floorArea']);
+	});
+});
+
+describe('length limits', () => {
+	const long = (length: number) => 'x'.repeat(length);
+
+	it('refuses names and addresses longer than the database keeps', () => {
+		const result = parseProperty(
+			form({ name: long(101), street: long(201), postalCode: '10115', city: long(101) })
+		);
+		expect(result).toMatchObject({
+			ok: false,
+			errors: {
+				name: 'Die Bezeichnung ist zu lang.',
+				street: 'Höchstens 200 Zeichen.',
+				city: 'Höchstens 100 Zeichen.'
+			}
+		});
+		expect(parseUnit(form({ name: long(101), kind: 'apartment' }))).toMatchObject({
+			ok: false,
+			errors: { name: 'Die Bezeichnung ist zu lang.' }
+		});
+	});
+
+	it('refuses a password longer than 200 characters and never sends it back', () => {
+		const result = parseCredentials(form({ email: 'a@example.org', password: long(201) }));
+		expect(result).toMatchObject({ ok: false, errors: { password: 'Das Passwort ist zu lang.' } });
+		expect(JSON.stringify(result)).not.toContain(long(201));
+		expect(parseCredentials(new FormData())).toMatchObject({
+			ok: false,
+			errors: { email: expect.any(String), password: expect.any(String) }
+		});
 	});
 });

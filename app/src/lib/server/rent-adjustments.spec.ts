@@ -281,6 +281,39 @@ describe('proposeIndexChange and approveChange', () => {
 	});
 });
 
+describe('approveChange within the waiting period', () => {
+	it('refuses a new rent before it stayed unchanged for a year', async () => {
+		await seedValues();
+		const proposed = await proposeIndexChange(db, contextA, leaseId);
+		if (!proposed?.ok) throw new Error('no proposal');
+		// The Kaltmiete changed by agreement on 1 June 2026.
+		await manualChange(db, contextA, leaseId, {
+			validFrom: '2026-06-01',
+			baseRent: 61000,
+			operatingCostPrepayment: 15000,
+			heatingCostPrepayment: 5000,
+			reason: 'manual',
+			note: null
+		});
+		expect(
+			await approveChange(db, contextA, leaseId, proposed.id, {
+				deliveredOn: '2026-10-15',
+				validFrom: null
+			})
+		).toEqual({
+			ok: false,
+			message:
+				'Die Miete muss mindestens ein Jahr unverändert bleiben (§ 557b Abs. 2 BGB); die neue Miete kann frühestens am 01.06.2027 gelten.'
+		});
+		expect(
+			await approveChange(db, contextA, leaseId, 'missing', {
+				deliveredOn: '2026-10-15',
+				validFrom: null
+			})
+		).toBeUndefined();
+	});
+});
+
 describe('manualChange', () => {
 	const input = {
 		validFrom: '2025-01-01',
@@ -355,6 +388,15 @@ describe('manualChange', () => {
 		expect(await manualChange(db, contextA, foreignLeaseId, input)).toBeUndefined();
 		expect(await listRentChanges(db, 'b', foreignLeaseId)).toHaveLength(1);
 	});
+
+	it('refuses a change before the lease began', async () => {
+		expect(
+			await manualChange(db, contextA, leaseId, { ...input, validFrom: '2023-12-01' })
+		).toEqual({
+			ok: false,
+			message: 'Eine Mietänderung kann frühestens zum Vertragsbeginn am 01.01.2024 gelten.'
+		});
+	});
 });
 
 describe('addGraduatedStep', () => {
@@ -397,6 +439,24 @@ describe('addGraduatedStep', () => {
 		});
 		expect(await chargeOf(graduatedId, '2026-02')).toMatchObject({ amount: 82000 });
 		expect((await summaries('a')).at(-1)).toBe('update: Staffel ab 01.01.2026: Kaltmiete 620,00 €');
+	});
+
+	it('lets a commercial lease step without a year between, but not before it began', async () => {
+		const lease = await createLease(
+			db,
+			contextA,
+			leaseInput(unitId, { startDate: '2025-01-01', rentModel: 'graduated', kind: 'commercial' })
+		);
+		if (!lease.ok) throw new Error('setup failed');
+		expect(
+			await addGraduatedStep(db, contextA, lease.id, { validFrom: '2024-12-01', baseRent: 62000 })
+		).toEqual({
+			ok: false,
+			message: 'Eine Staffel kann frühestens zum Vertragsbeginn am 01.01.2025 beginnen.'
+		});
+		expect(
+			await addGraduatedStep(db, contextA, lease.id, { validFrom: '2025-04-01', baseRent: 62000 })
+		).toMatchObject({ ok: true });
 	});
 
 	it('refuses a lease without Staffelmiete and a foreign lease', async () => {

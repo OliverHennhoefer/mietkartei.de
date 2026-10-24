@@ -154,6 +154,22 @@ describe('bank', () => {
 		for (const action of ['assign', 'ignore', 'undo', 'reopen'] as const) {
 			expect(await run(actions[action], { form }), action).toMatchObject({ error: 404 });
 		}
+		expect(
+			await run(actions.expense, {
+				form: { id: foreign.id, category: 'operating_costs', scope: '', description: 'x' }
+			})
+		).toMatchObject({ error: 404 });
+	});
+
+	it('answers 404 when the form names no transaction', async () => {
+		for (const action of ['assign', 'ignore', 'undo', 'reopen'] as const) {
+			expect(await run(actions[action], { form: {} }), action).toMatchObject({ error: 404 });
+		}
+		expect(
+			await run(actions.expense, {
+				form: { category: 'operating_costs', scope: '', description: 'x' }
+			})
+		).toMatchObject({ error: 404 });
 	});
 });
 
@@ -222,6 +238,53 @@ describe('bank/import', () => {
 		});
 	});
 
+	it('imports the lines of a camt file that belong to the chosen account', async () => {
+		const statement = (iban: string, amount: string, name: string) => `
+    <Stmt>
+      <Acct><Id><IBAN>${iban}</IBAN></Id></Acct>
+      <Ntry>
+        <Amt Ccy="EUR">${amount}</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt><Dt>2026-10-01</Dt></BookgDt>
+        <NtryDtls><TxDtls><RltdPties><Dbtr><Nm>${name}</Nm></Dbtr></RltdPties></TxDtls></NtryDtls>
+      </Ntry>
+    </Stmt>`;
+		const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+  <BkToCstmrStmt>${statement(konto.iban, '850.00', 'Max Müller')}${statement('DE89370400440532013000', '99.00', 'Fremdes Konto')}
+  </BkToCstmrStmt>
+</Document>`;
+		const file = () => new File([xml], 'auszug.xml', { type: 'application/xml' });
+		const preview = (await run(importActions.preview, {
+			form: { bankAccountId, file: file() }
+		})) as {
+			data: {
+				preview: { content: string; preset: string; counts: { new: number; invalid: number } };
+			};
+		};
+		expect(preview.data.preview.counts).toMatchObject({ new: 1, invalid: 1 });
+		expect(
+			await run(importActions.commit, {
+				form: {
+					bankAccountId,
+					content: preview.data.preview.content,
+					preset: preview.data.preview.preset,
+					fileName: 'auszug.xml'
+				}
+			})
+		).toMatchObject({ data: { result: { imported: 1 } } });
+
+		const foreignBank = await createBankAccount(db, contextB, { ...konto, name: 'Fremd' });
+		if (!foreignBank.ok) throw new Error('setup failed');
+		expect(
+			await run(importActions.preview, { form: { bankAccountId: foreignBank.id, file: file() } })
+		).toMatchObject({
+			fail: 400,
+			data: { errors: { file: 'Diese Bankverbindung gibt es nicht.' } }
+		});
+	});
+
 	it('refuses what it cannot read', async () => {
 		const refusal = (form: Record<string, string | File>) => run(importActions.preview, { form });
 		expect(await refusal({ bankAccountId })).toMatchObject({ fail: 400 });
@@ -244,6 +307,54 @@ describe('bank/import', () => {
 				form: { bankAccountId, file: new File([sparkasse], 'u.csv') }
 			})
 		).toMatchObject({ fail: 400, data: { errors: { file: 'Bitte prüfe die Datei zuerst.' } } });
+	});
+
+	it('refuses to commit a file it cannot read or map, or into another account', async () => {
+		const commit = (form: Record<string, string>) => run(importActions.commit, { form });
+		const own = btoa('Datum;Wert;Text\n01.10.2026;850,00;Miete');
+		expect(await commit({ content: own })).toMatchObject({ fail: 400 });
+		expect(await commit({ bankAccountId, content: btoa('nur Text') })).toMatchObject({
+			fail: 400,
+			data: { errors: { file: expect.any(String) } }
+		});
+		expect(await commit({ bankAccountId, content: own })).toMatchObject({
+			fail: 400,
+			data: { errors: { file: 'Bitte ordne die Spalten zu.' } }
+		});
+		// A file without its own IBAN is only refused when the rows are booked.
+		const foreignBank = await createBankAccount(db, contextB, { ...konto, name: 'Fremd' });
+		if (!foreignBank.ok) throw new Error('setup failed');
+		const mapped = { preset: 'generic', bookingDate: 'Datum', amount: 'Wert', purpose: 'Text' };
+		expect(await commit({ bankAccountId: foreignBank.id, content: own, ...mapped })).toMatchObject({
+			fail: 400,
+			data: { errors: { file: 'Diese Bankverbindung gibt es nicht.' } }
+		});
+		expect(
+			await run(importActions.preview, {
+				form: { bankAccountId: foreignBank.id, content: own, ...mapped }
+			})
+		).toMatchObject({
+			fail: 400,
+			data: { errors: { file: 'Diese Bankverbindung gibt es nicht.' } }
+		});
+	});
+
+	it('refuses a file of more than 10.000 lines', async () => {
+		const lines = Array.from({ length: 10_001 }, (_, i) => `01.10.2026;${i},00;Zeile`);
+		const content = btoa(['Datum;Wert;Text', ...lines].join('\n'));
+		const form = {
+			bankAccountId,
+			content,
+			preset: 'generic',
+			bookingDate: 'Datum',
+			amount: 'Wert'
+		};
+		for (const action of [importActions.preview, importActions.commit]) {
+			expect(await run(action, { form })).toMatchObject({
+				fail: 400,
+				data: { errors: { file: expect.stringContaining('höchstens 10.000 Zeilen') } }
+			});
+		}
 	});
 });
 

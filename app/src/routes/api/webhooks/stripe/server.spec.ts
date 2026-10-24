@@ -106,6 +106,35 @@ describe('POST /api/webhooks/stripe', () => {
 		});
 	});
 
+	it('reads expanded objects in place of ids', async () => {
+		// The subscription names its customer as an expanded object; the session its subscription.
+		current = {
+			status: 'active',
+			current_period_end: 1_894_665_600,
+			customer: { id: 'cus_a', object: 'customer' }
+		} as typeof current;
+		const payload = JSON.stringify({
+			id: 'evt_expanded',
+			type: 'checkout.session.completed',
+			data: { object: { id: 'cs_1', mode: 'subscription', subscription: { id: 'sub_a' } } }
+		});
+		const signature = await signWebhookPayload(
+			payload,
+			'whsec_unit',
+			Math.floor(Date.now() / 1000)
+		);
+		const request = new Request('http://localhost/api/webhooks/stripe', {
+			method: 'POST',
+			body: payload,
+			headers: { 'stripe-signature': signature }
+		});
+		const response = await POST({ request, locals: { db } } as unknown as Parameters<
+			typeof POST
+		>[0]);
+		expect(response.status).toBe(200);
+		expect((await account('a')).subscriptionStatus).toBe('active');
+	});
+
 	it('follows a change Stripe reports', async () => {
 		current = { status: 'past_due', current_period_end: 1_894_665_600 };
 		await deliver('evt_1', 'customer.subscription.updated', 'past_due');
@@ -159,6 +188,8 @@ describe('POST /api/webhooks/stripe refusals', () => {
 			status: 200,
 			body: '{"received":true,"duplicate":true}'
 		});
+		// An event without an object names nothing either.
+		expect((await post(JSON.stringify({ id: 'evt_bare', type: 'ping' }))).status).toBe(200);
 		// A Checkout in payment mode is not the subscription's.
 		const oneOff = JSON.stringify({
 			id: 'evt_payment',
@@ -167,7 +198,7 @@ describe('POST /api/webhooks/stripe refusals', () => {
 		});
 		expect((await post(oneOff)).status).toBe(200);
 		expect(fetch).not.toHaveBeenCalled();
-		expect(await db.select().from(stripeEvents)).toHaveLength(2);
+		expect(await db.select().from(stripeEvents)).toHaveLength(3);
 	});
 
 	it('records a subscription event of an unknown customer without changing an account', async () => {

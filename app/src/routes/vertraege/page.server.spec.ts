@@ -143,6 +143,30 @@ describe('vertraege/neu', () => {
 		});
 	});
 
+	it('charges a lease that ended before this month from its start', async () => {
+		const id = idOf(
+			await run(newActions.create, {
+				form: { ...lease(), startDate: '2025-11-01', endDate: '2026-01-31' }
+			})
+		);
+		expect(await getLease(db, 'a', id)).toMatchObject({ ledgerStart: null });
+		expect((await listLedger(db, 'a', id)).lines).toHaveLength(3);
+	});
+
+	it('keeps every tenant and gives no deposit hint without amounts or for a commercial lease', async () => {
+		const second = await seedTenant(db, 'a', { lastName: 'Zweite' });
+		const failed = (form: Record<string, string | string[]>) =>
+			run(newActions.create, { form: { ...lease(), startDate: '', ...form } });
+		expect(await failed({ tenantIds: [tenantId, second], baseRent: '' })).toMatchObject({
+			fail: 400,
+			data: { values: { tenantIds: `${tenantId},${second}` }, depositWarning: undefined }
+		});
+		expect(await failed({ kind: 'commercial', securityDeposit: '5000,00' })).toMatchObject({
+			fail: 400,
+			data: { depositWarning: undefined }
+		});
+	});
+
 	it('refuses a unit or tenant of another account', async () => {
 		const other = await seedUnit(db, 'b');
 		expect(
@@ -255,6 +279,23 @@ describe('vertraege/[id]', () => {
 		expect(await overview(id)).toMatchObject({ data: { deadlines: expect.anything() } });
 	});
 
+	it('names § 580a BGB for the notice period of a commercial lease', async () => {
+		const shop = await seedUnit(db, 'a', { name: 'Laden' });
+		const commercial = await seedLease(db, 'a', shop.unitId, {
+			startDate: '2025-01-01',
+			kind: 'commercial'
+		});
+		expect(
+			await run(leaseActions.end, {
+				params: { id: commercial },
+				form: { terminatedAt: '2026-03-02', terminatedBy: 'landlord', endDate: '2026-03-31' }
+			})
+		).toMatchObject({
+			fail: 400,
+			data: { errors: { endDate: expect.stringContaining('§ 580a Abs. 2 BGB') } }
+		});
+	});
+
 	it('deletes a lease without bookings and keeps one with a payment', async () => {
 		const paid = await seedLease(db, 'a', unitId, { startDate: '2025-01-01' });
 		await createPayment(db, contextA, {
@@ -312,5 +353,18 @@ describe('vertraege/[id]', () => {
 			fail: 400,
 			data: { errors: { startDate: expect.stringContaining('01.06.2025') } }
 		});
+		// A form error keeps the kind as typed for the deposit hint, the lease's kind otherwise.
+		expect(
+			await run(editActions.update, {
+				params: { id },
+				form: { ...form, persons: 'viele', securityDeposit: '5000,00', kind: 'quatsch' }
+			})
+		).toMatchObject({ fail: 400, data: { depositWarning: expect.stringContaining('551') } });
+		expect(
+			await run(editActions.update, {
+				params: { id },
+				form: { ...form, persons: 'viele', baseRent: '' }
+			})
+		).toMatchObject({ fail: 400, data: { depositWarning: undefined } });
 	});
 });

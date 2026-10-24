@@ -36,9 +36,20 @@ describe('parseXml', () => {
 			'<a/><b/>',
 			'text',
 			'',
-			'<!DOCTYPE a [<!ENTITY x "y">]><a/>'
+			'<!DOCTYPE a [<!ENTITY x "y">]><a/>',
+			'<a><!-- offen</a>',
+			'<a><![CDATA[offen</a>',
+			'<?xml version="1.0"',
+			'<a></a',
+			'<a>< /></a>'
 		]) {
 			expect(() => parseXml(text), text).toThrow(XmlError);
 		}
+	});
+});
+
+describe('entities', () => {
+	it('keeps an unknown named entity as written', () => {
+		expect(textAt(parseXml('<a><b>Haus &nbsp; Hof</b></a>'), 'b')).toBe('Haus &nbsp; Hof');
 	});
 });

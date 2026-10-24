@@ -84,7 +84,8 @@ export function distributeCents(total: number, weights: readonly number[]): numb
 		parts[entry.index] += 1;
 		remainder -= 1;
 	}
-	return parts.map((part) => part * sign);
+	// No -0 for a weight that gets nothing of a credit.
+	return parts.map((part) => (part === 0 ? 0 : part * sign));
 }
 
 /**

@@ -237,6 +237,33 @@ describe('belege/[id]', () => {
 		});
 	});
 
+	it('splits a direct key without a circle over all units of the property', async () => {
+		const direct = (await listKeys(db, 'a')).find((key) => key.kind === 'direct')!;
+		await act('update', fields({ allocationKeyId: direct.id, billingCircleId: '' }));
+		expect(await outcome(() => loadItem(routeEvent(db, { params: { id: itemId } })))).toMatchObject(
+			{ data: { units: [{ id: unitId }] } }
+		);
+	});
+
+	it('stores a receipt sent with the update and refuses an empty one', async () => {
+		expect(await act('update', fields({ receipt: pdf() }))).toEqual({
+			redirect: `/betriebskosten/belege/${itemId}`
+		});
+		expect((await getCostItem(db, 'a', itemId))!.receipts).toHaveLength(1);
+		const empty = new File([], 'leer.pdf', { type: 'application/pdf' });
+		expect(await act('upload', { receipt: empty })).toMatchObject({
+			fail: 400,
+			data: { form: 'upload', errors: { receipt: expect.any(String) } }
+		});
+	});
+
+	it('refuses an update with a key of another account', async () => {
+		expect(await act('update', fields({ allocationKeyId: 'fremd' }))).toMatchObject({
+			fail: 400,
+			data: { form: 'item' }
+		});
+	});
+
 	it('deletes the item and returns to its year', async () => {
 		expect(await act('delete')).toEqual({
 			redirect: `/betriebskosten/belege?property=${propertyId}&year=2025`

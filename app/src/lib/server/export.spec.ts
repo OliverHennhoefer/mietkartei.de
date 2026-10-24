@@ -313,6 +313,36 @@ describe('exportZip', () => {
 		expect(await exportEntries('a')).toEqual([]);
 	});
 
+	it('stops reading the open document when the download is cancelled, without logging', async () => {
+		const stored = await storeDocument(
+			db,
+			contextA,
+			{ name: 'Groß.pdf', mimeType: 'application/pdf', bytes: new TextEncoder().encode('x') },
+			{ storage }
+		);
+		if (!stored.ok) throw new Error(stored.reason);
+		const cancelled = vi.fn();
+		const endless: Storage = {
+			...storage,
+			async get() {
+				const body = new ReadableStream<Uint8Array>({
+					pull(controller) {
+						controller.enqueue(new Uint8Array(1024));
+					},
+					cancel: cancelled
+				});
+				return { body, contentType: 'application/pdf', size: Infinity };
+			}
+		};
+		const reader = (await exportZip(db, contextA, { storage: endless })).getReader();
+		// Read until the document is open and streaming, then give up on the download.
+		let bytes = 0;
+		while (bytes < 64 * 1024) bytes += (await reader.read()).value?.length ?? 0;
+		await reader.cancel('abgebrochen');
+		expect(cancelled).toHaveBeenCalledWith('abgebrochen');
+		expect(await exportEntries('a')).toEqual([]);
+	});
+
 	it('builds a ZIP for an empty account', async () => {
 		const files = unzipSync(await readZip(await exportZip(db, contextB, { storage })));
 		expect(Object.keys(files).sort()).toEqual(['documents/', 'export.json']);
