@@ -125,6 +125,47 @@ describe('mietkonto', () => {
 	});
 });
 
+describe('mietkonto reminders', () => {
+	it('writes a reminder for the overdue rent and deletes it once', async () => {
+		const form = { level: '1', date: '2026-03-02', paymentDeadline: '2026-03-16' };
+		const created = (await act(ledgerActions.reminder, form)) as {
+			data: { reminderId: string };
+		};
+		expect(created.data.reminderId).toEqual(expect.any(String));
+		expect(await act(ledgerActions.deleteReminder, { id: created.data.reminderId })).toEqual({
+			data: { deleted: 'reminder' }
+		});
+		expect(await act(ledgerActions.deleteReminder, { id: created.data.reminderId })).toEqual({
+			fail: 400,
+			data: { message: 'Dieses Schreiben gibt es nicht mehr.' }
+		});
+	});
+
+	it('refuses an invalid form, a future date and a lease of another account', async () => {
+		expect(await act(ledgerActions.reminder, { level: '9', date: 'x' })).toMatchObject({
+			fail: 400,
+			data: { form: 'reminder' }
+		});
+		expect(
+			await act(ledgerActions.reminder, {
+				level: '1',
+				date: '2026-03-10',
+				paymentDeadline: '2026-03-20'
+			})
+		).toEqual({
+			fail: 400,
+			data: { message: 'Das Schreiben kann nicht in die Zukunft datiert werden.' }
+		});
+		expect(
+			await act(
+				ledgerActions.reminder,
+				{ level: '1', date: '2026-03-02', paymentDeadline: '2026-03-16' },
+				foreignLeaseId
+			)
+		).toMatchObject({ error: 404 });
+	});
+});
+
 describe('kaution', () => {
 	it('shows the instalments until the deposit is paid in', async () => {
 		expect(await tab(loadDeposit)).toMatchObject({
