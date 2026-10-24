@@ -103,6 +103,15 @@ describe('delete', () => {
 		expect(await accountExists('a')).toBe(true);
 	});
 
+	it('locks after five wrong passwords, even for the right one', async () => {
+		for (let attempt = 0; attempt < 5; attempt++) await remove('falsch');
+		expect(await remove(PASSWORD)).toEqual({
+			fail: 400,
+			data: { errors: { password: 'Zu viele Fehlversuche. Bitte warte 15 Minuten.' } }
+		});
+		expect(await accountExists('a')).toBe(true);
+	});
+
 	it('tells the other users that their access ended', async () => {
 		await db.insert(users).values({
 			id: 'manager-a',
@@ -257,6 +266,16 @@ describe('leave', () => {
 		const [entry] = await db.select().from(auditLog).where(eq(auditLog.entityId, 'manager-a'));
 		expect(entry).toMatchObject({ userId: null, summary: 'Max hat das Konto verlassen' });
 		expect(await accountExists('a')).toBe(true);
+	});
+
+	it('asks for the password and locks after five wrong ones', async () => {
+		expect(await leave(managerA, '')).toMatchObject({ fail: 400, data: { errors: {} } });
+		for (let attempt = 0; attempt < 5; attempt++) await leave(managerA, 'falsch');
+		expect(await leave(managerA, PASSWORD)).toEqual({
+			fail: 400,
+			data: { errors: { password: 'Zu viele Fehlversuche. Bitte warte 15 Minuten.' } }
+		});
+		expect(await db.select().from(users).where(eq(users.id, 'manager-a'))).toHaveLength(1);
 	});
 
 	it('refuses the owner', async () => {

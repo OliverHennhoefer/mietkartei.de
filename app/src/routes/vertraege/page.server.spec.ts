@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
 import type { Database } from '#lib/server/db/index.ts';
+import { units } from '#lib/server/db/schema.ts';
 import { getLease, listLeasePersons } from '#lib/server/leases.ts';
 import { createPayment, listLedger } from '#lib/server/ledger.ts';
 import {
@@ -92,6 +94,23 @@ describe('vertraege', () => {
 					{ id: ended, status: 'ended' }
 				]
 			}
+		});
+	});
+
+	it('names the parking space let with the flat', async () => {
+		const [flat] = await db.select().from(units).where(eq(units.id, unitId));
+		const [parking] = await db
+			.insert(units)
+			.values({
+				accountId: 'a',
+				propertyId: flat.propertyId,
+				name: 'Stellplatz 3',
+				kind: 'parking'
+			})
+			.returning({ id: units.id });
+		const leaseId = await seedLease(db, 'a', unitId, { extraUnitIds: [parking.id] });
+		expect(await run(load)).toMatchObject({
+			data: { leases: [{ id: leaseId, extraUnits: ['Stellplatz 3'] }] }
 		});
 	});
 });

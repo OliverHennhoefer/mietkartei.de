@@ -41,11 +41,17 @@ describe('parseInput', () => {
 		[{ id: 'a', year: '2026' }, 'must be an integer'],
 		[{ id: 'a', year: 2026.5 }, 'must be an integer'],
 		[{ id: 'a', year: 1800 }, 'at least 1900'],
+		[{ id: 'a', year: 2101 }, 'at most 2100'],
 		[{ id: 'a', all: 'yes' }, 'true or false'],
 		[{ id: 1 }, 'must be a string']
 	])('refuses %j', (input, message) => {
 		expect(() => parseInput(input, fields)).toThrow(InputError);
 		expect(() => parseInput(input, fields)).toThrow(message);
+	});
+
+	it('takes only true and false as text for a boolean', () => {
+		expect(parseInput({ id: 'a', all: 'false' }, fields, true)).toEqual({ id: 'a', all: false });
+		expect(() => parseInput({ id: 'a', all: 'ja' }, fields, true)).toThrow('true or false');
 	});
 
 	it('refuses input that is not an object', () => {

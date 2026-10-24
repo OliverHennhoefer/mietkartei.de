@@ -4,7 +4,7 @@ import { addMonthsToMonth, firstOfMonth, monthOf, today } from '../dates';
 import { effectiveFrom } from '../domain/index-rent';
 import type { Database } from './db';
 import { auditLog, consumerPriceIndex, rentCharges } from './db/schema';
-import { createLease, getLease, leaseInputOf, updateLease } from './leases';
+import { createLease, getLease, leaseInputOf, updateLease, type LeaseSummary } from './leases';
 import { ensureCharges } from './ledger';
 import {
 	addGraduatedStep,
@@ -12,7 +12,8 @@ import {
 	indexLetter,
 	manualChange,
 	proposeIndexChange,
-	removeChange
+	removeChange,
+	recipientLines
 } from './rent-adjustments';
 import { listRentChanges } from './rents';
 import { contextA, contextB, leaseInput, seedTenant, seedUnit, testDatabase } from './testing';
@@ -736,5 +737,48 @@ describe('later rows follow a change of a field', () => {
 		expect((await summaries('a')).at(-1)).toBe(
 			'update: Mietänderung ab 01.06.2026 entfernt (gilt auch für 1 spätere Mietänderung)'
 		);
+	});
+});
+
+describe('recipientLines', () => {
+	const tenant = (overrides: Record<string, string | null> = {}) => ({
+		salutation: 'Frau',
+		firstName: 'Erika',
+		lastName: 'Muster',
+		street: null,
+		postalCode: null,
+		city: null,
+		...overrides
+	});
+	const leaseWith = (
+		tenants: ReturnType<typeof tenant>[],
+		street: string | null = 'Lindenstraße 4'
+	) =>
+		({
+			tenants,
+			property: { street, postalCode: '10115', city: 'Berlin' }
+		}) as unknown as LeaseSummary;
+
+	it('names every tenant and takes the address of the property', () => {
+		expect(
+			recipientLines(leaseWith([tenant(), tenant({ salutation: null, firstName: 'Max' })]))
+		).toEqual(['Frau Erika Muster', 'Max Muster', 'Lindenstraße 4', '10115 Berlin']);
+	});
+
+	it('takes the address of the first tenant who has one, e.g. after moving out', () => {
+		const moved = tenant({ street: 'Neuer Weg 1', postalCode: '20095', city: 'Hamburg' });
+		expect(recipientLines(leaseWith([tenant(), moved]))).toEqual([
+			'Frau Erika Muster',
+			'Frau Erika Muster',
+			'Neuer Weg 1',
+			'20095 Hamburg'
+		]);
+	});
+
+	it('leaves out a street that is not known', () => {
+		expect(recipientLines(leaseWith([tenant()], null))).toEqual([
+			'Frau Erika Muster',
+			'10115 Berlin'
+		]);
 	});
 });

@@ -239,6 +239,15 @@ describe('seed user', () => {
 		expect(
 			await seed(db, { op: 'user', email: 'c@example.org', password: 'x', role: 'admin' })
 		).toMatchObject({ status: 400 });
+		for (const body of [
+			{ email: ' ', password: 'x', role: 'owner' },
+			{ email: 'c@example.org', password: '', role: 'owner' },
+			{ email: 'c@example.org', password: 'x', role: 'manager', name: 42 }
+		]) {
+			expect(await seed(db, { op: 'user', ...body }), JSON.stringify(body)).toMatchObject({
+				status: 400
+			});
+		}
 		expect(await db.select().from(users)).toHaveLength(2);
 	});
 });
@@ -298,6 +307,10 @@ describe('seed clear', () => {
 		});
 		expect(await seed(db, { op: 'clear', tables: ['auditLog', 'nope'] })).toMatchObject({
 			status: 400
+		});
+		expect(await seed(db, { op: 'clear', tables: 'auditLog' })).toMatchObject({
+			status: 400,
+			body: { message: 'Bitte gib die Tabellen als Liste von Namen an.' }
 		});
 		expect(await db.select().from(auditLog)).toHaveLength(1);
 	});

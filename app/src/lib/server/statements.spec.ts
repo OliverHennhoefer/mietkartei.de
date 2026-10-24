@@ -1,7 +1,8 @@
 import { isHttpError } from '@sveltejs/kit';
 import { and, asc, eq, lte, sum } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { addDays, today } from '../dates';
+import { addDays, formatDate, today } from '../dates';
+import { formatArea } from '../format';
 import { computeStatement, type LeaseStatement } from '../domain/statement';
 import type { Database } from './db';
 import {
@@ -1343,6 +1344,19 @@ describe('statementLetter variants', () => {
 		]);
 		expect(letter.date.startsWith('Potsdam, ')).toBe(true);
 		expect(letter.blocks![0]).toEqual({ paragraph: 'Guten Tag Kim Klein, Frau Alt,' });
+	});
+
+	it('dates a draft today in the property’s city and adds up the area of flat and parking space', () => {
+		const letter = statementLetter({
+			...base,
+			approvedOn: null,
+			landlord: { ...base.landlord, city: null },
+			units: [...base.units, { ...base.units[0], name: 'Stellplatz', floorArea: null }]
+		});
+		expect(letter.date).toBe(`${base.property.city}, ${formatDate(today())}`);
+		expect(
+			paragraphsOf({ ...base, units: [...base.units, { ...base.units[0], floorArea: null }] })[1]
+		).toContain(`Fläche ${formatArea(base.units[0].floorArea!)}`);
 	});
 
 	it('greets nobody by name when the lease lists no tenant', () => {
