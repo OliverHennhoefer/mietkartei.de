@@ -185,7 +185,8 @@ async function leasesOnUnits(
 	return leaseLinks(db, accountId, [...leaseIds]);
 }
 
-async function leaseLinks(
+/** The leases as links to their pages, labelled with unit, property, tenants and period. */
+export async function leaseLinks(
 	db: Database,
 	accountId: string,
 	leaseIds: string[]

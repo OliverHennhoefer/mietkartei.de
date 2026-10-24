@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { formatDate, monthOf, today, type IsoDate } from '../dates';
 import { rentOn, type RentChange as RentHistoryEntry } from '../domain/rents';
@@ -209,35 +209,50 @@ export async function getLease(
 }
 
 export type LeaseError =
-	'unknown-unit' | 'unknown-tenant' | 'missing' | 'start-after-changes' | 'settled-property';
+	| 'unknown-unit'
+	| 'unknown-tenant'
+	| 'archived'
+	| 'missing'
+	| 'start-after-changes'
+	| 'settled-property';
 
+/**
+ * Whether the units and tenants exist in the account and none is archived (a unit counts as
+ * archived with its property). What the lease already names stays allowed, so an edit of a lease
+ * of a sold property or a moved-out tenant still saves.
+ */
 async function checkReferences(
 	db: Database,
 	accountId: string,
-	input: LeaseInput
+	input: LeaseInput,
+	kept: { unitIds: string[]; tenantIds: string[] } = { unitIds: [], tenantIds: [] }
 ): Promise<LeaseError | undefined> {
 	// The form does not cap the number of ids, so they go in groups (D1 binds at most 100).
 	const unitIds = [...new Set([input.unitId, ...input.extraUnitIds])];
 	let ownUnits = 0;
+	let archived = false;
 	for (const ids of chunkIds(unitIds)) {
 		const rows = await db
-			.select({ id: units.id })
+			.select({ id: units.id, archivedAt: properties.archivedAt })
 			.from(units)
+			.innerJoin(properties, eq(properties.id, units.propertyId))
 			.where(and(eq(units.accountId, accountId), inArray(units.id, ids)));
 		ownUnits += rows.length;
+		if (rows.some((row) => row.archivedAt && !kept.unitIds.includes(row.id))) archived = true;
 	}
 	if (ownUnits !== unitIds.length) return 'unknown-unit';
 	const tenantIds = [...new Set(input.tenantIds)];
 	let ownTenants = 0;
 	for (const ids of chunkIds(tenantIds)) {
 		const rows = await db
-			.select({ id: tenants.id })
+			.select({ id: tenants.id, archivedAt: tenants.archivedAt })
 			.from(tenants)
 			.where(and(eq(tenants.accountId, accountId), inArray(tenants.id, ids)));
 		ownTenants += rows.length;
+		if (rows.some((row) => row.archivedAt && !kept.tenantIds.includes(row.id))) archived = true;
 	}
 	if (ownTenants !== tenantIds.length) return 'unknown-tenant';
-	return undefined;
+	return archived ? 'archived' : undefined;
 }
 
 function leaseColumns(input: LeaseInput) {
@@ -412,7 +427,10 @@ export async function updateLease(
 	const { accountId } = context;
 	const existing = await getLease(db, accountId, leaseId);
 	if (!existing) return { ok: false, reason: 'missing' };
-	const reason = await checkReferences(db, accountId, input);
+	const reason = await checkReferences(db, accountId, input, {
+		unitIds: [existing.unitId, ...existing.extraUnits.map((unit) => unit.id)],
+		tenantIds: existing.tenants.map((tenant) => tenant.id)
+	});
 	if (reason) return { ok: false, reason };
 	if (await leavesSettledProperty(db, accountId, leaseId, input)) {
 		return { ok: false, reason: 'settled-property' };
@@ -512,13 +530,22 @@ function updateSummary(existing: Lease, input: LeaseInput, later: LaterRows): st
 		: `Mietvertrag geändert: ${changed.join(', ')}${laterRowsNote(later)}`;
 }
 
-/** The units of the account with their property, for selects. */
-export async function listUnitsWithProperty(db: Database, accountId: string) {
+/** The units of the account with their property, for selects; archived properties' only on request. */
+export async function listUnitsWithProperty(
+	db: Database,
+	accountId: string,
+	options: { archived?: boolean } = {}
+) {
 	return db
 		.select({ unit: units, property: properties })
 		.from(units)
 		.innerJoin(properties, eq(units.propertyId, properties.id))
-		.where(eq(units.accountId, accountId))
+		.where(
+			and(
+				eq(units.accountId, accountId),
+				options.archived ? undefined : isNull(properties.archivedAt)
+			)
+		)
 		.orderBy(asc(properties.name), asc(units.name));
 }
 

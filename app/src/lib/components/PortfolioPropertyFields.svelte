@@ -1,7 +1,8 @@
 <script lang="ts">
 	import Field from './Field.svelte';
-	import { buildingUseLabels } from '../labels';
+	import { buildingUseLabels, stateLabels } from '../labels';
 	import type { BuildingUse } from '../server/db/schema';
+	import type { GermanState } from '../working-days';
 
 	// The fields of the property form, shared by /objekte/neu and /objekte/[id]/bearbeiten.
 	// `values` are the strings a failed submit sent back, `property` the saved row when editing;
@@ -19,12 +20,14 @@
 			postalCode: string;
 			city: string;
 			buildingUse: BuildingUse;
+			state: GermanState | null;
 			vacancyPersons: number;
 			notes: string | null;
 		};
 	} = $props();
 
 	const buildingUses = Object.entries(buildingUseLabels) as [BuildingUse, string][];
+	const states = Object.entries(stateLabels) as [GermanState, string][];
 
 	function initial(name: string, saved: string | number | null | undefined): string {
 		if (values && name in values) return values[name];
@@ -68,6 +71,18 @@
 		aria-invalid={errors?.city ? 'true' : undefined}
 		required
 	/>
+</Field>
+<Field
+	label="Bundesland"
+	error={errors?.state}
+	hint="Für die Feiertage bei Fälligkeiten und Fristen. Ohne Angabe zählen nur die bundesweiten."
+>
+	<select name="state" aria-invalid={errors?.state ? 'true' : undefined}>
+		<option value="" selected={initial('state', property?.state) === ''}>nicht angegeben</option>
+		{#each states as [value, label] (value)}
+			<option {value} selected={initial('state', property?.state) === value}>{label}</option>
+		{/each}
+	</select>
 </Field>
 <Field label="Gebäudeart" error={errors?.buildingUse} hint="Für die CO₂-Kostenaufteilung.">
 	<select name="buildingUse" aria-invalid={errors?.buildingUse ? 'true' : undefined}>

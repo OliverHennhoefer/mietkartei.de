@@ -12,7 +12,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	await ensureDefaults(locals.db, accountId);
 	const [keys, properties] = await Promise.all([
 		listKeys(locals.db, accountId),
-		listProperties(locals.db, accountId)
+		listProperties(locals.db, accountId, { archived: true })
 	]);
 	return { keys, properties };
 };

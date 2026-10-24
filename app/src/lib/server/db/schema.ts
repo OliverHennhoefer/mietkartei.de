@@ -10,6 +10,7 @@ import {
 	uniqueIndex
 } from 'drizzle-orm/sqlite-core';
 import { unitKinds } from '../../units';
+import { germanStates, type GermanState } from '../../working-days';
 
 // Every record belongs to an account. The hosted variant serves many accounts from one database;
 // a self-hosted instance simply has a single account. Amounts are integer euro cents, dates are
@@ -100,9 +101,13 @@ export const properties = sqliteTable(
 		city: text('city').notNull(),
 		/** Wohngebäude or Nichtwohngebäude (§ 8 CO2KostAufG: 50/50 split for the latter). */
 		buildingUse: text('building_use', { enum: buildingUses }).notNull().default('residential'),
+		/** Bundesland, for its public holidays in due dates and deadlines; null counts nationwide only. */
+		state: text('state', { enum: germanStates }).$type<GermanState>(),
 		/** Persons a vacant unit counts with in the persons key; that share stays with the landlord. */
 		vacancyPersons: integer('vacancy_persons').notNull().default(1),
 		notes: text('notes'),
+		/** The day it was archived (e.g. sold); hidden from lists and selects, its history stays. */
+		archivedAt: text('archived_at'),
 		createdAt: createdAt()
 	},
 	(table) => [index('properties_account_id_idx').on(table.accountId)]
@@ -148,6 +153,8 @@ export const tenants = sqliteTable(
 		postalCode: text('postal_code'),
 		city: text('city'),
 		notes: text('notes'),
+		/** The day it was archived (moved out); hidden from lists and selects, its history stays. */
+		archivedAt: text('archived_at'),
 		createdAt: createdAt()
 	},
 	(table) => [index('tenants_account_id_idx').on(table.accountId)]
@@ -392,6 +399,25 @@ export const consumerPriceIndex = sqliteTable(
 
 /** The single row (id `destatis`) of the last fetch of the consumer price index. */
 export const consumerPriceIndexFetches = sqliteTable('consumer_price_index_fetches', {
+	id: text('id').primaryKey(),
+	attemptedAt: integer('attempted_at', { mode: 'timestamp_ms' }).notNull(),
+	succeededAt: integer('succeeded_at', { mode: 'timestamp_ms' }),
+	/** Why the last attempt failed; null after a success. */
+	error: text('error')
+});
+
+/**
+ * Basiszinssatz (§ 247 BGB), one table for all accounts: one row per half-year from its first day
+ * (1 January, 1 July), in basis points (152 = 1,52 %). Seeded with the values since 2015 and
+ * fetched from the Deutsche Bundesbank when the current half-year is missing, see base-rate.ts.
+ */
+export const baseRates = sqliteTable('base_rates', {
+	validFrom: text('valid_from').primaryKey(),
+	rate: integer('rate').notNull()
+});
+
+/** The last fetch of a public data source, one row per source (id `bundesbank-base-rate`). */
+export const publicDataFetches = sqliteTable('public_data_fetches', {
 	id: text('id').primaryKey(),
 	attemptedAt: integer('attempted_at', { mode: 'timestamp_ms' }).notNull(),
 	succeededAt: integer('succeeded_at', { mode: 'timestamp_ms' }),

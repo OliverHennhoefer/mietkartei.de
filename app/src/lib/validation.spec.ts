@@ -25,13 +25,14 @@ describe('parseProperty', () => {
 				postalCode: '10115',
 				city: 'Berlin',
 				buildingUse: 'residential',
+				state: null,
 				vacancyPersons: 1,
 				notes: null
 			}
 		});
 	});
 
-	it('reads building use, vacancy persons and notes', () => {
+	it('reads building use, Bundesland, vacancy persons and notes', () => {
 		const result = parseProperty(
 			form({
 				name: 'Gewerbehof',
@@ -39,6 +40,7 @@ describe('parseProperty', () => {
 				postalCode: '04109',
 				city: 'Leipzig',
 				buildingUse: 'non_residential',
+				state: 'SN',
 				vacancyPersons: '0',
 				notes: ' Hinterhof '
 			})
@@ -51,6 +53,7 @@ describe('parseProperty', () => {
 				postalCode: '04109',
 				city: 'Leipzig',
 				buildingUse: 'non_residential',
+				state: 'SN',
 				vacancyPersons: 0,
 				notes: 'Hinterhof'
 			}
@@ -65,6 +68,7 @@ describe('parseProperty', () => {
 				postalCode: '1011',
 				city: '',
 				buildingUse: 'castle',
+				state: 'XX',
 				vacancyPersons: '11'
 			})
 		);
@@ -75,6 +79,7 @@ describe('parseProperty', () => {
 			'city',
 			'name',
 			'postalCode',
+			'state',
 			'street',
 			'vacancyPersons'
 		]);

@@ -13,7 +13,8 @@ const tenant: LeaseEndInput = {
 	kind: 'residential',
 	startDate: '2024-01-01',
 	terminatedAt: '2026-03-02',
-	terminatedBy: 'tenant'
+	terminatedBy: 'tenant',
+	state: null
 };
 
 describe('fullYears', () => {
@@ -119,30 +120,30 @@ describe('proposedEndDate', () => {
 describe('noticeDeadline', () => {
 	it('is the third Werktag, Saturday included, moved from a Saturday to Monday (§ 193 BGB)', () => {
 		// March 2026: Sun 1, Mon 2, Tue 3, Wed 4.
-		expect(noticeDeadline('2026-03')).toBe('2026-03-04');
+		expect(noticeDeadline('2026-03', null)).toBe('2026-03-04');
 		// August 2026: Sat 1, Mon 3, Tue 4 (the Monday-to-Friday count would give Wed 5).
-		expect(noticeDeadline('2026-08')).toBe('2026-08-04');
+		expect(noticeDeadline('2026-08', null)).toBe('2026-08-04');
 		// May 2026: Fri 1 is Tag der Arbeit, so Sat 2, Mon 4, Tue 5.
-		expect(noticeDeadline('2026-05')).toBe('2026-05-05');
+		expect(noticeDeadline('2026-05', null)).toBe('2026-05-05');
 		// June 2026: Mon 1, Tue 2, Wed 3.
-		expect(noticeDeadline('2026-06')).toBe('2026-06-03');
+		expect(noticeDeadline('2026-06', null)).toBe('2026-06-03');
 		// September 2029: Sat 1, Mon 3, Tue 4.
-		expect(noticeDeadline('2029-09')).toBe('2029-09-04');
+		expect(noticeDeadline('2029-09', null)).toBe('2029-09-04');
 		// July 2027: Thu 1, Fri 2, Sat 3, which moves to Mon 5.
-		expect(noticeDeadline('2027-07')).toBe('2027-07-05');
+		expect(noticeDeadline('2027-07', null)).toBe('2027-07-05');
 	});
 
 	it('does not count public holidays as Werktage', () => {
 		// January 2026: Neujahr on Thu 1, then Fri 2, Sat 3, Mon 5.
-		expect(noticeDeadline('2026-01')).toBe('2026-01-05');
+		expect(noticeDeadline('2026-01', null)).toBe('2026-01-05');
 		// October 2025: Wed 1, Thu 2, Fri 3 is Tag der Deutschen Einheit, so Sat 4 is the third
 		// Werktag, which moves to Mon 6.
-		expect(noticeDeadline('2025-10')).toBe('2025-10-06');
+		expect(noticeDeadline('2025-10', null)).toBe('2025-10-06');
 		// October 2026: Thu 1, Fri 2, Sat 3 is Tag der Deutschen Einheit, so Mon 5.
-		expect(noticeDeadline('2026-10')).toBe('2026-10-05');
+		expect(noticeDeadline('2026-10', null)).toBe('2026-10-05');
 		// April 2026: Wed 1, Thu 2, Karfreitag 3, Sat 4 is the third Werktag; Mon 6 is
 		// Ostermontag, so the deadline moves to Tue 7.
-		expect(noticeDeadline('2026-04')).toBe('2026-04-07');
+		expect(noticeDeadline('2026-04', null)).toBe('2026-04-07');
 	});
 });
 
@@ -156,5 +157,19 @@ describe('leaseEndDeadlines', () => {
 			operatingCostStatement: '2027-12-31'
 		});
 		expect(leaseEndDeadlines('2026-08-31').settleDeposit).toBe('2027-02-28');
+	});
+});
+
+describe('noticeDeadline in a Bundesland', () => {
+	it('skips the holidays of the state', () => {
+		// November 2026: Sun 1 is Allerheiligen anyway; Mon 2, Tue 3, Wed 4 everywhere.
+		expect(noticeDeadline('2026-11', 'BY')).toBe('2026-11-04');
+		// January 2026 in Saxony-Anhalt: Fri 2, Sat 3, Mon 5 as everywhere (Heilige Drei Könige is
+		// Tue 6); a notice by Mon 5 counts.
+		expect(noticeDeadline('2026-01', 'ST')).toBe('2026-01-05');
+		// June 2027: Fronleichnam on Thu 27 May; June 2028: Thu 15 June. November 2027 in NRW:
+		// Mon 1 is Allerheiligen, so Tue 2, Wed 3, Thu 4.
+		expect(noticeDeadline('2027-11', null)).toBe('2027-11-03');
+		expect(noticeDeadline('2027-11', 'NW')).toBe('2027-11-04');
 	});
 });

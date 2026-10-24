@@ -40,6 +40,9 @@ describe('reminderState', () => {
 		]);
 		expect(state.overdue).toBe(130000);
 		expect(state.suggestedLevel).toBe(1);
+		// 7,27 % (Basiszinssatz 2,27 % plus 5 points): 500 € for 33 days and 800 € for 5 days.
+		expect(state.interest.amount).toBe(408);
+		expect(state.baseRates.latest).toEqual({ validFrom: '2026-07-01', rate: 152 });
 	});
 
 	it('suggests the next level after a letter about the same Rückstand', async () => {
@@ -88,6 +91,9 @@ describe('createReminder', () => {
 		});
 		const [mahnung] = await db.select().from(paymentReminders).where(eq(paymentReminders.level, 2));
 		expect(mahnung.letterText).toContain('obwohl wir dich am 10.03.2025 daran erinnert haben');
+		expect(mahnung.letterText).toMatch(
+			/Bis zum 28\.03\.2025 sind darauf Verzugszinsen von [\d,.]+\s€ aufgelaufen/
+		);
 	});
 
 	it('refuses a letter when nothing is overdue and a deadline before the letter', async () => {

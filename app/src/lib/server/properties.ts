@@ -14,11 +14,21 @@ export type Property = typeof properties.$inferSelect;
 export type Unit = typeof units.$inferSelect;
 export type Tenant = typeof tenants.$inferSelect;
 
-export async function listProperties(db: Database, accountId: string) {
+/** Archived properties only with `archived: true`, e.g. for filters over past records. */
+export async function listProperties(
+	db: Database,
+	accountId: string,
+	options: { archived?: boolean } = {}
+) {
 	return db
 		.select()
 		.from(properties)
-		.where(eq(properties.accountId, accountId))
+		.where(
+			and(
+				eq(properties.accountId, accountId),
+				options.archived ? undefined : isNull(properties.archivedAt)
+			)
+		)
 		.orderBy(asc(properties.name), asc(properties.createdAt));
 }
 
@@ -249,7 +259,7 @@ export async function propertyOverview(
 	date: string
 ): Promise<PropertyOverview[]> {
 	const [rows, allUnits, active, extraRows] = await Promise.all([
-		listProperties(db, accountId),
+		listProperties(db, accountId, { archived: true }),
 		db
 			.select({ id: units.id, propertyId: units.propertyId })
 			.from(units)

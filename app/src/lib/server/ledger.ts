@@ -19,8 +19,10 @@ import { chunk, chunkIds, rowsPerStatement, runBatch } from './db/batch';
 import {
 	leases,
 	payments,
+	properties,
 	rentCharges,
 	rentChanges,
+	units,
 	type PaymentSource,
 	type RentChargeKind
 } from './db/schema';
@@ -72,9 +74,12 @@ export async function ensureCharges(
 						startDate: leases.startDate,
 						endDate: leases.endDate,
 						ledgerStart: leases.ledgerStart,
-						rentDueDay: leases.rentDueDay
+						rentDueDay: leases.rentDueDay,
+						state: properties.state
 					})
 					.from(leases)
+					.innerJoin(units, eq(units.id, leases.unitId))
+					.innerJoin(properties, eq(properties.id, units.propertyId))
 					.where(and(eq(leases.accountId, accountId), inArray(leases.id, ids)))
 			)
 		)

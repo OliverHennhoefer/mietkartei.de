@@ -19,7 +19,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const accountId = requireAccount(locals);
 	await ensureDefaults(locals.db, accountId);
 	const [properties, categories, keys, circles, history] = await Promise.all([
-		listProperties(locals.db, accountId),
+		listProperties(locals.db, accountId, { archived: true }),
 		listCategories(locals.db, accountId),
 		listKeys(locals.db, accountId),
 		listCircles(locals.db, accountId),
