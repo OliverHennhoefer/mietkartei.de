@@ -66,6 +66,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .intro { max-width: 500px; margin: clamp(16px, 3vh, 28px) 0 0; font-size: 18px; line-height: 1.55; letter-spacing: -.015em; }
 /* Same neon block as "kartei" in the logo; black text on it in both colour schemes. */
 .intro mark { padding: .02em .22em; background: var(--highlight); color: #000; font-weight: 600; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.nowrap { white-space: nowrap; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; margin-top: clamp(20px, 3.6vh, 32px); }
 
 .trust { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: clamp(18px, 3vh, 28px) 0 0; padding: 0; list-style: none; color: var(--muted); font-size: 13px; }
