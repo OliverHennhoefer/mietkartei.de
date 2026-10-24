@@ -29,6 +29,8 @@ Unter **Betriebskosten → Belege → Beleg erfassen** trägst du jede Rechnung 
 
 Mit **Speichern und nächsten Beleg** bleiben Objekt und Zeitraum für die nächste Rechnung stehen. Ab dem zweiten Jahr bietet dir das Formular die Belege der Vorjahre zum Übernehmen an, sodass du oft nur noch den Betrag änderst.
 
+Vermietest du eine Eigentumswohnung, kommen die Kosten aus der Hausgeldabrechnung des Verwalters. Wie du sie mit Gesamtkosten und Schlüssel der WEG erfasst, steht unter [Eigentumswohnung vermieten](eigentumswohnung.md).
+
 Eine Rechnung, die nicht genau das Abrechnungsjahr abdeckt, etwa eine Versicherung von Juli bis Juni, rechnet mietkartei tagesgenau auf den Abrechnungszeitraum herunter.
 
 ## 3. Entwurf erstellen und prüfen

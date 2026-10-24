@@ -242,7 +242,13 @@
 								<span class="muted small">{line.description}</span>
 							</td>
 							<td class="num">
-								<Money cents={line.itemTotal} />
+								{#if line.association}
+									<Money cents={line.association.total} />
+									<span class="muted small">WEG</span>
+									<br /><span class="muted small">Anteil <Money cents={line.itemTotal} /></span>
+								{:else}
+									<Money cents={line.itemTotal} />
+								{/if}
 								{#if line.co2}
 									<br /><span class="muted small">
 										CO₂-Anteil Vermieter {line.co2.landlordPercent} %: −<Money

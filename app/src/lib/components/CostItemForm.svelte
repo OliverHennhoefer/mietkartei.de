@@ -3,12 +3,12 @@
 	import { formatDate, today } from '../dates';
 	import { behgHint, co2KgFromKwh } from '../domain/co2';
 	import { CIRCLE_FROM_CATEGORY, defaultCostPeriod } from '../domain/operating-costs';
-	import { parseDecimal } from '../format';
+	import { formatNumber, parseDecimal } from '../format';
 	import type { FieldErrors } from '../forms/fields';
 	import type { CostItemForm } from '../forms/operating-costs';
 	import { fuelLabels } from '../labels';
-	import { formatCents, formatCentsPlain } from '../money';
-	import type { Fuel } from '../server/db/schema';
+	import { formatCents, formatCentsPlain, parseCents } from '../money';
+	import type { Fuel, PropertyKind } from '../server/db/schema';
 	import type { CostItemHistory, CostItemSummary } from '../server/operating-costs/cost-items';
 
 	// The one form of a Beleg, for creating (/belege/neu) and editing (/belege/[id]). The key and
@@ -34,7 +34,14 @@
 		withNext = false
 	}: {
 		action: string;
-		properties: { id: string; name: string }[];
+		properties: {
+			id: string;
+			name: string;
+			kind?: PropertyKind;
+			associationManager?: string | null;
+			ownershipShare?: number | null;
+			ownershipShareTotal?: number | null;
+		}[];
 		categories: { id: string; name: string; betrkvItem: number | null; allocable: boolean }[];
 		keys: { id: string; name: string; propertyId: string | null }[];
 		circles: { id: string; name: string; propertyId: string; propertyName: string }[];
@@ -86,6 +93,11 @@
 		keys.filter((key) => key.propertyId === null || key.propertyId === propertyId)
 	);
 	const propertyCircles = $derived(circles.filter((circle) => circle.propertyId === propertyId));
+	const property = $derived(properties.find((candidate) => candidate.id === propertyId));
+	/** The WEG figures show for an Eigentumswohnung, and for an item that already has them. */
+	const condominium = $derived(
+		property?.kind === 'condominium' || (item?.associationTotal ?? null) !== null
+	);
 
 	/** The allocable checkbox follows the category until the user ticks it. */
 	function categoryChanged() {
@@ -146,10 +158,17 @@
 	function readFuelFields(element: HTMLFormElement) {
 		const entries = new FormData(element);
 		typed = Object.fromEntries(
-			['periodStart', 'periodEnd', 'fuel', 'fuelKwh', 'co2Kg'].map((name) => [
-				name,
-				String(entries.get(name) ?? '')
-			])
+			[
+				'periodStart',
+				'periodEnd',
+				'fuel',
+				'fuelKwh',
+				'co2Kg',
+				'amount',
+				'associationTotal',
+				'associationKeyTotal',
+				'associationKeyShare'
+			].map((name) => [name, String(entries.get(name) ?? '')])
 		);
 	}
 
@@ -174,6 +193,48 @@
 				parseDecimal(typed?.fuelKwh ?? value('fuelKwh', item?.fuelKwh?.toString() ?? ''))
 			);
 		return kg === null ? null : behgHint(Number(year), kg);
+	});
+
+	/** A decimal for a field, as typed in Germany. */
+	const decimal = (saved: number | null | undefined) =>
+		saved === null || saved === undefined ? '' : String(saved).replace('.', ',');
+	/** The WEG fields start from the item, else from the MEA of the property. */
+	const associationValue = (
+		name: 'associationKey' | 'associationKeyTotal' | 'associationKeyShare'
+	) => {
+		if (item) {
+			if (name === 'associationKey') return value(name, item.associationKey ?? '');
+			return value(name, decimal(item[name]));
+		}
+		if (name === 'associationKey') return value(name, 'MEA');
+		return value(
+			name,
+			decimal(
+				name === 'associationKeyTotal' ? property?.ownershipShareTotal : property?.ownershipShare
+			)
+		);
+	};
+
+	/** What the key of the WEG gives the property, next to the amount entered from the Verwalter. */
+	const associationHint = $derived.by(() => {
+		const read = (name: string, fallback: string) => typed?.[name] ?? value(name, fallback);
+		const total = parseCents(
+			read(
+				'associationTotal',
+				item?.associationTotal != null ? formatCentsPlain(item.associationTotal) : ''
+			)
+		);
+		const keyTotal = parseDecimal(
+			read('associationKeyTotal', associationValue('associationKeyTotal'))
+		);
+		const keyShare = parseDecimal(
+			read('associationKeyShare', associationValue('associationKeyShare'))
+		);
+		if (total === undefined || !keyTotal || keyShare === null) return null;
+		const share = Math.round((total * keyShare) / keyTotal);
+		const amount = parseCents(read('amount', item ? formatCentsPlain(item.amount) : ''));
+		const differs = amount !== undefined && Math.abs(amount - share) > 100;
+		return `${formatNumber(keyShare)} von ${formatNumber(keyTotal)} ergeben ${formatCents(share)}${differs ? `; eingetragen sind ${formatCents(amount)}` : ''}.`;
 	});
 	const keyChoice = $derived(value('allocationKeyId', item?.allocationKeyId ?? ''));
 	const circleChoice = $derived(
@@ -344,6 +405,66 @@
 		<input type="checkbox" name="allocable" bind:checked={allocable} />
 		umlagefähig
 	</label>
+
+	{#if condominium}
+		<fieldset class="fuel form-wide">
+			<legend>Aus der Hausgeldabrechnung (WEG)</legend>
+			<p class="muted small">
+				Die Gesamtkosten der WEG und der Schlüssel, mit dem der Verwalter sie verteilt hat. Als
+				Betrag oben trägst du den Anteil der Wohnung laut Hausgeldabrechnung ein. Die Abrechnung an
+				den Mieter zeigt dann alle drei Werte, damit er den Anteil nachrechnen kann.
+			</p>
+			<div class="form">
+				<label>
+					Gesamtkosten der WEG in €
+					<input
+						name="associationTotal"
+						inputmode="decimal"
+						defaultValue={value(
+							'associationTotal',
+							item?.associationTotal != null ? formatCentsPlain(item.associationTotal) : ''
+						)}
+						aria-invalid={errors?.associationTotal ? 'true' : undefined}
+					/>
+					{#if errors?.associationTotal}<span class="error">{errors.associationTotal}</span>{/if}
+				</label>
+				<label>
+					Schlüssel der WEG
+					<input
+						name="associationKey"
+						defaultValue={associationValue('associationKey')}
+						placeholder="z. B. MEA, Wohnfläche, Einheiten"
+						aria-invalid={errors?.associationKey ? 'true' : undefined}
+					/>
+					{#if errors?.associationKey}<span class="error">{errors.associationKey}</span>{/if}
+				</label>
+				<label>
+					Summe des Schlüssels in der WEG
+					<input
+						name="associationKeyTotal"
+						inputmode="decimal"
+						defaultValue={associationValue('associationKeyTotal')}
+						placeholder="z. B. 1000"
+						aria-invalid={errors?.associationKeyTotal ? 'true' : undefined}
+					/>
+					{#if errors?.associationKeyTotal}<span class="error">{errors.associationKeyTotal}</span
+						>{/if}
+				</label>
+				<label>
+					Anteil der Wohnung
+					<input
+						name="associationKeyShare"
+						inputmode="decimal"
+						defaultValue={associationValue('associationKeyShare')}
+						placeholder="z. B. 85"
+						aria-invalid={errors?.associationKeyShare ? 'true' : undefined}
+					/>
+					{#if errors?.associationKeyShare}<span class="error">{errors.associationKeyShare}</span
+						>{:else if associationHint}<span class="muted small">{associationHint}</span>{/if}
+				</label>
+			</div>
+		</fieldset>
+	{/if}
 
 	<fieldset class="fuel form-wide">
 		<legend>Brennstoffrechnung (für die CO₂-Kostenaufteilung)</legend>

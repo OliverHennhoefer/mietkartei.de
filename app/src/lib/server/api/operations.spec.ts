@@ -323,6 +323,41 @@ describe('write operations', () => {
 		expect(await run('list_allocation_keys')).not.toEqual([]);
 	});
 
+	it('create a cost item of a WEG with the figures of the Hausgeldabrechnung', async () => {
+		const [category] = (await run('list_cost_categories')) as { id: string }[];
+		const base = {
+			propertyId: ids.propertyId,
+			categoryId: category.id,
+			description: 'Hauswart laut Hausgeldabrechnung',
+			periodStart: '2026-01-01',
+			periodEnd: '2026-12-31',
+			amount: 35700
+		};
+		const item = await write('create_cost_item', {
+			...base,
+			associationTotal: 420000,
+			associationKeyTotal: 1000,
+			associationKeyShare: 85.5
+		});
+		expect(item).toMatchObject({
+			associationTotal: 420000,
+			associationKey: 'MEA',
+			associationKeyTotal: 1000,
+			associationKeyShare: 85.5
+		});
+		await expect(
+			write('create_cost_item', { ...base, associationTotal: 420000 })
+		).rejects.toMatchObject({ status: 400 });
+		await expect(
+			write('create_cost_item', {
+				...base,
+				associationTotal: 420000,
+				associationKeyTotal: 1000,
+				associationKeyShare: 1001
+			})
+		).rejects.toMatchObject({ status: 400 });
+	});
+
 	it('refuse cost items of unknown rows or with a wrong period', async () => {
 		const [category] = (await run('list_cost_categories')) as { id: string }[];
 		const base = {

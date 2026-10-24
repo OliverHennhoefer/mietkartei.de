@@ -293,6 +293,10 @@ export async function seedCostItem(
 			fuelKwh: null,
 			co2Kg: null,
 			co2Cost: null,
+			associationTotal: null,
+			associationKey: null,
+			associationKeyTotal: null,
+			associationKeyShare: null,
 			...overrides
 		}
 	);

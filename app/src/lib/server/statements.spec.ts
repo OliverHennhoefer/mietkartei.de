@@ -266,6 +266,28 @@ async function draft(db: Database, propertyId: string) {
 }
 
 describe('loadStatementInput', () => {
+	it('passes on the figures of the WEG an item has, and none for the others', async () => {
+		const { propertyId } = await seedScenario(db, 'a');
+		const [first] = await db.select().from(costItems).where(eq(costItems.accountId, 'a'));
+		await db
+			.update(costItems)
+			.set({
+				associationTotal: 420000,
+				associationKey: 'MEA',
+				associationKeyTotal: 1000,
+				associationKeyShare: 85
+			})
+			.where(eq(costItems.id, first.id));
+		const input = (await loadStatementInput(db, 'a', propertyId, period))!;
+		expect(input.items.find((item) => item.id === first.id)?.association).toEqual({
+			total: 420000,
+			key: 'MEA',
+			keyTotal: 1000,
+			keyShare: 85
+		});
+		expect(input.items.filter((item) => item.association === null)).toHaveLength(4);
+	});
+
 	it('loads the scenario and reproduces the hand-computed balances', async () => {
 		const { propertyId, leaseIds } = await seedScenario(db, 'a');
 		await seedScenario(db, 'b');
@@ -1357,6 +1379,25 @@ describe('statementLetter variants', () => {
 		expect(
 			paragraphsOf({ ...base, units: [...base.units, { ...base.units[0], floorArea: null }] })[1]
 		).toContain(`Fläche ${formatArea(base.units[0].floorArea!)}`);
+	});
+
+	it('prints the cost of the WEG with the property’s share below it', () => {
+		const line = {
+			...base.lines[0],
+			itemTotal: 35700,
+			allocated: 35700,
+			keyName: 'MEA der WEG',
+			keyTotal: '1.000',
+			share: 'Gesamt 4.200,00 € · MEA 85 von 1.000 · Anteil 357,00 €',
+			association: { total: 420000, key: 'MEA', keyTotal: 1000, keyShare: 85 }
+		};
+		const [table] = statementLetter({ ...base, lines: [line] }).blocks!.flatMap((block) =>
+			'table' in block ? [block.table] : []
+		);
+		expect(table.rows[0][1]).toBe('4.200,00\u00a0€ WEG\nAnteil 357,00\u00a0€');
+		expect(table.rows[0][2]).toBe(
+			'MEA der WEG: 1.000\nGesamt 4.200,00 € · MEA 85 von 1.000 · Anteil 357,00 €'
+		);
 	});
 
 	it('greets nobody by name when the lease lists no tenant', () => {

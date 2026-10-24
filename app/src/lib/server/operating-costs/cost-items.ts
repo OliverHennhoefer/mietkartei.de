@@ -54,6 +54,11 @@ export type CostItemInput = {
 	fuelKwh: number | null;
 	co2Kg: number | null;
 	co2Cost: number | null;
+	/** For a cost of a WEG: the figures of the Hausgeldabrechnung, all or none. */
+	associationTotal: number | null;
+	associationKey: string | null;
+	associationKeyTotal: number | null;
+	associationKeyShare: number | null;
 };
 
 export type Receipt = { id: string; name: string };

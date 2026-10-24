@@ -373,7 +373,18 @@ export async function loadStatementInput(
 			co2Cost: item.co2Cost,
 			unitAmounts: unitAmountRows
 				.filter((row) => row.costItemId === item.id)
-				.map((row) => ({ unitId: row.unitId, amount: row.amount }))
+				.map((row) => ({ unitId: row.unitId, amount: row.amount })),
+			association:
+				item.associationTotal !== null &&
+				item.associationKeyTotal !== null &&
+				item.associationKeyShare !== null
+					? {
+							total: item.associationTotal,
+							key: item.associationKey ?? 'MEA',
+							keyTotal: item.associationKeyTotal,
+							keyShare: item.associationKeyShare
+						}
+					: null
 		})),
 		categories: categoryRows.map((category) => ({
 			id: category.id,
@@ -1365,9 +1376,13 @@ export function statementLetter(statement: LeaseStatement): Letter {
 				line.betrkvItem ? `§ 2 Nr. ${line.betrkvItem} BetrKV` : null,
 				line.description !== line.categoryName ? line.description : null
 			).join('\n'),
-			line.allocated !== line.itemTotal
-				? `${formatCents(line.itemTotal)}\nabzüglich CO2-Anteil Vermieter ${formatCents(line.itemTotal - line.allocated)}\numgelegt ${formatCents(line.allocated)}`
-				: formatCents(line.itemTotal),
+			lines(
+				line.association ? `${formatCents(line.association.total)} WEG` : null,
+				line.association ? `Anteil ${formatCents(line.itemTotal)}` : formatCents(line.itemTotal),
+				line.allocated !== line.itemTotal
+					? `abzüglich CO2-Anteil Vermieter ${formatCents(line.itemTotal - line.allocated)}\numgelegt ${formatCents(line.allocated)}`
+					: null
+			).join('\n'),
 			`${line.keyName}: ${line.keyTotal}\n${line.share}`,
 			formatCents(line.amount)
 		]),

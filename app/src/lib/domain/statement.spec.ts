@@ -132,6 +132,7 @@ function item(
 		co2Kg: null,
 		co2Cost: null,
 		unitAmounts: [],
+		association: null,
 		...overrides
 	};
 }
@@ -1435,5 +1436,96 @@ describe('computeStatement edge cases', () => {
 		const result = computeStatement(input, options);
 		expect(result.leases.map((entry) => entry.leaseId)).not.toContain('l-fremd');
 		expect(result.property.costsTotal).toBe(620000);
+	});
+});
+
+describe('computeStatement: costs of a WEG', () => {
+	/** Intl puts a no-break space before the euro sign. */
+	const plain = (text: string | undefined) => text?.replace(/\u00a0/g, ' ');
+
+	// An Eigentumswohnung with one unit, let all year: its costs come from the Hausgeldabrechnung.
+	function condominium(): StatementInput {
+		const input = scenario();
+		input.property = { ...input.property, id: 'etw', name: 'ETW Lindenstraße' };
+		input.units = [{ id: 'w', name: 'Wohnung 3', kind: 'apartment', floorArea: 72.3 }];
+		input.leases = [
+			lease(
+				'l-w',
+				['w'],
+				{ start: '2024-01-01', end: null },
+				2,
+				{ operating: 20000, heating: 0, months: months(1, 12) },
+				{ salutation: 'Herr', firstName: 'Max', lastName: 'Müller' }
+			)
+		];
+		input.items = [
+			item('i-hausmeister', 'Hauswart laut Hausgeldabrechnung', 'c-hausmeister', 'k-area', 35700, {
+				association: { total: 420000, key: 'MEA', keyTotal: 1000, keyShare: 85 }
+			}),
+			item('i-grundsteuer', 'Grundsteuer 2025', 'c-grundsteuer', 'k-area', 30000)
+		];
+		input.meters = [];
+		return input;
+	}
+
+	it('prints the cost of the WEG, its key and the share instead of the property’s own key', () => {
+		const [statement] = computeStatement(condominium(), options).leases;
+		const line = statement.lines.find((entry) => entry.itemId === 'i-hausmeister')!;
+		expect(line.keyName).toBe('MEA der WEG');
+		expect(line.keyTotal).toBe('1.000');
+		expect(plain(line.share)).toBe(
+			'Gesamt 4.200,00 € · MEA 85 von 1.000 · Anteil 357,00 € · 365 von 365 Tagen'
+		);
+		expect(line.association).toEqual({ total: 420000, key: 'MEA', keyTotal: 1000, keyShare: 85 });
+		expect(line.amount).toBe(35700);
+		// A cost billed to the owner directly keeps the key of the property.
+		const tax = statement.lines.find((entry) => entry.itemId === 'i-grundsteuer')!;
+		expect(tax.association).toBeUndefined();
+		expect(tax.share).toContain('72,3');
+	});
+
+	it('prorates the cost of the WEG with the item', () => {
+		const input = condominium();
+		input.items[0] = {
+			...input.items[0],
+			periodStart: '2025-07-01',
+			periodEnd: '2026-06-30'
+		};
+		const [statement] = computeStatement(input, options).leases;
+		const line = statement.lines.find((entry) => entry.itemId === 'i-hausmeister')!;
+		// 184 of the item's 365 days fall into 2025.
+		expect(line.itemTotal).toBe(17997);
+		expect(line.association?.total).toBe(211726);
+		expect(plain(line.share)).toMatch(/^Gesamt 2\.117,26 € · MEA 85 von 1\.000 · Anteil 179,97 €/);
+	});
+
+	it('keeps the key of the property after the WEG’s when the property has several units', () => {
+		const input = condominium();
+		input.units = [
+			...input.units,
+			{ id: 's', name: 'Stellplatz', kind: 'apartment', floorArea: 10 }
+		];
+		const [statement] = computeStatement(input, options).leases;
+		const line = statement.lines.find((entry) => entry.itemId === 'i-hausmeister')!;
+		expect(line.keyName).toBe('MEA der WEG, dann Wohnfläche');
+		expect(plain(line.share)).toMatch(
+			/^Gesamt 4\.200,00 € · MEA 85 von 1\.000 · Anteil 357,00 € · 72,3/
+		);
+	});
+
+	it('points out a share that does not follow from the key of the WEG', () => {
+		const input = condominium();
+		input.items[0] = { ...input.items[0], amount: 40000 };
+		const result = computeStatement(input, options);
+		const warning = result.property.warnings.find((entry) => entry.code === 'association_mismatch');
+		expect(warning).toMatchObject({ blocking: false, itemId: 'i-hausmeister' });
+		expect(plain(warning?.message)).toContain('357,00 €');
+		// A cent of rounding by the Verwalter is no finding.
+		input.items[0] = { ...input.items[0], amount: 35701 };
+		expect(
+			computeStatement(input, options).property.warnings.some(
+				(entry) => entry.code === 'association_mismatch'
+			)
+		).toBe(false);
 	});
 });

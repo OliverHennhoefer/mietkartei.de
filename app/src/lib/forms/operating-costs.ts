@@ -190,6 +190,7 @@ export function parseCostItem(form: FormData): ParseResult<CostItemForm> {
 	const fuelKwh = parser.number('fuelKwh', { required: false, min: 0 });
 	const co2Kg = parser.number('co2Kg', { required: false, min: 0 });
 	const co2Cost = parser.money('co2Cost', { required: false });
+	const association = parseAssociationShare(parser);
 	const receipt = parser.file('receipt');
 	return parser.result(() => ({
 		propertyId: propertyId!,
@@ -208,8 +209,49 @@ export function parseCostItem(form: FormData): ParseResult<CostItemForm> {
 		fuelKwh: fuel ? fuelKwh : null,
 		co2Kg: fuel ? co2Kg : null,
 		co2Cost: fuel ? co2Cost : null,
+		...association,
 		receipt
 	}));
+}
+
+/**
+ * The figures of a WEG cost from the Hausgeldabrechnung: the cost of the whole WEG, the key and
+ * the property's share of it. The total decides: without it the key fields are ignored, as the
+ * form fills them from the property's MEA, and a cost billed to the owner directly (Grundsteuer)
+ * has none. The key's name defaults to MEA.
+ */
+function parseAssociationShare(parser: FormParser<CostItemForm>) {
+	const total = parser.money('associationTotal', { required: false, min: -100_000_000_00 });
+	const keyName = parser.optionalText('associationKey', 50);
+	const keyTotal = parser.number('associationKeyTotal', {
+		required: total !== null,
+		max: 1_000_000_000
+	});
+	const keyShare = parser.number('associationKeyShare', {
+		required: total !== null,
+		max: 1_000_000_000
+	});
+	if (total === null || keyTotal === null || keyShare === null) {
+		return {
+			associationTotal: null,
+			associationKey: null,
+			associationKeyTotal: null,
+			associationKeyShare: null
+		};
+	}
+	if (keyTotal <= 0) parser.fail('associationKeyTotal', 'Die Summe muss über 0 liegen.');
+	else if (keyShare > keyTotal) {
+		parser.fail(
+			'associationKeyShare',
+			'Der Anteil der Wohnung kann nicht größer sein als die Summe der WEG.'
+		);
+	}
+	return {
+		associationTotal: total,
+		associationKey: keyName ?? 'MEA',
+		associationKeyTotal: keyTotal,
+		associationKeyShare: keyShare
+	};
 }
 
 /** One input `amount-<unitId>` per unit; empty means 0. */

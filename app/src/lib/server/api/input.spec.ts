@@ -7,6 +7,7 @@ const fields = schema(
 		from: { type: 'string', format: 'date', description: 'from' },
 		status: { type: 'string', enum: ['open', 'done'], description: 'status' },
 		year: { type: 'integer', minimum: 1900, maximum: 2100, description: 'year' },
+		share: { type: 'number', minimum: 0, maximum: 1000, description: 'share' },
 		all: { type: 'boolean', description: 'all' }
 	},
 	['id']
@@ -31,6 +32,11 @@ describe('parseInput', () => {
 		});
 	});
 
+	it('takes decimals for a number, as JSON or as text', () => {
+		expect(parseInput({ id: 'a', share: 85.5 }, fields)).toEqual({ id: 'a', share: 85.5 });
+		expect(parseInput({ id: 'a', share: '85.5' }, fields, true)).toEqual({ id: 'a', share: 85.5 });
+	});
+
 	it.each([
 		[{}, 'Missing parameter "id".'],
 		[{ id: '  ' }, 'Missing parameter "id".'],
@@ -42,6 +48,8 @@ describe('parseInput', () => {
 		[{ id: 'a', year: 2026.5 }, 'must be an integer'],
 		[{ id: 'a', year: 1800 }, 'at least 1900'],
 		[{ id: 'a', year: 2101 }, 'at most 2100'],
+		[{ id: 'a', share: '85,5' }, 'must be a number'],
+		[{ id: 'a', share: 1000.5 }, 'at most 1000'],
 		[{ id: 'a', all: 'yes' }, 'true or false'],
 		[{ id: 1 }, 'must be a string']
 	])('refuses %j', (input, message) => {

@@ -10,6 +10,7 @@ import type {
 	LeaseKind,
 	MeterKind,
 	OperatingCostModel,
+	PropertyKind,
 	RentChangeReason,
 	RentChargeKind,
 	RentModel,
@@ -49,6 +50,11 @@ export const heatingCostModelLabels: Record<HeatingCostModel, string> = {
 export const terminatedByLabels: Record<TerminatedBy, string> = {
 	tenant: 'durch Mieter',
 	landlord: 'durch Vermieter'
+};
+
+export const propertyKindLabels: Record<PropertyKind, string> = {
+	building: 'Gebäude (eigene Abrechnung)',
+	condominium: 'Eigentumswohnung in einer WEG'
 };
 
 export const buildingUseLabels: Record<BuildingUse, string> = {
