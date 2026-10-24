@@ -9,7 +9,7 @@ mietkartei hat einen MCP-Server. Über ihn kann ein KI-Assistent wie Claude dein
 
 - „Wer ist mit der Miete im Rückstand, und seit wann?“
 - „Wie hoch sind die Verzugszinsen für den Rückstand im Vertrag Erdgeschoss links?“
-- „Was habe ich 2025 an Miete eingenommen und ausgegeben? Ich brauche die Zahlen für die Anlage V.“
+- „Welche Zahlen trage ich 2025 für die Lindenstraße in die Anlage V ein?“
 - „Welche Fristen stehen in den nächsten drei Monaten an?“
 - „Trag die Grundsteuer 2026 über 612,40 € für das Haus in der Lindenstraße ein.“
 
@@ -71,7 +71,7 @@ Danach startest du den Client neu.
 
 Ein Schlüssel oder eine verbundene App hat dieselben Rechte wie du und sieht alle Daten deines Kontos, auch die persönlichen Daten deiner Mieter. Gib ihn nur Programmen, denen du vertraust.
 
-**Lesen** kann der Assistent Objekte und Einheiten, Mieter, Mietverträge mit Mietänderungen und Kaution, das Mietkonto jedes Vertrags, Salden und Rückstände, den Mahnstand mit Verzugszinsen, Belege, Kostenarten und Umlageschlüssel, Betriebskostenabrechnungen, Hausgeldabrechnungen von Eigentumswohnungen, Ausgaben, die Auswertung, Fristen und Aufgaben.
+**Lesen** kann der Assistent Objekte und Einheiten, Mieter, Mietverträge mit Mietänderungen und Kaution, das Mietkonto jedes Vertrags, Salden und Rückstände, den Mahnstand mit Verzugszinsen, Belege, Kostenarten und Umlageschlüssel, Betriebskostenabrechnungen, Hausgeldabrechnungen von Eigentumswohnungen, Ausgaben, die Auswertung, die [Steuerübersicht](steuer.md) je Objekt und Jahr, Fristen und Aufgaben.
 
 **Schreiben** darf der Assistent mit Schreibrechten nur vier Dinge, die etwas hinzufügen:
 

@@ -15,6 +15,7 @@ import {
 	expenses,
 	insurancePolicies,
 	associationStatements,
+	taxYears,
 	invitations,
 	leasePersons,
 	leases,
@@ -84,6 +85,8 @@ export const QUOTAS = {
 		max: 5_000,
 		label: 'Hausgeldabrechnungen'
 	},
+	/** One per property and year. */
+	taxYears: { table: taxYears, max: 50_000, label: 'Steuerjahre' },
 	/** Closed invitations stay until a month after their expiry; this bounds them in between. */
 	invitations: { table: invitations, max: 500, label: 'Einladungen' },
 	/** Requests to change an email address; each user may make five a day. */

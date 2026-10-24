@@ -151,8 +151,12 @@ export const subscriptionStatusLabels: Record<SubscriptionStatus, string> = {
 export const expenseCategoryLabels: Record<ExpenseCategory, string> = {
 	operating_costs: 'Betriebskosten',
 	association_fee: 'Hausgeld (WEG)',
+	special_levy: 'Sonderumlage für Erhaltung (WEG)',
+	special_levy_reserve: 'Sonderumlage in die Rücklage (WEG)',
 	maintenance: 'Instandhaltung und Reparaturen',
-	financing: 'Finanzierung (Zins und Tilgung)',
+	loan_payment: 'Darlehensrate (Zins und Tilgung)',
+	loan_interest: 'Darlehenszinsen',
+	loan_repayment: 'Tilgung',
 	management: 'Verwaltung, Beratung und Gebühren',
 	modernization: 'Modernisierung und Anschaffungen',
 	other: 'Sonstiges'
@@ -227,6 +231,7 @@ export const auditEntityLabels: Record<string, string> = {
 	meter: 'Zähler',
 	insurance_policy: 'Versicherung',
 	association_statement: 'Hausgeldabrechnung',
+	tax_year: 'Steuerjahr',
 	calendar_feed: 'Kalender-Link',
 	meter_reading: 'Zählerstand',
 	statement: 'Betriebskostenabrechnung',

@@ -28,6 +28,7 @@ function input(overrides: Partial<AssociationStatementInput> = {}): AssociationS
 		allocableCosts: 180000,
 		nonAllocableCosts: 60000,
 		reserveContribution: 40000,
+		reserveWithdrawal: 0,
 		feesDue: 300000,
 		statedBalance: -20000,
 		note: null,

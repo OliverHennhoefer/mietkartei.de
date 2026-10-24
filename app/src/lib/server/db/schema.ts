@@ -128,6 +128,15 @@ export const properties = sqliteTable(
 		state: text('state', { enum: germanStates }).$type<GermanState>(),
 		/** Persons a vacant unit counts with in the persons key; that share stays with the landlord. */
 		vacancyPersons: integer('vacancy_persons').notNull().default(1),
+		/**
+		 * For the AfA in the tax overview: the day of acquisition (Übergang von Nutzen und Lasten),
+		 * the Anschaffungskosten in cents (price plus Nebenkosten), the share of the building in
+		 * percent (the rest is land, which is not depreciated) and the yearly AfA rate in percent.
+		 */
+		acquisitionDate: text('acquisition_date'),
+		acquisitionCost: integer('acquisition_cost'),
+		buildingShare: real('building_share'),
+		depreciationRate: real('depreciation_rate'),
 		notes: text('notes'),
 		/** The day it was archived (e.g. sold); hidden from lists and selects, its history stays. */
 		archivedAt: text('archived_at'),
@@ -676,11 +685,21 @@ export const matchingRules = sqliteTable(
 
 // Expenses (Ausgaben)
 
+/**
+ * loan_payment = a Darlehensrate with interest and repayment in one (the interest per year comes
+ * from the bank's Zinsbescheinigung, see taxYears); loan_interest and loan_repayment = either part
+ * booked on its own. special_levy = a Sonderumlage of the WEG spent on Erhaltung right away,
+ * special_levy_reserve = one paid into the Erhaltungsrücklage.
+ */
 export const expenseCategories = [
 	'operating_costs',
 	'association_fee',
+	'special_levy',
+	'special_levy_reserve',
 	'maintenance',
-	'financing',
+	'loan_payment',
+	'loan_interest',
+	'loan_repayment',
 	'management',
 	'modernization',
 	'other'
@@ -1121,6 +1140,11 @@ export const associationStatements = sqliteTable(
 		reserveContribution: integer('reserve_contribution').notNull(),
 		/** Hausgeld due for the year under the Wirtschaftsplan (Soll-Vorauszahlungen). */
 		feesDue: integer('fees_due').notNull(),
+		/**
+		 * Entnahme aus der Erhaltungsrücklage: the unit's share of what the Verwalter spent from the
+		 * reserve on Erhaltung in the year. Deductible for tax in that year, unlike the Zuführung.
+		 */
+		reserveWithdrawal: integer('reserve_withdrawal').notNull().default(0),
 		/** The Abrechnungsspitze the Verwalter printed; positive = Nachzahlung, negative = Guthaben. */
 		statedBalance: integer('stated_balance'),
 		note: text('note'),
@@ -1129,6 +1153,29 @@ export const associationStatements = sqliteTable(
 	(table) => [
 		index('association_statements_account_id_idx').on(table.accountId),
 		uniqueIndex('association_statements_period_unique').on(table.propertyId, table.periodStart)
+	]
+);
+
+/**
+ * What the tax overview of a property needs per calendar year beyond the bookings: the interest
+ * of the year from the bank's Zinsbescheinigung, for Darlehensraten booked as loan_payment.
+ */
+export const taxYears = sqliteTable(
+	'tax_years',
+	{
+		id: id(),
+		accountId: accountId(),
+		propertyId: text('property_id')
+			.notNull()
+			.references(() => properties.id, { onDelete: 'cascade' }),
+		year: integer('year').notNull(),
+		/** Schuldzinsen of the year in cents; null = not entered. */
+		loanInterest: integer('loan_interest'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('tax_years_account_id_idx').on(table.accountId),
+		uniqueIndex('tax_years_property_year_unique').on(table.propertyId, table.year)
 	]
 );
 

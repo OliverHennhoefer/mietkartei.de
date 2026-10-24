@@ -427,6 +427,38 @@ export async function renderLetter(letter: Letter): Promise<Uint8Array> {
 	return doc.save();
 }
 
+export type Report = {
+	/** Bold at the top of the first page. */
+	title: string;
+	/** Smaller lines under the title, e.g. who and what the report is about. */
+	subtitle: string[];
+	blocks: LetterBlock[];
+};
+
+/** Renders a report: like a letter, but with a title in place of the address field. */
+export async function renderReport(report: Report): Promise<Uint8Array> {
+	const doc = await PDFDocument.create();
+	doc.setTitle(report.title);
+	doc.setLanguage('de-DE');
+	doc.setCreator('mietkartei');
+	doc.setProducer('mietkartei');
+	const regular = await doc.embedFont(StandardFonts.Helvetica);
+	const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+
+	const page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+	const top = PAGE_HEIGHT - MARGIN_TOP;
+	const ctx: Context = { doc, regular, bold, cursor: { page, y: top, top } };
+	writeParagraph(ctx, report.title, bold);
+	for (const line of report.subtitle) writeLine(ctx, line, regular);
+	if (report.subtitle.length) ctx.cursor.y -= LINE_HEIGHT;
+	for (const block of report.blocks) {
+		if ('paragraph' in block) writeParagraph(ctx, block.paragraph, regular);
+		else writeTable(ctx, block.table);
+	}
+	writeFooters(ctx);
+	return doc.save();
+}
+
 // German umlauts keep their sound in the ASCII fallback of a file name.
 const TRANSLITERATIONS: Record<string, string> = {
 	ä: 'ae',

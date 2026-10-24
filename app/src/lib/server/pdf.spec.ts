@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { PDFArray, PDFDocument, PDFRawStream, decodePDFRawStream, type PDFPage } from 'pdf-lib';
-import { pdfResponse, renderLetter, toWinAnsi, type Letter, type PdfTable } from './pdf';
+import {
+	pdfResponse,
+	renderLetter,
+	renderReport,
+	toWinAnsi,
+	type Letter,
+	type PdfTable
+} from './pdf';
 
 const letter: Letter = {
 	sender: ['Erika Vermieter', 'Musterstraße 1', '10115 Berlin'],
@@ -60,6 +67,23 @@ async function renderAndLoad(input: Letter) {
 	const doc = await PDFDocument.load(bytes);
 	return { bytes, doc, pages: doc.getPages().map(pageText) };
 }
+
+describe('renderReport', () => {
+	it('puts the title at the top and the blocks below it', async () => {
+		const bytes = await renderReport({
+			title: 'Steuerübersicht 2025: Haus',
+			subtitle: ['Lindenstraße 4, 10115 Berlin'],
+			blocks: [{ paragraph: 'Überschuss: 1.000,00 €' }, { table: costTable }]
+		});
+		const doc = await PDFDocument.load(bytes);
+		expect(doc.getTitle()).toBe('Steuerübersicht 2025: Haus');
+		const text = pageText(doc.getPage(0));
+		expect(text.indexOf('Steuerübersicht 2025: Haus')).toBeLessThan(text.indexOf('Überschuss'));
+		expect(text).toContain('Lindenstraße 4, 10115 Berlin');
+		expect(text).toContain('1.193,17 €');
+		expect(text).toContain('Seite 1 von 1');
+	});
+});
 
 describe('renderLetter', () => {
 	it('renders a one-page letter with the DIN blocks and a footer', async () => {

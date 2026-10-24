@@ -20,6 +20,7 @@ nav = [
     { "Nebenkostenabrechnung erstellen" = "anleitungen/nebenkostenabrechnung.md" },
     { "Umlageschlüssel" = "anleitungen/umlageschluessel.md" },
     { "Eigentumswohnung vermieten" = "anleitungen/eigentumswohnung.md" },
+    { "Steuerübersicht für die Anlage V" = "anleitungen/steuer.md" },
     { "Kontoauszüge importieren" = "anleitungen/kontoauszuege-importieren.md" },
     { "Von Excel umsteigen" = "anleitungen/von-excel-umsteigen.md" },
     { "KI-Assistenten anbinden" = "anleitungen/ki-assistenten.md" },

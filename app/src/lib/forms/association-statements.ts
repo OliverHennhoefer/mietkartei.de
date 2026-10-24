@@ -19,6 +19,7 @@ export function parseAssociationStatement(form: FormData): ParseResult<Associati
 		min: -100_000_000_00
 	});
 	const reserveContribution = parser.money('reserveContribution', { required: false });
+	const reserveWithdrawal = parser.money('reserveWithdrawal', { required: false });
 	const feesDue = parser.money('feesDue', { required: false });
 	const balance = parser.money('statedBalance', { required: false });
 	const balanceKind = parser.oneOf('balanceKind', ['due', 'credit'] as const, { required: false });
@@ -29,6 +30,7 @@ export function parseAssociationStatement(form: FormData): ParseResult<Associati
 		allocableCosts: allocableCosts ?? 0,
 		nonAllocableCosts: nonAllocableCosts ?? 0,
 		reserveContribution: reserveContribution ?? 0,
+		reserveWithdrawal: reserveWithdrawal ?? 0,
 		feesDue: feesDue ?? 0,
 		statedBalance: balance === null ? null : balanceKind === 'credit' ? -balance : balance,
 		balanceKind: balanceKind ?? 'due',
@@ -46,6 +48,7 @@ export function associationStatementInput(
 		allocableCosts: form.allocableCosts,
 		nonAllocableCosts: form.nonAllocableCosts,
 		reserveContribution: form.reserveContribution,
+		reserveWithdrawal: form.reserveWithdrawal,
 		feesDue: form.feesDue,
 		statedBalance: form.statedBalance,
 		note: form.note
