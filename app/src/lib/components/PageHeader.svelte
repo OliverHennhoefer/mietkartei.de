@@ -54,6 +54,14 @@
 		font-size: 0.9rem;
 		max-width: 45rem;
 	}
+	@media (max-width: 40rem) {
+		/* A larger target for the thumb, without moving the link. */
+		.back a {
+			display: inline-block;
+			padding-block: 0.6rem;
+			margin-block: -0.6rem;
+		}
+	}
 	.page-actions {
 		display: flex;
 		flex-wrap: wrap;

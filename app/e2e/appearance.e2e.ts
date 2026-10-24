@@ -99,3 +99,26 @@ test('opens the settings as a dialog over the page and closes it again', async (
 	await dialog.getByRole('button', { name: 'Einstellungen schließen' }).click();
 	await expect(page).toHaveURL(/\/$/);
 });
+
+test('stacks table rows with their column headings on a phone, without sideways scrolling', async ({
+	page
+}) => {
+	const suffix = crypto.randomUUID().slice(0, 8);
+	await seedLease(page.request, { tenant: { lastName: `Handy-${suffix}` } });
+	await page.setViewportSize({ width: 375, height: 812 });
+	for (const path of ['/mietkonto', '/vertraege', '/bank/konten', '/auswertung/ausgaben']) {
+		await page.goto(path);
+		const width = await page.evaluate(() => document.documentElement.scrollWidth);
+		expect(width, path).toBeLessThanOrEqual(375);
+	}
+
+	await page.goto('/mietkonto');
+	const row = page.getByRole('row').filter({ hasText: `Handy-${suffix}` });
+	await expect(row.getByRole('cell').nth(1)).toHaveAttribute('data-label', 'Mieter');
+	await expect(row.getByRole('cell').nth(2)).toHaveAttribute('data-label', 'Saldo');
+	// The saldo stands below the tenant, not in a column beside it.
+	const tenant = await row.getByRole('cell').nth(1).boundingBox();
+	const balance = await row.getByRole('cell').nth(2).boundingBox();
+	expect(balance!.y).toBeGreaterThan(tenant!.y);
+	expect(balance!.x + balance!.width).toBeLessThanOrEqual(375);
+});

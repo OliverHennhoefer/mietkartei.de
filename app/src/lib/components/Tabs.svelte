@@ -14,9 +14,20 @@
 		if (tab.also?.some((prefix) => within(path, prefix))) return true;
 		return index === 0 ? path === tab.href : within(path, tab.href);
 	}
+
+	// On a narrow screen the tabs scroll sideways; the current one is scrolled into sight.
+	let nav = $state<HTMLElement>();
+	$effect(() => {
+		void page.url.pathname;
+		const current = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+		if (!nav || !current) return;
+		const left = current.offsetLeft - nav.offsetLeft;
+		if (left < nav.scrollLeft || left + current.offsetWidth > nav.scrollLeft + nav.clientWidth)
+			nav.scrollLeft = left - (nav.clientWidth - current.offsetWidth) / 2;
+	});
 </script>
 
-<nav class="tabs" aria-label={label}>
+<nav bind:this={nav} class="tabs" aria-label={label}>
 	{#each tabs as tab, index (tab.href)}
 		<a href={tab.href} aria-current={isCurrent(tab, index) ? 'page' : undefined}>
 			{tab.label}
