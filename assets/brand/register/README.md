@@ -7,7 +7,7 @@ Die gewählte Bildmarke für **mietkartei** verbindet geordnete Registereinträg
 | [mark.svg](mark.svg), [mark-white.svg](mark-white.svg) | Schwarze und weiße Bildmarke auf transparentem Hintergrund |
 | [lockup.svg](lockup.svg), [lockup-white.svg](lockup-white.svg) | Bildmarke mit der originalen Geist-Medium-Wortmarke |
 | [lockup-auto.svg](lockup-auto.svg) | Dieselbe Kombination, schwarz und im dunklen Modus des Betrachters weiß; für das Repository-README, wo die GitHub-App `<picture>`-Quellen nicht beachtet |
-| [lockup-highlight.svg](lockup-highlight.svg), [lockup-highlight-white.svg](lockup-highlight-white.svg) | Bildmarke und Wortmarke mit bündigem Block in Neon-Gelb (`#F5FF00`) hinter „kartei“; „kartei“ bleibt auf dem Block in beiden Fassungen schwarz. Signatur der Webseite |
+| [lockup-highlight.svg](lockup-highlight.svg), [lockup-highlight-white.svg](lockup-highlight-white.svg) | Bildmarke und Wortmarke in Geist Semibold mit Block in Neon-Gelb (`#F5FF00`) hinter „kartei“. Der Block ist genau so hoch wie die Bildmarke; „kartei“ bleibt darauf in beiden Fassungen schwarz. Signatur der Webseite |
 | [small.svg](small.svg) | Kleine schwarze Fassung mit weiter geöffneter senkrechter Fuge |
 | [favicon.svg](favicon.svg) | Kleine weiße Fassung auf schwarzem Grund |
 | [construction.py](construction.py), [geometry.json](geometry.json) | Reproduzierbare Vektorkonstruktion und Maße |
@@ -30,6 +30,6 @@ Startseite, Impressum und Neuigkeiten zeigen die Fassung mit gelbem Block mit 52
 
 ## Quellen und Einsatz
 
-Zum erneuten Erzeugen genügt Python 3: `python3 assets/brand/register/construction.py` vom Repository-Stamm aus. Das Skript verwendet die vorhandene Wortmarke im übergeordneten Ordner und aktualisiert dort auch die gemeinsam eingebundenen Exporte `mark.svg`, `mark-white.svg`, `lockup.svg`, `lockup-white.svg`, `lockup-auto.svg`, `lockup-highlight.svg`, `lockup-highlight-white.svg` und `favicon.svg`. Die Fassung mit Block übernimmt die Konturen und das Rechteck aus [geist-highlight.svg](../variants/geist-highlight.svg).
+Zum erneuten Erzeugen genügt Python 3: `python3 assets/brand/register/construction.py` vom Repository-Stamm aus. Das Skript verwendet die vorhandene Wortmarke im übergeordneten Ordner und aktualisiert dort auch die gemeinsam eingebundenen Exporte `mark.svg`, `mark-white.svg`, `lockup.svg`, `lockup-white.svg`, `lockup-auto.svg`, `lockup-highlight.svg`, `lockup-highlight-white.svg` und `favicon.svg`. Die Fassung mit Block liest die Semibold-Konturen aus [geist-semibold-outlines.json](../variants/geist-semibold-outlines.json), die `scripts/generate_brand_logos.py` erzeugt. Der Block steht 4 Einheiten neben „miet“ und lässt links und rechts von „kartei“ je 12 Einheiten frei.
 
 Startseite, Impressum, Dokumentationskopf und Repository-README verwenden Bildmarke und Wortmarke zusammen. Die Anwendung behält das freistehende Zeichen. Die Webseiten-Builds übernehmen die gemeinsamen Exporte aus dem übergeordneten Ordner.

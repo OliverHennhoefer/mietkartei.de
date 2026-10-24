@@ -1,6 +1,7 @@
 """Erzeugt die Wortmarken aus Geist Medium mit den originalen Schriftkonturen."""
 
 from html import escape
+import json
 from pathlib import Path
 
 import uharfbuzz as hb
@@ -18,18 +19,18 @@ FONT_PATH = BRAND / "fonts" / "geist" / "Geist.ttf"
 WEIGHT = 500
 
 
-def outline(text, start=0, end=None):
+def outline(text, start=0, end=None, weight=WEIGHT):
     face = hb.Face(FONT_PATH.read_bytes())
     shaped_font = hb.Font(face)
     hb.ot_font_set_funcs(shaped_font)
     shaped_font.scale = (face.upem, face.upem)
-    shaped_font.set_variations({"wght": WEIGHT})
+    shaped_font.set_variations({"wght": weight})
     buffer = hb.Buffer()
     buffer.add_str(text)
     buffer.guess_segment_properties()
     hb.shape(shaped_font, buffer, {"kern": True})
 
-    font = instantiateVariableFont(TTFont(FONT_PATH), {"wght": WEIGHT})
+    font = instantiateVariableFont(TTFont(FONT_PATH), {"wght": weight})
     glyphs = font.getGlyphSet()
     order = font.getGlyphOrder()
     path = SVGPathPen(glyphs, ntos=lambda number: f"{number:.3f}".rstrip("0").rstrip(".") or "0")
@@ -98,8 +99,20 @@ def write_highlight_svg(filename, foreground, inverse):
     destination.write_text(svg, encoding="utf-8")
 
 
+def write_split_outlines(filename, weight):
+    # "miet" and "kartei" as separate outlines on a shared baseline, for the highlight lockup in
+    # assets/brand/register/construction.py.
+    parts = {}
+    for name, start, end in (("miet", 0, 4), ("kartei", 4, None)):
+        path, (left, bottom, right, top) = outline("mietkartei", start=start, end=end, weight=weight)
+        parts[name] = {"d": path, "bounds": [round(value, 3) for value in (left, bottom, right, top)]}
+    data = {"font": "Geist", "weight": weight, "units_per_em": 1000, **parts}
+    (BRAND / "variants" / filename).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
 if __name__ == "__main__":
     for filename, fill, colour in (("logo.svg", "#000", "Schwarze"), ("logo-white.svg", "#fff", "Weiße")):
         write_svg(filename, "mietkartei", fill, "mietkartei", f"{colour} einzeilige Wortmarke in Geist Medium mit originalen Schriftkonturen.")
     write_highlight_svg("geist-highlight.svg", "#000", "#fff")
     write_highlight_svg("geist-highlight-white.svg", "#fff", "#000")
+    write_split_outlines("geist-semibold-outlines.json", 600)

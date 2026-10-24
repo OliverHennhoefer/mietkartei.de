@@ -95,24 +95,29 @@ def lockup(ink,adaptive=False):
 
 
 HIGHLIGHT='#F5FF00'
+HIGHLIGHT_GAP=4
+HIGHLIGHT_PADDING=12
 
 
 def lockup_highlight(ink):
-    # Flush neon block behind "kartei"; the letters on the block stay black in both schemes.
-    variant=ET.parse(ROOT.parent/'variants'/'geist-highlight.svg').getroot()
-    for element in variant.iter():
-        element.tag=element.tag.rsplit('}',1)[-1]
-    block=variant.find('rect').attrib
-    miet,kartei=variant.findall('path')
+    # Geist Semibold with a neon block behind "kartei". The block is exactly as tall as the mark,
+    # so both share their top and bottom edge; "kartei" stays black on it in both schemes.
+    outlines=json.loads((ROOT.parent/'variants'/'geist-semibold-outlines.json').read_text())
+    miet,kartei=outlines['miet'],outlines['kartei']
     scale=WORDMARK_HEIGHT/774.8
-    width=math.ceil(WORDMARK_X+float(variant.get('viewBox').split()[2])*scale)
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} 96" role="img" aria-label="mietkartei mit Registerfaltung">
+    baseline=19+738.8*scale
+    miet_x=WORDMARK_X+24*scale-miet['bounds'][0]*scale
+    block_left=miet_x+miet['bounds'][2]*scale+HIGHLIGHT_GAP
+    kartei_x=block_left+HIGHLIGHT_PADDING-kartei['bounds'][0]*scale
+    block_right=kartei_x+kartei['bounds'][2]*scale+HIGHLIGHT_PADDING
+    top=48-LOCKUP_MARK_HEIGHT/2
+    def word(part,x,fill):
+        return f'<path fill="{fill}" transform="translate({n(x)} {n(baseline)}) scale({n(scale)} -{n(scale)})" d="{part['d']}"/>'
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {math.ceil(block_right)} 96" role="img" aria-label="mietkartei mit Registerfaltung">
   {paths(ink,transform=LOCKUP_TRANSFORM)}
-  <g transform="translate({WORDMARK_X} {n(19-(850.8-738.8)*scale)}) scale({n(scale)})">
-    <rect x="{block['x']}" y="{block['y']}" width="{block['width']}" height="{block['height']}" fill="{HIGHLIGHT}"/>
-    <path fill="{ink}" transform="{miet.get('transform')}" d="{miet.get('d')}"/>
-    <path fill="#000" transform="{kartei.get('transform')}" d="{kartei.get('d')}"/>
-  </g>
+  <rect x="{n(block_left)}" y="{n(top)}" width="{n(block_right-block_left)}" height="{n(LOCKUP_MARK_HEIGHT)}" fill="{HIGHLIGHT}"/>
+  {word(miet,miet_x,ink)}
+  {word(kartei,kartei_x,'#000')}
 </svg>
 '''
 
