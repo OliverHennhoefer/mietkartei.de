@@ -20,7 +20,10 @@
 		},
 		{ href: `/objekte/${data.property.id}/zaehler`, label: 'Zähler' },
 		{ href: `/objekte/${data.property.id}/abrechnungskreise`, label: 'Abrechnungskreise' },
-		{ href: `/objekte/${data.property.id}/versicherungen`, label: 'Versicherungen' }
+		{ href: `/objekte/${data.property.id}/versicherungen`, label: 'Versicherungen' },
+		...(data.property.kind === 'condominium'
+			? [{ href: `/objekte/${data.property.id}/hausgeld`, label: 'Hausgeld' }]
+			: [])
 	]);
 
 	/** For an Eigentumswohnung: the WEG, its MEA and its Verwalter. */

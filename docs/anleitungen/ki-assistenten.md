@@ -71,7 +71,7 @@ Danach startest du den Client neu.
 
 Ein Schlüssel oder eine verbundene App hat dieselben Rechte wie du und sieht alle Daten deines Kontos, auch die persönlichen Daten deiner Mieter. Gib ihn nur Programmen, denen du vertraust.
 
-**Lesen** kann der Assistent Objekte und Einheiten, Mieter, Mietverträge mit Mietänderungen und Kaution, das Mietkonto jedes Vertrags, Salden und Rückstände, den Mahnstand mit Verzugszinsen, Belege, Kostenarten und Umlageschlüssel, Betriebskostenabrechnungen, Ausgaben, die Auswertung, Fristen und Aufgaben.
+**Lesen** kann der Assistent Objekte und Einheiten, Mieter, Mietverträge mit Mietänderungen und Kaution, das Mietkonto jedes Vertrags, Salden und Rückstände, den Mahnstand mit Verzugszinsen, Belege, Kostenarten und Umlageschlüssel, Betriebskostenabrechnungen, Hausgeldabrechnungen von Eigentumswohnungen, Ausgaben, die Auswertung, Fristen und Aufgaben.
 
 **Schreiben** darf der Assistent mit Schreibrechten nur vier Dinge, die etwas hinzufügen:
 

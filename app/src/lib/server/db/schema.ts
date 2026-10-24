@@ -678,6 +678,7 @@ export const matchingRules = sqliteTable(
 
 export const expenseCategories = [
 	'operating_costs',
+	'association_fee',
 	'maintenance',
 	'financing',
 	'management',
@@ -1092,6 +1093,42 @@ export const documents = sqliteTable(
 		index('documents_account_id_idx').on(table.accountId),
 		index('documents_lease_id_idx').on(table.leaseId),
 		index('documents_property_id_idx').on(table.propertyId)
+	]
+);
+
+/**
+ * Hausgeldabrechnung of an Eigentumswohnung for one Wirtschaftsjahr, as the Verwalter sent it:
+ * the unit's share of the costs, split into what may be passed on to the tenant, what may not
+ * and the Zuführung zur Erhaltungsrücklage, and the Hausgeld due under the Wirtschaftsplan. The
+ * app sets it against the Hausgeld paid (expenses of category association_fee) and the Belege
+ * taken over from it. Amounts in cents.
+ */
+export const associationStatements = sqliteTable(
+	'association_statements',
+	{
+		id: id(),
+		accountId: accountId(),
+		propertyId: text('property_id')
+			.notNull()
+			.references(() => properties.id, { onDelete: 'cascade' }),
+		periodStart: text('period_start').notNull(),
+		periodEnd: text('period_end').notNull(),
+		/** Umlagefähige Kosten: the share of the costs that may be passed on (§ 2 BetrKV). */
+		allocableCosts: integer('allocable_costs').notNull(),
+		/** Nicht umlagefähige Kosten, e.g. Verwaltervergütung, Instandhaltung, Bankgebühren. */
+		nonAllocableCosts: integer('non_allocable_costs').notNull(),
+		/** Zuführung zur Erhaltungsrücklage. */
+		reserveContribution: integer('reserve_contribution').notNull(),
+		/** Hausgeld due for the year under the Wirtschaftsplan (Soll-Vorauszahlungen). */
+		feesDue: integer('fees_due').notNull(),
+		/** The Abrechnungsspitze the Verwalter printed; positive = Nachzahlung, negative = Guthaben. */
+		statedBalance: integer('stated_balance'),
+		note: text('note'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('association_statements_account_id_idx').on(table.accountId),
+		uniqueIndex('association_statements_period_unique').on(table.propertyId, table.periodStart)
 	]
 );
 

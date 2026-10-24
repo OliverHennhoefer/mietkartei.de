@@ -68,7 +68,8 @@ export const exportTables: AccountTable[] = [
 	schema.co2CostSplits,
 	schema.documents,
 	schema.tasks,
-	schema.insurancePolicies
+	schema.insurancePolicies,
+	schema.associationStatements
 ];
 
 /**
