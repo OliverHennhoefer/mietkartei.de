@@ -21,6 +21,7 @@ nav = [
     { "Umlageschlüssel" = "anleitungen/umlageschluessel.md" },
     { "Kontoauszüge importieren" = "anleitungen/kontoauszuege-importieren.md" },
     { "Von Excel umsteigen" = "anleitungen/von-excel-umsteigen.md" },
+    { "KI-Assistenten anbinden" = "anleitungen/ki-assistenten.md" },
   ] },
   { "Selbst hosten" = "selbst-hosten.md" },
 ]
