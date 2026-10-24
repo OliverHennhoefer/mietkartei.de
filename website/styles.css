@@ -46,8 +46,8 @@ a { color: inherit; }
 .brand { display: inline-flex; }
 .brand img { display: block; width: auto; height: 52px; }
 .header-links { display: inline-flex; align-items: center; gap: 12px; }
-.header-link { padding: 8px; border-radius: 8px; color: var(--muted); font-weight: 600; text-decoration: none; transition: color 140ms; }
-.header-link:hover, .header-link[aria-current="page"] { color: var(--foreground); }
+.header-link { padding: .12em .35em; background: var(--highlight); color: #000; font-weight: 600; text-decoration: none; transition: opacity 140ms; }
+.header-link:hover { opacity: .8; }
 .github { display: inline-flex; padding: 8px; margin-right: -8px; border-radius: 8px; color: var(--muted); transition: color 140ms; }
 .github:hover { color: var(--foreground); }
 .github svg { display: block; }
