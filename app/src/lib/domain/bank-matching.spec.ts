@@ -15,6 +15,7 @@ import {
 	parseBankFile,
 	proposeGenericMapping,
 	rememberedRule,
+	rememberStep,
 	ruleMatches,
 	splitComdirectText,
 	suggestLease,
@@ -504,5 +505,55 @@ describe('rules', () => {
 			pattern: 'Max Müller'
 		});
 		expect(rememberedRule({ counterpartName: '', counterpartIban: null })).toBeUndefined();
+	});
+
+	describe('rememberStep', () => {
+		const rule = (overrides: Partial<Rule> = {}): Rule => ({
+			id: 'r1',
+			leaseId: 'l1',
+			field: 'counterpartIban',
+			pattern: 'DE12500105175407324931',
+			confirmed: true,
+			...overrides
+		});
+		const none = { rules: [], earlierLeaseIds: [] };
+
+		it('remembers the counterpart of incoming rent only', () => {
+			expect(rememberStep(transaction, 'l1', none)).toEqual({
+				kind: 'create',
+				field: 'counterpartIban',
+				pattern: 'DE12500105175407324931'
+			});
+			expect(rememberStep({ ...transaction, amount: -100 }, 'l1', none)).toBeUndefined();
+		});
+
+		it('adds nothing when a rule already matches', () => {
+			expect(rememberStep(transaction, 'l1', { ...none, rules: [rule()] })).toBeUndefined();
+			expect(
+				rememberStep(transaction, 'l2', { ...none, rules: [rule({ confirmed: false })] })
+			).toBeUndefined();
+		});
+
+		it('drops confirmed rules for another lease back to suggestions', () => {
+			expect(
+				rememberStep(transaction, 'l2', {
+					...none,
+					rules: [
+						rule(),
+						rule({ id: 'r2', leaseId: 'l2' }),
+						rule({ id: 'r3', field: 'purpose', pattern: 'Garage' })
+					]
+				})
+			).toEqual({ kind: 'unconfirm', ruleIds: ['r1'] });
+		});
+
+		it('remembers nobody whose money went to another lease before', () => {
+			expect(rememberStep(transaction, 'l1', { ...none, earlierLeaseIds: ['l1'] })).toMatchObject({
+				kind: 'create'
+			});
+			expect(
+				rememberStep(transaction, 'l1', { ...none, earlierLeaseIds: ['l1', 'l2'] })
+			).toBeUndefined();
+		});
 	});
 });

@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { formatDate } from '../../dates';
-import { rememberedRule, type LeaseHints } from '../../domain/bank-matching';
+import { rememberStep, type LeaseHints } from '../../domain/bank-matching';
 import type { AssignmentInput } from '../../forms/bank';
 import type { ExpenseAssignmentInput } from '../../forms/expenses';
 import { formatCents } from '../../money';
@@ -20,8 +20,8 @@ import {
 import { expenseScopeValue, expenseSummary, resolveScope, scopeLabels } from '../expenses';
 import { paymentEntry } from '../ledger';
 import { leaseLabel, type LeaseSummary } from '../leases';
-import { ruleEntry } from './rules';
-import { assertQuota } from '../quotas';
+import { listRules, ruleEntry, unconfirmEntries } from './rules';
+import { assertQuota, QUOTAS, usage } from '../quotas';
 
 // Umsätze: the imported statement lines and their assignment to leases or as an expense. `matched`
 // means a payment, a deposit movement or an expense references the transaction; undo deletes
@@ -323,9 +323,63 @@ async function runGuarded(
 export type AssignOutcome =
 	'assigned' | 'missing' | 'not-open' | 'unknown-lease' | 'amount-mismatch';
 
+/** The leases earlier payments and deposit movements from the counterpart went to. Two queries. */
+async function earlierLeaseIds(
+	db: Database,
+	accountId: string,
+	transaction: Pick<BankTransaction, 'counterpartIban' | 'counterpartName'>
+): Promise<string[]> {
+	const counterpart = transaction.counterpartIban
+		? eq(bankTransactions.counterpartIban, transaction.counterpartIban)
+		: eq(bankTransactions.counterpartName, transaction.counterpartName);
+	const [paymentRows, depositRows] = await Promise.all([
+		db
+			.selectDistinct({ leaseId: payments.leaseId })
+			.from(payments)
+			.innerJoin(bankTransactions, eq(payments.bankTransactionId, bankTransactions.id))
+			.where(and(eq(payments.accountId, accountId), counterpart)),
+		db
+			.selectDistinct({ leaseId: depositTransactions.leaseId })
+			.from(depositTransactions)
+			.innerJoin(bankTransactions, eq(depositTransactions.bankTransactionId, bankTransactions.id))
+			.where(and(eq(depositTransactions.accountId, accountId), counterpart))
+	]);
+	return [...paymentRows, ...depositRows].map((row) => row.leaseId);
+}
+
+/**
+ * The rule statements of assigning the transaction to the lease as rent. A full rule quota
+ * leaves the counterpart unremembered instead of refusing the assignment.
+ */
+async function rememberStatements(
+	db: Database,
+	context: AuditContext,
+	transaction: BankTransaction,
+	leaseId: string
+): Promise<BatchItem<'sqlite'>[]> {
+	if (transaction.amount <= 0) return [];
+	const [rules, earlier] = await Promise.all([
+		listRules(db, context.accountId),
+		earlierLeaseIds(db, context.accountId, transaction)
+	]);
+	const step = rememberStep(transaction, leaseId, { rules, earlierLeaseIds: earlier });
+	if (!step) return [];
+	if (step.kind === 'unconfirm') {
+		const ids = new Set(step.ruleIds);
+		return unconfirmEntries(
+			db,
+			context,
+			rules.filter((rule) => ids.has(rule.id))
+		);
+	}
+	if ((await usage(db, context.accountId, 'matchingRules')) >= QUOTAS.matchingRules.max) return [];
+	const { field, pattern } = step;
+	return ruleEntry(db, context, { leaseId, field, pattern, confirmed: true }).statements;
+}
+
 /**
  * Books the transaction as payment(s) or a deposit movement on the chosen lease(s), marks it
- * matched and, with `remember`, creates a confirmed rule on the counterpart. One batch.
+ * matched and, for rent on one lease, remembers the counterpart (see rememberStep). One batch.
  */
 export async function assignTransaction(
 	db: Database,
@@ -382,14 +436,10 @@ export async function assignTransaction(
 			);
 		}
 	}
-	if (input.remember && input.parts.length === 1) {
-		const rule = rememberedRule(transaction);
-		if (rule) {
-			statements.push(
-				...ruleEntry(db, context, { ...rule, leaseId: input.parts[0].leaseId, confirmed: true })
-					.statements
-			);
-		}
+	if (input.target === 'rent' && input.parts.length === 1) {
+		statements.push(
+			...(await rememberStatements(db, context, transaction, input.parts[0].leaseId))
+		);
 	}
 	const what = input.target === 'rent' ? 'als Zahlung' : 'auf die Kaution';
 	const parts =

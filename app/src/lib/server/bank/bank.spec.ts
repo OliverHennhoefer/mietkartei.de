@@ -128,8 +128,7 @@ describe('bank accounts', () => {
 		const [incoming] = (await openTransactions()).filter((row) => row.amount > 0);
 		await assignTransaction(db, contextA, incoming.id, {
 			target: 'rent',
-			parts: [{ leaseId, amount: 85000 }],
-			remember: false
+			parts: [{ leaseId, amount: 85000 }]
 		});
 		expect(await deleteBankAccount(db, contextA, bankAccountId)).toBe('in-use');
 		await undoAssignment(db, contextA, incoming.id);
@@ -318,8 +317,7 @@ describe('transactions', () => {
 		expect(
 			await assignTransaction(db, contextA, incoming.id, {
 				target: 'rent',
-				parts: [{ leaseId, amount: 85000 }],
-				remember: true
+				parts: [{ leaseId, amount: 85000 }]
 			})
 		).toBe('assigned');
 
@@ -334,8 +332,7 @@ describe('transactions', () => {
 		expect(
 			await assignTransaction(db, contextA, incoming.id, {
 				target: 'rent',
-				parts: [{ leaseId, amount: 85000 }],
-				remember: false
+				parts: [{ leaseId, amount: 85000 }]
 			})
 		).toBe('not-open');
 
@@ -349,10 +346,32 @@ describe('transactions', () => {
 		expect(actions).toEqual(['assign', 'undo']);
 	});
 
+	it('drops a remembered rule back to a suggestion when the counterpart pays for another lease', async () => {
+		await importSparkasse();
+		const [incoming] = (await openTransactions()).filter((row) => row.amount > 0);
+		const assign = (lease: string, target: 'rent' | 'deposit' = 'rent') =>
+			assignTransaction(db, contextA, incoming.id, {
+				target,
+				parts: [{ leaseId: lease, amount: 85000 }]
+			});
+
+		// A deposit remembers nothing: rules book rent.
+		expect(await assign(leaseId, 'deposit')).toBe('assigned');
+		expect(await listRules(db, 'a')).toEqual([]);
+		await undoAssignment(db, contextA, incoming.id);
+
+		expect(await assign(leaseId)).toBe('assigned');
+		await undoAssignment(db, contextA, incoming.id);
+		expect(await assign(secondLeaseId)).toBe('assigned');
+		expect(await listRules(db, 'a')).toMatchObject([{ leaseId, confirmed: false }]);
+		const audit = await db.select().from(auditLog).where(eq(auditLog.entity, 'matchingRule'));
+		expect(audit.map((entry) => entry.action)).toEqual(['create', 'update']);
+	});
+
 	it('books a double submit once: the second of two overlapping assignments is refused', async () => {
 		await importSparkasse();
 		const [incoming] = (await openTransactions()).filter((row) => row.amount > 0);
-		const input = { target: 'rent' as const, parts: [{ leaseId, amount: 85000 }], remember: true };
+		const input = { target: 'rent' as const, parts: [{ leaseId, amount: 85000 }] };
 		// Both calls read the status 'unmatched' before either batch runs (each awaits its reads
 		// first), as two requests from a double click do.
 		const outcomes = await Promise.all([
@@ -375,18 +394,17 @@ describe('transactions', () => {
 		const outcomes = await Promise.all([
 			assignTransaction(db, contextA, incoming.id, {
 				target: 'rent',
-				parts: [{ leaseId, amount: 85000 }],
-				remember: false
+				parts: [{ leaseId, amount: 85000 }]
 			}),
 			assignTransaction(db, contextA, incoming.id, {
 				target: 'deposit',
-				parts: [{ leaseId, amount: 85000 }],
-				remember: false
+				parts: [{ leaseId, amount: 85000 }]
 			})
 		]);
-		expect(outcomes).toEqual(['assigned', 'not-open']);
-		expect(await db.select().from(payments).where(eq(payments.accountId, 'a'))).toHaveLength(1);
-		expect(await db.select().from(depositTransactions)).toEqual([]);
+		expect(outcomes.sort()).toEqual(['assigned', 'not-open']);
+		const paid = await db.select().from(payments).where(eq(payments.accountId, 'a'));
+		const deposits = await db.select().from(depositTransactions);
+		expect(paid.length + deposits.length).toBe(1);
 	});
 
 	it('does not assign a transaction that an overlapping request ignores', async () => {
@@ -395,8 +413,7 @@ describe('transactions', () => {
 		const outcomes = await Promise.all([
 			assignTransaction(db, contextA, incoming.id, {
 				target: 'rent',
-				parts: [{ leaseId, amount: 85000 }],
-				remember: false
+				parts: [{ leaseId, amount: 85000 }]
 			}),
 			ignoreTransaction(db, contextA, incoming.id)
 		]);
@@ -415,8 +432,7 @@ describe('transactions', () => {
 		const [incoming] = (await openTransactions()).filter((row) => row.amount > 0);
 		await assignTransaction(db, contextA, incoming.id, {
 			target: 'rent',
-			parts: [{ leaseId, amount: 85000 }],
-			remember: false
+			parts: [{ leaseId, amount: 85000 }]
 		});
 		const outcomes = await Promise.all([
 			undoAssignment(db, contextA, incoming.id),
@@ -438,8 +454,7 @@ describe('transactions', () => {
 				parts: [
 					{ leaseId, amount: 80000 },
 					{ leaseId: secondLeaseId, amount: 5000 }
-				],
-				remember: false
+				]
 			})
 		).toBe('assigned');
 		const paid = await db.select().from(payments).where(eq(payments.accountId, 'a'));
@@ -458,13 +473,11 @@ describe('transactions', () => {
 		const outgoing = open.find((row) => row.amount < 0)!;
 		await assignTransaction(db, contextA, incoming.id, {
 			target: 'deposit',
-			parts: [{ leaseId, amount: 85000 }],
-			remember: false
+			parts: [{ leaseId, amount: 85000 }]
 		});
 		await assignTransaction(db, contextA, outgoing.id, {
 			target: 'deposit',
-			parts: [{ leaseId, amount: -12050 }],
-			remember: false
+			parts: [{ leaseId, amount: -12050 }]
 		});
 		const movements = await db
 			.select()
@@ -485,15 +498,13 @@ describe('transactions', () => {
 		expect(
 			await assignTransaction(db, contextA, incoming.id, {
 				target: 'rent',
-				parts: [{ leaseId, amount: 80000 }],
-				remember: false
+				parts: [{ leaseId, amount: 80000 }]
 			})
 		).toBe('amount-mismatch');
 		expect(
 			await assignTransaction(db, contextA, incoming.id, {
 				target: 'rent',
-				parts: [{ leaseId: foreignLeaseId, amount: 85000 }],
-				remember: false
+				parts: [{ leaseId: foreignLeaseId, amount: 85000 }]
 			})
 		).toBe('unknown-lease');
 		expect(await countUnmatched(db, 'a')).toBe(3);
@@ -533,8 +544,7 @@ describe('transactions', () => {
 		expect(
 			await assignTransaction(db, contextB, incoming.id, {
 				target: 'rent',
-				parts: [{ leaseId: foreignLeaseId, amount: 85000 }],
-				remember: false
+				parts: [{ leaseId: foreignLeaseId, amount: 85000 }]
 			})
 		).toBe('missing');
 		expect(await ignoreTransaction(db, contextB, incoming.id)).toBe('missing');
@@ -601,8 +611,7 @@ describe('transaction helpers', () => {
 		] as const) {
 			await assignTransaction(db, contextA, transaction.id, {
 				target: 'rent',
-				parts: [{ leaseId: lease, amount: 85000 }],
-				remember: false
+				parts: [{ leaseId: lease, amount: 85000 }]
 			});
 		}
 		expect(await leaseByIban(db, 'a')).toEqual(

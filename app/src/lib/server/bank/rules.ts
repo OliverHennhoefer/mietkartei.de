@@ -31,7 +31,7 @@ function ruleSummary(rule: RuleInput, verb: string): string {
 	return `Zuordnungsregel „${matchingFieldLabels[rule.field]} enthält ${rule.pattern}“ ${verb}`;
 }
 
-/** The insert statement for a rule, for the assignment batch ("Zuordnung merken"). */
+/** The insert statements for a rule an assignment remembers, for the assignment batch. */
 export function ruleEntry(
 	db: Database,
 	context: AuditContext,
@@ -45,6 +45,34 @@ export function ruleEntry(
 			auditEntry(db, context, 'matchingRule', id, 'create', ruleSummary(input, 'angelegt'))
 		]
 	};
+}
+
+/**
+ * The statements that turn confirmed rules back into suggestions, for the assignment batch: the
+ * landlord assigned a transaction they match to another lease.
+ */
+export function unconfirmEntries(
+	db: Database,
+	context: AuditContext,
+	rules: readonly MatchingRule[]
+): BatchItem<'sqlite'>[] {
+	return rules.flatMap((rule) => [
+		db
+			.update(matchingRules)
+			.set({ confirmed: false })
+			.where(and(eq(matchingRules.accountId, context.accountId), eq(matchingRules.id, rule.id))),
+		auditEntry(
+			db,
+			context,
+			'matchingRule',
+			rule.id,
+			'update',
+			ruleSummary(
+				rule,
+				'wieder zum Vorschlag gemacht, weil ein Umsatz einem anderen Mietvertrag zugeordnet wurde'
+			)
+		)
+	]);
 }
 
 /** Creates a rule for a lease of the account; `confirmed` decides whether it assigns on import. */
