@@ -965,6 +965,39 @@ describe('computeStatement warnings', () => {
 		]);
 	});
 
+	it('prorates each amount per lease to the lease’s own days in the period', () => {
+		// 100 € for 1 October 2024 to 30 September 2025: 40 € for a tenant who left on 31 December
+		// 2024, 60 € for OG's tenant from 1 January. The 2025 statement takes OG's 60 € in full:
+		// all of OG's days in the item lie in 2025, and nothing counts as vacancy.
+		const input = small({
+			items: [
+				item('i-messdienst', 'Abrechnung Messdienst', 'c-heizung', 'k-direct', 10000, {
+					periodStart: '2024-10-01',
+					periodEnd: '2025-09-30',
+					unitAmounts: [
+						{ unitId: 'og', leaseId: 'l-og-alt', amount: 4000 },
+						{ unitId: 'og', leaseId: 'l-og', amount: 6000 }
+					]
+				})
+			],
+			keys: [key('k-direct', 'Beträge je Einheit', 'direct')]
+		});
+		input.leases.push(
+			lease(
+				'l-og-alt',
+				['og'],
+				{ start: '2023-01-01', end: '2024-12-31' },
+				1,
+				{ operating: 10000, heating: 5000, months: [] },
+				{ salutation: 'Herr', firstName: 'Otto', lastName: 'Alt' }
+			)
+		);
+		const result = computeStatement(input, options);
+		expect(result.leases.find((l) => l.leaseId === 'l-og')!.costsTotal).toBe(6000);
+		expect(result.property.vacancyShare).toBe(0);
+		expect(result.property.items[0].total).toBe(7479);
+	});
+
 	it('splits a credit note per lease by the size of its amounts', () => {
 		const input = small({
 			items: [

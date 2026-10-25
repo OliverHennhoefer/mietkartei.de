@@ -416,6 +416,13 @@ describe('parseUnitAmounts', () => {
 		});
 	});
 
+	it('refuses costs and credits mixed in the amounts per lease of a unit', () => {
+		const result = parseUnitAmounts(formDataOf({ 'amount-u1-a': '120', 'amount-u1-b': '-20' }), [
+			{ unitId: 'u1', leaseIds: ['a', 'b'] }
+		]);
+		expect(result.ok).toBe(false);
+	});
+
 	it('refuses an amount of the unit next to amounts per lease', () => {
 		const result = parseUnitAmounts(formDataOf({ 'amount-u1': '400', 'amount-u1-a': '300' }), [
 			{ unitId: 'u1', leaseIds: ['a'] }

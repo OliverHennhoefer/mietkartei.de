@@ -280,6 +280,12 @@ export function parseUnitAmounts(
 				'Trage entweder den Betrag der Einheit ein oder die Beträge je Mietvertrag.'
 			);
 		}
+		if (perLease.some((row) => row.amount < 0) && perLease.some((row) => row.amount > 0)) {
+			parser.fail(
+				`amount-${unitId}-${perLease[0].leaseId}`,
+				'Die Beträge je Mietvertrag einer Einheit sind entweder alle Kosten oder alle Gutschriften.'
+			);
+		}
 		if (own !== null && own !== 0) amounts.push({ unitId, leaseId: null, amount: own });
 		amounts.push(...perLease);
 	}

@@ -1003,13 +1003,31 @@ function componentsOf(
 			// The amounts of the Messdienst, prorated like the item (rounded on the running sum, so
 			// amounts that add up to the bill still add up to its share of the period); the
 			// landlord's CO₂ share is taken off in proportion.
-			// Amounts per lease are the Messdienst's per Nutzer after a Zwischenablesung; the unit
-			// bears their sum, and they split it between its leases instead of the days.
+			// Amounts per lease are the Messdienst's per Nutzer after a Zwischenablesung, each for
+			// the lease's own days in the item's period: each is prorated to the lease's days in the
+			// period too, the unit bears their sum and they split it instead of the days.
+			const itemPeriod = { start: item.periodStart, end: item.periodEnd };
 			const leaseAmounts = circleUnits.map((unit) => {
 				const rows = item.unitAmounts.filter(
 					(candidate) => candidate.unitId === unit.id && candidate.leaseId !== null
 				);
-				return rows.length > 0 ? new Map(rows.map((row) => [row.leaseId!, row.amount])) : null;
+				if (rows.length === 0) return null;
+				return new Map(
+					rows.map((row) => {
+						const lease = ctx.leases.find((candidate) => candidate.id === row.leaseId);
+						const covered = lease && overlap(itemPeriod, term(lease));
+						const inRange = lease && overlap(range, term(lease));
+						const amount =
+							covered && inRange
+								? proRata(
+										row.amount,
+										daysInclusive(inRange.start, inRange.end),
+										daysInclusive(covered.start, covered.end)
+									)
+								: 0;
+						return [row.leaseId!, amount];
+					})
+				);
 			});
 			const entered = circleUnits.map((unit) =>
 				item.unitAmounts
@@ -1032,11 +1050,14 @@ function componentsOf(
 					});
 				});
 			}
-			let running = 0;
-			const given = entered.map((amount) => {
-				const before = proRata(running, itemOverlap, itemDays);
-				running += amount;
-				return proRata(running, itemOverlap, itemDays) - before;
+			const running = entered.reduce((sum, amount) => sum + amount, 0);
+			let unitRunning = 0;
+			const given = entered.map((amount, index) => {
+				const perLease = leaseAmounts[index];
+				if (perLease) return [...perLease.values()].reduce((sum, part) => sum + part, 0);
+				const before = proRata(unitRunning, itemOverlap, itemDays);
+				unitRunning += amount;
+				return proRata(unitRunning, itemOverlap, itemDays) - before;
 			});
 			// A credit note's amounts are negative: weigh by their size, so the landlord's (negative)
 			// share of the CO₂ credit comes off in proportion too.
@@ -1481,12 +1502,11 @@ export function computeStatement(
 				let details: string[] = [];
 				const leaseAmounts = component.leaseAmounts?.[unitIndex];
 				if (leaseAmounts) {
-					// An amount of a lease outside the item's period stays with the landlord; a credit
-					// note's (negative) amounts weigh by their size.
+					// The amounts are prorated to the leases' days in the range, so the occupants carry
+					// all of them; a credit note's (negative) amounts weigh by their size.
 					const own = occupancy.leases.map((o) => leaseAmounts.get(o.lease.id) ?? 0);
-					const entered = sumOf([...leaseAmounts.values()]);
-					const sign = entered < 0 ? -1 : 1;
-					weights = [...own, entered - sumOf(own)].map((amount) => amount * sign);
+					const sign = sumOf(own) < 0 ? -1 : 1;
+					weights = [...own.map((amount) => amount * sign), 0];
 					details = occupancy.leases.map(() => 'davon Betrag laut Beleg für diesen Mietvertrag');
 				} else if (component.splitBy === 'days') {
 					weights = [...occupancy.leases.map((o) => o.days), occupancy.vacancyDays];
