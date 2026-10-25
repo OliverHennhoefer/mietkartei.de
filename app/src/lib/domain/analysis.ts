@@ -77,7 +77,11 @@ export type AnalysisOptions = {
 /** Money in a period: charged (Soll), received (Ist), paid out, and what is left. */
 export type Flow = { charged: number; received: number; expenses: number; net: number };
 
-export type SeriesPoint = Flow & { key: string };
+/**
+ * `baseRent` is the Kaltmiete charged in the bucket, the part of `charged` without utilities;
+ * `rentPerSqm` its average per m² and month, which a year with fewer let months does not lower.
+ */
+export type SeriesPoint = Flow & { key: string; baseRent: number; rentPerSqm: number | null };
 
 export type Occupancy = {
 	/** Days the units counted in the period, vacant days among them. */
@@ -123,6 +127,8 @@ export type Analysis = {
 			depositsHeld: number;
 		};
 	series: SeriesPoint[];
+	/** The same buckets per property in view, for its trend next to the others. */
+	propertySeries: { id: string; name: string; series: SeriesPoint[] }[];
 	byCategory: { category: ExpenseCategory; amount: number }[];
 	properties: PropertyRow[];
 	units: UnitRow[];
@@ -214,9 +220,25 @@ export function analyse(input: AnalysisInput, options: AnalysisOptions): Analysi
 			}
 		])
 	);
-	const series = new Map(
-		bucketKeys(range, granularity).map((key) => [key, { charged: 0, received: 0, expenses: 0 }])
+	const keys = bucketKeys(range, granularity);
+	const buckets = () =>
+		new Map<string, Bucket>(
+			keys.map((key) => [
+				key,
+				{ charged: 0, received: 0, expenses: 0, baseRent: 0, rentArea: 0, rentWithArea: 0 }
+			])
+		);
+	const series = buckets();
+	const seriesOfProperty = new Map(
+		input.properties
+			.filter((property) => !propertyId || property.id === propertyId)
+			.map((property) => [property.id, buckets()])
 	);
+	/** The bucket of a key in the portfolio series and in the series of the property. */
+	const bucketsOf = (key: string, property: string | null | undefined) =>
+		[series.get(key), property ? seriesOfProperty.get(property)?.get(key) : undefined].filter(
+			(bucket): bucket is Bucket => bucket !== undefined
+		);
 	let charged = 0;
 	let received = 0;
 	let baseRent = 0;
@@ -240,12 +262,16 @@ export function analyse(input: AnalysisInput, options: AnalysisOptions): Analysi
 		baseRent += charge.baseRent;
 		row.baseRent += charge.baseRent;
 		const area = unitById.get(unitId)!.floorArea;
-		if (charge.kind === 'rent' && area && area > 0) {
-			row.rentArea += area;
-			row.rentWithArea += charge.baseRent;
+		const withArea = charge.kind === 'rent' && area && area > 0 ? area : 0;
+		row.rentArea += withArea;
+		if (withArea) row.rentWithArea += charge.baseRent;
+		const key = granularity === 'year' ? charge.period.slice(0, 4) : charge.period;
+		for (const bucket of bucketsOf(key, unitById.get(unitId)!.propertyId)) {
+			bucket.charged += charge.amount;
+			bucket.baseRent += charge.baseRent;
+			bucket.rentArea += withArea;
+			if (withArea) bucket.rentWithArea += charge.baseRent;
 		}
-		const bucket = series.get(granularity === 'year' ? charge.period.slice(0, 4) : charge.period);
-		if (bucket) bucket.charged += charge.amount;
 	}
 
 	for (const payment of input.payments) {
@@ -254,8 +280,9 @@ export function analyse(input: AnalysisInput, options: AnalysisOptions): Analysi
 		if (!unitId) continue;
 		received += payment.amount;
 		perUnit.get(unitId)!.received += payment.amount;
-		const bucket = series.get(keyOf(payment.date));
-		if (bucket) bucket.received += payment.amount;
+		for (const bucket of bucketsOf(keyOf(payment.date), unitById.get(unitId)!.propertyId)) {
+			bucket.received += payment.amount;
+		}
 	}
 
 	const perProperty = new Map(input.properties.map((property) => [property.id, 0]));
@@ -273,8 +300,9 @@ export function analyse(input: AnalysisInput, options: AnalysisOptions): Analysi
 			const row = perUnit.get(expense.unitId);
 			if (row) row.expenses += expense.amount;
 		}
-		const bucket = series.get(keyOf(expense.date));
-		if (bucket) bucket.expenses += expense.amount;
+		for (const bucket of bucketsOf(keyOf(expense.date), expense.propertyId)) {
+			bucket.expenses += expense.amount;
+		}
 	}
 	const expenses = counted.reduce((sum, expense) => sum + expense.amount, 0);
 
@@ -364,9 +392,11 @@ export function analyse(input: AnalysisInput, options: AnalysisOptions): Analysi
 				.filter((deposit) => leaseIdsInView.has(deposit.leaseId))
 				.reduce((total, deposit) => total + deposit.amount, 0)
 		},
-		series: [...series].map(([key, point]) => ({
-			key,
-			...flow(point.charged, point.received, point.expenses)
+		series: points(series),
+		propertySeries: propertyRows.map((row) => ({
+			id: row.id,
+			name: row.name,
+			series: points(seriesOfProperty.get(row.id)!)
 		})),
 		byCategory: [...categories]
 			.map(([category, amount]) => ({ category, amount }))
@@ -378,6 +408,17 @@ export function analyse(input: AnalysisInput, options: AnalysisOptions): Analysi
 }
 
 type RentArea = { rentArea: number; rentWithArea: number };
+
+type Bucket = RentArea & { charged: number; received: number; expenses: number; baseRent: number };
+
+function points(buckets: Map<string, Bucket>): SeriesPoint[] {
+	return [...buckets].map(([key, bucket]) => ({
+		key,
+		baseRent: bucket.baseRent,
+		rentPerSqm: perSqm(bucket),
+		...flow(bucket.charged, bucket.received, bucket.expenses)
+	}));
+}
 
 /** Euro of base rent per m² and month, over the months that had an area. */
 function perSqm(rent: RentArea): number | null {
