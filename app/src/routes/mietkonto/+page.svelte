@@ -13,7 +13,7 @@
 
 	let { data, form }: PageProps = $props();
 
-	/** The row whose "Miete ist da" is being booked, so it cannot be clicked twice. */
+	/** The row whose "Miete ist da" is being booked; every button waits until it is done. */
 	let pending = $state<string | null>(null);
 </script>
 
@@ -140,8 +140,11 @@
 										use:enhance={() => {
 											pending = row.leaseId;
 											return async ({ update }) => {
-												await update();
-												pending = null;
+												try {
+													await update();
+												} finally {
+													pending = null;
+												}
 											};
 										}}
 									>
@@ -149,7 +152,7 @@
 										<button
 											type="submit"
 											class="small"
-											disabled={pending === row.leaseId}
+											disabled={pending !== null}
 											title="Bucht {formatCents(row.rentReceived)} mit Datum von heute als Zahlung"
 										>
 											Miete ist da · {formatCents(row.rentReceived)}
