@@ -20,8 +20,6 @@ Open Source, nachvollziehbar gerechnet und ohne Einarbeitung.
 [![Lizenz: AGPL-3.0](https://img.shields.io/badge/Lizenz-AGPL--3.0-111111)](LICENSE)
 [![Docker-Image](https://img.shields.io/badge/Docker-ghcr.io-2496ed?logo=docker&logoColor=white)](https://github.com/OliverHennhoefer/mietkartei.de/pkgs/container/mietkartei)
 
-[**▶ Demo ausprobieren**](https://demo.mietkartei.de) · [Startseite](https://mietkartei.de) · [Dokumentation](https://docs.mietkartei.de) · [Mitmachen](CONTRIBUTING.md)
-
 <br>
 
 <a href="https://demo.mietkartei.de"><img src="assets/screenshots/uebersicht.png" alt="Übersicht von mietkartei mit Rückständen, Leerstand, offenen Bankumsätzen und Fristen" width="900"></a>
