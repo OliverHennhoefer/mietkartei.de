@@ -127,14 +127,14 @@ test('resets the password through the link from the mail', async ({ page }) => {
 	await page.locator('input[name="passwordConfirm"]').fill(user.newPassword);
 	await page.getByRole('button', { name: 'Passwort setzen' }).click();
 	await expect(page).toHaveURL(/\/$/);
-	await page.getByRole('button', { name: 'Konto' }).click();
-	await expect(page.locator('#account-menu')).toContainText(user.email);
+	await expect(page.getByRole('button', { name: 'Konto' })).toContainText(user.email);
 
 	// The link is used up.
 	const response = await page.request.get(link);
 	expect(response.status()).toBe(404);
 
 	// The new password signs in (that the old one no longer does, the unit tests check).
+	await page.getByRole('button', { name: 'Konto' }).click();
 	await page.getByRole('button', { name: 'Abmelden' }).click();
 	await page.goto('/anmelden');
 	await page.getByLabel('E-Mail-Adresse').fill(user.email);

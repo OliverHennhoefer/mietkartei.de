@@ -282,7 +282,6 @@
 	<!-- Signed out, the pages show only the logo above their form, no header. -->
 	{#if data.email}
 		<header class="site-header">
-			<!-- The app shows no logo; the favicon names it. -->
 			<div class="brand-bar">
 				<button
 					bind:this={menuButton}
@@ -326,48 +325,6 @@
 						>
 					</p>
 				{/if}
-				<div class="account">
-					<button
-						bind:this={accountButton}
-						type="button"
-						class="account-button"
-						aria-label="Konto"
-						aria-expanded={accountOpen}
-						aria-controls="account-menu"
-						onclick={() => (accountOpen = !accountOpen)}
-					>
-						<span class="avatar" aria-hidden="true">{initials}</span>
-					</button>
-					{#if accountOpen}
-						<div bind:this={accountMenu} id="account-menu" class="account-menu">
-							<div class="account-user">
-								<span class="account-name" title={data.name ?? undefined}
-									>{data.name ?? 'Dein Konto'}</span
-								><span class="account-email" title={data.email}>{data.email}</span>
-							</div>
-							<a
-								href={resolve('/einstellungen/profil')}
-								onclick={(event) => settingsLink(event, '/einstellungen/profil', false)}
-								><Icon name="settings" />Einstellungen</a
-							>
-							{#if data.billingEnabled}
-								<a href={resolve('/abo')} onclick={(event) => settingsLink(event, '/abo', false)}
-									><Icon name="card" />Abo</a
-								>
-							{/if}
-							<a
-								href="https://docs.mietkartei.de/"
-								target="_blank"
-								rel="noreferrer"
-								aria-label="Hilfe und Dokumentation (neuer Tab)"
-								onclick={() => (accountOpen = false)}><Icon name="help" />Hilfe</a
-							>
-							<form method="POST" action={resolve('/abmelden')}>
-								<button type="submit"><Icon name="logout" />Abmelden</button>
-							</form>
-						</div>
-					{/if}
-				</div>
 			</div>
 		</header>
 	{/if}
@@ -379,25 +336,83 @@
 				></button>
 			{/if}
 			<nav id="site-nav" class="site-nav" class:open aria-label="Hauptnavigation">
-				{#each groups as group (group.label)}
-					<div class="nav-group">
-						<p class="nav-label">{group.label}</p>
-						{#each group.sections as item (item.href)}
-							<a href={item.href} aria-current={current(item.href, item.exact)}
-								><Icon name={item.icon} />{item.label}</a
+				<a class="nav-brand" href={resolve('/')}>
+					<picture>
+						<source media="(prefers-color-scheme: dark)" srcset={lockupWhite} />
+						<img src={lockup} alt="mietkartei" width="489" height="96" />
+					</picture>
+				</a>
+				<div class="nav-groups">
+					{#each groups as group (group.label)}
+						<div class="nav-group">
+							<p class="nav-label">{group.label}</p>
+							{#each group.sections as item (item.href)}
+								{@const here = current(item.href, item.exact)}
+								<a class="nav-item" href={item.href} aria-current={here}
+									><span class="nav-icon"><Icon name={item.icon} size={16} /></span><span
+										class="nav-text">{item.label}</span
+									>{#if here}<Icon name="chevron-right" size={16} />{/if}</a
+								>
+							{/each}
+						</div>
+					{/each}
+				</div>
+				<div class="nav-footer">
+					<!-- Quiet links above the account card. -->
+					<div class="nav-links">
+						<a
+							href="https://docs.mietkartei.de/"
+							target="_blank"
+							rel="noreferrer"
+							aria-label="Hilfe und Dokumentation (neuer Tab)"><Icon name="help" />Hilfe</a
+						>
+						{#if data.billingEnabled}
+							<a href={resolve('/abo')} onclick={(event) => settingsLink(event, '/abo', false)}
+								><Icon name="card" />Abo</a
 							>
-						{/each}
+						{/if}
 					</div>
-				{/each}
-				<p class="nav-version">
-					<a
-						href="https://github.com/OliverHennhoefer/mietkartei.de/releases"
-						target="_blank"
-						rel="noreferrer"
-						aria-label="Version {__APP_VERSION__}, Versionshinweise auf GitHub (neuer Tab)"
-						>Version {__APP_VERSION__}</a
-					>
-				</p>
+					<div class="account">
+						{#if accountOpen}
+							<div bind:this={accountMenu} id="account-menu" class="account-menu">
+								<a
+									href={resolve('/einstellungen/profil')}
+									onclick={(event) => settingsLink(event, '/einstellungen/profil', false)}
+									><Icon name="settings" />Einstellungen</a
+								>
+								<form method="POST" action={resolve('/abmelden')}>
+									<button type="submit"><Icon name="logout" />Abmelden</button>
+								</form>
+							</div>
+						{/if}
+						<button
+							bind:this={accountButton}
+							type="button"
+							class="account-card"
+							aria-label="Konto"
+							aria-expanded={accountOpen}
+							aria-controls="account-menu"
+							onclick={() => (accountOpen = !accountOpen)}
+						>
+							<span class="avatar" aria-hidden="true">{initials}</span>
+							<span class="account-user">
+								<span class="account-name" title={data.name ?? undefined}
+									>{data.name ?? 'Dein Konto'}</span
+								><span class="account-email" title={data.email}>{data.email}</span>
+							</span>
+							<span class="account-switch"><Icon name="chevrons" size={14} /></span>
+						</button>
+					</div>
+					<p class="nav-version">
+						<a
+							href="https://github.com/OliverHennhoefer/mietkartei.de/releases"
+							target="_blank"
+							rel="noreferrer"
+							aria-label="Version {__APP_VERSION__}, Versionshinweise auf GitHub (neuer Tab)"
+							>Version {__APP_VERSION__}</a
+						>
+					</p>
+				</div>
 			</nav>
 		{/if}
 		<!-- Viewers see forms that write without their buttons; the hook refuses them all the same.

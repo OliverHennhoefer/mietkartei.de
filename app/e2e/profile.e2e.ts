@@ -116,7 +116,7 @@ test('changes the name, the password and the address, which sign out the other b
 	await expect(page.getByText('Dein Profil wurde gespeichert.')).toBeVisible();
 	await page.reload();
 	// The account button shows the new initials.
-	await expect(page.getByRole('button', { name: 'Konto' })).toHaveText('PP');
+	await expect(page.getByRole('button', { name: 'Konto' }).locator('.avatar')).toHaveText('PP');
 
 	// A new address needs the current password.
 	await profile.getByLabel('E-Mail-Adresse', { exact: true }).fill(`neu-${user.email}`);

@@ -30,7 +30,9 @@
 		| 'coins'
 		| 'pie'
 		| 'bars'
-		| 'percent';
+		| 'percent'
+		| 'chevron-right'
+		| 'chevrons';
 </script>
 
 <script lang="ts">
@@ -59,6 +61,8 @@
 		'arrow-left': 'M19 12H5m5-5-5 5 5 5',
 		'arrow-right': 'M5 12h14m-5-5 5 5-5 5',
 		check: 'm5 12 4 4L19 6',
+		'chevron-right': 'm9 6 6 6-6 6',
+		chevrons: 'm7 15 5 5 5-5M7 9l5-5 5 5',
 		alert: 'm12 3 10 18H2ZM12 9v4m0 4h.01',
 		info: 'M12 11v6m0-10h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
 		coins:

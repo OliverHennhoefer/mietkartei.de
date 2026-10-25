@@ -68,8 +68,10 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	).toHaveAttribute('aria-current', 'page');
 	await page.getByRole('button', { name: 'Einstellungen schließen' }).click();
 	await expect(page).toHaveURL(/\/$/);
-	await page.getByRole('button', { name: 'Konto' }).click();
-	await page.locator('#account-menu').getByRole('link', { name: 'Abo' }).click();
+	await page
+		.getByRole('navigation', { name: 'Hauptnavigation' })
+		.getByRole('link', { name: 'Abo' })
+		.click();
 	await expect(
 		page
 			.getByRole('dialog', { name: 'Einstellungen' })
