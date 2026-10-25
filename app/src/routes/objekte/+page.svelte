@@ -35,7 +35,7 @@
 		text="Lege zuerst ein Objekt an und dann seine Einheiten; Mietverträge kommen danach."
 	>
 		<a class="button" href="/objekte/neu">Erstes Objekt anlegen</a>
-		<a class="button secondary" href="/datenuebernahme"
+		<a class="button secondary" href="/einstellungen/datenuebernahme"
 			>Daten aus einer anderen Software importieren</a
 		>
 	</EmptyState>

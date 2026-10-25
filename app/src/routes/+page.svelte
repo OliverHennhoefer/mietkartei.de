@@ -52,14 +52,14 @@
 			<p class="muted">
 				Dein Bestand ist noch leer. So fängst du an{#if data.role === 'owner'}, oder du probierst
 					mietkartei erst mit <a href="/einstellungen/konto">Demodaten</a> aus{/if}. Hast du die
-				Daten schon in einer Tabelle, nimmt die <a href="/datenuebernahme">Datenübernahme</a> sie dir
-				ab.
+				Daten schon in einer Tabelle, nimmt die
+				<a href="/einstellungen/datenuebernahme">Datenübernahme</a> sie dir ab.
 			</p>
 		{:else}
 			<p class="muted">
 				Sobald ein Mietvertrag und eine Bankverbindung angelegt sind, siehst du hier Rückstände,
 				Leerstand, Bankumsätze und Fristen. Hast du die Daten in einer Tabelle, nimmt die
-				<a href="/datenuebernahme">Datenübernahme</a> sie dir ab.
+				<a href="/einstellungen/datenuebernahme">Datenübernahme</a> sie dir ab.
 			</p>
 		{/if}
 		<ol class="steps">
