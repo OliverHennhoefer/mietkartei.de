@@ -2,11 +2,11 @@
 
 The homepage and the documentation live in the same repository and are deployed by a shared workflow in the GitHub environment **production**. Both sites are served by two static Cloudflare Workers. Zensical still builds the documentation; GitHub Pages is no longer needed.
 
-| Address | Worker | GitHub environment | Configuration | Output |
-| --- | --- | --- | --- | --- |
-| `https://mietkartei.de/` | `mietkartei-de` | `production` | `website/wrangler.toml` | `dist/homepage/` |
-| `https://docs.mietkartei.de/` | `mietkartei-de-docs` | `production` | `docs/wrangler.toml` | `site/` |
-| `https://app.mietkartei.de/` | `mietkartei-app` | `production` | `app/wrangler.jsonc` | `app/.svelte-kit/cloudflare/` |
+| Address                       | Worker               | GitHub environment | Configuration           | Output                        |
+| ----------------------------- | -------------------- | ------------------ | ----------------------- | ----------------------------- |
+| `https://mietkartei.de/`      | `mietkartei-de`      | `production`       | `website/wrangler.toml` | `dist/homepage/`              |
+| `https://docs.mietkartei.de/` | `mietkartei-de-docs` | `production`       | `docs/wrangler.toml`    | `site/`                       |
+| `https://app.mietkartei.de/`  | `mietkartei-app`     | `production`       | `app/wrangler.jsonc`    | `app/.svelte-kit/cloudflare/` |
 
 The two sites are static. The app is the SvelteKit application with a D1 database and is deployed by its own workflow, see [Deploying the app](#deploying-the-app).
 
@@ -51,12 +51,12 @@ An existing CNAME prevents registering a Cloudflare custom domain. Cloudflare th
 
 The workflow [websites.yml](workflows/websites.yml) runs for pull requests and after a push to `main`. It detects the changed files and only builds or deploys the affected site:
 
-| Change | Homepage | Documentation |
-| --- | --- | --- |
-| `website/**`, `scripts/build_homepage.py` | Yes | No |
-| `docs/**`, `zensical.toml`, `scripts/prepare_docs_assets.py` | No | Yes |
-| `assets/brand/**`, `.github/workflows/websites.yml` | Yes | Yes |
-| Other files | No | No |
+| Change                                                       | Homepage | Documentation |
+| ------------------------------------------------------------ | -------- | ------------- |
+| `website/**`, `scripts/build_homepage.py`                    | Yes      | No            |
+| `docs/**`, `zensical.toml`, `scripts/prepare_docs_assets.py` | No       | Yes           |
+| `assets/brand/**`, `.github/workflows/websites.yml`          | Yes      | Yes           |
+| Other files                                                  | No       | No            |
 
 Deleted files and both sides of a rename are taken into account. The required check runs for every pull request; changes unrelated to the websites need no build. Pull requests deploy nothing and receive no Cloudflare secrets. After the merge, the checked output of the same workflow run is deployed. Production runs on the same branch are processed one after another in full; up to 100 runs can wait without displacing a run that was already waiting. Within one run, the two deployment jobs can run in parallel. For pull requests, a new run still replaces an outdated check.
 
@@ -130,7 +130,7 @@ The page names Destatis as the source with the Datenlizenz Deutschland – Namen
 The hosted app charges a monthly subscription through Stripe Checkout and the Stripe Customer Portal. Every account has a 30-day trial; once it ends, `BILLING_REQUIRED` decides whether an account without a running subscription can only read. The app shows nothing about billing until both `STRIPE_SECRET_KEY` and `STRIPE_PRICE_ID` are set, so it can be deployed before Stripe is ready. Set everything up in **test mode** first (the toggle in the Stripe dashboard); live mode repeats the same steps with live keys.
 
 1. **Product and price.** In Stripe, open **Product catalog → Add product**, name it `mietkartei` and add one **recurring** price, **monthly**, in **EUR**, with the amount decided for the subscription and the tax behavior **inclusive** if the amount includes VAT. Do not add a trial to the price: the app passes the rest of the 30-day trial to Checkout. The app reads the amount from Stripe for the subscription page, so a new amount needs a new price, not a code change. Note the price ID (`price_…`).
-2. **Customer Portal.** Open **Settings → Billing → Customer portal** and allow customers to update their payment methods, view their invoice history and cancel their subscription. Leave switching plans off; there is only one price. Fill in the business information with the links to the privacy policy and terms, and save.
+2. **Customer Portal.** Open **Settings → Billing → Customer portal** and allow customers to update their payment methods, view their invoice history and cancel their subscription. Leave switching plans off; the owner picks the plan in Checkout. Fill in the business information with the links to the privacy policy and terms, and save.
 3. **Webhook.** Open **Developers → Webhooks → Add endpoint** with the URL `https://app.mietkartei.de/api/webhooks/stripe` and the events `checkout.session.completed`, `customer.subscription.updated` and `customer.subscription.deleted`. Other events are only recorded and change nothing. Note the signing secret (`whsec_…`).
 4. **API key.** Open **Developers → API keys → Create restricted key**, name it `mietkartei-app` and grant **Write** on Customers, Checkout Sessions, Customer portal and Subscriptions and **Read** on Prices; everything else stays **None**. The standard secret key works too, but can do far more than the app needs. Stripe shows the key only once.
 5. **Secrets.** In `app/`, run `npx wrangler secret put STRIPE_SECRET_KEY` and paste the key from step 4, then `npx wrangler secret put STRIPE_WEBHOOK_SECRET` and paste the signing secret from step 3. Alternatively add both under **Workers & Pages → mietkartei-app → Settings → Variables and Secrets** as type **Secret**. Never put either into `app/wrangler.jsonc`.
@@ -140,7 +140,8 @@ The hosted app charges a monthly subscription through Stripe Checkout and the St
 
 9. **One trial per address.** Run `npx wrangler secret put TRIAL_FINGERPRINT_KEY` in `app/` and enter a long random string (for example from `openssl rand -hex 32`). Every new account then stores an HMAC of its owner's address, lowercased, without a `+tag` and, at Gmail, without dots. The row outlives the account, so an address that registers again, after deleting its account or with such a variant, starts without a trial. Rows are deleted after two years. Without the secret every new account gets a trial. Changing the key forgets all earlier trials.
 10. **Free accounts.** For family and friends, run `npx wrangler secret put FREE_ACCOUNT_EMAILS` and enter the owners' addresses, separated by commas. Such an account shows no trial, no notice and never turns read-only; the subscription page calls it free and refuses Checkout. Removing an address ends it: the account falls back to its trial or subscription. Managers invited into an account never pay, so they need no entry.
-11. **Promotion codes.** Checkout offers a field for promotion codes. Create them in the Stripe dashboard under **Product catalog → Coupons**: a coupon sets the discount (a percentage or an amount) and how long it lasts (once, a number of months, forever; 100 % for three months gives three free months after the trial), and its promotion codes set the code customers type, with limits on redemptions, an expiry date and **First-time order only**. Stripe checks every code; the app never sees one.
+11. **Yearly plan and founder price.** Both are optional and appear on the subscription page once their price ID is set under `vars` in `app/wrangler.jsonc`. For the yearly plan, add a second **recurring** price, **yearly**, to the `mietkartei` product and enter its ID as `STRIPE_YEARLY_PRICE_ID`; the page then offers **Monatlich abschließen** and **Jährlich abschließen**. For the founder price, add a third recurring **monthly** price and enter its ID as `STRIPE_FOUNDER_PRICE_ID`. The first `FOUNDER_SPOTS` accounts (default 100) get it for the monthly plan instead of `STRIPE_PRICE_ID`. The app remembers the price of every subscription, also after it ends, so an account that had the founder price gets it again when it subscribes anew, and its spot stays taken. Once all spots are taken, new accounts pay the regular price. Like `STRIPE_PRICE_ID`, both are read from Stripe for the amounts shown, so they need **Read** on Prices only.
+12. **Promotion codes.** Checkout offers a field for promotion codes. Create them in the Stripe dashboard under **Product catalog → Coupons**: a coupon sets the discount (a percentage or an amount) and how long it lasts (once, a number of months, forever; 100 % for three months gives three free months after the trial), and its promotion codes set the code customers type, with limits on redemptions, an expiry date and **First-time order only**. Stripe checks every code; the app never sees one.
 
 Deleting an account cancels every subscription of its Stripe customer first. If Stripe does not answer, the account is not deleted and the owner is asked to try again.
 
