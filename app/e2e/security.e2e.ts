@@ -39,7 +39,7 @@ const pages = [
 	'/einstellungen/zugaenge',
 	'/einstellungen/protokoll',
 	'/einstellungen/vpi',
-	'/datenuebernahme',
+	'/einstellungen/datenuebernahme',
 	'/einstellungen/export',
 	'/einstellungen/konto',
 	'/abo'
