@@ -663,7 +663,7 @@ describe('with a database', () => {
 			enforceBilling(requestEvent('POST', '/einstellungen/konto?/demo'))
 		).rejects.toMatchObject({ status: 403 });
 		await expect(
-			enforceBilling(requestEvent('POST', '/datenuebernahme?/commit'))
+			enforceBilling(requestEvent('POST', '/einstellungen/datenuebernahme?/commit'))
 		).rejects.toMatchObject({ status: 403 });
 		expect(await billingNotice(requestEvent('GET', '/').locals)).toEqual({
 			text: 'Deine Testphase ist abgelaufen. Du kannst nur noch lesen.',

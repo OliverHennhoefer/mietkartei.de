@@ -31,7 +31,7 @@
 		text="Lege den ersten Mieter an oder importiere deine Mieter aus einer CSV-Datei."
 	>
 		<a href="/mieter/neu" class="button">Mieter anlegen</a>
-		<a href="/datenuebernahme" class="button secondary">Importieren</a>
+		<a href="/einstellungen/datenuebernahme" class="button secondary">Importieren</a>
 	</EmptyState>
 {:else}
 	{#if data.tenants.length === 0}

@@ -13,8 +13,6 @@ export type SettingsSection = {
 	writesOnly?: boolean;
 	/** Only where the instance bills its accounts. */
 	billingOnly?: boolean;
-	/** Opens as a page of its own instead of in the dialog, like the multi-step import. */
-	page?: boolean;
 };
 
 const sections: SettingsSection[] = [
@@ -26,10 +24,9 @@ const sections: SettingsSection[] = [
 	{ href: '/einstellungen/export', label: 'Export', icon: 'download', ownerOnly: true },
 	{ href: '/einstellungen/ki-assistenten', label: 'KI-Assistenten', icon: 'key' },
 	{
-		href: '/datenuebernahme',
+		href: '/einstellungen/datenuebernahme',
 		label: 'Datenübernahme',
 		icon: 'file',
-		page: true,
 		writesOnly: true
 	},
 	{ href: '/abo', label: 'Abo', icon: 'card', billingOnly: true },
@@ -51,7 +48,6 @@ export function settingsSections(role: string | undefined, billingEnabled: boole
  */
 export function settingsSectionOf(pathname: string): SettingsSection | undefined {
 	return sections.find(
-		(section) =>
-			!section.page && (pathname === section.href || pathname.startsWith(`${section.href}/`))
+		(section) => pathname === section.href || pathname.startsWith(`${section.href}/`)
 	);
 }

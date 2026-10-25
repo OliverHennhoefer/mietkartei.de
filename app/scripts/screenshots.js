@@ -120,7 +120,7 @@ try {
 	// The guides: the bank page while its suggestions are still open, then the setup pages.
 	await shoot('bankumsaetze', '/bank', docsOutput);
 	await shoot('umlageschluessel', '/betriebskosten/schluessel', docsOutput);
-	await shoot('datenuebernahme', '/datenuebernahme', docsOutput);
+	await shoot('datenuebernahme', '/einstellungen/datenuebernahme', docsOutput);
 
 	// The open rent payments of October go to their leases, so the rent ledger shows the two
 	// leases really in arrears rather than every one.
