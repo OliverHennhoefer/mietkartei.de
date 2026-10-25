@@ -34,6 +34,8 @@ function lease(id: string, overrides: Partial<ForecastLease>): ForecastLease {
 		indexBaseMonth: null,
 		indexBaseValue: null,
 		indexBaseYear: '2020',
+		operatingCostModel: 'prepayment',
+		heatingCostModel: 'prepayment',
 		changes: [change('2023-01-01', 1000_00)],
 		...overrides
 	};
@@ -128,6 +130,44 @@ describe('forecast', () => {
 			currentPrepayment: 200_00,
 			suggestedPrepayment: 244_00
 		});
+	});
+
+	it('prorates an index increase in the month the lease ends', () => {
+		const data = input();
+		const leases = data.leases.map((row) =>
+			row.id === 'index' ? { ...row, endDate: '2026-06-15' } : row
+		);
+		const result = forecast({ ...data, leases }, { propertyId: null });
+		const june = result.months.find((month) => month.month === '2026-06')!;
+		expect(june.increases).toBe(Math.round((90_00 * 15) / 30));
+		expect(result.months.find((month) => month.month === '2026-07')!.increases).toBe(0);
+	});
+
+	it('counts the increases since the start of a lease younger than three years', () => {
+		const { increases } = forecast(
+			input({
+				leases: [
+					lease('jung', {
+						startDate: '2024-01-01',
+						changes: [
+							change('2024-01-01', 1000_00),
+							change('2025-01-01', 1100_00, { reason: 'manual' })
+						]
+					})
+				]
+			}),
+			{ propertyId: null }
+		);
+		expect(increases[0]).toMatchObject({ kind: 'comparative', increase: 100_00 });
+	});
+
+	it('leaves a flat rate out of the prepayments a statement counts', () => {
+		const data = input();
+		const leases = data.leases.map((row) =>
+			row.id === 'fest' ? { ...row, heatingCostModel: 'flat' as const } : row
+		);
+		const [estimate] = forecast({ ...data, leases }, { propertyId: null }).settlements;
+		expect(estimate).toMatchObject({ currentPrepayment: 150_00, yearlyPrepayments: 1800_00 });
 	});
 
 	it('keeps to one property', () => {

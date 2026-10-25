@@ -2,12 +2,15 @@ import {
 	addMonths,
 	addMonthsToMonth,
 	firstOfMonth,
+	lastOfMonth,
 	monthOf,
+	monthRange,
 	monthsInRange,
+	overlapDays,
 	type IsoDate,
 	type IsoMonth
 } from '../dates';
-import type { ExpenseCategory } from '../server/db/schema';
+import type { ExpenseCategory, HeatingCostModel, OperatingCostModel } from '../server/db/schema';
 import {
 	indexSituation,
 	type HistoryChange,
@@ -27,6 +30,9 @@ export type ForecastLease = IndexLease &
 		id: string;
 		label: string;
 		propertyId: string;
+		/** Only a prepayment counts against the costs of a statement, not a flat rate. */
+		operatingCostModel: OperatingCostModel;
+		heatingCostModel: HeatingCostModel;
 		changes: readonly HistoryChange[];
 	};
 
@@ -161,8 +167,10 @@ function rentIncrease(
 	const earliest = firstOfMonth(addMonthsToMonth(monthOf(addMonths(last, 12)), 3));
 	const nextMonth = firstOfMonth(addMonthsToMonth(monthOf(today), 3));
 	const from = earliest > nextMonth ? earliest : nextMonth;
+	// A lease younger than three years counts from its first rent.
 	const threeYearsBefore =
-		rentOn(lease.changes, addMonths(from, -36)) ?? rentOn(lease.changes, last);
+		rentOn(lease.changes, addMonths(from, -36)) ??
+		lease.changes.filter((change) => change.status === 'approved').sort(byValidFrom)[0];
 	if (!threeYearsBefore) return undefined;
 	const increase = Math.round(threeYearsBefore.baseRent * (1 + cappingLimit)) - current.baseRent;
 	return increase > 0 ? { ...base, kind: 'comparative', from, increase } : undefined;
@@ -193,14 +201,17 @@ export function forecast(input: ForecastInput, options: { propertyId: string | n
 	const forecastMonthsRows = months.map((month) => {
 		let rent = 0;
 		for (const lease of leases) rent += total(monthlyAmounts(lease.changes, lease, month));
-		const firstDay = firstOfMonth(month);
-		const extra = indexed
-			.filter((increase) => increase.from <= firstDay)
-			.reduce((sum, increase) => {
-				const lease = leases.find((row) => row.id === increase.leaseId)!;
-				const running = !lease.endDate || lease.endDate >= firstDay;
-				return running ? sum + increase.increase : sum;
-			}, 0);
+		// By the days of the month the higher rent applies, like monthlyAmounts prorates the rent.
+		const range = monthRange(month);
+		const days = overlapDays(range, range);
+		const extra = indexed.reduce((sum, increase) => {
+			const lease = leases.find((row) => row.id === increase.leaseId)!;
+			const applies = overlapDays(range, {
+				start: increase.from,
+				end: lease.endDate ?? lastOfMonth('9999-12')
+			});
+			return sum + Math.round((increase.increase * applies) / days);
+		}, 0);
 		return { month, rent, increases: extra, costs: monthlyCosts };
 	});
 
@@ -212,7 +223,9 @@ export function forecast(input: ForecastInput, options: { propertyId: string | n
 		if (lease.endDate && lease.endDate <= today) continue;
 		const current = rentOn(lease.changes, today);
 		if (!current) continue;
-		const currentPrepayment = current.operatingCostPrepayment + current.heatingCostPrepayment;
+		const currentPrepayment =
+			(lease.operatingCostModel === 'prepayment' ? current.operatingCostPrepayment : 0) +
+			(lease.heatingCostModel === 'prepayment' ? current.heatingCostPrepayment : 0);
 		const yearlyCosts = Math.round((statement.costs * 365) / statement.days);
 		const yearlyPrepayments = currentPrepayment * 12;
 		settlements.push({
