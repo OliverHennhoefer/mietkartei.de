@@ -104,7 +104,6 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .pricing-page .back-link { margin-bottom: 24px; }
 .pricing-head { max-width: 640px; margin-inline: auto; text-align: center; }
 .pricing-head h1 { margin: 0; font-size: clamp(32px, 4vw, 48px); font-weight: 500; letter-spacing: -.045em; line-height: 1.08; }
-.pricing-head .lead { margin-inline: auto; }
 .plans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; max-width: 920px; margin: 24px auto 0; }
 /* Subgrid rows keep each part of the two plans level with the other. */
 .plan { display: grid; grid-row: span 8; grid-template-rows: subgrid; row-gap: 0; padding: 36px; border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--code-background), var(--background) 55%); }
