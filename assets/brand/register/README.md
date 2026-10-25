@@ -6,7 +6,7 @@ Die gewählte Bildmarke für **mietkartei** verbindet geordnete Registereinträg
 | --- | --- |
 | [mark.svg](mark.svg), [mark-white.svg](mark-white.svg) | Schwarze und weiße Bildmarke auf transparentem Hintergrund |
 | [lockup.svg](lockup.svg), [lockup-white.svg](lockup-white.svg) | Bildmarke mit der originalen Geist-Medium-Wortmarke |
-| [lockup-card.svg](lockup-card.svg) | Schwarze Kombination auf weißer Karte mit abgerundeten Ecken; für das Repository-README, weil GitHub dort weder `<picture>`-Quellen noch `#gh-dark-mode-only` zuverlässig nach dem GitHub-Theme umschaltet |
+| [lockup-card.svg](lockup-card.svg) | Neon-Fassung (wie `lockup-highlight.svg`) auf weißer Karte mit abgerundeten Ecken; für das Repository-README, weil GitHub dort weder `<picture>`-Quellen noch `#gh-dark-mode-only` zuverlässig nach dem GitHub-Theme umschaltet |
 | [lockup-auto.svg](lockup-auto.svg) | Dieselbe Kombination, schwarz und im dunklen Modus des Betrachters weiß; für das Repository-README, wo die GitHub-App `<picture>`-Quellen nicht beachtet |
 | [lockup-highlight.svg](lockup-highlight.svg), [lockup-highlight-white.svg](lockup-highlight-white.svg) | Bildmarke und Wortmarke in Geist Semibold mit Block in Neon-Gelb (`#F5FF00`) hinter „kartei“. Der Block ist genau so hoch wie die Bildmarke; „kartei“ bleibt darauf in beiden Fassungen schwarz. Signatur der Webseite |
 | [small.svg](small.svg) | Kleine schwarze Fassung mit weiter geöffneter senkrechter Fuge |
