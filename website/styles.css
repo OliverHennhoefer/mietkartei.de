@@ -105,7 +105,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .pricing-head { max-width: 640px; margin-inline: auto; text-align: center; }
 .pricing-head h1 { margin: 0; font-size: clamp(32px, 4vw, 48px); font-weight: 500; letter-spacing: -.045em; line-height: 1.08; }
 .pricing-head .lead { margin-inline: auto; }
-.plans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; max-width: 920px; margin: 48px auto 0; }
+.plans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; max-width: 920px; margin: 24px auto 0; }
 /* Subgrid rows keep each part of the two plans level with the other. */
 .plan { display: grid; grid-row: span 8; grid-template-rows: subgrid; row-gap: 0; padding: 36px; border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--code-background), var(--background) 55%); }
 .plan-badge { justify-self: start; margin: 0; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--background); color: var(--muted); font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
@@ -125,6 +125,23 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .plan-list li { display: flex; gap: 10px; }
 .pricing-faq { margin: 48px 0 0; color: var(--muted); font-size: 15px; text-align: center; }
 .plan-list svg { flex: none; margin-top: 2px; }
+/* What only the hosted plan brings: the check on the logo's neon tile, black in both schemes. */
+.plan-list .check, .pricing-legend .check { display: inline-grid; flex: none; place-items: center; width: 20px; height: 20px; margin-top: 0; border-radius: 5px; background: var(--highlight); color: #000; }
+.plan-list .check svg { width: 14px; height: 14px; margin: 0; }
+.plan-list .hosted-only { font-weight: 500; }
+.pricing-legend { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 24px 0 0; color: var(--muted); font-size: 13px; }
+.pricing-legend svg { width: 14px; height: 14px; }
+/* Monthly or yearly without script: two radios ahead of the plans, styled as one switch. */
+.billing-input { position: absolute; opacity: 0; pointer-events: none; }
+.billing-switch { display: flex; width: max-content; margin: 40px auto 0; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--background); }
+.billing-switch label { display: flex; align-items: center; gap: 8px; padding: 8px 18px; border-radius: 999px; color: var(--muted); font-size: 14px; font-weight: 500; cursor: pointer; transition: background-color 140ms, color 140ms; }
+.billing-save { padding: 1px 6px; border-radius: 4px; background: var(--highlight); color: #000; font-size: 12px; font-weight: 600; }
+#billing-monthly:checked ~ .billing-switch label[for="billing-monthly"],
+#billing-yearly:checked ~ .billing-switch label[for="billing-yearly"] { background: var(--foreground); color: var(--background); }
+#billing-monthly:focus-visible ~ .billing-switch label[for="billing-monthly"],
+#billing-yearly:focus-visible ~ .billing-switch label[for="billing-yearly"] { outline: 2px solid var(--foreground); outline-offset: 2px; }
+#billing-monthly:checked ~ .plans .yearly, #billing-yearly:checked ~ .plans .monthly { display: none; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 .faq-page { display: block; width: 100%; max-width: 1080px; padding-block: 64px 88px; }
 .faq-page h1 { font-size: clamp(40px, 6vw, 64px); letter-spacing: -.045em; line-height: 1.05; }
@@ -182,7 +199,7 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-link, .documentation, .github, .plan-cta { transition: none; }
+  .app-link, .documentation, .github, .plan-cta, .billing-switch label { transition: none; }
 }
 
 @media (max-width: 1100px) {
