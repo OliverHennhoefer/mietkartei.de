@@ -21,6 +21,7 @@ Erste öffentliche Version. Sie enthält:
 - Zähler und Abrechnungskreise, Dokumente, Aufgaben und Fristen.
 - Zugänge für Mitverwalter und mit Lesezugriff.
 - Datenübernahme per CSV, vollständiger Export und Änderungsprotokoll.
+- Umzug zwischen Instanzen: Einen Export samt Dokumenten in ein leeres Konto einspielen, etwa von app.mietkartei.de auf den eigenen Server.
 - MCP-Server und REST-API für KI-Assistenten wie Claude und ChatGPT.
 - Betrieb gehostet unter app.mietkartei.de oder selbst als Docker-Container.
 
