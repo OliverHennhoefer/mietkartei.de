@@ -72,8 +72,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 
 .trust { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: clamp(18px, 3vh, 28px) 0 0; padding: 0; list-style: none; color: var(--muted); font-size: 13px; }
 .trust li { display: inline-flex; align-items: center; gap: 8px; }
-.trust svg { flex: none; }
-.price-link { color: var(--foreground); font-weight: 500; text-decoration: underline; text-decoration-color: var(--highlight); text-decoration-thickness: 3px; text-underline-offset: 4px; }
+.price-link { white-space: nowrap; color: var(--foreground); font-weight: 500; text-decoration: underline; text-decoration-color: var(--highlight); text-decoration-thickness: 3px; text-underline-offset: 4px; }
 .price-link:hover { text-decoration-color: currentColor; }
 /* The arrow sits outside the underline, sized and nudged to the text's centre like the other link arrows. */
 .price-link > span { display: inline-block; margin-left: 6px; font-size: 15px; font-weight: 400; line-height: 1; vertical-align: -1px; text-decoration: none; }
