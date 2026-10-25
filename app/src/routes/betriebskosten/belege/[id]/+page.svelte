@@ -26,23 +26,31 @@
 	const uploadForm = $derived(form?.form === 'upload' ? form : undefined);
 	const refused = $derived(form && 'refused' in form ? form.refused : undefined);
 
-	const amountOf = (unitId: string) =>
-		data.unitAmounts.find((entry) => entry.unitId === unitId)?.amount;
-	const amountValue = (unitId: string) => {
+	/** The input of a unit's own amount, or with a lease of the amount of that lease in it. */
+	const fieldName = (unitId: string, leaseId: string | null = null) =>
+		leaseId ? `amount-${unitId}-${leaseId}` : `amount-${unitId}`;
+	const amountOf = (unitId: string, leaseId: string | null = null) =>
+		data.unitAmounts.find((entry) => entry.unitId === unitId && entry.leaseId === leaseId)?.amount;
+	const amountValue = (unitId: string, leaseId: string | null = null) => {
 		const typed =
 			amountsForm && 'amountValues' in amountsForm ? amountsForm.amountValues : undefined;
-		if (typed) return typed[`amount-${unitId}`] ?? '';
-		const amount = amountOf(unitId);
+		if (typed) return typed[fieldName(unitId, leaseId)] ?? '';
+		const amount = amountOf(unitId, leaseId);
 		return amount === undefined ? '' : formatCentsPlain(amount);
 	};
-	const amountError = (unitId: string) =>
+	const amountError = (unitId: string, leaseId: string | null = null) =>
 		amountsForm && 'amountErrors' in amountsForm
-			? (amountsForm.amountErrors as Record<string, string | undefined>)[`amount-${unitId}`]
+			? (amountsForm.amountErrors as Record<string, string | undefined>)[fieldName(unitId, leaseId)]
 			: undefined;
-	// Only the units the form shows: rows of units that left the circle go with the next save.
+	// Only the units and leases the form shows: other rows go with the next save.
 	const summary = $derived(
 		unitAmountsSummary(
-			data.units.flatMap((unit) => amountOf(unit.id) ?? []),
+			data.units
+				.flatMap((unit) => [
+					amountOf(unit.id) ?? [],
+					...unit.leases.map((lease) => amountOf(unit.id, lease.id) ?? [])
+				])
+				.flat(),
 			data.item.amount
 		)
 	);
@@ -123,16 +131,54 @@
 	{:else}
 		<form method="POST" action="?/amounts" class="card" use:enhance>
 			{#each data.units as unit (unit.id)}
-				<label>
-					{unit.name} in €
-					<input
-						name="amount-{unit.id}"
-						inputmode="decimal"
-						defaultValue={amountValue(unit.id)}
-						aria-invalid={amountError(unit.id) ? 'true' : undefined}
-					/>
-					{#if amountError(unit.id)}<span class="error">{amountError(unit.id)}</span>{/if}
-				</label>
+				{#if unit.leases.length === 0}
+					<label>
+						{unit.name} in €
+						<input
+							name={fieldName(unit.id)}
+							inputmode="decimal"
+							defaultValue={amountValue(unit.id)}
+							aria-invalid={amountError(unit.id) ? 'true' : undefined}
+						/>
+						{#if amountError(unit.id)}<span class="error">{amountError(unit.id)}</span>{/if}
+					</label>
+				{:else}
+					<fieldset>
+						<legend>{unit.name}</legend>
+						<p class="muted">
+							Die Einheit hat im Zeitraum den Mieter gewechselt oder stand leer. Trage die Beträge
+							je Mietvertrag aus der Abrechnung des Messdienstleisters ein; was auf den Leerstand
+							entfällt, bleibt bei dir. Ohne Zwischenablesung trägst du nur den Betrag der Einheit
+							ein, er wird nach Tagen aufgeteilt.
+						</p>
+						{#each unit.leases as lease (lease.id)}
+							<label>
+								{lease.tenants || 'Mietvertrag'} ({formatDate(lease.start)} – {formatDate(
+									lease.end
+								)}) in €
+								<input
+									name={fieldName(unit.id, lease.id)}
+									inputmode="decimal"
+									defaultValue={amountValue(unit.id, lease.id)}
+									aria-invalid={amountError(unit.id, lease.id) ? 'true' : undefined}
+								/>
+								{#if amountError(unit.id, lease.id)}
+									<span class="error">{amountError(unit.id, lease.id)}</span>
+								{/if}
+							</label>
+						{/each}
+						<label>
+							Oder ganze Einheit in €
+							<input
+								name={fieldName(unit.id)}
+								inputmode="decimal"
+								defaultValue={amountValue(unit.id)}
+								aria-invalid={amountError(unit.id) ? 'true' : undefined}
+							/>
+							{#if amountError(unit.id)}<span class="error">{amountError(unit.id)}</span>{/if}
+						</label>
+					</fieldset>
+				{/if}
 			{/each}
 			<div class="form-actions">
 				<button type="submit">Beträge speichern</button>
@@ -188,3 +234,22 @@
 	label="Beleg löschen"
 	message="Beleg „{data.item.description}“ wirklich löschen?"
 />
+
+<style>
+	fieldset {
+		display: grid;
+		gap: 0.75rem;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius);
+		padding: 0.75rem 1rem 1rem;
+		margin: 0;
+	}
+	legend {
+		font-weight: 500;
+		font-size: 0.9rem;
+		padding: 0 0.25rem;
+	}
+	fieldset p {
+		margin: 0;
+	}
+</style>

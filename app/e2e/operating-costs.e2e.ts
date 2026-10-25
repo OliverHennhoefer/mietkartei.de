@@ -475,6 +475,43 @@ test('edits and deletes categories, keys, circles, cost items, meters and readin
 	await expect(page.getByText('Dieses Objekt hat noch keine Zähler.')).toBeVisible();
 });
 
+test('takes the amounts per lease of a unit that changed tenants', async ({ page }) => {
+	const propertyName = `Wechselhaus ${suffix}`;
+	const { propertyId } = await seedLease(page.request, {
+		property: { name: propertyName },
+		unit: { name: `Wohnung OG ${suffix}` },
+		tenant: { firstName: 'Ida', lastName: `Vormieter ${suffix}` },
+		lease: { endDate: '2025-06-30' }
+	});
+	await page.goto(`/betriebskosten/belege/neu?property=${propertyId}&year=2025`);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('combobox', { name: 'Kostenart' }).selectOption({ label: '4 Heizung' });
+	await page
+		.getByRole('combobox', { name: 'Umlageschlüssel' })
+		.selectOption({ label: 'Beträge je Einheit' });
+	await page.getByLabel('Beschreibung').fill(`Heizkosten Messdienst ${suffix}`);
+	await page.getByLabel('Betrag in €').fill('500,00');
+	await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+	await expect(page).toHaveURL(/\/betriebskosten\/belege\/[0-9a-f-]+$/);
+
+	// Moved out on 30 June, empty since: one field for the lease, one for the whole unit.
+	const lease = page.getByLabel(/Ida Vormieter .* \(01\.01\.2025 – 30\.06\.2025\) in €/);
+	await lease.fill('320,00');
+	await page.getByLabel('Oder ganze Einheit in €').fill('500,00');
+	await page.getByRole('button', { name: 'Beträge speichern' }).click();
+	await expect(
+		page.getByText('Trage entweder den Betrag der Einheit ein oder die Beträge je Mietvertrag.')
+	).toBeVisible();
+	await page.getByLabel('Oder ganze Einheit in €').fill('');
+	await page.getByRole('button', { name: 'Beträge speichern' }).click();
+	await expect(page.getByText('Die Beträge wurden gespeichert.')).toBeVisible();
+	await page.reload();
+	await expect(lease).toHaveValue('320,00');
+	await expect(
+		page.getByText(/Summe der Beträge:\s320,00\s€ von 500,00\s€, Differenz/)
+	).toBeVisible();
+});
+
 test('answers unknown or foreign setup rows, meters and cost items with 404', async ({ page }) => {
 	const { propertyId } = await seedLease(page.request);
 	const foreign = await seedForeignLease(page.request);

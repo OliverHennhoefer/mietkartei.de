@@ -21,6 +21,7 @@ import {
 	costItemUnitAmounts,
 	costItems,
 	documents,
+	leases,
 	properties,
 	units,
 	type AllocationKeyKind,
@@ -79,7 +80,8 @@ export type CostItemFilter = {
 	year?: number;
 };
 
-export type UnitAmount = { unitId: string; amount: number };
+/** The amount of a unit, or with `leaseId` of one lease in it (the Messdienst's Nutzer). */
+export type UnitAmount = { unitId: string; leaseId: string | null; amount: number };
 
 export type CostItemError =
 	'missing' | 'unknown-property' | 'unknown-category' | 'unknown-key' | 'unknown-circle';
@@ -384,7 +386,11 @@ export async function listUnitAmounts(
 	costItemId: string
 ): Promise<UnitAmount[]> {
 	return db
-		.select({ unitId: costItemUnitAmounts.unitId, amount: costItemUnitAmounts.amount })
+		.select({
+			unitId: costItemUnitAmounts.unitId,
+			leaseId: costItemUnitAmounts.leaseId,
+			amount: costItemUnitAmounts.amount
+		})
 		.from(costItemUnitAmounts)
 		.innerJoin(units, eq(units.id, costItemUnitAmounts.unitId))
 		.where(
@@ -393,12 +399,13 @@ export async function listUnitAmounts(
 				eq(costItemUnitAmounts.costItemId, costItemId)
 			)
 		)
-		.orderBy(asc(units.name));
+		.orderBy(asc(units.name), asc(costItemUnitAmounts.leaseId));
 }
 
 /**
  * Replaces the per-unit amounts of an item in one batch. Every unit must be one of the item's
- * property; a unit with 0 gets no row.
+ * property and every lease one of the account; a unit has either one amount of its own or
+ * amounts per lease. An amount of 0 gets no row.
  */
 export async function replaceUnitAmounts(
 	db: Database,
@@ -411,7 +418,24 @@ export async function replaceUnitAmounts(
 	if (!item) return 'missing';
 	const rows = amounts.filter((entry) => entry.amount !== 0);
 	const unitIds = [...new Set(rows.map((entry) => entry.unitId))];
-	if (unitIds.length !== rows.length) return 'unknown-unit';
+	const entries = new Set(rows.map((entry) => `${entry.unitId}/${entry.leaseId ?? ''}`));
+	if (entries.size !== rows.length) return 'unknown-unit';
+	const mixed = unitIds.some(
+		(unitId) =>
+			rows.some((entry) => entry.unitId === unitId && entry.leaseId === null) &&
+			rows.some((entry) => entry.unitId === unitId && entry.leaseId !== null)
+	);
+	if (mixed) return 'unknown-unit';
+	const leaseIds = [...new Set(rows.flatMap((entry) => entry.leaseId ?? []))];
+	let ownLeases = 0;
+	for (const ids of chunkIds(leaseIds)) {
+		const rows = await db
+			.select({ id: leases.id })
+			.from(leases)
+			.where(and(eq(leases.accountId, accountId), inArray(leases.id, ids)));
+		ownLeases += rows.length;
+	}
+	if (ownLeases !== leaseIds.length) return 'unknown-unit';
 	let own = 0;
 	for (const ids of chunkIds(unitIds)) {
 		const rows = await db
