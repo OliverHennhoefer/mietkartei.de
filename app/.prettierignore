@@ -11,3 +11,8 @@ bun.lockb
 /.e2e/
 /coverage/
 /data/
+
+# Generated map data (scripts/germany-map.js)
+/src/lib/map/germany-outline.ts
+/src/lib/map/germany-shapes.ts
+/src/lib/server/postal-codes-data.ts

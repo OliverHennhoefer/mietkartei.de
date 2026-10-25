@@ -2,12 +2,17 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import Icon from '#lib/components/Icon.svelte';
+	import PropertyMapDialog from '#lib/components/PropertyMapDialog.svelte';
+	import PropertyMapTile from '#lib/components/PropertyMapTile.svelte';
+	import { germanyOutline } from '#lib/map/germany-outline.ts';
 	import { formatDate } from '#lib/dates.ts';
 	import { pluralize } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 	let search = $state('');
+	/** The property whose map tile opened the large map; undefined while it is closed. */
+	let mapFor = $state<string>();
 	const totals = $derived({
 		units: data.properties.reduce((sum, property) => sum + property.unitCount, 0),
 		leases: data.properties.reduce((sum, property) => sum + property.activeLeases, 0),
@@ -80,11 +85,25 @@
 			>
 		</EmptyState>
 	{:else}
+		{#if data.showMaps}
+			<svg class="map-symbols" aria-hidden="true"
+				><symbol id="germany-outline"><path d={germanyOutline} /></symbol></svg
+			>
+		{/if}
 		<ul class="property-list" aria-label="Objekte">
 			{#each filteredProperties as property (property.id)}
-				<li>
+				<li class:with-map={data.showMaps}>
+					{#if data.showMaps}
+						<PropertyMapTile
+							position={property.position}
+							label="{property.name} auf der Karte zeigen"
+							onclick={() => (mapFor = property.id)}
+						/>
+					{/if}
 					<a class="property-link" href="/objekte/{property.id}">
-						<span class="property-icon"><Icon name="building" size={23} /></span>
+						{#if !data.showMaps}
+							<span class="property-icon"><Icon name="building" size={23} /></span>
+						{/if}
 						<span class="property-info">
 							<strong>{property.name}</strong>
 							<span class="property-address"
@@ -107,6 +126,13 @@
 				</li>
 			{/each}
 		</ul>
+		{#if mapFor}
+			<PropertyMapDialog
+				properties={data.properties}
+				selected={mapFor}
+				onclose={() => (mapFor = undefined)}
+			/>
+		{/if}
 	{/if}
 	{#if data.archived.length > 0}
 		<details class="archive">
@@ -191,6 +217,29 @@
 	}
 	.property-list li + li {
 		border-top: 1px solid var(--color-border);
+	}
+	/* With maps, the tile sits in front of the link; the row as a whole reacts to the pointer. */
+	.property-list li.with-map {
+		display: flex;
+		align-items: center;
+		padding-left: 1.5rem;
+		transition: background 140ms;
+	}
+	.property-list li.with-map:hover {
+		background: var(--color-subtle);
+	}
+	.with-map .property-link {
+		flex: 1;
+		min-width: 0;
+	}
+	.with-map .property-link:hover {
+		background: none;
+	}
+	.map-symbols {
+		position: absolute;
+		width: 0;
+		height: 0;
+		overflow: hidden;
 	}
 	.property-link {
 		display: flex;
@@ -292,6 +341,13 @@
 		}
 		.property-arrow {
 			display: none;
+		}
+		.property-list li.with-map {
+			align-items: flex-start;
+			padding: 1.25rem 0 0 1.25rem;
+		}
+		.with-map .property-link {
+			padding-top: 0;
 		}
 	}
 </style>
