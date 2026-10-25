@@ -2,11 +2,12 @@
 // (#lib/server/roles.ts) and the layout, which keeps the forms of these pages usable.
 
 /**
- * Paths that accept every POST of a viewer: signing out, their own calendar link, API keys and
- * connecting an app, which gets read access only.
+ * Paths that accept every POST of a viewer: signing out, their own display settings and calendar
+ * link, API keys and connecting an app, which gets read access only.
  */
 export const viewerPaths = new Set([
 	'/abmelden',
+	'/einstellungen/darstellung',
 	'/einstellungen/kalender',
 	'/einstellungen/ki-assistenten',
 	'/oauth/authorize'

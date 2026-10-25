@@ -33,7 +33,8 @@
 		| 'percent'
 		| 'gauge'
 		| 'chevron-right'
-		| 'chevrons';
+		| 'chevrons'
+		| 'map';
 </script>
 
 <script lang="ts">
@@ -64,6 +65,7 @@
 		check: 'm5 12 4 4L19 6',
 		'chevron-right': 'm9 6 6 6-6 6',
 		chevrons: 'm7 15 5 5 5-5M7 9l5-5 5 5',
+		map: 'M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Zm0 0v14m6-12v14',
 		alert: 'm12 3 10 18H2ZM12 9v4m0 4h.01',
 		info: 'M12 11v6m0-10h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
 		coins:

@@ -40,6 +40,13 @@
 	   in both colour schemes. */
 	--color-highlight: #f5ff00;
 	--color-highlight-text: #000;
+	/* The maps of the properties: dark in both colour schemes, so the neon dots stand out. */
+	--color-map-water: #141414;
+	--color-map-land: #2b2b2b;
+	--color-map-tile-land: #383838;
+	--color-map-line: #474747;
+	--color-map-neighbour: #1d1d1d;
+	--color-map-border: #141414;
 	--radius: 10px;
 	--sidebar-width: 16.5rem;
 	--header-height: 4rem;
@@ -1297,6 +1304,12 @@ dl.details dd {
 		--color-chart-2: #a8a8a8;
 		--color-chart-3: #6e6e6e;
 		--color-chart-4: #454545;
+		--color-map-water: #121212;
+		--color-map-land: #2a2a2a;
+		--color-map-tile-land: #363636;
+		--color-map-line: #434343;
+		--color-map-neighbour: #1a1a1a;
+		--color-map-border: #303030;
 		--shadow: none;
 		--color-focus-ring: rgb(255 255 255 / 12%);
 		--icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");

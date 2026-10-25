@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `show_property_maps` integer DEFAULT true NOT NULL;

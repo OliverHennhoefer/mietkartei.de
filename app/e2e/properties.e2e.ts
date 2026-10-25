@@ -275,3 +275,36 @@ test('deletes a property without leases', async ({ page }) => {
 	await expect(page).toHaveURL(/\/objekte$/);
 	await expect(page.getByRole('list', { name: 'Objekte' })).not.toContainText(name);
 });
+
+test('shows each property on a map and hides the maps in the settings', async ({ page }) => {
+	const name = `Kartenhaus ${suffix()}`;
+	await seedLease(page.request, { property: { name, city: 'Berlin' } });
+	await page.goto('/objekte');
+	const tile = page.getByRole('button', { name: `${name} auf der Karte zeigen` });
+	await expect(tile.locator('circle')).toHaveCount(2);
+
+	await tile.click();
+	const map = page.getByRole('dialog', { name: 'Deine Objekte auf der Karte' });
+	await expect(map).toBeVisible();
+	await expect(map.locator('.country')).toHaveCount(1);
+	await expect(map.getByRole('link', { name })).toBeVisible();
+	await map.getByRole('button', { name: 'Ganz Deutschland' }).click();
+	await expect(map.getByRole('button', { name: 'Auf Objekte zoomen' })).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(map).toHaveCount(0);
+
+	await page.goto('/einstellungen/darstellung');
+	const setting = page.getByLabel('Karte bei den Objekten zeigen');
+	await expect(setting).toBeChecked();
+	await setting.uncheck();
+	await page.getByRole('button', { name: 'Speichern' }).click();
+	await expect(page.getByText('Gespeichert.')).toBeVisible();
+	await page.goto('/objekte');
+	await expect(page.getByRole('list', { name: 'Objekte' })).toContainText(name);
+	await expect(page.locator('.map-tile')).toHaveCount(0);
+
+	await page.goto('/einstellungen/darstellung');
+	await page.getByLabel('Karte bei den Objekten zeigen').check();
+	await page.getByRole('button', { name: 'Speichern' }).click();
+	await expect(page.getByText('Gespeichert.')).toBeVisible();
+});

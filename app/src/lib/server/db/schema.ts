@@ -1324,6 +1324,8 @@ export const users = sqliteTable(
 		 */
 		role: text('role', { enum: userRoles }).notNull().default('owner'),
 		name: text('name'),
+		/** Whether the property list shows each property on a small map of Germany. */
+		showPropertyMaps: bool('show_property_maps', true),
 		createdAt: createdAt()
 	},
 	(table) => [
