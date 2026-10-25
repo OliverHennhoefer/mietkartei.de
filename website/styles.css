@@ -197,8 +197,6 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
   .values { column-gap: 28px; }
   .shot-main { width: 100%; }
   .shot-detail { left: -24px; }
-  /* Three actions no longer fit one line; the footer links the documentation as well. */
-  .documentation-docs { display: none; }
 }
 
 @media (max-width: 900px) {
