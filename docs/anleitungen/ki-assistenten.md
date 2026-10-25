@@ -1,11 +1,11 @@
 ---
 title: KI-Assistenten anbinden
-description: "Wie du Claude, Cursor oder einen anderen KI-Assistenten über den MCP-Server von mietkartei an deine Daten anbindest, was er lesen und ändern darf und wie die REST-API funktioniert."
+description: "Wie du Claude, ChatGPT, Cursor oder einen anderen KI-Assistenten über den MCP-Server von mietkartei an deine Daten anbindest, was er lesen und ändern darf und wie die REST-API funktioniert."
 ---
 
 # KI-Assistenten anbinden
 
-mietkartei hat einen MCP-Server. Über ihn kann ein KI-Assistent wie Claude deine Daten lesen und auf Wunsch einzelne Dinge eintragen. Du kannst dann zum Beispiel fragen:
+mietkartei hat einen MCP-Server. Über ihn kann ein KI-Assistent wie Claude oder ChatGPT deine Daten lesen und auf Wunsch einzelne Dinge eintragen. Du kannst dann zum Beispiel fragen:
 
 - „Wer ist mit der Miete im Rückstand, und seit wann?“
 - „Wie hoch sind die Verzugszinsen für den Rückstand im Vertrag Erdgeschoss links?“
@@ -24,11 +24,11 @@ Hier brauchst du keinen Schlüssel. Du trägst nur die Adresse ein und meldest d
 3. Beim Verbinden öffnet sich mietkartei. Melde dich an, falls nötig. Danach siehst du, welche App zugreifen möchte und wohin es danach weitergeht.
 4. Wähle die Rechte (**Nur lesen** oder **Lesen und schreiben**) und klicke auf **Erlauben**.
 
-Die Verbindung erscheint danach unter **Einstellungen → API-Schlüssel → Verbundene Apps**. Dort trennst du sie auch wieder. Nutzt die App die Verbindung 90 Tage lang nicht, endet sie von selbst.
+Die Verbindung erscheint danach unter **Einstellungen → KI-Assistenten → Verbundene Apps**. Dort trennst du sie auch wieder. Nutzt die App die Verbindung 90 Tage lang nicht, endet sie von selbst.
 
 ## Andere Assistenten: API-Schlüssel anlegen
 
-Claude Code, Claude Desktop, Cursor und eigene Programme melden sich mit einem API-Schlüssel an. Den legst du in mietkartei unter **Einstellungen → API-Schlüssel** an:
+Claude Code, Claude Desktop, Cursor und eigene Programme melden sich mit einem API-Schlüssel an. Den legst du in mietkartei unter **Einstellungen → KI-Assistenten** an:
 
 1. Gib dem Schlüssel einen Namen, an dem du ihn wiedererkennst, etwa „Claude auf dem Laptop“.
 2. Wähle die Rechte: **Nur lesen** reicht für Fragen. **Lesen und schreiben** braucht es, wenn der Assistent auch etwas eintragen soll.
@@ -86,7 +86,7 @@ Außerdem gilt:
 
 - Hast du als Mitverwalter nur **Lesezugriff** auf ein Konto, darf auch der Assistent nur lesen, egal welche Rechte du beim Anlegen gewählt hast.
 - Läuft dein Testzeitraum ohne Abo ab, ist das Konto schreibgeschützt, auch für den Assistenten.
-- Änderst du dein Passwort, werden alle deine Schlüssel widerrufen und alle Apps getrennt. Einzelne Schlüssel und Apps widerrufst du unter **Einstellungen → API-Schlüssel**.
+- Änderst du dein Passwort, werden alle deine Schlüssel widerrufen und alle Apps getrennt. Einzelne Schlüssel und Apps widerrufst du unter **Einstellungen → KI-Assistenten**.
 
 Mahnungen, Mieterhöhungen und Abrechnungen erstellst du weiterhin in mietkartei selbst. Der Assistent kann dir aber sagen, was ansteht und welche Beträge offen sind.
 

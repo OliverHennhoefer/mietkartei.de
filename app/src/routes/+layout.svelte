@@ -15,7 +15,7 @@
 	import Subscription from './abo/+page.svelte';
 	import Account from './einstellungen/konto/+page.svelte';
 	import Members from './einstellungen/zugaenge/+page.svelte';
-	import ApiKeys from './einstellungen/api-schluessel/+page.svelte';
+	import AiAssistants from './einstellungen/ki-assistenten/+page.svelte';
 	import Export from './einstellungen/export/+page.svelte';
 	import Profile from './einstellungen/profil/+page.svelte';
 	import AuditLog from './einstellungen/protokoll/+page.svelte';
@@ -43,7 +43,7 @@
 		'/einstellungen/vpi': PriceIndex,
 		'/einstellungen/protokoll': AuditLog,
 		'/einstellungen/export': Export,
-		'/einstellungen/api-schluessel': ApiKeys,
+		'/einstellungen/ki-assistenten': AiAssistants,
 		'/abo': Subscription,
 		'/einstellungen/konto': Account
 	};
@@ -82,6 +82,7 @@
 				{ href: '/auswertung/rendite', label: 'Rendite', icon: 'percent' },
 				{ href: '/auswertung/mieteinnahmen', label: 'Mieteinnahmen', icon: 'coins' },
 				{ href: '/auswertung/ausgaben', label: 'Ausgaben', icon: 'pie' },
+				{ href: '/auswertung/nebenkosten', label: 'Nebenkosten', icon: 'gauge' },
 				{ href: '/auswertung/vergleich', label: 'Vergleich', icon: 'bars' }
 			]
 		}

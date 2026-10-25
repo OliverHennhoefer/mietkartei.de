@@ -13,30 +13,24 @@
 	const created = $derived(form && 'created' in form ? form.created : undefined);
 
 	const scopeLabels: Record<string, string> = { read: 'Nur lesen', write: 'Lesen und schreiben' };
-	let copied = $state(false);
+	// What was copied last: the server address or the new key.
+	let copied = $state<'url' | 'key' | undefined>();
 
-	async function copy(text: string) {
-		// The clipboard needs https; over plain http the key is selected by hand.
+	async function copy(text: string, what: 'url' | 'key') {
+		// The clipboard needs https; over plain http the text is selected by hand.
 		try {
 			await navigator.clipboard.writeText(text);
-			copied = true;
+			copied = what;
 		} catch {
-			copied = false;
+			copied = undefined;
 		}
 	}
 </script>
 
 <PageHeader
-	title="API-Schlüssel"
-	lead="Damit greifen eigene Programme oder ein KI-Assistent wie Claude auf deine Daten zu."
+	title="KI-Assistenten"
+	lead="Verbinde Claude, ChatGPT oder einen anderen KI-Assistenten mit deinen Daten."
 />
-
-<p class="muted">
-	In claude.ai, der Claude-App oder ChatGPT brauchst du keinen Schlüssel: Füge dort einen Connector
-	mit der Adresse <code>{data.origin}/mcp</code> hinzu und erlaube den Zugriff. Wie du Claude oder
-	einen anderen Assistenten einrichtest und was er darf, steht in der
-	<a href="https://docs.mietkartei.de/anleitungen/ki-assistenten/">Anleitung</a>.
-</p>
 
 {#if refused}
 	<Alert tone="danger"><p>{refused}</p></Alert>
@@ -52,8 +46,8 @@
 		</p>
 		<div class="key">
 			<code>{created.key}</code>
-			<button type="button" class="secondary small" onclick={() => copy(created.key)}>
-				{copied ? 'Kopiert' : 'Kopieren'}
+			<button type="button" class="secondary small" onclick={() => copy(created.key, 'key')}>
+				{copied === 'key' ? 'Kopiert' : 'Kopieren'}
 			</button>
 		</div>
 		<h3>Claude Code</h3>
@@ -86,7 +80,68 @@
 	</section>
 {/if}
 
-<h2>Deine Schlüssel</h2>
+<section class="card connect" aria-labelledby="connect-title">
+	<h2 id="connect-title">Mit claude.ai, der Claude-App oder ChatGPT verbinden</h2>
+	<p>
+		Füge in deinem Assistenten einen eigenen Connector mit dieser Adresse hinzu. Beim Verbinden
+		meldest du dich bei mietkartei an und wählst, ob der Assistent nur lesen oder auch eintragen
+		darf. Einen Schlüssel brauchst du dafür nicht.
+	</p>
+	<div class="key address">
+		<code>{data.origin}/mcp</code>
+		<button type="button" class="secondary small" onclick={() => copy(`${data.origin}/mcp`, 'url')}>
+			{copied === 'url' ? 'Kopiert' : 'Adresse kopieren'}
+		</button>
+	</div>
+	<p class="muted">
+		Danach fragst du etwa: „Wer ist mit der Miete im Rückstand?“, „Welche Fristen stehen in den
+		nächsten drei Monaten an?“ oder „Trag die Grundsteuer 2026 über 612,40 € ein.“ Wie du andere
+		Assistenten einrichtest und was der Assistent darf, steht in der
+		<a href="https://docs.mietkartei.de/anleitungen/ki-assistenten/">Anleitung</a>.
+	</p>
+</section>
+
+{#if data.apps.length > 0}
+	<h2>Verbundene Apps</h2>
+	<div class="table-wrap">
+		<table class="table" aria-label="Verbundene Apps">
+			<thead>
+				<tr>
+					<th>App</th>
+					<th>Rechte</th>
+					<th>Verbunden seit</th>
+					<th>Zuletzt genutzt</th>
+					<th class="actions"></th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each data.apps as app (app.id)}
+					<tr>
+						<td>{app.name}</td>
+						<td>{scopeLabels[app.scope]}</td>
+						<td>{formatDateTime(app.createdAt)}</td>
+						<td>{app.lastUsedAt ? formatDateTime(app.lastUsedAt) : '–'}</td>
+						<td class="actions">
+							<ConfirmButton
+								action="?/revoke"
+								label="Trennen"
+								message="Verbindung mit „{app.name}“ trennen? Die App hat dann keinen Zugriff mehr."
+							>
+								<input type="hidden" name="keyId" value={app.id} />
+							</ConfirmButton>
+						</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	</div>
+{/if}
+
+<h2>API-Schlüssel</h2>
+<p class="muted">
+	Claude Code, Claude Desktop, Cursor und eigene Programme melden sich mit einem API-Schlüssel beim
+	MCP-Server oder bei der REST-API an.
+</p>
 {#if data.keys.length === 0}
 	<p class="muted">Du hast noch keinen API-Schlüssel.</p>
 {:else}
@@ -117,42 +172,6 @@
 								message="API-Schlüssel „{key.name}“ widerrufen? Programme, die ihn nutzen, haben dann keinen Zugriff mehr."
 							>
 								<input type="hidden" name="keyId" value={key.id} />
-							</ConfirmButton>
-						</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
-	</div>
-{/if}
-
-{#if data.apps.length > 0}
-	<h2>Verbundene Apps</h2>
-	<div class="table-wrap">
-		<table class="table" aria-label="Verbundene Apps">
-			<thead>
-				<tr>
-					<th>App</th>
-					<th>Rechte</th>
-					<th>Verbunden seit</th>
-					<th>Zuletzt genutzt</th>
-					<th class="actions"></th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each data.apps as app (app.id)}
-					<tr>
-						<td>{app.name}</td>
-						<td>{scopeLabels[app.scope]}</td>
-						<td>{formatDateTime(app.createdAt)}</td>
-						<td>{app.lastUsedAt ? formatDateTime(app.lastUsedAt) : '–'}</td>
-						<td class="actions">
-							<ConfirmButton
-								action="?/revoke"
-								label="Trennen"
-								message="Verbindung mit „{app.name}“ trennen? Die App hat dann keinen Zugriff mehr."
-							>
-								<input type="hidden" name="keyId" value={app.id} />
 							</ConfirmButton>
 						</td>
 					</tr>
@@ -224,8 +243,15 @@
 	.created {
 		margin-bottom: 1.5rem;
 	}
-	.created h2 {
+	.created h2,
+	.connect h2 {
 		margin-top: 0;
+	}
+	.connect p {
+		margin: 0 0 1rem;
+	}
+	.connect p:last-child {
+		margin: 1rem 0 0;
 	}
 	.created h3 {
 		margin: 1.25rem 0 0.5rem;

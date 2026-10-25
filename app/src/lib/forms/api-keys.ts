@@ -2,7 +2,7 @@ import { API_KEY_LIFETIMES, type ApiKeyInput } from '../server/api-keys';
 import type { ApiKeyScope } from '../server/db/schema';
 import { FormParser, type ParseResult } from './fields';
 
-// The form of /einstellungen/api-schluessel.
+// The form of /einstellungen/ki-assistenten.
 
 /** "Neuer API-Schlüssel"; `scopes` are the scopes the instance offers, the first one by default. */
 export function parseApiKey(

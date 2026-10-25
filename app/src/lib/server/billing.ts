@@ -178,7 +178,7 @@ const writablePrefixes = ['/passwort-zuruecksetzen/', '/e-mail-bestaetigen/', '/
 const writableActions = new Map([
 	['/einstellungen/konto', new Set(['delete', 'leave'])],
 	['/einstellungen/profil', new Set(['profile', 'password'])],
-	['/einstellungen/api-schluessel', new Set(['revoke'])]
+	['/einstellungen/ki-assistenten', new Set(['revoke'])]
 ]);
 
 /** The form action a POST goes to, the way SvelteKit reads it: `?/delete` → `delete`. */
