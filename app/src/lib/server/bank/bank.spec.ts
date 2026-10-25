@@ -368,6 +368,24 @@ describe('transactions', () => {
 		expect(audit.map((entry) => entry.action)).toEqual(['create', 'update']);
 	});
 
+	it('drops a remembered rule back to a suggestion on a split', async () => {
+		await importSparkasse();
+		const [incoming] = (await openTransactions()).filter((row) => row.amount > 0);
+		await assignTransaction(db, contextA, incoming.id, {
+			target: 'rent',
+			parts: [{ leaseId, amount: 85000 }]
+		});
+		await undoAssignment(db, contextA, incoming.id);
+		await assignTransaction(db, contextA, incoming.id, {
+			target: 'rent',
+			parts: [
+				{ leaseId, amount: 80000 },
+				{ leaseId: secondLeaseId, amount: 5000 }
+			]
+		});
+		expect(await listRules(db, 'a')).toMatchObject([{ leaseId, confirmed: false }]);
+	});
+
 	it('books a double submit once: the second of two overlapping assignments is refused', async () => {
 		await importSparkasse();
 		const [incoming] = (await openTransactions()).filter((row) => row.amount > 0);

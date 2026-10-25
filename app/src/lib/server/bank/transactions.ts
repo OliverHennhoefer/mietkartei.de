@@ -348,21 +348,25 @@ async function earlierLeaseIds(
 }
 
 /**
- * The rule statements of assigning the transaction to the lease as rent. A full rule quota
- * leaves the counterpart unremembered instead of refusing the assignment.
+ * The rule statements of the assignment (see rememberStep). A full rule quota leaves the
+ * counterpart unremembered instead of refusing the assignment.
  */
 async function rememberStatements(
 	db: Database,
 	context: AuditContext,
 	transaction: BankTransaction,
-	leaseId: string
+	input: AssignmentInput
 ): Promise<BatchItem<'sqlite'>[]> {
-	if (transaction.amount <= 0) return [];
+	const leaseIds = [...new Set(input.parts.map((part) => part.leaseId))];
 	const [rules, earlier] = await Promise.all([
 		listRules(db, context.accountId),
 		earlierLeaseIds(db, context.accountId, transaction)
 	]);
-	const step = rememberStep(transaction, leaseId, { rules, earlierLeaseIds: earlier });
+	const step = rememberStep(
+		transaction,
+		{ leaseIds, rent: input.target === 'rent' },
+		{ rules, earlierLeaseIds: earlier }
+	);
 	if (!step) return [];
 	if (step.kind === 'unconfirm') {
 		const ids = new Set(step.ruleIds);
@@ -374,12 +378,13 @@ async function rememberStatements(
 	}
 	if ((await usage(db, context.accountId, 'matchingRules')) >= QUOTAS.matchingRules.max) return [];
 	const { field, pattern } = step;
-	return ruleEntry(db, context, { leaseId, field, pattern, confirmed: true }).statements;
+	return ruleEntry(db, context, { leaseId: leaseIds[0], field, pattern, confirmed: true })
+		.statements;
 }
 
 /**
  * Books the transaction as payment(s) or a deposit movement on the chosen lease(s), marks it
- * matched and, for rent on one lease, remembers the counterpart (see rememberStep). One batch.
+ * matched and remembers the counterpart or demotes its rules (see rememberStep). One batch.
  */
 export async function assignTransaction(
 	db: Database,
@@ -436,11 +441,7 @@ export async function assignTransaction(
 			);
 		}
 	}
-	if (input.target === 'rent' && input.parts.length === 1) {
-		statements.push(
-			...(await rememberStatements(db, context, transaction, input.parts[0].leaseId))
-		);
-	}
+	statements.push(...(await rememberStatements(db, context, transaction, input)));
 	const what = input.target === 'rent' ? 'als Zahlung' : 'auf die Kaution';
 	const parts =
 		input.parts.length > 1 ? ` (aufgeteilt auf ${input.parts.length} Mietverträge)` : '';

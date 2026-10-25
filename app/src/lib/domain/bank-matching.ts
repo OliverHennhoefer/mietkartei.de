@@ -531,24 +531,25 @@ export type RememberStep =
 	| { kind: 'unconfirm'; ruleIds: string[] };
 
 /**
- * What assigning an incoming transaction to one lease as rent does to the rules: it remembers
- * the counterpart with a confirmed rule, so the next transfer assigns on import. A counterpart
- * that pays for more than one lease (the Jobcenter, parents with two flats) must not assign on
- * its own: when the landlord picks another lease than a confirmed rule says, that rule drops
- * back to a suggestion, and a counterpart whose money went to another lease before gets no rule.
- * Undefined when nothing changes, also when a rule for the lease already matches.
+ * What assigning a transaction does to the rules. Incoming rent on one lease remembers the
+ * counterpart with a confirmed rule, so the next transfer assigns on import. A counterpart that
+ * pays for more than one lease (the Jobcenter, parents with two flats) must not assign on its
+ * own: when the landlord books money a confirmed rule matches anywhere else (another lease, a
+ * split, a deposit elsewhere), that rule drops back to a suggestion, and a counterpart whose money
+ * went to another lease before gets no rule. Undefined when nothing changes, also when a rule
+ * for the lease already matches.
  */
 export function rememberStep(
 	transaction: Matchable,
-	leaseId: string,
+	assignment: { leaseIds: readonly string[]; rent: boolean },
 	context: { rules: readonly Rule[]; earlierLeaseIds: readonly string[] }
 ): RememberStep | undefined {
-	if (transaction.amount <= 0) return undefined;
+	const single = assignment.leaseIds.length === 1 ? assignment.leaseIds[0] : undefined;
 	const matching = context.rules.filter((rule) => ruleMatches(rule, transaction));
-	const conflicting = matching.filter((rule) => rule.confirmed && rule.leaseId !== leaseId);
+	const conflicting = matching.filter((rule) => rule.confirmed && rule.leaseId !== single);
 	if (conflicting.length) return { kind: 'unconfirm', ruleIds: conflicting.map((rule) => rule.id) };
-	if (matching.length) return undefined;
-	if (context.earlierLeaseIds.some((id) => id !== leaseId)) return undefined;
+	if (!single || !assignment.rent || transaction.amount <= 0 || matching.length) return undefined;
+	if (context.earlierLeaseIds.some((id) => id !== single)) return undefined;
 	const rule = rememberedRule(transaction);
 	return rule && { kind: 'create', ...rule };
 }

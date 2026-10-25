@@ -517,26 +517,27 @@ describe('rules', () => {
 			...overrides
 		});
 		const none = { rules: [], earlierLeaseIds: [] };
+		const rent = (...leaseIds: string[]) => ({ leaseIds, rent: true });
 
 		it('remembers the counterpart of incoming rent only', () => {
-			expect(rememberStep(transaction, 'l1', none)).toEqual({
+			expect(rememberStep(transaction, rent('l1'), none)).toEqual({
 				kind: 'create',
 				field: 'counterpartIban',
 				pattern: 'DE12500105175407324931'
 			});
-			expect(rememberStep({ ...transaction, amount: -100 }, 'l1', none)).toBeUndefined();
+			expect(rememberStep({ ...transaction, amount: -100 }, rent('l1'), none)).toBeUndefined();
 		});
 
 		it('adds nothing when a rule already matches', () => {
-			expect(rememberStep(transaction, 'l1', { ...none, rules: [rule()] })).toBeUndefined();
+			expect(rememberStep(transaction, rent('l1'), { ...none, rules: [rule()] })).toBeUndefined();
 			expect(
-				rememberStep(transaction, 'l2', { ...none, rules: [rule({ confirmed: false })] })
+				rememberStep(transaction, rent('l2'), { ...none, rules: [rule({ confirmed: false })] })
 			).toBeUndefined();
 		});
 
 		it('drops confirmed rules for another lease back to suggestions', () => {
 			expect(
-				rememberStep(transaction, 'l2', {
+				rememberStep(transaction, rent('l2'), {
 					...none,
 					rules: [
 						rule(),
@@ -547,12 +548,27 @@ describe('rules', () => {
 			).toEqual({ kind: 'unconfirm', ruleIds: ['r1'] });
 		});
 
+		it('demotes on a split or a deposit elsewhere, and remembers neither', () => {
+			const rules = [rule()];
+			expect(rememberStep(transaction, rent('l1', 'l2'), { ...none, rules })).toEqual({
+				kind: 'unconfirm',
+				ruleIds: ['r1']
+			});
+			expect(
+				rememberStep(transaction, { leaseIds: ['l2'], rent: false }, { ...none, rules })
+			).toEqual({ kind: 'unconfirm', ruleIds: ['r1'] });
+			expect(rememberStep(transaction, { leaseIds: ['l1'], rent: false }, none)).toBeUndefined();
+			expect(rememberStep(transaction, rent('l1', 'l2'), none)).toBeUndefined();
+		});
+
 		it('remembers nobody whose money went to another lease before', () => {
-			expect(rememberStep(transaction, 'l1', { ...none, earlierLeaseIds: ['l1'] })).toMatchObject({
+			expect(
+				rememberStep(transaction, rent('l1'), { ...none, earlierLeaseIds: ['l1'] })
+			).toMatchObject({
 				kind: 'create'
 			});
 			expect(
-				rememberStep(transaction, 'l1', { ...none, earlierLeaseIds: ['l1', 'l2'] })
+				rememberStep(transaction, rent('l1'), { ...none, earlierLeaseIds: ['l1', 'l2'] })
 			).toBeUndefined();
 		});
 	});
