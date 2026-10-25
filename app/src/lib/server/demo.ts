@@ -297,6 +297,8 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			acquisitionDate: acquisition[lindenId],
 			// 640.000 € plus Grunderwerbsteuer, Notar, Grundbuch and Makler.
 			acquisitionCost: 736_000_00,
+			// The principal of the loans booked below.
+			loanAmount: 520_000_00,
 			buildingShare: 70,
 			// Built 1906: 2.5 % (§ 7 Abs. 4 Nr. 2 b EStG).
 			depreciationRate: 2.5,
@@ -316,6 +318,7 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			state: 'BB' as const,
 			acquisitionDate: acquisition[parkId],
 			acquisitionCost: 274_400_00,
+			loanAmount: 200_000_00,
 			buildingShare: 80,
 			depreciationRate: 2,
 			notes: 'WEG mit 14 Einheiten, Baujahr 1996, Aufzug, Zentralheizung.'
@@ -334,6 +337,7 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			state: 'BY' as const,
 			acquisitionDate: acquisition[rosenheimId],
 			acquisitionCost: 471_300_00,
+			loanAmount: 380_000_00,
 			buildingShare: 45,
 			depreciationRate: 2,
 			notes: 'WEG mit 21 Einheiten, Baujahr 1972, Gasetagenheizung je Wohnung.'
