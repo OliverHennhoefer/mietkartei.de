@@ -126,11 +126,9 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .pricing-faq { margin: 48px 0 0; color: var(--muted); font-size: 15px; text-align: center; }
 .plan-list svg { flex: none; margin-top: 2px; }
 /* What only the hosted plan brings: the check on the logo's neon tile, black in both schemes. */
-.plan-list .check, .pricing-legend .check { display: inline-grid; flex: none; place-items: center; width: 20px; height: 20px; margin-top: 0; border-radius: 5px; background: var(--highlight); color: #000; }
+.plan-list .check { display: inline-grid; flex: none; place-items: center; width: 20px; height: 20px; margin-top: 0; border-radius: 5px; background: var(--highlight); color: #000; }
 .plan-list .check svg { width: 14px; height: 14px; margin: 0; }
 .plan-list .hosted-only { font-weight: 500; }
-.pricing-legend { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 24px 0 0; color: var(--muted); font-size: 13px; }
-.pricing-legend svg { width: 14px; height: 14px; }
 /* Monthly or yearly without script: two radios ahead of the plans, styled as one switch. */
 .billing-input { position: absolute; opacity: 0; pointer-events: none; }
 .billing-switch { display: flex; width: max-content; margin: 40px auto 0; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--background); }
