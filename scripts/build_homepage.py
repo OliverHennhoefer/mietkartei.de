@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from shutil import copyfile, rmtree
 
-from build_news import build_news, json_ld
+from build_guides import build_guides, json_ld
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +25,7 @@ for filename in (
     "sitemap.xml",
     "llms.txt",
     "_headers",
+    "_redirects",
     "assets/social.png",
 ):
     destination = OUTPUT / filename
@@ -81,6 +82,6 @@ def add_faq_json_ld(page: Path) -> None:
 
 
 add_faq_json_ld(OUTPUT / "fragen" / "index.html")
-build_news(ROOT / "website", OUTPUT)
+build_guides(ROOT / "website", OUTPUT)
 
 print(f"Startseite erzeugt: {OUTPUT}")

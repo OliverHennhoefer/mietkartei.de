@@ -63,7 +63,7 @@ jobs:
               )
               homepage = shared or any(
                   path.startswith('website/') or path in {
-                      'scripts/build_homepage.py', 'scripts/build_news.py',
+                      'scripts/build_homepage.py', 'scripts/build_guides.py',
                   }
                   for path in paths
               )
