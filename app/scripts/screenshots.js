@@ -1,6 +1,6 @@
-// Takes the screenshots of the README (assets/screenshots/) and the guides of the documentation
-// (docs/assets/screenshots/) from a production build with the demo
-// data of an empty account. Run `npm run build` first, then `npm run screenshots`. The server runs
+// Takes the screenshots of the README (assets/screenshots/), the homepage (website/assets/screenshots/)
+// and the guides of the documentation (docs/assets/screenshots/) from a production build with the
+// demo data of an empty account. Run `npm run build` first, then `npm run screenshots`. The server runs
 // on a fresh database in a temporary folder; PLAYWRIGHT_CHROMIUM_PATH names another Chromium.
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -12,6 +12,7 @@ const port = 4180;
 const baseURL = `http://localhost:${port}`;
 const output = path.resolve(import.meta.dirname, '../../assets/screenshots');
 const docsOutput = path.resolve(import.meta.dirname, '../../docs/assets/screenshots');
+const websiteOutput = path.resolve(import.meta.dirname, '../../website/assets/screenshots');
 // Launched first, so a missing browser fails before the server starts.
 const browser = await chromium.launch(
 	process.env.PLAYWRIGHT_CHROMIUM_PATH
@@ -78,6 +79,44 @@ try {
 		);
 	}
 
+	// The Auswertung of the largest property in the last full year: the figures and the monthly chart
+	// in one frame. The page is scrolled to the figures and loses what would push the chart out of
+	// the frame; the homepage frame is lower, so it also drops the top bar and the notes below the
+	// figures.
+	const year = new Date().getFullYear() - 1;
+	await page.goto(`/auswertung?jahr=${year}`);
+	const property = await page
+		.locator('select[name="objekt"] option')
+		.filter({ hasText: 'Lindenstraße 12' })
+		.getAttribute('value');
+	/** @param {string} file @param {number} height @param {boolean} compact */
+	async function shootEvaluation(file, height, compact) {
+		await page.setViewportSize({ width: 1280, height });
+		await page.goto(`/auswertung?jahr=${year}&objekt=${property}`);
+		await page.evaluate((compact) => {
+			/** @param {Element | null} element */
+			const hide = (element) => element instanceof HTMLElement && (element.style.display = 'none');
+			const tiles = /** @type {HTMLElement} */ (document.querySelector('ul.tiles'));
+			const chart = /** @type {HTMLElement} */ (document.querySelector('#flow')?.parentElement);
+			hide(document.querySelector('ul.tiles.small'));
+			hide(chart.querySelector('#flow'));
+			hide(chart.querySelector('.readout'));
+			hide(chart.querySelector('details'));
+			tiles.style.marginBottom = '8px';
+			if (compact) {
+				hide(document.querySelector('.site-header'));
+				for (const pill of tiles.querySelectorAll('.pill')) hide(pill);
+			}
+			const top = compact ? 24 : (document.querySelector('.site-header')?.clientHeight ?? 0) + 8;
+			window.scrollTo(0, tiles.getBoundingClientRect().top + window.scrollY - top);
+		}, compact);
+		await page.screenshot({ path: file });
+		console.log(path.relative(path.resolve(import.meta.dirname, '../..'), file));
+	}
+	await shootEvaluation(path.join(output, 'auswertung.png'), 640, false);
+	await shootEvaluation(path.join(websiteOutput, 'auswertung.png'), 560, true);
+	await page.setViewportSize({ width: 1280, height: 800 });
+
 	// The guides: the bank page while its suggestions are still open, then the setup pages.
 	await shoot('bankumsaetze', '/bank', docsOutput);
 	await shoot('umlageschluessel', '/betriebskosten/schluessel', docsOutput);
@@ -101,7 +140,6 @@ try {
 		await card.getByRole('button', { name: 'Zuordnen', exact: true }).click();
 		await card.waitFor({ state: 'detached' });
 	}
-	await shoot('uebersicht', '/');
 	await shoot('mietkonto', '/mietkonto');
 
 	await page.goto('/betriebskosten');
@@ -115,6 +153,13 @@ try {
 		window.scrollTo(0, section.getBoundingClientRect().top + window.scrollY - header - 24);
 	});
 	await shoot('abrechnung-mieter');
+	// The homepage shows the top of the share alone, in front of the Auswertung.
+	const box = await share.boundingBox();
+	if (!box) throw new Error('The share is not visible.');
+	await page.screenshot({
+		path: path.join(websiteOutput, 'abrechnung-mieter.png'),
+		clip: { x: box.x, y: box.y, width: box.width, height: 670 }
+	});
 	await page.evaluate(() => window.scrollTo(0, 0));
 	await shoot('abrechnung-entwurf', undefined, docsOutput);
 } finally {
