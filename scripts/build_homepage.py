@@ -19,6 +19,7 @@ for filename in (
     "index.html",
     "impressum/index.html",
     "fragen/index.html",
+    "preise/index.html",
     "styles.css",
     "robots.txt",
     "sitemap.xml",
