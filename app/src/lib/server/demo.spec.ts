@@ -104,6 +104,26 @@ describe('createDemoData', () => {
 		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(4);
 	});
 
+	it('takes its rows out again when a later step fails, keeping what the account held', async () => {
+		const [own] = await db
+			.insert(tenants)
+			.values({ accountId: 'a', firstName: 'Eva', lastName: 'Vorher' })
+			.returning();
+		// The letters to the tenant in arrears come after the batch.
+		await db.run(
+			sql`create trigger refuse_reminders before insert on payment_reminders begin select raise(abort, 'D1 down'); end`
+		);
+		await expect(createDemoData(db, contextA)).rejects.toThrow('D1 down');
+		expect(await isEmptyAccount(db, 'a')).toBe(true);
+		expect(await db.select().from(tenants).where(eq(tenants.accountId, 'a'))).toEqual([own]);
+		for (const table of [leases, payments, costItems, operatingCostStatements, tasks]) {
+			expect(await db.select().from(table).where(eq(table.accountId, 'a'))).toEqual([]);
+		}
+
+		await db.run(sql`drop trigger refuse_reminders`);
+		expect(await createDemoData(db, contextA)).toEqual({ ok: true, leases: 6 });
+	});
+
 	it('creates the demo once when the button is pressed twice at the same time', async () => {
 		const results = await Promise.all([createDemoData(db, contextA), createDemoData(db, contextA)]);
 		expect(results).toContainEqual({ ok: true, leases: 6 });

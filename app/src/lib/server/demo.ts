@@ -1,4 +1,4 @@
-import { and, count, eq, isNull, sql, type Table } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, sql, type Table } from 'drizzle-orm';
 import {
 	addDays,
 	addMonths,
@@ -22,7 +22,7 @@ import { nthWorkingDay, type GermanState } from '../working-days';
 import { auditEntry, type AuditContext } from './audit';
 import { createCo2Split } from './co2';
 import type { Database } from './db';
-import { chunk, rowsPerStatement, runBatch } from './db/batch';
+import { chunk, chunkIds, rowsPerStatement, runBatch } from './db/batch';
 import {
 	associationStatements,
 	auditLog,
@@ -34,6 +34,7 @@ import {
 	expenses,
 	insurancePolicies,
 	leasePersons,
+	leases,
 	matchingRules,
 	meterReadings,
 	meters,
@@ -1622,102 +1623,138 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 	}
 
 	// The landlord's year, made with the features' own functions on the day it happened.
-
-	// Betriebskostenabrechnungen of the past years, each approved in the spring after and delivered
-	// two days later; the tenants paid a Nachzahlung three weeks later, a Guthaben went back after
-	// two. Last year's are still to do: the deadline in the Fristen.
-	for (const draft of drafts) {
-		const approval = await approveStatement(
-			db,
-			context,
-			draft.id,
-			{ lateApprovalJustified: false, note: null },
-			{ today: draft.approvedOn }
-		);
-		if (!approval.ok) throw new Error(approval.message);
-		const deliveredOn = addDays(draft.approvedOn, 2);
-		const results = await db
-			.select({ leaseId: statementResults.leaseId, balance: statementResults.balance })
-			.from(statementResults)
-			.where(
-				and(eq(statementResults.accountId, accountId), eq(statementResults.statementId, draft.id))
-			);
-		const settlements = results
-			.filter((result) => result.balance !== 0)
-			.map((result) => ({
-				id: crypto.randomUUID(),
-				accountId,
-				leaseId: result.leaseId,
-				date: addDays(deliveredOn, result.balance > 0 ? 21 : 14),
-				amount: result.balance,
-				source: 'manual' as const,
-				bankTransactionId: null,
-				note:
-					result.balance > 0
-						? `Nachzahlung Betriebskosten ${draft.year}`
-						: `Guthaben Betriebskosten ${draft.year} erstattet`
-			}));
-		// What setDelivered records for a delivery within the deadline, for all leases at once: the
-		// date, and the Nachzahlungen fall due 30 days later.
-		await runBatch(db, [
-			db
-				.update(statementResults)
-				.set({ deliveredOn })
-				.where(
-					and(eq(statementResults.accountId, accountId), eq(statementResults.statementId, draft.id))
-				),
-			db
-				.update(rentCharges)
-				.set({ dueDate: addDays(deliveredOn, DUE_DAYS) })
-				.where(
-					and(
-						eq(rentCharges.accountId, accountId),
-						eq(rentCharges.referenceId, draft.id),
-						isNull(rentCharges.dueDate)
-					)
-				),
-			...insert(payments, settlements),
-			auditEntry(
+	// A failure from here on takes the demo's rows out again, so the account is empty and the
+	// button offers the demo again; rows the account held before stay.
+	try {
+		// Betriebskostenabrechnungen of the past years, each approved in the spring after and delivered
+		// two days later; the tenants paid a Nachzahlung three weeks later, a Guthaben went back after
+		// two. Last year's are still to do: the deadline in the Fristen.
+		for (const draft of drafts) {
+			const approval = await approveStatement(
 				db,
 				context,
-				'statement',
 				draft.id,
-				'update',
-				`Betriebskostenabrechnung ${draft.year} am ${formatDate(deliveredOn)} allen Mietern zugestellt`
-			)
-		]);
-	}
+				{ lateApprovalJustified: false, note: null },
+				{ today: draft.approvedOn }
+			);
+			if (!approval.ok) throw new Error(approval.message);
+			const deliveredOn = addDays(draft.approvedOn, 2);
+			const results = await db
+				.select({ leaseId: statementResults.leaseId, balance: statementResults.balance })
+				.from(statementResults)
+				.where(
+					and(eq(statementResults.accountId, accountId), eq(statementResults.statementId, draft.id))
+				);
+			const settlements = results
+				.filter((result) => result.balance !== 0)
+				.map((result) => ({
+					id: crypto.randomUUID(),
+					accountId,
+					leaseId: result.leaseId,
+					date: addDays(deliveredOn, result.balance > 0 ? 21 : 14),
+					amount: result.balance,
+					source: 'manual' as const,
+					bankTransactionId: null,
+					note:
+						result.balance > 0
+							? `Nachzahlung Betriebskosten ${draft.year}`
+							: `Guthaben Betriebskosten ${draft.year} erstattet`
+				}));
+			// What setDelivered records for a delivery within the deadline, for all leases at once: the
+			// date, and the Nachzahlungen fall due 30 days later.
+			await runBatch(db, [
+				db
+					.update(statementResults)
+					.set({ deliveredOn })
+					.where(
+						and(
+							eq(statementResults.accountId, accountId),
+							eq(statementResults.statementId, draft.id)
+						)
+					),
+				db
+					.update(rentCharges)
+					.set({ dueDate: addDays(deliveredOn, DUE_DAYS) })
+					.where(
+						and(
+							eq(rentCharges.accountId, accountId),
+							eq(rentCharges.referenceId, draft.id),
+							isNull(rentCharges.dueDate)
+						)
+					),
+				...insert(payments, settlements),
+				auditEntry(
+					db,
+					context,
+					'statement',
+					draft.id,
+					'update',
+					`Betriebskostenabrechnung ${draft.year} am ${formatDate(deliveredOn)} allen Mietern zugestellt`
+				)
+			]);
+		}
 
-	// Berger: a Zahlungserinnerung after the first missed rent, a Mahnung with Verzugszinsen after
-	// the second, each on the tenth working day of the month.
-	for (const [level, month, days] of [
-		[1, addMonthsToMonth(lastMonth, -1), 14],
-		[2, lastMonth, 10]
-	] as const) {
-		const letterDate = nthWorkingDay(month, 10, 'BE');
-		const reminder = await createReminder(db, context, leaseId('berger'), {
-			level,
-			date: soFar(letterDate),
-			paymentDeadline: addDays(soFar(letterDate), days)
+		// Berger: a Zahlungserinnerung after the first missed rent, a Mahnung with Verzugszinsen after
+		// the second, each on the tenth working day of the month.
+		for (const [level, month, days] of [
+			[1, addMonthsToMonth(lastMonth, -1), 14],
+			[2, lastMonth, 10]
+		] as const) {
+			const letterDate = nthWorkingDay(month, 10, 'BE');
+			const reminder = await createReminder(db, context, leaseId('berger'), {
+				level,
+				date: soFar(letterDate),
+				paymentDeadline: addDays(soFar(letterDate), days)
+			});
+			if (!reminder?.ok) throw new Error(reminder?.message ?? 'Mahnung nicht erstellt');
+		}
+
+		// Weber and Albrecht heat with their own gas contract and claimed the landlord's CO₂ share of
+		// last year (§ 6 CO2KostAufG).
+		const weberKwh = 7900;
+		const weberCo2 = co2KgFromKwh('gas', weberKwh)!;
+		const split = await createCo2Split(db, context, leaseId('weber'), {
+			year: Y - 1,
+			fuel: 'gas',
+			fuelKwh: weberKwh,
+			co2Kg: weberCo2,
+			co2Cost: Math.round((weberCo2 / 1000) * byYear(CO2_PRICE, Y - 1) * 1.19 * 100),
+			area: unitOf(unitId('Wohnung 9')).floorArea!,
+			invoiceDate: soFar(at(0, '02-24')),
+			claimedOn: soFar(at(0, '04-14'))
 		});
-		if (!reminder?.ok) throw new Error(reminder?.message ?? 'Mahnung nicht erstellt');
+		if (!split.ok) throw new Error(`CO₂-Kostenaufteilung: ${split.reason}`);
+	} catch (error) {
+		const ids = (rows: { id?: string }[]) => chunkIds(rows.map((row) => row.id!));
+		const propertyIds = propertyRows.map((row) => row.id);
+		await runBatch(db, [
+			db
+				.delete(operatingCostStatements)
+				.where(inArray(operatingCostStatements.propertyId, propertyIds)),
+			...ids(expenseRows).map((group) => db.delete(expenses).where(inArray(expenses.id, group))),
+			db.delete(leases).where(
+				inArray(
+					leases.id,
+					leaseEntries.map((entry) => entry.id)
+				)
+			),
+			db.delete(tenants).where(
+				inArray(
+					tenants.id,
+					tenantRows.map((row) => row.id)
+				)
+			),
+			db.delete(bankAccounts).where(eq(bankAccounts.id, bankAccount.id)),
+			db.delete(tasks).where(
+				inArray(
+					tasks.id,
+					taskRows.map((row) => row.id)
+				)
+			),
+			db.delete(properties).where(inArray(properties.id, propertyIds))
+		]);
+		throw error;
 	}
-
-	// Weber and Albrecht heat with their own gas contract and claimed the landlord's CO₂ share of
-	// last year (§ 6 CO2KostAufG).
-	const weberKwh = 7900;
-	const weberCo2 = co2KgFromKwh('gas', weberKwh)!;
-	const split = await createCo2Split(db, context, leaseId('weber'), {
-		year: Y - 1,
-		fuel: 'gas',
-		fuelKwh: weberKwh,
-		co2Kg: weberCo2,
-		co2Cost: Math.round((weberCo2 / 1000) * byYear(CO2_PRICE, Y - 1) * 1.19 * 100),
-		area: unitOf(unitId('Wohnung 9')).floorArea!,
-		invoiceDate: soFar(at(0, '02-24')),
-		claimedOn: soFar(at(0, '04-14'))
-	});
-	if (!split.ok) throw new Error(`CO₂-Kostenaufteilung: ${split.reason}`);
 
 	return { ok: true, leases: plans.length };
 }
