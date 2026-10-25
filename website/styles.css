@@ -104,25 +104,29 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .news li a:hover span { text-decoration: underline; text-underline-offset: 3px; }
 .news time { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
 
-.pricing { padding-block: clamp(56px, 9vh, 96px) clamp(48px, 8vh, 88px); border-top: 1px solid var(--line); scroll-margin-top: 24px; }
-.pricing-head { max-width: 640px; }
+.pricing { padding-block: clamp(64px, 10vh, 112px) clamp(56px, 9vh, 96px); border-top: 1px solid var(--line); scroll-margin-top: 24px; }
+.pricing-head { max-width: 640px; margin-inline: auto; text-align: center; }
 .pricing h2 { margin: 0; font-size: clamp(32px, 4vw, 48px); font-weight: 500; letter-spacing: -.045em; line-height: 1.08; }
-.plans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; margin-top: 40px; }
-/* Subgrid rows keep price, summary, list and buttons level across both plans. */
-.plan { display: grid; grid-row: span 5; grid-template-rows: subgrid; row-gap: 0; padding: 32px; border: 1px solid var(--line); border-radius: 12px; }
-.plan h3 { margin: 0; font-size: 13px; font-weight: 500; letter-spacing: .02em; color: var(--muted); }
-.plan-price { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin: 14px 0 0; }
+.pricing-head .lead { margin-inline: auto; }
+.plans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; max-width: 920px; margin: 48px auto 0; }
+/* Subgrid rows keep each part of the two plans level with the other. */
+.plan { display: grid; grid-row: span 8; grid-template-rows: subgrid; row-gap: 0; padding: 36px; border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--code-background), var(--background) 55%); }
+.plan-badge { justify-self: start; margin: 0; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--background); color: var(--muted); font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
+.plan h3 { margin: 18px 0 0; font-size: 22px; font-weight: 600; letter-spacing: -.025em; }
+.plan-summary { margin: 8px 0 0; color: var(--muted); font-size: 15px; line-height: 1.55; }
+.plan-price { display: flex; align-items: baseline; gap: 8px; margin: 28px 0 0; }
 /* The price sits on the logo's neon block, the same in both plans. */
-.amount { padding: 0 .14em; background: var(--highlight); color: #000; font-size: clamp(44px, 5vw, 60px); font-weight: 500; letter-spacing: -.05em; line-height: 1.1; }
-.period { color: var(--muted); font-size: 14px; }
-.plan-summary { margin: 16px 0 0; font-size: 16px; line-height: 1.55; }
-.plan-list { display: grid; align-content: start; gap: 10px; margin: 24px 0 0; padding: 20px 0 0; border-top: 1px solid var(--line); list-style: none; font-size: 14px; line-height: 1.5; }
+.amount { padding: 0 .12em; background: var(--highlight); color: #000; font-size: clamp(48px, 5.5vw, 64px); font-weight: 600; letter-spacing: -.05em; line-height: 1.05; }
+.period { color: var(--muted); font-size: 16px; }
+.plan-note { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
+.plan-cta { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 28px; padding: 14px 20px; border-radius: 10px; background: var(--foreground); color: var(--background); font-size: 15px; font-weight: 500; text-decoration: none; transition: background-color 140ms; }
+.plan-cta:hover { background: color-mix(in srgb, var(--foreground), var(--background) 15%); }
+.plan-cta > span, .plan-alt > span { font-size: 17px; font-weight: 400; }
+.plan-alt { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; color: var(--muted); font-size: 13px; text-decoration: none; }
+.plan-alt:hover { color: var(--foreground); }
+.plan-list { display: grid; align-content: start; gap: 12px; margin: 28px 0 0; padding: 28px 0 0; border-top: 1px solid var(--line); list-style: none; font-size: 14px; line-height: 1.5; }
 .plan-list li { display: flex; gap: 10px; }
 .plan-list svg { flex: none; margin-top: 2px; }
-.plan-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 24px; padding-top: 28px; }
-.plan-link { display: inline-flex; align-items: center; gap: 16px; padding: 11px 19px; border: 1px solid var(--foreground); border-radius: 8px; font-size: 14px; font-weight: 500; text-decoration: none; transition: background-color 140ms, color 140ms; }
-.plan-link:hover { background: var(--foreground); color: var(--background); }
-.plan-link > span { font-size: 18px; font-weight: 400; }
 
 .faq-page { display: block; width: 100%; max-width: 1080px; padding-block: 64px 88px; }
 .faq-page h1 { font-size: clamp(40px, 6vw, 64px); letter-spacing: -.045em; line-height: 1.05; }
@@ -180,7 +184,7 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-link, .documentation, .github, .header-link, .plan-link { transition: none; }
+  .app-link, .documentation, .github, .header-link, .plan-cta { transition: none; }
 }
 
 @media (max-width: 1100px) {
@@ -216,7 +220,7 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
   h1 { font-size: clamp(44px, 12vw, 68px); }
   .intro { font-size: 17px; margin-top: 22px; }
   .values { grid-template-columns: minmax(0, 1fr); }
-  .plan { padding: 24px; }
+  .plan { padding: 28px 24px; }
   .shot { border-radius: 8px; }
   .shot-detail { right: -8px; bottom: -48px; width: 52%; border-radius: 6px; }
   .hero-shots { margin-bottom: 56px; }
