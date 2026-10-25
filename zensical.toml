@@ -24,6 +24,7 @@ nav = [
     { "Kontoauszüge importieren" = "anleitungen/kontoauszuege-importieren.md" },
     { "Von Excel umsteigen" = "anleitungen/von-excel-umsteigen.md" },
     { "KI-Assistenten anbinden" = "anleitungen/ki-assistenten.md" },
+    { "Umziehen und Daten mitnehmen" = "anleitungen/umziehen.md" },
   ] },
   { "Selbst hosten" = "selbst-hosten.md" },
 ]
