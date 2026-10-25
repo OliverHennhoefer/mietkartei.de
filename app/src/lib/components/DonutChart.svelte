@@ -8,12 +8,16 @@
 	// the list still shows them.
 
 	type Slice = { key: string; label: string; amount: number };
+	/** `plotted`: the part of the ring, each category clamped at zero before "Sonstige" sums. */
+	type Shown = Slice & { plotted: number };
 	let { slices, label }: { slices: Slice[]; label: string } = $props();
 
 	const shades = 4;
 
-	const shown = $derived.by(() => {
-		const sorted = [...slices].sort((a, b) => b.amount - a.amount);
+	const shown = $derived.by((): Shown[] => {
+		const sorted = [...slices]
+			.sort((a, b) => b.amount - a.amount)
+			.map((slice) => ({ ...slice, plotted: Math.max(0, slice.amount) }));
 		if (sorted.length <= shades) return sorted;
 		const rest = sorted.slice(shades - 1);
 		return [
@@ -21,12 +25,13 @@
 			{
 				key: 'rest',
 				label: `Sonstige (${rest.length})`,
-				amount: rest.reduce((sum, slice) => sum + slice.amount, 0)
+				amount: rest.reduce((sum, slice) => sum + slice.amount, 0),
+				plotted: rest.reduce((sum, slice) => sum + slice.plotted, 0)
 			}
 		];
 	});
 
-	const total = $derived(shown.reduce((sum, slice) => sum + Math.max(0, slice.amount), 0));
+	const total = $derived(shown.reduce((sum, slice) => sum + slice.plotted, 0));
 
 	const size = 160;
 	const radius = 62;
@@ -38,7 +43,7 @@
 	const arcs = $derived.by(() => {
 		let offset = 0;
 		return shown.map((slice, index) => {
-			const length = total > 0 ? (Math.max(0, slice.amount) / total) * circumference : 0;
+			const length = total > 0 ? (slice.plotted / total) * circumference : 0;
 			const arc = {
 				index,
 				dash: `${Math.max(0, length - (shown.length > 1 ? gap : 0))} ${circumference}`,
@@ -50,9 +55,7 @@
 	});
 
 	const lead = $derived(shown[0]);
-	const leadShare = $derived(
-		lead && total > 0 ? Math.round((Math.max(0, lead.amount) / total) * 100) : null
-	);
+	const leadShare = $derived(lead && total > 0 ? Math.round((lead.plotted / total) * 100) : null);
 </script>
 
 <div class="donut">

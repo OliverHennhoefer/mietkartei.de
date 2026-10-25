@@ -38,7 +38,7 @@
 	propertyOptions={data.propertyOptions}
 />
 
-{#if data.units.length === 0}
+{#if data.units.length === 0 && data.properties.length <= 1}
 	<EmptyState
 		title="Noch keine Einheiten"
 		text="Sobald Objekte mit Einheiten angelegt sind, vergleichst du hier ihre Zahlen."
@@ -85,60 +85,63 @@
 		</section>
 	{/if}
 
-	<section aria-labelledby="units">
-		<div class="row between">
-			<h2 id="units">Einheiten</h2>
-			<label class="inline sort">
-				Sortieren nach
-				<select bind:value={unitSort}>
-					{#each Object.entries(unitSorts) as [key, sort] (key)}
-						<option value={key}>{sort.label}</option>
-					{/each}
-				</select>
-			</label>
-		</div>
-		<p class="muted small">
-			Einnahmen zählen für die Haupteinheit des Mietvertrags. Ausgaben nur, wenn sie der Einheit
-			selbst zugeordnet sind; Ausgaben für das ganze Objekt stehen oben beim Objekt.
-		</p>
-		<div class="table-wrap">
-			<table class="table">
-				<thead>
-					<tr>
-						<th>Einheit</th>
-						<th class="number">Fläche</th>
-						<th class="number">Kaltmiete (Soll)</th>
-						<th class="number">Eingang</th>
-						<th class="number">Ausgaben</th>
-						<th class="number">Überschuss</th>
-						<th class="number">pro m²</th>
-						<th class="number">Leerstand</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each sortedUnits as row (row.id)}
+	{#if data.units.length > 0}
+		<section aria-labelledby="units">
+			<div class="row between">
+				<h2 id="units">Einheiten</h2>
+				<label class="inline sort">
+					Sortieren nach
+					<select bind:value={unitSort}>
+						{#each Object.entries(unitSorts) as [key, sort] (key)}
+							<option value={key}>{sort.label}</option>
+						{/each}
+					</select>
+				</label>
+			</div>
+			<p class="muted small">
+				Einnahmen zählen für die Haupteinheit des Mietvertrags. Ausgaben nur, wenn sie der Einheit
+				selbst zugeordnet sind; Ausgaben für das ganze Objekt stehen oben beim Objekt.
+			</p>
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
 						<tr>
-							<td>
-								<a href="/objekte/{row.propertyId}">{row.name}</a>
-								{#if data.propertyOptions.length > 1 && !data.propertyId}
-									<span class="muted small">{row.propertyName}</span>
-								{/if}
-							</td>
-							<td class="number">{row.floorArea ? formatArea(row.floorArea) : '–'}</td>
-							<td class="number"><Money cents={row.baseRent} /></td>
-							<td class="number"><Money cents={row.received} /></td>
-							<td class="number"><Money cents={row.expenses} /></td>
-							<td class="number" class:negative={row.net < 0}><Money cents={row.net} signed /></td>
-							<td class="number">{perSqm(row.rentPerSqm)}</td>
-							<td class="number">
-								{row.vacantDays > 0 ? pluralize(row.vacantDays, 'Tag', 'Tage') : '–'}
-							</td>
+							<th>Einheit</th>
+							<th class="number">Fläche</th>
+							<th class="number">Kaltmiete (Soll)</th>
+							<th class="number">Eingang</th>
+							<th class="number">Ausgaben</th>
+							<th class="number">Überschuss</th>
+							<th class="number">pro m²</th>
+							<th class="number">Leerstand</th>
 						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
-	</section>
+					</thead>
+					<tbody>
+						{#each sortedUnits as row (row.id)}
+							<tr>
+								<td>
+									<a href="/objekte/{row.propertyId}">{row.name}</a>
+									{#if data.propertyOptions.length > 1 && !data.propertyId}
+										<span class="muted small">{row.propertyName}</span>
+									{/if}
+								</td>
+								<td class="number">{row.floorArea ? formatArea(row.floorArea) : '–'}</td>
+								<td class="number"><Money cents={row.baseRent} /></td>
+								<td class="number"><Money cents={row.received} /></td>
+								<td class="number"><Money cents={row.expenses} /></td>
+								<td class="number" class:negative={row.net < 0}><Money cents={row.net} signed /></td
+								>
+								<td class="number">{perSqm(row.rentPerSqm)}</td>
+								<td class="number">
+									{row.vacantDays > 0 ? pluralize(row.vacantDays, 'Tag', 'Tage') : '–'}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</section>
+	{/if}
 {/if}
 
 <style>
