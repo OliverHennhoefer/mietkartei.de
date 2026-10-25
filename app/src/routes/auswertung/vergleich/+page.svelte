@@ -2,6 +2,7 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import Sections from '../Sections.svelte';
 	import { formatArea, pluralize } from '#lib/format.ts';
 	import Filters from '../Filters.svelte';
 	import { percent, perSqm } from '../figures';
@@ -30,6 +31,8 @@
 	title="Objekte im Vergleich"
 	lead="Einnahmen, Ausgaben, Kaltmiete und Leerstand je Objekt und Einheit."
 />
+
+<Sections />
 
 <Filters
 	years={data.years}

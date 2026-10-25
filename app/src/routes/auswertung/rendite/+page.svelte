@@ -4,6 +4,7 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import Sections from '../Sections.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { formatCentsPlain } from '#lib/money.ts';
 	import { percent } from '../figures';
@@ -49,6 +50,8 @@
 	title="Rendite und Cashflow"
 	lead="Was dein Bestand im Verhältnis zum Kaufpreis und zu deinem Eigenkapital abwirft."
 />
+
+<Sections />
 
 <form method="GET" class="toolbar filters">
 	<label class="inline">

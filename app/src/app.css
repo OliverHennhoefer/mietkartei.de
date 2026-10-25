@@ -113,7 +113,7 @@ textarea {
 	transform: none;
 }
 
-/* The quiet, persistent frame around the workspace. */
+/* The bar on a phone: the menu button and the logo. */
 .site-header {
 	position: sticky;
 	top: 0;
@@ -124,32 +124,24 @@ textarea {
 .brand-bar {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
+	gap: 0.75rem;
 	min-height: var(--header-height);
 	padding: 0 1.5rem;
 }
-.authenticated .site-header {
-	display: flex;
-	align-items: center;
-}
-.workspace-bar {
-	flex: 1;
-	min-width: 0;
-	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-	gap: 1rem;
-	padding: 0 1.5rem 0 0;
-}
 
-/* The subscription notice: one quiet line in the top bar, louder only when writes are refused. */
+/* The notes above the page: quiet lines on the Übersicht, louder only when writes are refused. */
+.page-notices {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem 1.5rem;
+	margin: -1rem 0 1.75rem;
+}
 .billing-notice {
 	display: flex;
 	align-items: center;
 	gap: 0.4rem;
 	min-width: 0;
-	/* Left-aligned in the bar; the account button stays on the right. */
-	margin: 0 auto 0 0;
+	margin: 0;
 	color: var(--color-muted);
 	font-size: 0.8rem;
 }
@@ -323,19 +315,7 @@ button.settings-close {
 .nav-backdrop:hover {
 	background: rgb(0 0 0 / 20%);
 }
-.nav-brand {
-	display: none;
-	align-items: center;
-	min-height: 3.5rem;
-	padding: 0 1.5rem;
-	border-bottom: 1px solid var(--color-border);
-}
-.nav-brand img {
-	display: block;
-	width: auto;
-	height: 1.35rem;
-}
-/* Only the groups scroll; the logo and the account stay in place. */
+/* Only the groups scroll; the account stays in place. */
 .nav-groups {
 	flex: 1;
 	min-height: 0;
@@ -418,24 +398,6 @@ button.settings-close {
 	gap: 0.4rem;
 	padding: 0.6rem 0.75rem 0.85rem;
 	border-top: 1px solid var(--color-border);
-}
-.nav-links {
-	display: grid;
-}
-.nav-links a {
-	display: flex;
-	align-items: center;
-	gap: 0.7rem;
-	min-height: 2rem;
-	padding: 0.15rem 0.75rem;
-	border-radius: 10px;
-	color: var(--color-muted);
-	font-size: 0.875rem;
-	text-decoration: none;
-}
-.nav-links a:hover {
-	background: var(--color-hover);
-	color: var(--color-text);
 }
 .nav-version {
 	margin: 0;
@@ -1157,39 +1119,24 @@ dl.details dd {
 }
 
 @media (min-width: 60rem) {
-	/* The sidebar runs the full height; the top bar belongs to the content column only. */
+	/* The sidebar runs the full height beside the content; there is no top bar. */
 	.app-shell.authenticated {
 		display: grid;
 		grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-		grid-template-rows: auto 1fr;
 		min-height: 100svh;
 	}
 	.authenticated .site-layout {
 		display: contents;
 	}
 	.authenticated .site-header {
-		grid-column: 2;
-		grid-row: 1;
-	}
-	.authenticated .brand-bar {
 		display: none;
-	}
-	/* Without a notice the top bar has nothing to show. */
-	.authenticated .site-header:not(:has(.billing-notice)) {
-		display: none;
-	}
-	.workspace-bar {
-		min-height: var(--header-height);
-		padding: 0 2.5rem;
 	}
 	.authenticated .site-main {
 		grid-column: 2;
-		grid-row: 2;
 	}
 	.site-nav,
 	.site-nav.open {
 		grid-column: 1;
-		grid-row: 1 / span 2;
 		position: sticky;
 		top: 0;
 		display: flex;
@@ -1197,9 +1144,6 @@ dl.details dd {
 		height: 100svh;
 		border-right: 1px solid var(--color-border);
 		box-shadow: none;
-	}
-	.nav-brand {
-		display: flex;
 	}
 	button.nav-toggle,
 	.nav-backdrop {

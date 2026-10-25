@@ -66,8 +66,18 @@ test('enters an expense and finds it in the analysis of its property', async ({ 
 	await expect(page).toHaveURL(/jahr=gesamt/);
 	await expect(page.getByRole('heading', { name: 'Verlauf nach Jahren' })).toBeVisible();
 
-	await page.goto(`/auswertung/rendite?objekt=${propertyId}`);
+	// The sidebar links the Auswertung once; its pages are tabs below the heading.
+	await page
+		.getByRole('navigation', { name: 'Auswertung' })
+		.getByRole('link', { name: 'Rendite' })
+		.click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Rendite und Cashflow' })).toBeVisible();
+	await expect(
+		page
+			.getByRole('navigation', { name: 'Hauptnavigation' })
+			.getByRole('link', { name: 'Auswertung' })
+	).toHaveAttribute('aria-current', 'page');
+	await page.goto(`/auswertung/rendite?objekt=${propertyId}`);
 	await page.getByLabel('Anschaffungskosten').fill('300000');
 	await page.getByLabel('Darlehenssumme').fill('240000');
 	await page.getByRole('button', { name: 'Speichern' }).click();
