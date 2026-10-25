@@ -13,7 +13,7 @@ import {
 	testDatabase
 } from '#lib/server/testing.ts';
 import { GET as health } from './health/+server';
-import { load as loadBalances } from './mietkonto/+page.server';
+import { actions as balanceActions, load as loadBalances } from './mietkonto/+page.server';
 import { load as loadLayout } from './+layout.server';
 import { load } from './+page.server';
 
@@ -120,6 +120,30 @@ describe('mietkonto', () => {
 		});
 		expect(await run(loadBalances, { url: '/mietkonto?filter=rueckstaende' })).toMatchObject({
 			data: { onlyArrears: true, rows: [{ leaseId: owing }] }
+		});
+	});
+
+	it('books "Miete ist da": what is owed, at most one month, dated today', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const owing = await seedLease(db, 'a', unitId, { startDate: '2026-02-01' });
+		const received = () => run(balanceActions.received, { form: { leaseId: owing } });
+		const rentReceived = async () =>
+			(
+				(await run(loadBalances, { url: '/mietkonto' })) as {
+					data: { rows: { rentReceived: number | null }[] };
+				}
+			).data.rows[0].rentReceived;
+
+		// Two months owed: each click books one month's rent.
+		expect(await rentReceived()).toBe(80000);
+		expect(await received()).toMatchObject({
+			data: { received: { leaseId: owing, amount: 80000 } }
+		});
+		expect(await received()).toMatchObject({ data: { received: { amount: 80000 } } });
+		expect(await rentReceived()).toBeNull();
+		expect(await received()).toMatchObject({ fail: 400 });
+		expect(await run(balanceActions.received, { form: { leaseId: 'fremd' } })).toMatchObject({
+			fail: 404
 		});
 	});
 });
