@@ -1,5 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import { restoreExport } from '#lib/server/restore.ts';
+import { gunzipText, restoreExport } from '#lib/server/restore.ts';
 import { auditContext, requireOwner } from '#lib/server/session.ts';
 import type { RequestHandler } from './$types';
 
@@ -15,27 +15,6 @@ const messages = {
 	rejected:
 		'Der Export ließ sich nicht einspielen. Liegt das exportierte Konto noch auf dieser Instanz, lösche es dort zuerst oder nutze eine andere Instanz.'
 };
-
-/** The text of a gzip body, refused once it unpacks to more than `limit` bytes. */
-async function gunzipText(
-	body: ReadableStream<Uint8Array<ArrayBuffer>>,
-	limit: number
-): Promise<string> {
-	const reader = body.pipeThrough(new DecompressionStream('gzip')).getReader();
-	const decoder = new TextDecoder();
-	let text = '';
-	let size = 0;
-	for (;;) {
-		const { done, value } = await reader.read();
-		if (done) return text + decoder.decode();
-		size += value.byteLength;
-		if (size > limit) {
-			await reader.cancel();
-			throw new Error('too large');
-		}
-		text += decoder.decode(value, { stream: true });
-	}
-}
 
 /**
  * Restores export.json, sent gzipped by the export page, which reads the ZIP in the browser and

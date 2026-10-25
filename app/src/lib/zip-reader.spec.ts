@@ -1,3 +1,4 @@
+import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { storeDocument } from './server/documents';
 import { documentPath, exportZip } from './server/export';
@@ -60,5 +61,13 @@ describe('readZip', () => {
 		const bytes = new TextEncoder().encode('Kein Archiv, nur Text. '.repeat(20));
 		await readZip(pieces(bytes, 7), async (path) => void files.push(path));
 		expect(files).toEqual([]);
+	});
+
+	it('throws when a file cannot be unpacked', async () => {
+		const zip = zipSync({ 'export.json': strToU8('{"format":"mietkartei"}'.repeat(50)) });
+		// Damage the deflated data after the 30-byte header and the name.
+		const broken = zip.slice();
+		broken.fill(0xff, 41, 60);
+		await expect(readZip(pieces(broken, 16), async () => {})).rejects.toThrow();
 	});
 });

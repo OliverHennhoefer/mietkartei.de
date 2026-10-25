@@ -159,18 +159,25 @@ describe('export', () => {
 		expect(await run(loadExport)).toEqual({ data: { canRestore: false } });
 		expect(await post(gzipped)).toMatchObject({ error: 409 });
 
-		const put = (bytes: Uint8Array<ArrayBuffer>) =>
+		const put = (bytes: Uint8Array<ArrayBuffer>, headers: Record<string, string> = {}) =>
 			run((event: { request: Request }) =>
 				restoreFile({
 					...(event as object),
 					params: { id: documentId },
 					request: new Request(`http://localhost/einstellungen/export/einspielen/${documentId}`, {
 						method: 'PUT',
-						headers: { origin: 'http://localhost' },
+						headers: { origin: 'http://localhost', ...headers },
 						body: bytes
 					})
 				} as never)
 			);
+		expect(
+			await put(new Uint8Array(files[path]), { origin: 'https://fremd.example' })
+		).toMatchObject({ error: 403 });
+		expect(
+			await put(new Uint8Array(files[path]), { 'content-length': String(11 * 1024 * 1024) })
+		).toMatchObject({ error: 413 });
+		expect(await put(new Uint8Array([7]))).toMatchObject({ error: 400 });
 		expect(await put(new Uint8Array(files[path]))).toMatchObject({
 			data: expect.objectContaining({ status: 204 })
 		});

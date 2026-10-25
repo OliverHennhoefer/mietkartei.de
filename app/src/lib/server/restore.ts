@@ -54,17 +54,12 @@ type Row = Record<string, unknown>;
 
 /** The columns of a table that point at a user, by their key in the row. */
 function userColumns(table: SQLiteTable): Set<string> {
-	const keys = new Set<string>();
-	const columns = Object.entries(getTableColumns(table));
-	for (const foreignKey of getTableConfig(table).foreignKeys) {
-		const reference = foreignKey.reference();
-		if (reference.foreignTable !== users) continue;
-		for (const column of reference.columns) {
-			const key = columns.find(([, candidate]) => candidate === column)?.[0];
-			if (key) keys.add(key);
-		}
-	}
-	return keys;
+	return new Set(
+		getTableConfig(table)
+			.foreignKeys.map((foreignKey) => foreignKey.reference())
+			.filter((reference) => reference.foreignTable === users)
+			.flatMap((reference) => reference.columns.map((column) => keyOf(table, column)))
+	);
 }
 
 /**
@@ -99,13 +94,10 @@ function restoredRow(
  * every referenced row before the rows that refer to it; other tables as they are.
  */
 function parentsFirst(table: SQLiteTable, rows: Row[]): Row[] {
-	const columns = Object.entries(getTableColumns(table));
 	const keys = getTableConfig(table)
 		.foreignKeys.map((foreignKey) => foreignKey.reference())
 		.filter((reference) => reference.foreignTable === table)
-		.flatMap((reference) => reference.columns)
-		.map((column) => columns.find(([, candidate]) => candidate === column)?.[0])
-		.filter((key) => key !== undefined);
+		.flatMap((reference) => reference.columns.map((column) => keyOf(table, column)));
 	if (keys.length === 0) return rows;
 	const byId = new Map(rows.map((row) => [row.id, row]));
 	const sorted: Row[] = [];
@@ -136,7 +128,7 @@ function referencesStayInside(restored: Map<SQLiteTable, Row[]>): boolean {
 		for (const foreignKey of getTableConfig(table).foreignKeys) {
 			const reference = foreignKey.reference();
 			if (reference.foreignTable === users || reference.foreignTable === accounts) continue;
-			const parents = restored.get(reference.foreignTable) ?? [];
+			const parents = restored.get(reference.foreignTable)!;
 			for (const [index, column] of reference.columns.entries()) {
 				const key = keyOf(table, column);
 				const parentKey = keyOf(reference.foreignTable, reference.foreignColumns[index]);
@@ -148,7 +140,7 @@ function referencesStayInside(restored: Map<SQLiteTable, Row[]>): boolean {
 			}
 		}
 	}
-	return (restored.get(documents) ?? []).every((row) => UUID.test(String(row.id)));
+	return restored.get(documents)!.every((row) => UUID.test(String(row.id)));
 }
 
 /** The key of a column in the rows of its table. */
@@ -214,7 +206,7 @@ export async function restoreExport(
 			.map((user) => (user as Row).id)
 	);
 	// Managers of the old account do not exist here; what they did stays, without a name.
-	const mapUser = (id: unknown) => (id !== null && owners.has(id) ? context.userId : null);
+	const mapUser = (id: unknown) => (owners.has(id) ? context.userId : null);
 
 	const statements = [];
 	// Children first, so no delete is refused by a reference.
@@ -240,7 +232,7 @@ export async function restoreExport(
 		restored.set(table, parentsFirst(table, rows));
 	}
 	if (!referencesStayInside(restored)) return { ok: false, reason: 'invalid' };
-	const restoredDocuments = restored.get(documents) ?? [];
+	const restoredDocuments = restored.get(documents)!;
 	const documentBytes = restoredDocuments.reduce((total, row) => total + Number(row.size), 0);
 	if (
 		restoredDocuments.length > MAX_ACCOUNT_DOCUMENTS ||
@@ -266,6 +258,27 @@ export async function restoreExport(
 		return { ok: false, reason: 'rejected' };
 	}
 	return { ok: true, rows: restoredRows, documents: restoredDocuments.length };
+}
+
+/** The text of a gzip body (export.json as the page sends it), refused beyond `limit` bytes. */
+export async function gunzipText(
+	body: ReadableStream<Uint8Array<ArrayBuffer>>,
+	limit: number
+): Promise<string> {
+	const reader = body.pipeThrough(new DecompressionStream('gzip')).getReader();
+	const decoder = new TextDecoder();
+	let text = '';
+	let size = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) return text + decoder.decode();
+		size += value.byteLength;
+		if (size > limit) {
+			await reader.cancel();
+			throw new Error('export.json too large');
+		}
+		text += decoder.decode(value, { stream: true });
+	}
 }
 
 export type DocumentRestoreError = 'unknown' | 'size' | 'exists';

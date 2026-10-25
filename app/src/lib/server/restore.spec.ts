@@ -6,7 +6,7 @@ import { createDemoData } from './demo';
 import { storeDocument } from './documents';
 import { exportJson, type ExportData } from './export';
 import { ensureCharges } from './ledger';
-import { canRestore, restoreDocument, restoredTables, restoreExport } from './restore';
+import { canRestore, gunzipText, restoreDocument, restoredTables, restoreExport } from './restore';
 import { storageKey } from './storage';
 import { contextA, contextB, memoryStorage, seedUnit, testDatabase } from './testing';
 
@@ -131,6 +131,28 @@ describe('restoreExport', () => {
 		);
 	});
 
+	it('restores an export that lacks tables or columns, as an older one may', async () => {
+		await seedSource();
+		const exported = await collect(source, 'a');
+		delete (exported.tables as Record<string, unknown>).tasks;
+		delete (exported.tables as Record<string, unknown>).users;
+		for (const row of exported.tables.properties) delete row.notes;
+		delete exported.tables.accounts[0].landlordName;
+		expect(await restoreExport(target, contextA, exported)).toMatchObject({ ok: true });
+		const again = await collect(target, 'a');
+		expect(again.tables.properties).toHaveLength(exported.tables.properties.length);
+		expect(again.tables.tasks).toEqual([]);
+		// Without the old users, nothing is the owner's.
+		expect(again.tables.audit_log.filter((row) => row.userId === 'user-a')).toHaveLength(1);
+
+		const minimal = { format: 'mietkartei', version: 1, tables: { accounts: [{}] } };
+		expect(await restoreExport(target, contextB, minimal)).toEqual({
+			ok: true,
+			rows: 0,
+			documents: 0
+		});
+	});
+
 	it('refuses an account with properties or documents', async () => {
 		await seedSource();
 		const exported = await collect(source, 'a');
@@ -148,7 +170,10 @@ describe('restoreExport', () => {
 			[],
 			{ format: 'other', version: 1, tables: {} },
 			{ format: 'mietkartei', version: 2, tables: { accounts: [{}] } },
-			{ format: 'mietkartei', version: 1, tables: { accounts: [] } }
+			{ format: 'mietkartei', version: 1, tables: { accounts: [] } },
+			{ format: 'mietkartei', version: 1, tables: 'keine' },
+			{ format: 'mietkartei', version: 1, tables: { accounts: [{}], units: 'keine' } },
+			{ format: 'mietkartei', version: 1, tables: { accounts: [{}], units: [1] } }
 		]) {
 			expect(await restoreExport(target, contextA, data)).toEqual({ ok: false, reason: 'invalid' });
 		}
@@ -220,5 +245,15 @@ describe('restoreDocument', () => {
 		});
 		const [row] = await target.select().from(documents);
 		expect(row.storageKey).toBe(storageKey('b', documentId));
+	});
+});
+
+describe('gunzipText', () => {
+	const gzipped = (text: string) =>
+		new Blob([new TextEncoder().encode(text)]).stream().pipeThrough(new CompressionStream('gzip'));
+
+	it('unpacks the text, and refuses more than the limit', async () => {
+		expect(await gunzipText(gzipped('{"a":1}'), 100)).toBe('{"a":1}');
+		await expect(gunzipText(gzipped('x'.repeat(1000)), 100)).rejects.toThrow('too large');
 	});
 });
