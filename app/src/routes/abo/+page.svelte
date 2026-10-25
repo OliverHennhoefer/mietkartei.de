@@ -65,8 +65,7 @@
 			{#if data.state !== 'free' && data.price}
 				<dt>Preis</dt>
 				<dd>
-					<mark class="highlight">{data.price}</mark>{#if data.founder}
-						&nbsp;als Gründerpreis statt {data.founder.regularPrice}{/if}, jederzeit kündbar
+					<mark class="highlight">{data.price}</mark>, jederzeit kündbar
 				</dd>
 			{/if}
 			{#if data.yearlyPrice}
@@ -140,13 +139,6 @@
 				{/if}
 			{/if}
 		</div>
-		{#if data.founder}
-			<p class="muted small founder">
-				Der Gründerpreis gilt für das Monatsabo und bleibt dauerhaft, auch wenn du später neu
-				abschließt.{#if data.founder.spotsLeft !== null}
-					Noch {data.founder.spotsLeft} Plätze frei.{/if}
-			</p>
-		{/if}
 		<p class="muted small">
 			Die Zahlung läuft über Stripe; mietkartei speichert keine Zahlungsdaten.
 		</p>
@@ -171,8 +163,5 @@
 	}
 	.subscription .small {
 		margin: 0;
-	}
-	.subscription .founder {
-		margin-bottom: 0.5rem;
 	}
 </style>

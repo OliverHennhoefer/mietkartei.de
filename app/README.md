@@ -34,14 +34,13 @@ Die gehostete Variante auf app.mietkartei.de kostet ein Abo, monatlich oder jäh
 
 Eingeschaltet wird das Abo mit diesen Variablen; ohne `STRIPE_SECRET_KEY` und `STRIPE_PRICE_ID` gibt es kein Abo, und eine selbst gehostete Installation sieht davon nichts:
 
-| Variable                  | Bedeutung                                                                                                                                                                                                                            |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `STRIPE_SECRET_KEY`       | API-Schlüssel von Stripe (`sk_test_…` oder ein eingeschränkter Schlüssel `rk_test_…`), geheim                                                                                                                                        |
-| `STRIPE_PRICE_ID`         | der monatliche Preis in Stripe (`price_…`)                                                                                                                                                                                           |
-| `STRIPE_YEARLY_PRICE_ID`  | der jährliche Preis in Stripe (`price_…`), optional. Ohne ihn gibt es nur das Monatsabo.                                                                                                                                             |
-| `STRIPE_FOUNDER_PRICE_ID` | der monatliche Gründerpreis in Stripe (`price_…`), optional. Die ersten `FOUNDER_SPOTS` Konten (ohne Angabe 100) bekommen ihn statt `STRIPE_PRICE_ID` und behalten ihn.                                                              |
-| `STRIPE_WEBHOOK_SECRET`   | Signaturschlüssel des Webhooks `/api/webhooks/stripe` (`whsec_…`), geheim. Ohne ihn lehnt die Anwendung jede Lieferung ab.                                                                                                           |
-| `BILLING_REQUIRED`        | `true`: Nach der Testphase kann ein Konto ohne laufendes Abo nur noch lesen und exportieren. Das Konto löschen, sich abmelden und Name, E-Mail-Adresse oder Passwort ändern geht weiterhin. Ohne Angabe bleibt es bei einem Hinweis. |
+| Variable                 | Bedeutung                                                                                                                                                                                                                            |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `STRIPE_SECRET_KEY`      | API-Schlüssel von Stripe (`sk_test_…` oder ein eingeschränkter Schlüssel `rk_test_…`), geheim                                                                                                                                        |
+| `STRIPE_PRICE_ID`        | der monatliche Preis in Stripe (`price_…`)                                                                                                                                                                                           |
+| `STRIPE_YEARLY_PRICE_ID` | der jährliche Preis in Stripe (`price_…`), optional. Ohne ihn gibt es nur das Monatsabo.                                                                                                                                             |
+| `STRIPE_WEBHOOK_SECRET`  | Signaturschlüssel des Webhooks `/api/webhooks/stripe` (`whsec_…`), geheim. Ohne ihn lehnt die Anwendung jede Lieferung ab.                                                                                                           |
+| `BILLING_REQUIRED`       | `true`: Nach der Testphase kann ein Konto ohne laufendes Abo nur noch lesen und exportieren. Das Konto löschen, sich abmelden und Name, E-Mail-Adresse oder Passwort ändern geht weiterhin. Ohne Angabe bleibt es bei einem Hinweis. |
 
 Was in Stripe einzurichten ist und welche Secrets der Worker braucht, steht in [.github/DEPLOYMENT.md](../.github/DEPLOYMENT.md#subscription-stripe).
 

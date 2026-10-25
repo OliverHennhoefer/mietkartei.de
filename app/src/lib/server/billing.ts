@@ -1,10 +1,8 @@
 import { error, type RequestEvent } from '@sveltejs/kit';
-import { and, count, eq, isNull, lt } from 'drizzle-orm';
+import { and, eq, isNull, lt } from 'drizzle-orm';
 import {
 	BILLING_REQUIRED,
-	FOUNDER_SPOTS,
 	FREE_ACCOUNT_EMAILS,
-	STRIPE_FOUNDER_PRICE_ID,
 	STRIPE_PRICE_ID,
 	STRIPE_SECRET_KEY,
 	STRIPE_YEARLY_PRICE_ID
@@ -28,29 +26,9 @@ export function billingEnabled(): boolean {
 
 export type Plan = 'monthly' | 'yearly';
 
-/** How many accounts have taken the founder price; 0 when there is none. */
-export async function foundersTaken(db: Database): Promise<number> {
-	if (!STRIPE_FOUNDER_PRICE_ID) return 0;
-	const [row] = await db
-		.select({ taken: count() })
-		.from(accounts)
-		.where(eq(accounts.founder, true));
-	return row.taken;
-}
-
-/**
- * Whether the account gets the founder price for the monthly plan: it had it before, or one of
- * the FOUNDER_SPOTS is still free. Two Checkouts at the same moment may both take the last spot.
- */
-export function foundersOffer(founder: boolean, taken: number): boolean {
-	if (!STRIPE_FOUNDER_PRICE_ID) return false;
-	return founder || taken < FOUNDER_SPOTS;
-}
-
 /** The Stripe price of a plan; undefined for a yearly plan the instance does not offer. */
-export function priceFor(plan: Plan, founder: boolean): string | undefined {
-	if (plan === 'yearly') return STRIPE_YEARLY_PRICE_ID || undefined;
-	return founder ? STRIPE_FOUNDER_PRICE_ID : STRIPE_PRICE_ID;
+export function priceFor(plan: Plan): string | undefined {
+	return plan === 'yearly' ? STRIPE_YEARLY_PRICE_ID || undefined : STRIPE_PRICE_ID;
 }
 
 const TRIAL_DAYS = 30;
@@ -225,7 +203,6 @@ export async function getBillingAccount(db: Database, accountId: string) {
 			stripeSubscriptionId: accounts.stripeSubscriptionId,
 			stripeCheckoutSessionId: accounts.stripeCheckoutSessionId,
 			stripePriceId: accounts.stripePriceId,
-			founder: accounts.founder,
 			createdAt: accounts.createdAt,
 			ownerEmail: users.email
 		})
@@ -462,10 +439,7 @@ export async function applySubscriptionUpdate(
 				stripeSubscriptionId: update.subscriptionId,
 				subscriptionStatus: status,
 				currentPeriodEnd: update.currentPeriodEnd,
-				...(update.priceId ? { stripePriceId: update.priceId } : {}),
-				...(STRIPE_FOUNDER_PRICE_ID && update.priceId === STRIPE_FOUNDER_PRICE_ID
-					? { founder: true }
-					: {})
+				...(update.priceId ? { stripePriceId: update.priceId } : {})
 			})
 			.where(eq(accounts.id, account.id)),
 		auditEntry(

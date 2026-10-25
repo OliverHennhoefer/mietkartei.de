@@ -10,8 +10,6 @@ const env = vi.hoisted(() => ({
 	STRIPE_SECRET_KEY: 'sk_test_unit',
 	STRIPE_PRICE_ID: 'price_unit',
 	STRIPE_YEARLY_PRICE_ID: '',
-	STRIPE_FOUNDER_PRICE_ID: '',
-	FOUNDER_SPOTS: 100,
 	TRIAL_FINGERPRINT_KEY: 'unit-key'
 }));
 vi.mock('$app/env/private', () => env);

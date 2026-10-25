@@ -30,8 +30,6 @@ vi.mock('$app/env/private', () => ({
 	STRIPE_SECRET_KEY: 'sk_test_unit',
 	STRIPE_PRICE_ID: 'price_unit',
 	STRIPE_YEARLY_PRICE_ID: '',
-	STRIPE_FOUNDER_PRICE_ID: '',
-	FOUNDER_SPOTS: 100,
 	STRIPE_WEBHOOK_SECRET: 'whsec_unit',
 	STRIPE_API_BASE: 'http://stripe.test',
 	BILLING_REQUIRED: true,
