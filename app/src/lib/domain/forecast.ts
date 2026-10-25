@@ -104,18 +104,20 @@ export type Forecast = {
 /** § 558 Abs. 3 BGB: at most 20 % in three years; some Länder set 15 % for some cities. */
 export const cappingLimit = 0.2;
 
-const byValidFrom = (a: HistoryChange, b: HistoryChange) =>
-	a.validFrom < b.validFrom ? -1 : a.validFrom > b.validFrom ? 1 : 0;
+const byValidFrom = (a: HistoryChange, b: HistoryChange) => a.validFrom.localeCompare(b.validFrom);
 
 function forecastMonths(today: IsoDate): IsoMonth[] {
 	const first = addMonthsToMonth(monthOf(today), 1);
 	return monthsInRange(first, addMonthsToMonth(first, 11));
 }
 
-/** The first day after the latest approved change of the base rent, the lease start included. */
-function lastBaseChange(changes: readonly HistoryChange[], today: IsoDate): IsoDate | undefined {
+/**
+ * The day of the latest approved change of the base rent up to today, the lease start included;
+ * only called for a lease with a rent today, so there is one.
+ */
+function lastBaseChange(changes: readonly HistoryChange[], today: IsoDate): IsoDate {
 	let previous: number | undefined;
-	let last: IsoDate | undefined;
+	let last = '';
 	const approved = changes
 		.filter((change) => change.status === 'approved' && change.validFrom <= today)
 		.sort(byValidFrom);
@@ -163,7 +165,6 @@ function rentIncrease(
 	// § 558: a year after the last change the landlord may ask, and the new rent applies from the
 	// third month after; it may not rise by more than the Kappungsgrenze in three years.
 	const last = lastBaseChange(lease.changes, today);
-	if (!last) return undefined;
 	const earliest = firstOfMonth(addMonthsToMonth(monthOf(addMonths(last, 12)), 3));
 	const nextMonth = firstOfMonth(addMonthsToMonth(monthOf(today), 3));
 	const from = earliest > nextMonth ? earliest : nextMonth;
@@ -171,7 +172,6 @@ function rentIncrease(
 	const threeYearsBefore =
 		rentOn(lease.changes, addMonths(from, -36)) ??
 		lease.changes.filter((change) => change.status === 'approved').sort(byValidFrom)[0];
-	if (!threeYearsBefore) return undefined;
 	const increase = Math.round(threeYearsBefore.baseRent * (1 + cappingLimit)) - current.baseRent;
 	return increase > 0 ? { ...base, kind: 'comparative', from, increase } : undefined;
 }
@@ -195,7 +195,7 @@ export function forecast(input: ForecastInput, options: { propertyId: string | n
 	const increases = leases
 		.filter((lease) => !lease.endDate || lease.endDate > today)
 		.flatMap((lease) => rentIncrease(lease, input.indexValues, today) ?? [])
-		.sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+		.sort((a, b) => a.from.localeCompare(b.from));
 	const indexed = increases.filter((increase) => increase.kind === 'indexed');
 
 	const forecastMonthsRows = months.map((month) => {
@@ -219,7 +219,7 @@ export function forecast(input: ForecastInput, options: { propertyId: string | n
 	const settlements: SettlementEstimate[] = [];
 	for (const lease of leases) {
 		const statement = latest.get(lease.id);
-		if (!statement || statement.days <= 0) continue;
+		if (!statement) continue;
 		if (lease.endDate && lease.endDate <= today) continue;
 		const current = rentOn(lease.changes, today);
 		if (!current) continue;

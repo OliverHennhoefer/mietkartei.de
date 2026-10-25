@@ -170,6 +170,68 @@ describe('forecast', () => {
 		expect(estimate).toMatchObject({ currentPrepayment: 150_00, yearlyPrepayments: 1800_00 });
 	});
 
+	it('leaves out what does not apply: a pending index change, a business lease, ended and coming leases', () => {
+		const data = input();
+		const index = data.leases.find((row) => row.id === 'index')!;
+		const result = forecast(
+			{
+				...data,
+				leases: [
+					{
+						...index,
+						changes: [
+							...index.changes,
+							change('2026-05-01', 990_00, { status: 'proposed', reason: 'indexed' })
+						]
+					},
+					lease('laden', { kind: 'commercial' }),
+					lease('alt', { endDate: '2026-01-31' }),
+					lease('neu', { startDate: '2026-06-01', changes: [change('2026-06-01', 700_00)] }),
+					lease('staffel', {
+						rentModel: 'graduated',
+						changes: [change('2023-01-01', 800_00)]
+					})
+				],
+				statements: [
+					{ leaseId: 'alt', periodEnd: '2025-12-31', costs: 2400_00, days: 365, balance: 0 },
+					{ leaseId: 'neu', periodEnd: '2025-12-31', costs: 2400_00, days: 365, balance: 0 }
+				]
+			},
+			{ propertyId: null }
+		);
+		expect(result.increases).toEqual([]);
+		expect(result.settlements).toEqual([]);
+		// The coming lease pays from June.
+		expect(result.months[2].rent).toBe(
+			900_00 + 200_00 + 1000_00 + 200_00 + 800_00 + 200_00 + 900_00
+		);
+	});
+
+	it('waits for the year after the last index change', () => {
+		const data = input();
+		const index = data.leases.find((row) => row.id === 'index')!;
+		const { increases } = forecast(
+			{
+				...data,
+				leases: [
+					{
+						...index,
+						changes: [
+							...index.changes,
+							change('2025-09-15', 950_00, {
+								reason: 'indexed',
+								indexMonth: '2023-10',
+								indexValue: 100
+							})
+						]
+					}
+				]
+			},
+			{ propertyId: null }
+		);
+		expect(increases[0]).toMatchObject({ kind: 'indexed', from: '2026-09-15' });
+	});
+
 	it('keeps to one property', () => {
 		const result = forecast(input(), { propertyId: 'hof' });
 		expect(result).toMatchObject({ monthlyCosts: 0, increases: [], settlements: [] });
