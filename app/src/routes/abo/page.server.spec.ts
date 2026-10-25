@@ -422,6 +422,27 @@ describe('plans', () => {
 		});
 	});
 
+	it('shows the price of the running subscription and offers no other plan', async () => {
+		await db
+			.update(accounts)
+			.set({
+				stripeSubscriptionId: 'sub_1',
+				subscriptionStatus: 'active',
+				stripePriceId: 'price_year',
+				currentPeriodEnd: new Date('2027-10-01T00:00:00Z')
+			})
+			.where(eq(accounts.id, 'a'));
+		answers['GET /v1/prices/price_year'] = () => ({
+			body: { id: 'price_year', unit_amount: 7200, recurring: { interval: 'year' } }
+		});
+		const result = await outcome(() =>
+			load(routeEvent(db, { url: 'https://app.mietkartei.de/abo', user: ownerA }))
+		);
+		expect(result).toMatchObject({
+			data: { price: expect.stringMatching(/^72,00\s€ pro Jahr$/), yearlyPrice: null }
+		});
+	});
+
 	it('reads the period from the plan when Stripe gives none, and words it when Stripe fails', async () => {
 		answers['GET /v1/prices/price_unit'] = () => ({ status: 500, body: {} });
 		answers['GET /v1/prices/price_year'] = () => ({
