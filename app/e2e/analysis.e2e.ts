@@ -80,4 +80,10 @@ test('enters an expense and finds it in the analysis of its property', async ({ 
 	await expect(
 		page.getByRole('heading', { level: 1, name: 'Nebenkosten-Vergleich' })
 	).toBeVisible();
+
+	await page.goto(`/auswertung/prognose?objekt=${propertyId}`);
+	await expect(page.getByRole('heading', { level: 1, name: 'Prognose' })).toBeVisible();
+	await expect(
+		page.getByRole('img', { name: 'Erwartete Einnahmen und Ausgaben je Monat' })
+	).toBeVisible();
 });
