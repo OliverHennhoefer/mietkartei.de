@@ -60,6 +60,14 @@ export const accounts = sqliteTable(
 			.notNull()
 			.default('none'),
 		currentPeriodEnd: integer('current_period_end', { mode: 'timestamp_ms' }),
+		/** The Stripe price of the subscription, kept after it ends. */
+		stripePriceId: text('stripe_price_id'),
+		/**
+		 * Set once a subscription with the founder price starts and never cleared: the account
+		 * gets the founder price for the monthly plan for good, whatever it subscribes later, and
+		 * its spot stays taken.
+		 */
+		founder: bool('founder', false),
 		/**
 		 * The Checkout session last opened for the account, until its webhook arrives. Another
 		 * Checkout reuses it while it is open, so two sessions cannot both start a subscription.
@@ -604,6 +612,45 @@ export const bankAccounts = sqliteTable(
 		createdAt: createdAt()
 	},
 	(table) => [uniqueIndex('bank_accounts_iban_unique').on(table.accountId, table.iban)]
+);
+
+/**
+ * Bankabruf: the access to a bank account through Enable Banking. Pending while the landlord
+ * authorizes it at the bank (only `state` is set), then with the session and the account at the
+ * bank until `validUntil`, when the bank wants a new authorization.
+ */
+export const bankConnections = sqliteTable(
+	'bank_connections',
+	{
+		id: id(),
+		accountId: accountId(),
+		bankAccountId: text('bank_account_id')
+			.notNull()
+			.references(() => bankAccounts.id, { onDelete: 'cascade' }),
+		/** The bank as Enable Banking names it. */
+		aspspName: text('aspsp_name').notNull(),
+		aspspCountry: text('aspsp_country').notNull(),
+		/** The random value the bank's redirect brings back; null once authorized. */
+		state: text('state'),
+		sessionId: text('session_id'),
+		/** The account's id within the session. */
+		accountUid: text('account_uid'),
+		validUntil: integer('valid_until', { mode: 'timestamp_ms' }),
+		/** When a fetch last started; claims the fetch so two page loads do not both fetch. */
+		lastAttemptAt: integer('last_attempt_at', { mode: 'timestamp_ms' }),
+		/** When a fetch last worked; the next one starts from here. */
+		lastSyncedAt: integer('last_synced_at', { mode: 'timestamp_ms' }),
+		/** Why the last fetch failed; null after one that worked. */
+		lastError: text('last_error'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		uniqueIndex('bank_connections_bank_account_unique').on(table.bankAccountId),
+		uniqueIndex('bank_connections_state_unique')
+			.on(table.state)
+			.where(sql`${table.state} is not null`),
+		index('bank_connections_account_id_idx').on(table.accountId)
+	]
 );
 
 export const bankImports = sqliteTable(

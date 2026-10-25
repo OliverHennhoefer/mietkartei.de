@@ -5,6 +5,8 @@ import { parseExpenseAssignment } from '#lib/forms/expenses.ts';
 import type { FieldErrors } from '#lib/forms/fields.ts';
 import { listBankAccounts } from '#lib/server/bank/accounts.ts';
 import { listRules } from '#lib/server/bank/rules.ts';
+import { syncDue } from '#lib/server/bank/sync.ts';
+import { apiReadOnly } from '#lib/server/billing.ts';
 import {
 	assignExpense,
 	assignTransaction,
@@ -50,6 +52,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const transactionId = url.searchParams.get('umsatz') || null;
 	const status = transactionId ? 'all' : statusOf(url.searchParams.get('status'));
 	const bankAccountId = transactionId ? null : url.searchParams.get('konto') || null;
+	// The Bankabruf fetches what is new before the list is read, at most every six hours.
+	if (!(await apiReadOnly(locals.db, accountId))) await syncDue(locals.db, auditContext(locals));
 
 	const [bankAccounts, listed, openCount, leases, rules, byIban, scopes, presets] =
 		await Promise.all([

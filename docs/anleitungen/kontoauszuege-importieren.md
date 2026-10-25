@@ -45,6 +45,14 @@ Passt der Vorschlag, klickst du **Zuordnen**. Ordnest du einen Umsatz als Miete 
 
 Unter **Bank → Regeln** legst du fest, dass ein Umsatz, dessen Text etwas Bestimmtes enthält, zu einem Mietvertrag gehört, etwa „Miete Gartenweg 3 links“. Bestätigte Regeln ordnen eingehende Zahlungen beim nächsten Import automatisch zu, unbestätigte machen nur einen Vorschlag. Ausgaben ordnet mietkartei nie automatisch zu.
 
+## Bankabruf statt Datei
+
+Wo der Bankabruf eingerichtet ist, musst du keine Kontoauszüge mehr herunterladen. Unter **Bank → Konten** klickst du beim Konto auf **Einrichten**, wählst deine Bank und gibst den Zugriff dort frei, mit derselben Anmeldung und TAN wie im Online-Banking. Den Abruf übernimmt der lizenzierte Kontoinformationsdienst [Enable Banking](https://enablebanking.com). mietkartei liest nur die gebuchten Umsätze, Überweisungen sind damit nicht möglich.
+
+Danach holt mietkartei neue Umsätze, sobald du **Bank → Umsätze** öffnest, höchstens alle sechs Stunden. Mit **Jetzt abrufen** geht es sofort. Beim ersten Abruf kommen die letzten 90 Tage. Die Umsätze durchlaufen denselben Import wie eine Datei: Duplikate werden übersprungen, und bestätigte Regeln ordnen gleich zu. Die Freigabe gilt je nach Bank 90 bis 180 Tage, danach erneuerst du sie mit **Erneuern**. **Beenden** widerruft den Zugriff, die abgerufenen Umsätze bleiben.
+
+Wer mietkartei selbst betreibt, braucht dafür eine eigene Anwendung bei Enable Banking, siehe [Selbst hosten](../selbst-hosten.md).
+
 ## Weiter
 
 Was die gebuchten Zahlungen im Mietkonto bewirken und wie die Vorauszahlungen in die Abrechnung kommen, steht unter [Nebenkostenabrechnung erstellen](nebenkostenabrechnung.md).

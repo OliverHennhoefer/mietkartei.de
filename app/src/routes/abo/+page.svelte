@@ -62,9 +62,16 @@
 				<dt>Beendet am</dt>
 				<dd>{formatDate(data.currentPeriodEnd)}</dd>
 			{/if}
-			{#if data.state !== 'free'}
+			{#if data.state !== 'free' && data.price}
 				<dt>Preis</dt>
-				<dd><mark class="highlight">{data.price}</mark>, jederzeit kündbar</dd>
+				<dd>
+					<mark class="highlight">{data.price}</mark>{#if data.founder}
+						&nbsp;als Gründerpreis statt {data.founder.regularPrice}{/if}, jederzeit kündbar
+				</dd>
+			{/if}
+			{#if data.yearlyPrice}
+				<dt>Jahresabo</dt>
+				<dd>{data.yearlyPrice}, kündbar zum Ende des Jahres</dd>
 			{/if}
 		</dl>
 
@@ -77,7 +84,7 @@
 		{:else if data.state === 'active'}
 			<p>Dein Abo ist aktiv. Zahlungsart, Rechnungen und Kündigung verwaltest du bei Stripe.</p>
 		{:else if data.state === 'trialing' && data.status === 'trialing'}
-			<p>Dein Abo läuft in der Testphase und wird danach monatlich abgerechnet.</p>
+			<p>Dein Abo läuft in der Testphase und wird danach abgerechnet.</p>
 		{:else if data.state === 'trialing'}
 			<p>
 				Du kannst mietkartei bis zum {formatDate(data.trialEnd)} kostenlos testen. Schließt du das Abo
@@ -115,8 +122,17 @@
 				</form>
 			{:else}
 				<form method="POST" action="?/checkout" use:enhance>
-					<button type="submit" class="highlight">Abo abschließen</button>
+					<input type="hidden" name="plan" value="monthly" />
+					<button type="submit" class="highlight">
+						{data.yearlyPrice ? 'Monatlich abschließen' : 'Abo abschließen'}
+					</button>
 				</form>
+				{#if data.yearlyPrice}
+					<form method="POST" action="?/checkout" use:enhance>
+						<input type="hidden" name="plan" value="yearly" />
+						<button type="submit" class="secondary">Jährlich abschließen</button>
+					</form>
+				{/if}
 				{#if data.hasSubscription}
 					<form method="POST" action="?/portal" use:enhance>
 						<button type="submit" class="secondary">Rechnungen bei Stripe</button>
@@ -124,6 +140,13 @@
 				{/if}
 			{/if}
 		</div>
+		{#if data.founder}
+			<p class="muted small founder">
+				Der Gründerpreis gilt für das Monatsabo und bleibt dauerhaft, auch wenn du später neu
+				abschließt.{#if data.founder.spotsLeft !== null}
+					Noch {data.founder.spotsLeft} Plätze frei.{/if}
+			</p>
+		{/if}
 		<p class="muted small">
 			Die Zahlung läuft über Stripe; mietkartei speichert keine Zahlungsdaten.
 		</p>
@@ -148,5 +171,8 @@
 	}
 	.subscription .small {
 		margin: 0;
+	}
+	.subscription .founder {
+		margin-bottom: 0.5rem;
 	}
 </style>

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "703ad70a-33c0-4fde-a794-51368d624c9c",
+  "id": "9dda8b2b-6eb5-401d-93fc-fe585ef546de",
   "prevId": "c33f476f-b6c6-4588-88cb-ecfb3e4d6f54",
   "tables": {
     "accounts": {
@@ -106,6 +106,21 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "stripe_price_id": {
+          "name": "stripe_price_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "founder": {
+          "name": "founder",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "stripe_checkout_session_id": {
           "name": "stripe_checkout_session_id",
@@ -1837,13 +1852,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "lease_id": {
-          "name": "lease_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "amount": {
           "name": "amount",
           "type": "integer",
@@ -1853,13 +1861,6 @@
         }
       },
       "indexes": {
-        "cost_item_unit_amounts_cost_item_id_idx": {
-          "name": "cost_item_unit_amounts_cost_item_id_idx",
-          "columns": [
-            "cost_item_id"
-          ],
-          "isUnique": false
-        },
         "cost_item_unit_amounts_account_id_idx": {
           "name": "cost_item_unit_amounts_account_id_idx",
           "columns": [
@@ -1907,22 +1908,17 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        },
-        "cost_item_unit_amounts_lease_id_leases_id_fk": {
-          "name": "cost_item_unit_amounts_lease_id_leases_id_fk",
-          "tableFrom": "cost_item_unit_amounts",
-          "tableTo": "leases",
-          "columnsFrom": [
-            "lease_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "cost_item_unit_amounts_cost_item_id_unit_id_pk": {
+          "columns": [
+            "cost_item_id",
+            "unit_id"
+          ],
+          "name": "cost_item_unit_amounts_cost_item_id_unit_id_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
