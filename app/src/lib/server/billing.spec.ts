@@ -162,10 +162,10 @@ describe('refusesWrite', () => {
 	it('lets read-only accounts delete the account and secure their sign-in', () => {
 		expect(refusesWrite('expired', 'POST', '/einstellungen/konto', true, 'delete')).toBe(false);
 		expect(refusesWrite('canceled', 'POST', '/einstellungen/profil', true, 'password')).toBe(false);
-		expect(refusesWrite('expired', 'POST', '/einstellungen/api-schluessel', true, 'revoke')).toBe(
+		expect(refusesWrite('expired', 'POST', '/einstellungen/ki-assistenten', true, 'revoke')).toBe(
 			false
 		);
-		expect(refusesWrite('expired', 'POST', '/einstellungen/api-schluessel', true, 'create')).toBe(
+		expect(refusesWrite('expired', 'POST', '/einstellungen/ki-assistenten', true, 'create')).toBe(
 			true
 		);
 		expect(refusesWrite('canceled', 'POST', '/einstellungen/profil/', true, 'profile')).toBe(false);

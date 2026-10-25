@@ -70,6 +70,10 @@
 				</li>
 			{/each}
 		</ol>
+		<p class="muted ai-hint">
+			Tipp: Verbinde <a href="/einstellungen/ki-assistenten">Claude oder ChatGPT</a> mit mietkartei und
+			frag dann einfach nach Rückständen, Fristen oder Abrechnungen.
+		</p>
 	</section>
 {:else}
 	<ul class="tiles" aria-label="Kennzahlen">
@@ -148,6 +152,9 @@
 	}
 	.steps .done a {
 		text-decoration: line-through;
+	}
+	.ai-hint {
+		margin: 1rem 0 0;
 	}
 	.tiles {
 		list-style: none;

@@ -9,7 +9,7 @@ describe('settingsSections', () => {
 		expect(hrefs('owner', false)).toContain('/einstellungen/zugaenge');
 		expect(hrefs('manager', false)).not.toContain('/einstellungen/zugaenge');
 		expect(hrefs('manager', false)).not.toContain('/einstellungen/export');
-		expect(hrefs('manager', false)).toContain('/einstellungen/api-schluessel');
+		expect(hrefs('manager', false)).toContain('/einstellungen/ki-assistenten');
 	});
 
 	it('leaves the import out for viewers', () => {
