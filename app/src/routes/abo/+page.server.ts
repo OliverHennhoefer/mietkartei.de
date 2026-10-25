@@ -123,7 +123,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const now = new Date();
 	const runs = subscriptionRuns(account);
 	const taken = await foundersTaken(locals.db);
-	const founder = foundersOffer(account.stripePriceId, taken);
+	const founder = foundersOffer(account.founder, taken);
 	// While a subscription runs, its own price; otherwise what a new one would cost.
 	const current =
 		runs && account.stripePriceId ? account.stripePriceId : priceFor('monthly', founder);
@@ -145,7 +145,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			offer && founder
 				? {
 						regularPrice: await priceText(STRIPE_PRICE_ID),
-						spotsLeft: account.stripePriceId === null ? Math.max(0, FOUNDER_SPOTS - taken) : null
+						spotsLeft: account.founder ? null : Math.max(0, FOUNDER_SPOTS - taken)
 					}
 				: null,
 		success: url.searchParams.get('erfolg') === '1'
@@ -170,10 +170,7 @@ export const actions: Actions = {
 		const origin = returnOrigin(url);
 		if (!origin) return fail(503, { message: NO_ORIGIN });
 		const plan = await requestedPlan(request);
-		const priceId = priceFor(
-			plan,
-			foundersOffer(account.stripePriceId, await foundersTaken(locals.db))
-		);
+		const priceId = priceFor(plan, foundersOffer(account.founder, await foundersTaken(locals.db)));
 		if (!priceId) return fail(400, { message: 'Ein Jahresabo gibt es hier nicht.' });
 		let checkoutUrl: string;
 		try {
@@ -183,7 +180,8 @@ export const actions: Actions = {
 				await setStripeCustomer(locals.db, auditContext(locals), customerId);
 			}
 			const pending = await pendingCheckout(account.stripeCheckoutSessionId);
-			const samePrice = !pending?.metadata?.priceId || pending.metadata.priceId === priceId;
+			// A session without the price (opened before plans existed) is not reused either.
+			const samePrice = pending?.metadata?.priceId === priceId;
 			if (pending?.status === 'open' && pending.url && samePrice) {
 				checkoutUrl = pending.url;
 			} else {

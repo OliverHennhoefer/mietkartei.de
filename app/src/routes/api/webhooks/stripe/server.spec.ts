@@ -10,7 +10,7 @@ const env = vi.hoisted(() => ({
 	STRIPE_SECRET_KEY: 'sk_test_unit',
 	STRIPE_PRICE_ID: 'price_unit',
 	STRIPE_YEARLY_PRICE_ID: '',
-	STRIPE_FOUNDER_PRICE_ID: '',
+	STRIPE_FOUNDER_PRICE_ID: 'price_founder',
 	FOUNDER_SPOTS: 100,
 	STRIPE_WEBHOOK_SECRET: 'whsec_unit',
 	STRIPE_API_BASE: 'http://stripe.test'
@@ -151,8 +151,18 @@ describe('POST /api/webhooks/stripe', () => {
 		await deliver('evt_end', 'customer.subscription.deleted', 'canceled');
 		expect(await account('a')).toMatchObject({
 			subscriptionStatus: 'canceled',
-			stripePriceId: 'price_founder'
+			stripePriceId: 'price_founder',
+			founder: true
 		});
+
+		// A later yearly subscription does not take the founder price away.
+		current = {
+			status: 'active',
+			current_period_end: 1_894_665_600,
+			items: { data: [{ price: { id: 'price_year' } }] }
+		};
+		await deliver('evt_year', 'customer.subscription.updated', 'active');
+		expect(await account('a')).toMatchObject({ stripePriceId: 'price_year', founder: true });
 	});
 
 	it('follows a change Stripe reports', async () => {

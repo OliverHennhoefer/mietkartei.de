@@ -34,7 +34,7 @@ export async function foundersTaken(db: Database): Promise<number> {
 	const [row] = await db
 		.select({ taken: count() })
 		.from(accounts)
-		.where(eq(accounts.stripePriceId, STRIPE_FOUNDER_PRICE_ID));
+		.where(eq(accounts.founder, true));
 	return row?.taken ?? 0;
 }
 
@@ -42,9 +42,9 @@ export async function foundersTaken(db: Database): Promise<number> {
  * Whether the account gets the founder price for the monthly plan: it had it before, or one of
  * the FOUNDER_SPOTS is still free. Two Checkouts at the same moment may both take the last spot.
  */
-export function foundersOffer(stripePriceId: string | null, taken: number): boolean {
+export function foundersOffer(founder: boolean, taken: number): boolean {
 	if (!STRIPE_FOUNDER_PRICE_ID) return false;
-	return stripePriceId === STRIPE_FOUNDER_PRICE_ID || taken < FOUNDER_SPOTS;
+	return founder || taken < FOUNDER_SPOTS;
 }
 
 /** The Stripe price of a plan; undefined for a yearly plan the instance does not offer. */
@@ -225,6 +225,7 @@ export async function getBillingAccount(db: Database, accountId: string) {
 			stripeSubscriptionId: accounts.stripeSubscriptionId,
 			stripeCheckoutSessionId: accounts.stripeCheckoutSessionId,
 			stripePriceId: accounts.stripePriceId,
+			founder: accounts.founder,
 			createdAt: accounts.createdAt,
 			ownerEmail: users.email
 		})
@@ -461,7 +462,10 @@ export async function applySubscriptionUpdate(
 				stripeSubscriptionId: update.subscriptionId,
 				subscriptionStatus: status,
 				currentPeriodEnd: update.currentPeriodEnd,
-				...(update.priceId ? { stripePriceId: update.priceId } : {})
+				...(update.priceId ? { stripePriceId: update.priceId } : {}),
+				...(STRIPE_FOUNDER_PRICE_ID && update.priceId === STRIPE_FOUNDER_PRICE_ID
+					? { founder: true }
+					: {})
 			})
 			.where(eq(accounts.id, account.id)),
 		auditEntry(

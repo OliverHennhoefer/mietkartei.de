@@ -88,8 +88,23 @@ async function pending() {
 	return row.stripeCheckoutSessionId;
 }
 
-function session(id: string, status: string, url: string | null, subscription?: string) {
-	return () => ({ body: { id, object: 'checkout.session', status, url, subscription } });
+function session(
+	id: string,
+	status: string,
+	url: string | null,
+	subscription?: string,
+	priceId: string | null = 'price_unit'
+) {
+	return () => ({
+		body: {
+			id,
+			object: 'checkout.session',
+			status,
+			url,
+			subscription,
+			metadata: priceId ? { priceId } : {}
+		}
+	});
 }
 
 describe('checkout', () => {
@@ -346,9 +361,7 @@ describe('plans', () => {
 
 	async function founders(taken: number) {
 		for (let index = 0; index < taken; index++) {
-			await db
-				.insert(accounts)
-				.values({ name: `Gründer ${index}`, stripePriceId: 'price_founder' });
+			await db.insert(accounts).values({ name: `Gründer ${index}`, founder: true });
 		}
 	}
 
@@ -374,7 +387,11 @@ describe('plans', () => {
 	it('keeps the founder price for an account that had it', async () => {
 		env.FOUNDER_SPOTS = 1;
 		await founders(1);
-		await db.update(accounts).set({ stripePriceId: 'price_founder' }).where(eq(accounts.id, 'a'));
+		// A founder who canceled and had a yearly subscription since.
+		await db
+			.update(accounts)
+			.set({ founder: true, stripePriceId: 'price_year' })
+			.where(eq(accounts.id, 'a'));
 		await run('checkout');
 		expect(checkoutPrice()).toBe('price_founder');
 	});
@@ -383,6 +400,24 @@ describe('plans', () => {
 		env.STRIPE_YEARLY_PRICE_ID = '';
 		expect(await run('checkout', 'yearly')).toMatchObject({ failure: { status: 400 } });
 		expect(calls).not.toContain('POST /v1/checkout/sessions');
+	});
+
+	it('does not reuse an open session that does not say its price', async () => {
+		await db
+			.update(accounts)
+			.set({ stripeCheckoutSessionId: 'cs_old' })
+			.where(eq(accounts.id, 'a'));
+		answers['GET /v1/checkout/sessions/cs_old'] = session(
+			'cs_old',
+			'open',
+			CHECKOUT_URL,
+			undefined,
+			null
+		);
+		answers['POST /v1/checkout/sessions/cs_old/expire'] = session('cs_old', 'expired', null);
+		await run('checkout', 'yearly');
+		expect(calls).toContain('POST /v1/checkout/sessions/cs_old/expire');
+		expect(checkoutPrice()).toBe('price_year');
 	});
 
 	it('expires the open session of the other plan instead of reusing it', async () => {

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e2d5f51c-b763-43c1-bf7d-bc1f4b0bea4d",
+  "id": "b958d5cf-55eb-477d-8b27-6971d410e979",
   "prevId": "d65fc1d3-6f00-4cc8-b4e1-e3ccb15888eb",
   "tables": {
     "accounts": {
@@ -113,6 +113,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "founder": {
+          "name": "founder",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "stripe_checkout_session_id": {
           "name": "stripe_checkout_session_id",
