@@ -81,7 +81,7 @@
 				{ href: '/auswertung', label: 'Überblick', icon: 'trend', exact: true },
 				{ href: '/auswertung/mieteinnahmen', label: 'Mieteinnahmen', icon: 'coins' },
 				{ href: '/auswertung/ausgaben', label: 'Ausgaben', icon: 'pie' },
-				{ href: '/auswertung/vergleich', label: 'Objekte im Vergleich', icon: 'bars' }
+				{ href: '/auswertung/vergleich', label: 'Vergleich', icon: 'bars' }
 			]
 		}
 	];
