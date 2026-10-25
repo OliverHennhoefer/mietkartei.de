@@ -201,4 +201,14 @@ test('runs in the settings dialog over the page it was opened from', async ({ pa
 	await page.keyboard.press('Escape');
 	await expect(dialog).toHaveCount(0);
 	await expect(page).toHaveURL(/\/mieter$/);
+
+	// Opened by its address, the same steps lead back to step 1 as well.
+	await page.goto('/einstellungen/datenuebernahme');
+	await page.waitForLoadState('networkidle');
+	await dialog.getByLabel('Art der Daten').selectOption({ label: 'Mieter' });
+	await dialog.getByLabel('CSV-Datei').setInputFiles(fixture('import-falsch.csv'));
+	await dialog.getByRole('button', { name: 'Vorschau anzeigen' }).click();
+	await expect(dialog.getByRole('heading', { level: 2, name: 'Spalten zuordnen' })).toBeVisible();
+	await dialog.getByRole('button', { name: 'Abbrechen' }).click();
+	await expect(dialog.getByRole('button', { name: 'Vorschau anzeigen' })).toBeVisible();
 });

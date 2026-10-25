@@ -8,7 +8,7 @@
 	let { data, form: answer }: PageProps = $props();
 
 	// "Weitere Datei" and "Abbrechen" go back to step 1 in place, also in the settings dialog.
-	let dismissed = $state<unknown>(null);
+	let dismissed = $state.raw<unknown>(null);
 	const form = $derived(answer === dismissed ? null : answer);
 
 	// Step 1 (the upload form, also after a form error), step 2 (mapping and preview) or the summary.
