@@ -16,6 +16,7 @@ import { actions, load as loadExpenses } from './ausgaben/+page.server';
 import { load } from './+page.server';
 import { load as loadRent } from './mieteinnahmen/+page.server';
 import { load as loadComparison } from './vergleich/+page.server';
+import { actions as returnsActions, load as loadReturns } from './rendite/+page.server';
 
 let db: Database;
 let propertyId: string;
@@ -64,6 +65,38 @@ describe('auswertung/vergleich', () => {
 		expect(
 			await run(loadComparison, { url: `/auswertung/vergleich?jahr=2024&objekt=${propertyId}` })
 		).toMatchObject({ data: { period: 2024, propertyId, units: { length: 1 } } });
+	});
+});
+
+describe('auswertung/rendite', () => {
+	it('shows the last twelve months by default and saves the purchase and the loan', async () => {
+		expect(await run(loadReturns)).toMatchObject({
+			data: { window: 'last12', propertyId: null, months: 12, rates: { gross: null } }
+		});
+		expect(await run(loadReturns, { url: '/auswertung/rendite?zeitraum=2024' })).toMatchObject({
+			data: { window: 2024, range: { start: '2024-01-01', end: '2024-12-31' } }
+		});
+		expect(
+			await run(returnsActions.financing, {
+				form: { propertyId, acquisitionCost: '250.000,00', loanAmount: '200000' }
+			})
+		).toEqual({ data: { saved: propertyId } });
+		const { data } = (await run(loadReturns)) as {
+			data: { properties: { acquisitionCost: number; ownCapital: number }[] };
+		};
+		expect(data.properties[0]).toMatchObject({
+			acquisitionCost: 250_000_00,
+			ownCapital: 50_000_00
+		});
+	});
+
+	it('rejects a broken amount and a property of another account', async () => {
+		expect(
+			await run(returnsActions.financing, { form: { propertyId, acquisitionCost: 'viel' } })
+		).toMatchObject({ fail: 400, data: { errors: { acquisitionCost: expect.any(String) } } });
+		expect(
+			await run(returnsActions.financing, { form: { propertyId: 'fremd', loanAmount: '1' } })
+		).toMatchObject({ error: 404 });
 	});
 });
 

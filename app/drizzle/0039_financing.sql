@@ -1,0 +1,1 @@
+ALTER TABLE `properties` ADD `loan_amount` integer;
