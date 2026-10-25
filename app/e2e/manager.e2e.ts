@@ -140,7 +140,7 @@ test('the owner invites a manager, who registers through the link', async ({
 		.getByRole('button', { name: 'Ändern' })
 		.click();
 	await expect(page.getByText('Die Rolle wurde geändert.')).toBeVisible();
-	await invitee.goto('/objekte');
+	await invitee.goto('/');
 	await expect(invitee.getByText('Du hast Lesezugriff und kannst nichts ändern.')).toBeVisible();
 	expect((await invitee.goto('/objekte/neu'))?.status()).toBe(403);
 	const write = await invitee.request.post('/objekte/neu', {

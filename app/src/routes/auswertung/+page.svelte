@@ -4,6 +4,7 @@
 	import FlowChart from '#lib/components/FlowChart.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import Sections from './Sections.svelte';
 	import Sparkline from '#lib/components/Sparkline.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
 	import { formatArea, pluralize } from '#lib/format.ts';
@@ -55,6 +56,8 @@
 	title="Auswertung"
 	lead="Einnahmen, Ausgaben und Leerstand deines Bestands auf einen Blick."
 />
+
+<Sections />
 
 <Filters
 	years={data.years}

@@ -55,8 +55,8 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	page,
 	baseURL
 }) => {
-	// A fresh account is in its 30-day trial: the page and the notice above every page say so.
-	// The account menu and the settings lead to the page.
+	// A fresh account is in its 30-day trial: the page and the notice on the Übersicht say so.
+	// The settings and the notice lead to the page.
 	await page.goto('/einstellungen');
 	await page
 		.getByRole('navigation', { name: 'Einstellungen' })
@@ -68,10 +68,10 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	).toHaveAttribute('aria-current', 'page');
 	await page.getByRole('button', { name: 'Einstellungen schließen' }).click();
 	await expect(page).toHaveURL(/\/$/);
-	await page
-		.getByRole('navigation', { name: 'Hauptnavigation' })
-		.getByRole('link', { name: 'Abo' })
-		.click();
+	const notice = page.getByRole('note').filter({ hasText: 'Deine Testphase endet am' });
+	await expect(notice).toBeVisible();
+	await expect(notice.getByRole('link', { name: 'Zum Abo' })).toHaveAttribute('href', '/abo');
+	await notice.getByRole('link', { name: 'Zum Abo' }).click();
 	await expect(
 		page
 			.getByRole('dialog', { name: 'Einstellungen' })
@@ -80,9 +80,6 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	await expect(page).toHaveURL(/\/abo$/);
 	await expect(page.getByText('Testphase bis')).toBeVisible();
 	await expect(page.getByText('9,90 € pro Monat')).toBeVisible();
-	const notice = page.getByRole('note').filter({ hasText: 'Deine Testphase endet am' });
-	await expect(notice).toBeVisible();
-	await expect(notice.getByRole('link', { name: 'Zum Abo' })).toHaveAttribute('href', '/abo');
 
 	// Checkout: the app creates the customer, then the session, and the browser follows its URL
 	// (the fake answers with the success URL). Opened twice before paying, from a second tab
@@ -150,7 +147,7 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	await expect(page.getByText('15.01.2030')).toBeVisible();
 	await expect(page.getByRole('note').filter({ hasText: 'Testphase' })).toHaveCount(0);
 
-	// A failed payment shows a warning above every page … (the app reads the status back from
+	// A failed payment shows a warning on the Übersicht … (the app reads the status back from
 	// the API, so the fake's subscription changes first, as Stripe's would)
 	subscription.status = 'past_due';
 	const failed = await postEvent(page.request, {
@@ -167,7 +164,7 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 		}
 	});
 	expect(failed.status()).toBe(200);
-	await page.goto('/objekte');
+	await page.goto('/');
 	await expect(
 		page.getByRole('note').filter({ hasText: 'Die letzte Zahlung ist fehlgeschlagen.' })
 	).toBeVisible();
