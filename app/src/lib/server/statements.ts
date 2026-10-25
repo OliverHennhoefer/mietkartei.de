@@ -374,7 +374,7 @@ export async function loadStatementInput(
 			co2Cost: item.co2Cost,
 			unitAmounts: unitAmountRows
 				.filter((row) => row.costItemId === item.id)
-				.map((row) => ({ unitId: row.unitId, amount: row.amount })),
+				.map((row) => ({ unitId: row.unitId, leaseId: row.leaseId, amount: row.amount })),
 			association:
 				item.associationTotal !== null &&
 				item.associationKeyTotal !== null &&

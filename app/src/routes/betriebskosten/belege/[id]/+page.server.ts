@@ -1,4 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { overlap } from '#lib/dates.ts';
+import { personName } from '#lib/format.ts';
 import { yearOf } from '#lib/domain/operating-costs.ts';
 import { documentErrorMessage } from '#lib/forms/documents.ts';
 import { costItemMessages, parseReceipt, parseUnitAmounts } from '#lib/forms/operating-costs.ts';
@@ -16,6 +18,7 @@ import {
 	replaceUnitAmounts,
 	updateCostItem
 } from '#lib/server/operating-costs.ts';
+import { listLeases } from '#lib/server/leases.ts';
 import { listProperties, listUnits } from '#lib/server/properties.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { costItemFailure, itemPage, parseCostItemForm, storeReceipt } from '../save.server';
@@ -27,17 +30,60 @@ async function itemOf(locals: App.Locals, costItemId: string) {
 	return item;
 }
 
-/** The units a direct key splits over: those of the item's circle, else all of the property. */
+/**
+ * The units a direct key splits over: those of the item's circle, else all of the property. A
+ * unit that changed tenants or stood empty in the item's period lists its leases of the period,
+ * for the Messdienst's amounts per Nutzer (§ 9b HeizKV).
+ */
 async function splitUnits(
 	locals: App.Locals,
-	item: { propertyId: string; billingCircleId: string | null }
+	item: {
+		propertyId: string;
+		billingCircleId: string | null;
+		periodStart: string;
+		periodEnd: string;
+	}
 ) {
 	const accountId = requireAccount(locals);
-	const units = await listUnits(locals.db, accountId, item.propertyId);
-	if (!item.billingCircleId) return units;
-	const circle = await getCircle(locals.db, accountId, item.billingCircleId);
-	if (!circle) return units;
-	return units.filter((unit) => circle.unitIds.includes(unit.id));
+	const [allUnits, allLeases] = await Promise.all([
+		listUnits(locals.db, accountId, item.propertyId),
+		listLeases(locals.db, accountId)
+	]);
+	const circle = item.billingCircleId
+		? await getCircle(locals.db, accountId, item.billingCircleId)
+		: undefined;
+	const units = circle ? allUnits.filter((unit) => circle.unitIds.includes(unit.id)) : allUnits;
+	const period = { start: item.periodStart, end: item.periodEnd };
+	return units.map((unit) => {
+		const leases = allLeases
+			.filter(
+				(lease) =>
+					lease.unitId === unit.id || lease.extraUnits.some((extra) => extra.id === unit.id)
+			)
+			.flatMap((lease) => {
+				const range = overlap(period, {
+					start: lease.startDate,
+					end: lease.endDate ?? '9999-12-31'
+				});
+				return range ? [{ lease, range }] : [];
+			})
+			.sort((a, b) => a.range.start.localeCompare(b.range.start));
+		const whole =
+			leases.length === 1 &&
+			leases[0].range.start === period.start &&
+			leases[0].range.end === period.end;
+		return {
+			...unit,
+			leases: whole
+				? []
+				: leases.map(({ lease, range }) => ({
+						id: lease.id,
+						tenants: lease.tenants.map(personName).join(', '),
+						start: range.start,
+						end: range.end
+					}))
+		};
+	});
 }
 
 const documentErrors: DocumentError[] = ['too-large', 'empty', 'unknown-link', 'quota'];
@@ -102,7 +148,7 @@ export const actions: Actions = {
 		const units = await splitUnits(locals, item);
 		const result = parseUnitAmounts(
 			await request.formData(),
-			units.map((unit) => unit.id)
+			units.map((unit) => ({ unitId: unit.id, leaseIds: unit.leases.map((lease) => lease.id) }))
 		);
 		if (!result.ok) {
 			return fail(400, {

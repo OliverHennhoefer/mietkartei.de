@@ -254,16 +254,34 @@ function parseAssociationShare(parser: FormParser<CostItemForm>) {
 	};
 }
 
-/** One input `amount-<unitId>` per unit; empty means 0. */
+/**
+ * One input `amount-<unitId>` per unit, and for a unit that changed tenants one input
+ * `amount-<unitId>-<leaseId>` per lease too; empty means 0. A unit takes either its own amount
+ * or amounts per lease, not both.
+ */
 export function parseUnitAmounts(
 	form: FormData,
-	unitIds: readonly string[]
+	units: readonly { unitId: string; leaseIds?: readonly string[] }[]
 ): PerUnitResult<{ amounts: UnitAmount[] }> {
 	const parser = new FormParser<Record<string, number>>(form);
 	const amounts: UnitAmount[] = [];
-	for (const unitId of unitIds) {
-		const amount = parser.money(`amount-${unitId}`, { required: false, min: -100_000_000_00 });
-		if (amount !== null && amount !== 0) amounts.push({ unitId, amount });
+	for (const { unitId, leaseIds = [] } of units) {
+		const own = parser.money(`amount-${unitId}`, { required: false, min: -100_000_000_00 });
+		const perLease = leaseIds.flatMap((leaseId) => {
+			const amount = parser.money(`amount-${unitId}-${leaseId}`, {
+				required: false,
+				min: -100_000_000_00
+			});
+			return amount !== null && amount !== 0 ? [{ unitId, leaseId, amount }] : [];
+		});
+		if (own !== null && own !== 0 && perLease.length > 0) {
+			parser.fail(
+				`amount-${unitId}`,
+				'Trage entweder den Betrag der Einheit ein oder die Beträge je Mietvertrag.'
+			);
+		}
+		if (own !== null && own !== 0) amounts.push({ unitId, leaseId: null, amount: own });
+		amounts.push(...perLease);
 	}
 	return perUnit(parser, { amounts });
 }

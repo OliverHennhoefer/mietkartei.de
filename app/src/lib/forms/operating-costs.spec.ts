@@ -387,16 +387,39 @@ describe('parseUnitAmounts', () => {
 	it('reads one amount per unit and drops empty and zero ones: 400 + 350', () => {
 		const result = parseUnitAmounts(
 			formDataOf({ 'amount-u1': '400,00', 'amount-u2': '', 'amount-u3': '0', 'amount-u4': '350' }),
-			['u1', 'u2', 'u3', 'u4']
+			[{ unitId: 'u1' }, { unitId: 'u2' }, { unitId: 'u3' }, { unitId: 'u4' }]
 		);
 		expect(result).toEqual({
 			ok: true,
 			data: {
 				amounts: [
-					{ unitId: 'u1', amount: 40000 },
-					{ unitId: 'u4', amount: 35000 }
+					{ unitId: 'u1', leaseId: null, amount: 40000 },
+					{ unitId: 'u4', leaseId: null, amount: 35000 }
 				]
 			}
 		});
+	});
+
+	it('reads the amounts per lease of a unit that changed tenants', () => {
+		const result = parseUnitAmounts(
+			formDataOf({ 'amount-u1': '', 'amount-u1-a': '310,20', 'amount-u1-b': '95,80' }),
+			[{ unitId: 'u1', leaseIds: ['a', 'b'] }]
+		);
+		expect(result).toEqual({
+			ok: true,
+			data: {
+				amounts: [
+					{ unitId: 'u1', leaseId: 'a', amount: 31020 },
+					{ unitId: 'u1', leaseId: 'b', amount: 9580 }
+				]
+			}
+		});
+	});
+
+	it('refuses an amount of the unit next to amounts per lease', () => {
+		const result = parseUnitAmounts(formDataOf({ 'amount-u1': '400', 'amount-u1-a': '300' }), [
+			{ unitId: 'u1', leaseIds: ['a'] }
+		]);
+		expect(result.ok).toBe(false);
 	});
 });
