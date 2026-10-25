@@ -4,7 +4,7 @@ import type { Database } from '#lib/server/db/index.ts';
 import { memoryStorage, outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
 import { actions, load } from './+page.server';
 
-const env = vi.hoisted(() => ({ DEMO: true }));
+const env = vi.hoisted(() => ({ DEMO: true, GENESIS_API_TOKEN: '' }));
 vi.mock('$app/env/private', () => env);
 vi.mock('#lib/server/storage/index.ts', () => ({
 	accountPrefix: (accountId: string) => `${accountId}/`,
