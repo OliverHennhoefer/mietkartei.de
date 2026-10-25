@@ -31,7 +31,7 @@
 		</p>
 	{/if}
 	<div class="table-wrap">
-		<table class="table" aria-label="Fristen">
+		<table class="table deadlines" aria-label="Fristen">
 			<thead>
 				<tr>
 					<th>Datum</th>
@@ -43,8 +43,10 @@
 				{#each data.deadlines as deadline, index (index)}
 					<tr>
 						<td class="date">
-							{formatDate(deadline.date)}
-							{#if deadline.overdue}<Badge tone="danger">überfällig</Badge>{/if}
+							<span class="when">
+								{formatDate(deadline.date)}
+								{#if deadline.overdue}<Badge tone="danger">überfällig</Badge>{/if}
+							</span>
 						</td>
 						<td><a href={deadline.href}>{deadline.title}</a></td>
 						<td class="muted">{deadline.detail ?? ''}</td>
@@ -168,6 +170,38 @@
 <style>
 	.date {
 		white-space: nowrap;
+		font-variant-numeric: tabular-nums;
+	}
+	.when {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	/* On phones each deadline becomes a block: date and badge, then title, then what it concerns. */
+	@media (max-width: 40rem) {
+		.deadlines thead {
+			display: none;
+		}
+		.deadlines tbody tr {
+			display: grid;
+			gap: 0.3rem;
+			padding: 0.9rem 1.25rem;
+			border-bottom: 1px solid var(--color-border);
+		}
+		.deadlines tbody tr:last-child {
+			border-bottom: 0;
+		}
+		.deadlines td {
+			padding: 0;
+			border: 0;
+		}
+		.deadlines .date {
+			color: var(--color-muted);
+			font-size: 0.8rem;
+		}
+		.deadlines td:empty {
+			display: none;
+		}
 	}
 	.task {
 		align-items: flex-start;

@@ -4,6 +4,7 @@
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
+	import PageHeader from '#lib/components/PageHeader.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { expenseCategoryLabels } from '#lib/labels.ts';
 	import type { PageProps } from './$types';
@@ -40,6 +41,11 @@
 		}
 	}
 </script>
+
+<PageHeader
+	title="Ausgaben"
+	lead="Was du für deinen Bestand bezahlt hast, je Jahr. Die Auswertung rechnet damit."
+/>
 
 <div class="toolbar">
 	<form method="GET" class="row">

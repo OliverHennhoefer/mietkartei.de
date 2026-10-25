@@ -24,6 +24,12 @@
 	/* Charts: money in dark, money out mid-grey; told apart by lightness, never by hue alone. */
 	--color-chart-income: #202020;
 	--color-chart-expense: #8c8c8c;
+	/* Categories in a fixed order, darkest first; the net line runs on the neon of the logo. */
+	--color-chart-1: #202020;
+	--color-chart-2: #6b6b6b;
+	--color-chart-3: #a3a3a3;
+	--color-chart-4: #d4d4d4;
+	--color-chart-net: var(--color-highlight);
 	/* The neon block of the logo; used sparingly, only around the subscription. Black text on it
 	   in both colour schemes. */
 	--color-highlight: #f5ff00;
@@ -1231,6 +1237,10 @@ dl.details dd {
 		--color-danger-border: #5a2f2b;
 		--color-chart-income: #ededed;
 		--color-chart-expense: #7a7a7a;
+		--color-chart-1: #ededed;
+		--color-chart-2: #a8a8a8;
+		--color-chart-3: #6e6e6e;
+		--color-chart-4: #454545;
 		--shadow: none;
 		--color-focus-ring: rgb(255 255 255 / 12%);
 		--icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");

@@ -1,10 +1,15 @@
 <script lang="ts">
+	import DonutChart from '#lib/components/DonutChart.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import FlowChart from '#lib/components/FlowChart.svelte';
 	import Money from '#lib/components/Money.svelte';
+	import PageHeader from '#lib/components/PageHeader.svelte';
+	import Sparkline from '#lib/components/Sparkline.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
-	import { formatArea, formatNumber, pluralize } from '#lib/format.ts';
+	import { formatArea, pluralize } from '#lib/format.ts';
 	import { expenseCategoryLabels } from '#lib/labels.ts';
+	import Filters from './Filters.svelte';
+	import { percent, perSqm } from './figures';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -20,65 +25,43 @@
 		}))
 	);
 
-	function percent(value: number | null): string {
-		return value === null ? '–' : `${formatNumber(value * 100, 1)} %`;
-	}
-
-	const perSqmFormat = new Intl.NumberFormat('de-DE', {
-		minimumFractionDigits: 2,
-		maximumFractionDigits: 2
+	/** How many periods have begun: the months up to today in the current year, else all. */
+	const until = $derived.by(() => {
+		const current = data.today.slice(0, all ? 4 : 7);
+		return data.series.filter((point) => point.key <= current).length;
+	});
+	const past = $derived(data.series.slice(0, until));
+	const cumulative = $derived.by(() => {
+		let sum = 0;
+		return past.map((point) => (sum += point.net));
 	});
 
-	function perSqm(value: number | null): string {
-		return value === null ? '–' : `${perSqmFormat.format(value)} €/m²`;
-	}
-
-	// The unit table sorts by the column the user picks; by default the most expensive first.
-	type UnitRow = (typeof data.units)[number];
-	const unitSorts = {
-		expenses: { label: 'Ausgaben', value: (row: UnitRow) => row.expenses },
-		net: { label: 'Überschuss', value: (row: UnitRow) => row.net },
-		received: { label: 'Eingang', value: (row: UnitRow) => row.received },
-		rentPerSqm: { label: 'Kaltmiete pro m²', value: (row: UnitRow) => row.rentPerSqm ?? -1 },
-		vacantDays: { label: 'Leerstand', value: (row: UnitRow) => row.vacantDays }
-	} as const;
-	let unitSort = $state<keyof typeof unitSorts>('expenses');
-	const sortedUnits = $derived(
-		[...data.units].sort((a, b) => unitSorts[unitSort].value(b) - unitSorts[unitSort].value(a))
-	);
-
-	const categoryMax = $derived(Math.max(1, ...data.byCategory.map((row) => Math.abs(row.amount))));
 	// Activity per period, not the sums: an expense and its refund cancel out in the totals.
 	const hasData = $derived(
 		data.series.some((point) => point.charged !== 0 || point.received !== 0 || point.expenses !== 0)
 	);
+	const largest = $derived(data.byCategory[0]);
+
+	/** The scale of the property bars: the largest income or spending of any property. */
+	const propertyMax = $derived(
+		Math.max(1, ...data.properties.map((row) => Math.max(row.received, row.expenses)))
+	);
+	const query = $derived(
+		`jahr=${all ? 'gesamt' : data.period}${data.propertyId ? `&objekt=${data.propertyId}` : ''}`
+	);
 </script>
 
-<form method="GET" class="toolbar filters">
-	<label class="inline">
-		Zeitraum
-		<select name="jahr" onchange={(event) => event.currentTarget.form?.requestSubmit()}>
-			{#each data.years as year (year)}
-				<option value={String(year)} selected={data.period === year}>{year}</option>
-			{/each}
-			<option value="gesamt" selected={all}>Gesamt</option>
-		</select>
-	</label>
-	{#if data.propertyOptions.length > 1}
-		<label class="inline">
-			Objekt
-			<select name="objekt" onchange={(event) => event.currentTarget.form?.requestSubmit()}>
-				<option value="" selected={!data.propertyId}>alle Objekte</option>
-				{#each data.propertyOptions as property (property.id)}
-					<option value={property.id} selected={data.propertyId === property.id}>
-						{property.name}
-					</option>
-				{/each}
-			</select>
-		</label>
-	{/if}
-	<noscript><button type="submit" class="secondary small">Anzeigen</button></noscript>
-</form>
+<PageHeader
+	title="Auswertung"
+	lead="Einnahmen, Ausgaben und Leerstand deines Bestands auf einen Blick."
+/>
+
+<Filters
+	years={data.years}
+	period={data.period}
+	propertyId={data.propertyId}
+	propertyOptions={data.propertyOptions}
+/>
 
 <!-- Expenses can exist without units (portfolio-wide, or kept after a property was deleted). -->
 {#if data.units.length === 0 && !hasData}
@@ -92,22 +75,46 @@
 	<ul class="tiles" aria-label="Kennzahlen {periodLabel}">
 		<li class="card tile">
 			<span class="value"><Money cents={data.totals.received} /></span>
-			<span class="label">
-				Einnahmen {periodLabel} · von <Money cents={data.totals.charged} /> Soll ({percent(
-					data.totals.collectionRate
-				)})
+			<span class="label">Einnahmen {periodLabel}</span>
+			<Sparkline values={past.map((point) => point.received)} />
+			<span class="pill">
+				{percent(data.totals.collectionRate)} von <Money cents={data.totals.charged} /> Soll
 			</span>
 		</li>
 		<li class="card tile">
 			<span class="value"><Money cents={data.totals.expenses} /></span>
 			<span class="label">Ausgaben {periodLabel}</span>
+			<Sparkline values={past.map((point) => point.expenses)} />
+			{#if largest}
+				<span class="pill">größter Posten: {expenseCategoryLabels[largest.category]}</span>
+			{/if}
 		</li>
 		<li class="card tile">
-			<span class="value" class:negative={data.totals.net < 0}>
-				<Money cents={data.totals.net} signed />
+			<span class="value">
+				{#if data.totals.net >= 0}
+					<mark><Money cents={data.totals.net} signed /></mark>
+				{:else}
+					<Money cents={data.totals.net} signed />
+				{/if}
 			</span>
-			<span class="label">Überschuss {periodLabel} · Einnahmen minus Ausgaben</span>
+			<span class="label">Überschuss {periodLabel}</span>
+			<Sparkline values={cumulative} filled={data.totals.net >= 0} />
+			<span class="pill">Einnahmen minus Ausgaben</span>
 		</li>
+		<li class="card tile">
+			<span class="value">{perSqm(data.totals.rentPerSqm)}</span>
+			<span class="label">Ø Kaltmiete pro Monat</span>
+			<Sparkline
+				values={past.flatMap((point) => (point.rentPerSqm === null ? [] : [point.rentPerSqm]))}
+			/>
+			<span class="pill">
+				{pluralize(data.totals.unitCount, 'Einheit', 'Einheiten')}{#if data.totals.floorArea > 0},
+					{formatArea(data.totals.floorArea)}{/if}
+			</span>
+		</li>
+	</ul>
+
+	<ul class="tiles small" aria-label="Bestand {periodLabel}">
 		<li class="card tile">
 			<span class="value">{percent(data.totals.vacancyRate)}</span>
 			<span class="label">
@@ -116,17 +123,6 @@
 					'Tag',
 					'Tage'
 				)}{#if data.totals.lostRent > 0}, ca. <Money cents={data.totals.lostRent} /> Kaltmiete entgangen{/if}
-			</span>
-		</li>
-		<li class="card tile">
-			<span class="value">{perSqm(data.totals.rentPerSqm)}</span>
-			<span class="label">
-				Ø Kaltmiete pro Monat · {pluralize(
-					data.totals.unitCount,
-					'Einheit',
-					'Einheiten'
-				)}{#if data.totals.floorArea > 0},
-					{formatArea(data.totals.floorArea)}{/if}
 			</span>
 		</li>
 		<li class="card tile">
@@ -147,6 +143,7 @@
 			<div class="card">
 				<FlowChart
 					{points}
+					{until}
 					label="Einnahmen und Ausgaben {all ? 'je Jahr' : `je Monat ${data.period}`}"
 				/>
 			</div>
@@ -192,18 +189,16 @@
 			</p>
 		{:else}
 			<div class="split">
-				<ul class="card bars" aria-label="Ausgaben nach Kategorie">
-					{#each data.byCategory as row (row.category)}
-						<li>
-							<span class="bar-label">{expenseCategoryLabels[row.category]}</span>
-							<span class="bar-track" aria-hidden="true">
-								<span class="bar-fill" style:width="{(Math.abs(row.amount) / categoryMax) * 100}%"
-								></span>
-							</span>
-							<span class="bar-value"><Money cents={row.amount} /></span>
-						</li>
-					{/each}
-				</ul>
+				<div class="card">
+					<DonutChart
+						label="Ausgaben nach Kategorie"
+						slices={data.byCategory.map((row) => ({
+							key: row.category,
+							label: expenseCategoryLabels[row.category],
+							amount: row.amount
+						}))}
+					/>
+				</div>
 				<div class="card">
 					<h3>Größte Ausgaben</h3>
 					<ol class="top">
@@ -226,113 +221,55 @@
 
 	{#if data.properties.length > 1}
 		<section aria-labelledby="properties">
-			<h2 id="properties">Objekte im Vergleich</h2>
-			<div class="table-wrap">
-				<table class="table">
-					<thead>
-						<tr>
-							<th>Objekt</th>
-							<th class="number">Einheiten</th>
-							<th class="number">Einnahmen</th>
-							<th class="number">Ausgaben</th>
-							<th class="number">Überschuss</th>
-							<th class="number">Kaltmiete pro m²</th>
-							<th class="number">Leerstand</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each data.properties as row (row.id)}
-							<tr>
-								<td
-									><a href="?jahr={all ? 'gesamt' : data.period}&objekt={row.id}">{row.name}</a></td
-								>
-								<td class="number">{row.unitCount}</td>
-								<td class="number"><Money cents={row.received} /></td>
-								<td class="number"><Money cents={row.expenses} /></td>
-								<td class="number" class:negative={row.net < 0}><Money cents={row.net} signed /></td
-								>
-								<td class="number">{perSqm(row.rentPerSqm)}</td>
-								<td class="number"
-									>{percent(row.unitDays > 0 ? row.vacantDays / row.unitDays : null)}</td
-								>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
+			<div class="section-head">
+				<h2 id="properties">Überschuss je Objekt</h2>
+				<a href="/auswertung/vergleich?{query}">Alle Zahlen im Vergleich</a>
 			</div>
+			<ul class="card property-bars" aria-label="Überschuss je Objekt">
+				{#each data.properties as row (row.id)}
+					<li>
+						<span class="property-head">
+							<a href="?jahr={all ? 'gesamt' : data.period}&objekt={row.id}">{row.name}</a>
+							<strong class:negative={row.net < 0}><Money cents={row.net} signed /></strong>
+						</span>
+						<span
+							class="property-track"
+							style:width="{(Math.max(row.received, row.expenses) / propertyMax) * 100}%"
+							aria-hidden="true"
+						>
+							<span
+								class="spent"
+								class:over={row.net < 0}
+								style:flex-basis="{(Math.min(row.expenses, row.received) /
+									Math.max(row.received, row.expenses, 1)) *
+									100}%"
+							></span>
+							{#if row.net > 0}<span class="kept"></span>{/if}
+						</span>
+						<span class="muted small">
+							<Money cents={row.received} /> ein · <Money cents={row.expenses} /> Ausgaben · Leerstand
+							{percent(row.unitDays > 0 ? row.vacantDays / row.unitDays : null)}
+						</span>
+					</li>
+				{/each}
+			</ul>
 		</section>
-	{/if}
-
-	{#if data.units.length > 0}
-		<section aria-labelledby="units">
-			<div class="row between">
-				<h2 id="units">Einheiten im Vergleich</h2>
-				<label class="inline sort">
-					Sortieren nach
-					<select bind:value={unitSort}>
-						{#each Object.entries(unitSorts) as [key, sort] (key)}
-							<option value={key}>{sort.label}</option>
-						{/each}
-					</select>
-				</label>
-			</div>
-			<p class="muted small">
-				Einnahmen zählen für die Haupteinheit des Mietvertrags. Ausgaben nur, wenn sie der Einheit
-				selbst zugeordnet sind; Ausgaben für das ganze Objekt stehen oben beim Objekt.
-			</p>
-			<div class="table-wrap">
-				<table class="table">
-					<thead>
-						<tr>
-							<th>Einheit</th>
-							<th class="number">Fläche</th>
-							<th class="number">Kaltmiete (Soll)</th>
-							<th class="number">Eingang</th>
-							<th class="number">Ausgaben</th>
-							<th class="number">Überschuss</th>
-							<th class="number">pro m²</th>
-							<th class="number">Leerstand</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each sortedUnits as row (row.id)}
-							<tr>
-								<td>
-									<a href="/objekte/{row.propertyId}">{row.name}</a>
-									{#if data.propertyOptions.length > 1 && !data.propertyId}
-										<span class="muted small">{row.propertyName}</span>
-									{/if}
-								</td>
-								<td class="number">{row.floorArea ? formatArea(row.floorArea) : '–'}</td>
-								<td class="number"><Money cents={row.baseRent} /></td>
-								<td class="number"><Money cents={row.received} /></td>
-								<td class="number"><Money cents={row.expenses} /></td>
-								<td class="number" class:negative={row.net < 0}><Money cents={row.net} signed /></td
-								>
-								<td class="number">{perSqm(row.rentPerSqm)}</td>
-								<td class="number">
-									{row.vacantDays > 0 ? pluralize(row.vacantDays, 'Tag', 'Tage') : '–'}
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-		</section>
+	{:else if data.units.length > 0}
+		<p><a href="/auswertung/vergleich?{query}">Einheiten im Vergleich</a></p>
 	{/if}
 {/if}
 
 <style>
-	.filters {
-		margin-bottom: 1rem;
-	}
 	.tiles {
 		list-style: none;
 		padding: 0;
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
 		gap: 0.75rem;
-		margin: 0 0 1.5rem;
+		margin: 0 0 0.75rem;
+	}
+	.tiles.small {
+		margin-bottom: 1.5rem;
 	}
 	.tile,
 	.tile a {
@@ -346,6 +283,10 @@
 		font-size: 1.5rem;
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
+		letter-spacing: -0.01em;
+	}
+	.tiles.small .value {
+		font-size: 1.15rem;
 	}
 	.tile .label {
 		color: var(--color-muted);
@@ -353,6 +294,23 @@
 	}
 	.tile a:hover .value {
 		text-decoration: underline;
+	}
+	mark {
+		padding: 0 0.2em;
+		background: var(--color-highlight);
+		color: var(--color-highlight-text);
+	}
+	mark :global(.money) {
+		color: inherit;
+	}
+	.pill {
+		justify-self: start;
+		margin-top: 0.6rem;
+		padding: 0.15rem 0.55rem;
+		border-radius: 999px;
+		background: var(--color-hover);
+		font-size: 0.8rem;
+		font-weight: 500;
 	}
 	.negative {
 		color: var(--color-danger);
@@ -371,34 +329,7 @@
 	.split {
 		display: grid;
 		gap: 0.75rem;
-		grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
-	}
-	.bars {
-		list-style: none;
-		margin: 0;
-		display: grid;
-		gap: 0.6rem;
-	}
-	.bars li {
-		display: grid;
-		grid-template-columns: minmax(8rem, 12rem) 1fr auto;
-		gap: 0.75rem;
-		align-items: center;
-	}
-	.bar-track {
-		height: 0.6rem;
-		background: var(--color-hover);
-		border-radius: 4px;
-		overflow: hidden;
-	}
-	.bar-fill {
-		display: block;
-		height: 100%;
-		background: var(--color-chart-expense);
-		border-radius: 4px;
-	}
-	.bar-value {
-		font-variant-numeric: tabular-nums;
+		grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
 	}
 	h3 {
 		margin-top: 0;
@@ -420,19 +351,47 @@
 		display: grid;
 		overflow-wrap: anywhere;
 	}
-	.row.between {
-		align-items: center;
+	.section-head {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 0.25rem 1rem;
 	}
-	.sort {
-		white-space: nowrap;
+	.property-bars {
+		list-style: none;
+		margin: 0;
+		display: grid;
+		gap: 1.1rem;
 	}
-	@media (max-width: 40rem) {
-		.bars li {
-			grid-template-columns: 1fr auto;
-		}
-		.bar-track {
-			grid-column: 1 / -1;
-			order: 3;
-		}
+	.property-bars li {
+		display: grid;
+		gap: 0.35rem;
+	}
+	.property-head {
+		display: flex;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+	.property-track {
+		display: flex;
+		gap: 2px;
+		height: 0.8rem;
+		min-width: 0.5rem;
+	}
+	.spent {
+		flex: 0 0 auto;
+		background: var(--color-chart-expense);
+		border-radius: 3px;
+	}
+	.spent.over {
+		flex-basis: 100% !important;
+		background: var(--color-danger);
+	}
+	.kept {
+		flex: 1;
+		background: var(--color-chart-net);
+		border-radius: 3px;
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-chart-net), #000 18%);
 	}
 </style>
