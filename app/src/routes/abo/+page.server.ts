@@ -1,7 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import {
 	BILLING_REQUIRED,
-	FOUNDER_SPOTS,
 	ORIGIN,
 	STRIPE_PRICE_ID,
 	STRIPE_YEARLY_PRICE_ID
@@ -11,8 +10,6 @@ import { formatCents } from '#lib/money.ts';
 import {
 	billingEnabled,
 	billingState,
-	foundersOffer,
-	foundersTaken,
 	getBillingAccount,
 	priceFor,
 	replaceCheckoutSession,
@@ -122,11 +119,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!account) error(404, 'Dieses Konto gibt es nicht.');
 	const now = new Date();
 	const runs = subscriptionRuns(account);
-	const taken = await foundersTaken(locals.db);
-	const founder = foundersOffer(account.founder, taken);
 	// While a subscription runs, its own price; otherwise what a new one would cost.
-	const current =
-		runs && account.stripePriceId ? account.stripePriceId : priceFor('monthly', founder);
+	const current = runs && account.stripePriceId ? account.stripePriceId : STRIPE_PRICE_ID;
 	const offer = !account.free && !runs;
 	return {
 		owner: true as const,
@@ -141,13 +135,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		price: account.free || !current ? null : await priceText(current),
 		yearlyPrice:
 			offer && STRIPE_YEARLY_PRICE_ID ? await priceText(STRIPE_YEARLY_PRICE_ID, 'yearly') : null,
-		founder:
-			offer && founder
-				? {
-						regularPrice: await priceText(STRIPE_PRICE_ID),
-						spotsLeft: account.founder ? null : Math.max(0, FOUNDER_SPOTS - taken)
-					}
-				: null,
 		success: url.searchParams.get('erfolg') === '1'
 	};
 };
@@ -170,7 +157,7 @@ export const actions: Actions = {
 		const origin = returnOrigin(url);
 		if (!origin) return fail(503, { message: NO_ORIGIN });
 		const plan = await requestedPlan(request);
-		const priceId = priceFor(plan, foundersOffer(account.founder, await foundersTaken(locals.db)));
+		const priceId = priceFor(plan);
 		if (!priceId) return fail(400, { message: 'Ein Jahresabo gibt es hier nicht.' });
 		let checkoutUrl: string;
 		try {

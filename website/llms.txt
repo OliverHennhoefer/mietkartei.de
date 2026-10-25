@@ -14,7 +14,7 @@ Was mietkartei kann:
 - Zähler und Abrechnungskreise, Dokumente, Aufgaben und Fristen.
 - Mitverwalter, Datenübernahme per CSV, Änderungsprotokoll und vollständiger Export als ZIP (alle Einträge als JSON, alle Dokumente im Original), der sich in eine andere mietkartei-Instanz einspielen lässt, etwa von app.mietkartei.de auf den eigenen Server und zurück.
 
-Was es kostet: Selbst betrieben ist mietkartei kostenlos und ohne Einschränkungen, der komplette Code ist Open Source unter der AGPL-3.0. Die gehostete Version unter app.mietkartei.de kostet 8 € im Monat inklusive Mehrwertsteuer, mit 30 Tagen kostenlosem Test und jederzeit kündbar. Der Preis ist pauschal, ohne Aufschlag pro Einheit und ohne Zusatzmodule.
+Was es kostet: Selbst betrieben ist mietkartei kostenlos und ohne Einschränkungen, der komplette Code ist Open Source unter der AGPL-3.0. Die gehostete Version unter app.mietkartei.de kostet 8 € im Monat oder 72 € im Jahr inklusive Mehrwertsteuer, mit 30 Tagen kostenlosem Test und jederzeit kündbar. Der Preis ist pauschal, ohne Aufschlag pro Einheit und ohne Zusatzmodule.
 
 Für wen: Privatvermieter, die für große Verwaltungsprogramme zu klein und für Excel zu groß sind.
 
@@ -23,7 +23,7 @@ Worauf mietkartei setzt: nachvollziehbar gerechnete Umlagen, kein Lock-in (offen
 ## Links
 
 - [Startseite](https://mietkartei.de/): Überblick über das Produkt
-- [Preise](https://mietkartei.de/preise/): Selbst betrieben kostenlos als Open Source, gehostet 8 € im Monat inklusive Mehrwertsteuer
+- [Preise](https://mietkartei.de/preise/): Selbst betrieben kostenlos als Open Source, gehostet 8 € im Monat oder 72 € im Jahr inklusive Mehrwertsteuer
 - [Häufige Fragen](https://mietkartei.de/fragen/): Zielgruppe, Kosten, Nebenkostenabrechnung, KI-Assistenten, Bankimport, Datenübernahme, Datenhaltung und Selbsthosten
 - [Demo](https://demo.mietkartei.de/): eigener Beispielbestand ohne Anmeldung, wird nach 24 Stunden gelöscht
 - [Ratgeber](https://mietkartei.de/ratgeber/): Mietrecht, Heiz- und Betriebskosten für private Vermieter, auch als [RSS-Feed](https://mietkartei.de/ratgeber/feed.xml)
