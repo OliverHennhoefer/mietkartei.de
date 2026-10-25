@@ -145,6 +145,8 @@ export const properties = sqliteTable(
 		acquisitionCost: integer('acquisition_cost'),
 		buildingShare: real('building_share'),
 		depreciationRate: real('depreciation_rate'),
+		/** For the Rendite: what the bank lent for the purchase, in cents; the rest is equity. */
+		loanAmount: integer('loan_amount'),
 		notes: text('notes'),
 		/** The day it was archived (e.g. sold); hidden from lists and selects, its history stays. */
 		archivedAt: text('archived_at'),

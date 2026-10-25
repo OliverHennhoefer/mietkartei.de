@@ -18,7 +18,7 @@ Die **Einstellungen** öffnest du über dein Kürzel oben rechts; sie erscheinen
 
 Fünf falsche Passwörter in 15 Minuten sperren eine E-Mail-Adresse für 15 Minuten. Wer sein Passwort vergessen hat, fordert unter **Passwort vergessen?** einen Link an, der eine Stunde gilt; mehr als drei offene Links gibt es nicht. Eine neue E-Mail-Adresse gilt erst, wenn du den Link bestätigst, den mietkartei an sie schickt; die bisherige Adresse erfährt davon. Wie Mails verschickt werden, bestimmt `MAIL_TRANSPORT` (siehe unten); ohne Angabe stehen sie nur im Log des Servers. Unter **Einstellungen → Protokoll** siehst du, wer wann was geändert hat.
 
-Unter **Einstellungen → Export** lädst du alle Daten deines Kontos als ZIP-Datei herunter: `export.json` mit allen Einträgen (ohne Passwörter) und die hochgeladenen Dokumente im Ordner `documents/`. Unter **Einstellungen → Konto** löschst du dein Konto endgültig, nachdem du dein Passwort noch einmal eingegeben hast. Dabei gehen alle Daten, Dokumente und die Zugänge der Mitverwalter verloren.
+Unter **Einstellungen → Export** lädst du alle Daten deines Kontos als ZIP-Datei herunter: `export.json` mit allen Einträgen (ohne Passwörter) und die hochgeladenen Dokumente im Ordner `documents/`. Auf derselben Seite spielst du so einen Export in ein leeres Konto ein, auch auf einer anderen Instanz; so ziehst du etwa von app.mietkartei.de auf deinen eigenen Server um. Mitverwalter, Kalender-Abos und API-Schlüssel kommen nicht mit. Unter **Einstellungen → Konto** löschst du dein Konto endgültig, nachdem du dein Passwort noch einmal eingegeben hast. Dabei gehen alle Daten, Dokumente und die Zugänge der Mitverwalter verloren.
 
 ## Datenübernahme und Demodaten
 

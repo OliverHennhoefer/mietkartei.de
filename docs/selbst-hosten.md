@@ -24,6 +24,8 @@ docker run -d --name mietkartei -p 127.0.0.1:3000:3000 \
 
 **Sichern:** Halte den Container mit `docker stop mietkartei` an und kopiere den Inhalt von `/data`. Unter **Einstellungen → Export** lädst du außerdem jederzeit alle Daten deines Kontos als ZIP-Datei herunter.
 
+**Umziehen:** Nutzt du bisher app.mietkartei.de, lade dort den Export herunter und spiele ihn in deiner eigenen Instanz unter **Einstellungen → Export → Export einspielen** ein. Alle Einträge und Dokumente kommen mit; wie das genau geht, steht unter [Umziehen und Daten mitnehmen](anleitungen/umziehen.md). Andersherum geht es genauso.
+
 **Herkunft prüfen:** Jedes Image trägt eine signierte Herkunftsangabe, die belegt, dass es aus diesem Repository gebaut wurde. Mit der [GitHub CLI](https://cli.github.com) prüfst du sie so:
 
 ```sh

@@ -19,8 +19,10 @@ Erste öffentliche Version. Sie enthält:
 - Bankimport per camt.053 oder CSV mit Zuordnungsvorschlägen und -regeln.
 - Objekte, Einheiten, Mieter und Mietverträge mit Index- und Staffelmiete.
 - Zähler und Abrechnungskreise, Dokumente, Aufgaben und Fristen.
+- Auswertung mit Überblick, Mieteinnahmen, Ausgaben, Objektvergleich sowie Rendite und Cashflow nach Zins und Tilgung.
 - Zugänge für Mitverwalter und mit Lesezugriff.
 - Datenübernahme per CSV, vollständiger Export und Änderungsprotokoll.
+- Umzug zwischen Instanzen: Einen Export samt Dokumenten in ein leeres Konto einspielen, etwa von app.mietkartei.de auf den eigenen Server.
 - MCP-Server und REST-API für KI-Assistenten wie Claude und ChatGPT.
 - Betrieb gehostet unter app.mietkartei.de oder selbst als Docker-Container.
 

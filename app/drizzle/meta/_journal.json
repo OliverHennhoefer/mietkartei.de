@@ -278,8 +278,15 @@
     {
       "idx": 39,
       "version": "6",
-      "when": 1792925664809,
-      "tag": "0039_subscription_price",
+      "when": 1792922854337,
+      "tag": "0039_financing",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1792926024134,
+      "tag": "0040_subscription_price",
       "breakpoints": true
     }
   ]

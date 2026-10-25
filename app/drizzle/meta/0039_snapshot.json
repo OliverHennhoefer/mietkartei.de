@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b958d5cf-55eb-477d-8b27-6971d410e979",
+  "id": "c33f476f-b6c6-4588-88cb-ecfb3e4d6f54",
   "prevId": "d65fc1d3-6f00-4cc8-b4e1-e3ccb15888eb",
   "tables": {
     "accounts": {
@@ -106,21 +106,6 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "stripe_price_id": {
-          "name": "stripe_price_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "founder": {
-          "name": "founder",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
         },
         "stripe_checkout_session_id": {
           "name": "stripe_checkout_session_id",
@@ -4729,6 +4714,13 @@
         "depreciation_rate": {
           "name": "depreciation_rate",
           "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "loan_amount": {
+          "name": "loan_amount",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

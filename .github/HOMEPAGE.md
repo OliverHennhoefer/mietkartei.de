@@ -20,7 +20,7 @@ Then open [http://127.0.0.1:8002](http://127.0.0.1:8002). Rebuild the output aft
 | `website/index.html` | Public German homepage |
 | `website/impressum/index.html` | Legal notice (Impressum) with provider and contact details |
 | `website/styles.css` | Styles, including light and dark colors |
-| `website/assets/screenshots/` | App screenshots shown on the homepage, copied from `assets/screenshots/` (`npm run screenshots` in `app/`) |
+| `website/assets/screenshots/` | App screenshots shown on the homepage: the Auswertung and one tenant's share of the operating cost statement, taken by `npm run screenshots` in `app/` |
 | `website/ratgeber/*.md` | Guides, one Markdown file per guide; the file name is the URL slug |
 | `website/ratgeber/_layout.html` | Page frame for the guide index and the guides |
 | `website/_headers` | HTTP response headers for Cloudflare |

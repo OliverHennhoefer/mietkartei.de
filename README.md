@@ -22,7 +22,7 @@ Open Source, nachvollziehbar gerechnet und ohne Einarbeitung.
 
 <br>
 
-<a href="https://demo.mietkartei.de"><img src="assets/screenshots/uebersicht.png" alt="Übersicht von mietkartei mit Rückständen, Leerstand, offenen Bankumsätzen und Fristen" width="900"></a>
+<a href="https://demo.mietkartei.de"><img src="assets/screenshots/auswertung.png" alt="Auswertung von mietkartei mit Einnahmen, Ausgaben, Überschuss und Kaltmiete pro m² sowie dem Verlauf über ein Jahr" width="900"></a>
 
 </div>
 
@@ -31,8 +31,8 @@ Open Source, nachvollziehbar gerechnet und ohne Einarbeitung.
 Gebaut für private Vermieter: zu klein für die großen Verwaltungsprogramme, aber mehr, als eine Excel-Tabelle sauber trägt.
 
 - **Alles mit Rechenweg:** Jede Umlage zeigt, wie sie entsteht. Widerspricht ein Mieter, zeigst du ihm jeden Schritt.
-- **Kein Lock-in:** Offener Code unter AGPL-3.0 und vollständiger Export, deine Daten bleiben auch ohne uns nutzbar.
-- **Kein Datengeschäft:** Wir leben vom Abo, nicht von Werbung, Leads oder den Daten deiner Mieter.
+- **Kein Lock-in:** Offener Code und vollständiger Export, deine Daten bleiben auch ohne uns nutzbar.
+- **Kein Datengeschäft:** Kein Geld mit deinen Daten oder denen deiner Mieter, keine Werbung, keine Leads. Das Abo der gehosteten Version deckt Server und Weiterentwicklung.
 - **Ein Preis, alles drin:** Selbst betrieben kostenlos, gehostet 8 € im Monat, egal wie viele Wohnungen.
 - **Frag einfach Claude:** Über den MCP-Server beantworten Claude oder ChatGPT Fragen wie „Wer ist im Rückstand?“.
 
