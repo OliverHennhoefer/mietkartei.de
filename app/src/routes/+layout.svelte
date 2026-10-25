@@ -240,7 +240,9 @@
 		if (hadSettings && !has) {
 			settingsRequest++;
 			if (page.url.href === pageTitle.url) document.title = pageTitle.title;
-			accountButton?.focus();
+			// On a phone the account button sits in the closed drawer; the menu button stands in.
+			if (accountButton?.checkVisibility()) accountButton.focus();
+			else menuButton?.focus();
 		}
 		hadSettings = has;
 	});
