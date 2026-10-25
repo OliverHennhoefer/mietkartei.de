@@ -2,6 +2,7 @@ import { asc, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseBankFile, type RowResult } from '../../domain/bank-matching';
 import { auditLog, bankTransactions, depositTransactions, payments } from '../db/schema';
+import { QUOTAS } from '../quotas';
 import type { Database } from '../db';
 import { createLease, listLeases, updateLease, leaseInputOf, getLease } from '../leases';
 import { contextA, contextB, leaseInput, seedTenant, seedUnit, testDatabase } from '../testing';
@@ -366,6 +367,40 @@ describe('transactions', () => {
 		expect(await listRules(db, 'a')).toMatchObject([{ leaseId, confirmed: false }]);
 		const audit = await db.select().from(auditLog).where(eq(auditLog.entity, 'matchingRule'));
 		expect(audit.map((entry) => entry.action)).toEqual(['create', 'update']);
+	});
+
+	it('remembers the name of a counterpart without an IBAN', async () => {
+		await importSparkasse();
+		const [incoming] = (await openTransactions()).filter((row) => row.amount > 0);
+		await db
+			.update(bankTransactions)
+			.set({ counterpartIban: null })
+			.where(eq(bankTransactions.id, incoming.id));
+		await assignTransaction(db, contextA, incoming.id, {
+			target: 'rent',
+			parts: [{ leaseId, amount: 85000 }]
+		});
+		expect(await listRules(db, 'a')).toMatchObject([
+			{ leaseId, field: 'counterpartName', pattern: 'Max Müller', confirmed: true }
+		]);
+	});
+
+	it('assigns without remembering when the rule quota is full', async () => {
+		await importSparkasse();
+		const [incoming] = (await openTransactions()).filter((row) => row.amount > 0);
+		const { max } = QUOTAS.matchingRules;
+		QUOTAS.matchingRules.max = 0;
+		try {
+			expect(
+				await assignTransaction(db, contextA, incoming.id, {
+					target: 'rent',
+					parts: [{ leaseId, amount: 85000 }]
+				})
+			).toBe('assigned');
+		} finally {
+			QUOTAS.matchingRules.max = max;
+		}
+		expect(await listRules(db, 'a')).toEqual([]);
 	});
 
 	it('drops a remembered rule back to a suggestion on a split', async () => {
