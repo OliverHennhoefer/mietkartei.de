@@ -1,8 +1,9 @@
-import { unzipSync, strFromU8 } from 'fflate';
+import { gzipSync, strFromU8, strToU8, unzipSync } from 'fflate';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { auditEntry } from '#lib/server/audit.ts';
 import { consumerPriceIndex } from '#lib/server/db/schema.ts';
+import { storeDocument } from '#lib/server/documents.ts';
 import {
 	managerA,
 	memoryStorage,
@@ -12,6 +13,8 @@ import {
 	testDatabase
 } from '#lib/server/testing.ts';
 import { GET as download } from './export/herunterladen/+server';
+import { POST as restore } from './export/einspielen/+server';
+import { PUT as restoreFile } from './export/einspielen/[id]/+server';
 import { load as loadExport } from './export/+page.server';
 import { load as loadLog } from './protokoll/+page.server';
 import { load as loadSettings } from './+page.server';
@@ -93,7 +96,9 @@ describe('export', () => {
 	it('is for owners only', async () => {
 		expect(await run(loadExport, { user: managerA })).toMatchObject({ error: 403 });
 		expect(await run(download, { user: managerA })).toMatchObject({ error: 403 });
-		expect(await run(loadExport)).toEqual({ data: {} });
+		expect(await run(restore, { user: managerA })).toMatchObject({ error: 403 });
+		expect(await run(restoreFile, { user: managerA })).toMatchObject({ error: 403 });
+		expect(await run(loadExport)).toEqual({ data: { canRestore: true } });
 	});
 
 	it('downloads the account as a ZIP with export.json', async () => {
@@ -108,5 +113,72 @@ describe('export', () => {
 		const json = strFromU8(files['export.json']);
 		expect(json).toContain('Exportiert');
 		expect(json).not.toContain('Fremd');
+	});
+
+	it('restores an export into an empty account, then its documents one by one', async () => {
+		const tenantId = await seedTenant(db, 'a', { lastName: 'Umgezogen' });
+		await storeDocument(
+			db,
+			{ accountId: 'a', userId: 'user-a' },
+			{
+				name: 'Vertrag.pdf',
+				mimeType: 'application/pdf',
+				bytes: new Uint8Array([7, 8]),
+				links: { tenantId }
+			}
+		);
+		const files = unzipSync(
+			new Uint8Array(await ((await run(download)) as { data: Response }).data.arrayBuffer())
+		);
+		const [path] = Object.keys(files).filter(
+			(name) => name.startsWith('documents/') && !name.endsWith('/')
+		);
+		const documentId = path.slice('documents/'.length, 'documents/'.length + 36);
+
+		// A new instance: the same export into an empty database.
+		db = await testDatabase();
+		storage.current = memoryStorage();
+		const post = (body: BodyInit, origin = 'http://localhost') =>
+			run((event: { request: Request }) =>
+				restore({
+					...(event as object),
+					request: new Request('http://localhost/einstellungen/export/einspielen', {
+						method: 'POST',
+						headers: { origin, 'content-type': 'application/gzip' },
+						body
+					})
+				} as never)
+			);
+		const gzipped = gzipSync(files['export.json']);
+		expect(await post(gzipped, 'https://fremd.example')).toMatchObject({ error: 403 });
+		expect(await post(gzipSync(strToU8('{"format":"anders"}')))).toMatchObject({ error: 400 });
+		expect(await post(strToU8('kein gzip'))).toMatchObject({ error: 400 });
+
+		const restored = (await post(gzipped)) as { data: Response };
+		expect(await restored.data.json()).toMatchObject({ documents: 1 });
+		expect(await run(loadExport)).toEqual({ data: { canRestore: false } });
+		expect(await post(gzipped)).toMatchObject({ error: 409 });
+
+		const put = (bytes: Uint8Array<ArrayBuffer>) =>
+			run((event: { request: Request }) =>
+				restoreFile({
+					...(event as object),
+					params: { id: documentId },
+					request: new Request(`http://localhost/einstellungen/export/einspielen/${documentId}`, {
+						method: 'PUT',
+						headers: { origin: 'http://localhost' },
+						body: bytes
+					})
+				} as never)
+			);
+		expect(await put(new Uint8Array(files[path]))).toMatchObject({
+			data: expect.objectContaining({ status: 204 })
+		});
+		expect(await put(new Uint8Array(files[path]))).toMatchObject({ error: 409 });
+		const again = unzipSync(
+			new Uint8Array(await ((await run(download)) as { data: Response }).data.arrayBuffer())
+		);
+		expect(strFromU8(again['export.json'])).toContain('Umgezogen');
+		expect(again[path]).toEqual(new Uint8Array([7, 8]));
 	});
 });
