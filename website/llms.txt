@@ -12,7 +12,7 @@ Was mietkartei kann:
 - Bankimport von Kontoauszügen mit Zuordnungsvorschlägen und -regeln.
 - Objekte, Einheiten, Mieter und Mietverträge mit Index- und Staffelmiete.
 - Zähler und Abrechnungskreise, Dokumente, Aufgaben und Fristen.
-- Mitverwalter, Datenübernahme per CSV, vollständiger Export und Änderungsprotokoll.
+- Mitverwalter, Datenübernahme per CSV, Änderungsprotokoll und vollständiger Export als ZIP (alle Einträge als JSON, alle Dokumente im Original), der sich in eine andere mietkartei-Instanz einspielen lässt, etwa von app.mietkartei.de auf den eigenen Server und zurück.
 
 Was es kostet: Selbst betrieben ist mietkartei kostenlos und ohne Einschränkungen, der komplette Code ist Open Source unter der AGPL-3.0. Die gehostete Version unter app.mietkartei.de kostet 8 € im Monat inklusive Mehrwertsteuer, mit 30 Tagen kostenlosem Test und jederzeit kündbar. Der Preis ist pauschal, ohne Aufschlag pro Einheit und ohne Zusatzmodule.
 
@@ -34,6 +34,7 @@ Worauf mietkartei setzt: nachvollziehbar gerechnete Umlagen, kein Lock-in (offen
 - [Von Excel umsteigen](https://docs.mietkartei.de/anleitungen/von-excel-umsteigen/): Objekte, Mieter, Mietverträge und Zahlungen per CSV übernehmen
 - [KI-Assistenten anbinden](https://docs.mietkartei.de/anleitungen/ki-assistenten/): MCP-Server unter https://app.mietkartei.de/mcp (OAuth für claude.ai und ChatGPT, sonst API-Schlüssel) und REST-API
 - [Selbst hosten](https://docs.mietkartei.de/selbst-hosten/): mietkartei mit Docker oder aus dem Quellcode betreiben
+- [Umziehen und Daten mitnehmen](https://docs.mietkartei.de/anleitungen/umziehen/): Export herunterladen und in eine andere Instanz einspielen, mit allen Dokumenten und dem Änderungsprotokoll
 - [Quellcode auf GitHub](https://github.com/OliverHennhoefer/mietkartei.de): Code, Fehlerberichte und Funktionswünsche
 
 ## Ratgeber
