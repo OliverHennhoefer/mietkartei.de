@@ -116,9 +116,15 @@ export const actions: Actions = {
 		requireOwner(locals);
 		if (!bankSyncEnabled()) error(404, 'Auf dieser Instanz gibt es keinen Bankabruf.');
 		const id = String((await request.formData()).get('id') ?? '');
-		if (!(await endConnection(locals.db, auditContext(locals), id))) {
-			error(404, 'Für dieses Konto gibt es keinen Bankabruf.');
+		let ended: boolean;
+		try {
+			ended = await endConnection(locals.db, auditContext(locals), id);
+		} catch {
+			return fail(502, {
+				message: 'Die Bank hat die Freigabe gerade nicht beendet. Versuche es später noch einmal.'
+			});
 		}
+		if (!ended) error(404, 'Für dieses Konto gibt es keinen Bankabruf.');
 		return { ended: true };
 	}
 };

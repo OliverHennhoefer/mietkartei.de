@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "7de7fcb5-96aa-4daf-a931-3ad7f943b950",
+  "id": "32f8a4c9-c74e-4a5b-9a04-f182a3510153",
   "prevId": "9dda8b2b-6eb5-401d-93fc-fe585ef546de",
   "tables": {
     "accounts": {
@@ -922,6 +922,13 @@
         },
         "valid_until": {
           "name": "valid_until",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_attempt_at": {
+          "name": "last_attempt_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,

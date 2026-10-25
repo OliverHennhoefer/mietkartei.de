@@ -8,6 +8,7 @@ CREATE TABLE `bank_connections` (
 	`session_id` text,
 	`account_uid` text,
 	`valid_until` integer,
+	`last_attempt_at` integer,
 	`last_synced_at` integer,
 	`last_error` text,
 	`created_at` integer DEFAULT (unixepoch('subsec') * 1000) NOT NULL,

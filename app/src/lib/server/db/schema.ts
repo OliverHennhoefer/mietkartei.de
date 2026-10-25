@@ -636,6 +636,9 @@ export const bankConnections = sqliteTable(
 		/** The account's id within the session. */
 		accountUid: text('account_uid'),
 		validUntil: integer('valid_until', { mode: 'timestamp_ms' }),
+		/** When a fetch last started; claims the fetch so two page loads do not both fetch. */
+		lastAttemptAt: integer('last_attempt_at', { mode: 'timestamp_ms' }),
+		/** When a fetch last worked; the next one starts from here. */
 		lastSyncedAt: integer('last_synced_at', { mode: 'timestamp_ms' }),
 		/** Why the last fetch failed; null after one that worked. */
 		lastError: text('last_error'),

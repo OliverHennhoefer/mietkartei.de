@@ -171,6 +171,8 @@ export async function deleteSession(sessionId: string): Promise<void> {
 type Party = { name?: string | null } | null | undefined;
 type PartyAccount = { iban?: string | null } | null | undefined;
 
+const MAX_PAGES = 50;
+
 export type BankApiTransaction = {
 	entry_reference?: string | null;
 	transaction_id?: string | null;
@@ -186,7 +188,10 @@ export type BankApiTransaction = {
 	remittance_information?: string[] | null;
 };
 
-/** The booked transactions of an account from `dateFrom` on, all pages. */
+/**
+ * The booked transactions of an account from `dateFrom` on, all pages. A history longer than the
+ * page limit throws instead of coming back incomplete.
+ */
 export async function listTransactions(
 	accountUid: string,
 	dateFrom: IsoDate
@@ -194,7 +199,7 @@ export async function listTransactions(
 	const all: BankApiTransaction[] = [];
 	let continuation: string | undefined;
 	// A safety net against a bank that keeps handing out continuation keys.
-	for (let page = 0; page < 50; page++) {
+	for (let page = 0; page < MAX_PAGES; page++) {
 		const query = new URLSearchParams({ date_from: dateFrom, transaction_status: 'BOOK' });
 		if (continuation) query.set('continuation_key', continuation);
 		const answer = await call<{
@@ -203,9 +208,9 @@ export async function listTransactions(
 		}>('GET', `/accounts/${encodeURIComponent(accountUid)}/transactions?${query}`);
 		all.push(...(answer.transactions ?? []));
 		continuation = answer.continuation_key ?? undefined;
-		if (!continuation) break;
+		if (!continuation) return all;
 	}
-	return all;
+	throw new EnableBankingError(0, `Mehr als ${MAX_PAGES} Seiten Umsätze`);
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;

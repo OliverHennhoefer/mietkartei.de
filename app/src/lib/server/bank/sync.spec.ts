@@ -334,6 +334,40 @@ describe('Bankabruf', () => {
 		expect((await connection()).lastError).toBeNull();
 	});
 
+	it('starts again from the full history after a first fetch that failed', async () => {
+		await connect();
+		const queries: URL[] = [];
+		answers['GET /accounts/acc-1/transactions'] = (_, url) => {
+			queries.push(url);
+			return { status: 503, body: { message: 'Bank down' } };
+		};
+		await syncDue(db, contextA, new Date('2026-10-25T10:00:00Z'));
+		expect((await connection()).lastSyncedAt).toBeNull();
+
+		answers['GET /accounts/acc-1/transactions'] = (_, url) => {
+			queries.push(url);
+			return { body: { transactions: [rent()] } };
+		};
+		await syncDue(db, contextA, new Date('2026-10-25T12:00:00Z'));
+		expect(queries).toHaveLength(1);
+		await syncDue(db, contextA, new Date('2026-10-25T17:00:00Z'));
+		expect(queries).toHaveLength(2);
+		expect(queries[1].searchParams.get('date_from')).toBe('2026-07-28');
+		expect(await transactions()).toHaveLength(1);
+	});
+
+	it('refuses a history that does not end within the page limit', async () => {
+		await connect();
+		answers['GET /accounts/acc-1/transactions'] = () => ({
+			body: { transactions: [rent()], continuation_key: 'again' }
+		});
+		await expect(syncConnection(db, contextA, await connection(), { force: true })).rejects.toThrow(
+			'Mehr als 50 Seiten'
+		);
+		expect(await transactions()).toEqual([]);
+		expect((await connection()).lastSyncedAt).toBeNull();
+	});
+
 	it('does nothing while the instance has no application', async () => {
 		await connect();
 		env.ENABLE_BANKING_APP_ID = '';
@@ -349,5 +383,16 @@ describe('Bankabruf', () => {
 		expect(calls).toContain('DELETE /sessions/session-1');
 		expect(await db.select().from(bankConnections)).toEqual([]);
 		expect(await endConnection(db, contextA, bankAccountId)).toBe(false);
+	});
+
+	it('keeps the Bankabruf when the bank does not end the session', async () => {
+		await connect();
+		answers['DELETE /sessions/session-1'] = () => ({ status: 503, body: { message: 'Down' } });
+		await expect(endConnection(db, contextA, bankAccountId)).rejects.toThrow('Down');
+		expect(await listConnections(db, 'a')).toHaveLength(1);
+
+		answers['DELETE /sessions/session-1'] = () => ({ status: 404, body: { message: 'Gone' } });
+		expect(await endConnection(db, contextA, bankAccountId)).toBe(true);
+		expect(await listConnections(db, 'a')).toEqual([]);
 	});
 });

@@ -10,6 +10,7 @@ import {
 	bankSyncEnabled,
 	createSession,
 	deleteSession,
+	EnableBankingError,
 	listTransactions,
 	startAuthorization,
 	toRow,
@@ -160,9 +161,10 @@ export type SyncResult = { imported: number; assigned: number };
 
 /**
  * Fetches the transactions of one connection and imports what is new. The fetch is claimed by
- * moving lastSyncedAt first, so two page loads at once fetch once; with `force` the six hours do
- * not count. Undefined when another request claimed it or the connection cannot fetch. A failure
- * is kept in lastError and thrown.
+ * moving lastAttemptAt first, so two page loads at once fetch once; with `force` the six hours do
+ * not count. Only a fetch that worked moves lastSyncedAt, where the next one starts. Undefined
+ * when another request claimed it or the connection cannot fetch. A failure is kept in lastError
+ * and thrown.
  */
 export async function syncConnection(
 	db: Database,
@@ -175,13 +177,13 @@ export async function syncConnection(
 	const due = new Date(now.getTime() - SYNC_AFTER_MS);
 	const claimed = await db
 		.update(bankConnections)
-		.set({ lastSyncedAt: now })
+		.set({ lastAttemptAt: now })
 		.where(
 			and(
 				eq(bankConnections.id, connection.id),
 				options.force
 					? undefined
-					: or(isNull(bankConnections.lastSyncedAt), lt(bankConnections.lastSyncedAt, due))
+					: or(isNull(bankConnections.lastAttemptAt), lt(bankConnections.lastAttemptAt, due))
 			)
 		)
 		.returning({ id: bankConnections.id });
@@ -206,7 +208,7 @@ export async function syncConnection(
 		}
 		await db
 			.update(bankConnections)
-			.set({ lastError: null })
+			.set({ lastSyncedAt: now, lastError: null })
 			.where(eq(bankConnections.id, connection.id));
 		return outcome;
 	} catch (cause) {
@@ -233,7 +235,7 @@ export async function syncDue(db: Database, context: AuditContext, now = new Dat
 			and(
 				eq(bankConnections.accountId, context.accountId),
 				isNotNull(bankConnections.sessionId),
-				or(isNull(bankConnections.lastSyncedAt), lt(bankConnections.lastSyncedAt, due))
+				or(isNull(bankConnections.lastAttemptAt), lt(bankConnections.lastAttemptAt, due))
 			)
 		);
 	for (const connection of connections) {
@@ -245,7 +247,11 @@ export async function syncDue(db: Database, context: AuditContext, now = new Dat
 	}
 }
 
-/** Ends the Bankabruf of a bank account: the session at the bank first, then the row. */
+/**
+ * Ends the Bankabruf of a bank account: the session at the bank first, then the row. When the
+ * bank side fails, the row stays so the landlord can try again; a session Enable Banking no
+ * longer knows counts as ended.
+ */
 export async function endConnection(
 	db: Database,
 	context: AuditContext,
@@ -261,7 +267,11 @@ export async function endConnection(
 			)
 		);
 	if (!connection) return false;
-	if (connection.sessionId) await deleteSession(connection.sessionId).catch(() => undefined);
+	if (connection.sessionId) {
+		await deleteSession(connection.sessionId).catch((cause) => {
+			if (!(cause instanceof EnableBankingError && cause.status === 404)) throw cause;
+		});
+	}
 	await runBatch(db, [
 		db.delete(bankConnections).where(eq(bankConnections.id, connection.id)),
 		auditEntry(
