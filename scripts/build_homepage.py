@@ -32,7 +32,7 @@ for filename in (
     destination.parent.mkdir(parents=True, exist_ok=True)
     copyfile(ROOT / "website" / filename, destination)
 
-for filename in ("uebersicht.png", "abrechnung-mieter.png"):
+for filename in ("auswertung.png", "abrechnung-mieter.png"):
     destination = OUTPUT / "assets" / "screenshots" / filename
     destination.parent.mkdir(parents=True, exist_ok=True)
     copyfile(ROOT / "website" / "assets" / "screenshots" / filename, destination)

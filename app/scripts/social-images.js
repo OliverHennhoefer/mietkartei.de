@@ -1,4 +1,4 @@
-// Renders the link preview images from the brand assets and the README screenshots: the Open Graph
+// Renders the link preview images from the brand assets and the app screenshots: the Open Graph
 // image of the websites (website/assets/social.png, 1200×630) and the GitHub social preview
 // (assets/social-preview.png, 1280×640, uploaded by hand in the repository settings). Run
 // `npm run social-images` after the screenshots or the brand change; PLAYWRIGHT_CHROMIUM_PATH
@@ -53,7 +53,7 @@ const page = ({ width, height, footer }) => `<!doctype html>
 </style>
 </head>
 <body>
-	<img class="shot main" src="${file('assets/screenshots/uebersicht.png')}" alt="">
+	<img class="shot main" src="${file('website/assets/screenshots/auswertung.png')}" alt="">
 	<img class="shot detail" src="${file('assets/screenshots/abrechnung-mieter.png')}" alt="">
 	<div class="copy">
 		<img class="lockup" src="${file('assets/brand/lockup-highlight.svg')}" alt="">
