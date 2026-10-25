@@ -43,7 +43,7 @@ Dabei gilt:
 
 - **Tagesgenau:** Zieht ein Mieter im Mai aus, trägt er die Kosten bis zu seinem Auszugstag, der Nachmieter ab seinem Einzug. Steht die Wohnung dazwischen leer, trägst du diesen Anteil selbst.
 - **Personen über die Zeit:** Ändert sich die Personenzahl im Jahr, rechnet mietkartei mit Personentagen.
-- **CO₂-Kosten:** Bei Heizöl und Erdgas teilt mietkartei die CO₂-Kosten nach dem Stufenmodell des CO₂-Kostenaufteilungsgesetzes auf. Mehr dazu steht im Artikel [CO₂-Kosten aufteilen](https://mietkartei.de/neuigkeiten/co2-kosten-aufteilen/).
+- **CO₂-Kosten:** Bei Heizöl und Erdgas teilt mietkartei die CO₂-Kosten nach dem Stufenmodell des CO₂-Kostenaufteilungsgesetzes auf. Mehr dazu steht im Artikel [CO₂-Kosten aufteilen](https://mietkartei.de/ratgeber/co2-kosten-aufteilen/).
 - **Hinweise:** Fehlen Zählerstände, ist der Verbrauchsanteil der Heizkosten ungewöhnlich oder droht die Abrechnungsfrist abzulaufen, zeigt der Entwurf einen Hinweis mit einem Link zur Stelle, an der du es behebst.
 
 Ein Entwurf rechnet bei jedem Öffnen neu. Fehlt ein Beleg, trägst du ihn nach und öffnest den Entwurf wieder.
