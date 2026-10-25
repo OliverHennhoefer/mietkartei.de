@@ -13,8 +13,8 @@ describe('settingsSections', () => {
 	});
 
 	it('leaves the import out for viewers', () => {
-		expect(hrefs('manager', false)).toContain('/datenuebernahme');
-		expect(hrefs('viewer', false)).not.toContain('/datenuebernahme');
+		expect(hrefs('manager', false)).toContain('/einstellungen/datenuebernahme');
+		expect(hrefs('viewer', false)).not.toContain('/einstellungen/datenuebernahme');
 		expect(hrefs('viewer', false)).toContain('/einstellungen/profil');
 	});
 
@@ -29,8 +29,8 @@ describe('settingsSectionOf', () => {
 		expect(settingsSectionOf('/abo')?.label).toBe('Abo');
 		expect(settingsSectionOf('/einstellungen/protokoll')?.label).toBe('Protokoll');
 		expect(settingsSectionOf('/einstellungen/export/herunterladen')?.label).toBe('Export');
+		expect(settingsSectionOf('/einstellungen/datenuebernahme')?.label).toBe('Datenübernahme');
 		expect(settingsSectionOf('/abonnement')).toBeUndefined();
-		expect(settingsSectionOf('/datenuebernahme')).toBeUndefined();
 		expect(settingsSectionOf('/objekte')).toBeUndefined();
 	});
 });

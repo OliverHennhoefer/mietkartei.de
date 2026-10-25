@@ -18,6 +18,8 @@
 	import AiAssistants from './einstellungen/ki-assistenten/+page.svelte';
 	import Export from './einstellungen/export/+page.svelte';
 	import Profile from './einstellungen/profil/+page.svelte';
+	import Calendar from './einstellungen/kalender/+page.svelte';
+	import DataImport from './einstellungen/datenuebernahme/+page.svelte';
 	import AuditLog from './einstellungen/protokoll/+page.svelte';
 	import PriceIndex from './einstellungen/vpi/+page.svelte';
 
@@ -40,10 +42,12 @@
 	const settingsViews: Record<string, Component<any>> = {
 		'/einstellungen/profil': Profile,
 		'/einstellungen/zugaenge': Members,
+		'/einstellungen/kalender': Calendar,
 		'/einstellungen/vpi': PriceIndex,
 		'/einstellungen/protokoll': AuditLog,
 		'/einstellungen/export': Export,
 		'/einstellungen/ki-assistenten': AiAssistants,
+		'/einstellungen/datenuebernahme': DataImport,
 		'/abo': Subscription,
 		'/einstellungen/konto': Account
 	};

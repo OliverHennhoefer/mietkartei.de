@@ -5,7 +5,11 @@
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import type { PageProps } from './$types';
 
-	let { data, form }: PageProps = $props();
+	let { data, form: answer }: PageProps = $props();
+
+	// "Weitere Datei" and "Abbrechen" go back to step 1 in place, also in the settings dialog.
+	let dismissed = $state.raw<unknown>(null);
+	const form = $derived(answer === dismissed ? null : answer);
 
 	// Step 1 (the upload form, also after a form error), step 2 (mapping and preview) or the summary.
 	const errors = $derived(form && 'errors' in form ? form.errors : undefined);
@@ -45,7 +49,6 @@
 <PageHeader
 	title="Datenübernahme"
 	lead="Übernimm Objekte, Mieter, Mietverträge und Zahlungen aus einer CSV-Datei deiner bisherigen Software."
-	back={{ href: '/einstellungen', label: 'Einstellungen' }}
 />
 
 {#if summary}
@@ -74,7 +77,7 @@
 	{/if}
 
 	<div class="toolbar">
-		<a class="button" href="/datenuebernahme">Weitere Datei importieren</a>
+		<button type="button" onclick={() => (dismissed = answer)}>Weitere Datei importieren</button>
 		<a class="button secondary" href="/objekte">Zu den Objekten</a>
 		<a class="button secondary" href="/mieter">Zu den Mietern</a>
 		<a class="button secondary" href="/vertraege">Zu den Mietverträgen</a>
@@ -85,15 +88,15 @@
 	{/if}
 
 	<h2>Spalten zuordnen</h2>
-	<form method="POST" action="?/preview" class="card form-wide" use:enhance>
+	<form method="POST" action="?/preview" class="card" use:enhance>
 		<input type="hidden" name="kind" value={preview.kind} />
 		<input type="hidden" name="content" value={preview.content} />
-		<p class="muted">
+		<p class="muted form-wide">
 			{data.kindLabels[preview.kind]}: {preview.headers.length}
 			{preview.headers.length === 1 ? 'Spalte' : 'Spalten'}, {preview.total}
 			{preview.total === 1 ? 'Zeile' : 'Zeilen'}. Wähle zu jedem Feld die Spalte der Datei.
 		</p>
-		<div class="mapping">
+		<div class="mapping form-wide">
 			{#each fields as field (field.name)}
 				<Field label={field.required ? field.label : `${field.label} (optional)`} hint={field.hint}>
 					<select name="map.{field.name}">
@@ -112,7 +115,8 @@
 		<div class="form-actions">
 			<button type="submit" class="secondary" formaction="?/preview">Vorschau aktualisieren</button>
 			<button type="submit" formaction="?/commit">Importieren</button>
-			<a href="/datenuebernahme">Abbrechen</a>
+			<button type="button" class="secondary" onclick={() => (dismissed = answer)}>Abbrechen</button
+			>
 		</div>
 	</form>
 

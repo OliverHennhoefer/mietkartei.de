@@ -28,6 +28,7 @@ Then open [http://127.0.0.1:8002](http://127.0.0.1:8002). Rebuild the output aft
 | `website/robots.txt` | Instructions for search engines, pointing to the sitemap |
 | `website/sitemap.xml` | List of the public pages; add every new page here |
 | `website/llms.txt` | Plain-text summary of the product for AI assistants and AI search ([llms.txt](https://llmstxt.org/)) |
+| `website/.well-known/security.txt` | Security contact per [RFC 9116](https://www.rfc-editor.org/rfc/rfc9116); the build fails 30 days before its `Expires` date, so move it a year ahead then |
 | `website/assets/social.png` | Preview image (1200×630) for links shared on social media and in messengers, used by the homepage, guides, docs and app; rendered by `npm run social-images` in `app/` |
 | `website/wrangler.toml` | Cloudflare Worker and custom domain |
 | `scripts/build_homepage.py` | Builds the public output with the shared assets |

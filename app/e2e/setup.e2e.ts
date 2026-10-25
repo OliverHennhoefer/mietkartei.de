@@ -57,16 +57,16 @@ test('the first visitor registers and becomes the owner', async ({ page, request
 	);
 	await expect(steps.getByRole('link', { name: 'Datenübernahme' })).toHaveAttribute(
 		'href',
-		'/datenuebernahme'
+		'/einstellungen/datenuebernahme'
 	);
 	await page.goto('/objekte');
 	await expect(
 		page.getByRole('link', { name: 'Daten aus einer anderen Software importieren' })
-	).toHaveAttribute('href', '/datenuebernahme');
+	).toHaveAttribute('href', '/einstellungen/datenuebernahme');
 	await page.goto('/mieter');
 	await expect(page.getByRole('link', { name: 'Importieren' })).toHaveAttribute(
 		'href',
-		'/datenuebernahme'
+		'/einstellungen/datenuebernahme'
 	);
 	await page.goto('/');
 
