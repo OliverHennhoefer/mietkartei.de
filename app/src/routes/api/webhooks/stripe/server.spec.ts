@@ -9,6 +9,9 @@ import { POST } from './+server';
 const env = vi.hoisted(() => ({
 	STRIPE_SECRET_KEY: 'sk_test_unit',
 	STRIPE_PRICE_ID: 'price_unit',
+	STRIPE_YEARLY_PRICE_ID: '',
+	STRIPE_FOUNDER_PRICE_ID: '',
+	FOUNDER_SPOTS: 100,
 	STRIPE_WEBHOOK_SECRET: 'whsec_unit',
 	STRIPE_API_BASE: 'http://stripe.test'
 }));
@@ -16,7 +19,7 @@ vi.mock('$app/env/private', () => env);
 
 let db: Database;
 /** What GET /v1/subscriptions/sub_a answers: Stripe's current state of the subscription. */
-let current: { status: string; current_period_end: number };
+let current: { status: string; current_period_end: number; items?: unknown };
 
 beforeEach(async () => {
 	db = await testDatabase();
@@ -133,6 +136,23 @@ describe('POST /api/webhooks/stripe', () => {
 		>[0]);
 		expect(response.status).toBe(200);
 		expect((await account('a')).subscriptionStatus).toBe('active');
+	});
+
+	it('keeps the price the subscription bills, also after it ends', async () => {
+		current = {
+			status: 'active',
+			current_period_end: 1_894_665_600,
+			items: { data: [{ price: { id: 'price_founder' } }] }
+		};
+		await deliver('evt_price', 'customer.subscription.updated', 'active');
+		expect((await account('a')).stripePriceId).toBe('price_founder');
+
+		current = { status: 'canceled', current_period_end: 1_894_665_600 };
+		await deliver('evt_end', 'customer.subscription.deleted', 'canceled');
+		expect(await account('a')).toMatchObject({
+			subscriptionStatus: 'canceled',
+			stripePriceId: 'price_founder'
+		});
 	});
 
 	it('follows a change Stripe reports', async () => {

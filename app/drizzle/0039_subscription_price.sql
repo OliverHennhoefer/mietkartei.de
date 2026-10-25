@@ -1,0 +1,1 @@
+ALTER TABLE `accounts` ADD `stripe_price_id` text;

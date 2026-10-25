@@ -3,12 +3,15 @@ import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { accounts } from '#lib/server/db/schema.ts';
-import { managerA, outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
+import { managerA, outcome, ownerA, routeEvent, testDatabase } from '#lib/server/testing.ts';
 import { actions, load } from './+page.server';
 
 const env = vi.hoisted(() => ({
 	STRIPE_SECRET_KEY: 'sk_test_unit',
 	STRIPE_PRICE_ID: 'price_unit',
+	STRIPE_YEARLY_PRICE_ID: '',
+	STRIPE_FOUNDER_PRICE_ID: '',
+	FOUNDER_SPOTS: 100,
 	FREE_ACCOUNT_EMAILS: '',
 	STRIPE_WEBHOOK_SECRET: 'whsec_unit',
 	STRIPE_API_BASE: 'http://stripe.test',
@@ -26,16 +29,20 @@ let db: Database;
 /** Answers by "METHOD path"; every call is recorded the same way. */
 let answers: Record<string, () => { status?: number; body: unknown }>;
 let calls: string[];
+/** The form bodies of the POSTs, in order. */
+let sent: URLSearchParams[];
 
 beforeEach(async () => {
 	db = await testDatabase();
 	calls = [];
+	sent = [];
 	answers = {};
 	vi.stubGlobal(
 		'fetch',
 		vi.fn(async (url: string, init: RequestInit) => {
 			const call = `${init.method} ${new URL(url).pathname}`;
 			calls.push(call);
+			if (init.method === 'POST') sent.push(new URLSearchParams(String(init.body ?? '')));
 			const answer = answers[call]?.() ?? { status: 500, body: {} };
 			return new Response(JSON.stringify(answer.body), { status: answer.status ?? 200 });
 		})
@@ -48,24 +55,28 @@ afterEach(() => {
 	env.STRIPE_SECRET_KEY = 'sk_test_unit';
 	env.ORIGIN = 'https://app.mietkartei.de';
 	env.FREE_ACCOUNT_EMAILS = '';
+	env.STRIPE_YEARLY_PRICE_ID = '';
+	env.STRIPE_FOUNDER_PRICE_ID = '';
+	env.FOUNDER_SPOTS = 100;
 });
 
-function event(action: 'checkout' | 'portal') {
+function event(action: 'checkout' | 'portal', plan?: string) {
 	const url = new URL(`https://app.mietkartei.de/abo?/${action}`);
+	const body = plan ? new URLSearchParams({ plan }) : undefined;
 	return {
 		locals: {
 			db,
 			user: { id: 'user-a', email: 'a@example.org', accountId: 'a', name: null, role: 'owner' }
 		},
 		url,
-		request: new Request(url, { method: 'POST' })
+		request: new Request(url, { method: 'POST', body })
 	} as unknown as Parameters<(typeof actions)['checkout']>[0];
 }
 
 /** Runs an action and returns where it redirected, or the failure it answered with. */
-async function run(action: 'checkout' | 'portal') {
+async function run(action: 'checkout' | 'portal', plan?: string) {
 	try {
-		return { failure: await actions[action](event(action)) };
+		return { failure: await actions[action](event(action, plan)) };
 	} catch (thrown) {
 		if (isRedirect(thrown)) return { redirect: { status: thrown.status, to: thrown.location } };
 		throw thrown;
@@ -315,6 +326,102 @@ describe('load', () => {
 			success: false,
 			hasSubscription: true,
 			currentPeriodEnd: '2026-11-01'
+		});
+	});
+});
+
+describe('plans', () => {
+	beforeEach(() => {
+		answers['POST /v1/customers'] = () => ({ body: { id: 'cus_a' } });
+		answers['POST /v1/checkout/sessions'] = session('cs_1', 'open', CHECKOUT_URL);
+		env.STRIPE_YEARLY_PRICE_ID = 'price_year';
+		env.STRIPE_FOUNDER_PRICE_ID = 'price_founder';
+	});
+
+	/** The price of the last Checkout session opened. */
+	function checkoutPrice() {
+		const body = sent.findLast((params) => params.has('line_items[0][price]'));
+		return body?.get('line_items[0][price]');
+	}
+
+	async function founders(taken: number) {
+		for (let index = 0; index < taken; index++) {
+			await db
+				.insert(accounts)
+				.values({ name: `Gründer ${index}`, stripePriceId: 'price_founder' });
+		}
+	}
+
+	it('opens the yearly price for the yearly plan', async () => {
+		await run('checkout', 'yearly');
+		expect(checkoutPrice()).toBe('price_year');
+	});
+
+	it('gives the monthly plan the founder price while spots are free', async () => {
+		env.FOUNDER_SPOTS = 2;
+		await founders(1);
+		await run('checkout', 'monthly');
+		expect(checkoutPrice()).toBe('price_founder');
+	});
+
+	it('falls back to the regular price once every spot is taken', async () => {
+		env.FOUNDER_SPOTS = 2;
+		await founders(2);
+		await run('checkout');
+		expect(checkoutPrice()).toBe('price_unit');
+	});
+
+	it('keeps the founder price for an account that had it', async () => {
+		env.FOUNDER_SPOTS = 1;
+		await founders(1);
+		await db.update(accounts).set({ stripePriceId: 'price_founder' }).where(eq(accounts.id, 'a'));
+		await run('checkout');
+		expect(checkoutPrice()).toBe('price_founder');
+	});
+
+	it('refuses the yearly plan where there is none', async () => {
+		env.STRIPE_YEARLY_PRICE_ID = '';
+		expect(await run('checkout', 'yearly')).toMatchObject({ failure: { status: 400 } });
+		expect(calls).not.toContain('POST /v1/checkout/sessions');
+	});
+
+	it('expires the open session of the other plan instead of reusing it', async () => {
+		await run('checkout', 'monthly');
+		answers['GET /v1/checkout/sessions/cs_1'] = () => ({
+			body: {
+				...session('cs_1', 'open', CHECKOUT_URL)().body,
+				metadata: { priceId: 'price_founder' }
+			}
+		});
+		answers['POST /v1/checkout/sessions/cs_1/expire'] = session('cs_1', 'expired', null);
+		answers['POST /v1/checkout/sessions'] = session('cs_2', 'open', CHECKOUT_URL);
+		await run('checkout', 'yearly');
+		expect(calls).toContain('POST /v1/checkout/sessions/cs_1/expire');
+		expect(checkoutPrice()).toBe('price_year');
+		expect(await pending()).toBe('cs_2');
+	});
+
+	it('shows both plans and the founder spots left', async () => {
+		env.FOUNDER_SPOTS = 3;
+		await founders(1);
+		answers['GET /v1/prices/price_founder'] = () => ({
+			body: { id: 'price_founder', unit_amount: 500, recurring: { interval: 'month' } }
+		});
+		answers['GET /v1/prices/price_unit'] = () => ({
+			body: { id: 'price_unit', unit_amount: 800, recurring: { interval: 'month' } }
+		});
+		answers['GET /v1/prices/price_year'] = () => ({
+			body: { id: 'price_year', unit_amount: 7200, recurring: { interval: 'year' } }
+		});
+		const result = await outcome(() =>
+			load(routeEvent(db, { url: 'https://app.mietkartei.de/abo', user: ownerA }))
+		);
+		expect(result).toMatchObject({
+			data: {
+				price: expect.stringMatching(/^5,00\s€ pro Monat$/),
+				yearlyPrice: expect.stringMatching(/^72,00\s€ pro Jahr$/),
+				founder: { regularPrice: expect.stringMatching(/^8,00\s€ pro Monat$/), spotsLeft: 2 }
+			}
 		});
 	});
 });

@@ -61,6 +61,11 @@ export const accounts = sqliteTable(
 			.default('none'),
 		currentPeriodEnd: integer('current_period_end', { mode: 'timestamp_ms' }),
 		/**
+		 * The Stripe price of the subscription, kept after it ends: an account that once had the
+		 * founder price keeps getting it, and its spot stays taken.
+		 */
+		stripePriceId: text('stripe_price_id'),
+		/**
 		 * The Checkout session last opened for the account, until its webhook arrives. Another
 		 * Checkout reuses it while it is open, so two sessions cannot both start a subscription.
 		 */

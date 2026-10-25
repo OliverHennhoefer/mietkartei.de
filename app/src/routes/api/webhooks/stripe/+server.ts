@@ -9,6 +9,7 @@ import {
 import {
 	getSubscription,
 	subscriptionPeriodEnd,
+	subscriptionPriceId,
 	verifyWebhookSignature
 } from '#lib/server/stripe.ts';
 import type { RequestHandler } from './$types';
@@ -98,6 +99,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			subscriptionId: subscription.id,
 			status: subscription.status,
 			currentPeriodEnd: subscriptionPeriodEnd(subscription),
+			priceId: subscriptionPriceId(subscription),
 			checkoutSessionId: event.type === 'checkout.session.completed' ? idOf(object.id) : undefined
 		}));
 	if (!applied) await recordStripeEvent(db, event.id, event.type);
