@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBankAccount } from '#lib/server/bank/accounts.ts';
 import type { Database } from '#lib/server/db/index.ts';
 import { accounts } from '#lib/server/db/schema.ts';
-import { createPayment } from '#lib/server/ledger.ts';
+import { createPayment, postCharge } from '#lib/server/ledger.ts';
 import {
 	contextA,
 	outcome,
@@ -145,6 +145,42 @@ describe('mietkonto', () => {
 		expect(await run(balanceActions.received, { form: { leaseId: 'fremd' } })).toMatchObject({
 			fail: 404
 		});
+	});
+
+	it('offers no "Miete ist da" for an ended lease or one without rent', async () => {
+		const ended = await seedUnit(db, 'a', { name: 'A' });
+		const free = await seedUnit(db, 'a', { name: 'B' });
+		const endedLease = await seedLease(db, 'a', ended.unitId, {
+			startDate: '2025-12-01',
+			endDate: '2026-01-31'
+		});
+		const freeLease = await seedLease(db, 'a', free.unitId, {
+			startDate: '2026-02-01',
+			baseRent: 0,
+			operatingCostPrepayment: 0,
+			heatingCostPrepayment: 0
+		});
+		// Owes a correction, but has no rent to book as "Miete ist da".
+		await postCharge(db, contextA, {
+			leaseId: freeLease,
+			kind: 'adjustment',
+			period: '2026-03',
+			dueDate: '2026-03-01',
+			amount: 5000
+		});
+		const loaded = (await run(loadBalances, { url: '/mietkonto' })) as {
+			data: { rows: { leaseId: string; balance: number; rentReceived: number | null }[] };
+		};
+		expect(loaded.data.rows.find((row) => row.leaseId === endedLease)).toMatchObject({
+			rentReceived: null
+		});
+		expect(loaded.data.rows.find((row) => row.leaseId === freeLease)).toMatchObject({
+			rentReceived: null
+		});
+		expect(await run(balanceActions.received, { form: { leaseId: endedLease } })).toMatchObject({
+			fail: 400
+		});
+		expect(await run(balanceActions.received, { form: {} })).toMatchObject({ fail: 404 });
 	});
 });
 

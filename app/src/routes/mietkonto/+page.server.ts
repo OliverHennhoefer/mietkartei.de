@@ -56,16 +56,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			reminders.get(lease.id) ?? [],
 			balance?.overdue ? balance.openSinceDate : null
 		);
+		const owed = balance?.balance ?? 0;
 		return {
 			leaseId: lease.id,
 			label: leaseLabel(lease),
 			tenants: lease.tenants.map(personName).join(', '),
 			active: lease.active,
-			balance: balance?.balance ?? 0,
+			balance: owed,
 			overdue: balance?.overdue ?? 0,
 			openSince: balance?.openSince ?? null,
 			lastPaymentDate: balance?.lastPaymentDate ?? null,
-			rentReceived: rentReceivedAmount(lease, balance?.balance ?? 0),
+			rentReceived: rentReceivedAmount(lease, owed),
 			reminder: reminder
 				? { level: reminder.level, date: reminder.date, paymentDeadline: reminder.paymentDeadline }
 				: null
