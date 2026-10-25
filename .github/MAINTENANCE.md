@@ -78,12 +78,13 @@ Release notes are aimed at users and self-hosters and are therefore written in G
 
 1. Review the changes planned for the release and their state on the default branch.
 2. Label the pull requests accordingly. In particular, mark breaking changes and security fixes.
-3. Set `version` in [app/package.json](../app/package.json) (and `npm install` for the lockfile) to the new version without the leading `v`, and merge that change. The app shows it at the bottom of its sidebar, linked to the releases.
-4. Create a release draft on GitHub with the intended tag and the correct commit.
-5. If needed, copy the [release template](RELEASE_TEMPLATE.md) into the description. GitHub does not insert this file into the release form automatically.
-6. Generate the release notes and review them. `release.yml` sorts the entries into German categories; "Weitere Änderungen" collects contributions without a matching category. The behavior is described in [GitHub's documentation on release notes](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes).
-7. Add required upgrade steps and known limitations. Update the supported versions in [SECURITY.md](../SECURITY.md) if needed.
-8. Publish the release after a final review.
+3. In [CHANGELOG.md](../CHANGELOG.md), rename the "Unveröffentlicht" section to the new version with today's date (`## [1.0.0] – 2026-11-01`), start a new empty "Unveröffentlicht" section above it and update the comparison links at the bottom. Pick the number by [semantic versioning](https://semver.org/lang/de/): major for breaking changes to the REST API, the export format or self-hosting steps, minor for new features, patch for fixes.
+4. Set `version` in [app/package.json](../app/package.json) (and `npm install` for the lockfile) to the new version without the leading `v`, and merge that change. The app shows it at the bottom of its sidebar, linked to the releases.
+5. Create a release draft on GitHub with the intended tag and the correct commit.
+6. If needed, copy the [release template](RELEASE_TEMPLATE.md) into the description. GitHub does not insert this file into the release form automatically.
+7. Generate the release notes and review them. `release.yml` sorts the entries into German categories; "Weitere Änderungen" collects contributions without a matching category. The behavior is described in [GitHub's documentation on release notes](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes).
+8. Add required upgrade steps and known limitations. Update the supported versions in [SECURITY.md](../SECURITY.md) if needed.
+9. Publish the release after a final review.
 
 Publishing runs [release.yml](workflows/release.yml): it attaches the source archive, `SHA256SUMS` and a SLSA provenance (`mietkartei.intoto.jsonl`) to the release. The app workflow pushes the versioned Docker image with a build provenance attestation. Check afterwards that the three assets are on the release. The OpenSSF Scorecard counts them for Signed-Releases.
 
