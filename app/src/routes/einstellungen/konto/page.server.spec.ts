@@ -16,6 +16,9 @@ import { actions, load } from './+page.server';
 const env = vi.hoisted(() => ({
 	STRIPE_SECRET_KEY: '',
 	STRIPE_PRICE_ID: '',
+	STRIPE_YEARLY_PRICE_ID: '',
+	STRIPE_FOUNDER_PRICE_ID: '',
+	FOUNDER_SPOTS: 100,
 	FREE_ACCOUNT_EMAILS: '',
 	STRIPE_API_BASE: 'http://stripe.test',
 	BILLING_REQUIRED: false,

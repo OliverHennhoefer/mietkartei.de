@@ -29,6 +29,9 @@ import { contextA, testDatabase } from './testing';
 vi.mock('$app/env/private', () => ({
 	STRIPE_SECRET_KEY: 'sk_test_unit',
 	STRIPE_PRICE_ID: 'price_unit',
+	STRIPE_YEARLY_PRICE_ID: '',
+	STRIPE_FOUNDER_PRICE_ID: '',
+	FOUNDER_SPOTS: 100,
 	STRIPE_WEBHOOK_SECRET: 'whsec_unit',
 	STRIPE_API_BASE: 'http://stripe.test',
 	BILLING_REQUIRED: true,
@@ -162,10 +165,10 @@ describe('refusesWrite', () => {
 	it('lets read-only accounts delete the account and secure their sign-in', () => {
 		expect(refusesWrite('expired', 'POST', '/einstellungen/konto', true, 'delete')).toBe(false);
 		expect(refusesWrite('canceled', 'POST', '/einstellungen/profil', true, 'password')).toBe(false);
-		expect(refusesWrite('expired', 'POST', '/einstellungen/api-schluessel', true, 'revoke')).toBe(
+		expect(refusesWrite('expired', 'POST', '/einstellungen/ki-assistenten', true, 'revoke')).toBe(
 			false
 		);
-		expect(refusesWrite('expired', 'POST', '/einstellungen/api-schluessel', true, 'create')).toBe(
+		expect(refusesWrite('expired', 'POST', '/einstellungen/ki-assistenten', true, 'create')).toBe(
 			true
 		);
 		expect(refusesWrite('canceled', 'POST', '/einstellungen/profil/', true, 'profile')).toBe(false);

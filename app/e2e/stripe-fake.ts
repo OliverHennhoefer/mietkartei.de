@@ -32,6 +32,8 @@ export type FakeCheckoutSession = {
 	status: 'open' | 'complete' | 'expired';
 	url: string | null;
 	subscription: string | null;
+	/** What the app stored on the session, like Stripe's metadata[…] parameters. */
+	metadata: Record<string, string>;
 };
 
 /** The Checkout sessions the app created, by id; start() empties it. */
@@ -100,7 +102,12 @@ async function handle(request: IncomingMessage, response: ServerResponse): Promi
 			id: `cs_fake_${checkoutSessions.size + 1}`,
 			status: 'open',
 			url: params.get('success_url'),
-			subscription: null
+			subscription: null,
+			metadata: Object.fromEntries(
+				[...params]
+					.filter(([key]) => /^metadata\[[^\]]+\]$/.test(key))
+					.map(([key, value]) => [key.slice('metadata['.length, -1), value])
+			)
 		};
 		checkoutSessions.set(session.id, session);
 		return answer(response, 200, checkoutSessionObject(session));

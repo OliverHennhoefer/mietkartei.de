@@ -85,7 +85,7 @@ test('connects an app by OAuth, which then reads through MCP, and disconnects it
 	const names = (await listed.json()).result.tools.map((tool: { name: string }) => tool.name);
 	expect(names).toContain('create_task');
 
-	await page.goto('/einstellungen/api-schluessel');
+	await page.goto('/einstellungen/ki-assistenten');
 	const row = page
 		.getByRole('table', { name: 'Verbundene Apps' })
 		.getByRole('row', { name: appName });

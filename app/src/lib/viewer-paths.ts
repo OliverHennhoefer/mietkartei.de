@@ -8,7 +8,7 @@
 export const viewerPaths = new Set([
 	'/abmelden',
 	'/einstellungen/kalender',
-	'/einstellungen/api-schluessel',
+	'/einstellungen/ki-assistenten',
 	'/oauth/authorize'
 ]);
 

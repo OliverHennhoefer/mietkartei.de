@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
     <title>Häufige Fragen | mietkartei</title>
-    <meta name="description" content="Häufige Fragen zu mietkartei, der Open-Source-Hausverwaltung für Privatvermieter: Zielgruppe, Kosten, Nebenkostenabrechnung, Bankimport, Datenübernahme und Selbsthosten.">
+    <meta name="description" content="Häufige Fragen zu mietkartei, der Open-Source-Hausverwaltung für Privatvermieter: Zielgruppe, Kosten, Nebenkostenabrechnung, KI-Assistenten, Bankimport, Datenübernahme und Selbsthosten.">
     <link rel="canonical" href="https://mietkartei.de/fragen/">
     <link rel="alternate" type="application/rss+xml" title="Ratgeber von mietkartei" href="/ratgeber/feed.xml">
     <link rel="icon" href="/assets/brand/favicon.svg?v=register" type="image/svg+xml">
@@ -18,7 +18,7 @@
     <meta property="og:locale" content="de_DE">
     <meta property="og:url" content="https://mietkartei.de/fragen/">
     <meta property="og:title" content="Häufige Fragen | mietkartei">
-    <meta property="og:description" content="Häufige Fragen zu mietkartei, der Open-Source-Hausverwaltung für Privatvermieter: Zielgruppe, Kosten, Nebenkostenabrechnung, Bankimport, Datenübernahme und Selbsthosten.">
+    <meta property="og:description" content="Häufige Fragen zu mietkartei, der Open-Source-Hausverwaltung für Privatvermieter: Zielgruppe, Kosten, Nebenkostenabrechnung, KI-Assistenten, Bankimport, Datenübernahme und Selbsthosten.">
     <meta property="og:image" content="https://mietkartei.de/assets/social.png?v=neon">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
@@ -57,8 +57,12 @@
               <p>Für private Vermieter, von der einzelnen Eigentumswohnung bis zu rund zwanzig Wohnungen. Also für alle, denen große Verwaltungsprogramme zu viel sind und eine Excel-Tabelle zu wenig.</p>
             </div>
             <div class="faq-item">
+              <h3><mark>Ist mietkartei eine Open-Source-Hausverwaltung?</mark></h3>
+              <p>Ja. mietkartei ist eine Hausverwaltungs- und Mietverwaltungssoftware für private Vermieter, deren kompletter Quellcode offen auf <a href="https://github.com/OliverHennhoefer/mietkartei.de">GitHub</a> liegt. Du kannst sie kostenlos selbst hosten, den Code prüfen und anpassen, oder die gehostete Version nutzen. Beide sind dieselbe Software mit allen Funktionen: Mietkonten, Bankimport, Nebenkostenabrechnung, Dokumente und Fristen.</p>
+            </div>
+            <div class="faq-item">
               <h3><mark>Was kostet mietkartei?</mark></h3>
-              <p>mietkartei ist Open Source: Der komplette Code steht unter der AGPL-3.0, und selbst betrieben als Docker-Container kostet mietkartei nichts, ohne Einschränkungen. Wer sich um nichts kümmern möchte, nutzt die gehostete Version unter app.mietkartei.de für 8 € im Monat inklusive Mehrwertsteuer, mit 30 Tagen kostenlosem Test und jederzeit kündbar.</p>
+              <p>mietkartei ist Open Source: Der komplette Code steht unter der AGPL-3.0, und selbst betrieben als Docker-Container kostet mietkartei nichts, ohne Einschränkungen. Wer sich um nichts kümmern möchte, nutzt die gehostete Version unter app.mietkartei.de für 8 € im Monat inklusive Mehrwertsteuer, mit 30 Tagen kostenlosem Test und jederzeit kündbar. Der Preis ist pauschal: ohne Aufschlag pro Einheit und ohne Zusatzmodule, alle Funktionen sind immer dabei.</p>
             </div>
             <div class="faq-item">
               <h3><mark>Kann ich mietkartei ohne Anmeldung ausprobieren?</mark></h3>
@@ -73,6 +77,10 @@
             <div class="faq-item">
               <h3><mark>Wie erstelle ich damit die Nebenkostenabrechnung?</mark></h3>
               <p>Du erfasst die Rechnungen des Jahres und wählst je Kostenart einen Umlageschlüssel, etwa nach Wohnfläche, Personen oder Verbrauch. mietkartei verteilt die Kosten tagesgenau auf die Mieter, verrechnet die Vorauszahlungen, teilt die CO₂-Kosten auf und erstellt je Mieter eine Abrechnung als PDF mit Rechenweg.</p>
+            </div>
+            <div class="faq-item">
+              <h3><mark>Kann ich Claude oder ChatGPT mit mietkartei nutzen?</mark></h3>
+              <p>Ja. mietkartei hat einen MCP-Server, über den du Claude, ChatGPT und andere KI-Assistenten mit deinem Bestand verbindest. Dann fragst du etwa, wer mit der Miete im Rückstand ist, welche Fristen anstehen oder welche Zahlen in die Anlage V gehören. In claude.ai und ChatGPT trägst du dafür nur die Adresse https://app.mietkartei.de/mcp als Connector ein und erlaubst den Zugriff. Du entscheidest, ob der Assistent nur lesen oder auch Zahlungen und Belege eintragen darf. Wie das geht, steht in der Anleitung <a href="https://docs.mietkartei.de/anleitungen/ki-assistenten/">KI-Assistenten anbinden</a>.</p>
             </div>
             <div class="faq-item">
               <h3><mark>Kann ich meine Kontoauszüge importieren?</mark></h3>
@@ -99,6 +107,14 @@
             <div class="faq-item">
               <h3><mark>Kann ich mietkartei selbst betreiben?</mark></h3>
               <p>Ja, kostenlos und mit allen Funktionen. mietkartei läuft als ein einziger Docker-Container auf deinem Rechner oder Server, alle Daten liegen in einer SQLite-Datei daneben. Wie das geht, steht in der Anleitung <a href="https://docs.mietkartei.de/selbst-hosten/">Selbst hosten</a>.</p>
+            </div>
+            <div class="faq-item">
+              <h3><mark>Was wird aus meinen Daten, wenn es mietkartei nicht mehr gibt?</mark></h3>
+              <p>Sie bleiben nutzbar. Der komplette Code steht unter der AGPL-3.0 und darf von jedem weiter betrieben werden. Den Export mit allen Daten und Dokumenten deines Kontos lädst du jederzeit herunter und spielst ihn in eine selbst betriebene mietkartei wieder ein, wie in der Anleitung <a href="https://docs.mietkartei.de/anleitungen/umziehen/">Umziehen</a> beschrieben. So bleiben auch Belege, die du zehn Jahre aufbewahren musst, nicht an einen Anbieter gebunden.</p>
+            </div>
+            <div class="faq-item">
+              <h3><mark>Verdient mietkartei an meinen Daten?</mark></h3>
+              <p>Nein. Es gibt keine Werbung, keine Inserate, keine Vermittlung an Dritte und keinen Verkauf deiner Daten oder der Daten deiner Mieter. Das Abo der gehosteten Version deckt die Server und die Weiterentwicklung.</p>
             </div>
           </div>
         </section>

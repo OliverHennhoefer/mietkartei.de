@@ -1,6 +1,6 @@
 ---
 title: Dokumentation
-description: "Anleitungen zu mietkartei, der Open-Source-Hausverwaltung für Privatvermieter: ausprobieren, gehostet nutzen, selbst betreiben und mitmachen."
+description: "Anleitungen zu mietkartei, der Open-Source-Hausverwaltung und Mietverwaltung für Privatvermieter: ausprobieren, gehostet nutzen, selbst betreiben und mitmachen."
 hide:
   - navigation
   - toc
@@ -14,6 +14,7 @@ mietkartei ist die Hausverwaltung von Vermietern für Vermieter: Mieten, Bankums
 
 - **Ausprobieren:** Die [Demo](https://demo.mietkartei.de) legt dir mit einem Klick einen eigenen Beispielbestand an, ohne Anmeldung. Nach 24 Stunden wird alles gelöscht.
 - **Gehostet nutzen:** Unter [app.mietkartei.de](https://app.mietkartei.de) läuft mietkartei ohne eigene Technik. Updates spielen wir für dich ein.
+- **Mit KI-Assistenten:** Claude, ChatGPT und andere Assistenten verbindest du über den MCP-Server mit deinem Bestand und fragst dann etwa nach Rückständen oder Fristen. Wie das geht, steht unter [KI-Assistenten anbinden](anleitungen/ki-assistenten.md).
 - **Selbst betreiben:** mietkartei läuft als ein einziger Docker-Container. Wie das geht, steht unter [Selbst hosten](selbst-hosten.md).
 
 ## Erste Schritte in der Anwendung
@@ -26,7 +27,7 @@ Nach der Anmeldung führt dich die Übersicht durch die ersten Schritte: Objekt 
 - [Umlageschlüssel](anleitungen/umlageschluessel.md): welcher Schlüssel für welche Kostenart passt.
 - [Kontoauszüge importieren](anleitungen/kontoauszuege-importieren.md): Mietzahlungen per camt.053 oder CSV zuordnen.
 - [Von Excel umsteigen](anleitungen/von-excel-umsteigen.md): Objekte, Mieter, Verträge und Zahlungen per CSV übernehmen.
-- [KI-Assistenten anbinden](anleitungen/ki-assistenten.md): Claude und andere Assistenten über den MCP-Server mit deinen Daten verbinden.
+- [KI-Assistenten anbinden](anleitungen/ki-assistenten.md): Claude, ChatGPT und andere Assistenten über den MCP-Server mit deinen Daten verbinden.
 
 ## Hilfe und Mitmachen
 

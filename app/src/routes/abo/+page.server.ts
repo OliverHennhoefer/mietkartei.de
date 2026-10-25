@@ -1,12 +1,22 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { BILLING_REQUIRED, ORIGIN, STRIPE_PRICE_ID } from '$app/env/private';
+import {
+	BILLING_REQUIRED,
+	FOUNDER_SPOTS,
+	ORIGIN,
+	STRIPE_PRICE_ID,
+	STRIPE_YEARLY_PRICE_ID
+} from '$app/env/private';
 import { dayOf } from '#lib/dates.ts';
 import { formatCents } from '#lib/money.ts';
 import {
 	billingEnabled,
 	billingState,
+	foundersOffer,
+	foundersTaken,
 	getBillingAccount,
+	priceFor,
 	replaceCheckoutSession,
+	type Plan,
 	setStripeCustomer,
 	subscriptionRuns,
 	trialDaysLeft,
@@ -76,15 +86,32 @@ function idOf(value: string | { id: string } | null | undefined): string | undef
 	return typeof value === 'string' ? value : (value?.id ?? undefined);
 }
 
-/** The monthly price as text, read from Stripe; "monatlich" when Stripe does not answer. */
-async function priceText(): Promise<string> {
+/**
+ * A price as text, read from Stripe: "8,00 € pro Monat" or "72,00 € pro Jahr"; "monatlich" or
+ * "jährlich" when Stripe does not answer.
+ */
+async function priceText(id: string, plan: Plan = 'monthly'): Promise<string> {
 	try {
-		const price = await getPrice(STRIPE_PRICE_ID);
-		if (price.unit_amount !== null) return `${formatCents(price.unit_amount)} pro Monat`;
+		const price = await getPrice(id);
+		const yearly = price.recurring?.interval
+			? price.recurring.interval === 'year'
+			: plan === 'yearly';
+		if (price.unit_amount !== null) {
+			return `${formatCents(price.unit_amount)} pro ${yearly ? 'Jahr' : 'Monat'}`;
+		}
 	} catch {
 		// The page still works without the amount.
 	}
-	return 'monatlich';
+	return plan === 'yearly' ? 'jährlich' : 'monatlich';
+}
+
+/** The plan a checkout form asks for; monthly unless it says yearly. */
+async function requestedPlan(request: Request): Promise<Plan> {
+	try {
+		return (await request.formData()).get('plan') === 'yearly' ? 'yearly' : 'monthly';
+	} catch {
+		return 'monthly';
+	}
 }
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -94,6 +121,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const account = await getBillingAccount(locals.db, user.accountId);
 	if (!account) error(404, 'Dieses Konto gibt es nicht.');
 	const now = new Date();
+	const runs = subscriptionRuns(account);
+	const taken = await foundersTaken(locals.db);
+	const founder = foundersOffer(account.founder, taken);
+	// While a subscription runs, its own price; otherwise what a new one would cost.
+	const current =
+		runs && account.stripePriceId ? account.stripePriceId : priceFor('monthly', founder);
+	const offer = !account.free && !runs;
 	return {
 		owner: true as const,
 		state: billingState(account, now),
@@ -102,9 +136,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		trialDaysLeft: trialDaysLeft(account, now),
 		currentPeriodEnd: account.currentPeriodEnd ? dayOf(account.currentPeriodEnd) : null,
 		hasSubscription: Boolean(account.stripeSubscriptionId),
-		subscriptionRuns: subscriptionRuns(account),
+		subscriptionRuns: runs,
 		required: BILLING_REQUIRED,
-		price: account.free ? null : await priceText(),
+		price: account.free || !current ? null : await priceText(current),
+		yearlyPrice:
+			offer && STRIPE_YEARLY_PRICE_ID ? await priceText(STRIPE_YEARLY_PRICE_ID, 'yearly') : null,
+		founder:
+			offer && founder
+				? {
+						regularPrice: await priceText(STRIPE_PRICE_ID),
+						spotsLeft: account.founder ? null : Math.max(0, FOUNDER_SPOTS - taken)
+					}
+				: null,
 		success: url.searchParams.get('erfolg') === '1'
 	};
 };
@@ -115,7 +158,7 @@ export const actions: Actions = {
 	 * session per account at a time: while the stored one is open it is reused, so two tabs or a
 	 * double click cannot open two sessions that would both start a subscription.
 	 */
-	checkout: async ({ locals, url }) => {
+	checkout: async ({ locals, url, request }) => {
 		if (!billingEnabled()) error(404, 'Auf dieser Instanz gibt es kein Abo.');
 		const user = requireOwner(locals);
 		const account = await getBillingAccount(locals.db, user.accountId);
@@ -126,6 +169,9 @@ export const actions: Actions = {
 			return fail(400, { message: 'Du hast bereits ein laufendes Abo.' });
 		const origin = returnOrigin(url);
 		if (!origin) return fail(503, { message: NO_ORIGIN });
+		const plan = await requestedPlan(request);
+		const priceId = priceFor(plan, foundersOffer(account.founder, await foundersTaken(locals.db)));
+		if (!priceId) return fail(400, { message: 'Ein Jahresabo gibt es hier nicht.' });
 		let checkoutUrl: string;
 		try {
 			let customerId = account.stripeCustomerId;
@@ -134,9 +180,13 @@ export const actions: Actions = {
 				await setStripeCustomer(locals.db, auditContext(locals), customerId);
 			}
 			const pending = await pendingCheckout(account.stripeCheckoutSessionId);
-			if (pending?.status === 'open' && pending.url) {
+			// A session without the price (opened before plans existed) is not reused either.
+			const samePrice = pending?.metadata?.priceId === priceId;
+			if (pending?.status === 'open' && pending.url && samePrice) {
 				checkoutUrl = pending.url;
 			} else {
+				// An open session for the other plan must not stay completable next to the new one.
+				if (pending?.status === 'open') await expireCheckoutSession(pending.id);
 				// Completed, but its webhook has not arrived: the subscription exists already.
 				// Once the webhook has stored it, the session is no longer pending.
 				const completed =
@@ -148,7 +198,7 @@ export const actions: Actions = {
 					account.subscriptionStatus === 'none' ? trialDaysLeft(account, new Date()) : 0;
 				const session = await createCheckoutSession({
 					customerId,
-					priceId: STRIPE_PRICE_ID,
+					priceId,
 					successUrl: `${origin}/abo?erfolg=1`,
 					cancelUrl: `${origin}/abo`,
 					trialDays

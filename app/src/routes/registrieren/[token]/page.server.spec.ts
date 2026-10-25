@@ -9,6 +9,9 @@ const env = vi.hoisted(() => ({
 	REGISTRATION_EMAILS: 'neu@example.org',
 	STRIPE_SECRET_KEY: '',
 	STRIPE_PRICE_ID: '',
+	STRIPE_YEARLY_PRICE_ID: '',
+	STRIPE_FOUNDER_PRICE_ID: '',
+	FOUNDER_SPOTS: 100,
 	TRIAL_FINGERPRINT_KEY: ''
 }));
 vi.mock('$app/env/private', () => env);

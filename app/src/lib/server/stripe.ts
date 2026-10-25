@@ -82,7 +82,7 @@ export type StripeSubscription = {
 	customer: string;
 	/** Unix seconds. Newer API versions carry it on the items instead. */
 	current_period_end?: number;
-	items?: { data?: { current_period_end?: number }[] };
+	items?: { data?: { current_period_end?: number; price?: { id?: string } }[] };
 };
 
 export type StripePrice = {
@@ -100,7 +100,7 @@ export async function createCustomer(email: string, accountId: string): Promise<
 }
 
 /**
- * A Checkout session for the monthly subscription. `trialDays` (1 or more) carries the rest of
+ * A Checkout session for a subscription with one price. `trialDays` (1 or more) carries the rest of
  * the app's trial into the subscription; without it the price's own trial settings apply.
  * Checkout offers a field for promotion codes, which Stripe checks against the coupons set up in
  * its dashboard (limits, expiry, first-time customers only); the app never sees a code.
@@ -123,6 +123,8 @@ export async function createCheckoutSession(input: {
 		success_url: input.successUrl,
 		cancel_url: input.cancelUrl,
 		allow_promotion_codes: true,
+		// The price is kept on the session, so an open one is only reused for the same price.
+		metadata: { priceId: input.priceId },
 		...trial
 	});
 }
@@ -134,6 +136,7 @@ export type StripeCheckoutSession = {
 	/** Only while the session is open. */
 	url: string | null;
 	subscription?: string | { id: string } | null;
+	metadata?: { priceId?: string } | null;
 };
 
 export async function getCheckoutSession(id: string): Promise<StripeCheckoutSession> {
@@ -216,6 +219,11 @@ export async function cancelSubscription(id: string): Promise<StripeSubscription
 
 export async function getPrice(id: string): Promise<StripePrice> {
 	return stripeRequest<StripePrice>(`/v1/prices/${encodeURIComponent(id)}`, {}, { method: 'GET' });
+}
+
+/** The price a subscription bills; it has one item. */
+export function subscriptionPriceId(subscription: StripeSubscription): string | null {
+	return subscription.items?.data?.[0]?.price?.id ?? null;
 }
 
 /** The period end of a subscription as a Date, wherever the API version puts it. */

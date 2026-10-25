@@ -74,4 +74,16 @@ test('enters an expense and finds it in the analysis of its property', async ({ 
 	await expect(page.getByRole('status')).toHaveText('Gespeichert.');
 	await expect(page.getByText('Eigenkapital 60.000,00 €')).toBeVisible();
 	await expect(page.getByRole('img', { name: /Vom Mieteingang zum Cashflow/ })).toBeVisible();
+
+	// The comparison loads with whatever cost items the other tests booked.
+	await page.goto('/auswertung/nebenkosten');
+	await expect(
+		page.getByRole('heading', { level: 1, name: 'Nebenkosten-Vergleich' })
+	).toBeVisible();
+
+	await page.goto(`/auswertung/prognose?objekt=${propertyId}`);
+	await expect(page.getByRole('heading', { level: 1, name: 'Prognose' })).toBeVisible();
+	await expect(
+		page.getByRole('img', { name: 'Erwartete Einnahmen und Ausgaben je Monat' })
+	).toBeVisible();
 });
