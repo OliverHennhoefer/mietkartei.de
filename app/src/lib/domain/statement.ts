@@ -154,8 +154,11 @@ export type StatementItem = {
 	fuelKwh: number | null;
 	co2Kg: number | null;
 	co2Cost: number | null;
-	/** For a `direct` key: the amount of each unit. */
-	unitAmounts: { unitId: string; amount: number }[];
+	/**
+	 * For a `direct` key: the amount of each unit, or of each lease in a unit that changed tenants
+	 * (the Messdienst's amount per Nutzer); a unit has either.
+	 */
+	unitAmounts: { unitId: string; leaseId: string | null; amount: number }[];
 	/** For a cost of a WEG: how the Verwalter arrived at `amount`. */
 	association: AssociationShare | null;
 };
@@ -211,9 +214,11 @@ export type WarningCode =
 	| 'estimated_share'
 	| 'no_interim_reading'
 	| 'no_lease'
+	| 'vacancy_without_persons'
 	| 'heizkv_key'
 	| 'missing_share'
 	| 'direct_mismatch'
+	| 'direct_by_days'
 	| 'no_weight'
 	| 'flat_lease'
 	| 'deadline_passed'
@@ -675,6 +680,8 @@ type Component = {
 	splitBy: 'days' | 'persons' | 'consumption';
 	/** Per circle unit, when splitBy is consumption. */
 	usageSplits?: UsageSplit[];
+	/** Per circle unit for a `direct` key: the amounts entered per lease, else null. */
+	leaseAmounts?: (Map<string, number> | null)[];
 };
 
 type Context = {
@@ -888,7 +895,8 @@ function componentsOf(
 	co2LandlordAmount: number,
 	circleUnits: StatementUnit[],
 	range: DateRange,
-	itemDays: number
+	itemDays: number,
+	heating: boolean
 ): Component[] {
 	const itemOverlap = daysInclusive(range.start, range.end);
 	const occupancy = (unit: StatementUnit) => occupancyIn(ctx, unit, range);
@@ -898,6 +906,15 @@ function componentsOf(
 		case 'persons': {
 			const weights = circleUnits.map((unit) => {
 				const occ = occupancy(unit);
+				// The landlord bears the vacancy; counted with no persons, the other tenants would.
+				if (occ.vacancyDays > 0 && ctx.input.property.vacancyPersons === 0) {
+					warn(ctx, {
+						code: 'vacancy_without_persons',
+						blocking: false,
+						href: `/objekte/${ctx.input.property.id}/bearbeiten`,
+						message: `Leerstand zählt beim Umlageschlüssel „Personen“ mit 0 Personen; die Kosten der leeren Einheiten tragen so die übrigen Mieter. Das Leerstandsrisiko liegt beim Vermieter: setze „Personen bei Leerstand“ auf mindestens 1.`
+					});
+				}
 				return occ.leases.reduce((sum, o) => sum + o.personDays, occ.vacancyPersonDays);
 			});
 			const total = weights.reduce((sum, weight) => sum + weight, 0);
@@ -986,14 +1003,61 @@ function componentsOf(
 			// The amounts of the Messdienst, prorated like the item (rounded on the running sum, so
 			// amounts that add up to the bill still add up to its share of the period); the
 			// landlord's CO₂ share is taken off in proportion.
-			const entered = circleUnits.map(
-				(unit) => item.unitAmounts.find((candidate) => candidate.unitId === unit.id)?.amount ?? 0
+			// Amounts per lease are the Messdienst's per Nutzer after a Zwischenablesung, each for
+			// the lease's own days in the item's period: each is prorated to the lease's days in the
+			// period too, the unit bears their sum and they split it instead of the days.
+			const itemPeriod = { start: item.periodStart, end: item.periodEnd };
+			const leaseAmounts = circleUnits.map((unit) => {
+				const rows = item.unitAmounts.filter(
+					(candidate) => candidate.unitId === unit.id && candidate.leaseId !== null
+				);
+				if (rows.length === 0) return null;
+				return new Map(
+					rows.map((row) => {
+						const lease = ctx.leases.find((candidate) => candidate.id === row.leaseId);
+						const covered = lease && overlap(itemPeriod, term(lease));
+						const inRange = lease && overlap(range, term(lease));
+						const amount =
+							covered && inRange
+								? proRata(
+										row.amount,
+										daysInclusive(inRange.start, inRange.end),
+										daysInclusive(covered.start, covered.end)
+									)
+								: 0;
+						return [row.leaseId!, amount];
+					})
+				);
+			});
+			const entered = circleUnits.map((unit) =>
+				item.unitAmounts
+					.filter((candidate) => candidate.unitId === unit.id)
+					.reduce((sum, candidate) => sum + candidate.amount, 0)
 			);
-			let running = 0;
-			const given = entered.map((amount) => {
-				const before = proRata(running, itemOverlap, itemDays);
-				running += amount;
-				return proRata(running, itemOverlap, itemDays) - before;
+			// § 9b HeizKV: at a tenant change the heating cost follows the Zwischenablesung; one
+			// amount for the unit can only be split by days.
+			if (heating) {
+				circleUnits.forEach((unit, index) => {
+					if (leaseAmounts[index] || entered[index] === 0) return;
+					if (occupancy(unit).segments.length <= 1) return;
+					warn(ctx, {
+						code: 'direct_by_days',
+						blocking: false,
+						itemId: item.id,
+						unitId: unit.id,
+						href: `/betriebskosten/belege/${item.id}`,
+						message: `Beim Beleg „${item.description}“ hat die Einheit ${unit.name} im Zeitraum den Mieter gewechselt oder stand leer; ihr Betrag wird nach Tagen aufgeteilt. Trage die Beträge je Mietvertrag aus der Abrechnung des Messdienstleisters ein (§ 9b HeizKV).`
+					});
+				});
+			}
+			const running = entered.reduce((sum, amount) => sum + amount, 0);
+			let unitRunning = 0;
+			const given = entered.map((amount, index) => {
+				const perLease = leaseAmounts[index];
+				if (perLease) return [...perLease.values()].reduce((sum, part) => sum + part, 0);
+				const before = proRata(unitRunning, itemOverlap, itemDays);
+				unitRunning += amount;
+				return proRata(unitRunning, itemOverlap, itemDays) - before;
 			});
 			// A credit note's amounts are negative: weigh by their size, so the landlord's (negative)
 			// share of the CO₂ credit comes off in proportion too.
@@ -1034,7 +1098,8 @@ function componentsOf(
 					weights: given,
 					direct,
 					unitShare: () => 'Betrag laut Beleg',
-					splitBy: 'days'
+					splitBy: 'days',
+					leaseAmounts
 				}
 			];
 		}
@@ -1402,7 +1467,8 @@ export function computeStatement(
 			co2?.landlordAmount ?? 0,
 			circleUnits,
 			range,
-			itemDays
+			itemDays,
+			heating
 		);
 		summary.allocated = components.reduce((sum, component) => sum + component.amount, 0);
 		// What no weight carries: distributeCents gives all zeros when every weight is 0.
@@ -1434,7 +1500,15 @@ export function computeStatement(
 				let weights: number[];
 				let method: SplitMethod | undefined;
 				let details: string[] = [];
-				if (component.splitBy === 'days') {
+				const leaseAmounts = component.leaseAmounts?.[unitIndex];
+				if (leaseAmounts) {
+					// The amounts are prorated to the leases' days in the range, so the occupants carry
+					// all of them; a credit note's (negative) amounts weigh by their size.
+					const own = occupancy.leases.map((o) => leaseAmounts.get(o.lease.id) ?? 0);
+					const sign = sumOf(own) < 0 ? -1 : 1;
+					weights = [...own.map((amount) => amount * sign), 0];
+					details = occupancy.leases.map(() => 'davon Betrag laut Beleg für diesen Mietvertrag');
+				} else if (component.splitBy === 'days') {
 					weights = [...occupancy.leases.map((o) => o.days), occupancy.vacancyDays];
 					details = occupancy.leases.map((o) => daysText(o, itemOverlap));
 				} else if (component.splitBy === 'persons') {

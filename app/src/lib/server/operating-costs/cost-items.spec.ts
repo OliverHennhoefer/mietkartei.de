@@ -12,7 +12,14 @@ import { QUOTAS } from '../quotas';
 import { openFileStorage } from '../storage/fs';
 import type { Storage } from '../storage';
 import { createPolicy, linkCostItemToPolicy } from '../insurance';
-import { contextA, contextB, integrityProblems, seedUnit, testDatabase } from '../testing';
+import {
+	contextA,
+	contextB,
+	integrityProblems,
+	seedLease,
+	seedUnit,
+	testDatabase
+} from '../testing';
 import { createCircle } from './circles';
 import {
 	costItemHistory,
@@ -258,8 +265,10 @@ describe('cost items', () => {
 
 	it('updates every field and drops per-unit amounts when the key is no longer direct', async () => {
 		const id = await create(contextA, { allocationKeyId: keyId['Beträge je Einheit'] });
-		expect(await replaceUnitAmounts(db, contextA, id, [{ unitId, amount: 50000 }])).toBe('updated');
-		expect(await listUnitAmounts(db, 'a', id)).toEqual([{ unitId, amount: 50000 }]);
+		expect(
+			await replaceUnitAmounts(db, contextA, id, [{ unitId, leaseId: null, amount: 50000 }])
+		).toBe('updated');
+		expect(await listUnitAmounts(db, 'a', id)).toEqual([{ unitId, leaseId: null, amount: 50000 }]);
 
 		const changed = input({
 			allocationKeyId: keyId['Beträge je Einheit'],
@@ -295,18 +304,22 @@ describe('cost items', () => {
 		// 400 € + 350 € of 900 €, listed by unit name: EG before OG.
 		expect(
 			await replaceUnitAmounts(db, contextA, id, [
-				{ unitId: og.id, amount: 35000 },
-				{ unitId, amount: 40000 }
+				{ unitId: og.id, leaseId: null, amount: 35000 },
+				{ unitId, leaseId: null, amount: 40000 }
 			])
 		).toBe('updated');
 		expect(await listUnitAmounts(db, 'a', id)).toEqual([
-			{ unitId, amount: 40000 },
-			{ unitId: og.id, amount: 35000 }
+			{ unitId, leaseId: null, amount: 40000 },
+			{ unitId: og.id, leaseId: null, amount: 35000 }
 		]);
 		expect(
-			await replaceUnitAmounts(db, contextA, id, [{ unitId: elsewhere.unitId, amount: 1 }])
+			await replaceUnitAmounts(db, contextA, id, [
+				{ unitId: elsewhere.unitId, leaseId: null, amount: 1 }
+			])
 		).toBe('unknown-unit');
-		expect(await replaceUnitAmounts(db, contextA, id, [{ unitId, amount: 0 }])).toBe('updated');
+		expect(await replaceUnitAmounts(db, contextA, id, [{ unitId, leaseId: null, amount: 0 }])).toBe(
+			'updated'
+		);
 		expect(await listUnitAmounts(db, 'a', id)).toEqual([]);
 		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'update'));
 		expect(audit.map((entry) => entry.summary)).toEqual([
@@ -315,9 +328,36 @@ describe('cost items', () => {
 		]);
 	});
 
+	it('stores amounts per lease of a unit, but not next to its own amount', async () => {
+		const id = await create(contextA, { allocationKeyId: keyId['Beträge je Einheit'] });
+		const before = await seedLease(db, 'a', unitId, {
+			startDate: '2025-01-01',
+			endDate: '2025-06-30'
+		});
+		const after = await seedLease(db, 'a', unitId, { startDate: '2025-07-01' });
+		expect(
+			await replaceUnitAmounts(db, contextA, id, [
+				{ unitId, leaseId: before, amount: 30000 },
+				{ unitId, leaseId: after, amount: 20000 }
+			])
+		).toBe('updated');
+		expect(await listUnitAmounts(db, 'a', id)).toHaveLength(2);
+		expect(
+			await replaceUnitAmounts(db, contextA, id, [
+				{ unitId, leaseId: null, amount: 50000 },
+				{ unitId, leaseId: after, amount: 20000 }
+			])
+		).toBe('unknown-unit');
+		const foreign = await seedLease(db, 'b', (await seedUnit(db, 'b')).unitId);
+		expect(
+			await replaceUnitAmounts(db, contextA, id, [{ unitId, leaseId: foreign, amount: 1 }])
+		).toBe('unknown-unit');
+		expect(await listUnitAmounts(db, 'a', id)).toHaveLength(2);
+	});
+
 	it('deletes the item with its receipt and per-unit amounts', async () => {
 		const id = await create(contextA, { allocationKeyId: keyId['Beträge je Einheit'] });
-		await replaceUnitAmounts(db, contextA, id, [{ unitId, amount: 50000 }]);
+		await replaceUnitAmounts(db, contextA, id, [{ unitId, leaseId: null, amount: 50000 }]);
 		const stored = await storeDocument(
 			db,
 			contextA,
@@ -443,7 +483,9 @@ describe('cost items', () => {
 			categoryId: foreignCategories.Grundsteuer,
 			allocationKeyId: foreignKeys['Beträge je Einheit']
 		});
-		await replaceUnitAmounts(db, contextB, foreign, [{ unitId: foreignPlace.unitId, amount: 1 }]);
+		await replaceUnitAmounts(db, contextB, foreign, [
+			{ unitId: foreignPlace.unitId, leaseId: null, amount: 1 }
+		]);
 
 		expect(await listCostItems(db, 'a')).toEqual([]);
 		expect(await listCostItemYears(db, 'a')).toEqual([]);

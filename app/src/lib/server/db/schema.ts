@@ -963,7 +963,12 @@ export const costItems = sqliteTable(
 	]
 );
 
-/** Amounts per unit for a cost item with a `direct` key, e.g. from a Messdienstleister. */
+/**
+ * Amounts per unit for a cost item with a `direct` key, e.g. from a Messdienstleister. A unit that
+ * changed tenants in the item's period has either one row for the unit (split by days between
+ * its leases) or one row per lease (the Messdienst's amount per Nutzer after a Zwischenablesung,
+ * § 9b HeizKV); the vacancy has no row and stays with the landlord.
+ */
 export const costItemUnitAmounts = sqliteTable(
 	'cost_item_unit_amounts',
 	{
@@ -974,10 +979,12 @@ export const costItemUnitAmounts = sqliteTable(
 		unitId: text('unit_id')
 			.notNull()
 			.references(() => units.id, { onDelete: 'cascade' }),
+		/** Null: the amount of the whole unit. */
+		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'cascade' }),
 		amount: integer('amount').notNull()
 	},
 	(table) => [
-		primaryKey({ columns: [table.costItemId, table.unitId] }),
+		index('cost_item_unit_amounts_cost_item_id_idx').on(table.costItemId),
 		index('cost_item_unit_amounts_account_id_idx').on(table.accountId)
 	]
 );

@@ -762,8 +762,8 @@ describe('computeStatement warnings', () => {
 			items: [
 				item('i-messdienst', 'Abrechnung Messdienst', 'c-heizung', 'k-direct', 100000, {
 					unitAmounts: [
-						{ unitId: 'eg', amount: 65000 },
-						{ unitId: 'og', amount: 35000 }
+						{ unitId: 'eg', leaseId: null, amount: 65000 },
+						{ unitId: 'og', leaseId: null, amount: 35000 }
 					]
 				})
 			],
@@ -811,8 +811,8 @@ describe('computeStatement warnings', () => {
 			items: [
 				item('i-gutschrift', 'Gutschrift Messdienst', 'c-heizung', 'k-direct', -100000, {
 					unitAmounts: [
-						{ unitId: 'eg', amount: -65000 },
-						{ unitId: 'og', amount: -35000 }
+						{ unitId: 'eg', leaseId: null, amount: -65000 },
+						{ unitId: 'og', leaseId: null, amount: -35000 }
 					]
 				})
 			],
@@ -860,8 +860,8 @@ describe('computeStatement warnings', () => {
 					co2Kg: 3000,
 					co2Cost: 20000,
 					unitAmounts: [
-						{ unitId: 'eg', amount: 180000 },
-						{ unitId: 'og', amount: 120000 }
+						{ unitId: 'eg', leaseId: null, amount: 180000 },
+						{ unitId: 'og', leaseId: null, amount: 120000 }
 					]
 				}),
 				item('i-gutschrift', 'Gutschrift Heizöl', 'c-heizung', 'k-direct', -30000, {
@@ -869,8 +869,8 @@ describe('computeStatement warnings', () => {
 					co2Kg: -300,
 					co2Cost: -2000,
 					unitAmounts: [
-						{ unitId: 'eg', amount: -18000 },
-						{ unitId: 'og', amount: -12000 }
+						{ unitId: 'eg', leaseId: null, amount: -18000 },
+						{ unitId: 'og', leaseId: null, amount: -12000 }
 					]
 				})
 			],
@@ -897,8 +897,8 @@ describe('computeStatement warnings', () => {
 					periodStart: '2024-10-01',
 					periodEnd: '2025-09-30',
 					unitAmounts: [
-						{ unitId: 'eg', amount: 33333 },
-						{ unitId: 'og', amount: 66667 }
+						{ unitId: 'eg', leaseId: null, amount: 33333 },
+						{ unitId: 'og', leaseId: null, amount: 66667 }
 					]
 				})
 			],
@@ -908,6 +908,125 @@ describe('computeStatement warnings', () => {
 		expect(result.property.items[0].total).toBe(74795);
 		expect(result.leases.map((l) => l.costsTotal)).toEqual([24931, 49864]);
 		expect(result.property.unallocatedTotal).toBe(0);
+		expect(result.property.warnings).toEqual([]);
+	});
+
+	it('splits a unit that changed tenants by the amounts per lease of the Messdienst', () => {
+		// OG: Alt until 30 June, vacant in July, Neu from 1 August. The Messdienst read the meters
+		// at each change: 300 € for Alt, 40 € for the vacant July, 260 € for Neu (600 € in all).
+		const input = small({
+			items: [
+				item('i-messdienst', 'Abrechnung Messdienst', 'c-heizung', 'k-direct', 100000, {
+					unitAmounts: [
+						{ unitId: 'eg', leaseId: null, amount: 40000 },
+						{ unitId: 'og', leaseId: 'l-og', amount: 30000 },
+						{ unitId: 'og', leaseId: 'l-og-neu', amount: 26000 }
+					]
+				})
+			],
+			keys: [key('k-direct', 'Beträge je Einheit', 'direct')]
+		});
+		input.leases[1].endDate = '2025-06-30';
+		input.leases.push(
+			lease(
+				'l-og-neu',
+				['og'],
+				{ start: '2025-08-01', end: null },
+				1,
+				{ operating: 10000, heating: 5000, months: months(8, 12) },
+				{ salutation: 'Frau', firstName: 'Nina', lastName: 'Neu' }
+			)
+		);
+		const result = computeStatement(input, options);
+		expect(result.leases.map((l) => [l.leaseId, l.costsTotal])).toEqual([
+			['l-eg', 40000],
+			['l-og', 30000],
+			['l-og-neu', 26000]
+		]);
+		expect(result.leases[1].lines[0].share).toBe(
+			'Betrag laut Beleg · davon Betrag laut Beleg für diesen Mietvertrag'
+		);
+		// The vacant July has no amount: the 40 € the Messdienst did not assign stay with the
+		// landlord, and no warning asks for amounts per lease.
+		expect(result.property.unallocatedTotal).toBe(4000);
+		expect(result.property.warnings.map((warning) => warning.code)).toEqual(['direct_mismatch']);
+
+		// One amount for the whole OG is split by days (Alt 181, the vacant July 31, Neu 153 of 365
+		// days: 297,53 €, 50,96 € and 251,51 €) and asks for the amounts per lease.
+		input.items[0].unitAmounts = [
+			{ unitId: 'eg', leaseId: null, amount: 40000 },
+			{ unitId: 'og', leaseId: null, amount: 60000 }
+		];
+		const byDays = computeStatement(input, options);
+		expect(byDays.leases.map((l) => l.costsTotal)).toEqual([40000, 29753, 25151]);
+		expect(byDays.property.vacancyShare).toBe(5096);
+		expect(byDays.property.warnings).toMatchObject([
+			{ code: 'direct_by_days', unitId: 'og', itemId: 'i-messdienst', blocking: false }
+		]);
+	});
+
+	it('prorates each amount per lease to the lease’s own days in the period', () => {
+		// 100 € for 1 October 2024 to 30 September 2025: 40 € for a tenant who left on 31 December
+		// 2024, 60 € for OG's tenant from 1 January. The 2025 statement takes OG's 60 € in full:
+		// all of OG's days in the item lie in 2025, and nothing counts as vacancy.
+		const input = small({
+			items: [
+				item('i-messdienst', 'Abrechnung Messdienst', 'c-heizung', 'k-direct', 10000, {
+					periodStart: '2024-10-01',
+					periodEnd: '2025-09-30',
+					unitAmounts: [
+						{ unitId: 'og', leaseId: 'l-og-alt', amount: 4000 },
+						{ unitId: 'og', leaseId: 'l-og', amount: 6000 }
+					]
+				})
+			],
+			keys: [key('k-direct', 'Beträge je Einheit', 'direct')]
+		});
+		input.leases.push(
+			lease(
+				'l-og-alt',
+				['og'],
+				{ start: '2023-01-01', end: '2024-12-31' },
+				1,
+				{ operating: 10000, heating: 5000, months: [] },
+				{ salutation: 'Herr', firstName: 'Otto', lastName: 'Alt' }
+			)
+		);
+		const result = computeStatement(input, options);
+		expect(result.leases.find((l) => l.leaseId === 'l-og')!.costsTotal).toBe(6000);
+		expect(result.property.vacancyShare).toBe(0);
+		expect(result.property.items[0].total).toBe(7479);
+	});
+
+	it('splits a credit note per lease by the size of its amounts', () => {
+		const input = small({
+			items: [
+				item('i-gutschrift', 'Gutschrift Messdienst', 'c-heizung', 'k-direct', -10000, {
+					unitAmounts: [
+						{ unitId: 'og', leaseId: 'l-og', amount: -6000 },
+						{ unitId: 'og', leaseId: 'l-og-neu', amount: -4000 }
+					]
+				})
+			],
+			keys: [key('k-direct', 'Beträge je Einheit', 'direct')]
+		});
+		input.leases[1].endDate = '2025-06-30';
+		input.leases.push(
+			lease(
+				'l-og-neu',
+				['og'],
+				{ start: '2025-07-01', end: null },
+				1,
+				{ operating: 10000, heating: 5000, months: months(7, 12) },
+				{ salutation: 'Frau', firstName: 'Nina', lastName: 'Neu' }
+			)
+		);
+		const result = computeStatement(input, options);
+		expect(result.leases.map((l) => [l.leaseId, l.costsTotal])).toEqual([
+			['l-eg', 0],
+			['l-og', -6000],
+			['l-og-neu', -4000]
+		]);
 		expect(result.property.warnings).toEqual([]);
 	});
 
@@ -960,6 +1079,19 @@ describe('computeStatement warnings', () => {
 		expect(computeStatement(badPercent, options).property.warnings).toMatchObject([
 			{ code: 'heizkv_key' }
 		]);
+	});
+
+	it('warns when a vacancy counts with no persons', () => {
+		const input = scenario();
+		input.property.vacancyPersons = 0;
+		const result = computeStatement(input, options);
+		// DG stood empty from September: its Müll share now goes to the tenants.
+		expect(result.property.warnings).toContainEqual(
+			expect.objectContaining({ code: 'vacancy_without_persons', blocking: false })
+		);
+		expect(
+			computeStatement(scenario(), options).property.warnings.map((warning) => warning.code)
+		).not.toContain('vacancy_without_persons');
 	});
 
 	it('reports a unit without a lease and the passed deadline', () => {

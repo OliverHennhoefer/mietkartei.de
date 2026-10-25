@@ -24,6 +24,8 @@ Unter **Betriebskosten → Umlageschlüssel** sind diese Schlüssel vorbelegt. S
 
 Den Verbrauchsanteil darfst du nach Heizkostenverordnung zwischen 50 und 70 Prozent wählen. Liegt er außerhalb, weist der Entwurf der Abrechnung darauf hin.
 
+Hat eine Einheit im Zeitraum des Belegs den Mieter gewechselt oder stand sie leer, fragt der Beleg beim Schlüssel **Beträge je Einheit** die Beträge je Mietvertrag ab, so wie sie der Messdienst nach der Zwischenablesung ausweist (§ 9b Heizkostenverordnung). Was auf den Leerstand entfällt, trägst du nicht ein; es bleibt bei dir. Gibt es keine Zwischenablesung, trägst du stattdessen den Betrag der ganzen Einheit ein; er wird dann nach Tagen auf die Mietverträge und den Leerstand verteilt.
+
 ## Eigene Schlüssel anlegen
 
 Unten auf derselben Seite legst du weitere Schlüssel an. Zur Wahl stehen:

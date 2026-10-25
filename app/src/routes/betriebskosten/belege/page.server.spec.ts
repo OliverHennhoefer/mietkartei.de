@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Database } from '#lib/server/db/index.ts';
-import { costItems, documents } from '#lib/server/db/schema.ts';
+import { costItems, documents, leases } from '#lib/server/db/schema.ts';
 import { createPolicy } from '#lib/server/insurance.ts';
 import { MAX_ACCOUNT_DOCUMENT_BYTES } from '#lib/server/documents.ts';
 import { documentErrorMessage } from '#lib/forms/documents.ts';
@@ -17,6 +17,7 @@ import {
 	outcome,
 	routeEvent,
 	seedCostItem,
+	seedLease,
 	seedUnit,
 	testDatabase
 } from '#lib/server/testing.ts';
@@ -291,6 +292,49 @@ describe('belege/[id]', () => {
 		expect(await outcome(() => loadItem(routeEvent(db, { params: { id: itemId } })))).toMatchObject(
 			{ data: { units: [{ id: unitId }] } }
 		);
+	});
+
+	it('asks for the amounts per lease of a unit that changed tenants', async () => {
+		const direct = (await listKeys(db, 'a')).find((key) => key.kind === 'direct')!;
+		await act('update', fields({ allocationKeyId: direct.id, billingCircleId: '' }));
+		const load = () => outcome(() => loadItem(routeEvent(db, { params: { id: itemId } })));
+		// One lease over the whole year: one amount for the unit.
+		const whole = await seedLease(db, 'a', unitId, { startDate: '2024-01-01' });
+		expect(await load()).toMatchObject({ data: { units: [{ id: unitId, leases: [] }] } });
+
+		await db.delete(leases).where(eq(leases.id, whole));
+		const before = await seedLease(db, 'a', unitId, {
+			startDate: '2024-01-01',
+			endDate: '2025-06-30'
+		});
+		const after = await seedLease(db, 'a', unitId, { startDate: '2025-08-01' });
+		expect(await load()).toMatchObject({
+			data: {
+				units: [
+					{
+						id: unitId,
+						leases: [
+							{ id: before, start: '2025-01-01', end: '2025-06-30' },
+							{ id: after, start: '2025-08-01', end: '2025-12-31' }
+						]
+					}
+				]
+			}
+		});
+		expect(
+			await act('amounts', {
+				[`amount-${unitId}-${before}`]: '300,00',
+				[`amount-${unitId}-${after}`]: '150,00'
+			})
+		).toEqual({ data: { form: 'amounts', saved: true } });
+		expect(await load()).toMatchObject({
+			data: {
+				unitAmounts: expect.arrayContaining([
+					{ unitId, leaseId: before, amount: 30000 },
+					{ unitId, leaseId: after, amount: 15000 }
+				])
+			}
+		});
 	});
 
 	it('stores a receipt sent with the update and refuses an empty one', async () => {
