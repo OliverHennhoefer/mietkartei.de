@@ -2,7 +2,8 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/brand/lockup-white.svg">
-  <img src="assets/brand/lockup-auto.svg" alt="mietkartei" width="280">
+  <source media="(prefers-color-scheme: light)" srcset="assets/brand/lockup.svg">
+  <img src="assets/brand/lockup-auto.svg" alt="mietkartei" width="350">
 </picture>
 
 ### Die Hausverwaltung von Vermietern für Vermieter.
