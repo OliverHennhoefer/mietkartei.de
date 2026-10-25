@@ -1,9 +1,12 @@
 <div align="center">
 
+<a href="https://mietkartei.de">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/brand/lockup-white.svg">
-  <img src="assets/brand/lockup-auto.svg" alt="mietkartei" width="280">
+  <source media="(prefers-color-scheme: light)" srcset="assets/brand/lockup.svg">
+  <img src="assets/brand/lockup-auto.svg" alt="mietkartei" width="350">
 </picture>
+</a>
 
 ### Die Hausverwaltung von Vermietern für Vermieter.
 
@@ -17,8 +20,6 @@ Open Source, nachvollziehbar gerechnet, ohne Einarbeitung und direkt mit Claude 
 [![Lizenz: AGPL-3.0](https://img.shields.io/badge/Lizenz-AGPL--3.0-111111)](LICENSE)
 [![Docker-Image](https://img.shields.io/badge/Docker-ghcr.io-2496ed?logo=docker&logoColor=white)](https://github.com/OliverHennhoefer/mietkartei.de/pkgs/container/mietkartei)
 
-[**▶ Demo ausprobieren**](https://demo.mietkartei.de) · [Startseite](https://mietkartei.de) · [Dokumentation](https://docs.mietkartei.de) · [Mitmachen](CONTRIBUTING.md)
-
 <br>
 
 <a href="https://demo.mietkartei.de"><img src="assets/screenshots/uebersicht.png" alt="Übersicht von mietkartei mit Rückständen, Leerstand, offenen Bankumsätzen und Fristen" width="900"></a>
@@ -27,13 +28,14 @@ Open Source, nachvollziehbar gerechnet, ohne Einarbeitung und direkt mit Claude 
 
 ## Warum mietkartei?
 
-Gebaut für private Vermieter, von der einzelnen Wohnung bis zu rund zwanzig: zu klein für die großen Verwaltungsprogramme, aber mehr, als eine Excel-Tabelle sauber trägt.
+Gebaut für private Vermieter: zu klein für die großen Verwaltungsprogramme, aber mehr, als eine Excel-Tabelle sauber trägt.
 
-- **Nachvollziehbar gerechnet:** Jede Umlage zeigt ihren Rechenweg. Das hilft, wenn ein Mieter der Abrechnung widerspricht.
-- **Kein Lock-in:** Offener Code unter AGPL-3.0 und vollständiger Export. Daten und Software bleiben nutzbar, auch wenn es uns morgen nicht mehr gibt.
-- **Kein Datengeschäft:** Die gehostete Version finanziert sich nur über das Abo, nicht über Werbung, Inserate oder deine Daten.
-- **Fairer Preis:** Selbst betrieben kostenlos, gehostet 8 € im Monat pauschal, ohne Aufschlag pro Einheit und ohne Zusatzmodule.
-- **KI-Anbindung:** Über den MCP-Server fragst du Claude, ChatGPT oder einen anderen Assistenten nach Rückständen, Fristen und Abrechnungen.
+- **Alles mit Rechenweg:** Jede Umlage zeigt, wie sie entsteht. Widerspricht ein Mieter, zeigst du ihm jeden Schritt.
+- **Kein Lock-in:** Offener Code unter AGPL-3.0 und vollständiger Export, deine Daten bleiben auch ohne uns nutzbar.
+- **Kein Datengeschäft:** Wir leben vom Abo, nicht von Werbung, Leads oder den Daten deiner Mieter.
+- **Ein Preis, alles drin:** Selbst betrieben kostenlos, gehostet 8 € im Monat, egal wie viele Wohnungen.
+- **Frag einfach Claude:** Über den MCP-Server beantworten Claude oder ChatGPT Fragen wie „Wer ist im Rückstand?“.
+
 
 ## So sieht es aus
 
