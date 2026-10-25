@@ -78,17 +78,6 @@ export const variables = defineEnvVars({
 			'Stripe price of the yearly subscription (price_…). Unset, only the monthly one is offered.',
 		schema: (value) => value || ''
 	},
-	STRIPE_FOUNDER_PRICE_ID: {
-		description:
-			'Stripe price of the monthly founder subscription (price_…), offered instead of ' +
-			'STRIPE_PRICE_ID to the first FOUNDER_SPOTS accounts and kept by them for good. Unset, ' +
-			'there is no founder price.',
-		schema: (value) => value || ''
-	},
-	FOUNDER_SPOTS: {
-		description: 'How many accounts get the founder price. Default 100.',
-		schema: (value) => (value ? Math.max(0, Number.parseInt(value, 10) || 0) : 100)
-	},
 	ENABLE_BANKING_APP_ID: {
 		description:
 			'Application id at Enable Banking (enablebanking.com). Together with ' +

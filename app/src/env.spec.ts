@@ -36,10 +36,4 @@ describe('environment variables', () => {
 			expect(read(name, '1')).toEqual({ value: false });
 		}
 	});
-
-	it('counts the founder spots, 100 unless set', () => {
-		expect(read('FOUNDER_SPOTS', undefined)).toEqual({ value: 100 });
-		expect(read('FOUNDER_SPOTS', '50')).toEqual({ value: 50 });
-		expect(read('FOUNDER_SPOTS', 'viele')).toEqual({ value: 0 });
-	});
 });

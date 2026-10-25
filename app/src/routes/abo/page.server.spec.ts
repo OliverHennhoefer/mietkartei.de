@@ -10,8 +10,6 @@ const env = vi.hoisted(() => ({
 	STRIPE_SECRET_KEY: 'sk_test_unit',
 	STRIPE_PRICE_ID: 'price_unit',
 	STRIPE_YEARLY_PRICE_ID: '',
-	STRIPE_FOUNDER_PRICE_ID: '',
-	FOUNDER_SPOTS: 100,
 	FREE_ACCOUNT_EMAILS: '',
 	STRIPE_WEBHOOK_SECRET: 'whsec_unit',
 	STRIPE_API_BASE: 'http://stripe.test',
@@ -56,8 +54,6 @@ afterEach(() => {
 	env.ORIGIN = 'https://app.mietkartei.de';
 	env.FREE_ACCOUNT_EMAILS = '';
 	env.STRIPE_YEARLY_PRICE_ID = '';
-	env.STRIPE_FOUNDER_PRICE_ID = '';
-	env.FOUNDER_SPOTS = 100;
 });
 
 function event(action: 'checkout' | 'portal', plan?: string) {
@@ -350,7 +346,6 @@ describe('plans', () => {
 		answers['POST /v1/customers'] = () => ({ body: { id: 'cus_a' } });
 		answers['POST /v1/checkout/sessions'] = session('cs_1', 'open', CHECKOUT_URL);
 		env.STRIPE_YEARLY_PRICE_ID = 'price_year';
-		env.STRIPE_FOUNDER_PRICE_ID = 'price_founder';
 	});
 
 	/** The price of the last Checkout session opened. */
@@ -359,41 +354,14 @@ describe('plans', () => {
 		return body?.get('line_items[0][price]');
 	}
 
-	async function founders(taken: number) {
-		for (let index = 0; index < taken; index++) {
-			await db.insert(accounts).values({ name: `Gründer ${index}`, founder: true });
-		}
-	}
-
 	it('opens the yearly price for the yearly plan', async () => {
 		await run('checkout', 'yearly');
 		expect(checkoutPrice()).toBe('price_year');
 	});
 
-	it('gives the monthly plan the founder price while spots are free', async () => {
-		env.FOUNDER_SPOTS = 2;
-		await founders(1);
+	it('opens the regular price for the monthly plan', async () => {
 		await run('checkout', 'monthly');
-		expect(checkoutPrice()).toBe('price_founder');
-	});
-
-	it('falls back to the regular price once every spot is taken', async () => {
-		env.FOUNDER_SPOTS = 2;
-		await founders(2);
-		await run('checkout');
 		expect(checkoutPrice()).toBe('price_unit');
-	});
-
-	it('keeps the founder price for an account that had it', async () => {
-		env.FOUNDER_SPOTS = 1;
-		await founders(1);
-		// A founder who canceled and had a yearly subscription since.
-		await db
-			.update(accounts)
-			.set({ founder: true, stripePriceId: 'price_year' })
-			.where(eq(accounts.id, 'a'));
-		await run('checkout');
-		expect(checkoutPrice()).toBe('price_founder');
 	});
 
 	it('refuses the yearly plan where there is none', async () => {
@@ -425,7 +393,7 @@ describe('plans', () => {
 		answers['GET /v1/checkout/sessions/cs_1'] = () => ({
 			body: {
 				...session('cs_1', 'open', CHECKOUT_URL)().body,
-				metadata: { priceId: 'price_founder' }
+				metadata: { priceId: 'price_unit' }
 			}
 		});
 		answers['POST /v1/checkout/sessions/cs_1/expire'] = session('cs_1', 'expired', null);
@@ -436,12 +404,7 @@ describe('plans', () => {
 		expect(await pending()).toBe('cs_2');
 	});
 
-	it('shows both plans and the founder spots left', async () => {
-		env.FOUNDER_SPOTS = 3;
-		await founders(1);
-		answers['GET /v1/prices/price_founder'] = () => ({
-			body: { id: 'price_founder', unit_amount: 500, recurring: { interval: 'month' } }
-		});
+	it('shows both plans', async () => {
 		answers['GET /v1/prices/price_unit'] = () => ({
 			body: { id: 'price_unit', unit_amount: 800, recurring: { interval: 'month' } }
 		});
@@ -453,16 +416,14 @@ describe('plans', () => {
 		);
 		expect(result).toMatchObject({
 			data: {
-				price: expect.stringMatching(/^5,00\s€ pro Monat$/),
-				yearlyPrice: expect.stringMatching(/^72,00\s€ pro Jahr$/),
-				founder: { regularPrice: expect.stringMatching(/^8,00\s€ pro Monat$/), spotsLeft: 2 }
+				price: expect.stringMatching(/^8,00\s€ pro Monat$/),
+				yearlyPrice: expect.stringMatching(/^72,00\s€ pro Jahr$/)
 			}
 		});
 	});
 
 	it('reads the period from the plan when Stripe gives none, and words it when Stripe fails', async () => {
-		answers['GET /v1/prices/price_unit'] = () => ({ body: { id: 'price_unit', unit_amount: 800 } });
-		answers['GET /v1/prices/price_founder'] = () => ({ status: 500, body: {} });
+		answers['GET /v1/prices/price_unit'] = () => ({ status: 500, body: {} });
 		answers['GET /v1/prices/price_year'] = () => ({
 			body: { id: 'price_year', unit_amount: 7200 }
 		});
@@ -472,8 +433,7 @@ describe('plans', () => {
 		expect(result).toMatchObject({
 			data: {
 				price: 'monatlich',
-				yearlyPrice: expect.stringMatching(/^72,00\s€ pro Jahr$/),
-				founder: { regularPrice: expect.stringMatching(/^8,00\s€ pro Monat$/), spotsLeft: 100 }
+				yearlyPrice: expect.stringMatching(/^72,00\s€ pro Jahr$/)
 			}
 		});
 
@@ -483,14 +443,5 @@ describe('plans', () => {
 				load(routeEvent(db, { url: 'https://app.mietkartei.de/abo', user: ownerA }))
 			)
 		).toMatchObject({ data: { yearlyPrice: 'jährlich' } });
-	});
-
-	it('shows no spots left to a founder, who keeps the price anyway', async () => {
-		env.FOUNDER_SPOTS = 1;
-		await db.update(accounts).set({ founder: true }).where(eq(accounts.id, 'a'));
-		const result = await outcome(() =>
-			load(routeEvent(db, { url: 'https://app.mietkartei.de/abo', user: ownerA }))
-		);
-		expect(result).toMatchObject({ data: { founder: { spotsLeft: null } } });
 	});
 });
