@@ -1,14 +1,16 @@
 import { expect, test } from '@playwright/test';
 import { strFromU8, unzipSync } from 'fflate';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { closeLaunchNotice } from './launch-notice';
 import { linkInMailTo, readOutbox } from './outbox';
 import { owner } from './owner';
 import { seedLease } from './seed';
 import { FAKE_SUBSCRIPTION_ID, requests, start, stop } from './stripe-fake';
 
 // Project "account", runs last with the owner's storage state: the export, then the deletion
-// of the account, after which only the demo data and its reset can run, in an account registered anew. The owner's subscription (sub_fake, started
+// of the account, after which only the demo data and its reset can run, in an account registered
+// anew, and at last the export of the deleted account is restored into it, as after a move. The owner's subscription (sub_fake, started
 // in billing.e2e.ts) runs, so the deletion has to cancel it at the Stripe fake first.
 
 test.afterAll(async () => {
@@ -16,7 +18,11 @@ test.afterAll(async () => {
 });
 
 // The document uploaded before the export; the deletion below checks its file is gone too.
-let exported: { accountId: string; documentId: string } | undefined;
+let exported:
+	| { accountId: string; documentId: string; fileName: string; content: Buffer; leaseId: string }
+	| undefined;
+// The downloaded export, restored into the account registered anew at the end.
+const exportFile = join('.e2e', 'export.zip');
 
 /** Where the node server keeps the exported document's file (DATA_DIR in playwright.config.ts). */
 function storedFile(): string {
@@ -61,6 +67,7 @@ test('downloads the export as a ZIP with export.json and the uploaded documents'
 		page.getByRole('button', { name: 'Export herunterladen' }).click()
 	]);
 	expect(download.suggestedFilename()).toMatch(/^mietkartei-export-\d{4}-\d{2}-\d{2}\.zip$/);
+	await download.saveAs(exportFile);
 
 	const response = await page.request.get('/einstellungen/export/herunterladen');
 	expect(response.status()).toBe(200);
@@ -101,7 +108,13 @@ test('downloads the export as a ZIP with export.json and the uploaded documents'
 			leaseId: lease.leaseId
 		})
 	);
-	exported = { accountId: data.accountId, documentId: documentId! };
+	exported = {
+		accountId: data.accountId,
+		documentId: documentId!,
+		fileName,
+		content,
+		leaseId: lease.leaseId
+	};
 	// On node the file is visible in DATA_DIR, so the deletion can prove it removes it.
 	if (process.env.DEPLOY_TARGET !== 'cloudflare') expect(existsSync(storedFile())).toBe(true);
 
@@ -230,4 +243,65 @@ test('fills a fresh account with demo data and resets it to factory settings', a
 	// An empty account offers the demo data again.
 	await page.goto('/einstellungen/konto');
 	await expect(page.getByRole('button', { name: 'Demodaten anlegen' })).toBeVisible();
+});
+
+test('restores the export of the deleted account into the empty account', async ({ page }) => {
+	expect(exported).toBeDefined();
+	const { documentId, fileName, content, leaseId } = exported!;
+	// The storage state is of the deleted account; the owner registered anew above.
+	await page.context().clearCookies();
+	await closeLaunchNotice(page);
+	await page.goto('/anmelden');
+	await page.getByLabel('E-Mail-Adresse').fill(owner.email);
+	await page.getByLabel('Passwort').fill(owner.password);
+	await page.getByRole('button', { name: 'Anmelden' }).click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.goto('/einstellungen/export');
+	const restore = page.getByRole('region', { name: 'Export einspielen' });
+	await restore.getByLabel('Exportdatei (ZIP)').setInputFiles(exportFile);
+	await restore.getByRole('button', { name: 'Export einspielen' }).click();
+	await expect(restore.getByRole('status')).toContainText(
+		/Einträge und 1 von 1 Dokumenten übernommen/
+	);
+
+	// The lease, its document with every byte, and the log of the old account are back.
+	await page.goto(`/vertraege/${leaseId}`);
+	await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+	const response = await page.request.get(`/dokumente/${documentId}/herunterladen`);
+	expect(response.status()).toBe(200);
+	expect(Buffer.from(await response.body()).equals(content)).toBe(true);
+	await page.goto('/dokumente');
+	await expect(page.getByRole('row').filter({ hasText: fileName })).toHaveCount(1);
+	await page.goto('/einstellungen/protokoll?entity=account');
+	const log = page.getByRole('table', { name: 'Protokoll' });
+	await expect(log).toContainText('Export eingespielt');
+	await expect(log).toContainText('Stripe-Kunde angelegt');
+
+	// Now the account holds data, so only missing documents can follow, as after an upload that
+	// failed part-way; the one document is there already.
+	const nachreichen = async () => {
+		await page.goto('/einstellungen/export');
+		await expect(page.getByText('Dein Konto enthält schon Objekte oder Dokumente.')).toBeVisible();
+		await restore.getByLabel('Exportdatei (ZIP)').setInputFiles(exportFile);
+		await restore.getByRole('button', { name: 'Dokumente nachreichen' }).click();
+	};
+	await nachreichen();
+	await expect(restore.getByRole('status')).toContainText(
+		'0\u00a0Dokumente nachgereicht, 1 schon vorhanden.'
+	);
+
+	// On node the file can be lost on purpose; then it follows.
+	if (process.env.DEPLOY_TARGET !== 'cloudflare') {
+		const folder = join('.e2e', 'documents');
+		const [file] = readdirSync(folder, { recursive: true, encoding: 'utf8' }).filter((name) =>
+			name.endsWith(documentId)
+		);
+		rmSync(join(folder, file));
+		await nachreichen();
+		await expect(restore.getByRole('status')).toContainText(
+			'1\u00a0Dokument nachgereicht, 0 schon vorhanden.'
+		);
+		const again = await page.request.get(`/dokumente/${documentId}/herunterladen`);
+		expect(Buffer.from(await again.body()).equals(content)).toBe(true);
+	}
 });
