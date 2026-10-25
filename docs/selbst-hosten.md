@@ -8,7 +8,7 @@ description: mietkartei auf dem eigenen Rechner oder Server betreiben.
 mietkartei läuft als ein einziger Docker-Container. Alle Daten liegen in einer SQLite-Datei, hochgeladene Dokumente als Dateien daneben. Wenn du erst einmal nur schauen willst, nimm die [Demo](https://demo.mietkartei.de): Dort musst du nichts installieren.
 
 !!! tip "Erreichbarkeit"
-    Der Befehl unten macht mietkartei nur auf deinem eigenen Rechner erreichbar. Den Betrieb auf einem Server beschreibt die [Serveranleitung](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/.github/SELF_HOSTING.md) (englisch).
+Der Befehl unten macht mietkartei nur auf deinem eigenen Rechner erreichbar. Den Betrieb auf einem Server beschreibt die [Serveranleitung](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/.github/SELF_HOSTING.md) (englisch).
 
 ## Mit Docker
 
@@ -46,6 +46,10 @@ npm run dev
 Die Anwendung läuft dann unter <http://localhost:5173>.
 
 Jedes [Release](https://github.com/OliverHennhoefer/mietkartei.de/releases) enthält zusätzlich ein Quellarchiv mit Prüfsumme (`SHA256SUMS`) und einer [SLSA-Herkunftsangabe](https://slsa.dev) (`mietkartei.intoto.jsonl`), die du mit dem [slsa-verifier](https://github.com/slsa-framework/slsa-verifier) prüfen kannst.
+
+## Bankabruf
+
+Damit mietkartei die Umsätze selbst bei deiner Bank abholt, legst du kostenlos eine eigene Anwendung bei [Enable Banking](https://enablebanking.com/cp/applications) an. Als Weiterleitungsadresse trägst du die Adresse deiner Installation mit `/bank/abruf` am Ende ein, etwa `https://mietkartei.example.de/bank/abruf`, und setzt `ORIGIN` auf dieselbe Adresse. Ohne Vertrag läuft die Anwendung im eingeschränkten Modus und ruft nur Konten ab, die du im Control Panel von Enable Banking verknüpft hast. Für die eigenen Konten reicht das. Die Anwendungs-Id und den heruntergeladenen privaten Schlüssel übergibst du als `ENABLE_BANKING_APP_ID` und `ENABLE_BANKING_PRIVATE_KEY`.
 
 ## Weiterführend
 

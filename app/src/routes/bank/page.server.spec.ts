@@ -402,7 +402,7 @@ describe('bank/import', () => {
 describe('bank/konten', () => {
 	it('is for owners only', async () => {
 		expect(await run(loadAccounts, { user: managerA })).toEqual({
-			data: { ownerOnly: true, bankAccounts: [] }
+			data: { ownerOnly: true, bankAccounts: [], sync: null, query: { abruf: null } }
 		});
 		await db.insert(users).values({
 			id: 'manager-a',
