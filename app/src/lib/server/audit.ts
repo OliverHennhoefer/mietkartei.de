@@ -29,31 +29,14 @@ export function auditEntry(
 	});
 }
 
-export async function listAuditLog(db: Database, accountId: string, limit = 200) {
-	return db
-		.select({
-			id: auditLog.id,
-			at: auditLog.at,
-			entity: auditLog.entity,
-			entityId: auditLog.entityId,
-			action: auditLog.action,
-			summary: auditLog.summary,
-			userEmail: users.email,
-			userName: users.name
-		})
-		.from(auditLog)
-		.leftJoin(users, eq(auditLog.userId, users.id))
-		.where(eq(auditLog.accountId, accountId))
-		.orderBy(desc(auditLog.at), desc(insertOrder))
-		.limit(limit);
-}
-
-/** Like listAuditLog, narrowed to one entity (the filter on /einstellungen/protokoll). */
-export async function listAuditLogForEntity(
+/**
+ * The newest entries of the account's log, optionally narrowed to one entity (the filter on
+ * /einstellungen/protokoll).
+ */
+export async function listAuditLog(
 	db: Database,
 	accountId: string,
-	entity: string,
-	limit = 200
+	{ entity, limit = 200 }: { entity?: string; limit?: number } = {}
 ) {
 	return db
 		.select({
@@ -68,7 +51,7 @@ export async function listAuditLogForEntity(
 		})
 		.from(auditLog)
 		.leftJoin(users, eq(auditLog.userId, users.id))
-		.where(and(eq(auditLog.accountId, accountId), eq(auditLog.entity, entity)))
+		.where(and(eq(auditLog.accountId, accountId), entity ? eq(auditLog.entity, entity) : undefined))
 		.orderBy(desc(auditLog.at), desc(insertOrder))
 		.limit(limit);
 }

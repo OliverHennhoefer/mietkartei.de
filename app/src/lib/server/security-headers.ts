@@ -36,3 +36,19 @@ export function applySecurityHeaders(
 		headers.set('Cache-Control', 'private, no-store');
 	}
 }
+
+/**
+ * Lets the page's forms redirect to `origin` as well. The policy's form-action also applies to
+ * the redirect that answers a post, and the OAuth consent page answers with one to the app.
+ */
+export function allowFormRedirect(headers: Headers, origin: string): void {
+	const policy = headers.get('content-security-policy');
+	if (!policy) return;
+	headers.set(
+		'content-security-policy',
+		policy.replace(
+			/form-action ([^;]*)/,
+			(_, sources: string) => `form-action ${sources} ${origin}`
+		)
+	);
+}

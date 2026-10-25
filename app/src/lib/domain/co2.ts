@@ -1,4 +1,5 @@
-import { proRata } from '../money';
+import { formatNumber } from '../format';
+import { formatCents, proRata } from '../money';
 import type { BuildingUse } from '../server/db/schema';
 
 // Kohlendioxidkostenaufteilungsgesetz (CO2KostAufG): the landlord bears a share of the CO₂ cost of
@@ -24,7 +25,7 @@ export const residentialTiers: ReadonlyArray<readonly [number, number]> = [
 ];
 
 /** § 8: non-residential buildings split half and half. */
-export const NON_RESIDENTIAL_LANDLORD_PERCENT = 50;
+const NON_RESIDENTIAL_LANDLORD_PERCENT = 50;
 
 /** The landlord's share in percent for the given emissions per m² and year. */
 export function landlordSharePercent(kgPerSquareMetre: number, use: BuildingUse): number {
@@ -84,4 +85,52 @@ export function splitCo2Cost(input: Co2SplitInput): Co2Split {
 		landlordAmount,
 		tenantAmount: input.co2Cost - landlordAmount
 	};
+}
+
+/**
+ * The CO₂ price of the national emissions trading (§ 10 Abs. 2 BEHG) in euros per tonne, lowest
+ * and highest: a fixed price until 2025 (2023 held at 30 by the Änderungsgesetz of 2022), a price
+ * corridor for the auctions of 2026. A year after 2026 is added once the law sets it.
+ */
+export const behgPrices: Readonly<Record<number, readonly [number, number]>> = {
+	2021: [25, 25],
+	2022: [30, 30],
+	2023: [30, 30],
+	2024: [45, 45],
+	2025: [55, 55],
+	2026: [55, 65]
+};
+
+/**
+ * What the CO₂ of a year costs at the BEHG price, in cents without VAT: a plausibility check for
+ * the CO₂ cost the supplier invoice states, which also carries the VAT and the supplier's own
+ * purchase price. Null for a year without a known price or without emissions.
+ */
+export function behgCost(
+	year: number,
+	co2Kg: number
+): { minPrice: number; maxPrice: number; min: number; max: number } | null {
+	const prices = behgPrices[year];
+	if (!prices || !(co2Kg > 0)) return null;
+	const [minPrice, maxPrice] = prices;
+	const cents = (price: number) => Math.round((co2Kg / 1000) * price * 100);
+	return { minPrice, maxPrice, min: cents(minPrice), max: cents(maxPrice) };
+}
+
+/** The line under the CO₂ cost field: what the emissions of the year cost at the BEHG price. */
+export function behgHint(year: number, co2Kg: number): string | null {
+	const cost = behgCost(year, co2Kg);
+	if (!cost) return null;
+	const kg = `${formatNumber(co2Kg, 1)} kg`;
+	if (cost.minPrice === cost.maxPrice) {
+		return (
+			`CO₂-Preis ${year} nach BEHG: ${cost.minPrice} € je Tonne, für ${kg} also ` +
+			`${formatCents(cost.min)} ohne Umsatzsteuer.`
+		);
+	}
+	return (
+		`CO₂-Preis ${year} nach BEHG: ${cost.minPrice} bis ${cost.maxPrice} € je Tonne ` +
+		`(Versteigerung), für ${kg} also ${formatCents(cost.min)} bis ${formatCents(cost.max)} ` +
+		'ohne Umsatzsteuer.'
+	);
 }

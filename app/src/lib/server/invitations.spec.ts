@@ -3,19 +3,32 @@ import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { authenticate, createSession, validateSession } from './auth';
 import type { Database } from './db';
-import { auditLog, emailChanges, invitations, passwordResets, sessions, users } from './db/schema';
+import {
+	apiKeys,
+	auditLog,
+	emailChanges,
+	invitations,
+	passwordResets,
+	sessions,
+	users
+} from './db/schema';
 import {
 	INVITATION_LIFETIME,
+	INVITATION_RETENTION,
+	MAX_ACCOUNT_MEMBERS,
 	MAX_INVITATIONS_PER_DAY,
 	acceptInvitation,
 	createInvitation,
 	deliverInvitation,
 	findInvitation,
+	freeSeats,
 	invitationMail,
 	inviterName,
 	listAccountUsers,
 	listPendingInvitations,
+	changeRole,
 	removeUser,
+	resendInvitation,
 	revokeInvitation
 } from './invitations';
 import { QUOTAS } from './quotas';
@@ -58,20 +71,63 @@ describe('createInvitation', () => {
 		).toEqual([['invitation', result.id, 'invite', 'neu@example.org als Mitverwalter eingeladen']]);
 	});
 
-	it('refuses an address of the account or with an open invitation', async () => {
+	it('refuses an address of the account or with an open or expired invitation', async () => {
 		expect(await createInvitation(db, contextA, { email: 'A@example.org' }, now)).toEqual({
 			ok: false,
 			reason: 'member'
 		});
-		await invite();
+		const { id } = await invite();
 		expect(await createInvitation(db, contextA, { email: 'neu@example.org' }, now)).toEqual({
 			ok: false,
 			reason: 'already-invited'
 		});
-		// An expired invitation does not block a new one.
+		// An expired invitation is sent again instead; a revoked one does not block a new one.
+		expect(await createInvitation(db, contextA, { email: 'neu@example.org' }, later)).toEqual({
+			ok: false,
+			reason: 'already-invited'
+		});
+		await revokeInvitation(db, contextA, id, later);
 		expect(await createInvitation(db, contextA, { email: 'neu@example.org' }, later)).toMatchObject(
 			{ ok: true }
 		);
+	});
+
+	it('refuses once users and open invitations fill the seats of the account', async () => {
+		// The test account has its owner; the other seats go to open invitations.
+		for (let index = 1; index < MAX_ACCOUNT_MEMBERS; index++)
+			await invite(`p-${index}@example.org`);
+		expect(await freeSeats(db, 'a', now)).toBe(0);
+		expect(await createInvitation(db, contextA, { email: 'voll@example.org' }, now)).toEqual({
+			ok: false,
+			reason: 'full'
+		});
+		// Expired invitations free their seat.
+		expect(await freeSeats(db, 'a', later)).toBe(MAX_ACCOUNT_MEMBERS - 1);
+		expect(await invite('frei@example.org', contextB)).toMatchObject({ ok: true });
+	});
+
+	it('never fills more seats than there are, even for simultaneous invitations', async () => {
+		for (let index = 2; index < MAX_ACCOUNT_MEMBERS; index++)
+			await invite(`p-${index}@example.org`);
+		expect(await freeSeats(db, 'a', now)).toBe(1);
+		const results = await Promise.all(
+			['x@example.org', 'y@example.org'].map((email) =>
+				createInvitation(db, contextA, { email }, now)
+			)
+		);
+		expect(results.filter((result) => result.ok).length).toBeLessThanOrEqual(1);
+		expect(await freeSeats(db, 'a', now)).toBeGreaterThanOrEqual(0);
+		const logged = await db.select().from(auditLog);
+		expect(logged).toHaveLength((await listPendingInvitations(db, 'a', now)).length);
+	});
+
+	it('deletes invitations of every account a month after their expiry', async () => {
+		const old = await invite('alt@example.org', contextB);
+		const purgeAt = later + INVITATION_RETENTION + 1;
+		await createInvitation(db, contextA, { email: 'neu@example.org' }, purgeAt);
+		const rows = await db.select().from(invitations);
+		expect(rows.map((row) => row.email)).toEqual(['neu@example.org']);
+		expect(rows.some((row) => row.id === old.id)).toBe(false);
 	});
 
 	it('says nothing about users of other accounts; accepting refuses them', async () => {
@@ -81,7 +137,7 @@ describe('createInvitation', () => {
 		).toEqual({ ok: false, reason: 'email-taken' });
 	});
 
-	it('sends at most twenty invitations a day, revoked ones included', async () => {
+	it('sends at most five invitations a day, revoked ones included', async () => {
 		for (let index = 0; index < MAX_INVITATIONS_PER_DAY; index++) {
 			const { id } = await invite(`eins-${index}@example.org`);
 			// Revoking frees neither the daily limit nor the quota.
@@ -115,7 +171,7 @@ describe('createInvitation', () => {
 });
 
 describe('listPendingInvitations and listAccountUsers', () => {
-	it('lists open invitations and users of the account only', async () => {
+	it('lists open and expired invitations and users of the account only', async () => {
 		const open = await invite('eins@example.org');
 		await invite('zwei@example.org', contextB);
 		const accepted = await invite('drei@example.org');
@@ -127,8 +183,12 @@ describe('listPendingInvitations and listAccountUsers', () => {
 		);
 
 		const pending = await listPendingInvitations(db, 'a', now);
-		expect(pending.map((invitation) => invitation.id)).toEqual([open.id]);
-		expect(await listPendingInvitations(db, 'a', later)).toEqual([]);
+		expect(pending.map((invitation) => [invitation.id, invitation.expired])).toEqual([
+			[open.id, false]
+		]);
+		expect(
+			(await listPendingInvitations(db, 'a', later)).map((invitation) => invitation.expired)
+		).toEqual([true]);
 
 		const accountUsers = await listAccountUsers(db, 'a');
 		expect(accountUsers.map((user) => [user.email, user.role, user.name])).toEqual([
@@ -159,6 +219,138 @@ describe('revokeInvitation', () => {
 		expect(audit.map((entry) => [entry.accountId, entry.summary])).toEqual([
 			['a', 'Einladung an eins@example.org zurückgezogen']
 		]);
+	});
+});
+
+describe('resendInvitation', () => {
+	it('replaces an invitation with a new link and a new week, and logs it', async () => {
+		const first = await invite();
+		const resent = await resendInvitation(db, contextA, first.id, later);
+		if (!resent.ok) throw new Error(resent.reason);
+		expect(resent).toMatchObject({ email: 'neu@example.org' });
+		expect(resent.token).not.toBe(first.token);
+		expect(await findInvitation(db, first.token, later)).toBeUndefined();
+		expect(await findInvitation(db, resent.token, later)).toMatchObject({ status: 'open' });
+		const pending = await listPendingInvitations(db, 'a', later);
+		expect(pending.map((invitation) => [invitation.id, invitation.expiresAt.getTime()])).toEqual([
+			[resent.id, later + INVITATION_LIFETIME]
+		]);
+		const audit = await db.select().from(auditLog).where(eq(auditLog.entityId, resent.id));
+		expect(audit.map((entry) => entry.summary)).toEqual([
+			'Einladung an neu@example.org erneut geschickt'
+		]);
+	});
+
+	it('lets only one of two simultaneous resends replace the invitation', async () => {
+		const first = await invite();
+		const results = await Promise.all([
+			resendInvitation(db, contextA, first.id, now),
+			resendInvitation(db, contextA, first.id, now)
+		]);
+		expect(results.filter((result) => result.ok)).toHaveLength(1);
+		expect(results.filter((result) => !result.ok)).toEqual([{ ok: false, reason: 'missing' }]);
+		expect(await listPendingInvitations(db, 'a', now)).toHaveLength(1);
+	});
+
+	it('keeps the seat of a full account while it resends, even against a new invitation', async () => {
+		const first = await invite('p-1@example.org');
+		for (let index = 2; index < MAX_ACCOUNT_MEMBERS; index++)
+			await invite(`p-${index}@example.org`);
+		const [resent, created] = await Promise.all([
+			resendInvitation(db, contextA, first.id, now),
+			createInvitation(db, contextA, { email: 'neu@example.org' }, now)
+		]);
+		expect(resent.ok).toBe(true);
+		expect(created).toEqual({ ok: false, reason: 'full' });
+		expect(await freeSeats(db, 'a', now)).toBe(0);
+	});
+
+	it('sends only one of two simultaneous resends that would pass the daily limit', async () => {
+		const first = await invite('eins@example.org');
+		const second = await invite('zwei@example.org');
+		for (let index = 2; index < MAX_INVITATIONS_PER_DAY - 1; index++) {
+			const resent = await resendInvitation(db, contextA, first.id, now);
+			if (!resent.ok) throw new Error(resent.reason);
+			first.id = resent.id;
+		}
+		const results = await Promise.all([
+			resendInvitation(db, contextA, first.id, now),
+			resendInvitation(db, contextA, second.id, now)
+		]);
+		expect(results.filter((result) => result.ok)).toHaveLength(1);
+		expect(results.filter((result) => !result.ok)).toEqual([{ ok: false, reason: 'too-many' }]);
+		// The refused resend took its replacement back; both addresses keep one invitation.
+		expect(
+			(await listPendingInvitations(db, 'a', now)).map((pending) => pending.email).sort()
+		).toEqual(['eins@example.org', 'zwei@example.org']);
+	});
+
+	it('neither lists nor resends an invitation past its retention', async () => {
+		const old = await invite();
+		const past = later + INVITATION_RETENTION + 1;
+		expect(await listPendingInvitations(db, 'a', past)).toEqual([]);
+		expect(await resendInvitation(db, contextA, old.id, past)).toEqual({
+			ok: false,
+			reason: 'missing'
+		});
+		// So the address can be invited anew.
+		expect(await createInvitation(db, contextA, { email: 'neu@example.org' }, past)).toMatchObject({
+			ok: true
+		});
+	});
+
+	it('refuses foreign, revoked and accepted invitations', async () => {
+		const foreign = await invite('b-neu@example.org', contextB);
+		expect(await resendInvitation(db, contextA, foreign.id, now)).toEqual({
+			ok: false,
+			reason: 'missing'
+		});
+		const revoked = await invite('eins@example.org');
+		await revokeInvitation(db, contextA, revoked.id, now);
+		expect(await resendInvitation(db, contextA, revoked.id, now)).toEqual({
+			ok: false,
+			reason: 'missing'
+		});
+		const accepted = await invite('zwei@example.org');
+		await acceptInvitation(
+			db,
+			accepted.token,
+			{ name: 'Zwei', password: 'passwort-von-zwei' },
+			now
+		);
+		expect(await resendInvitation(db, contextA, accepted.id, now)).toEqual({
+			ok: false,
+			reason: 'missing'
+		});
+	});
+
+	it('counts towards the daily limit, and an expired one needs a free seat', async () => {
+		const first = await invite('eins@example.org');
+		for (let index = 1; index < MAX_INVITATIONS_PER_DAY; index++) {
+			const resent = await resendInvitation(db, contextA, first.id, now);
+			if (!resent.ok) throw new Error(resent.reason);
+			first.id = resent.id;
+		}
+		expect(await resendInvitation(db, contextA, first.id, now)).toEqual({
+			ok: false,
+			reason: 'too-many'
+		});
+
+		const day = 24 * 60 * 60 * 1000;
+		const expiredAt = now + INVITATION_LIFETIME + day;
+		for (let index = 1; index < MAX_ACCOUNT_MEMBERS; index++) {
+			const result = await createInvitation(
+				db,
+				contextA,
+				{ email: `p-${index}@example.org` },
+				expiredAt + index * day
+			);
+			if (!result.ok) throw new Error(result.reason);
+		}
+		expect(await resendInvitation(db, contextA, first.id, expiredAt + 5 * day)).toEqual({
+			ok: false,
+			reason: 'full'
+		});
 	});
 });
 
@@ -230,7 +422,7 @@ describe('findInvitation and acceptInvitation', () => {
 				'a',
 				result.userId,
 				'create',
-				'Neu Mitverwalter hat die Einladung angenommen und ist jetzt Mitverwalter'
+				'Neu Mitverwalter hat die Einladung angenommen und ist jetzt als Mitverwalter dabei'
 			]
 		]);
 	});
@@ -317,20 +509,122 @@ describe('removeUser', () => {
 	});
 });
 
+describe('viewers', () => {
+	it('invites, resends and registers a viewer with that role', async () => {
+		const created = await createInvitation(
+			db,
+			contextA,
+			{ email: 'leser@example.org', role: 'viewer' },
+			now
+		);
+		if (!created.ok) throw new Error(created.reason);
+		expect(created.role).toBe('viewer');
+		const resent = await resendInvitation(db, contextA, created.id, now);
+		if (!resent.ok) throw new Error(resent.reason);
+		expect(resent.role).toBe('viewer');
+		const accepted = await acceptInvitation(
+			db,
+			resent.token,
+			{ name: 'Lea Leser', password: 'passwort-von-lea' },
+			now
+		);
+		if (!accepted.ok) throw new Error(accepted.reason);
+		const [user] = await db.select().from(users).where(eq(users.id, accepted.userId));
+		expect(user.role).toBe('viewer');
+		const audit = await db.select().from(auditLog);
+		expect(audit.map((entry) => entry.summary)).toEqual(
+			expect.arrayContaining([
+				'leser@example.org mit Lesezugriff eingeladen',
+				'Lea Leser hat die Einladung angenommen und ist jetzt mit Lesezugriff dabei'
+			])
+		);
+	});
+});
+
+describe('changeRole', () => {
+	beforeEach(async () => {
+		await db.insert(users).values({
+			id: 'manager-a',
+			accountId: 'a',
+			email: 'm@example.org',
+			passwordHash: 'x',
+			role: 'manager',
+			name: 'Max'
+		});
+	});
+
+	it('turns a manager into a viewer, drops their write keys and logs it', async () => {
+		await db.insert(apiKeys).values([
+			{
+				id: 'key-read',
+				accountId: 'a',
+				userId: 'manager-a',
+				name: 'Lesen',
+				prefix: 'mk_r',
+				scope: 'read',
+				expiresAt: new Date(later)
+			},
+			{
+				id: 'key-write',
+				accountId: 'a',
+				userId: 'manager-a',
+				name: 'Schreiben',
+				prefix: 'mk_w',
+				scope: 'write',
+				expiresAt: new Date(later)
+			}
+		]);
+		expect(await changeRole(db, contextA, 'manager-a', 'viewer')).toBe('changed');
+		const [user] = await db.select().from(users).where(eq(users.id, 'manager-a'));
+		expect(user.role).toBe('viewer');
+		expect((await db.select().from(apiKeys)).map((key) => key.id)).toEqual(['key-read']);
+		expect(await changeRole(db, contextA, 'manager-a', 'viewer')).toBe('unchanged');
+		expect(await changeRole(db, contextA, 'manager-a', 'manager')).toBe('changed');
+		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'update'));
+		expect(audit.map((entry) => entry.summary)).toEqual([
+			'Max ist jetzt mit Lesezugriff dabei',
+			'Max ist jetzt als Mitverwalter dabei'
+		]);
+	});
+
+	it('changes neither oneself, the owner nor another account’s user', async () => {
+		expect(await changeRole(db, contextA, 'user-a', 'viewer')).toBe('self');
+		expect(await changeRole(db, contextA, 'user-b', 'viewer')).toBe('missing');
+		const manager = { accountId: 'a', userId: 'manager-a' };
+		expect(await changeRole(db, manager, 'user-a', 'viewer')).toBe('owner');
+	});
+});
+
 describe('invitationMail', () => {
 	it('names the inviter, the role and the link', () => {
-		const mail = invitationMail('neu@example.org', 'https://app.example/einladung/t0k', 'Erika');
+		const mail = invitationMail(
+			'neu@example.org',
+			'https://app.example/einladung/t0k',
+			'Erika',
+			'manager'
+		);
 		expect(mail.to).toBe('neu@example.org');
-		expect(mail.text).toContain('Erika lädt dich ein');
-		expect(mail.text).toContain('Mitverwalter');
+		expect(mail.text).toContain(
+			'Erika lädt dich ein, in mietkartei als Mitverwalter mitzuarbeiten.'
+		);
 		expect(mail.text).toContain('https://app.example/einladung/t0k');
+		const viewer = invitationMail(
+			'neu@example.org',
+			'https://app.example/einladung/t0k',
+			'Erika',
+			'viewer'
+		);
+		expect(viewer.text).toContain(
+			'Erika lädt dich ein, die Daten in mietkartei mit Lesezugriff einzusehen.'
+		);
 	});
 
 	it('prints nothing of the name that a mail program would turn into a link', () => {
 		const mail = invitationMail(
 			'neu@example.org',
 			'https://app.example/einladung/t0k',
-			'Klicke https://evil.example/x oder www.evil.example\nboese.example.org, Erika'
+			'Klicke https://evil.example/x oder www.evil.example\nboese.example.org, Erika',
+			'manager'
 		);
 		expect(mail.text).toContain('Klicke oder Erika lädt dich ein');
 		expect(mail.text).not.toMatch(/evil|boese/);

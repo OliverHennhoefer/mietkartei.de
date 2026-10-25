@@ -1,4 +1,5 @@
 import { and, count, eq, gt } from 'drizzle-orm';
+import { revokeAllApiKeys } from './api-keys';
 import { auditEntry } from './audit';
 import {
 	clearFailedAttempts,
@@ -9,7 +10,7 @@ import {
 } from './auth';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import { emailChanges, passwordResets, sessions, users } from './db/schema';
+import { emailChanges, oauthCodes, passwordResets, sessions, users } from './db/schema';
 import type { Mail } from './mail';
 
 // Password resets (Passwort zurücksetzen): a link with a random token, valid for one hour. Only
@@ -64,8 +65,8 @@ export async function findPasswordReset(
 }
 
 /**
- * Sets the password of the user behind a valid token, deletes all resets, sessions and pending
- * address changes of the user and forgets the failed attempts of the address. The audit entry names neither the user
+ * Sets the password of the user behind a valid token, deletes all resets, sessions, API keys and
+ * pending address changes of the user and forgets the failed attempts of the address. The audit entry names neither the user
  * nor the address. Returns the user, so the caller can sign them in.
  */
 export async function resetPassword(
@@ -87,6 +88,8 @@ export async function resetPassword(
 		db.delete(sessions).where(eq(sessions.userId, user.id)),
 		db.delete(passwordResets).where(eq(passwordResets.userId, user.id)),
 		db.delete(emailChanges).where(eq(emailChanges.userId, user.id)),
+		revokeAllApiKeys(db, user.id),
+		db.delete(oauthCodes).where(eq(oauthCodes.userId, user.id)),
 		auditEntry(
 			db,
 			{ accountId: user.accountId, userId: null },
@@ -104,7 +107,7 @@ export async function resetPassword(
 export function passwordResetMail(to: string, link: string): Mail {
 	return {
 		to,
-		subject: 'Passwort zurücksetzen · mietkartei',
+		subject: 'Passwort zurücksetzen | mietkartei',
 		text:
 			'Hallo,\n\n' +
 			'du hast ein neues Passwort für mietkartei angefordert. Mit diesem Link kannst du es ' +

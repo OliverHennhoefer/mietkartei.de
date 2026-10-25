@@ -2,6 +2,7 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import Icon from '#lib/components/Icon.svelte';
+	import { formatDate } from '#lib/dates.ts';
 	import { pluralize } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
@@ -28,7 +29,7 @@
 	{/snippet}
 </PageHeader>
 
-{#if data.properties.length === 0}
+{#if data.properties.length === 0 && data.archived.length === 0}
 	<EmptyState
 		title="Du hast noch keine Objekte angelegt."
 		text="Lege zuerst ein Objekt an und dann seine Einheiten; Mietverträge kommen danach."
@@ -67,7 +68,9 @@
 		>
 	</div>
 
-	{#if filteredProperties.length === 0}
+	{#if data.properties.length === 0}
+		<p class="muted">Alle deine Objekte sind archiviert.</p>
+	{:else if filteredProperties.length === 0}
 		<EmptyState
 			title="Keine passenden Objekte"
 			text="Versuche es mit einem anderen Namen oder einer anderen Adresse."
@@ -104,6 +107,22 @@
 				</li>
 			{/each}
 		</ul>
+	{/if}
+	{#if data.archived.length > 0}
+		<details class="archive">
+			<summary>Archiviert ({data.archived.length})</summary>
+			<ul class="archive-list" aria-label="Archivierte Objekte">
+				{#each data.archived as property (property.id)}
+					<li>
+						<a href="/objekte/{property.id}">{property.name}</a>
+						<span class="muted"
+							>{property.street}, {property.postalCode}
+							{property.city} · archiviert am {formatDate(property.archivedAt!)}</span
+						>
+					</li>
+				{/each}
+			</ul>
+		</details>
 	{/if}
 {/if}
 
@@ -220,6 +239,24 @@
 	}
 	.property-arrow {
 		color: var(--color-muted);
+	}
+	.archive {
+		margin-top: 2rem;
+	}
+	.archive summary {
+		cursor: pointer;
+		font-weight: 600;
+	}
+	.archive-list {
+		display: grid;
+		gap: 0.5rem;
+		margin: 1rem 0 0;
+		padding: 0;
+		list-style: none;
+	}
+	.archive-list li {
+		display: grid;
+		gap: 0.1rem;
 	}
 	.sr-only {
 		position: absolute;

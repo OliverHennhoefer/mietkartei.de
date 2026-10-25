@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+	type AnySQLiteColumn,
 	index,
 	integer,
 	primaryKey,
@@ -9,6 +10,7 @@ import {
 	uniqueIndex
 } from 'drizzle-orm/sqlite-core';
 import { unitKinds } from '../../units';
+import { germanStates, type GermanState } from '../../working-days';
 
 // Every record belongs to an account. The hosted variant serves many accounts from one database;
 // a self-hosted instance simply has a single account. Amounts are integer euro cents, dates are
@@ -84,10 +86,27 @@ export const stripeEvents = sqliteTable('stripe_events', {
 	receivedAt: createdAt()
 });
 
+/**
+ * Addresses that have had a free trial, as keyed fingerprints (see trials.ts). They outlive the
+ * account, so deleting it and registering again with the same address starts no second trial.
+ */
+export const trialClaims = sqliteTable('trial_claims', {
+	/** HMAC-SHA-256 of the canonical address, hex. */
+	id: text('id').primaryKey(),
+	createdAt: createdAt()
+});
+
 export const buildingUses = ['residential', 'non_residential'] as const;
 export type BuildingUse = (typeof buildingUses)[number];
 
-/** Objekt: a building or plot with one or more units. */
+/**
+ * building = the landlord's own building, whose bills they receive themselves; condominium = an
+ * Eigentumswohnung in a WEG, whose costs come from the Verwalter's Hausgeldabrechnung.
+ */
+export const propertyKinds = ['building', 'condominium'] as const;
+export type PropertyKind = (typeof propertyKinds)[number];
+
+/** Objekt: a building or plot with one or more units, or an Eigentumswohnung in a WEG. */
 export const properties = sqliteTable(
 	'properties',
 	{
@@ -97,11 +116,30 @@ export const properties = sqliteTable(
 		street: text('street').notNull(),
 		postalCode: text('postal_code').notNull(),
 		city: text('city').notNull(),
+		kind: text('kind', { enum: propertyKinds }).notNull().default('building'),
+		/** For a condominium: the WEG-Verwalter, who sends the Hausgeldabrechnung. */
+		associationManager: text('association_manager'),
+		/** For a condominium: its Miteigentumsanteil (MEA) and the MEA of the whole WEG, e.g. 85 of 1000. */
+		ownershipShare: real('ownership_share'),
+		ownershipShareTotal: real('ownership_share_total'),
 		/** Wohngebäude or Nichtwohngebäude (§ 8 CO2KostAufG: 50/50 split for the latter). */
 		buildingUse: text('building_use', { enum: buildingUses }).notNull().default('residential'),
+		/** Bundesland, for its public holidays in due dates and deadlines; null counts nationwide only. */
+		state: text('state', { enum: germanStates }).$type<GermanState>(),
 		/** Persons a vacant unit counts with in the persons key; that share stays with the landlord. */
 		vacancyPersons: integer('vacancy_persons').notNull().default(1),
+		/**
+		 * For the AfA in the tax overview: the day of acquisition (Übergang von Nutzen und Lasten),
+		 * the Anschaffungskosten in cents (price plus Nebenkosten), the share of the building in
+		 * percent (the rest is land, which is not depreciated) and the yearly AfA rate in percent.
+		 */
+		acquisitionDate: text('acquisition_date'),
+		acquisitionCost: integer('acquisition_cost'),
+		buildingShare: real('building_share'),
+		depreciationRate: real('depreciation_rate'),
 		notes: text('notes'),
+		/** The day it was archived (e.g. sold); hidden from lists and selects, its history stays. */
+		archivedAt: text('archived_at'),
 		createdAt: createdAt()
 	},
 	(table) => [index('properties_account_id_idx').on(table.accountId)]
@@ -147,6 +185,8 @@ export const tenants = sqliteTable(
 		postalCode: text('postal_code'),
 		city: text('city'),
 		notes: text('notes'),
+		/** The day it was archived (moved out); hidden from lists and selects, its history stays. */
+		archivedAt: text('archived_at'),
 		createdAt: createdAt()
 	},
 	(table) => [index('tenants_account_id_idx').on(table.accountId)]
@@ -358,7 +398,11 @@ export const depositTransactions = sqliteTable(
 		 * the column with a bare REFERENCES, and a referenced transaction is never deleted (undo
 		 * deletes the movement first, a bank account with matched transactions is kept).
 		 */
-		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id),
+		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id, {
+			// Checked at the end of the statement, so deleting the whole account still works; a bank
+			// account with assigned transactions is refused by the banking module before that.
+			onDelete: 'no action'
+		}),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -370,22 +414,48 @@ export const depositTransactions = sqliteTable(
 	]
 );
 
-/** Verbraucherpreisindex values entered per account, for indexed rents. */
+/**
+ * Verbraucherpreisindex values for Germany, shared by all accounts: fetched from Destatis (GENESIS
+ * table 61111-0002), see consumer-price-index.ts.
+ */
 export const consumerPriceIndex = sqliteTable(
 	'consumer_price_index',
 	{
-		id: id(),
-		accountId: accountId(),
+		baseYear: text('base_year').notNull(),
 		/** YYYY-MM */
 		month: text('month').notNull(),
-		value: real('value').notNull(),
-		baseYear: text('base_year').notNull().default('2020'),
-		createdAt: createdAt()
+		value: real('value').notNull()
 	},
-	(table) => [
-		uniqueIndex('consumer_price_index_unique').on(table.accountId, table.baseYear, table.month)
-	]
+	(table) => [primaryKey({ columns: [table.baseYear, table.month] })]
 );
+
+/** The single row (id `destatis`) of the last fetch of the consumer price index. */
+export const consumerPriceIndexFetches = sqliteTable('consumer_price_index_fetches', {
+	id: text('id').primaryKey(),
+	attemptedAt: integer('attempted_at', { mode: 'timestamp_ms' }).notNull(),
+	succeededAt: integer('succeeded_at', { mode: 'timestamp_ms' }),
+	/** Why the last attempt failed; null after a success. */
+	error: text('error')
+});
+
+/**
+ * Basiszinssatz (§ 247 BGB), one table for all accounts: one row per half-year from its first day
+ * (1 January, 1 July), in basis points (152 = 1,52 %). Seeded with the values since 2015 and
+ * fetched from the Deutsche Bundesbank when the current half-year is missing, see base-rate.ts.
+ */
+export const baseRates = sqliteTable('base_rates', {
+	validFrom: text('valid_from').primaryKey(),
+	rate: integer('rate').notNull()
+});
+
+/** The last fetch of a public data source, one row per source (id `bundesbank-base-rate`). */
+export const publicDataFetches = sqliteTable('public_data_fetches', {
+	id: text('id').primaryKey(),
+	attemptedAt: integer('attempted_at', { mode: 'timestamp_ms' }).notNull(),
+	succeededAt: integer('succeeded_at', { mode: 'timestamp_ms' }),
+	/** Why the last attempt failed; null after a success. */
+	error: text('error')
+});
 
 // Rent ledger (Mietkonto)
 
@@ -426,7 +496,9 @@ export const rentCharges = sqliteTable(
 		/** The statement or CO₂ split this charge comes from. */
 		referenceId: text('reference_id'),
 		/** A correction or a late delivery reverses a statement's charge: a row of its own. */
-		reversesChargeId: text('reverses_charge_id'),
+		reversesChargeId: text('reverses_charge_id').references((): AnySQLiteColumn => rentCharges.id, {
+			onDelete: 'cascade'
+		}),
 		note: text('note'),
 		createdAt: createdAt()
 	},
@@ -467,13 +539,52 @@ export const payments = sqliteTable(
 		note: text('note'),
 		source: text('source', { enum: paymentSources }).notNull().default('manual'),
 		/** The bank transaction the payment was assigned from; no delete action, as above. */
-		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id),
+		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id, {
+			// Checked at the end of the statement, so deleting the whole account still works; a bank
+			// account with assigned transactions is refused by the banking module before that.
+			onDelete: 'no action'
+		}),
 		createdAt: createdAt()
 	},
 	(table) => [
 		index('payments_account_id_idx').on(table.accountId),
 		index('payments_lease_id_date_idx').on(table.leaseId, table.date),
 		index('payments_bank_transaction_id_idx').on(table.bankTransactionId)
+	]
+);
+
+/** 1 = Zahlungserinnerung, 2 = Mahnung, 3 = letzte Mahnung. */
+export const reminderLevels = [1, 2, 3] as const;
+export type ReminderLevel = (typeof reminderLevels)[number];
+
+/**
+ * Zahlungserinnerung or Mahnung: a letter about the overdue amounts of a lease. The open items
+ * and the paragraphs are stored as written, so a later payment or correction cannot change a
+ * letter that was already sent.
+ */
+export const paymentReminders = sqliteTable(
+	'payment_reminders',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		level: integer('level').$type<ReminderLevel>().notNull(),
+		/** The date of the letter; the open items are those on this day. */
+		date: text('date').notNull(),
+		/** The day the tenant is asked to pay by. */
+		paymentDeadline: text('payment_deadline').notNull(),
+		/** The overdue total on `date`. */
+		amount: integer('amount').notNull(),
+		/** Rows of the open items table: due date, posting, open amount. */
+		items: text('items', { mode: 'json' }).notNull().$type<string[][]>(),
+		letterText: text('letter_text').notNull(),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('payment_reminders_account_id_idx').on(table.accountId),
+		index('payment_reminders_lease_id_date_idx').on(table.leaseId, table.date)
 	]
 );
 
@@ -570,6 +681,61 @@ export const matchingRules = sqliteTable(
 		createdAt: createdAt()
 	},
 	(table) => [index('matching_rules_account_id_idx').on(table.accountId)]
+);
+
+// Expenses (Ausgaben)
+
+/**
+ * loan_payment = a Darlehensrate with interest and repayment in one (the interest per year comes
+ * from the bank's Zinsbescheinigung, see taxYears); loan_interest and loan_repayment = either part
+ * booked on its own. special_levy = a Sonderumlage of the WEG spent on Erhaltung right away,
+ * special_levy_reserve = one paid into the Erhaltungsrücklage.
+ */
+export const expenseCategories = [
+	'operating_costs',
+	'association_fee',
+	'special_levy',
+	'special_levy_reserve',
+	'maintenance',
+	'loan_payment',
+	'loan_interest',
+	'loan_repayment',
+	'management',
+	'modernization',
+	'other'
+] as const;
+export type ExpenseCategory = (typeof expenseCategories)[number];
+
+/**
+ * Ausgabe: money the landlord paid out, entered by hand or assigned from an outgoing bank
+ * transaction. Positive = paid out, negative = a refund. Belongs to a unit, to a whole property
+ * or (both null) to the portfolio as a whole; propertyId is set whenever unitId is.
+ */
+export const expenses = sqliteTable(
+	'expenses',
+	{
+		id: id(),
+		accountId: accountId(),
+		propertyId: text('property_id').references(() => properties.id, { onDelete: 'set null' }),
+		unitId: text('unit_id').references(() => units.id, { onDelete: 'set null' }),
+		date: text('date').notNull(),
+		amount: integer('amount').notNull(),
+		category: text('category', { enum: expenseCategories }).notNull(),
+		description: text('description').notNull(),
+		/** The bank transaction the expense was assigned from; no delete action, as for payments. */
+		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id, {
+			// Checked at the end of the statement, so deleting the whole account still works; a bank
+			// account with assigned transactions is refused by the banking module before that.
+			onDelete: 'no action'
+		}),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('expenses_account_id_date_idx').on(table.accountId, table.date),
+		uniqueIndex('expenses_bank_transaction_unique')
+			.on(table.bankTransactionId)
+			.where(sql`${table.bankTransactionId} is not null`)
+	]
 );
 
 // Operating costs (Betriebskosten)
@@ -727,6 +893,19 @@ export const costItems = sqliteTable(
 		fuelKwh: real('fuel_kwh'),
 		co2Kg: real('co2_kg'),
 		co2Cost: integer('co2_cost'),
+		/**
+		 * For a cost of a WEG, from the Hausgeldabrechnung: the cost of the whole WEG, the key the
+		 * Verwalter split it by and the property's share of that key (e.g. 4200 € by MEA, 85 of
+		 * 1000), so the tenant can follow how `amount` came about (§ 556a Abs. 3 BGB). All or none.
+		 */
+		associationTotal: integer('association_total'),
+		associationKey: text('association_key'),
+		associationKeyTotal: real('association_key_total'),
+		associationKeyShare: real('association_key_share'),
+		/** The Versicherung whose premium this Beleg holds, when it was entered from the policy. */
+		insurancePolicyId: text('insurance_policy_id').references(() => insurancePolicies.id, {
+			onDelete: 'set null'
+		}),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -824,6 +1003,7 @@ export const operatingCostStatements = sqliteTable(
 		periodEnd: text('period_end').notNull(),
 		version: integer('version').notNull().default(1),
 		status: text('status', { enum: statementStatuses }).notNull().default('draft'),
+		/** No foreign key: it points at an approved version, and approved versions are never deleted. */
 		correctsId: text('corrects_id'),
 		/** JSON of the computed StatementResult (property level): stored on creation, frozen on approval. */
 		result: text('result'),
@@ -935,6 +1115,116 @@ export const documents = sqliteTable(
 	]
 );
 
+/**
+ * Hausgeldabrechnung of an Eigentumswohnung for one Wirtschaftsjahr, as the Verwalter sent it:
+ * the unit's share of the costs, split into what may be passed on to the tenant, what may not
+ * and the Zuführung zur Erhaltungsrücklage, and the Hausgeld due under the Wirtschaftsplan. The
+ * app sets it against the Hausgeld paid (expenses of category association_fee) and the Belege
+ * taken over from it. Amounts in cents.
+ */
+export const associationStatements = sqliteTable(
+	'association_statements',
+	{
+		id: id(),
+		accountId: accountId(),
+		propertyId: text('property_id')
+			.notNull()
+			.references(() => properties.id, { onDelete: 'cascade' }),
+		periodStart: text('period_start').notNull(),
+		periodEnd: text('period_end').notNull(),
+		/** Umlagefähige Kosten: the share of the costs that may be passed on (§ 2 BetrKV). */
+		allocableCosts: integer('allocable_costs').notNull(),
+		/** Nicht umlagefähige Kosten, e.g. Verwaltervergütung, Instandhaltung, Bankgebühren. */
+		nonAllocableCosts: integer('non_allocable_costs').notNull(),
+		/** Zuführung zur Erhaltungsrücklage. */
+		reserveContribution: integer('reserve_contribution').notNull(),
+		/** Hausgeld due for the year under the Wirtschaftsplan (Soll-Vorauszahlungen). */
+		feesDue: integer('fees_due').notNull(),
+		/**
+		 * Entnahme aus der Erhaltungsrücklage: the unit's share of what the Verwalter spent from the
+		 * reserve on Erhaltung in the year. Deductible for tax in that year, unlike the Zuführung.
+		 */
+		reserveWithdrawal: integer('reserve_withdrawal').notNull().default(0),
+		/** The Abrechnungsspitze the Verwalter printed; positive = Nachzahlung, negative = Guthaben. */
+		statedBalance: integer('stated_balance'),
+		note: text('note'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('association_statements_account_id_idx').on(table.accountId),
+		uniqueIndex('association_statements_period_unique').on(table.propertyId, table.periodStart)
+	]
+);
+
+/**
+ * What the tax overview of a property needs per calendar year beyond the bookings: the interest
+ * of the year from the bank's Zinsbescheinigung, for Darlehensraten booked as loan_payment.
+ */
+export const taxYears = sqliteTable(
+	'tax_years',
+	{
+		id: id(),
+		accountId: accountId(),
+		propertyId: text('property_id')
+			.notNull()
+			.references(() => properties.id, { onDelete: 'cascade' }),
+		year: integer('year').notNull(),
+		/** Schuldzinsen of the year in cents; null = not entered. */
+		loanInterest: integer('loan_interest'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('tax_years_account_id_idx').on(table.accountId),
+		uniqueIndex('tax_years_property_year_unique').on(table.propertyId, table.year)
+	]
+);
+
+export const insuranceKinds = [
+	'building',
+	'liability',
+	'glass',
+	'oil_tank',
+	'rent_loss',
+	'legal',
+	'other'
+] as const;
+export type InsuranceKind = (typeof insuranceKinds)[number];
+
+/**
+ * Versicherung of a property. It renews every year on `renewalDate` (Hauptfälligkeit) until
+ * `endDate`; the notice deadline before each renewal is computed in deadlines.ts.
+ */
+export const insurancePolicies = sqliteTable(
+	'insurance_policies',
+	{
+		id: id(),
+		accountId: accountId(),
+		propertyId: text('property_id')
+			.notNull()
+			.references(() => properties.id, { onDelete: 'cascade' }),
+		kind: text('kind', { enum: insuranceKinds }).notNull(),
+		insurer: text('insurer').notNull(),
+		policyNumber: text('policy_number'),
+		/** Premium per insurance year in cents. */
+		annualPremium: integer('annual_premium').notNull(),
+		/** The first day of an insurance year; later years start on the same day of the year. */
+		renewalDate: text('renewal_date').notNull(),
+		/** Months before the end of an insurance year by which a cancellation must arrive. */
+		noticeMonths: integer('notice_months').notNull().default(3),
+		/** The last day of cover once the policy is cancelled. */
+		endDate: text('end_date'),
+		note: text('note'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('insurance_policies_account_id_idx').on(table.accountId),
+		index('insurance_policies_property_id_idx').on(table.propertyId)
+	]
+);
+
+export const taskCategories = ['maintenance', 'inspection', 'insurance', 'other'] as const;
+export type TaskCategory = (typeof taskCategories)[number];
+
 /** Aufgabe with an optional due date. Deadlines derived from the data are computed, not stored. */
 export const tasks = sqliteTable(
 	'tasks',
@@ -942,9 +1232,19 @@ export const tasks = sqliteTable(
 		id: id(),
 		accountId: accountId(),
 		title: text('title').notNull(),
+		category: text('category', { enum: taskCategories }).notNull().default('other'),
 		dueDate: text('due_date'),
+		/** Repeats every so many months from the due date; done, it leaves an open copy behind. */
+		repeatMonths: integer('repeat_months'),
+		/**
+		 * The due date the series was set up with; occurrences are counted from it, so a series on
+		 * the 31st returns to the 31st after a shorter month.
+		 */
+		repeatAnchor: text('repeat_anchor'),
 		done: bool('done', false),
 		doneAt: integer('done_at', { mode: 'timestamp_ms' }),
+		/** The open copy created when this repeating task was done; reopening removes it again. */
+		followUpId: text('follow_up_id'),
 		propertyId: text('property_id').references(() => properties.id, { onDelete: 'set null' }),
 		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
 		note: text('note'),
@@ -953,8 +1253,11 @@ export const tasks = sqliteTable(
 	(table) => [index('tasks_account_id_idx').on(table.accountId)]
 );
 
-export const userRoles = ['owner', 'manager'] as const;
+export const userRoles = ['owner', 'manager', 'viewer'] as const;
 export type UserRole = (typeof userRoles)[number];
+/** The roles an owner gives others: by invitation or by changing a member's role. */
+export const memberRoles = ['manager', 'viewer'] as const;
+export type MemberRole = (typeof memberRoles)[number];
 
 /** A person who signs in. Each user works in exactly one account. */
 export const users = sqliteTable(
@@ -965,7 +1268,10 @@ export const users = sqliteTable(
 		/** Stored trimmed and in lower case; unique across all accounts. */
 		email: text('email').notNull().unique(),
 		passwordHash: text('password_hash').notNull(),
-		/** Owners manage invitations and bank accounts; managers edit everything else. */
+		/**
+		 * Owners manage invitations and bank accounts; managers edit everything else; viewers only
+		 * read (the hook refuses their writes).
+		 */
 		role: text('role', { enum: userRoles }).notNull().default('owner'),
 		name: text('name'),
 		createdAt: createdAt()
@@ -979,6 +1285,21 @@ export const users = sqliteTable(
 			.where(sql`${table.role} = 'owner'`)
 	]
 );
+
+/**
+ * The secret link of a user's calendar subscription (iCal) with the account's deadlines and tasks.
+ * Only the hash of the link token is stored; a new link replaces the old one.
+ */
+export const calendarFeeds = sqliteTable('calendar_feeds', {
+	id: id(),
+	accountId: accountId(),
+	userId: text('user_id')
+		.notNull()
+		.unique()
+		.references(() => users.id, { onDelete: 'cascade' }),
+	tokenHash: text('token_hash').notNull().unique(),
+	createdAt: createdAt()
+});
 
 /** A signed-in browser. The id is the SHA-256 hash of the cookie token, never the token itself. */
 export const sessions = sqliteTable(
@@ -995,9 +1316,89 @@ export const sessions = sqliteTable(
 	(table) => [index('sessions_user_id_idx').on(table.userId)]
 );
 
+export const apiKeyScopes = ['read', 'write'] as const;
+export type ApiKeyScope = (typeof apiKeyScopes)[number];
+
 /**
- * An invitation to join the account as a manager. Only the hash of the link token is stored.
- * Revoked invitations stay, so the daily limit of invitations counts them too.
+ * An app that registered itself for OAuth (RFC 7591), e.g. the claude.ai connector. Anyone may
+ * register one; it gets access only once a user approves it. Public clients without a secret, so
+ * PKCE protects the code.
+ */
+export const oauthClients = sqliteTable('oauth_clients', {
+	id: text('id').primaryKey(),
+	/** As the app names itself; the consent page shows the address it returns to as well. */
+	name: text('name').notNull(),
+	/** JSON array of the exact redirect URIs. */
+	redirectUris: text('redirect_uris', { mode: 'json' }).$type<string[]>().notNull(),
+	createdAt: createdAt()
+});
+
+/**
+ * A key for the API and the MCP server, created by a user and acting with that user's rights. The
+ * id is the SHA-256 hash of the key, never the key itself; `prefix` is its first characters, so
+ * the list of keys can tell them apart.
+ *
+ * An app connected by OAuth holds a row as well, with `clientId` set and a random id that stays
+ * the same: its access token is found by `accessHash`, replaced together with the refresh token on
+ * every refresh, and only valid until `accessExpiresAt`; `expiresAt` is when the refresh token
+ * runs out. Everything that revokes keys therefore disconnects apps too.
+ */
+export const apiKeys = sqliteTable(
+	'api_keys',
+	{
+		id: text('id').primaryKey(),
+		accountId: accountId(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		prefix: text('prefix').notNull(),
+		scope: text('scope', { enum: apiKeyScopes }).notNull().default('read'),
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+		lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
+		clientId: text('client_id').references(() => oauthClients.id, { onDelete: 'cascade' }),
+		/** SHA-256 of the access token of an OAuth app. */
+		accessHash: text('access_hash'),
+		/** SHA-256 of the refresh token of an OAuth app. */
+		refreshHash: text('refresh_hash'),
+		accessExpiresAt: integer('access_expires_at', { mode: 'timestamp_ms' }),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('api_keys_account_id_idx').on(table.accountId),
+		index('api_keys_user_id_idx').on(table.userId),
+		uniqueIndex('api_keys_access_hash_unique').on(table.accessHash),
+		uniqueIndex('api_keys_refresh_hash_unique').on(table.refreshHash)
+	]
+);
+
+/**
+ * A one-time code of the OAuth authorization code flow, valid for minutes. The id is the code's
+ * SHA-256; the PKCE challenge binds it to the app that asked for it.
+ */
+export const oauthCodes = sqliteTable(
+	'oauth_codes',
+	{
+		id: text('id').primaryKey(),
+		clientId: text('client_id')
+			.notNull()
+			.references(() => oauthClients.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		scope: text('scope', { enum: apiKeyScopes }).notNull(),
+		redirectUri: text('redirect_uri').notNull(),
+		codeChallenge: text('code_challenge').notNull(),
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+		createdAt: createdAt()
+	},
+	(table) => [index('oauth_codes_user_id_idx').on(table.userId)]
+);
+
+/**
+ * An invitation to join the account as a manager or viewer. Only the hash of the link token is stored.
+ * Revoked and resent invitations stay, so the daily limit of invitations counts them too; every
+ * invitation is deleted a month after its expiry.
  */
 export const invitations = sqliteTable(
 	'invitations',
@@ -1005,6 +1406,7 @@ export const invitations = sqliteTable(
 		id: id(),
 		accountId: accountId(),
 		email: text('email').notNull(),
+		role: text('role', { enum: memberRoles }).notNull().default('manager'),
 		tokenHash: text('token_hash').notNull().unique(),
 		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
 		invitedBy: text('invited_by').references(() => users.id, { onDelete: 'set null' }),

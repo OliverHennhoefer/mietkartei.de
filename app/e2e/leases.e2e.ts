@@ -33,6 +33,8 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	await page.goto(`/vertraege/neu?unitId=${unitId}&tenantId=${tenantId}`);
 	await expect(page.locator('select[name="unitId"]')).toHaveValue(unitId);
 	await expect(page.getByRole('checkbox', { name: tenantName })).toBeChecked();
+	// The start defaults to the first of next month.
+	await expect(page.locator('input[name="startDate"]')).toHaveValue(/^\d{4}-\d{2}-01$/);
 	await page.getByLabel('Beginn', { exact: true }).fill('2025-01-01');
 	// Amounts by name: the hints of other fields mention Kaltmiete and Kaution too.
 	await page.locator('input[name="baseRent"]').fill('600,00');
@@ -125,10 +127,10 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	await expect(outstanding).toContainText(/900,00\s€/);
 	await expect(page.getByRole('list', { name: 'Raten' })).toBeVisible();
 
-	// The lease now carries money, so it cannot be deleted, only ended.
+	// The lease now carries money, so it cannot be deleted, only ended; the page says so.
 	await page.goto(leaseUrl);
-	await page.getByRole('button', { name: 'Mietvertrag löschen' }).click();
-	await expect(page.getByRole('alert')).toContainText('Vertrag beenden');
+	await expect(page.getByText(/Kautionsbewegung.*„Vertrag beenden“ beendet/)).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Mietvertrag löschen' })).toHaveCount(0);
 
 	// Vertrag beenden: a tenant's notice received on 2 March 2026 ends the lease on 31 May 2026
 	// at the earliest (§ 573c BGB); the form proposes that date, and an earlier one is refused

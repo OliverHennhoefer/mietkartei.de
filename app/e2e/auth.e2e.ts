@@ -1,7 +1,10 @@
 import { expect, test } from '@playwright/test';
+import { closeLaunchNotice } from './launch-notice';
 import { linkInMailTo, readOutbox } from './outbox';
 import { owner } from './owner';
 import { seedRows, seedUser } from './seed';
+
+test.beforeEach(({ page }) => closeLaunchNotice(page));
 
 test('health check works without signing in', async ({ request }) => {
 	const response = await request.get('/health');
@@ -32,6 +35,7 @@ test('signs in and out', async ({ page }) => {
 	await page.getByRole('button', { name: 'Anmelden' }).click();
 	await expect(page).toHaveURL(/\/$/);
 
+	await page.getByRole('button', { name: 'Konto' }).click();
 	await page.getByRole('button', { name: 'Abmelden' }).click();
 	await expect(page).toHaveURL(/\/anmelden$/);
 	await page.goto('/objekte');
@@ -54,7 +58,7 @@ test('closes registration after the first user on a self-hosted instance', async
 test('refuses an address that is not listed on the hosted variant', async ({ page }) => {
 	test.skip(!hosted, 'Self-hosted instances have no list.');
 	await page.goto('/registrieren');
-	await expect(page.getByText('mietkartei ist noch nicht öffentlich.')).toBeVisible();
+	await expect(page.getByText('mietkartei startet im Januar 2027.')).toBeVisible();
 	await page.getByLabel('E-Mail-Adresse').fill('fremd@example.org');
 	await expect(page.getByLabel('Passwort')).toHaveCount(0);
 	await page.getByRole('button', { name: 'Link anfordern' }).click();
@@ -63,6 +67,19 @@ test('refuses an address that is not listed on the hosted variant', async ({ pag
 		page.getByText('Diese E-Mail-Adresse ist nicht für eine Registrierung freigeschaltet.')
 	).toBeVisible();
 	await expect(page).toHaveURL(/\/registrieren$/);
+});
+
+test('shows the launch notice over the sign-in page on the hosted variant', async ({ page }) => {
+	test.skip(!hosted, 'Self-hosted instances name no launch.');
+	const notice = page.getByRole('dialog', { name: /mietkartei startet/ });
+	// The test closes the notice itself, so the handler from closeLaunchNotice must not.
+	await page.removeLocatorHandler(notice);
+	await page.goto('/anmelden');
+	await expect(notice).toHaveText(/mietkartei startet im Januar 2027\./);
+	await expect(notice).toBeVisible();
+	await notice.getByRole('button', { name: 'Verstanden' }).click();
+	await expect(notice).toBeHidden();
+	await expect(page.getByLabel('E-Mail-Adresse')).toBeEditable();
 });
 
 test('offers no registration link on the sign-in page', async ({ page }) => {
@@ -110,7 +127,8 @@ test('resets the password through the link from the mail', async ({ page }) => {
 	await page.locator('input[name="passwordConfirm"]').fill(user.newPassword);
 	await page.getByRole('button', { name: 'Passwort setzen' }).click();
 	await expect(page).toHaveURL(/\/$/);
-	await expect(page.getByRole('navigation')).toContainText(user.email);
+	await page.getByRole('button', { name: 'Konto' }).click();
+	await expect(page.locator('#account-menu')).toContainText(user.email);
 
 	// The link is used up.
 	const response = await page.request.get(link);

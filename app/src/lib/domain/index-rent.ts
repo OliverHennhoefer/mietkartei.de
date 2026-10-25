@@ -102,19 +102,11 @@ export function referenceIndex(
 	return undefined;
 }
 
-export type LatestIndex =
-	| { ok: true; latest: IndexValueRow }
-	| { ok: false; reason: 'none' }
-	| { ok: false; reason: 'mixed'; baseYears: string[] };
+export type LatestIndex = { ok: true; latest: IndexValueRow } | { ok: false; reason: 'none' };
 
-/**
- * The newest VPI value of the account. Values of different base years cannot be compared, so a
- * table with more than one base year is refused; the page asks for the rebased value instead.
- */
+/** The newest VPI value. */
 export function latestIndex(values: readonly IndexValueRow[]): LatestIndex {
 	if (values.length === 0) return { ok: false, reason: 'none' };
-	const baseYears = [...new Set(values.map((value) => value.baseYear))].sort();
-	if (baseYears.length > 1) return { ok: false, reason: 'mixed', baseYears };
 	let latest = values[0];
 	for (const value of values) if (value.month > latest.month) latest = value;
 	return { ok: true, latest };
@@ -233,17 +225,12 @@ export function indexSituation(
 	else if (pending) refusal = 'Es gibt schon einen Vorschlag. Gib ihn frei oder lösche ihn.';
 	else if (!reference)
 		refusal = 'Dem Mietvertrag fehlt der Bezugsindex (Basismonat und Indexwert).';
-	else if (!latest.ok && latest.reason === 'none')
-		refusal = 'Es sind noch keine Werte des Verbraucherpreisindex eingetragen.';
-	else if (!latest.ok)
-		refusal =
-			`Die VPI-Tabelle enthält Werte mit mehreren Basisjahren (${latest.baseYears.join(', ')}). ` +
-			'Trage den aktuellen Wert auf das Basisjahr des Bezugsindex umgerechnet ein.';
+	else if (!latest.ok) refusal = 'Es liegen noch keine Werte des Verbraucherpreisindex vor.';
 	else if (!sameBase)
 		refusal =
 			`Der Bezugsindex beruht auf dem Basisjahr ${reference.baseYear}, die VPI-Werte auf dem ` +
-			`Basisjahr ${latest.latest.baseYear}. Trage die VPI-Werte zum Basisjahr ` +
-			`${reference.baseYear} ein oder den Bezugsindex umgerechnet im Mietvertrag.`;
+			`Basisjahr ${latest.latest.baseYear}. Trage den Bezugsindex im Mietvertrag auf das ` +
+			`Basisjahr ${latest.latest.baseYear} umgerechnet ein.`;
 	else if (!current) refusal = 'Dem Mietvertrag fehlt die aktuelle Miete.';
 	else if (latest.latest.month <= reference.month)
 		refusal =
@@ -268,8 +255,8 @@ export type LetterTenant = {
 
 /**
  * "Guten Tag Frau Muster, Herr Beispiel," or "Guten Tag Erika Muster,": the letters to tenants
- * use the informal register of the app ("du"), as the statement letter does, so the greeting is
- * not the formal "Sehr geehrte".
+ * address the tenants formally ("Sie"); "Guten Tag" keeps the greeting plain rather than the
+ * stiff "Sehr geehrte".
  */
 export function greeting(tenants: readonly LetterTenant[]): string {
 	const names = tenants.map((tenant) => {
@@ -330,7 +317,7 @@ export function indexLetterText(content: LetterContent): string {
 	const { figures } = content;
 	const paragraphs = [
 		greeting(content.tenants),
-		`${content.tenants.length > 1 ? 'euer' : 'dein'} Mietvertrag für ${content.unitName} sieht ` +
+		`Ihr Mietvertrag für ${content.unitName} sieht ` +
 			'eine Indexmiete nach § 557b BGB vor: Die ' +
 			'Kaltmiete folgt dem Verbraucherpreisindex für Deutschland des Statistischen Bundesamts ' +
 			`(Basisjahr ${figures.baseYear} = 100).`,

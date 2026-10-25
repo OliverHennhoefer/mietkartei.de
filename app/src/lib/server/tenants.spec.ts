@@ -2,7 +2,8 @@ import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from './db';
 import { auditLog } from './db/schema';
-import { createTenant, deleteTenant, getTenant, listTenants, updateTenant } from './tenants';
+import { deleteTenant } from './deletion';
+import { createTenant, getTenant, listTenants, updateTenant } from './tenants';
 import { contextA, contextB, seedLease, seedUnit, tenantInput, testDatabase } from './testing';
 
 let db: Database;

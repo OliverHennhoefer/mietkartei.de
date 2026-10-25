@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseProperty, parseUnit } from './validation';
+import { parseCredentials, parseProperty, parseUnit } from './validation';
 
 function form(entries: Record<string, string>) {
 	const data = new FormData();
@@ -24,14 +24,19 @@ describe('parseProperty', () => {
 				street: 'Lindenstraße 4',
 				postalCode: '10115',
 				city: 'Berlin',
+				kind: 'building',
+				associationManager: null,
+				ownershipShare: null,
+				ownershipShareTotal: null,
 				buildingUse: 'residential',
+				state: null,
 				vacancyPersons: 1,
 				notes: null
 			}
 		});
 	});
 
-	it('reads building use, vacancy persons and notes', () => {
+	it('reads building use, Bundesland, vacancy persons and notes', () => {
 		const result = parseProperty(
 			form({
 				name: 'Gewerbehof',
@@ -39,6 +44,7 @@ describe('parseProperty', () => {
 				postalCode: '04109',
 				city: 'Leipzig',
 				buildingUse: 'non_residential',
+				state: 'SN',
 				vacancyPersons: '0',
 				notes: ' Hinterhof '
 			})
@@ -50,7 +56,12 @@ describe('parseProperty', () => {
 				street: 'Am Markt 1',
 				postalCode: '04109',
 				city: 'Leipzig',
+				kind: 'building',
+				associationManager: null,
+				ownershipShare: null,
+				ownershipShareTotal: null,
 				buildingUse: 'non_residential',
+				state: 'SN',
 				vacancyPersons: 0,
 				notes: 'Hinterhof'
 			}
@@ -65,6 +76,7 @@ describe('parseProperty', () => {
 				postalCode: '1011',
 				city: '',
 				buildingUse: 'castle',
+				state: 'XX',
 				vacancyPersons: '11'
 			})
 		);
@@ -75,11 +87,76 @@ describe('parseProperty', () => {
 			'city',
 			'name',
 			'postalCode',
+			'state',
 			'street',
 			'vacancyPersons'
 		]);
 		expect(result.errors.postalCode).toBe('Die Postleitzahl hat fünf Ziffern.');
 		expect(result.values.postalCode).toBe('1011');
+	});
+
+	it('reads the Verwalter and the MEA of an Eigentumswohnung', () => {
+		const result = parseProperty(
+			form({
+				name: 'ETW Lindenstraße',
+				street: 'Lindenstraße 4',
+				postalCode: '10115',
+				city: 'Berlin',
+				kind: 'condominium',
+				associationManager: ' Hausverwaltung Meier ',
+				ownershipShare: '85,5',
+				ownershipShareTotal: '1000'
+			})
+		);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data).toMatchObject({
+			kind: 'condominium',
+			associationManager: 'Hausverwaltung Meier',
+			ownershipShare: 85.5,
+			ownershipShareTotal: 1000
+		});
+	});
+
+	it('drops the WEG fields of a building', () => {
+		const result = parseProperty(
+			form({
+				name: 'Haus',
+				street: 'Am Markt 1',
+				postalCode: '04109',
+				city: 'Leipzig',
+				kind: 'building',
+				associationManager: 'Meier',
+				ownershipShare: '85',
+				ownershipShareTotal: '1000'
+			})
+		);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data).toMatchObject({
+			kind: 'building',
+			associationManager: null,
+			ownershipShare: null,
+			ownershipShareTotal: null
+		});
+	});
+
+	it('wants both MEA figures, the share at most the total', () => {
+		const base = {
+			name: 'ETW',
+			street: 'Am Markt 1',
+			postalCode: '04109',
+			city: 'Leipzig',
+			kind: 'condominium'
+		};
+		const half = parseProperty(form({ ...base, ownershipShare: '85' }));
+		expect(half.ok).toBe(false);
+		if (!half.ok) expect(Object.keys(half.errors)).toEqual(['ownershipShareTotal']);
+		const larger = parseProperty(
+			form({ ...base, ownershipShare: '1200', ownershipShareTotal: '1000' })
+		);
+		expect(larger.ok).toBe(false);
+		if (!larger.ok) expect(Object.keys(larger.errors)).toEqual(['ownershipShare']);
 	});
 
 	it('rejects a fractional vacancy count', () => {
@@ -160,5 +237,37 @@ describe('parseUnit', () => {
 		expect(result.ok).toBe(false);
 		if (result.ok) return;
 		expect(Object.keys(result.errors)).toEqual(['floorArea']);
+	});
+});
+
+describe('length limits', () => {
+	const long = (length: number) => 'x'.repeat(length);
+
+	it('refuses names and addresses longer than the database keeps', () => {
+		const result = parseProperty(
+			form({ name: long(101), street: long(201), postalCode: '10115', city: long(101) })
+		);
+		expect(result).toMatchObject({
+			ok: false,
+			errors: {
+				name: 'Die Bezeichnung ist zu lang.',
+				street: 'Höchstens 200 Zeichen.',
+				city: 'Höchstens 100 Zeichen.'
+			}
+		});
+		expect(parseUnit(form({ name: long(101), kind: 'apartment' }))).toMatchObject({
+			ok: false,
+			errors: { name: 'Die Bezeichnung ist zu lang.' }
+		});
+	});
+
+	it('refuses a password longer than 200 characters and never sends it back', () => {
+		const result = parseCredentials(form({ email: 'a@example.org', password: long(201) }));
+		expect(result).toMatchObject({ ok: false, errors: { password: 'Das Passwort ist zu lang.' } });
+		expect(JSON.stringify(result)).not.toContain(long(201));
+		expect(parseCredentials(new FormData())).toMatchObject({
+			ok: false,
+			errors: { email: expect.any(String), password: expect.any(String) }
+		});
 	});
 });

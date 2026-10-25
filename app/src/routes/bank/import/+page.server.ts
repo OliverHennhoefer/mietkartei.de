@@ -1,12 +1,12 @@
 import { fail } from '@sveltejs/kit';
-import { decodeCsv } from '#lib/csv.ts';
 import {
 	base64ToBytes,
 	bytesToBase64,
 	GENERIC_PRESET_ID,
-	parseBankFile,
+	proposeGenericMapping,
 	type ColumnMapping
 } from '#lib/domain/bank-matching.ts';
+import { parseBankUpload, restrictToAccount, type ParsedUpload } from '#lib/domain/camt.ts';
 import {
 	MAX_IMPORT_ROWS,
 	mappingError,
@@ -15,7 +15,8 @@ import {
 	type ImportInput
 } from '#lib/forms/bank.ts';
 import type { FieldErrors } from '#lib/forms/fields.ts';
-import { listBankAccounts } from '#lib/server/bank/accounts.ts';
+import type { Database } from '#lib/server/db/index.ts';
+import { getBankAccount, listBankAccounts } from '#lib/server/bank/accounts.ts';
 import { commitImport, previewImport, type PreviewRow } from '#lib/server/bank/imports.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -23,7 +24,9 @@ import type { Actions, PageServerLoad } from './$types';
 // Two steps without client JavaScript: "Datei prüfen" reads the upload and answers with the
 // preview, whose form carries the file base64-encoded in a hidden field together with the
 // mapping; "Importieren" reads that field again and commits. A file without a known header gets
-// the column selects first and a preview once the date and the amount column are chosen.
+// the column selects first and a preview once the date and the amount column are chosen. A camt
+// file (or a ZIP of them) needs no mapping; its lines for another account than the chosen one
+// are shown as invalid and left out.
 
 /** How many rows of a large file the preview table shows; the counts cover every row. */
 const PREVIEW_ROWS = 500;
@@ -70,6 +73,22 @@ export type Preview = {
 
 const emptyCounts = { total: 0, new: 0, duplicates: 0, rules: 0, invalid: 0 };
 
+/** The rows of the upload, restricted to the chosen bank account; the reason when unreadable. */
+async function readRows(
+	db: Database,
+	accountId: string,
+	bankAccountId: string,
+	bytes: Uint8Array,
+	generic: ColumnMapping | null
+): Promise<ParsedUpload> {
+	const parsed = parseBankUpload(bytes, generic);
+	if (!parsed.ok || !parsed.accountIbans) return parsed;
+	const account = await getBankAccount(db, accountId, bankAccountId);
+	if (!account) return { ok: false, reason: 'Diese Bankverbindung gibt es nicht.' };
+	const results = restrictToAccount(parsed.file.results, parsed.accountIbans, account.iban);
+	return { ...parsed, file: { ...parsed.file, results } };
+}
+
 const TOO_MANY_ROWS = `Eine Datei darf höchstens ${MAX_IMPORT_ROWS.toLocaleString('de-DE')} Zeilen haben. Bitte teile den Zeitraum auf.`;
 
 function failed(message: string, values: Record<string, string>) {
@@ -86,12 +105,23 @@ export const actions: Actions = {
 		const file = await readFile(input);
 		if (!file) return failed('Bitte wähle eine Datei aus.', {});
 
-		const generic: ColumnMapping | null =
+		let generic: ColumnMapping | null =
 			input.preset === GENERIC_PRESET_ID && !mappingError(input.mapping)
 				? toColumnMapping(input.mapping)
 				: null;
-		const parsed = parseBankFile(decodeCsv(file.bytes), generic);
-		if (!parsed) return failed('Die Datei enthält keine Tabelle mit Spalten.', {});
+		let upload = await readRows(locals.db, accountId, input.bankAccountId, file.bytes, generic);
+		if (!upload.ok) return failed(upload.reason, {});
+		// The first look at a file without a known format proposes the columns from their names;
+		// when that finds the date and the amount, the preview follows right away.
+		if (!upload.file.preset && input.preset === '') {
+			input.mapping = proposeGenericMapping(upload.file.columns);
+			if (!mappingError(input.mapping)) {
+				generic = toColumnMapping(input.mapping);
+				upload = await readRows(locals.db, accountId, input.bankAccountId, file.bytes, generic);
+				if (!upload.ok) return failed(upload.reason, {});
+			}
+		}
+		const parsed = upload.file;
 		if (parsed.results.length > MAX_IMPORT_ROWS) return failed(TOO_MANY_ROWS, {});
 
 		const preview: Preview = {
@@ -129,14 +159,22 @@ export const actions: Actions = {
 			const message = mappingError(input.mapping);
 			if (message) return failed(message, {});
 		}
-		const parsed = parseBankFile(decodeCsv(file.bytes), generic);
-		if (!parsed) return failed('Die Datei enthält keine Tabelle mit Spalten.', {});
+		const context = auditContext(locals);
+		const upload = await readRows(
+			locals.db,
+			context.accountId,
+			input.bankAccountId,
+			file.bytes,
+			generic
+		);
+		if (!upload.ok) return failed(upload.reason, {});
+		const parsed = upload.file;
 		if (parsed.results.length > MAX_IMPORT_ROWS) return failed(TOO_MANY_ROWS, {});
 		if (!parsed.preset && !generic) return failed('Bitte ordne die Spalten zu.', {});
 
 		const imported = await commitImport(
 			locals.db,
-			auditContext(locals),
+			context,
 			input.bankAccountId,
 			input.fileName,
 			parsed.results

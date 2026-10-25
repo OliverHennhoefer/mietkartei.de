@@ -15,11 +15,18 @@
 		| 'close'
 		| 'plus'
 		| 'search'
+		| 'arrow-left'
 		| 'arrow-right'
 		| 'check'
 		| 'alert'
 		| 'info'
-		| 'home';
+		| 'home'
+		| 'user'
+		| 'trend'
+		| 'history'
+		| 'download'
+		| 'key'
+		| 'calendar';
 </script>
 
 <script lang="ts">
@@ -45,11 +52,19 @@
 		close: 'm6 6 12 12M6 18 18 6',
 		plus: 'M12 5v14M5 12h14',
 		search: 'm21 21-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0',
+		'arrow-left': 'M19 12H5m5-5-5 5 5 5',
 		'arrow-right': 'M5 12h14m-5-5 5 5-5 5',
 		check: 'm5 12 4 4L19 6',
 		alert: 'm12 3 10 18H2ZM12 9v4m0 4h.01',
 		info: 'M12 11v6m0-10h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
-		home: 'm3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z'
+		home: 'm3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z',
+		user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
+		trend: 'm22 7-8.5 8.5-5-5L2 17M16 7h6v6',
+		history: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l4 2',
+		download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',
+		key: 'm15.5 7.5 3 3L22 7l-3-3m2-2-9.6 9.6M7.5 21a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11Z',
+		calendar:
+			'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2ZM16 2v4M8 2v4M3 10h18'
 	};
 </script>
 

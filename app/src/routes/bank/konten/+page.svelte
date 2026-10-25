@@ -18,7 +18,7 @@
 <h2>Bankverbindungen</h2>
 
 {#if data.ownerOnly}
-	<p>Bankverbindungen sind nur für Vermieter sichtbar, nicht für Mitverwalter.</p>
+	<p>Bankverbindungen sieht nur der Vermieter des Kontos.</p>
 {:else}
 	{#if message}
 		<Alert tone="danger"><p>{message}</p></Alert>
@@ -83,15 +83,23 @@
 		<Field label="IBAN" error={errors?.iban}>
 			<input
 				name="iban"
+				autocapitalize="characters"
+				spellcheck="false"
 				defaultValue={values?.iban ?? ''}
 				placeholder="DE00 0000 0000 0000 0000 00"
 				aria-invalid={errors?.iban ? 'true' : undefined}
 				required
 			/>
 		</Field>
-		<Field label="BIC (optional)" error={errors?.bic}>
+		<Field
+			label="BIC (optional)"
+			error={errors?.bic}
+			hint="Bleibt das Feld leer, ergänzen wir sie bei deutschen Konten aus dem Bankleitzahlenverzeichnis der Bundesbank."
+		>
 			<input
 				name="bic"
+				autocapitalize="characters"
+				spellcheck="false"
 				defaultValue={values?.bic ?? ''}
 				aria-invalid={errors?.bic ? 'true' : undefined}
 			/>

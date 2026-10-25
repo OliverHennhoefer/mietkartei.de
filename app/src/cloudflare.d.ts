@@ -6,6 +6,7 @@ declare module 'cloudflare:workers' {
 		DB?: D1Database;
 		DOCUMENTS?: R2Bucket;
 		AUTH_LIMITER?: RateLimit;
+		API_LIMITER?: RateLimit;
 	};
 
 	/** Keeps the request's work alive until the promise settles, after the response is sent. */

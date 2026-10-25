@@ -2,11 +2,14 @@ import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	actionName,
+	apiReadOnly,
 	applySubscriptionUpdate,
 	billingNotice,
 	billingState,
 	cancelSubscriptionOf,
 	enforceBilling,
+	getBillingAccount,
+	isFreeEmail,
 	mapSubscriptionStatus,
 	noticeFor,
 	recordStripeEvent,
@@ -19,7 +22,7 @@ import {
 	type BillingAccount
 } from './billing';
 import type { Database } from './db';
-import { accounts, auditLog, stripeEvents } from './db/schema';
+import { accounts, auditLog, stripeEvents, users } from './db/schema';
 import { contextA, testDatabase } from './testing';
 
 // The hosted configuration: keys set and writes refused after the trial.
@@ -28,7 +31,8 @@ vi.mock('$app/env/private', () => ({
 	STRIPE_PRICE_ID: 'price_unit',
 	STRIPE_WEBHOOK_SECRET: 'whsec_unit',
 	STRIPE_API_BASE: 'http://stripe.test',
-	BILLING_REQUIRED: true
+	BILLING_REQUIRED: true,
+	FREE_ACCOUNT_EMAILS: 'frei@example.org'
 }));
 
 // A fake account row: created on 1 January 2026 at noon UTC, so the trial ends on 31 January
@@ -75,6 +79,25 @@ describe('billingState', () => {
 		expect(billingState(account({ subscriptionStatus: 'canceled' }), later)).toBe('canceled');
 		expect(billingState(account({ subscriptionStatus: 'trialing' }), later)).toBe('trialing');
 	});
+
+	it('is free for a free account, whatever the trial or Stripe say', () => {
+		const later = new Date('2027-01-01T00:00:00.000Z');
+		expect(billingState(account({ free: true }), later)).toBe('free');
+		expect(billingState(account({ free: true, subscriptionStatus: 'canceled' }), later)).toBe(
+			'free'
+		);
+		expect(noticeFor(account({ free: true }), later, true)).toBeUndefined();
+		expect(refusesWrite('free', 'POST', '/objekte', true)).toBe(false);
+	});
+});
+
+describe('isFreeEmail', () => {
+	it('finds the address in the list, ignoring case and spaces', () => {
+		expect(isFreeEmail('Mama@Example.org', 'papa@example.org, mama@example.org ')).toBe(true);
+		expect(isFreeEmail('mama@example.org', 'papa@example.org')).toBe(false);
+		expect(isFreeEmail('mama@example.org', '')).toBe(false);
+		expect(isFreeEmail(null, 'mama@example.org')).toBe(false);
+	});
 });
 
 describe('noticeFor', () => {
@@ -83,7 +106,8 @@ describe('noticeFor', () => {
 		expect(noticeFor(account(), new Date('2026-01-20T12:00:00.000Z'), true)).toEqual({
 			text: 'Deine Testphase endet am 31.01.2026.',
 			href: '/abo',
-			tone: 'info'
+			tone: 'info',
+			highlight: true
 		});
 		// 23 January noon: 8 days left → still info; 24 January noon: 7 days → warning.
 		expect(noticeFor(account(), new Date('2026-01-23T12:00:00.000Z'), true)?.tone).toBe('info');
@@ -138,6 +162,12 @@ describe('refusesWrite', () => {
 	it('lets read-only accounts delete the account and secure their sign-in', () => {
 		expect(refusesWrite('expired', 'POST', '/einstellungen/konto', true, 'delete')).toBe(false);
 		expect(refusesWrite('canceled', 'POST', '/einstellungen/profil', true, 'password')).toBe(false);
+		expect(refusesWrite('expired', 'POST', '/einstellungen/api-schluessel', true, 'revoke')).toBe(
+			false
+		);
+		expect(refusesWrite('expired', 'POST', '/einstellungen/api-schluessel', true, 'create')).toBe(
+			true
+		);
 		expect(refusesWrite('canceled', 'POST', '/einstellungen/profil/', true, 'profile')).toBe(false);
 		// The pages of reset and address confirmation links finish what the profile started.
 		expect(refusesWrite('expired', 'POST', '/passwort-zuruecksetzen/abc', true)).toBe(false);
@@ -189,6 +219,38 @@ describe('with a database', () => {
 		const [found] = await db.select().from(accounts).where(eq(accounts.id, id));
 		return found;
 	}
+
+	it('tells the API whether the account may only read', async () => {
+		expect(await apiReadOnly(db, 'a')).toBe(false);
+		await db
+			.update(accounts)
+			.set({ createdAt: new Date('2020-01-01'), subscriptionStatus: 'none' })
+			.where(eq(accounts.id, 'a'));
+		expect(await apiReadOnly(db, 'a')).toBe(true);
+		await db.update(accounts).set({ subscriptionStatus: 'active' }).where(eq(accounts.id, 'a'));
+		expect(await apiReadOnly(db, 'a')).toBe(false);
+		expect(await apiReadOnly(db, 'missing')).toBe(false);
+	});
+
+	it('makes an account free by its owner, never by a manager', async () => {
+		const expired = { createdAt: new Date('2020-01-01'), subscriptionStatus: 'none' as const };
+		await db.update(accounts).set(expired).where(eq(accounts.id, 'a'));
+		expect((await getBillingAccount(db, 'a'))?.free).toBe(false);
+		await db.insert(users).values({
+			id: 'manager-a',
+			accountId: 'a',
+			email: 'frei@example.org',
+			passwordHash: 'x',
+			role: 'manager'
+		});
+		expect((await getBillingAccount(db, 'a'))?.free).toBe(false);
+		expect(await apiReadOnly(db, 'a')).toBe(true);
+
+		await db.delete(users).where(eq(users.id, 'manager-a'));
+		await db.update(users).set({ email: 'frei@example.org' }).where(eq(users.id, 'user-a'));
+		expect((await getBillingAccount(db, 'a'))?.free).toBe(true);
+		expect(await apiReadOnly(db, 'a')).toBe(false);
+	});
 
 	it('stores the Stripe customer with an audit entry', async () => {
 		await setStripeCustomer(db, contextA, 'cus_a');
@@ -386,6 +448,9 @@ describe('with a database', () => {
 				{ status: 200, body: { status: 'canceled' } }
 			);
 			expect(await cancelSubscriptionOf(db, 'a')).toBe(true);
+			// Neither cancelling nor reading the subscription works: it may still bill.
+			stripeAnswers(running, { status: 500, body: {} }, { status: 500, body: {} });
+			expect(await cancelSubscriptionOf(db, 'a')).toBe(false);
 			// Unknown to Stripe.
 			stripeAnswers(running, { status: 404, body: {} });
 			expect(await cancelSubscriptionOf(db, 'a')).toBe(true);
@@ -468,6 +533,22 @@ describe('with a database', () => {
 				stripeSubscriptionId: 'sub_b',
 				subscriptionStatus: 'active',
 				stripeCheckoutSessionId: null
+			});
+		});
+
+		it('takes the place of a stored one Stripe does not know, and retries when Stripe fails', async () => {
+			await subscribed();
+			stripeAnswers({ status: 500, body: {} });
+			const event = { id: 'evt_b', type: 'checkout.session.completed' };
+			await expect(applySubscriptionUpdate(db, event, completedB)).rejects.toThrow();
+			expect(await stripeEventSeen(db, 'evt_b')).toBe(false);
+			expect(await row('a')).toMatchObject({ stripeSubscriptionId: 'sub_a' });
+
+			stripeAnswers({ status: 404, body: {} });
+			await applySubscriptionUpdate(db, event, completedB);
+			expect(await row('a')).toMatchObject({
+				stripeSubscriptionId: 'sub_b',
+				subscriptionStatus: 'active'
 			});
 		});
 

@@ -50,6 +50,16 @@ describe('passwords', () => {
 		expect(await verifyPassword('falsches-passwort', hash)).toBe(false);
 	});
 
+	it('rejects hashes of another scheme or a cut-off hash', async () => {
+		const hash = await hashPassword(password);
+		const [, iterations, salt, expected] = hash.split('$');
+		expect(await verifyPassword(password, `bcrypt$${iterations}$${salt}$${expected}`)).toBe(false);
+		expect(await verifyPassword(password, `pbkdf2-sha256$${iterations}$${salt}`)).toBe(false);
+		expect(
+			await verifyPassword(password, `pbkdf2-sha256$${iterations}$${salt}$${expected.slice(0, 8)}`)
+		).toBe(false);
+	});
+
 	it('salts every hash', async () => {
 		expect(await hashPassword(password)).not.toBe(await hashPassword(password));
 	});
@@ -119,6 +129,64 @@ describe('registration', () => {
 			ok: false,
 			reason: 'email-taken'
 		});
+	});
+});
+
+describe('registration races', () => {
+	/** Lets `before` write to the database right before the user row is inserted. */
+	function racing(before: () => void): Database {
+		let done = false;
+		return new Proxy(db, {
+			get(target, property) {
+				const value = Reflect.get(target, property);
+				if (property !== 'insert') return value;
+				return (table: unknown) => {
+					if (table === users && !done) {
+						done = true;
+						before();
+					}
+					return target.insert(table as typeof users);
+				};
+			}
+		});
+	}
+
+	it('reports a taken address and drops the new account when another registration wins', async () => {
+		await registerUser(db, 'erste@example.org', password);
+		const raced = racing(() =>
+			db
+				.insert(users)
+				.values({
+					accountId: DEFAULT_ACCOUNT_ID,
+					email: 'zweite@example.org',
+					passwordHash: 'x',
+					role: 'manager'
+				})
+				.run()
+		);
+		expect(await registerUser(raced, 'zweite@example.org', password)).toEqual({
+			ok: false,
+			reason: 'email-taken'
+		});
+		expect(await db.select().from(accounts)).toHaveLength(1);
+	});
+
+	it('asks to try again when someone else became the first user meanwhile', async () => {
+		const raced = racing(() =>
+			db
+				.insert(users)
+				.values({
+					accountId: DEFAULT_ACCOUNT_ID,
+					email: 'schneller@example.org',
+					passwordHash: 'x'
+				})
+				.run()
+		);
+		expect(await registerUser(raced, 'erste@example.org', password)).toEqual({
+			ok: false,
+			reason: 'retry'
+		});
+		expect(await db.select().from(accounts)).toHaveLength(1);
 	});
 });
 
@@ -262,6 +330,10 @@ describe('lockout', () => {
 		expect(await isLockedOut(db, email)).toBe(true);
 		vi.setSystemTime(new Date(start.getTime() + 15 * 60 * 1000 + 1));
 		expect(await isLockedOut(db, email)).toBe(false);
+		// A wrong password then starts a new series instead of locking again at once.
+		expect(await signIn(db, email, 'falsch')).toEqual({ ok: false, reason: 'invalid' });
+		const [row] = await db.select().from(loginAttempts);
+		expect(row).toMatchObject({ failures: 1, lockedUntil: null });
 		expect(await signIn(db, email, password)).toMatchObject({ ok: true });
 	});
 
@@ -386,6 +458,25 @@ describe('changePassword', () => {
 	});
 });
 
+describe('changePassword without a user', () => {
+	it('needs a signed-in user of the account', async () => {
+		const input = {
+			currentPassword: password,
+			password: 'ganz-neues-passwort',
+			keepToken: undefined
+		};
+		expect(
+			await changePassword(db, { accountId: DEFAULT_ACCOUNT_ID, userId: null }, input)
+		).toEqual({
+			ok: false,
+			reason: 'missing'
+		});
+		expect(
+			await changePassword(db, { accountId: DEFAULT_ACCOUNT_ID, userId: 'gone' }, input)
+		).toEqual({ ok: false, reason: 'missing' });
+	});
+});
+
 describe('confirmPassword', () => {
 	it('confirms the password of the user in their account only and counts wrong ones', async () => {
 		const registered = await registerUser(db, 'erste@example.org', password);
@@ -413,6 +504,7 @@ describe('updateName', () => {
 		if (!registered.ok) throw new Error('registration failed');
 		const [row] = await db.select().from(users).where(eq(users.id, registered.userId));
 		await updateName(db, { accountId: 'other-account', userId: row.id }, 'Fremd');
+		await updateName(db, { accountId: row.accountId, userId: null }, 'Niemand');
 		await updateName(db, { accountId: row.accountId, userId: row.id }, 'Erika');
 		const [updated] = await db.select().from(users).where(eq(users.id, row.id));
 		expect(updated.name).toBe('Erika');

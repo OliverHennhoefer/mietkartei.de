@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
-	import Icon from '#lib/components/Icon.svelte';
+	import { LAUNCH } from '#lib/launch.ts';
 	import { MIN_PASSWORD_LENGTH } from '#lib/validation.ts';
 	import type { PageProps } from './$types';
 
@@ -9,14 +9,13 @@
 </script>
 
 <svelte:head>
-	<title>Registrieren · mietkartei</title>
+	<title>Registrieren | mietkartei</title>
 	{#if data.turnstileSiteKey}
 		<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 	{/if}
 </svelte:head>
 
 <div class="narrow">
-	<div class="auth-icon"><Icon name="home" size={25} /></div>
 	<h1>Registrieren</h1>
 	{#if data.open && !form?.closed}<p class="auth-lead">
 			Dein Konto für eine übersichtliche Hausverwaltung.
@@ -33,9 +32,9 @@
 	{:else}
 		{#if data.restricted}
 			<p>
-				mietkartei ist noch nicht öffentlich. Ein Konto anlegen können nur freigeschaltete
-				E-Mail-Adressen. Du bekommst einen Link, mit dem du die Adresse bestätigst und dein Passwort
-				wählst.
+				{#if data.prelaunch}mietkartei startet im {LAUNCH}. Bis dahin{:else}Hier{/if} können nur freigeschaltete
+				E-Mail-Adressen ein Konto anlegen. Du bekommst einen Link, mit dem du die Adresse bestätigst und
+				dein Passwort wählst.
 			</p>
 		{/if}
 		<form

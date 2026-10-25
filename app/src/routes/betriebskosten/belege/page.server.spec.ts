@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
 import type { Database } from '#lib/server/db/index.ts';
-import { documents } from '#lib/server/db/schema.ts';
+import { costItems, documents } from '#lib/server/db/schema.ts';
+import { createPolicy } from '#lib/server/insurance.ts';
+import { MAX_ACCOUNT_DOCUMENT_BYTES } from '#lib/server/documents.ts';
+import { documentErrorMessage } from '#lib/forms/documents.ts';
 import {
 	createCircle,
 	getCostItem,
@@ -120,6 +124,23 @@ describe('belege/neu', () => {
 		expect(item).toMatchObject({ amount: 48000, receipts: [{ name: 'Rechnung.pdf' }] });
 	});
 
+	it('links the new item to the insurance policy it was entered for', async () => {
+		const policy = await createPolicy(db, contextA, propertyId, {
+			kind: 'building',
+			insurer: 'Allianz',
+			policyNumber: null,
+			annualPremium: 120000,
+			renewalDate: '2025-01-01',
+			noticeMonths: 3,
+			endDate: null,
+			note: null
+		});
+		if (!policy.ok) throw new Error('setup failed');
+		const id = itemIdOf(await create(fields({ insurancePolicyId: policy.id })));
+		const [row] = await db.select().from(costItems).where(eq(costItems.id, id));
+		expect(row.insurancePolicyId).toBe(policy.id);
+	});
+
 	it('goes on to the next item with the same property and period', async () => {
 		expect(await create(fields({ next: '1' }))).toEqual({
 			redirect: `/betriebskosten/belege/neu?property=${propertyId}&from=2025-01-01&to=2025-12-31`
@@ -213,6 +234,33 @@ describe('belege/[id]', () => {
 		expect(await db.select().from(documents)).toEqual([]);
 	});
 
+	it('refuses a receipt that is too large and keeps the item without it', async () => {
+		const huge = new File([new Uint8Array(11 * 1024 * 1024)], 'gross.pdf', {
+			type: 'application/pdf'
+		});
+		expect(await act('upload', { receipt: huge })).toMatchObject({
+			fail: 400,
+			data: { form: 'upload', errors: { receipt: expect.any(String) } }
+		});
+		expect((await getCostItem(db, 'a', itemId))!.receipts).toEqual([]);
+	});
+
+	it('refuses a receipt when the storage of the account is full', async () => {
+		await db.insert(documents).values({
+			id: 'voll',
+			accountId: 'a',
+			name: 'voll.pdf',
+			mimeType: 'application/pdf',
+			size: MAX_ACCOUNT_DOCUMENT_BYTES,
+			storageKey: 'a/voll'
+		});
+		expect(await act('upload', { receipt: pdf() })).toEqual({
+			fail: 400,
+			data: { form: 'upload', errors: { receipt: documentErrorMessage('quota') } }
+		});
+		expect((await getCostItem(db, 'a', itemId))!.receipts).toEqual([]);
+	});
+
 	it('splits per unit only for an item with the direct key', async () => {
 		expect(await act('amounts', { [`amount-${unitId}`]: '100,00' })).toMatchObject({
 			fail: 400,
@@ -234,6 +282,33 @@ describe('belege/[id]', () => {
 		});
 		expect(await act('amounts', { [`amount-${unitId}`]: '480,00' })).toEqual({
 			data: { form: 'amounts', saved: true }
+		});
+	});
+
+	it('splits a direct key without a circle over all units of the property', async () => {
+		const direct = (await listKeys(db, 'a')).find((key) => key.kind === 'direct')!;
+		await act('update', fields({ allocationKeyId: direct.id, billingCircleId: '' }));
+		expect(await outcome(() => loadItem(routeEvent(db, { params: { id: itemId } })))).toMatchObject(
+			{ data: { units: [{ id: unitId }] } }
+		);
+	});
+
+	it('stores a receipt sent with the update and refuses an empty one', async () => {
+		expect(await act('update', fields({ receipt: pdf() }))).toEqual({
+			redirect: `/betriebskosten/belege/${itemId}`
+		});
+		expect((await getCostItem(db, 'a', itemId))!.receipts).toHaveLength(1);
+		const empty = new File([], 'leer.pdf', { type: 'application/pdf' });
+		expect(await act('upload', { receipt: empty })).toMatchObject({
+			fail: 400,
+			data: { form: 'upload', errors: { receipt: expect.any(String) } }
+		});
+	});
+
+	it('refuses an update with a key of another account', async () => {
+		expect(await act('update', fields({ allocationKeyId: 'fremd' }))).toMatchObject({
+			fail: 400,
+			data: { form: 'item' }
 		});
 	});
 

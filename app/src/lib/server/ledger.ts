@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import {
 	dayOf,
@@ -19,8 +19,10 @@ import { chunk, chunkIds, rowsPerStatement, runBatch } from './db/batch';
 import {
 	leases,
 	payments,
+	properties,
 	rentCharges,
 	rentChanges,
+	units,
 	type PaymentSource,
 	type RentChargeKind
 } from './db/schema';
@@ -72,9 +74,12 @@ export async function ensureCharges(
 						startDate: leases.startDate,
 						endDate: leases.endDate,
 						ledgerStart: leases.ledgerStart,
-						rentDueDay: leases.rentDueDay
+						rentDueDay: leases.rentDueDay,
+						state: properties.state
 					})
 					.from(leases)
+					.innerJoin(units, eq(units.id, leases.unitId))
+					.innerJoin(properties, eq(properties.id, units.propertyId))
 					.where(and(eq(leases.accountId, accountId), inArray(leases.id, ids)))
 			)
 		)
@@ -358,24 +363,29 @@ export async function createPayment(
 	return id;
 }
 
-/** Deletes a payment of the account. A bank assignment is undone by the banking feature. */
+/**
+ * Deletes a payment of the account. One assigned from a bank transaction is undone by the banking
+ * feature, which also resets the transaction; deleting it here would leave the transaction
+ * marked as matched.
+ */
 export async function deletePayment(
 	db: Database,
 	context: AuditContext,
 	paymentId: string
-): Promise<boolean> {
+): Promise<'deleted' | 'from-bank' | 'missing'> {
 	const [payment] = await db
 		.select()
 		.from(payments)
 		.where(and(eq(payments.accountId, context.accountId), eq(payments.id, paymentId)));
-	if (!payment) return false;
+	if (!payment) return 'missing';
+	if (payment.bankTransactionId) return 'from-bank';
 	await runBatch(db, [
 		db
 			.delete(payments)
 			.where(and(eq(payments.accountId, context.accountId), eq(payments.id, paymentId))),
 		auditEntry(db, context, 'lease', payment.leaseId, 'delete', paymentSummary(payment, 'gelöscht'))
 	]);
-	return true;
+	return 'deleted';
 }
 
 export type LedgerLine = {
@@ -400,7 +410,11 @@ export type Ledger = {
 	balance: number;
 };
 
-function chargeLabel(charge: { kind: RentChargeKind; period: IsoMonth; note: string | null }) {
+export function chargeLabel(charge: {
+	kind: RentChargeKind;
+	period: IsoMonth;
+	note: string | null;
+}) {
 	const label = `${rentChargeKindLabels[charge.kind]} ${formatMonth(charge.period)}`;
 	return charge.note ? `${label}: ${charge.note}` : label;
 }
@@ -501,6 +515,8 @@ export type LeaseBalance = {
 	 * due credits pay the oldest due charges first. Null when nothing is overdue.
 	 */
 	openSince: IsoMonth | null;
+	/** The due date of that charge, null when nothing is overdue. */
+	openSinceDate: IsoDate | null;
 };
 
 type BalanceCharge = { amount: number; dueDate: IsoDate | null };
@@ -510,7 +526,7 @@ function overdueSince(
 	charges: readonly BalanceCharge[],
 	paid: number,
 	asOf: IsoDate
-): { overdue: number; openSince: IsoMonth | null } {
+): { overdue: number; openSince: IsoMonth | null; openSinceDate: IsoDate | null } {
 	const due = charges
 		.filter((charge): charge is { amount: number; dueDate: IsoDate } =>
 			Boolean(charge.dueDate && charge.dueDate <= asOf)
@@ -524,10 +540,14 @@ function overdueSince(
 		covered += charge.amount;
 		if (covered > available) {
 			const owed = due.reduce((sum, row) => sum + row.amount, 0) - paid;
-			return { overdue: owed, openSince: monthOf(charge.dueDate) };
+			return {
+				overdue: owed,
+				openSince: monthOf(charge.dueDate),
+				openSinceDate: charge.dueDate
+			};
 		}
 	}
-	return { overdue: 0, openSince: null };
+	return { overdue: 0, openSince: null, openSinceDate: null };
 }
 
 /**
@@ -569,13 +589,21 @@ export async function listBalances(
 	const balances = leaseIds.map((leaseId): LeaseBalance => {
 		// The balance takes every payment; the Rückstand and the last payment only those made by
 		// asOf, so a payment dated later does not settle what is overdue today.
+		// A refund to the tenant is owed again from its date, so for the Rückstand it counts as a
+		// charge on that day rather than as less money received; the total stays the same, but
+		// "offen seit" does not reach back to rent the refunded money had already settled.
 		let paid = 0;
-		let paidByAsOf = 0;
+		let receivedByAsOf = 0;
 		let lastPaymentDate: IsoDate | null = null;
+		const refunds: BalanceCharge[] = [];
 		for (const payment of paymentsByLease.get(leaseId) ?? []) {
 			paid += payment.amount;
 			if (payment.date > asOf) continue;
-			paidByAsOf += payment.amount;
+			if (payment.amount < 0) {
+				refunds.push({ amount: -payment.amount, dueDate: payment.date });
+				continue;
+			}
+			receivedByAsOf += payment.amount;
 			if (payment.amount > 0 && (!lastPaymentDate || payment.date > lastPaymentDate)) {
 				lastPaymentDate = payment.date;
 			}
@@ -587,7 +615,7 @@ export async function listBalances(
 			charged,
 			paid,
 			balance: charged - paid,
-			...overdueSince(charges, paidByAsOf, asOf),
+			...overdueSince([...charges, ...refunds], receivedByAsOf, asOf),
 			lastPaymentDate
 		};
 	});
@@ -632,4 +660,31 @@ export async function listLedgerLineDetails(
 		};
 	}
 	return details;
+}
+
+/** The latest payment received on a lease, for "Wie letzte Zahlung" on the payment form. */
+export type LastPayment = { date: IsoDate; amount: number; note: string | null };
+
+/** The latest incoming payment of the lease (by date, then entry), refunds left out. One select. */
+export async function lastPayment(
+	db: Database,
+	accountId: string,
+	leaseId: string
+): Promise<LastPayment | undefined> {
+	const [row] = await db
+		.select({
+			date: payments.date,
+			amount: payments.amount,
+			note: payments.note,
+			source: payments.source
+		})
+		.from(payments)
+		.where(
+			and(eq(payments.accountId, accountId), eq(payments.leaseId, leaseId), gt(payments.amount, 0))
+		)
+		.orderBy(desc(payments.date), desc(payments.createdAt))
+		.limit(1);
+	if (!row) return undefined;
+	// The note of a bank payment is the transfer's purpose ("Miete Oktober"), not one to repeat.
+	return { date: row.date, amount: row.amount, note: row.source === 'manual' ? row.note : null };
 }

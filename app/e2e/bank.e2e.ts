@@ -5,7 +5,7 @@ import { seedLease } from './seed';
 // The banking feature end to end: a bank account, a Sparkasse export imported twice, the inline
 // assignment with a remembered rule, undo, ignore, a generic file with a column mapping, a third
 // file whose line the remembered rule assigns on import, a split over two leases, a deposit, a
-// double submit that books once, and 404 for an unknown transaction. The lease is seeded; only the /bank pages are driven. The tests
+// double submit that books once, 404 for an unknown transaction and a camt.053 statement. The lease is seeded; only the /bank pages are driven. The tests
 // build on each other, so they run in order.
 
 test.describe.configure({ mode: 'serial' });
@@ -65,12 +65,9 @@ test('creates a bank account', async ({ page }) => {
 	});
 	leaseId = seeded.leaseId;
 
-	// Reached through the Bankverbindungen entry of the settings.
-	await page.goto('/einstellungen');
-	await page
-		.getByRole('list', { name: 'Einstellungen' })
-		.getByRole('link', { name: 'Bankverbindungen' })
-		.click();
+	// Reached through the Konten tab of the bank.
+	await page.goto('/bank');
+	await page.getByRole('link', { name: 'Konten', exact: true }).click();
 	await expect(page).toHaveURL(/\/bank\/konten$/);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Bank');
 	await page.getByLabel('Bezeichnung').fill(accountName);
@@ -201,6 +198,25 @@ test('ignores a transaction and reopens it', async ({ page }) => {
 	await expect(card(page, `Hausmeister ${suffix}`)).toHaveCount(1);
 });
 
+test('books an outgoing line as an expense and undoes it', async ({ page }) => {
+	await page.goto('/bank');
+	const outgoing = card(page, `Hausmeister ${suffix}`);
+	// Money paid out without a lease suggestion opens the expense form right away.
+	await outgoing.getByLabel('Kategorie').selectOption({ label: 'Hausgeld (WEG)' });
+	await expect(outgoing.getByLabel('Beschreibung')).toHaveValue('Hausmeister GmbH');
+	await outgoing.getByRole('button', { name: 'Als Ausgabe buchen' }).click();
+	await expect(card(page, `Hausmeister ${suffix}`)).toHaveCount(0);
+
+	await page.goto('/bank?status=matched');
+	const booked = card(page, `Hausmeister ${suffix}`);
+	await expect(booked).toContainText('Ausgabe 120,50 € (Hausgeld (WEG))');
+	page.on('dialog', (dialog) => dialog.accept());
+	await booked.getByRole('button', { name: 'Zuordnung aufheben' }).click();
+	await expect(card(page, `Hausmeister ${suffix}`)).toHaveCount(0);
+	await page.goto('/bank');
+	await expect(card(page, `Hausmeister ${suffix}`)).toHaveCount(1);
+});
+
 test('imports a file without a known header through a column mapping', async ({ page }) => {
 	await page.goto('/bank/import');
 	await page.getByLabel('Bankverbindung').selectOption({ label: accountName });
@@ -208,18 +224,17 @@ test('imports a file without a known header through a column mapping', async ({ 
 		.locator('input[name="file"]')
 		.setInputFiles(path.join(import.meta.dirname, 'fixtures', 'bank-generic.csv'));
 	await page.getByRole('button', { name: 'Datei prüfen' }).click();
+	// The column names are known, so the mapping is proposed and the preview follows right away.
 	await expect(
-		page.getByText('Format nicht erkannt; ordne die Spalten der Datei zu.')
+		page.getByText('Format nicht erkannt; die Spalten sind nach ihren Namen zugeordnet.')
 	).toBeVisible();
-	await expect(page.getByText('Bitte wähle die Spalte mit dem Buchungstag.')).toBeVisible();
 
 	// The accessible name of a select is its label alone; the label's text would include the options.
 	const mapping = (name: string) => page.getByRole('combobox', { name, exact: true });
-	await mapping('Buchungstag').selectOption('Datum');
-	await mapping('Betrag').selectOption('Betrag');
-	await mapping('Name der Gegenseite (optional)').selectOption('Name');
-	await mapping('Verwendungszweck (optional)').selectOption('Text');
-	await page.getByRole('button', { name: 'Vorschau aktualisieren' }).click();
+	await expect(mapping('Buchungstag')).toHaveValue('Datum');
+	await expect(mapping('Betrag')).toHaveValue('Betrag');
+	await expect(mapping('Name der Gegenseite (optional)')).toHaveValue('Name');
+	await expect(mapping('Verwendungszweck (optional)')).toHaveValue('Text');
 	await expect(page.getByRole('status')).toContainText(
 		'3 Zeilen: 2 neu, 0 Duplikate, 0 per Regel zugeordnet, 1 ungültig.'
 	);
@@ -297,7 +312,7 @@ test('splits a line over two leases and books a deposit', async ({ page }) => {
 test('books a double submit of one assignment once', async ({ page, baseURL }) => {
 	await page.goto('/bank');
 	const open = card(page, purpose).first();
-	const id = await open.locator('input[name="id"]').getAttribute('value');
+	const id = await open.locator('input[name="id"]').first().getAttribute('value');
 	if (!id) throw new Error('no transaction id');
 	const submit = () =>
 		page.request.post('/bank?/assign', {
@@ -321,4 +336,51 @@ test('answers an unknown transaction with 404', async ({ page, baseURL }) => {
 		headers: { origin: baseURL ?? '' }
 	});
 	expect(response.status()).toBe(404);
+});
+
+test('imports a camt.053 statement, leaving out the lines of another account', async ({ page }) => {
+	const entry = (amount: string, indicator: string, party: string, text: string) => `
+		<Ntry>
+			<Amt Ccy="EUR">${amount}</Amt><CdtDbtInd>${indicator}</CdtDbtInd><Sts>BOOK</Sts>
+			<BookgDt><Dt>2026-12-01</Dt></BookgDt>
+			<NtryDtls><TxDtls><RltdPties>${party}</RltdPties>
+				<RmtInf><Ustrd>${text}</Ustrd></RmtInf></TxDtls></NtryDtls>
+		</Ntry>`;
+	const statement = (iban: string, entries: string) =>
+		`<Stmt><Acct><Id><IBAN>${iban}</IBAN></Id></Acct>${entries}</Stmt>`;
+	const camt = `<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02"><BkToCstmrStmt>
+	${statement(
+		'DE02120300000000202051',
+		entry(
+			'850.00',
+			'CRDT',
+			`<Dbtr><Nm>Max ${lastName}</Nm></Dbtr><DbtrAcct><Id><IBAN>${tenantIban}</IBAN></Id></DbtrAcct>`,
+			`Miete Dezember camt ${suffix}`
+		) + entry('49.90', 'DBIT', '<Cdtr><Nm>Stadtwerke</Nm></Cdtr>', `Strom camt ${suffix}`)
+	)}
+	${statement('DE75512108001245126199', entry('10.00', 'CRDT', '', `Fremdkonto ${suffix}`))}
+</BkToCstmrStmt></Document>`;
+
+	await page.goto('/bank/import');
+	await page.getByLabel('Bankverbindung').selectOption({ label: accountName });
+	await page.locator('input[name="file"]').setInputFiles({
+		name: 'auszug.xml',
+		mimeType: 'application/xml',
+		buffer: Buffer.from(camt, 'utf8')
+	});
+	await page.getByRole('button', { name: 'Datei prüfen' }).click();
+	await expect(page.getByText('Format camt.053 (XML-Kontoauszug) erkannt.')).toBeVisible();
+	await expect(page.getByRole('status')).toContainText(
+		'3 Zeilen: 1 neu, 0 Duplikate, 1 per Regel zugeordnet, 1 ungültig.'
+	);
+	await expect(page.getByRole('table', { name: 'Vorschau' })).toContainText(
+		'Auszug eines anderen Kontos (DE75 5121 0800 1245 1261 99)'
+	);
+	await page.getByRole('button', { name: 'Importieren' }).click();
+	await expect(page.getByRole('status')).toContainText(
+		'Import abgeschlossen: 2 neue Umsätze, 0 Duplikate, 1 per Regel zugeordnet, 1 ungültige Zeile übersprungen.'
+	);
+	await page.goto('/bank');
+	await expect(card(page, `Strom camt ${suffix}`)).toContainText('-49,90 €');
 });

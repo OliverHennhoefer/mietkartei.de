@@ -16,6 +16,8 @@ GitHub uses the issue and pull request templates from the default branch `main`.
 | `labels.json` | German labels and their descriptions |
 | `workflows/labels.yml` | Creates and updates the labels |
 | `workflows/websites.yml` | Checks and deploys homepage and documentation |
+| `workflows/scorecard.yml` | Rates the repository's security practices with OpenSSF Scorecard |
+| `workflows/release.yml` | Attaches the source archive, checksum and SLSA provenance to a published release |
 | `HOMEPAGE.md` | Preview, build and deployment of the homepage |
 | `DOCUMENTATION.md` | Preview, build and deployment of the documentation |
 | `DEPLOYMENT.md` | Cloudflare access, domains and hosting migration |
@@ -41,7 +43,7 @@ Keep label names used in the issue forms or in `release.yml` consistent with the
 
 [dependabot.yml](dependabot.yml) checks the listed dependencies for new versions on Mondays at 07:00 in the Europe/Berlin time zone and opens pull requests when needed. The proposals are labeled "abhängigkeiten" and "wartung". The supported options are listed in the [Dependabot documentation](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference).
 
-Before merging such changes, check them for new permissions and effects on the workflow. Keep the actions in use pinned to specific commit IDs.
+Before merging such changes, check them for new permissions and effects on the workflow. Keep the actions in use pinned to specific commit IDs, the Docker base image in `app/Dockerfile` to its digest, and the docs build dependencies to hashes. To change the Zensical version, edit `docs/requirements.in` and regenerate the locked file in `docs/` with `pip-compile --generate-hashes --allow-unsafe --strip-extras -o requirements.txt requirements.in` (pip-tools); CI installs it with `--require-hashes`. Dependabot updates the digest and the hashes along with the versions.
 
 ## Supply-chain and security checks
 
@@ -55,6 +57,8 @@ These repository settings complement the workflow (Settings → Code security):
 - Code scanning with CodeQL in the default setup
 - Dependabot alerts and Dependabot security updates
 - Private vulnerability reporting, as a second channel next to the email address in [SECURITY.md](../SECURITY.md)
+
+[scorecard.yml](workflows/scorecard.yml) runs [OpenSSF Scorecard](https://github.com/ossf/scorecard) after every push to `main`, on Mondays and when branch protection changes. It uploads its findings to code scanning (Security → Code scanning) and publishes the score to the public Scorecard API, which the badge at `https://api.scorecard.dev/projects/github.com/OliverHennhoefer/mietkartei.de/badge` reads. The results are public as soon as the workflow runs.
 
 ## Deploying the websites
 
@@ -74,10 +78,13 @@ Release notes are aimed at users and self-hosters and are therefore written in G
 
 1. Review the changes planned for the release and their state on the default branch.
 2. Label the pull requests accordingly. In particular, mark breaking changes and security fixes.
-3. Create a release draft on GitHub with the intended tag and the correct commit.
-4. If needed, copy the [release template](RELEASE_TEMPLATE.md) into the description. GitHub does not insert this file into the release form automatically.
-5. Generate the release notes and review them. `release.yml` sorts the entries into German categories; "Weitere Änderungen" collects contributions without a matching category. The behavior is described in [GitHub's documentation on release notes](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes).
-6. Add required upgrade steps and known limitations. Update the supported versions in [SECURITY.md](../SECURITY.md) if needed.
-7. Publish the release after a final review.
+3. Set `version` in [app/package.json](../app/package.json) (and `npm install` for the lockfile) to the new version without the leading `v`, and merge that change. The app shows it at the bottom of its sidebar, linked to the releases.
+4. Create a release draft on GitHub with the intended tag and the correct commit.
+5. If needed, copy the [release template](RELEASE_TEMPLATE.md) into the description. GitHub does not insert this file into the release form automatically.
+6. Generate the release notes and review them. `release.yml` sorts the entries into German categories; "Weitere Änderungen" collects contributions without a matching category. The behavior is described in [GitHub's documentation on release notes](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes).
+7. Add required upgrade steps and known limitations. Update the supported versions in [SECURITY.md](../SECURITY.md) if needed.
+8. Publish the release after a final review.
+
+Publishing runs [release.yml](workflows/release.yml): it attaches the source archive, `SHA256SUMS` and a SLSA provenance (`mietkartei.intoto.jsonl`) to the release. The app workflow pushes the versioned Docker image with a build provenance attestation. Check afterwards that the three assets are on the release. The OpenSSF Scorecard counts them for Signed-Releases.
 
 When changing the confidential reporting channel, keep [SECURITY.md](../SECURITY.md) and [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) consistent.

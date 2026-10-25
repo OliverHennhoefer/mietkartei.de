@@ -1,29 +1,53 @@
-import { and, asc, count, desc, eq, gt, isNull, ne, sql } from 'drizzle-orm';
-import { userRoleLabels } from '../labels';
+import {
+	and,
+	asc,
+	count,
+	desc,
+	eq,
+	exists,
+	gt,
+	gte,
+	inArray,
+	isNull,
+	lt,
+	ne,
+	notExists,
+	sql
+} from 'drizzle-orm';
+import { userRoleLabels, userRolePhrases } from '../labels';
 import { auditEntry, type AuditContext } from './audit';
 import { generateToken, hashPassword, hashToken, normalizeEmail } from './auth';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import {
+	apiKeys,
 	emailChanges,
 	invitations,
 	passwordResets,
 	sessions,
 	users,
+	type MemberRole,
 	type UserRole
 } from './db/schema';
 import type { Mail } from './mail';
 import { assertQuota } from './quotas';
 
-// Invitations (Mitverwalter einladen): the owner invites an address as a manager; an account has
+// Invitations (Zugänge): the owner invites an address as a manager or a viewer; an account has
 // exactly one owner. The mail holds a random token, the database only its SHA-256. The invitee
 // registers through the link into the inviting account, whatever REGISTRATION_EMAILS says. Links
 // are valid for seven days.
 
 const DAY = 24 * 60 * 60 * 1000;
 export const INVITATION_LIFETIME = 7 * DAY;
-/** Invitations an account may send per day, revoked ones included; each one sends a mail. */
-export const MAX_INVITATIONS_PER_DAY = 20;
+/**
+ * Invitation mails an account may send per day, revoked and resent ones included. Low, because
+ * the mail provider's daily allowance is shared by all accounts.
+ */
+export const MAX_INVITATIONS_PER_DAY = 5;
+/** People per account, the owner and open invitations included. */
+export const MAX_ACCOUNT_MEMBERS = 5;
+/** Days after its expiry an invitation is deleted, so unused addresses do not stay forever. */
+export const INVITATION_RETENTION = 30 * DAY;
 
 export type AccountUser = {
 	id: string;
@@ -55,20 +79,26 @@ export async function listAccountUsers(db: Database, accountId: string): Promise
 export type PendingInvitation = {
 	id: string;
 	email: string;
+	role: MemberRole;
 	expiresAt: Date;
 	createdAt: Date;
+	expired: boolean;
 };
 
-/** Invitations of the account that are neither accepted, revoked nor expired, newest first. */
+/**
+ * Invitations of the account that are neither accepted nor revoked, newest first: the open ones and
+ * the expired ones within INVITATION_RETENTION, which the owner may send again.
+ */
 export async function listPendingInvitations(
 	db: Database,
 	accountId: string,
 	now = Date.now()
 ): Promise<PendingInvitation[]> {
-	return db
+	const rows = await db
 		.select({
 			id: invitations.id,
 			email: invitations.email,
+			role: invitations.role,
 			expiresAt: invitations.expiresAt,
 			createdAt: invitations.createdAt
 		})
@@ -78,23 +108,81 @@ export async function listPendingInvitations(
 				eq(invitations.accountId, accountId),
 				isNull(invitations.acceptedAt),
 				isNull(invitations.revokedAt),
-				gt(invitations.expiresAt, new Date(now))
+				// Past their retention they are only waiting for the next purge.
+				gte(invitations.expiresAt, new Date(now - INVITATION_RETENTION))
 			)
 		)
 		.orderBy(desc(invitations.createdAt));
+	return rows.map((row) => ({ ...row, expired: row.expiresAt.getTime() <= now }));
 }
 
-export type InvitationInput = { email: string };
+/**
+ * How many more people the account may invite: MAX_ACCOUNT_MEMBERS less users and open
+ * invitations. Below zero only for a moment, when two invitations raced for the last seat.
+ */
+export async function freeSeats(
+	db: Database,
+	accountId: string,
+	now = Date.now(),
+	excluding?: string
+): Promise<number> {
+	const [[members], pending] = await Promise.all([
+		db.select({ value: count() }).from(users).where(eq(users.accountId, accountId)),
+		listPendingInvitations(db, accountId, now)
+	]);
+	const open = pending.filter(
+		(invitation) => !invitation.expired && invitation.id !== excluding
+	).length;
+	return MAX_ACCOUNT_MEMBERS - members.value - open;
+}
 
-export type CreateInvitationResult =
-	| { ok: true; id: string; email: string; token: string }
-	| { ok: false; reason: 'member' | 'already-invited' | 'too-many' };
+async function sentToday(db: Database, accountId: string, now: number): Promise<number> {
+	const [recent] = await db
+		.select({ value: count() })
+		.from(invitations)
+		.where(
+			and(eq(invitations.accountId, accountId), gt(invitations.createdAt, new Date(now - DAY)))
+		);
+	return recent.value;
+}
 
 /**
- * Invites an address as a manager. Refused when a user of the account has the address, when the
- * account has an open invitation for it (the owner revokes that one first) or has sent
- * MAX_INVITATIONS_PER_DAY within a day. An address with a user in another account is invited all
- * the same, so the answer says nothing about other accounts; accepting refuses it later.
+ * Which limit the account is over after an invitation was stored. Checked again after the write,
+ * because two requests may both pass the checks before either stores its invitation; the one
+ * that finds itself over a limit takes its invitation back. `replacing` is the invitation a
+ * resend is about to revoke, whose seat the new one takes over.
+ */
+async function exceededLimit(
+	db: Database,
+	accountId: string,
+	now: number,
+	replacing?: string
+): Promise<'full' | 'too-many' | undefined> {
+	if ((await freeSeats(db, accountId, now, replacing)) < 0) return 'full';
+	if ((await sentToday(db, accountId, now)) > MAX_INVITATIONS_PER_DAY) return 'too-many';
+	return undefined;
+}
+
+/** Deletes the invitations of all accounts that expired more than INVITATION_RETENTION ago. */
+function purgeOldInvitations(db: Database, now: number) {
+	return db
+		.delete(invitations)
+		.where(lt(invitations.expiresAt, new Date(now - INVITATION_RETENTION)));
+}
+
+/** Without a role the invitee becomes a manager. */
+export type InvitationInput = { email: string; role?: MemberRole };
+
+export type CreateInvitationResult =
+	| { ok: true; id: string; email: string; role: MemberRole; token: string }
+	| { ok: false; reason: 'member' | 'already-invited' | 'full' | 'too-many' };
+
+/**
+ * Invites an address as a manager or viewer. Refused when a user of the account has the address, when the
+ * account has an invitation for it that is neither accepted nor revoked (the owner sends that one
+ * again), when the account has no free seat or has sent MAX_INVITATIONS_PER_DAY within a day.
+ * An address with a user in another account is invited all the same, so the answer says nothing
+ * about other accounts; accepting refuses it later.
  * Returns the token for the mail, which is never stored.
  */
 export async function createInvitation(
@@ -105,6 +193,7 @@ export async function createInvitation(
 ): Promise<CreateInvitationResult> {
 	await assertQuota(db, context.accountId, 'invitations');
 	const email = normalizeEmail(input.email);
+	const role = input.role ?? 'manager';
 	const [member] = await db
 		.select({ id: users.id })
 		.from(users)
@@ -114,38 +203,39 @@ export async function createInvitation(
 	if (pending.some((invitation) => invitation.email === email)) {
 		return { ok: false, reason: 'already-invited' };
 	}
-	const [recent] = await db
-		.select({ value: count() })
-		.from(invitations)
-		.where(
-			and(
-				eq(invitations.accountId, context.accountId),
-				gt(invitations.createdAt, new Date(now - DAY))
-			)
-		);
-	if (recent.value >= MAX_INVITATIONS_PER_DAY) return { ok: false, reason: 'too-many' };
+	if ((await freeSeats(db, context.accountId, now)) < 1) return { ok: false, reason: 'full' };
+	if ((await sentToday(db, context.accountId, now)) >= MAX_INVITATIONS_PER_DAY) {
+		return { ok: false, reason: 'too-many' };
+	}
 	const id = crypto.randomUUID();
 	const token = generateToken();
 	await runBatch(db, [
+		purgeOldInvitations(db, now),
 		db.insert(invitations).values({
 			id,
 			accountId: context.accountId,
 			email,
+			role,
 			tokenHash: await hashToken(token),
 			expiresAt: new Date(now + INVITATION_LIFETIME),
 			invitedBy: context.userId,
 			createdAt: new Date(now)
-		}),
-		auditEntry(
-			db,
-			context,
-			'invitation',
-			id,
-			'invite',
-			`${email} als ${userRoleLabels.manager} eingeladen`
-		)
+		})
 	]);
-	return { ok: true, id, email, token };
+	const exceeded = await exceededLimit(db, context.accountId, now);
+	if (exceeded) {
+		await db.delete(invitations).where(eq(invitations.id, id));
+		return { ok: false, reason: exceeded };
+	}
+	await auditEntry(
+		db,
+		context,
+		'invitation',
+		id,
+		'invite',
+		`${email} ${userRolePhrases[role]} eingeladen`
+	);
+	return { ok: true, id, email, role, token };
 }
 
 /**
@@ -187,6 +277,81 @@ export async function revokeInvitation(
 	return true;
 }
 
+export type ResendInvitationResult =
+	| { ok: true; id: string; email: string; role: MemberRole; token: string }
+	| { ok: false; reason: 'missing' | 'full' | 'too-many' };
+
+/**
+ * Sends an open or expired invitation again: it is replaced by a new one with a new link and a
+ * new week of validity and then revoked, so the old link leads nowhere. Counts towards the daily limit;
+ * an expired invitation needs a free seat again. Returns the new token for the mail.
+ */
+export async function resendInvitation(
+	db: Database,
+	context: AuditContext,
+	invitationId: string,
+	now = Date.now()
+): Promise<ResendInvitationResult> {
+	const invitation = (await listPendingInvitations(db, context.accountId, now)).find(
+		(pending) => pending.id === invitationId
+	);
+	if (!invitation) return { ok: false, reason: 'missing' };
+	if (invitation.expired && (await freeSeats(db, context.accountId, now)) < 1) {
+		return { ok: false, reason: 'full' };
+	}
+	if ((await sentToday(db, context.accountId, now)) >= MAX_INVITATIONS_PER_DAY) {
+		return { ok: false, reason: 'too-many' };
+	}
+	// The replacement is stored before the old invitation is revoked, so the old one keeps its
+	// seat until then and no other request can take it in between.
+	const id = crypto.randomUUID();
+	const token = generateToken();
+	await runBatch(db, [
+		purgeOldInvitations(db, now),
+		db.insert(invitations).values({
+			id,
+			accountId: context.accountId,
+			email: invitation.email,
+			role: invitation.role,
+			tokenHash: await hashToken(token),
+			expiresAt: new Date(now + INVITATION_LIFETIME),
+			invitedBy: context.userId,
+			createdAt: new Date(now)
+		})
+	]);
+	const exceeded = await exceededLimit(db, context.accountId, now, invitation.id);
+	if (exceeded) {
+		await db.delete(invitations).where(eq(invitations.id, id));
+		return { ok: false, reason: exceeded };
+	}
+	// Only one of two simultaneous resends revokes the old invitation; the other takes its
+	// replacement back.
+	const revoked = await db
+		.update(invitations)
+		.set({ revokedAt: new Date(now) })
+		.where(
+			and(
+				eq(invitations.id, invitation.id),
+				isNull(invitations.acceptedAt),
+				isNull(invitations.revokedAt)
+			)
+		)
+		.returning({ id: invitations.id });
+	if (revoked.length === 0) {
+		await db.delete(invitations).where(eq(invitations.id, id));
+		return { ok: false, reason: 'missing' };
+	}
+	await auditEntry(
+		db,
+		context,
+		'invitation',
+		id,
+		'invite',
+		`Einladung an ${invitation.email} erneut geschickt`
+	);
+	return { ok: true, id, email: invitation.email, role: invitation.role, token };
+}
+
 /**
  * Sends the mail with the invitation link. When it cannot be sent, the invitation is revoked, so
  * the owner can invite the address again instead of being told it is already invited. False then.
@@ -214,6 +379,7 @@ export type FoundInvitation = {
 	id: string;
 	accountId: string;
 	email: string;
+	role: MemberRole;
 	status: InvitationStatus;
 };
 
@@ -231,6 +397,7 @@ export async function findInvitation(
 			id: invitations.id,
 			accountId: invitations.accountId,
 			email: invitations.email,
+			role: invitations.role,
 			expiresAt: invitations.expiresAt,
 			acceptedAt: invitations.acceptedAt,
 			revokedAt: invitations.revokedAt
@@ -243,7 +410,7 @@ export async function findInvitation(
 		: row.expiresAt.getTime() <= now
 			? 'expired'
 			: 'open';
-	return { id: row.id, accountId: row.accountId, email: row.email, status };
+	return { id: row.id, accountId: row.accountId, email: row.email, role: row.role, status };
 }
 
 export type AcceptInvitationResult =
@@ -276,7 +443,7 @@ export async function acceptInvitation(
 			accountId: invitation.accountId,
 			email: invitation.email,
 			passwordHash: await hashPassword(input.password),
-			role: 'manager',
+			role: invitation.role,
 			name
 		}),
 		db
@@ -289,17 +456,36 @@ export async function acceptInvitation(
 			'user',
 			userId,
 			'create',
-			`${name} hat die Einladung angenommen und ist jetzt ${userRoleLabels.manager}`
+			`${name} hat die Einladung angenommen und ist jetzt ${userRolePhrases[invitation.role]} dabei`
 		)
 	]);
 	return { ok: true, userId, accountId: invitation.accountId };
 }
 
+/** Deletes a user with their sessions, resets, address changes and API keys. */
+function deleteMember(db: Database, accountId: string, userId: string) {
+	// Every statement only touches a member who is not the owner when the batch runs, so a
+	// handover that promoted them in the meantime is never undone by deleting the new owner.
+	const member = db
+		.select({ id: users.id })
+		.from(users)
+		.where(and(eq(users.accountId, accountId), eq(users.id, userId), ne(users.role, 'owner')));
+	return [
+		db.delete(sessions).where(inArray(sessions.userId, member)),
+		db.delete(passwordResets).where(inArray(passwordResets.userId, member)),
+		db.delete(emailChanges).where(inArray(emailChanges.userId, member)),
+		db.delete(apiKeys).where(inArray(apiKeys.userId, member)),
+		db
+			.delete(users)
+			.where(and(eq(users.accountId, accountId), eq(users.id, userId), ne(users.role, 'owner')))
+	] as const;
+}
+
 /**
- * Removes a manager of the account with their sessions, resets and address changes. Neither
- * oneself nor an owner can be removed, so the account always keeps its owner. References to the
- * user in other tables are set to null by the schema; the audit log keeps the name in its
- * summaries.
+ * Removes a manager or viewer of the account with their sessions, resets, API keys and address
+ * changes. Neither oneself nor an owner can be removed, so the account always keeps its owner.
+ * References to the user in other tables are set to null by the schema; the audit log keeps the
+ * name in its summaries.
  */
 export async function removeUser(
 	db: Database,
@@ -320,10 +506,7 @@ export async function removeUser(
 	if (!user) return 'missing';
 	if (user.role === 'owner') return 'owner';
 	await runBatch(db, [
-		db.delete(sessions).where(eq(sessions.userId, user.id)),
-		db.delete(passwordResets).where(eq(passwordResets.userId, user.id)),
-		db.delete(emailChanges).where(eq(emailChanges.userId, user.id)),
-		db.delete(users).where(and(eq(users.accountId, context.accountId), eq(users.id, user.id))),
+		...deleteMember(db, context.accountId, user.id),
 		auditEntry(
 			db,
 			context,
@@ -334,6 +517,170 @@ export async function removeUser(
 		)
 	]);
 	return 'removed';
+}
+
+/**
+ * The signed-in manager or viewer leaves the account: their access is deleted as removeUser
+ * deletes it. The owner cannot leave; they delete the account or hand it over first.
+ */
+export async function leaveAccount(
+	db: Database,
+	context: AuditContext
+): Promise<'left' | 'owner' | 'missing'> {
+	const [user] = await db
+		.select({ id: users.id, email: users.email, name: users.name, role: users.role })
+		.from(users)
+		.where(and(eq(users.accountId, context.accountId), eq(users.id, context.userId ?? '')));
+	if (!user) return 'missing';
+	if (user.role === 'owner') return 'owner';
+	await runBatch(db, [
+		...deleteMember(db, context.accountId, user.id),
+		auditEntry(
+			db,
+			{ accountId: context.accountId, userId: null },
+			'user',
+			user.id,
+			'delete',
+			`${user.name || user.email} hat das Konto verlassen`
+		)
+	]);
+	return 'left';
+}
+
+export type TransferResult =
+	| { ok: true; email: string; name: string | null }
+	| { ok: false; reason: 'missing' | 'self' | 'not-owner' };
+
+/**
+ * Hands the account over to another member: they become its owner, the signing-in owner a
+ * manager. Both changes run in one batch, the old owner first, so the account never has two
+ * owners (the unique index refuses that). The demotion only happens while the member still
+ * exists, so a member leaving or being removed concurrently cannot leave the account without an
+ * owner; the outcome is read back afterwards. The subscription belongs to the account and stays.
+ */
+export async function transferOwnership(
+	db: Database,
+	context: AuditContext,
+	userId: string
+): Promise<TransferResult> {
+	if (userId === context.userId) return { ok: false, reason: 'self' };
+	const members = await listAccountUsers(db, context.accountId);
+	const owner = members.find((member) => member.id === context.userId);
+	if (owner?.role !== 'owner') return { ok: false, reason: 'not-owner' };
+	const target = members.find((member) => member.id === userId);
+	if (!target) return { ok: false, reason: 'missing' };
+	const ofTarget = and(eq(users.accountId, context.accountId), eq(users.id, target.id));
+	await runBatch(db, [
+		db
+			.update(users)
+			.set({ role: 'manager' })
+			.where(
+				and(
+					eq(users.accountId, context.accountId),
+					eq(users.id, owner.id),
+					eq(users.role, 'owner'),
+					exists(db.select({ id: users.id }).from(users).where(ofTarget))
+				)
+			),
+		db
+			.update(users)
+			.set({ role: 'owner' })
+			.where(
+				and(
+					ofTarget,
+					notExists(
+						db
+							.select({ id: users.id })
+							.from(users)
+							.where(and(eq(users.accountId, context.accountId), eq(users.role, 'owner')))
+					)
+				)
+			)
+	]);
+	const [promoted] = await db.select({ role: users.role }).from(users).where(ofTarget);
+	if (promoted?.role !== 'owner') return { ok: false, reason: 'missing' };
+	await auditEntry(
+		db,
+		context,
+		'user',
+		target.id,
+		'update',
+		`${target.name || target.email} ist jetzt ${userRolePhrases.owner} dabei, ${owner.name || owner.email} ${userRolePhrases.manager}`
+	);
+	return { ok: true, email: target.email, name: target.name };
+}
+
+/** The mail to a person whose access ended: removed by the owner, or with the whole account. */
+export function accessEndedMail(to: string, reason: 'removed' | 'account-deleted'): Mail {
+	const what =
+		reason === 'removed'
+			? 'Der Vermieter hat deinen Zugang zu seinem Konto in mietkartei entfernt.'
+			: 'Der Vermieter hat sein Konto in mietkartei gelöscht, und damit auch deinen Zugang.';
+	return {
+		to,
+		subject: 'Dein Zugang zu mietkartei wurde beendet',
+		text: `Hallo,\n\n${what} Du kannst dich nicht mehr anmelden.\n`
+	};
+}
+
+/** The mail to the new owner after a handover. */
+export function ownershipMail(to: string, from: string | null): Mail {
+	return {
+		to,
+		subject: 'Du bist jetzt Vermieter in mietkartei',
+		text:
+			'Hallo,\n\n' +
+			`${inviterName(from)} hat dir das Konto in mietkartei übergeben. Du verwaltest jetzt die ` +
+			'Zugänge, die Bankverbindungen und das Abo des Kontos.\n'
+	};
+}
+
+/**
+ * Gives a manager or viewer of the account another member role; it applies from their next
+ * request on. A viewer keeps no API key that may write, so a later promotion does not revive one.
+ * Neither oneself nor the owner can be changed.
+ */
+export async function changeRole(
+	db: Database,
+	context: AuditContext,
+	userId: string,
+	role: MemberRole
+): Promise<'changed' | 'unchanged' | 'missing' | 'self' | 'owner'> {
+	if (userId === context.userId) return 'self';
+	const [user] = await db
+		.select({ id: users.id, email: users.email, name: users.name, role: users.role })
+		.from(users)
+		.where(and(eq(users.accountId, context.accountId), eq(users.id, userId)));
+	if (!user) return 'missing';
+	if (user.role === 'owner') return 'owner';
+	if (user.role === role) return 'unchanged';
+	// Both statements leave an owner alone, so a handover to this member in the meantime stands.
+	const ofMember = and(
+		eq(users.accountId, context.accountId),
+		eq(users.id, user.id),
+		ne(users.role, 'owner')
+	);
+	const viewer = db
+		.select({ id: users.id })
+		.from(users)
+		.where(
+			and(eq(users.accountId, context.accountId), eq(users.id, user.id), eq(users.role, 'viewer'))
+		);
+	await runBatch(db, [
+		db.update(users).set({ role }).where(ofMember),
+		...(role === 'viewer'
+			? [db.delete(apiKeys).where(and(inArray(apiKeys.userId, viewer), eq(apiKeys.scope, 'write')))]
+			: []),
+		auditEntry(
+			db,
+			context,
+			'user',
+			user.id,
+			'update',
+			`${user.name || user.email} ist jetzt ${userRolePhrases[role]} dabei`
+		)
+	]);
+	return 'changed';
 }
 
 const INVITER_MAX_LENGTH = 60;
@@ -356,14 +703,23 @@ export function inviterName(name: string | null): string {
 }
 
 /** The mail with the invitation link; `link` is the absolute URL of /einladung/<token>. */
-export function invitationMail(to: string, link: string, inviter: string | null): Mail {
+export function invitationMail(
+	to: string,
+	link: string,
+	inviter: string | null,
+	role: MemberRole
+): Mail {
+	const invites =
+		role === 'viewer'
+			? 'lädt dich ein, die Daten in mietkartei mit Lesezugriff einzusehen'
+			: `lädt dich ein, in mietkartei ${userRolePhrases[role]} mitzuarbeiten`;
 	return {
 		to,
 		subject: 'Einladung zu mietkartei',
 		text:
 			'Hallo,\n\n' +
-			`${inviterName(inviter)} lädt dich ein, in mietkartei als ${userRoleLabels.manager} ` +
-			'mitzuarbeiten. Mit diesem Link legst du dein Zugangskonto an; er gilt sieben Tage:\n\n' +
+			`${inviterName(inviter)} ${invites}. ` +
+			'Mit diesem Link legst du dein Zugangskonto an; er gilt sieben Tage:\n\n' +
 			`${link}\n\n` +
 			'Wenn du die Einladung nicht erwartet hast, kannst du diese E-Mail ignorieren.\n'
 	};

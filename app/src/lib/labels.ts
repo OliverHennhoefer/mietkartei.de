@@ -3,19 +3,24 @@ import type {
 	BankTransactionStatus,
 	BuildingUse,
 	DepositTransactionKind,
+	ExpenseCategory,
 	Fuel,
 	HeatingCostModel,
+	InsuranceKind,
 	LeaseKind,
 	MeterKind,
 	OperatingCostModel,
+	PropertyKind,
 	RentChangeReason,
 	RentChargeKind,
 	RentModel,
 	StatementStatus,
 	SubscriptionStatus,
+	TaskCategory,
 	TerminatedBy,
 	UserRole
 } from './server/db/schema';
+import type { GermanState } from './working-days';
 
 // German labels for the enums in the schema, so every page uses the same words.
 
@@ -47,9 +52,33 @@ export const terminatedByLabels: Record<TerminatedBy, string> = {
 	landlord: 'durch Vermieter'
 };
 
+export const propertyKindLabels: Record<PropertyKind, string> = {
+	building: 'Gebäude (eigene Abrechnung)',
+	condominium: 'Eigentumswohnung in einer WEG'
+};
+
 export const buildingUseLabels: Record<BuildingUse, string> = {
 	residential: 'Wohngebäude',
 	non_residential: 'Nichtwohngebäude'
+};
+
+export const stateLabels: Record<GermanState, string> = {
+	BW: 'Baden-Württemberg',
+	BY: 'Bayern',
+	BE: 'Berlin',
+	BB: 'Brandenburg',
+	HB: 'Bremen',
+	HH: 'Hamburg',
+	HE: 'Hessen',
+	MV: 'Mecklenburg-Vorpommern',
+	NI: 'Niedersachsen',
+	NW: 'Nordrhein-Westfalen',
+	RP: 'Rheinland-Pfalz',
+	SL: 'Saarland',
+	SN: 'Sachsen',
+	ST: 'Sachsen-Anhalt',
+	SH: 'Schleswig-Holstein',
+	TH: 'Thüringen'
 };
 
 export const fuelLabels: Record<Fuel, string> = {
@@ -119,9 +148,48 @@ export const subscriptionStatusLabels: Record<SubscriptionStatus, string> = {
 	canceled: 'Gekündigt'
 };
 
+export const expenseCategoryLabels: Record<ExpenseCategory, string> = {
+	operating_costs: 'Betriebskosten',
+	association_fee: 'Hausgeld (WEG)',
+	special_levy: 'Sonderumlage für Erhaltung (WEG)',
+	special_levy_reserve: 'Sonderumlage in die Rücklage (WEG)',
+	maintenance: 'Instandhaltung und Reparaturen',
+	loan_payment: 'Darlehensrate (Zins und Tilgung)',
+	loan_interest: 'Darlehenszinsen',
+	loan_repayment: 'Tilgung',
+	management: 'Verwaltung, Beratung und Gebühren',
+	modernization: 'Modernisierung und Anschaffungen',
+	other: 'Sonstiges'
+};
+
+export const insuranceKindLabels: Record<InsuranceKind, string> = {
+	building: 'Wohngebäudeversicherung',
+	liability: 'Haus- und Grundbesitzerhaftpflicht',
+	glass: 'Glasversicherung',
+	oil_tank: 'Gewässerschadenhaftpflicht',
+	rent_loss: 'Mietausfallversicherung',
+	legal: 'Vermieterrechtsschutz',
+	other: 'Sonstige Versicherung'
+};
+
+export const taskCategoryLabels: Record<TaskCategory, string> = {
+	maintenance: 'Wartung',
+	inspection: 'Prüfung',
+	insurance: 'Versicherung',
+	other: 'Sonstiges'
+};
+
 export const userRoleLabels: Record<UserRole, string> = {
 	owner: 'Vermieter',
-	manager: 'Mitverwalter'
+	manager: 'Mitverwalter',
+	viewer: 'Lesezugriff'
+};
+
+/** The role in a sentence: „… arbeitet als Mitverwalter mit“, „… ist jetzt mit Lesezugriff dabei“. */
+export const userRolePhrases: Record<UserRole, string> = {
+	owner: 'als Vermieter',
+	manager: 'als Mitverwalter',
+	viewer: 'mit Lesezugriff'
 };
 
 /** The verbs of the audit log (AuditAction in schema.ts), for /einstellungen/protokoll. */
@@ -147,6 +215,7 @@ export const auditEntityLabels: Record<string, string> = {
 	account: 'Konto',
 	user: 'Zugang',
 	invitation: 'Einladung',
+	api_key: 'API-Schlüssel',
 	property: 'Objekt',
 	unit: 'Einheit',
 	tenant: 'Mieter',
@@ -160,10 +229,14 @@ export const auditEntityLabels: Record<string, string> = {
 	billing_circle: 'Abrechnungskreis',
 	cost_item: 'Beleg',
 	meter: 'Zähler',
+	insurance_policy: 'Versicherung',
+	association_statement: 'Hausgeldabrechnung',
+	tax_year: 'Steuerjahr',
+	calendar_feed: 'Kalender-Link',
 	meter_reading: 'Zählerstand',
 	statement: 'Betriebskostenabrechnung',
 	document: 'Dokument',
 	task: 'Aufgabe',
-	vpi: 'Verbraucherpreisindex',
+	expense: 'Ausgabe',
 	import: 'Datenübernahme'
 };

@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { addMonthsToMonth, firstOfMonth, formatDate, monthOf, today } from '../src/lib/dates';
-import { clearTables, seedForeignLease, seedLease } from './seed';
+import { clearTables, seedForeignLease, seedLease, seedRows } from './seed';
 
 // The rent feature: VPI values, the index proposal with its approval and letter, and a manual
-// change. The lease is seeded; only /einstellungen/vpi and the Miethöhe tab are driven. The
-// changes lie in the months after today, so the tests do not age.
+// change. The lease and the VPI values are seeded; only /einstellungen/vpi and the Miethöhe tab
+// are driven. The changes lie in the months after today, so the tests do not age.
 
 /** The first day of the n-th month after the current one. */
 const monthsAhead = (months: number) => firstOfMonth(addMonthsToMonth(monthOf(today()), months));
@@ -23,22 +23,18 @@ test('adjusts an index rent from the VPI and writes the letter', async ({ page }
 		}
 	});
 
-	// Two VPI values; the newer one counts.
+	// Two VPI values, as the fetch from Destatis stores them; the newer one counts.
+	await seedRows(page.request, 'consumer_price_index', [
+		{ month: '2025-01', value: 121, baseYear: '2020' },
+		{ month: '2026-01', value: 124.3, baseYear: '2020' }
+	]);
 	await page.goto('/einstellungen/vpi');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Verbraucherpreisindex');
-	await expect(page.getByText('Noch keine Werte eingetragen.')).toBeVisible();
-	await page.getByLabel('Monat').fill('2025-01');
-	await page.getByLabel('Indexwert').fill('121,0');
-	await page.getByRole('button', { name: 'Wert eintragen' }).click();
-	await expect(page.getByText('Der Wert für Januar 2025 wurde eingetragen.')).toBeVisible();
-	await page.getByLabel('Monat').fill('2026-01');
-	await page.getByLabel('Indexwert').fill('124,3');
-	await page.getByRole('button', { name: 'Wert eintragen' }).click();
-	await expect(page.getByText('Der Wert für Januar 2026 wurde eingetragen.')).toBeVisible();
 	const values = page.getByRole('table', { name: 'VPI-Werte' });
 	await expect(values.getByRole('row')).toHaveCount(3);
-	await expect(values.getByRole('row').nth(1)).toContainText('Januar 2026');
+	await expect(values.getByRole('row').nth(1)).toContainText('2026');
 	await expect(values.getByRole('row').nth(1)).toContainText('124,3');
+	await expect(page.getByText('Datenquelle: Statistisches Bundesamt (Destatis)')).toBeVisible();
 
 	// The Miethöhe tab computes 600,00 × 124,3 ÷ 118,2 = 630,96 €.
 	await page.goto(`/vertraege/${leaseId}/miethoehe`);

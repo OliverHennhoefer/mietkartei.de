@@ -10,7 +10,7 @@ import {
 	type IsoMonth
 } from '../dates';
 import type { LeaseKind, TerminatedBy } from '../server/db/schema';
-import { isPublicHoliday, isWorkingDay } from '../working-days';
+import { isPublicHoliday, isWorkingDay, type GermanState } from '../working-days';
 
 // The end of a lease after a notice (Kündigung), § 573c BGB for dwellings and § 580a BGB for
 // commercial premises and parking, and the deadlines that follow from the end date. Pure
@@ -23,6 +23,8 @@ export type LeaseEndInput = {
 	/** The day the notice was received (Zugang der Kündigung). */
 	terminatedAt: IsoDate;
 	terminatedBy: TerminatedBy;
+	/** Bundesland of the property, whose holidays are no Werktage. */
+	state: GermanState | null;
 };
 
 /** Full years from `start` to `at`: 4 on the day before the fifth anniversary, 5 on it. */
@@ -49,18 +51,18 @@ export function noticePeriodMonths(input: LeaseEndInput): number {
 /**
  * The last day a notice counts for the month: the third Werktag. For § 573c and § 580a BGB
  * Saturday is a Werktag (BGH VIII ZR 206/04), unlike for the rent due day; Sundays and the
- * nationwide public holidays are not. When the third Werktag is a Saturday, the deadline moves to
+ * public holidays of the state are not. When the third Werktag is a Saturday, the deadline moves to
  * the next working day (§ 193 BGB), past a holiday on the Monday too.
  */
-export function noticeDeadline(month: IsoMonth): IsoDate {
+export function noticeDeadline(month: IsoMonth, state: GermanState | null): IsoDate {
 	let date = firstOfMonth(month);
 	let seen = 0;
 	for (;;) {
-		if (weekday(date) !== 0 && !isPublicHoliday(date)) seen += 1;
+		if (weekday(date) !== 0 && !isPublicHoliday(date, state)) seen += 1;
 		if (seen === 3) break;
 		date = addDays(date, 1);
 	}
-	while (!isWorkingDay(date)) date = addDays(date, 1);
+	while (!isWorkingDay(date, state)) date = addDays(date, 1);
 	return date;
 }
 
@@ -76,11 +78,12 @@ export function proposedEndDate(input: LeaseEndInput): IsoDate {
 	if (input.kind === 'commercial') {
 		const monthNumber = Number(month.slice(5, 7));
 		const quarterStart = addMonthsToMonth(month, -((monthNumber - 1) % 3));
-		const inTime = quarterStart === month && input.terminatedAt <= noticeDeadline(month);
+		const inTime =
+			quarterStart === month && input.terminatedAt <= noticeDeadline(month, input.state);
 		const baseQuarter = inTime ? quarterStart : addMonthsToMonth(quarterStart, 3);
 		return lastOfMonth(addMonthsToMonth(baseQuarter, 5));
 	}
-	const inTime = input.terminatedAt <= noticeDeadline(month);
+	const inTime = input.terminatedAt <= noticeDeadline(month, input.state);
 	const baseMonth = inTime ? month : addMonthsToMonth(month, 1);
 	return lastOfMonth(addMonthsToMonth(baseMonth, noticePeriodMonths(input) - 1));
 }

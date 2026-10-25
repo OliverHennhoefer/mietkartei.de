@@ -132,6 +132,7 @@ function item(
 		co2Kg: null,
 		co2Cost: null,
 		unitAmounts: [],
+		association: null,
 		...overrides
 	};
 }
@@ -1258,5 +1259,273 @@ describe('helpers', () => {
 		expect(personsOn(entries, '2025-06-30')).toBe(2);
 		expect(personsOn(entries, '2025-07-01')).toBe(3);
 		expect(personsOn([], '2025-01-01')).toBe(1);
+	});
+});
+
+describe('computeStatement edge cases', () => {
+	it('takes 70 % for a mixed key without a share and heat meters for a key without a kind', () => {
+		const reference = computeStatement(scenario(), options);
+		const defaults = scenario();
+		defaults.keys[3] = key('k-heat', 'Heizung', 'mixed', { meterKind: null });
+		const result = computeStatement(defaults, options);
+		expect(result.leases.map((lease) => lease.costsTotal)).toEqual(
+			reference.leases.map((lease) => lease.costsTotal)
+		);
+	});
+
+	it('names a meter by its number when a reading is missing', () => {
+		const input = scenario();
+		input.meters[2] = meter('m-dg', 'dg', [reading('2025-01-01', 0)], { serialNumber: '4711' });
+		const messages = computeStatement(input, options).property.warnings.map((w) => w.message);
+		expect(messages.some((message) => message.includes('Zähler Wärme 4711 der Einheit DG'))).toBe(
+			true
+		);
+	});
+
+	it('splits water by days at a change without a reading', () => {
+		// Wasser 100 € by cold water: EG 50, OG 40, DG 10 m³. The OG was not read on 30 June, so
+		// its 40 € split by days: A 181 of 365 days = 19,836… → 19,84 €, B 184 days → 20,16 €.
+		const input = scenario();
+		const water = (id: string, unitId: string, value: number) =>
+			meter(id, unitId, [reading('2025-01-01', 0), reading('2025-12-31', value)], {
+				kind: 'cold_water',
+				unit: 'm³'
+			});
+		input.meters = [water('w-eg', 'eg', 50), water('w-og', 'og', 40), water('w-dg', 'dg', 10)];
+		input.categories.push({
+			id: 'c-wasser',
+			name: 'Wasser',
+			betrkvItem: 2,
+			allocable: true,
+			consumptionBased: true
+		});
+		input.keys.push(key('k-water', 'Kaltwasser', 'consumption', { meterKind: 'cold_water' }));
+		input.items = [item('i-wasser', 'Wasserrechnung', 'c-wasser', 'k-water', 10000)];
+		const result = computeStatement(input, options);
+		const line = (leaseId: string) =>
+			result.leases.find((lease) => lease.leaseId === leaseId)!.lines[0];
+		expect(line('l-og-a')).toMatchObject({ amount: 1984, method: 'days' });
+		expect(line('l-og-a').share).toContain('davon 181 von 365 Tagen');
+		expect(line('l-og-b')).toMatchObject({ amount: 2016 });
+		expect(result.property.warnings.find((warning) => warning.unitId === 'og')?.message).toContain(
+			'nach Tagen aufgeteilt'
+		);
+	});
+
+	it('leaves the operating costs of an Inklusivmiete with the landlord', () => {
+		const input = scenario();
+		input.leases[0].operatingCostModel = 'inclusive';
+		const eg = computeStatement(input, options).leases.find((lease) => lease.leaseId === 'l-eg')!;
+		expect(new Set(eg.excluded.map((line) => line.reason))).toEqual(new Set(['Inklusivmiete']));
+		expect(eg.lines.map((line) => line.categoryName)).toEqual(['Heizung']);
+	});
+
+	it('blocks items whose category or key is gone and skips items outside the period', () => {
+		const input = scenario();
+		input.items = [
+			...input.items,
+			item('i-ohne-art', 'Ohne Kostenart', 'c-geloescht', 'k-area', 10000),
+			item('i-ohne-schluessel', 'Ohne Schlüssel', 'c-grundsteuer', 'k-geloescht', 10000),
+			item('i-2024', 'Grundsteuer 2024', 'c-grundsteuer', 'k-area', 120000, {
+				periodStart: '2024-01-01',
+				periodEnd: '2024-12-31'
+			})
+		];
+		const result = computeStatement(input, options);
+		expect(
+			result.property.warnings
+				.filter((warning) => warning.blocking)
+				.map((warning) => [warning.code, warning.itemId])
+		).toEqual([
+			['unknown_category', 'i-ohne-art'],
+			['unknown_key', 'i-ohne-schluessel']
+		]);
+		expect(result.property.items.map((entry) => entry.itemId)).not.toContain('i-2024');
+		// The two broken items count as costs but go to no lease.
+		expect(result.property.costsTotal).toBe(620000 + 20000);
+		expect(result.leases.reduce((sum, lease) => sum + lease.costsTotal, 0)).toBe(
+			computeStatement(scenario(), options).leases.reduce((sum, lease) => sum + lease.costsTotal, 0)
+		);
+	});
+
+	it('shares a circle item among the circle units only and splits CO₂ per circle', () => {
+		const input = scenario();
+		input.circles = [{ id: 'c-og-dg', name: 'Hinterhaus', unitIds: ['og', 'dg'] }];
+		input.items = input.items.map((entry) =>
+			entry.id === 'i-hausmeister' ? { ...entry, billingCircleId: 'c-og-dg' } : entry
+		);
+		const result = computeStatement(input, options);
+		const hausmeister = (leaseId: string) =>
+			lineAmounts(result.leases.find((lease) => lease.leaseId === leaseId)!).Hauswart ?? 0;
+		// 900 € over two units: EG pays nothing, OG and DG 450 € each by the days of their leases.
+		expect(hausmeister('l-eg')).toBe(0);
+		expect(hausmeister('l-og-a') + hausmeister('l-og-b')).toBe(45000);
+	});
+
+	it('cannot split CO₂ for a circle of parking spaces without area', () => {
+		const input = scenario();
+		input.units = [
+			...input.units,
+			{ id: 'sp', name: 'Stellplatz', kind: 'parking', floorArea: null }
+		];
+		input.circles = [{ id: 'c-sp', name: 'Tiefgarage', unitIds: ['sp'] }];
+		input.items = input.items.map((entry) =>
+			entry.id === 'i-heizung' ? { ...entry, billingCircleId: 'c-sp' } : entry
+		);
+		const result = computeStatement(input, options);
+		expect(result.property.warnings).toContainEqual({
+			code: 'co2_missing_area',
+			blocking: true,
+			itemId: 'i-heizung',
+			href: '/objekte/p',
+			message:
+				'Für die CO₂-Kostenaufteilung des Belegs „Gasrechnung“ fehlt die Wohnfläche der Einheiten; ohne sie lässt sich der Anteil des Vermieters nicht bestimmen.'
+		});
+	});
+
+	it('leaves out the share of a parking space without area that is let with the flat', () => {
+		const input = scenario();
+		input.units = [
+			...input.units,
+			{ id: 'sp', name: 'Stellplatz', kind: 'parking', floorArea: null }
+		];
+		input.leases = input.leases.map((entry) =>
+			entry.id === 'l-eg' ? { ...entry, unitIds: [...entry.unitIds, 'sp'] } : entry
+		);
+		const eg = computeStatement(input, options).leases.find((entry) => entry.leaseId === 'l-eg')!;
+		// Not "72,5 m² von 184,5 m² · 365 von 365 Tagen · 0 m² von 184,5 m² · 365 von 365 Tagen".
+		expect(eg.lines.filter((line) => line.keyKind === 'area').map((line) => line.share)).toEqual([
+			'72,5\u00a0m² von 184,5\u00a0m² · 365 von 365 Tagen'
+		]);
+	});
+
+	it('keeps the zero consumption of a flat that bears the area part of a mixed key', () => {
+		const input = scenario();
+		input.meters = input.meters.map((entry) =>
+			entry.id === 'm-dg'
+				? { ...entry, readings: [reading('2025-01-01', 0), reading('2025-12-31', 0)] }
+				: entry
+		);
+		const result = computeStatement(input, options);
+		const dg = result.leases.find((entry) => entry.leaseId === 'l-dg')!;
+		const heating = dg.lines.find((line) => line.categoryName === 'Heizung')!;
+		expect(heating.share).toMatch(/^70 % nach Verbrauch: 0 von /);
+		expect(heating.share).toContain('30 % nach Fläche');
+	});
+
+	it('ignores leases whose units are not in the property and building meters', () => {
+		const input = scenario();
+		input.leases = [
+			...input.leases,
+			lease(
+				'l-fremd',
+				['nachbarhaus'],
+				{ start: '2025-01-01', end: null },
+				1,
+				{ operating: 10000, heating: 5000, months: months(1, 12) },
+				{ salutation: 'Herr', firstName: 'Fritz', lastName: 'Fremd' }
+			)
+		];
+		input.meters = [
+			...input.meters,
+			meter('m-haus', null as unknown as string, [
+				reading('2025-01-01', 0),
+				reading('2025-12-31', 5000)
+			])
+		];
+		const result = computeStatement(input, options);
+		expect(result.leases.map((entry) => entry.leaseId)).not.toContain('l-fremd');
+		expect(result.property.costsTotal).toBe(620000);
+	});
+});
+
+describe('computeStatement: costs of a WEG', () => {
+	/** Intl puts a no-break space before the euro sign. */
+	const plain = (text: string | undefined) => text?.replace(/\u00a0/g, ' ');
+
+	// An Eigentumswohnung with one unit, let all year: its costs come from the Hausgeldabrechnung.
+	function condominium(): StatementInput {
+		const input = scenario();
+		input.property = { ...input.property, id: 'etw', name: 'ETW Lindenstraße' };
+		input.units = [{ id: 'w', name: 'Wohnung 3', kind: 'apartment', floorArea: 72.3 }];
+		input.leases = [
+			lease(
+				'l-w',
+				['w'],
+				{ start: '2024-01-01', end: null },
+				2,
+				{ operating: 20000, heating: 0, months: months(1, 12) },
+				{ salutation: 'Herr', firstName: 'Max', lastName: 'Müller' }
+			)
+		];
+		input.items = [
+			item('i-hausmeister', 'Hauswart laut Hausgeldabrechnung', 'c-hausmeister', 'k-area', 35700, {
+				association: { total: 420000, key: 'MEA', keyTotal: 1000, keyShare: 85 }
+			}),
+			item('i-grundsteuer', 'Grundsteuer 2025', 'c-grundsteuer', 'k-area', 30000)
+		];
+		input.meters = [];
+		return input;
+	}
+
+	it('prints the cost of the WEG, its key and the share instead of the property’s own key', () => {
+		const [statement] = computeStatement(condominium(), options).leases;
+		const line = statement.lines.find((entry) => entry.itemId === 'i-hausmeister')!;
+		expect(line.keyName).toBe('MEA der WEG');
+		expect(line.keyTotal).toBe('1.000');
+		expect(plain(line.share)).toBe(
+			'Gesamt 4.200,00 € · MEA 85 von 1.000 · Anteil 357,00 € · 365 von 365 Tagen'
+		);
+		expect(line.association).toEqual({ total: 420000, key: 'MEA', keyTotal: 1000, keyShare: 85 });
+		expect(line.amount).toBe(35700);
+		// A cost billed to the owner directly keeps the key of the property.
+		const tax = statement.lines.find((entry) => entry.itemId === 'i-grundsteuer')!;
+		expect(tax.association).toBeUndefined();
+		expect(tax.share).toContain('72,3');
+	});
+
+	it('prorates the cost of the WEG with the item', () => {
+		const input = condominium();
+		input.items[0] = {
+			...input.items[0],
+			periodStart: '2025-07-01',
+			periodEnd: '2026-06-30'
+		};
+		const [statement] = computeStatement(input, options).leases;
+		const line = statement.lines.find((entry) => entry.itemId === 'i-hausmeister')!;
+		// 184 of the item's 365 days fall into 2025.
+		expect(line.itemTotal).toBe(17997);
+		expect(line.association?.total).toBe(211726);
+		expect(plain(line.share)).toMatch(/^Gesamt 2\.117,26 € · MEA 85 von 1\.000 · Anteil 179,97 €/);
+	});
+
+	it('keeps the key of the property after the WEG’s when the property has several units', () => {
+		const input = condominium();
+		input.units = [
+			...input.units,
+			{ id: 's', name: 'Stellplatz', kind: 'apartment', floorArea: 10 }
+		];
+		const [statement] = computeStatement(input, options).leases;
+		const line = statement.lines.find((entry) => entry.itemId === 'i-hausmeister')!;
+		expect(line.keyName).toBe('MEA der WEG, dann Wohnfläche');
+		expect(plain(line.share)).toMatch(
+			/^Gesamt 4\.200,00 € · MEA 85 von 1\.000 · Anteil 357,00 € · 72,3/
+		);
+	});
+
+	it('points out a share that does not follow from the key of the WEG', () => {
+		const input = condominium();
+		input.items[0] = { ...input.items[0], amount: 40000 };
+		const result = computeStatement(input, options);
+		const warning = result.property.warnings.find((entry) => entry.code === 'association_mismatch');
+		expect(warning).toMatchObject({ blocking: false, itemId: 'i-hausmeister' });
+		expect(plain(warning?.message)).toContain('357,00 €');
+		// A cent of rounding by the Verwalter is no finding.
+		input.items[0] = { ...input.items[0], amount: 35701 };
+		expect(
+			computeStatement(input, options).property.warnings.some(
+				(entry) => entry.code === 'association_mismatch'
+			)
+		).toBe(false);
 	});
 });

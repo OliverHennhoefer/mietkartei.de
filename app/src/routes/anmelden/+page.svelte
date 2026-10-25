@@ -1,21 +1,36 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
-	import Icon from '#lib/components/Icon.svelte';
+	import { enhance, type SubmitFunction } from '$app/forms';
+	import LaunchNotice from '#lib/components/LaunchNotice.svelte';
 	import type { PageProps } from './$types';
 
-	let { form }: PageProps = $props();
+	let { data, form }: PageProps = $props();
+
+	/**
+	 * After signing in, the consent page of an app is loaded as a whole document: its answer is a
+	 * redirect to the app, which only that page's own CSP allows (see hooks.server.ts).
+	 */
+	const signIn: SubmitFunction =
+		() =>
+		async ({ result, update }) => {
+			if (result.type === 'redirect' && result.location.startsWith('/oauth/')) {
+				window.location.assign(result.location);
+				return;
+			}
+			await update();
+		};
 </script>
 
 <svelte:head>
-	<title>Anmelden · mietkartei</title>
+	<title>Anmelden | mietkartei</title>
 </svelte:head>
 
 <div class="narrow">
-	<div class="auth-icon"><Icon name="home" size={25} /></div>
 	<h1>Anmelden</h1>
 	<p class="auth-lead">Melde dich an, um deinen Bestand zu verwalten.</p>
 
-	<form method="POST" class="card" use:enhance>
+	{#if data.prelaunch}<LaunchNotice />{/if}
+
+	<form method="POST" class="card" use:enhance={signIn}>
 		{#if form && 'locked' in form && form.locked}
 			<p class="error" role="alert">Zu viele Fehlversuche. Bitte warte 15 Minuten.</p>
 		{:else if form?.invalid}

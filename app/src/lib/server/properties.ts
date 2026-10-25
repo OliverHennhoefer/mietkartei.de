@@ -14,11 +14,21 @@ export type Property = typeof properties.$inferSelect;
 export type Unit = typeof units.$inferSelect;
 export type Tenant = typeof tenants.$inferSelect;
 
-export async function listProperties(db: Database, accountId: string) {
+/** Archived properties only with `archived: true`, e.g. for filters over past records. */
+export async function listProperties(
+	db: Database,
+	accountId: string,
+	options: { archived?: boolean } = {}
+) {
 	return db
 		.select()
 		.from(properties)
-		.where(eq(properties.accountId, accountId))
+		.where(
+			and(
+				eq(properties.accountId, accountId),
+				options.archived ? undefined : isNull(properties.archivedAt)
+			)
+		)
 		.orderBy(asc(properties.name), asc(properties.createdAt));
 }
 
@@ -80,59 +90,6 @@ export async function updateProperty(
 	return true;
 }
 
-/**
- * Whether any lease, running or ended, uses one of the units as its main unit or as an extra
- * unit.
- */
-async function unitsInUse(db: Database, accountId: string, unitIds: string[]): Promise<boolean> {
-	for (const ids of chunkIds(unitIds)) {
-		const [main] = await db
-			.select({ id: leases.id })
-			.from(leases)
-			.where(and(eq(leases.accountId, accountId), inArray(leases.unitId, ids)))
-			.limit(1);
-		if (main) return true;
-		const [extra] = await db
-			.select({ leaseId: leaseUnits.leaseId })
-			.from(leaseUnits)
-			.where(and(eq(leaseUnits.accountId, accountId), inArray(leaseUnits.unitId, ids)))
-			.limit(1);
-		if (extra) return true;
-	}
-	return false;
-}
-
-/**
- * Deletes the property with its units, meters, keys, circles, cost items and statements
- * (database cascade). Refused with 'in-use' while a lease references one of its units, because
- * the lease and its history must stay.
- */
-export async function deleteProperty(
-	db: Database,
-	context: AuditContext,
-	propertyId: string
-): Promise<'deleted' | 'in-use' | 'missing'> {
-	const { accountId } = context;
-	const existing = await getProperty(db, accountId, propertyId);
-	if (!existing) return 'missing';
-	const ownUnits = await listUnits(db, accountId, propertyId);
-	if (
-		await unitsInUse(
-			db,
-			accountId,
-			ownUnits.map((unit) => unit.id)
-		)
-	)
-		return 'in-use';
-	await runBatch(db, [
-		db
-			.delete(properties)
-			.where(and(eq(properties.accountId, accountId), eq(properties.id, propertyId))),
-		auditEntry(db, context, 'property', propertyId, 'delete', `${propertyLabel(existing)} gelöscht`)
-	]);
-	return 'deleted';
-}
-
 export async function getUnit(
 	db: Database,
 	accountId: string,
@@ -183,28 +140,6 @@ export async function updateUnit(
 		auditEntry(db, context, 'unit', unitId, 'update', `${unitLabel(input, property)} geändert`)
 	]);
 	return true;
-}
-
-/**
- * Deletes the unit (its meters, key shares, circle links and per-unit amounts cascade). Refused
- * with 'in-use' while a lease, running or ended, references it.
- */
-export async function deleteUnit(
-	db: Database,
-	context: AuditContext,
-	unitId: string
-): Promise<'deleted' | 'in-use' | 'missing'> {
-	const { accountId } = context;
-	const existing = await getUnit(db, accountId, unitId);
-	if (!existing) return 'missing';
-	const property = await getProperty(db, accountId, existing.propertyId);
-	if (!property) return 'missing';
-	if (await unitsInUse(db, accountId, [unitId])) return 'in-use';
-	await runBatch(db, [
-		db.delete(units).where(and(eq(units.accountId, accountId), eq(units.id, unitId))),
-		auditEntry(db, context, 'unit', unitId, 'delete', `${unitLabel(existing, property)} gelöscht`)
-	]);
-	return 'deleted';
 }
 
 /** The tenants of each lease, sorted by name; one query per 90 leases. */
@@ -324,7 +259,7 @@ export async function propertyOverview(
 	date: string
 ): Promise<PropertyOverview[]> {
 	const [rows, allUnits, active, extraRows] = await Promise.all([
-		listProperties(db, accountId),
+		listProperties(db, accountId, { archived: true }),
 		db
 			.select({ id: units.id, propertyId: units.propertyId })
 			.from(units)

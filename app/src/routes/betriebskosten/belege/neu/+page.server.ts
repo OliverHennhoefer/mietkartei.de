@@ -2,12 +2,14 @@ import { fail, redirect } from '@sveltejs/kit';
 import { isIsoDate } from '#lib/dates.ts';
 import { calendarYear } from '#lib/domain/operating-costs.ts';
 import {
+	costItemHistory,
 	createCostItem,
 	ensureDefaults,
 	listCategories,
 	listCircles,
 	listKeys
 } from '#lib/server/operating-costs.ts';
+import { insurancePrefill, linkCostItemToPolicy } from '#lib/server/insurance.ts';
 import { listProperties } from '#lib/server/properties.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { costItemFailure, itemPage, parseCostItemForm, storeReceipt } from '../save.server';
@@ -16,12 +18,21 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const accountId = requireAccount(locals);
 	await ensureDefaults(locals.db, accountId);
-	const [properties, categories, keys, circles] = await Promise.all([
-		listProperties(locals.db, accountId),
+	const [properties, categories, keys, circles, history] = await Promise.all([
+		listProperties(locals.db, accountId, { archived: true }),
 		listCategories(locals.db, accountId),
 		listKeys(locals.db, accountId),
-		listCircles(locals.db, accountId)
+		listCircles(locals.db, accountId),
+		costItemHistory(locals.db, accountId)
 	]);
+	// ?versicherung=<id>&von=<start> comes from the Versicherungen tab: the Beleg of that
+	// insurance year.
+	const policyId = url.searchParams.get('versicherung');
+	const start = url.searchParams.get('von');
+	if (policyId && start && isIsoDate(start)) {
+		const prefill = await insurancePrefill(locals.db, accountId, policyId, start);
+		if (prefill) return { properties, categories, keys, circles, history, prefill };
+	}
 	// ?property= and ?year= come from the list, ?from=/?to= from "Speichern und nächsten Beleg".
 	const propertyParam = url.searchParams.get('property');
 	const propertyId = properties.find((property) => property.id === propertyParam)?.id;
@@ -34,7 +45,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			: year && /^\d{4}$/.test(year)
 				? calendarYear(Number(year))
 				: undefined;
-	return { properties, categories, keys, circles, prefill: { propertyId, ...period } };
+	return {
+		properties,
+		categories,
+		keys,
+		circles,
+		history,
+		prefill: { propertyId, ...period }
+	};
 };
 
 export const actions: Actions = {
@@ -47,6 +65,10 @@ export const actions: Actions = {
 		const context = auditContext(locals);
 		const created = await createCostItem(locals.db, context, input);
 		if (!created.ok) return fail(400, costItemFailure(created.reason, values));
+		const policyId = form.get('insurancePolicyId');
+		if (typeof policyId === 'string' && policyId) {
+			await linkCostItemToPolicy(locals.db, context.accountId, created.id, policyId);
+		}
 		const receiptError = receipt
 			? await storeReceipt(locals.db, context, created.id, input.propertyId, receipt)
 			: undefined;

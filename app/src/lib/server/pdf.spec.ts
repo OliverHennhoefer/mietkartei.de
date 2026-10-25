@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { PDFArray, PDFDocument, PDFRawStream, decodePDFRawStream, type PDFPage } from 'pdf-lib';
-import { pdfResponse, renderLetter, toWinAnsi, type Letter, type PdfTable } from './pdf';
+import {
+	pdfResponse,
+	renderLetter,
+	renderReport,
+	toWinAnsi,
+	type Letter,
+	type PdfTable
+} from './pdf';
 
 const letter: Letter = {
 	sender: ['Erika Vermieter', 'Musterstraße 1', '10115 Berlin'],
@@ -20,7 +27,7 @@ const costTable: PdfTable = {
 		{ label: 'Kostenart' },
 		{ label: 'Schlüssel', width: 0.2 },
 		{ label: 'Gesamt', align: 'right', width: 0.15 },
-		{ label: 'Dein Anteil', align: 'right', width: 0.15 }
+		{ label: 'Ihr Anteil', align: 'right', width: 0.15 }
 	],
 	rows: [
 		['Grundsteuer', 'Wohnfläche', '1.200,00 €', '393,00 €'],
@@ -60,6 +67,23 @@ async function renderAndLoad(input: Letter) {
 	const doc = await PDFDocument.load(bytes);
 	return { bytes, doc, pages: doc.getPages().map(pageText) };
 }
+
+describe('renderReport', () => {
+	it('puts the title at the top and the blocks below it', async () => {
+		const bytes = await renderReport({
+			title: 'Steuerübersicht 2025: Haus',
+			subtitle: ['Lindenstraße 4, 10115 Berlin'],
+			blocks: [{ paragraph: 'Überschuss: 1.000,00 €' }, { table: costTable }]
+		});
+		const doc = await PDFDocument.load(bytes);
+		expect(doc.getTitle()).toBe('Steuerübersicht 2025: Haus');
+		const text = pageText(doc.getPage(0));
+		expect(text.indexOf('Steuerübersicht 2025: Haus')).toBeLessThan(text.indexOf('Überschuss'));
+		expect(text).toContain('Lindenstraße 4, 10115 Berlin');
+		expect(text).toContain('1.193,17 €');
+		expect(text).toContain('Seite 1 von 1');
+	});
+});
 
 describe('renderLetter', () => {
 	it('renders a one-page letter with the DIN blocks and a footer', async () => {
@@ -101,6 +125,20 @@ describe('renderLetter', () => {
 		expect(all.match(/Position \d+\n/g)).toHaveLength(90);
 		expect(all.indexOf('Position 90')).toBeLessThan(all.indexOf('Summe'));
 		expect(all).toContain('Mit freundlichen Grüßen');
+	});
+
+	it('moves a sum row that no longer fits to the next page, under the header', async () => {
+		// 19 rows fill the first page exactly.
+		const rows = Array.from({ length: 19 }, (_, i) => [`Position ${i + 1}`, 'W', '1', '1']);
+		const { pages } = await renderAndLoad({
+			...letter,
+			closing: undefined,
+			tables: [{ ...costTable, rows }]
+		});
+		expect(pages).toHaveLength(2);
+		expect(pages[0]).toContain('Position 19');
+		expect(pages[0]).not.toContain('Summe');
+		expect(pages[1].indexOf('Kostenart')).toBeLessThan(pages[1].indexOf('Summe'));
 	});
 
 	it('keeps blocks in the given order', async () => {

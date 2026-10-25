@@ -13,6 +13,7 @@ import {
 	mapRecords,
 	normalizeIban,
 	parseBankFile,
+	proposeGenericMapping,
 	rememberedRule,
 	ruleMatches,
 	splitComdirectText,
@@ -247,6 +248,43 @@ describe('genericHeaderRow', () => {
 	});
 });
 
+describe('proposeGenericMapping', () => {
+	it('maps the columns by their names, ignoring case and spaces', () => {
+		expect(proposeGenericMapping(['Datum', ' name ', 'Verwendungszweck', 'BETRAG'])).toEqual({
+			bookingDate: 'Datum',
+			valueDate: '',
+			amount: 'BETRAG',
+			counterpartName: ' name ',
+			counterpartIban: '',
+			purpose: 'Verwendungszweck'
+		});
+	});
+
+	it('gives every column to one field only and prefers the earlier name', () => {
+		expect(proposeGenericMapping(['Buchungstag', 'Datum', 'Wertstellung', 'IBAN', 'Text'])).toEqual(
+			{
+				bookingDate: 'Buchungstag',
+				valueDate: 'Wertstellung',
+				amount: '',
+				counterpartName: '',
+				counterpartIban: 'IBAN',
+				purpose: 'Text'
+			}
+		);
+	});
+
+	it('leaves every field empty for unknown names', () => {
+		expect(Object.values(proposeGenericMapping(['Spalte 1', 'Spalte 2']))).toEqual([
+			'',
+			'',
+			'',
+			'',
+			'',
+			''
+		]);
+	});
+});
+
 describe('mapRecord', () => {
 	const mapping = {
 		bookingDate: 'Datum',
@@ -288,6 +326,24 @@ describe('mapRecord', () => {
 				externalId: null
 			}
 		});
+	});
+
+	it('reads a value date when there is one, else none, and an empty cell for a column the file lacks', () => {
+		const withValue = { ...mapping, valueDate: 'Valuta', externalId: 'Ref' };
+		const row = (Valuta: string) =>
+			mapRecord({ Datum: '01.10.2026', Valuta, Betrag: '5', Name: 'A', Text: 'B' }, withValue);
+		expect(row('02.10.2026')).toMatchObject({ ok: true, row: { valueDate: '2026-10-02' } });
+		expect(row('irgendwann')).toMatchObject({ ok: true, row: { valueDate: null } });
+		expect(row('')).toMatchObject({ ok: true, row: { valueDate: null, externalId: null } });
+	});
+
+	it('maps a record without the skip column as usual', () => {
+		const skip = { column: 'Status', value: 'Vorgemerkt', reason: 'vorgemerkt' };
+		const record = { Datum: '01.10.2026', Betrag: '5', Name: 'A', Text: 'B' };
+		expect(mapRecords([record, { ...record, Status: 'Vorgemerkt' }], mapping, skip)).toEqual([
+			expect.objectContaining({ ok: true }),
+			{ ok: false, reason: 'vorgemerkt' }
+		]);
 	});
 });
 
@@ -346,6 +402,8 @@ describe('ibans', () => {
 	it('normalizes and formats in groups of four', () => {
 		expect(normalizeIban(' de12 5001 0517 5407 3249 31 ')).toBe('DE12500105175407324931');
 		expect(normalizeIban('')).toBeNull();
+		expect(normalizeIban(null)).toBeNull();
+		expect(formatIban(' ')).toBe('');
 		expect(formatIban('DE12500105175407324931')).toBe('DE12 5001 0517 5407 3249 31');
 	});
 });

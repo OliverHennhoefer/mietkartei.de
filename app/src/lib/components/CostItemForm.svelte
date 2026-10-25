@@ -1,17 +1,21 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { today } from '../dates';
+	import { formatDate, today } from '../dates';
+	import { behgHint, co2KgFromKwh } from '../domain/co2';
 	import { CIRCLE_FROM_CATEGORY, defaultCostPeriod } from '../domain/operating-costs';
+	import { formatNumber, parseDecimal } from '../format';
 	import type { FieldErrors } from '../forms/fields';
 	import type { CostItemForm } from '../forms/operating-costs';
 	import { fuelLabels } from '../labels';
-	import { formatCentsPlain } from '../money';
-	import type { Fuel } from '../server/db/schema';
-	import type { CostItemSummary } from '../server/operating-costs/cost-items';
+	import { formatCents, formatCentsPlain, parseCents } from '../money';
+	import type { Fuel, PropertyKind } from '../server/db/schema';
+	import type { CostItemHistory, CostItemSummary } from '../server/operating-costs/cost-items';
 
 	// The one form of a Beleg, for creating (/belege/neu) and editing (/belege/[id]). The key and
 	// circle selects offer "Standard der Kostenart", which the action resolves to the category's
-	// defaults. Keys and circles are narrowed to the chosen property.
+	// defaults. Keys and circles are narrowed to the chosen property. Earlier items feed the
+	// suggestions of the text fields and, when creating, the "Übernehmen" of the last item of the
+	// chosen property and category.
 
 	// The fuel list comes from the labels: schema.ts is server-only code.
 	const fuels = Object.keys(fuelLabels) as Fuel[];
@@ -23,18 +27,37 @@
 		keys,
 		circles,
 		item,
+		history,
 		prefill,
 		errors,
 		values,
 		withNext = false
 	}: {
 		action: string;
-		properties: { id: string; name: string }[];
+		properties: {
+			id: string;
+			name: string;
+			kind?: PropertyKind;
+			associationManager?: string | null;
+			ownershipShare?: number | null;
+			ownershipShareTotal?: number | null;
+		}[];
 		categories: { id: string; name: string; betrkvItem: number | null; allocable: boolean }[];
 		keys: { id: string; name: string; propertyId: string | null }[];
 		circles: { id: string; name: string; propertyId: string; propertyName: string }[];
 		item?: CostItemSummary;
-		prefill?: { propertyId?: string; periodStart?: string; periodEnd?: string };
+		history?: CostItemHistory;
+		prefill?: {
+			propertyId?: string;
+			periodStart?: string;
+			periodEnd?: string;
+			categoryId?: string;
+			description?: string;
+			supplier?: string;
+			amount?: number;
+			allocable?: boolean;
+			insurancePolicyId?: string;
+		};
 		errors?: FieldErrors<CostItemForm>;
 		values?: Record<string, string>;
 		/** Show "Speichern und nächsten Beleg" (creating only). */
@@ -53,16 +76,28 @@
 		values?.propertyId ?? item?.propertyId ?? prefill?.propertyId ?? properties[0]?.id ?? ''
 	);
 	// svelte-ignore state_referenced_locally
-	let categoryId = $state(values?.categoryId ?? item?.categoryId ?? categories[0]?.id ?? '');
+	let categoryId = $state(
+		values?.categoryId ?? item?.categoryId ?? prefill?.categoryId ?? categories[0]?.id ?? ''
+	);
 	// svelte-ignore state_referenced_locally
 	let allocable = $state(
-		values ? values.allocable === 'on' : (item?.allocable ?? categories[0]?.allocable ?? true)
+		values
+			? values.allocable === 'on'
+			: (item?.allocable ??
+					prefill?.allocable ??
+					categories.find((category) => category.id === categoryId)?.allocable ??
+					true)
 	);
 
 	const propertyKeys = $derived(
 		keys.filter((key) => key.propertyId === null || key.propertyId === propertyId)
 	);
 	const propertyCircles = $derived(circles.filter((circle) => circle.propertyId === propertyId));
+	const property = $derived(properties.find((candidate) => candidate.id === propertyId));
+	/** The WEG figures show for an Eigentumswohnung, and for an item that already has them. */
+	const condominium = $derived(
+		property?.kind === 'condominium' || (item?.associationTotal ?? null) !== null
+	);
 
 	/** The allocable checkbox follows the category until the user ticks it. */
 	function categoryChanged() {
@@ -70,14 +105,155 @@
 		if (category) allocable = category.allocable;
 	}
 
+	let formElement = $state<HTMLFormElement>();
+	const lastItem = $derived(
+		item
+			? undefined
+			: history?.last.find(
+					(candidate) => candidate.propertyId === propertyId && candidate.categoryId === categoryId
+				)
+	);
+
+	/** Sets a field of the form; a select only to one of its options. */
+	function setField(name: string, value: string) {
+		const field = formElement?.elements.namedItem(name);
+		if (field instanceof HTMLSelectElement) {
+			if ([...field.options].some((option) => option.value === value)) field.value = value;
+		} else if (field instanceof HTMLInputElement) {
+			field.value = value;
+		}
+	}
+
+	/**
+	 * Fills the form from the last item of the property and category: the yearly bill usually
+	 * repeats with the same supplier, key and circle. A year in the description moves to the year
+	 * of the period entered.
+	 */
+	function copyLast() {
+		if (!lastItem || !formElement) return;
+		const start = formElement.elements.namedItem('periodStart');
+		const year = start instanceof HTMLInputElement ? start.value.slice(0, 4) : '';
+		const lastYear = lastItem.periodEnd.slice(0, 4);
+		setField(
+			'description',
+			/^\d{4}$/.test(year)
+				? lastItem.description.replace(new RegExp(`\\b${lastYear}\\b`, 'g'), year)
+				: lastItem.description
+		);
+		setField('supplier', lastItem.supplier ?? '');
+		setField('amount', formatCentsPlain(lastItem.amount));
+		setField('allocationKeyId', lastItem.allocationKeyId);
+		setField('billingCircleId', lastItem.billingCircleId ?? '');
+	}
+
 	const fuelChoice = $derived(value('fuel', item?.fuel ?? ''));
+
+	/** The fields the BEHG hint reads, as typed; null until the user types after a submit. */
+	let typed = $state<Record<string, string> | null>(null);
+	$effect(() => {
+		void values;
+		typed = null;
+	});
+
+	function readFuelFields(element: HTMLFormElement) {
+		const entries = new FormData(element);
+		typed = Object.fromEntries(
+			[
+				'periodStart',
+				'periodEnd',
+				'fuel',
+				'fuelKwh',
+				'co2Kg',
+				'amount',
+				'associationTotal',
+				'associationKeyTotal',
+				'associationKeyShare'
+			].map((name) => [name, String(entries.get(name) ?? '')])
+		);
+	}
+
+	/**
+	 * What the emissions cost at the BEHG price, for a bill within one calendar year; a period
+	 * across the turn of the year would mix two prices.
+	 */
+	const costHint = $derived.by(() => {
+		const start =
+			typed?.periodStart ??
+			value('periodStart', item?.periodStart ?? prefill?.periodStart ?? period.periodStart);
+		const end =
+			typed?.periodEnd ??
+			value('periodEnd', item?.periodEnd ?? prefill?.periodEnd ?? period.periodEnd);
+		const year = start.slice(0, 4);
+		if (!/^\d{4}$/.test(year) || end.slice(0, 4) !== year) return null;
+		const fuel = typed?.fuel ?? fuelChoice;
+		const kg =
+			parseDecimal(typed?.co2Kg ?? value('co2Kg', item?.co2Kg?.toString() ?? '')) ??
+			co2KgFromKwh(
+				fuel,
+				parseDecimal(typed?.fuelKwh ?? value('fuelKwh', item?.fuelKwh?.toString() ?? ''))
+			);
+		return kg === null ? null : behgHint(Number(year), kg);
+	});
+
+	/** A decimal for a field, as typed in Germany. */
+	const decimal = (saved: number | null | undefined) =>
+		saved === null || saved === undefined ? '' : String(saved).replace('.', ',');
+	/** The WEG fields start from the item, else from the MEA of the property. */
+	const associationValue = (
+		name: 'associationKey' | 'associationKeyTotal' | 'associationKeyShare'
+	) => {
+		if (item) {
+			if (name === 'associationKey') return value(name, item.associationKey ?? '');
+			return value(name, decimal(item[name]));
+		}
+		if (name === 'associationKey') return value(name, 'MEA');
+		return value(
+			name,
+			decimal(
+				name === 'associationKeyTotal' ? property?.ownershipShareTotal : property?.ownershipShare
+			)
+		);
+	};
+
+	/** What the key of the WEG gives the property, next to the amount entered from the Verwalter. */
+	const associationHint = $derived.by(() => {
+		const read = (name: string, fallback: string) => typed?.[name] ?? value(name, fallback);
+		const total = parseCents(
+			read(
+				'associationTotal',
+				item?.associationTotal != null ? formatCentsPlain(item.associationTotal) : ''
+			)
+		);
+		const keyTotal = parseDecimal(
+			read('associationKeyTotal', associationValue('associationKeyTotal'))
+		);
+		const keyShare = parseDecimal(
+			read('associationKeyShare', associationValue('associationKeyShare'))
+		);
+		if (total === undefined || !keyTotal || keyShare === null) return null;
+		const share = Math.round((total * keyShare) / keyTotal);
+		const amount = parseCents(read('amount', item ? formatCentsPlain(item.amount) : ''));
+		const differs = amount !== undefined && Math.abs(amount - share) > 100;
+		return `${formatNumber(keyShare)} von ${formatNumber(keyTotal)} ergeben ${formatCents(share)}${differs ? `; eingetragen sind ${formatCents(amount)}` : ''}.`;
+	});
 	const keyChoice = $derived(value('allocationKeyId', item?.allocationKeyId ?? ''));
 	const circleChoice = $derived(
 		value('billingCircleId', item ? (item.billingCircleId ?? '') : CIRCLE_FROM_CATEGORY)
 	);
 </script>
 
-<form method="POST" {action} class="card" enctype="multipart/form-data" use:enhance>
+<form
+	method="POST"
+	{action}
+	class="card"
+	enctype="multipart/form-data"
+	bind:this={formElement}
+	use:enhance
+	oninput={(event) => readFuelFields(event.currentTarget)}
+>
+	{#if prefill?.insurancePolicyId}
+		<input type="hidden" name="insurancePolicyId" value={prefill.insurancePolicyId} />
+	{/if}
 	<label>
 		Objekt
 		<select
@@ -109,6 +285,15 @@
 		</select>
 		{#if errors?.categoryId}<span class="error">{errors.categoryId}</span>{/if}
 	</label>
+	{#if lastItem}
+		<p class="form-wide last muted small">
+			<span>
+				Letzter Beleg dieser Kostenart: {lastItem.supplier ?? lastItem.description} ·
+				{formatCents(lastItem.amount)} · bis {formatDate(lastItem.periodEnd)}
+			</span>
+			<button type="button" class="secondary small" onclick={copyLast}>Übernehmen</button>
+		</p>
+	{/if}
 	<label>
 		Umlageschlüssel
 		<select name="allocationKeyId" aria-invalid={errors?.allocationKeyId ? 'true' : undefined}>
@@ -138,7 +323,9 @@
 		Beschreibung
 		<input
 			name="description"
-			defaultValue={value('description', item?.description ?? '')}
+			defaultValue={value('description', item?.description ?? prefill?.description ?? '')}
+			list={history?.descriptions.length ? 'cost-item-descriptions' : undefined}
+			autocomplete="off"
 			placeholder="z. B. Grundsteuer 2025"
 			aria-invalid={errors?.description ? 'true' : undefined}
 			required
@@ -149,7 +336,9 @@
 		Lieferant (optional)
 		<input
 			name="supplier"
-			defaultValue={value('supplier', item?.supplier ?? '')}
+			defaultValue={value('supplier', item?.supplier ?? prefill?.supplier ?? '')}
+			list={history?.suppliers.length ? 'cost-item-suppliers' : undefined}
+			autocomplete="off"
 			aria-invalid={errors?.supplier ? 'true' : undefined}
 		/>
 		{#if errors?.supplier}<span class="error">{errors.supplier}</span>{/if}
@@ -199,7 +388,14 @@
 		<input
 			name="amount"
 			inputmode="decimal"
-			defaultValue={value('amount', item ? formatCentsPlain(item.amount) : '')}
+			defaultValue={value(
+				'amount',
+				item
+					? formatCentsPlain(item.amount)
+					: prefill?.amount !== undefined
+						? formatCentsPlain(prefill.amount)
+						: ''
+			)}
 			aria-invalid={errors?.amount ? 'true' : undefined}
 			required
 		/>
@@ -209,6 +405,66 @@
 		<input type="checkbox" name="allocable" bind:checked={allocable} />
 		umlagefähig
 	</label>
+
+	{#if condominium}
+		<fieldset class="fuel form-wide">
+			<legend>Aus der Hausgeldabrechnung (WEG)</legend>
+			<p class="muted small">
+				Die Gesamtkosten der WEG und der Schlüssel, mit dem der Verwalter sie verteilt hat. Als
+				Betrag oben trägst du den Anteil der Wohnung laut Hausgeldabrechnung ein. Die Abrechnung an
+				den Mieter zeigt dann alle drei Werte, damit er den Anteil nachrechnen kann.
+			</p>
+			<div class="form">
+				<label>
+					Gesamtkosten der WEG in €
+					<input
+						name="associationTotal"
+						inputmode="decimal"
+						defaultValue={value(
+							'associationTotal',
+							item?.associationTotal != null ? formatCentsPlain(item.associationTotal) : ''
+						)}
+						aria-invalid={errors?.associationTotal ? 'true' : undefined}
+					/>
+					{#if errors?.associationTotal}<span class="error">{errors.associationTotal}</span>{/if}
+				</label>
+				<label>
+					Schlüssel der WEG
+					<input
+						name="associationKey"
+						defaultValue={associationValue('associationKey')}
+						placeholder="z. B. MEA, Wohnfläche, Einheiten"
+						aria-invalid={errors?.associationKey ? 'true' : undefined}
+					/>
+					{#if errors?.associationKey}<span class="error">{errors.associationKey}</span>{/if}
+				</label>
+				<label>
+					Summe des Schlüssels in der WEG
+					<input
+						name="associationKeyTotal"
+						inputmode="decimal"
+						defaultValue={associationValue('associationKeyTotal')}
+						placeholder="z. B. 1000"
+						aria-invalid={errors?.associationKeyTotal ? 'true' : undefined}
+					/>
+					{#if errors?.associationKeyTotal}<span class="error">{errors.associationKeyTotal}</span
+						>{/if}
+				</label>
+				<label>
+					Anteil der Wohnung
+					<input
+						name="associationKeyShare"
+						inputmode="decimal"
+						defaultValue={associationValue('associationKeyShare')}
+						placeholder="z. B. 85"
+						aria-invalid={errors?.associationKeyShare ? 'true' : undefined}
+					/>
+					{#if errors?.associationKeyShare}<span class="error">{errors.associationKeyShare}</span
+						>{:else if associationHint}<span class="muted small">{associationHint}</span>{/if}
+				</label>
+			</div>
+		</fieldset>
+	{/if}
 
 	<fieldset class="fuel form-wide">
 		<legend>Brennstoffrechnung (für die CO₂-Kostenaufteilung)</legend>
@@ -258,7 +514,9 @@
 					defaultValue={value('co2Cost', item?.co2Cost ? formatCentsPlain(item.co2Cost) : '')}
 					aria-invalid={errors?.co2Cost ? 'true' : undefined}
 				/>
-				{#if errors?.co2Cost}<span class="error">{errors.co2Cost}</span>{/if}
+				{#if errors?.co2Cost}<span class="error">{errors.co2Cost}</span>{:else if costHint}<span
+						class="muted small">{costHint}</span
+					>{/if}
 			</label>
 		</div>
 	</fieldset>
@@ -268,6 +526,15 @@
 		<input type="file" name="receipt" aria-invalid={errors?.receipt ? 'true' : undefined} />
 		{#if errors?.receipt}<span class="error">{errors.receipt}</span>{/if}
 	</label>
+
+	{#if history}
+		<datalist id="cost-item-descriptions">
+			{#each history.descriptions as text (text)}<option value={text}></option>{/each}
+		</datalist>
+		<datalist id="cost-item-suppliers">
+			{#each history.suppliers as text (text)}<option value={text}></option>{/each}
+		</datalist>
+	{/if}
 
 	<div class="form-actions">
 		<button type="submit">Speichern</button>
@@ -280,6 +547,13 @@
 </form>
 
 <style>
+	.last {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.25rem 0.75rem;
+		margin: 0;
+	}
 	.fuel {
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius);

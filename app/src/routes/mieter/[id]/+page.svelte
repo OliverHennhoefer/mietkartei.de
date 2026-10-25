@@ -1,7 +1,7 @@
 <script lang="ts">
-	import Alert from '#lib/components/Alert.svelte';
+	import ArchiveSection from '#lib/components/ArchiveSection.svelte';
 	import Badge from '#lib/components/Badge.svelte';
-	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import DeleteSection from '#lib/components/DeleteSection.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { personName } from '#lib/format.ts';
@@ -18,20 +18,23 @@
 
 <PageHeader
 	title={personName(data.tenant)}
-	lead={data.tenant.salutation ?? undefined}
+	lead={[
+		data.tenant.salutation,
+		data.tenant.archivedAt ? `archiviert am ${formatDate(data.tenant.archivedAt)}` : null
+	]
+		.filter(Boolean)
+		.join(' · ') || undefined}
 	back={{ href: '/mieter', label: 'Alle Mieter' }}
 >
 	{#snippet actions()}
-		<a href="/vertraege/neu?tenantId={data.tenant.id}" class="button secondary"
-			>Mietvertrag anlegen</a
-		>
+		{#if !data.tenant.archivedAt}
+			<a href="/vertraege/neu?tenantId={data.tenant.id}" class="button secondary"
+				>Mietvertrag anlegen</a
+			>
+		{/if}
 		<a href="/mieter/{data.tenant.id}/bearbeiten" class="button">Bearbeiten</a>
 	{/snippet}
 </PageHeader>
-
-{#if form?.deleteError}
-	<Alert tone="danger"><p>{form.deleteError}</p></Alert>
-{/if}
 
 <h2>Kontakt</h2>
 <dl class="details">
@@ -78,11 +81,25 @@
 <h2>Dokumente</h2>
 <p><a href="/dokumente?tenantId={data.tenant.id}">Dokumente dieses Mieters</a></p>
 
-<h2>Löschen</h2>
-<p class="muted small">
-	Ein Mieter, der auf einem Mietvertrag steht, bleibt erhalten; die Verträge sind die Historie.
-</p>
-<ConfirmButton action="?/delete" label="Mieter löschen" message="Diesen Mieter wirklich löschen?" />
+<ArchiveSection
+	heading="Archivieren"
+	label="Mieter archivieren"
+	question="Mieter {personName(
+		data.tenant
+	)} archivieren? Du kannst ihn jederzeit aus dem Archiv holen."
+	text="Für einen ausgezogenen Mieter: Er verschwindet aus der Mieterliste und den Auswahlfeldern, neue Mietverträge mit ihm sind nicht mehr möglich. Mietverträge, Mietkonto, Abrechnungen und Dokumente bleiben erhalten."
+	check={data.archiving}
+	error={form?.archiveError}
+/>
+
+<DeleteSection
+	heading="Löschen"
+	label="Mieter löschen"
+	question="Mieter {personName(data.tenant)} löschen?"
+	check={data.deletion}
+	alternative="Ist der Mieter ausgezogen, archiviere ihn stattdessen: Die Historie bleibt, und er verschwindet aus Listen und Auswahlfeldern."
+	error={form?.deleteError}
+/>
 
 <style>
 	.notes {

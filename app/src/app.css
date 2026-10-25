@@ -21,10 +21,21 @@
 	--color-danger: #b4332a;
 	--color-danger-subtle: #fbf1f0;
 	--color-danger-border: #ecc9c5;
+	/* Charts: money in dark, money out mid-grey; told apart by lightness, never by hue alone. */
+	--color-chart-income: #202020;
+	--color-chart-expense: #8c8c8c;
+	/* The neon block of the logo; used sparingly, only around the subscription. Black text on it
+	   in both colour schemes. */
+	--color-highlight: #f5ff00;
+	--color-highlight-text: #000;
 	--radius: 10px;
 	--sidebar-width: 15.5rem;
 	--header-height: 4rem;
 	--shadow: 0 1px 2px rgb(0 0 0 / 3%);
+	--color-focus-ring: rgb(0 0 0 / 8%);
+	--icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b6b6b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+	--icon-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b6b6b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5' width='17' height='15.5' rx='2.5'/%3E%3Cpath d='M3.5 10h17M8 3v4M16 3v4'/%3E%3C/svg%3E");
+	--icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
 	color-scheme: light dark;
 	font-family:
 		Geist,
@@ -105,26 +116,263 @@ textarea {
 	min-height: var(--header-height);
 	padding: 0 1.5rem;
 }
-.brand {
-	display: inline-flex;
-}
-.brand img {
-	display: block;
-	width: 52px;
-	height: 52px;
+.authenticated .site-header {
+	display: flex;
+	align-items: center;
 }
 .workspace-bar {
-	display: none;
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 1rem;
+	padding: 0 1.5rem 0 0;
+}
+
+/* The subscription notice: one quiet line in the top bar, louder only when writes are refused. */
+.billing-notice {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	min-width: 0;
+	/* Left-aligned in the bar; the account button stays on the right. */
+	margin: 0 auto 0 0;
+	color: var(--color-muted);
+	font-size: 0.8rem;
+}
+.billing-notice span {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+.billing-notice a {
+	flex-shrink: 0;
+	color: inherit;
+	font-weight: 550;
+}
+.billing-notice .icon {
+	flex-shrink: 0;
+}
+.billing-notice.warning {
+	color: var(--color-text);
+}
+.billing-notice.danger {
+	color: var(--color-danger);
+}
+.billing-notice.highlight {
+	padding: 0.1rem 0.5rem;
+	background: var(--color-highlight);
+	color: var(--color-highlight-text);
+}
+.billing-notice.highlight a {
+	text-decoration-color: currentColor;
+}
+
+/* The account button top right and its menu. */
+.account {
+	position: relative;
+}
+button.account-button {
+	min-height: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: transparent;
+}
+button.account-button:hover .avatar,
+button.account-button[aria-expanded='true'] .avatar {
+	background: var(--color-hover);
+}
+.account-menu {
+	position: absolute;
+	top: calc(100% + 0.5rem);
+	right: 0;
+	z-index: 50;
+	display: grid;
+	min-width: 15rem;
+	max-width: min(20rem, calc(100vw - 2rem));
+	padding: 0.4rem;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius);
+	background: var(--color-surface);
+	box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+.account-user {
+	display: grid;
+	gap: 0.1rem;
+	padding: 0.5rem 0.65rem 0.65rem;
+	margin-bottom: 0.3rem;
+	border-bottom: 1px solid var(--color-border);
+	font-size: 0.85rem;
+	font-weight: 500;
+}
+.account-name,
+.account-email {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+.account-email {
+	color: var(--color-muted);
+	font-size: 0.75rem;
+	font-weight: 400;
+}
+.account-menu a,
+.account-menu button {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 0.65rem;
+	width: 100%;
+	min-height: 2.4rem;
+	padding: 0.4rem 0.65rem;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--color-text);
+	font-size: 0.875rem;
+	font-weight: 450;
+	text-decoration: none;
+}
+.account-menu a:hover,
+.account-menu button:hover {
+	background: var(--color-hover);
+}
+
+/* The settings dialog: sections on the left, the open one on the right. */
+.settings-dialog {
+	position: fixed;
+	inset: 0;
+	width: min(60rem, calc(100vw - 2rem));
+	height: min(44rem, calc(100dvh - 2rem));
+	max-width: none;
+	max-height: none;
+	margin: auto;
+	padding: 0;
+	border: 1px solid var(--color-border);
+	border-radius: 14px;
+	background: var(--color-background);
+	color: var(--color-text);
+	box-shadow: 0 24px 64px rgb(0 0 0 / 22%);
+}
+.settings-dialog::backdrop {
+	background: rgb(0 0 0 / 35%);
+}
+.settings-frame {
+	display: grid;
+	grid-template-columns: 14rem minmax(0, 1fr);
+	height: 100%;
+}
+.settings-side {
+	padding: 1.25rem 0.75rem;
+	background: var(--color-sidebar);
+	border-right: 1px solid var(--color-border);
+	overflow-y: auto;
+}
+.settings-title {
+	margin: 0 0 0.75rem;
+	padding: 0 0.75rem;
+	font-weight: 550;
+}
+.settings-side nav {
+	display: grid;
+	gap: 0.15rem;
+}
+.settings-side a {
+	display: flex;
+	align-items: center;
+	gap: 0.65rem;
+	min-height: 2.4rem;
+	padding: 0.4rem 0.75rem;
+	border-radius: 8px;
+	color: var(--color-muted);
+	font-size: 0.875rem;
+	text-decoration: none;
+}
+.settings-side a:hover {
+	background: var(--color-hover);
+	color: var(--color-text);
+}
+.settings-side a[aria-current='page'] {
+	background: var(--color-hover);
+	color: var(--color-text);
+	font-weight: 550;
+}
+.settings-content {
+	position: relative;
+	padding: 2rem 2.25rem 2.5rem;
+	overflow-y: auto;
+}
+.settings-content .page-header {
+	padding-right: 2.5rem;
+}
+button.settings-close {
+	position: absolute;
+	top: 0.75rem;
+	right: 0.75rem;
+}
+@media (max-width: 40rem) {
+	.settings-dialog {
+		width: 100vw;
+		height: 100dvh;
+		border: 0;
+		border-radius: 0;
+	}
+	.settings-frame {
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: auto minmax(0, 1fr);
+	}
+	.settings-side {
+		padding: 0.75rem;
+		border-right: 0;
+		border-bottom: 1px solid var(--color-border);
+	}
+	.settings-title {
+		margin-bottom: 0.5rem;
+	}
+	.settings-side nav {
+		display: flex;
+		overflow-x: auto;
+	}
+	.settings-side a {
+		flex-shrink: 0;
+	}
+	/* Inside, so the sideways scrolling sections do not cut off the focus ring. */
+	.settings-side a:focus-visible {
+		outline-offset: -2px;
+	}
+	.settings-content {
+		padding: 1.5rem 1.25rem 2rem;
+	}
 }
 .nav-toggle {
 	align-self: center;
+}
+.nav-version {
+	margin: auto 0 0;
+	padding: 0 0.75rem;
+	font-size: 0.75rem;
+}
+.site-nav .nav-version a {
+	display: inline;
+	min-height: 0;
+	padding: 0;
+	border: 0;
+	color: var(--color-muted);
+	font-size: inherit;
+	font-weight: 400;
+}
+.site-nav .nav-version a:hover {
+	background: none;
+	color: var(--color-text);
 }
 .site-nav {
 	display: none;
 	flex-direction: column;
 	gap: 1.5rem;
-	background: var(--color-sidebar);
-	padding: 1.5rem 0.875rem 0;
+	background: var(--color-surface);
+	padding: 1.5rem 0.75rem 1.5rem;
 }
 .site-nav.open {
 	display: flex;
@@ -154,52 +402,33 @@ textarea {
 	background: rgb(0 0 0 / 20%);
 }
 .nav-label {
-	margin: 0 0 0.5rem;
+	margin: 0 0 0.35rem;
 	padding: 0 0.75rem;
-	font-size: 0.7rem;
-	font-weight: 500;
-	letter-spacing: 0.07em;
+	font-size: 0.8rem;
+	font-weight: 450;
 	color: var(--color-muted);
-	text-transform: uppercase;
 }
 .site-nav a {
 	display: flex;
 	align-items: center;
 	gap: 0.75rem;
-	min-height: 2.75rem;
-	padding: 0.5rem 0.75rem;
-	border: 1px solid transparent;
+	min-height: 2.4rem;
+	padding: 0.4rem 0.75rem;
 	border-radius: 8px;
-	color: var(--color-muted);
+	color: var(--color-text);
 	text-decoration: none;
-	font-size: 0.9rem;
-	font-weight: 450;
+	font-size: 0.95rem;
+	font-weight: 400;
 	transition:
 		background 140ms,
 		color 140ms;
 }
 .site-nav a:hover {
-	color: var(--color-text);
-	background: var(--color-hover);
+	background: color-mix(in srgb, var(--color-hover), var(--color-surface) 45%);
 }
 .site-nav a[aria-current='page'] {
-	background: var(--color-surface);
-	color: var(--color-text);
-	border-color: var(--color-border);
-	box-shadow: var(--shadow);
-	font-weight: 550;
-}
-.nav-bottom {
-	margin-top: auto;
-	padding-top: 2rem;
-}
-.nav-account {
-	display: flex;
-	align-items: center;
-	gap: 0.6rem;
-	margin-top: 1rem;
-	padding: 1.15rem 0.25rem;
-	border-top: 1px solid var(--color-border);
+	background: var(--color-hover);
+	font-weight: 500;
 }
 .avatar {
 	display: grid;
@@ -210,27 +439,9 @@ textarea {
 	border: 1px solid var(--color-border);
 	border-radius: 50%;
 	background: var(--color-surface);
+	color: var(--color-text);
 	font-size: 0.7rem;
 	font-weight: 550;
-}
-.nav-user {
-	display: grid;
-	gap: 0.1rem;
-	min-width: 0;
-	flex: 1;
-	font-size: 0.8rem;
-	font-weight: 500;
-}
-.nav-name,
-.nav-email {
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-}
-.nav-email {
-	color: var(--color-muted);
-	font-size: 0.72rem;
-	font-weight: 400;
 }
 .site-main {
 	min-width: 0;
@@ -242,6 +453,40 @@ textarea {
 .app-shell:not(.authenticated) .site-main {
 	max-width: 32rem;
 	padding-top: clamp(3rem, 10vh, 8rem);
+}
+/* Signed out, the logo stands centered above the form in place of a header. */
+.auth-brand {
+	display: block;
+	width: fit-content;
+	margin: 0 auto 2.5rem;
+}
+.auth-brand img {
+	display: block;
+	width: auto;
+	max-width: 100%;
+	height: 3.75rem;
+	object-fit: contain;
+}
+
+/* The launch notice over the sign-in page, closed with one click. */
+.launch-notice {
+	width: min(26rem, calc(100vw - 2rem));
+	margin: auto;
+	padding: 1.75rem;
+	border: 1px solid var(--color-border);
+	border-radius: 14px;
+	background: var(--color-background);
+	color: var(--color-text);
+	box-shadow: 0 24px 64px rgb(0 0 0 / 22%);
+}
+.launch-notice::backdrop {
+	background: rgb(0 0 0 / 35%);
+}
+.launch-notice p {
+	margin: 0 0 1.5rem;
+}
+.launch-notice button {
+	width: 100%;
 }
 
 /* Type and surfaces. */
@@ -345,6 +590,9 @@ a:hover {
 
 /* Data stays easy to scan, with horizontal scrolling confined to tables. */
 .table-wrap {
+	/* Positioned, so absolutely positioned content (visually hidden labels) scrolls with the table
+	   instead of widening the page. */
+	position: relative;
 	max-width: 100%;
 	overflow-x: auto;
 	background: var(--color-surface);
@@ -432,18 +680,20 @@ input,
 select,
 textarea {
 	min-width: 0;
-	min-height: 2.85rem;
-	padding: 0.65rem 0.85rem;
+	min-height: 2.75rem;
+	padding: 0.55rem 0.8rem;
 	border: 1px solid var(--color-border);
 	border-radius: 8px;
-	background: var(--color-surface);
+	background-color: var(--color-surface);
 	width: 100%;
 	color: inherit;
 	font-weight: 400;
 	line-height: 1.45;
+	box-shadow: var(--shadow);
 	transition:
 		border-color 140ms,
-		box-shadow 140ms;
+		box-shadow 140ms,
+		background-color 140ms;
 }
 input::placeholder,
 textarea::placeholder {
@@ -453,34 +703,155 @@ textarea::placeholder {
 input:hover,
 select:hover,
 textarea:hover {
-	border-color: var(--color-muted);
+	border-color: color-mix(in srgb, var(--color-muted), var(--color-border) 50%);
 }
 input:focus,
 select:focus,
 textarea:focus {
 	border-color: var(--color-text);
 	outline: none;
-	box-shadow: 0 0 0 3px var(--color-hover);
+	box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+input:disabled,
+select:disabled,
+textarea:disabled {
+	background-color: var(--color-subtle);
+	color: var(--color-muted);
+	cursor: not-allowed;
+}
+/* Selects match the text input; only the closed field is restyled, the option list stays native. */
+select {
+	appearance: none;
+	padding-right: 2.4rem;
+	background-image: var(--icon-chevron);
+	background-repeat: no-repeat;
+	background-position: right 0.8rem center;
+	background-size: 1rem;
+	cursor: pointer;
+	text-overflow: ellipsis;
+}
+select[multiple] {
+	padding-right: 0.8rem;
+	background-image: none;
+}
+/* Date fields keep the native picker but show our own calendar icon. */
+input[type='date'],
+input[type='month'] {
+	cursor: text;
+}
+input[type='date']::-webkit-calendar-picker-indicator,
+input[type='month']::-webkit-calendar-picker-indicator {
+	width: 1rem;
+	height: 1rem;
+	padding: 0.2rem;
+	margin-right: -0.2rem;
+	border-radius: 5px;
+	background: var(--icon-calendar) center / 1rem no-repeat;
+	color: transparent;
+	opacity: 0.75;
+	cursor: pointer;
+}
+input[type='date']::-webkit-calendar-picker-indicator:hover,
+input[type='month']::-webkit-calendar-picker-indicator:hover {
+	background-color: var(--color-hover);
+	opacity: 1;
+}
+input[type='date']::-webkit-datetime-edit-fields-wrapper,
+input[type='month']::-webkit-datetime-edit-fields-wrapper {
+	padding: 0;
+}
+input[type='date']:invalid::-webkit-datetime-edit,
+input[type='month']:invalid::-webkit-datetime-edit {
+	color: var(--color-muted);
+}
+/* Number fields without spinners. */
+input[type='number'] {
+	appearance: textfield;
+	font-variant-numeric: tabular-nums;
+}
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+	appearance: none;
+	margin: 0;
 }
 input[type='checkbox'],
 input[type='radio'] {
-	width: 1rem;
-	min-height: 1rem;
-	height: 1rem;
-	accent-color: var(--color-accent);
+	appearance: none;
+	flex-shrink: 0;
+	width: 1.15rem;
+	min-width: 1.15rem;
+	height: 1.15rem;
+	min-height: 1.15rem;
+	padding: 0;
+	margin: 0;
+	border: 1px solid color-mix(in srgb, var(--color-muted), var(--color-border) 40%);
+	border-radius: 5px;
+	background: var(--color-surface) center / 0.8rem no-repeat;
+	cursor: pointer;
+	transition:
+		background-color 140ms,
+		border-color 140ms,
+		box-shadow 140ms;
+}
+input[type='radio'] {
+	border-radius: 50%;
+}
+input[type='checkbox']:checked {
+	border-color: var(--color-accent);
+	background-color: var(--color-accent);
+	background-image: var(--icon-check);
+}
+input[type='radio']:checked {
+	border-color: var(--color-accent);
+	background-color: var(--color-accent);
+	box-shadow: inset 0 0 0 0.22rem var(--color-surface);
+}
+input[type='radio']:checked:focus-visible {
+	box-shadow:
+		inset 0 0 0 0.22rem var(--color-surface),
+		0 0 0 3px var(--color-focus-ring);
+}
+input[type='checkbox']:focus,
+input[type='radio']:focus {
+	box-shadow: none;
+}
+input[type='checkbox']:focus-visible {
+	box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+input[type='checkbox']:disabled,
+input[type='radio']:disabled {
+	opacity: 0.45;
 }
 input[type='file'] {
-	padding: 0.5rem;
+	padding: 0.6rem;
+	border-style: dashed;
+	background-color: var(--color-subtle);
+	color: var(--color-muted);
+	cursor: pointer;
+}
+input[type='file']:hover {
+	border-color: var(--color-muted);
 }
 input::file-selector-button {
-	padding: 0.3rem 0.65rem;
+	min-height: 2rem;
+	padding: 0.3rem 0.75rem;
 	margin-right: 0.75rem;
 	border: 1px solid var(--color-border);
-	border-radius: 5px;
-	background: var(--color-subtle);
+	border-radius: 6px;
+	background: var(--color-surface);
+	box-shadow: var(--shadow);
 	color: var(--color-text);
 	font: inherit;
+	font-size: 0.8rem;
+	font-weight: 500;
 	cursor: pointer;
+	transition:
+		background 140ms,
+		border-color 140ms;
+}
+input::file-selector-button:hover {
+	background: var(--color-hover);
+	border-color: var(--color-muted);
 }
 textarea {
 	min-height: 7rem;
@@ -547,6 +918,24 @@ button.danger:hover,
 	border-color: var(--color-danger-border);
 	color: var(--color-danger);
 }
+button.highlight,
+.button.highlight {
+	background: var(--color-highlight);
+	color: var(--color-highlight-text);
+	border-color: var(--color-highlight);
+	font-weight: 600;
+}
+button.highlight:hover,
+.button.highlight:hover {
+	background: color-mix(in srgb, var(--color-highlight), #000 6%);
+	border-color: transparent;
+}
+mark.highlight {
+	padding: 0 0.2em;
+	background: var(--color-highlight);
+	color: var(--color-highlight-text);
+	font-weight: 600;
+}
 button.link {
 	min-height: auto;
 	background: none;
@@ -603,16 +992,6 @@ button.icon-button:hover {
 }
 .narrow > .muted {
 	font-size: 0.85rem;
-}
-.auth-icon {
-	display: grid;
-	place-items: center;
-	width: 3.5rem;
-	height: 3.5rem;
-	margin-bottom: 1.75rem;
-	border: 1px solid var(--color-border);
-	border-radius: 14px;
-	background: var(--color-subtle);
 }
 .auth-lead {
 	margin: 0.75rem 0 0;
@@ -671,45 +1050,42 @@ dl.details dd {
 }
 
 @media (min-width: 60rem) {
-	.authenticated .site-header {
+	/* The sidebar runs the full height; the top bar belongs to the content column only. */
+	.app-shell.authenticated {
 		display: grid;
 		grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-	}
-	.authenticated .brand-bar {
-		background: var(--color-sidebar);
-		border-right: 1px solid var(--color-border);
-	}
-	.workspace-bar {
-		display: flex;
-		align-items: center;
-		justify-content: flex-end;
-		gap: 1rem;
-		padding: 0 2.5rem;
-	}
-	.help-link {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.4rem;
-		color: var(--color-muted);
-		font-size: 0.8rem;
-		text-decoration: none;
-	}
-	.help-link:hover {
-		color: var(--color-text);
+		grid-template-rows: auto 1fr;
+		min-height: 100svh;
 	}
 	.authenticated .site-layout {
-		display: grid;
-		grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-		min-height: calc(100svh - var(--header-height));
+		display: contents;
+	}
+	.authenticated .site-header {
+		grid-column: 2;
+		grid-row: 1;
+	}
+	.authenticated .brand-bar {
+		display: none;
+	}
+	.workspace-bar {
+		min-height: var(--header-height);
+		padding: 0 2.5rem;
+	}
+	.authenticated .site-main {
+		grid-column: 2;
+		grid-row: 2;
 	}
 	.site-nav,
 	.site-nav.open {
+		grid-column: 1;
+		grid-row: 1 / span 2;
 		position: sticky;
-		top: var(--header-height);
+		top: 0;
 		display: flex;
 		width: auto;
-		height: calc(100svh - var(--header-height));
+		height: 100svh;
 		overflow-y: auto;
+		padding-top: 1.25rem;
 		border-right: 1px solid var(--color-border);
 	}
 	button.nav-toggle,
@@ -751,6 +1127,91 @@ dl.details dd {
 	dl.details {
 		gap: 0.75rem 1rem;
 	}
+
+	/* On a phone each table row becomes a small card: the first cell is its title, every further
+	   cell a line labelled with its column heading (data-label, set by the layout). */
+	table.table,
+	.table tbody,
+	.table tfoot,
+	.table tr,
+	.table td {
+		display: block;
+	}
+	.table thead {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+	.table tbody tr {
+		padding: 0.9rem 1.1rem;
+		border-bottom: 1px solid var(--color-border);
+	}
+	.table tbody tr:last-child {
+		border-bottom: 0;
+	}
+	.table th,
+	.table td {
+		padding: 0;
+		border: 0;
+	}
+	.table td:empty,
+	.table td[data-blank] {
+		display: none;
+	}
+	.table td + td {
+		margin-top: 0.35rem;
+	}
+	.table tbody td:first-child {
+		font-weight: 500;
+	}
+	.table td[data-label]:not(:first-child) {
+		display: flow-root;
+		padding-left: 8.25rem;
+		text-align: left;
+	}
+	.table td[data-label]:not(:first-child)::before {
+		content: attr(data-label);
+		float: left;
+		width: 7.5rem;
+		margin-left: -8.25rem;
+		color: var(--color-muted);
+		font-size: 0.78rem;
+		font-weight: 450;
+		line-height: 1.6rem;
+		hyphens: auto;
+		overflow-wrap: anywhere;
+	}
+	.table .num,
+	.table .actions {
+		text-align: left;
+		white-space: normal;
+	}
+	/* Actions and cells with nothing but a button (unlabelled, see the layout) form one row. */
+	.table td.actions,
+	.table td:has(> form:only-child),
+	.table td:has(> button:only-child) {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 1.25rem;
+		margin-top: 0.6rem;
+		padding-left: 0;
+	}
+	.table .actions > a {
+		padding-block: 0.4rem;
+	}
+	.table tfoot tr {
+		padding: 0.9rem 1.1rem;
+		background: var(--color-subtle);
+		border-top: 1px solid var(--color-border);
+	}
+	.table tfoot td {
+		background: none;
+		border: 0;
+	}
 }
 
 @media (prefers-color-scheme: dark) {
@@ -768,7 +1229,13 @@ dl.details dd {
 		--color-danger: #f0857b;
 		--color-danger-subtle: #2a1d1c;
 		--color-danger-border: #5a2f2b;
+		--color-chart-income: #ededed;
+		--color-chart-expense: #7a7a7a;
 		--shadow: none;
+		--color-focus-ring: rgb(255 255 255 / 12%);
+		--icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+		--icon-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5' width='17' height='15.5' rx='2.5'/%3E%3Cpath d='M3.5 10h17M8 3v4M16 3v4'/%3E%3C/svg%3E");
+		--icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23181818' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
 	}
 }
 
@@ -795,6 +1262,8 @@ dl.details dd {
 		--color-danger: #b4332a;
 		--color-danger-subtle: #fff;
 		--color-danger-border: #b4332a;
+		--color-chart-income: #111;
+		--color-chart-expense: #8c8c8c;
 		color-scheme: light;
 	}
 	.site-header,
@@ -803,6 +1272,7 @@ dl.details dd {
 	.nav-backdrop {
 		display: none !important;
 	}
+	.app-shell.authenticated,
 	.authenticated .site-layout {
 		display: block;
 	}
@@ -815,4 +1285,17 @@ dl.details dd {
 		border: 0;
 		box-shadow: none;
 	}
+}
+
+/*
+ * Viewers (Lesezugriff): forms that write keep showing the values they hold, but lose their
+ * buttons and take no input; links to create or edit pages are hidden.
+ */
+.read-only form[method='POST' i] :is(button, input[type='submit']),
+.read-only a[href$='/neu'],
+.read-only a[href$='/bearbeiten'] {
+	display: none !important;
+}
+.read-only form[method='POST' i] :is(input, select, textarea) {
+	pointer-events: none;
 }

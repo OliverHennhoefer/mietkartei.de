@@ -15,6 +15,7 @@ import {
 	exportJson,
 	exportTables,
 	exportZip,
+	unexportedTables,
 	type ExportData
 } from './export';
 import { createPayment, ensureCharges } from './ledger';
@@ -56,7 +57,7 @@ async function seedAccount(context: typeof contextA) {
 
 describe('exportTables', () => {
 	it('names every table of the schema that belongs to an account, each once', () => {
-		const listed = exportTables.map(getTableName).sort();
+		const listed = [...exportTables, ...unexportedTables].map(getTableName).sort();
 		const expected = accountTables().map(getTableName).sort();
 		expect(listed).toEqual(expected);
 		expect(new Set(listed).size).toBe(listed.length);
@@ -309,6 +310,36 @@ describe('exportZip', () => {
 		await expect(readZip(await exportZip(db, contextA, { storage: broken }))).rejects.toThrow(
 			'R2 nicht erreichbar'
 		);
+		expect(await exportEntries('a')).toEqual([]);
+	});
+
+	it('stops reading the open document when the download is cancelled, without logging', async () => {
+		const stored = await storeDocument(
+			db,
+			contextA,
+			{ name: 'Groß.pdf', mimeType: 'application/pdf', bytes: new TextEncoder().encode('x') },
+			{ storage }
+		);
+		if (!stored.ok) throw new Error(stored.reason);
+		const cancelled = vi.fn();
+		const endless: Storage = {
+			...storage,
+			async get() {
+				const body = new ReadableStream<Uint8Array>({
+					pull(controller) {
+						controller.enqueue(new Uint8Array(1024));
+					},
+					cancel: cancelled
+				});
+				return { body, contentType: 'application/pdf', size: Infinity };
+			}
+		};
+		const reader = (await exportZip(db, contextA, { storage: endless })).getReader();
+		// Read until the document is open and streaming, then give up on the download.
+		let bytes = 0;
+		while (bytes < 64 * 1024) bytes += (await reader.read()).value?.length ?? 0;
+		await reader.cancel('abgebrochen');
+		expect(cancelled).toHaveBeenCalledWith('abgebrochen');
 		expect(await exportEntries('a')).toEqual([]);
 	});
 

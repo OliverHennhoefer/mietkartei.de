@@ -1,40 +1,47 @@
 import { eq, inArray } from 'drizzle-orm';
 import { auditEntry, type AuditContext } from './audit';
+import { bankOfIban } from './bank/bank-codes';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import {
 	accounts,
-	allocationKeyShares,
 	allocationKeys,
+	allocationKeyShares,
+	apiKeys,
 	auditLog,
 	bankAccounts,
 	bankImports,
 	bankTransactions,
-	billingCircleUnits,
 	billingCircles,
+	billingCircleUnits,
+	calendarFeeds,
 	co2CostSplits,
-	consumerPriceIndex,
 	costCategories,
-	costItemUnitAmounts,
 	costItems,
+	costItemUnitAmounts,
 	depositTransactions,
 	documents,
 	emailChanges,
+	expenses,
+	insurancePolicies,
+	associationStatements,
+	taxYears,
 	invitations,
 	leasePersons,
+	leases,
 	leaseTenants,
 	leaseUnits,
-	leases,
 	loginAttempts,
 	matchingRules,
 	meterReadings,
 	meters,
 	operatingCostStatements,
 	passwordResets,
+	paymentReminders,
 	payments,
 	properties,
-	rentCharges,
 	rentChanges,
+	rentCharges,
 	sessions,
 	statementResults,
 	tasks,
@@ -97,6 +104,57 @@ export function addressLines(address: LandlordAddress): string[] {
 }
 
 /**
+ * Deletes every row of the landlord's data except the documents, children before parents
+ * (`restrict` keys would otherwise stop a cascade). Tables with `accountId` go by it, the lease
+ * tenants by their leases. Both the account deletion and the reset run these.
+ */
+function landlordDataDeletes(db: Database, accountId: string) {
+	const accountLeases = db
+		.select({ id: leases.id })
+		.from(leases)
+		.where(eq(leases.accountId, accountId));
+	const scoped = [
+		tasks,
+		insurancePolicies,
+		associationStatements,
+		taxYears,
+		co2CostSplits,
+		statementResults,
+		operatingCostStatements,
+		meterReadings,
+		meters,
+		costItemUnitAmounts,
+		costItems,
+		costCategories,
+		allocationKeyShares,
+		allocationKeys,
+		billingCircleUnits,
+		billingCircles,
+		matchingRules,
+		paymentReminders,
+		payments,
+		expenses,
+		depositTransactions,
+		rentCharges,
+		bankTransactions,
+		bankImports,
+		bankAccounts,
+		rentChanges,
+		leasePersons,
+		leaseUnits
+	];
+	return [
+		...scoped.map((table) => db.delete(table).where(eq(table.accountId, accountId))),
+		db.delete(leaseTenants).where(inArray(leaseTenants.leaseId, accountLeases)),
+		db.delete(leases).where(eq(leases.accountId, accountId)),
+		db.delete(tenants).where(eq(tenants.accountId, accountId)),
+		db.delete(units).where(eq(units.accountId, accountId)),
+		db.delete(properties).where(eq(properties.accountId, accountId)),
+		db.delete(auditLog).where(eq(auditLog.accountId, accountId))
+	];
+}
+
+/**
  * Removes the account with everything in it: first the stored files, then every row in one
  * batch, in dependency order (children before parents, because `restrict` keys would otherwise
  * stop a cascade). Files first, so a storage failure throws with the account still there and the
@@ -122,10 +180,6 @@ export async function deleteAccount(
 	const prefix = accountPrefix(accountId);
 	await storage.deletePrefix(prefix);
 
-	const accountLeases = db
-		.select({ id: leases.id })
-		.from(leases)
-		.where(eq(leases.accountId, accountId));
 	const accountUsers = db
 		.select({ id: users.id })
 		.from(users)
@@ -135,46 +189,15 @@ export async function deleteAccount(
 		.from(users)
 		.where(eq(users.accountId, accountId));
 
-	// Children before parents. Tables with `accountId` are deleted by it; the tables without one
-	// go by their parent's ids, the failed sign-ins by the users' addresses.
-	const scoped = [
-		documents,
-		tasks,
-		co2CostSplits,
-		statementResults,
-		operatingCostStatements,
-		meterReadings,
-		meters,
-		costItemUnitAmounts,
-		costItems,
-		costCategories,
-		allocationKeyShares,
-		allocationKeys,
-		billingCircleUnits,
-		billingCircles,
-		matchingRules,
-		payments,
-		depositTransactions,
-		rentCharges,
-		bankTransactions,
-		bankImports,
-		bankAccounts,
-		rentChanges,
-		leasePersons,
-		leaseUnits
-	];
+	// The failed sign-ins go by the users' addresses, the rest by the users' ids.
 	await runBatch(db, [
-		...scoped.map((table) => db.delete(table).where(eq(table.accountId, accountId))),
-		db.delete(leaseTenants).where(inArray(leaseTenants.leaseId, accountLeases)),
-		db.delete(leases).where(eq(leases.accountId, accountId)),
-		db.delete(tenants).where(eq(tenants.accountId, accountId)),
-		db.delete(units).where(eq(units.accountId, accountId)),
-		db.delete(properties).where(eq(properties.accountId, accountId)),
-		db.delete(consumerPriceIndex).where(eq(consumerPriceIndex.accountId, accountId)),
-		db.delete(auditLog).where(eq(auditLog.accountId, accountId)),
+		db.delete(documents).where(eq(documents.accountId, accountId)),
+		...landlordDataDeletes(db, accountId),
 		db.delete(invitations).where(eq(invitations.accountId, accountId)),
 		db.delete(emailChanges).where(eq(emailChanges.accountId, accountId)),
+		db.delete(calendarFeeds).where(eq(calendarFeeds.accountId, accountId)),
 		db.delete(sessions).where(inArray(sessions.userId, accountUsers)),
+		db.delete(apiKeys).where(eq(apiKeys.accountId, accountId)),
 		db.delete(passwordResets).where(inArray(passwordResets.userId, accountUsers)),
 		db.delete(loginAttempts).where(inArray(loginAttempts.email, accountEmails)),
 		db.delete(users).where(eq(users.accountId, accountId)),
@@ -188,6 +211,60 @@ export async function deleteAccount(
 	return true;
 }
 
+/**
+ * Resets the account to factory settings: every row of the landlord's data and every document
+ * with its file goes, while the account itself stays with its users, roles, invitations, API keys,
+ * calendar feed, sender block and subscription. The standard cost categories and keys are
+ * seeded again on next use; the cleared log keeps one line saying who reset the account.
+ *
+ * The files of the known documents go first, so a storage failure throws with the rows still
+ * there and the reset can be tried again. Then the document rows go in one statement that
+ * returns what it deleted, and the files of documents uploaded in between follow. The files go
+ * by key and not by prefix, so a document uploaded after the reset keeps its file.
+ */
+export async function resetAccount(
+	db: Database,
+	context: AuditContext,
+	options?: { storage?: Storage }
+): Promise<void> {
+	const { accountId } = context;
+	// No storage given: the default adapter of the target.
+	const storage = options?.storage ?? (await getStorage());
+	const known = await db
+		.select({ key: documents.storageKey })
+		.from(documents)
+		.where(eq(documents.accountId, accountId));
+	for (const { key } of known) await storage.delete(key);
+
+	const deleted = await db
+		.delete(documents)
+		.where(eq(documents.accountId, accountId))
+		.returning({ key: documents.storageKey });
+	const knownKeys = new Set(known.map(({ key }) => key));
+	for (const { key } of deleted) {
+		if (knownKeys.has(key)) continue;
+		await storage.delete(key).catch((error: unknown) => {
+			console.error('[storage] A file uploaded while the account was reset remains:', error);
+		});
+	}
+
+	await runBatch(db, [
+		...landlordDataDeletes(db, accountId),
+		db
+			.update(accounts)
+			.set({ operatingCostDefaultsSeeded: false })
+			.where(eq(accounts.id, accountId)),
+		auditEntry(
+			db,
+			context,
+			'account',
+			accountId,
+			'delete',
+			'Konto auf Werkseinstellungen zurückgesetzt, alle Daten gelöscht'
+		)
+	]);
+}
+
 /** The landlord sender block as edited under /einstellungen/profil; empty fields are null. */
 export type LandlordInput = {
 	landlordName: string | null;
@@ -198,14 +275,21 @@ export type LandlordInput = {
 	bankName: string | null;
 };
 
-/** Sets the sender block of the account, which letters and statements print. */
+/**
+ * Sets the sender block of the account, which letters and statements print. A bank name left
+ * empty is taken from the Bankleitzahlendatei when the IBAN is German.
+ */
 export async function updateLandlord(
 	db: Database,
 	context: AuditContext,
 	input: LandlordInput
 ): Promise<void> {
+	const bankName = input.bankName ?? (input.iban ? bankOfIban(input.iban)?.name : null) ?? null;
 	await runBatch(db, [
-		db.update(accounts).set(input).where(eq(accounts.id, context.accountId)),
+		db
+			.update(accounts)
+			.set({ ...input, bankName })
+			.where(eq(accounts.id, context.accountId)),
 		auditEntry(
 			db,
 			context,

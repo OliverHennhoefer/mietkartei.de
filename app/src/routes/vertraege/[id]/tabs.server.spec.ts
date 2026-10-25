@@ -1,13 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
+import { createBankAccount } from '#lib/server/bank/accounts.ts';
+import { assignTransaction } from '#lib/server/bank/transactions.ts';
 import { listCo2Splits } from '#lib/server/co2.ts';
+import { bankTransactions } from '#lib/server/db/schema.ts';
 import { listDepositMovements } from '#lib/server/deposits.ts';
 import { getLease } from '#lib/server/leases.ts';
 import { listLedger } from '#lib/server/ledger.ts';
-import { outcome, routeEvent, seedLease, seedUnit, testDatabase } from '#lib/server/testing.ts';
+import {
+	contextA,
+	outcome,
+	routeEvent,
+	seedLease,
+	seedUnit,
+	testDatabase
+} from '#lib/server/testing.ts';
 import { actions as co2Actions, load as loadCo2 } from './co2/+page.server';
 import { actions as depositActions, load as loadDeposit } from './kaution/+page.server';
 import { actions as ledgerActions, load as loadLedger } from './mietkonto/+page.server';
+import { GET as reminderPdf } from './mietkonto/schreiben/[reminderId]/+server';
 
 // The Mietkonto, Kaution and CO₂ tabs of a lease. The layout answers 404 for another account's
 // lease; the actions run without it, so each must refuse a foreign lease on its own.
@@ -86,6 +97,48 @@ describe('mietkonto', () => {
 		expect((await listLedger(db, 'a', leaseId)).paid).toBe(0);
 	});
 
+	it('links a payment from the bank to its transaction and keeps it', async () => {
+		const bank = await createBankAccount(db, contextA, {
+			name: 'Mietkonto',
+			iban: 'DE02120300000000202051',
+			bic: null,
+			holder: 'Oliver'
+		});
+		if (!bank.ok) throw new Error('setup failed');
+		await db.insert(bankTransactions).values({
+			id: 't-miete',
+			accountId: 'a',
+			bankAccountId: bank.id,
+			bookingDate: '2026-03-02',
+			amount: 80000,
+			counterpartName: 'Max Müller',
+			purpose: 'Miete März',
+			fingerprint: 't-miete'
+		});
+		await assignTransaction(db, contextA, 't-miete', {
+			target: 'rent',
+			parts: [{ leaseId, amount: 80000 }],
+			remember: false
+		});
+		const rows = (
+			(await tab(loadLedger)) as {
+				data: {
+					rows: { id: string; kind: string; deletable: boolean; bankTransactionId: string }[];
+				};
+			}
+		).data.rows;
+		const payment = rows.find((row) => row.kind === 'payment')!;
+		expect(payment).toMatchObject({
+			deletable: false,
+			fromBank: true,
+			bankTransactionId: 't-miete'
+		});
+		expect(await act(ledgerActions.deletePayment, { id: payment.id })).toEqual({
+			fail: 400,
+			data: { message: expect.stringContaining('stammt aus einem Umsatz') }
+		});
+	});
+
 	it('posts and deletes a correction', async () => {
 		expect(
 			await act(ledgerActions.adjustment, {
@@ -122,6 +175,54 @@ describe('mietkonto', () => {
 		expect(await act(ledgerActions.deleteCharge, { id: foreignLine.id }, leaseId)).toMatchObject({
 			fail: 400
 		});
+	});
+});
+
+describe('mietkonto reminders', () => {
+	it('writes a reminder for the overdue rent and deletes it once', async () => {
+		const form = { level: '1', date: '2026-03-02', paymentDeadline: '2026-03-16' };
+		const created = (await act(ledgerActions.reminder, form)) as {
+			data: { reminderId: string };
+		};
+		expect(created.data.reminderId).toEqual(expect.any(String));
+		const pdf = (id: string, reminderId: string) =>
+			outcome(() => reminderPdf(routeEvent(db, { params: { id, reminderId } })));
+		const printed = (await pdf(leaseId, created.data.reminderId)) as { data: Response };
+		expect(printed.data.headers.get('Content-Type')).toBe('application/pdf');
+		expect(new TextDecoder().decode((await printed.data.arrayBuffer()).slice(0, 5))).toBe('%PDF-');
+		// The letter is only found under its own lease.
+		expect(await pdf(foreignLeaseId, created.data.reminderId)).toMatchObject({ error: 404 });
+		expect(await act(ledgerActions.deleteReminder, { id: created.data.reminderId })).toEqual({
+			data: { deleted: 'reminder' }
+		});
+		expect(await act(ledgerActions.deleteReminder, { id: created.data.reminderId })).toEqual({
+			fail: 400,
+			data: { message: 'Dieses Schreiben gibt es nicht mehr.' }
+		});
+	});
+
+	it('refuses an invalid form, a future date and a lease of another account', async () => {
+		expect(await act(ledgerActions.reminder, { level: '9', date: 'x' })).toMatchObject({
+			fail: 400,
+			data: { form: 'reminder' }
+		});
+		expect(
+			await act(ledgerActions.reminder, {
+				level: '1',
+				date: '2026-03-10',
+				paymentDeadline: '2026-03-20'
+			})
+		).toEqual({
+			fail: 400,
+			data: { message: 'Das Schreiben kann nicht in die Zukunft datiert werden.' }
+		});
+		expect(
+			await act(
+				ledgerActions.reminder,
+				{ level: '1', date: '2026-03-02', paymentDeadline: '2026-03-16' },
+				foreignLeaseId
+			)
+		).toMatchObject({ error: 404 });
 	});
 });
 
@@ -165,6 +266,39 @@ describe('kaution', () => {
 		});
 		expect(await act(depositActions.delete, { movementId: movement.id })).toMatchObject({
 			fail: 404
+		});
+	});
+
+	it('keeps a movement booked from a bank transaction', async () => {
+		const bank = await createBankAccount(db, contextA, {
+			name: 'Kautionskonto',
+			iban: 'DE02120300000000202051',
+			bic: null,
+			holder: 'Oliver'
+		});
+		if (!bank.ok) throw new Error('setup failed');
+		await db.insert(bankTransactions).values({
+			id: 't1',
+			accountId: 'a',
+			bankAccountId: bank.id,
+			bookingDate: '2026-01-02',
+			amount: 180000,
+			counterpartName: 'Max Müller',
+			purpose: 'Kaution',
+			fingerprint: 't1'
+		});
+		await assignTransaction(db, contextA, 't1', {
+			target: 'deposit',
+			parts: [{ leaseId, amount: 180000 }],
+			remember: false
+		});
+		const [movement] = await listDepositMovements(db, 'a', leaseId);
+		expect(await act(depositActions.delete, { movementId: movement.id })).toEqual({
+			fail: 400,
+			data: {
+				message:
+					'Diese Bewegung stammt aus einem Umsatz. Hebe die Zuordnung unter Bank auf, dann verschwindet sie hier.'
+			}
 		});
 	});
 });

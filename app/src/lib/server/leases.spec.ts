@@ -7,14 +7,15 @@ import {
 	leasePersons,
 	leaseTenants,
 	leaseUnits,
+	operatingCostStatements,
 	payments,
 	rentCharges,
-	rentChanges
+	rentChanges,
+	statementResults
 } from './db/schema';
 import {
 	addLeasePersons,
 	createLease,
-	deleteLease,
 	deleteLeasePersons,
 	endLease,
 	getLease,
@@ -26,8 +27,17 @@ import {
 	listUnitsWithProperty,
 	updateLease
 } from './leases';
+import { deleteLease } from './deletion';
 import { ensureCharges, postCharge } from './ledger';
-import { contextA, contextB, leaseInput, seedTenant, seedUnit, testDatabase } from './testing';
+import {
+	contextA,
+	contextB,
+	integrityProblems,
+	leaseInput,
+	seedTenant,
+	seedUnit,
+	testDatabase
+} from './testing';
 
 let db: Database;
 
@@ -359,6 +369,33 @@ describe('updateLease', () => {
 		);
 	});
 
+	it('names a changed operating cost prepayment in the log, and nothing when nothing changed', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const tenantId = await seedTenant(db, 'a');
+		const result = await createLease(db, contextA, leaseInput(unitId, { tenantIds: [tenantId] }));
+		if (!result.ok) throw new Error(result.reason);
+		const update = (overrides: Parameters<typeof leaseInput>[1]) =>
+			updateLease(
+				db,
+				contextA,
+				result.id,
+				leaseInput(unitId, { tenantIds: [tenantId], ...overrides })
+			);
+		const summaries = async () =>
+			(await db.select().from(auditLog).where(eq(auditLog.action, 'update'))).map(
+				(entry) => entry.summary
+			);
+		expect(await update({ operatingCostPrepayment: 16000 })).toEqual({ ok: true });
+		expect(await summaries()).toEqual([
+			'Mietvertrag geändert: Betriebskostenvorauszahlung 160,00\u00a0€'
+		]);
+		expect(await update({ operatingCostPrepayment: 16000 })).toEqual({ ok: true });
+		expect((await summaries()).sort()).toEqual([
+			'Mietvertrag geändert',
+			'Mietvertrag geändert: Betriebskostenvorauszahlung 160,00\u00a0€'
+		]);
+	});
+
 	it('refuses a start date on or after a later rent change or persons row instead of failing', async () => {
 		const { unitId } = await seedUnit(db, 'a');
 		const tenantId = await seedTenant(db, 'a');
@@ -397,6 +434,45 @@ describe('updateLease', () => {
 		expect((await getLease(db, 'a', result.id))!.startDate).toBe('2025-01-01');
 		// Before both rows: fine.
 		expect(await move('2025-03-01')).toEqual({ ok: true });
+	});
+
+	it('keeps a unit in every property whose statement settled the lease', async () => {
+		const home = await seedUnit(db, 'a', { propertyName: 'Haus' });
+		const away = await seedUnit(db, 'a', { propertyName: 'Anderes Haus' });
+		const result = await createLease(db, contextA, leaseInput(home.unitId));
+		if (!result.ok) throw new Error('setup failed');
+		const [statement] = await db
+			.insert(operatingCostStatements)
+			.values({
+				accountId: 'a',
+				propertyId: home.propertyId,
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				status: 'approved'
+			})
+			.returning({ id: operatingCostStatements.id });
+		await db.insert(statementResults).values({
+			accountId: 'a',
+			statementId: statement.id,
+			leaseId: result.id,
+			balance: 0,
+			result: '{}'
+		});
+
+		expect(await updateLease(db, contextA, result.id, leaseInput(away.unitId))).toEqual({
+			ok: false,
+			reason: 'settled-property'
+		});
+		// Another unit elsewhere may come along, as long as one stays in the settled property.
+		expect(
+			await updateLease(
+				db,
+				contextA,
+				result.id,
+				leaseInput(away.unitId, { extraUnitIds: [home.unitId] })
+			)
+		).toEqual({ ok: true });
+		expect(await integrityProblems(db)).toEqual([]);
 	});
 });
 

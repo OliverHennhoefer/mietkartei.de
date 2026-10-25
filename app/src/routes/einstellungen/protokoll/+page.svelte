@@ -13,7 +13,6 @@
 <PageHeader
 	title="Protokoll"
 	lead="Wer wann was geändert hat, die neuesten {data.limit} Einträge."
-	back={{ href: '/einstellungen', label: 'Einstellungen' }}
 />
 
 <form method="GET" class="toolbar">

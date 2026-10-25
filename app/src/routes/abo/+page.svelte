@@ -10,6 +10,7 @@
 	let { data, form }: PageProps = $props();
 
 	const tones = {
+		free: 'success',
 		trialing: 'info',
 		active: 'success',
 		past_due: 'warning',
@@ -21,7 +22,7 @@
 <PageHeader title="Abo" lead="Testphase, Abo und Zahlung über Stripe." />
 
 {#if !data.owner}
-	<p class="muted">Das Abo verwaltet der Vermieter des Kontos, nicht die Mitverwalter.</p>
+	<p class="muted">Das Abo verwaltet der Vermieter des Kontos.</p>
 {:else}
 	{#if data.success}
 		<Alert tone="success">
@@ -38,9 +39,11 @@
 			<dt>Status</dt>
 			<dd>
 				<Badge tone={tones[data.state]}>
-					{data.state === 'expired'
-						? 'Testphase abgelaufen'
-						: subscriptionStatusLabels[data.status]}
+					{data.state === 'free'
+						? 'Kostenlos'
+						: data.state === 'expired'
+							? 'Testphase abgelaufen'
+							: subscriptionStatusLabels[data.status]}
 				</Badge>
 			</dd>
 			{#if data.state === 'trialing' && data.status === 'none'}
@@ -50,18 +53,28 @@
 				<dt>Testphase endete am</dt>
 				<dd>{formatDate(data.trialEnd)}</dd>
 			{/if}
-			{#if data.currentPeriodEnd && (data.state === 'active' || data.status === 'trialing')}
+			{#if data.state === 'free'}
+				<!-- A free account has no period and no price. -->
+			{:else if data.currentPeriodEnd && (data.state === 'active' || data.status === 'trialing')}
 				<dt>Bezahlt bis</dt>
 				<dd>{formatDate(data.currentPeriodEnd)}</dd>
 			{:else if data.currentPeriodEnd && data.state === 'canceled'}
 				<dt>Beendet am</dt>
 				<dd>{formatDate(data.currentPeriodEnd)}</dd>
 			{/if}
-			<dt>Preis</dt>
-			<dd>{data.price}, jederzeit kündbar</dd>
+			{#if data.state !== 'free'}
+				<dt>Preis</dt>
+				<dd><mark class="highlight">{data.price}</mark>, jederzeit kündbar</dd>
+			{/if}
 		</dl>
 
-		{#if data.state === 'active'}
+		{#if data.state === 'free'}
+			<p>
+				Dein Konto ist kostenlos freigeschaltet. Du brauchst kein Abo, und es gibt keine Testphase,
+				die abläuft.
+				{#if data.subscriptionRuns}Dein bisheriges Abo läuft noch; kündige es bei Stripe.{/if}
+			</p>
+		{:else if data.state === 'active'}
 			<p>Dein Abo ist aktiv. Zahlungsart, Rechnungen und Kündigung verwaltest du bei Stripe.</p>
 		{:else if data.state === 'trialing' && data.status === 'trialing'}
 			<p>Dein Abo läuft in der Testphase und wird danach monatlich abgerechnet.</p>
@@ -90,13 +103,19 @@
 		{/if}
 
 		<div class="toolbar">
-			{#if data.state === 'active' || data.state === 'past_due' || data.status === 'trialing'}
+			{#if data.state === 'free'}
+				{#if data.subscriptionRuns}
+					<form method="POST" action="?/portal" use:enhance>
+						<button type="submit">Abo verwalten</button>
+					</form>
+				{/if}
+			{:else if data.state === 'active' || data.state === 'past_due' || data.status === 'trialing'}
 				<form method="POST" action="?/portal" use:enhance>
 					<button type="submit">Abo verwalten</button>
 				</form>
 			{:else}
 				<form method="POST" action="?/checkout" use:enhance>
-					<button type="submit">Abo abschließen</button>
+					<button type="submit" class="highlight">Abo abschließen</button>
 				</form>
 				{#if data.hasSubscription}
 					<form method="POST" action="?/portal" use:enhance>

@@ -4,6 +4,7 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import DeleteSection from '#lib/components/DeleteSection.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import { formatDate, formatMonth, isIsoDate } from '#lib/dates.ts';
@@ -39,7 +40,8 @@
 					kind: lease.kind,
 					startDate: lease.startDate,
 					terminatedAt: endAt,
-					terminatedBy: endBy
+					terminatedBy: endBy,
+					state: lease.property.state
 				})
 			: undefined
 	);
@@ -295,15 +297,12 @@
 	</ConfirmButton>
 {/if}
 
-<h2>Löschen</h2>
-<p class="muted small">
-	Ein Vertrag ohne Zahlungen und Buchungen lässt sich löschen; sonst beende ihn, damit die Historie
-	bleibt.
-</p>
-<ConfirmButton
-	action="?/delete"
+<DeleteSection
+	heading="Löschen"
 	label="Mietvertrag löschen"
-	message="Diesen Mietvertrag mit seiner Miethistorie wirklich löschen?"
+	question="Mietvertrag {lease.unit.name} · {lease.property.name} löschen?"
+	check={data.deletion}
+	error={form && 'deleteError' in form ? form.deleteError : undefined}
 />
 
 <style>

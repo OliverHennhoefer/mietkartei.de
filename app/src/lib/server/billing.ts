@@ -1,23 +1,29 @@
 import { error, type RequestEvent } from '@sveltejs/kit';
 import { and, eq, isNull, lt } from 'drizzle-orm';
-import { BILLING_REQUIRED, STRIPE_PRICE_ID, STRIPE_SECRET_KEY } from '$app/env/private';
+import {
+	BILLING_REQUIRED,
+	FREE_ACCOUNT_EMAILS,
+	STRIPE_PRICE_ID,
+	STRIPE_SECRET_KEY
+} from '$app/env/private';
 import { dayOf, formatDate } from '../dates';
 import { subscriptionStatusLabels } from '../labels';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import { accounts, stripeEvents, type SubscriptionStatus } from './db/schema';
+import { accounts, stripeEvents, users, type SubscriptionStatus } from './db/schema';
 import { cancelSubscription, getSubscription, listSubscriptions, StripeError } from './stripe';
 
 // Subscriptions through Stripe. The hosted variant configures the keys; self-hosting leaves them
 // unset, and then nothing about billing is shown. Every account starts with a 30-day trial; with
-// BILLING_REQUIRED an account whose trial ended without a subscription may only read.
+// BILLING_REQUIRED an account whose trial ended without a subscription may only read. Accounts
+// whose owner is in FREE_ACCOUNT_EMAILS (family, friends) never pay.
 
 export function billingEnabled(): boolean {
 	return Boolean(STRIPE_SECRET_KEY && STRIPE_PRICE_ID);
 }
 
-export const TRIAL_DAYS = 30;
+const TRIAL_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** The columns of an account the billing rules read. */
@@ -26,9 +32,18 @@ export type BillingAccount = {
 	trialEndsAt: Date | null;
 	currentPeriodEnd: Date | null;
 	createdAt: Date;
+	/** The owner's address is in FREE_ACCOUNT_EMAILS. */
+	free?: boolean;
 };
 
-export type BillingState = 'trialing' | 'active' | 'past_due' | 'canceled' | 'expired';
+export type BillingState = 'free' | 'trialing' | 'active' | 'past_due' | 'canceled' | 'expired';
+
+/** Whether an owner's address is in FREE_ACCOUNT_EMAILS. */
+export function isFreeEmail(email: string | null | undefined, list = FREE_ACCOUNT_EMAILS): boolean {
+	if (!email || !list) return false;
+	const address = email.trim().toLowerCase();
+	return list.split(',').some((entry) => entry.trim().toLowerCase() === address);
+}
 
 /** When the free trial ends: the stored date, else 30 days after the account was created. */
 export function trialEnd(account: BillingAccount): Date {
@@ -42,11 +57,12 @@ export function trialDaysLeft(account: BillingAccount, now: Date): number {
 }
 
 /**
- * What the account may do at `now`: `trialing` (free trial or a Stripe trial), `active`,
+ * What the account may do at `now`: `free` (the owner never pays, whatever Stripe says), `trialing` (free trial or a Stripe trial), `active`,
  * `past_due` (a payment failed, Stripe retries), `canceled` (the subscription ended) or
  * `expired` (the trial ended and no subscription was ever started).
  */
 export function billingState(account: BillingAccount, now: Date): BillingState {
+	if (account.free) return 'free';
 	switch (account.subscriptionStatus) {
 		case 'active':
 			return 'active';
@@ -62,11 +78,17 @@ export function billingState(account: BillingAccount, now: Date): BillingState {
 }
 
 /** The states in which a read-only instance refuses writes. */
-export function isReadOnly(state: BillingState): boolean {
+function isReadOnly(state: BillingState): boolean {
 	return state === 'expired' || state === 'canceled';
 }
 
-export type BillingNotice = { text: string; href: string; tone: 'info' | 'warning' | 'danger' };
+/** `highlight` marks the trial notice with the brand's neon block, the only one that is temporary. */
+export type BillingNotice = {
+	text: string;
+	href: string;
+	tone: 'info' | 'warning' | 'danger';
+	highlight?: true;
+};
 
 /** The notice for an account, given the state and whether writes are refused after the trial. */
 export function noticeFor(
@@ -77,6 +99,7 @@ export function noticeFor(
 	const href = '/abo';
 	const state = billingState(account, now);
 	switch (state) {
+		case 'free':
 		case 'active':
 			return undefined;
 		case 'trialing': {
@@ -84,7 +107,12 @@ export function noticeFor(
 			if (account.subscriptionStatus === 'trialing') return undefined;
 			const end = trialEnd(account);
 			const tone = trialDaysLeft(account, now) <= 7 ? 'warning' : 'info';
-			return { text: `Deine Testphase endet am ${formatDate(dayOf(end))}.`, href, tone };
+			return {
+				text: `Deine Testphase endet am ${formatDate(dayOf(end))}.`,
+				href,
+				tone,
+				highlight: true
+			};
 		}
 		case 'past_due':
 			return { text: 'Die letzte Zahlung ist fehlgeschlagen.', href, tone: 'warning' };
@@ -113,12 +141,14 @@ const writablePaths = new Set(['/abo', '/abmelden', '/api/webhooks/stripe']);
 const writablePrefixes = ['/passwort-zuruecksetzen/', '/e-mail-bestaetigen/', '/registrieren/'];
 
 /**
- * Form actions that still work while the account is read-only: leaving the service (deleting the
- * account) and securing the sign-in (name, email, password) must never depend on paying.
+ * Form actions that still work while the account is read-only: leaving the service (deleting or
+ * leaving the account), securing the sign-in (name, email, password) and withdrawing an API key's
+ * access must never depend on paying.
  */
 const writableActions = new Map([
-	['/einstellungen/konto', new Set(['delete'])],
-	['/einstellungen/profil', new Set(['profile', 'password'])]
+	['/einstellungen/konto', new Set(['delete', 'leave'])],
+	['/einstellungen/profil', new Set(['profile', 'password'])],
+	['/einstellungen/api-schluessel', new Set(['revoke'])]
 ]);
 
 /** The form action a POST goes to, the way SvelteKit reads it: `?/delete` → `delete`. */
@@ -148,11 +178,14 @@ export function refusesWrite(
 	return !writableActions.get(path)?.has(action);
 }
 
-export const READ_ONLY_MESSAGE = 'Dein Konto ist nur noch lesbar, bis ein Abo abgeschlossen ist.';
+const READ_ONLY_MESSAGE = 'Dein Konto ist nur noch lesbar, bis ein Abo abgeschlossen ist.';
 
-/** The billing columns of the account; undefined when it does not exist. */
+/**
+ * The billing columns of the account, and whether its owner's address makes it free; undefined
+ * when it does not exist.
+ */
 export async function getBillingAccount(db: Database, accountId: string) {
-	const [account] = await db
+	const [row] = await db
 		.select({
 			id: accounts.id,
 			subscriptionStatus: accounts.subscriptionStatus,
@@ -161,11 +194,15 @@ export async function getBillingAccount(db: Database, accountId: string) {
 			stripeCustomerId: accounts.stripeCustomerId,
 			stripeSubscriptionId: accounts.stripeSubscriptionId,
 			stripeCheckoutSessionId: accounts.stripeCheckoutSessionId,
-			createdAt: accounts.createdAt
+			createdAt: accounts.createdAt,
+			ownerEmail: users.email
 		})
 		.from(accounts)
+		.leftJoin(users, and(eq(users.accountId, accounts.id), eq(users.role, 'owner')))
 		.where(eq(accounts.id, accountId));
-	return account;
+	if (!row) return undefined;
+	const { ownerEmail, ...account } = row;
+	return { ...account, free: isFreeEmail(ownerEmail) };
 }
 
 /**
@@ -204,6 +241,16 @@ export async function enforceBilling(event: RequestEvent): Promise<void> {
 	const state = billingState(account, new Date());
 	const action = actionName(event.url.searchParams);
 	if (refusesWrite(state, method, event.url.pathname, true, action)) error(403, READ_ONLY_MESSAGE);
+}
+
+/**
+ * Whether the account may only read: the API's counterpart to enforceBilling, which looks at the
+ * page and form action instead. False while billing is off or not required.
+ */
+export async function apiReadOnly(db: Database, accountId: string): Promise<boolean> {
+	if (!billingEnabled() || !BILLING_REQUIRED) return false;
+	const account = await getBillingAccount(db, accountId);
+	return Boolean(account && isReadOnly(billingState(account, new Date())));
 }
 
 /**

@@ -13,7 +13,9 @@
 	const values = $derived(
 		form?.values ?? {
 			title: data.task.title,
+			category: data.task.category,
 			dueDate: data.task.dueDate ?? '',
+			repeatMonths: data.task.repeatMonths ? String(data.task.repeatMonths) : '',
 			link: data.task.propertyId
 				? linkValue('property', data.task.propertyId)
 				: data.task.leaseId

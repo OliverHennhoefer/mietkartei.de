@@ -36,7 +36,7 @@ const pages = [
 	'/dokumente',
 	'/einstellungen',
 	'/einstellungen/profil',
-	'/einstellungen/mitverwalter',
+	'/einstellungen/zugaenge',
 	'/einstellungen/protokoll',
 	'/einstellungen/vpi',
 	'/datenuebernahme',

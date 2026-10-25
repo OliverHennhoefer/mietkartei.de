@@ -5,7 +5,8 @@ import {
 	otherSessions,
 	generateToken,
 	hashToken,
-	normalizeEmail
+	normalizeEmail,
+	signedInUser
 } from './auth';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
@@ -37,11 +38,7 @@ export async function requestEmailChange(
 	input: { email: string; currentPassword: string },
 	now = Date.now()
 ): Promise<RequestEmailChangeResult> {
-	if (!context.userId) return { ok: false, reason: 'missing' };
-	const [user] = await db
-		.select({ id: users.id, email: users.email, passwordHash: users.passwordHash })
-		.from(users)
-		.where(and(eq(users.id, context.userId), eq(users.accountId, context.accountId)));
+	const user = await signedInUser(db, context);
 	if (!user) return { ok: false, reason: 'missing' };
 	const checked = await checkCurrentPassword(db, user, input.currentPassword);
 	if (checked !== 'ok') return { ok: false, reason: checked };
@@ -156,7 +153,7 @@ export async function confirmEmailChange(
 export function emailChangeMail(to: string, link: string): Mail {
 	return {
 		to,
-		subject: 'Neue E-Mail-Adresse bestätigen · mietkartei',
+		subject: 'Neue E-Mail-Adresse bestätigen | mietkartei',
 		text:
 			'Hallo,\n\n' +
 			'für einen Zugang zu mietkartei soll ab jetzt diese E-Mail-Adresse gelten. Mit diesem ' +
@@ -170,7 +167,7 @@ export function emailChangeMail(to: string, link: string): Mail {
 export function emailChangeNoticeMail(to: string, newEmail: string): Mail {
 	return {
 		to,
-		subject: 'Neue E-Mail-Adresse beantragt · mietkartei',
+		subject: 'Neue E-Mail-Adresse beantragt | mietkartei',
 		text:
 			'Hallo,\n\n' +
 			`für deinen Zugang zu mietkartei wurde beantragt, die E-Mail-Adresse auf ${newEmail} zu ` +

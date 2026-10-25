@@ -11,8 +11,10 @@ import {
 	deleteTask,
 	getTask,
 	listTasks,
+	nextDueDate,
 	setDone,
-	updateTask
+	updateTask,
+	type TaskInput
 } from './tasks';
 import { contextA, contextB, leaseInput, seedUnit, testDatabase } from './testing';
 
@@ -22,9 +24,11 @@ beforeEach(async () => {
 	db = await testDatabase();
 });
 
-const input = (overrides: Partial<Parameters<typeof createTask>[2]> = {}) => ({
+const input = (overrides: Partial<TaskInput> = {}): TaskInput => ({
 	title: 'Rauchmelder prüfen',
+	category: 'other',
 	dueDate: null,
+	repeatMonths: null,
 	propertyId: null,
 	leaseId: null,
 	note: null,
@@ -119,6 +123,31 @@ describe('listTasks', () => {
 		expect(done.map((task) => task.title)).toEqual(['Erledigt 2', 'Erledigt 1']);
 	});
 
+	it('keeps tasks due on the same day in the order they were created', async () => {
+		const first = await createTask(db, contextA, input({ title: 'Zuerst', dueDate: '2026-10-01' }));
+		const second = await createTask(
+			db,
+			contextA,
+			input({ title: 'Danach', dueDate: '2026-10-01' })
+		);
+		const third = await createTask(
+			db,
+			contextA,
+			input({ title: 'Zuletzt', dueDate: '2026-10-01' })
+		);
+		if (!first.ok || !second.ok || !third.ok) throw new Error('setup failed');
+		// createdAt has millisecond resolution; spread the rows so the order is defined.
+		const base = Date.now();
+		for (const [index, id] of [third.id, first.id, second.id].entries()) {
+			await db
+				.update(tasks)
+				.set({ createdAt: new Date(base + index * 1000) })
+				.where(eq(tasks.id, id));
+		}
+		const { open } = await listTasks(db, 'a');
+		expect(open.map((task) => task.title)).toEqual(['Zuletzt', 'Zuerst', 'Danach']);
+	});
+
 	it('does not leak into another account', async () => {
 		const mine = await createTask(db, contextA, input({ title: 'Meine' }));
 		const theirs = await createTask(db, contextB, input({ title: 'Fremde' }));
@@ -209,5 +238,138 @@ describe('setDone, updateTask and deleteTask', () => {
 			'delete',
 			'Aufgabe „Rauchmelder prüfen“ gelöscht'
 		]);
+	});
+});
+
+describe('nextDueDate', () => {
+	it('adds the interval to the due date', () => {
+		expect(nextDueDate('2026-11-30', '2026-11-30', 12, '2026-11-20')).toBe('2027-11-30');
+		expect(nextDueDate('2026-11-30', '2026-11-30', 3, '2026-12-01')).toBe('2027-02-28');
+	});
+
+	it('skips occurrences that have passed', () => {
+		expect(nextDueDate('2024-01-31', '2024-01-31', 12, '2026-10-23')).toBe('2027-01-31');
+		expect(nextDueDate('2026-10-23', '2026-10-23', 6, '2026-10-23')).toBe('2027-04-23');
+	});
+
+	it('counts from the anchor, so a shorter month does not move the series', () => {
+		expect(nextDueDate('2026-01-31', '2026-02-28', 1, '2026-02-20')).toBe('2026-03-31');
+		expect(nextDueDate('2024-02-29', '2025-02-28', 12, '2025-02-01')).toBe('2026-02-28');
+		expect(nextDueDate('2024-02-29', '2027-02-28', 12, '2027-02-01')).toBe('2028-02-29');
+	});
+});
+
+describe('setDone on a repeating task', () => {
+	const repeating = () =>
+		input({ category: 'inspection', dueDate: '2026-11-30', repeatMonths: 12, note: 'DIN 14676' });
+
+	it('leaves an open copy due one interval later', async () => {
+		const { propertyId } = await seedUnit(db, 'a');
+		const created = await createTask(db, contextA, { ...repeating(), propertyId });
+		if (!created.ok) return;
+
+		expect(await setDone(db, contextA, created.id, true, '2026-11-25')).toBe(true);
+		const { open, done } = await listTasks(db, 'a');
+		expect(done.map((task) => task.id)).toEqual([created.id]);
+		expect(open).toHaveLength(1);
+		expect(open[0]).toMatchObject({
+			title: 'Rauchmelder prüfen',
+			category: 'inspection',
+			dueDate: '2027-11-30',
+			repeatMonths: 12,
+			propertyId,
+			note: 'DIN 14676',
+			done: false
+		});
+		expect(done[0].followUpId).toBe(open[0].id);
+		expect((await audit('a')).at(-1)?.[3]).toBe(
+			'Aufgabe „Rauchmelder prüfen“ (bis 30.11.2026) erledigt; wieder fällig am 30.11.2027'
+		);
+	});
+
+	it('removes the open copy again when the task is reopened', async () => {
+		const created = await createTask(db, contextA, repeating());
+		if (!created.ok) return;
+		await setDone(db, contextA, created.id, true, '2026-11-25');
+
+		expect(await setDone(db, contextA, created.id, false)).toBe(true);
+		const { open, done } = await listTasks(db, 'a');
+		expect(done).toEqual([]);
+		expect(open.map((task) => [task.id, task.followUpId])).toEqual([[created.id, null]]);
+		expect((await audit('a')).at(-1)?.[3]).toBe(
+			'Aufgabe „Rauchmelder prüfen“ (bis 30.11.2026) wieder geöffnet; die nächste Fälligkeit entfällt'
+		);
+	});
+
+	it('keeps a copy that was done already when the task is reopened', async () => {
+		const created = await createTask(db, contextA, repeating());
+		if (!created.ok) return;
+		await setDone(db, contextA, created.id, true, '2026-11-25');
+		const [followUp] = (await listTasks(db, 'a')).open;
+		await setDone(db, contextA, followUp.id, true, '2027-11-25');
+
+		await setDone(db, contextA, created.id, false);
+		const { open, done } = await listTasks(db, 'a');
+		expect(open.map((task) => task.dueDate)).toEqual(['2026-11-30', '2028-11-30']);
+		expect(done.map((task) => task.id)).toEqual([followUp.id]);
+	});
+
+	it('keeps the day of month across copies', async () => {
+		const created = await createTask(
+			db,
+			contextA,
+			input({ dueDate: '2026-01-31', repeatMonths: 1, category: 'maintenance' })
+		);
+		if (!created.ok) return;
+		await setDone(db, contextA, created.id, true, '2026-01-20');
+		const [february] = (await listTasks(db, 'a')).open;
+		expect(february.dueDate).toBe('2026-02-28');
+		await setDone(db, contextA, february.id, true, '2026-02-20');
+		expect((await listTasks(db, 'a')).open.map((task) => task.dueDate)).toEqual(['2026-03-31']);
+
+		// A new due date starts a new series.
+		const [march] = (await listTasks(db, 'a')).open;
+		await updateTask(
+			db,
+			contextA,
+			march.id,
+			input({ dueDate: '2026-03-15', repeatMonths: 1, category: 'maintenance' })
+		);
+		expect((await getTask(db, 'a', march.id))?.repeatAnchor).toBe('2026-03-15');
+	});
+
+	it('leaves a single copy when two requests mark the task done at once', async () => {
+		const created = await createTask(db, contextA, repeating());
+		if (!created.ok) return;
+		await Promise.all([
+			setDone(db, contextA, created.id, true, '2026-11-25'),
+			setDone(db, contextA, created.id, true, '2026-11-25')
+		]);
+		const { open, done } = await listTasks(db, 'a');
+		expect(open).toHaveLength(1);
+		expect(done[0].followUpId).toBe(open[0].id);
+	});
+
+	it('does nothing when the task is done already', async () => {
+		const created = await createTask(db, contextA, repeating());
+		if (!created.ok) return;
+		await setDone(db, contextA, created.id, true, '2026-11-25');
+		expect(await setDone(db, contextA, created.id, true, '2026-11-25')).toBe(true);
+		expect((await listTasks(db, 'a')).open).toHaveLength(1);
+	});
+
+	it('refuses the copy when the task quota is reached', async () => {
+		const created = await createTask(db, contextA, repeating());
+		if (!created.ok) return;
+		const original = QUOTAS.tasks.max;
+		QUOTAS.tasks.max = 1;
+		try {
+			await expect(setDone(db, contextA, created.id, true, '2026-11-25')).rejects.toSatisfy(
+				isHttpError
+			);
+		} finally {
+			QUOTAS.tasks.max = original;
+		}
+		expect((await getTask(db, 'a', created.id))?.done).toBe(false);
 	});
 });

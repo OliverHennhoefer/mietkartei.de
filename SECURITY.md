@@ -17,11 +17,11 @@ Verwende fiktive Daten und entferne Zugangsdaten aus Beispielen und Anhängen. W
 
 ## Unterstützter Stand
 
-Das Projekt befindet sich im Aufbau und hat noch keine veröffentlichten Softwareversionen. Sicherheitsmeldungen zum aktuellen Hauptzweig `main` werden geprüft. Mit der ersten Softwareveröffentlichung ergänzen wir hier die unterstützten Versionen.
+Unterstützt wird der aktuelle Stand des Hauptzweigs `main`: Er läuft unter app.mietkartei.de und steckt im jeweils neuesten Docker-Image. Sicherheitsmeldungen beziehen sich auf diesen Stand, Korrekturen erscheinen dort.
 
 ## Ablauf nach einer Meldung
 
-Die Projektverantwortlichen prüfen die Meldung, fragen bei Bedarf nach weiteren Informationen und stimmen die nächsten Schritte mit dir ab. Eine Veröffentlichung der Einzelheiten und eine mögliche Namensnennung sollen gemeinsam besprochen werden.
+Das Projekt folgt dem Prinzip der koordinierten Offenlegung (Coordinated Vulnerability Disclosure). Die Projektverantwortlichen prüfen die Meldung, fragen bei Bedarf nach weiteren Informationen und stimmen die nächsten Schritte mit dir ab. Eine Veröffentlichung der Einzelheiten und eine mögliche Namensnennung sollen gemeinsam besprochen werden.
 
 Nach einer Behebung werden relevante Informationen in den Versionshinweisen dokumentiert. Ausführliche technische Angaben werden so veröffentlicht, dass betroffene Personen Gelegenheit zur Aktualisierung haben.
 

@@ -55,6 +55,13 @@ export const variables = defineEnvVars({
 		description: 'Sender address, e.g. "mietkartei <noreply@mietkartei.de>".',
 		schema: (value) => value || 'mietkartei <noreply@mietkartei.de>'
 	},
+	GENESIS_API_TOKEN: {
+		description:
+			'API token of a GENESIS-Online account of Destatis (free registration at ' +
+			'genesis.destatis.de). Set, the app fetches the Verbraucherpreisindex for index rents ' +
+			'from Destatis; unset, it has no VPI values. A secret on the hosted variant.',
+		schema: (value) => value || ''
+	},
 	STRIPE_SECRET_KEY: {
 		description:
 			'Stripe secret key (sk_test_… in test mode). Together with STRIPE_PRICE_ID it turns on the ' +
@@ -80,6 +87,26 @@ export const variables = defineEnvVars({
 		description:
 			'"true": once the 30-day trial has ended, accounts without an active subscription can ' +
 			'only read. Only with the Stripe keys.',
+		schema: (value) => value === 'true'
+	},
+	FREE_ACCOUNT_EMAILS: {
+		description:
+			'Email addresses whose accounts never pay, separated by commas: an account whose owner has ' +
+			'one of them is free, with no trial, notice or read-only state. A secret on the hosted variant.',
+		schema: (value) => value || ''
+	},
+	TRIAL_FINGERPRINT_KEY: {
+		description:
+			'Secret key for the fingerprints of addresses that had a free trial, so an address gets only ' +
+			'one trial, even after its account was deleted. Unset, every new account gets a trial. A ' +
+			'long random string, a secret on the hosted variant.',
+		schema: (value) => value || ''
+	},
+	DEMO: {
+		description:
+			'"true" makes the instance the public demo: every visitor starts an account of their own ' +
+			'with the demo data at /demo, signed in without a password, deleted after 24 hours. Only ' +
+			'for demo.mietkartei.de.',
 		schema: (value) => value === 'true'
 	},
 	E2E: {

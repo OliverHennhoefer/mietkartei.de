@@ -98,7 +98,7 @@ export async function completeRegistration(
 export function registrationMail(to: string, link: string): Mail {
 	return {
 		to,
-		subject: 'Registrierung bestätigen · mietkartei',
+		subject: 'Registrierung bestätigen | mietkartei',
 		text:
 			'Hallo,\n\n' +
 			'mit dieser E-Mail-Adresse wurde ein Konto bei mietkartei beantragt. Mit diesem Link ' +

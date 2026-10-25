@@ -1,7 +1,9 @@
 import { isActionFailure, isHttpError, isRedirect } from '@sveltejs/kit';
-import { eq } from 'drizzle-orm';
+import { eq, is, sql } from 'drizzle-orm';
+import { getTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { hashPassword, type SessionUser } from './auth';
 import type { Database } from './db';
+import * as schema from './db/schema';
 import { accounts, properties, tenants, units, users } from './db/schema';
 import { createSqliteDatabase } from './db/sqlite';
 import type { Storage } from './storage';
@@ -221,7 +223,11 @@ export function routeEvent(db: Database, options: RouteEventOptions = {}): never
 		locals: { db, user: options.user === undefined ? ownerA : (options.user ?? undefined) },
 		params: options.params ?? {},
 		url,
-		request: new Request(url, body ? { method: 'POST', body } : undefined),
+		// Browsers send the page's origin with a form post.
+		request: new Request(
+			url,
+			body ? { method: 'POST', body, headers: { origin: url.origin } } : undefined
+		),
 		cookies: {
 			get: (name: string) => jar.get(name),
 			getAll: () => [...jar].map(([name, value]) => ({ name, value })),
@@ -287,9 +293,163 @@ export async function seedCostItem(
 			fuelKwh: null,
 			co2Kg: null,
 			co2Cost: null,
+			associationTotal: null,
+			associationKey: null,
+			associationKeyTotal: null,
+			associationKeyShare: null,
 			...overrides
 		}
 	);
 	if (!result.ok) throw new Error(`seedCostItem failed: ${result.reason}`);
 	return result.id;
+}
+
+/**
+ * What is inconsistent in the database, empty when nothing is: references the database lets
+ * through (a foreign key check, rows pointing into another account) and the rules the schema
+ * cannot express. Tests run it after deleting and changing records, so a new table or reference
+ * is covered without naming it here.
+ */
+export async function integrityProblems(db: Database): Promise<string[]> {
+	const problems: string[] = [];
+	for (const row of await db.all<{ table: string; parent: string }>(
+		sql`pragma foreign_key_check`
+	)) {
+		problems.push(`${row.table} points at a missing row of ${row.parent}`);
+	}
+	// Every reference stays within one account: compared with the row's own account, or, for a link
+	// table without one (lease_tenants), between the rows it links.
+	for (const table of Object.values(schema)) {
+		if (!is(table, SQLiteTable)) continue;
+		const config = getTableConfig(table);
+		const parents = config.foreignKeys
+			.map((foreignKey) => foreignKey.reference())
+			.map((reference) => ({
+				column: reference.columns[0].name,
+				parent: getTableConfig(reference.foreignTable)
+			}))
+			.filter(
+				({ parent }) =>
+					parent.name !== 'accounts' &&
+					parent.columns.some((column) => column.name === 'account_id')
+			);
+		const own = config.columns.some((column) => column.name === 'account_id');
+		const [first, ...rest] = parents;
+		const pairs = own
+			? parents.map((entry) => ({ entry, other: undefined }))
+			: rest.map((entry) => ({ entry, other: first }));
+		for (const { entry, other } of pairs) {
+			const otherAccount = other
+				? sql`(select account_id from ${sql.identifier(other.parent.name)} where id = child.${sql.identifier(other.column)})`
+				: sql`child.account_id`;
+			const [{ value }] = await db.all<{ value: number }>(
+				sql`select count(*) as value from ${sql.identifier(config.name)} child join ${sql.identifier(entry.parent.name)} parent on parent.id = child.${sql.identifier(entry.column)} where parent.account_id <> ${otherAccount}`
+			);
+			if (value > 0) problems.push(`${config.name}.${entry.column} points into another account`);
+		}
+	}
+	const unmatched = await db.all<{ id: string; status: string }>(sql`
+		select t.id, t.status from bank_transactions t
+		where (t.status = 'matched') <> (
+			exists (select 1 from payments where bank_transaction_id = t.id)
+			or exists (select 1 from deposit_transactions where bank_transaction_id = t.id)
+			or exists (select 1 from expenses where bank_transaction_id = t.id)
+		)`);
+	for (const row of unmatched) {
+		problems.push(`bank transaction ${row.id} is ${row.status} but its assignment says otherwise`);
+	}
+	// Rows that belong to one property only point at what belongs to the same property.
+	const sameProperty: [string, string][] = [
+		[
+			'expenses name a unit of another property',
+			`select count(*) as value from expenses e join units u on u.id = e.unit_id
+			where e.property_id is null or e.property_id <> u.property_id`
+		],
+		[
+			'cost items use an allocation key of another property',
+			`select count(*) as value from cost_items i join allocation_keys k on k.id = i.allocation_key_id
+			where k.property_id is not null and k.property_id <> i.property_id`
+		],
+		[
+			'cost items use a billing circle of another property',
+			`select count(*) as value from cost_items i join billing_circles c on c.id = i.billing_circle_id
+			where c.property_id <> i.property_id`
+		],
+		[
+			'cost items belong to an insurance policy of another property',
+			`select count(*) as value from cost_items i join insurance_policies p on p.id = i.insurance_policy_id
+			where p.property_id <> i.property_id`
+		],
+		[
+			'cost items split amounts onto units of another property',
+			`select count(*) as value from cost_item_unit_amounts a
+			join cost_items i on i.id = a.cost_item_id join units u on u.id = a.unit_id
+			where u.property_id <> i.property_id`
+		],
+		[
+			'allocation keys have shares of units of another property',
+			`select count(*) as value from allocation_key_shares s
+			join allocation_keys k on k.id = s.key_id join units u on u.id = s.unit_id
+			where k.property_id is null or u.property_id <> k.property_id`
+		],
+		[
+			'billing circles hold units of another property',
+			`select count(*) as value from billing_circle_units cu
+			join billing_circles c on c.id = cu.circle_id join units u on u.id = cu.unit_id
+			where u.property_id <> c.property_id`
+		],
+		[
+			'meters hang on a unit of another property',
+			`select count(*) as value from meters m join units u on u.id = m.unit_id
+			where u.property_id <> m.property_id`
+		],
+		[
+			'documents name a unit of another property',
+			`select count(*) as value from documents d join units u on u.id = d.unit_id
+			where d.property_id is not null and d.property_id <> u.property_id`
+		],
+		[
+			'documents name a cost item of another property',
+			`select count(*) as value from documents d join cost_items i on i.id = d.cost_item_id
+			where d.property_id is not null and d.property_id <> i.property_id`
+		],
+		[
+			'statement results name a lease without a unit in the statement’s property',
+			`select count(*) as value from statement_results r
+			join operating_cost_statements s on s.id = r.statement_id
+			where not exists (
+				select 1 from leases l join units u on u.id = l.unit_id
+				where l.id = r.lease_id and u.property_id = s.property_id
+			) and not exists (
+				select 1 from lease_units lu join units u on u.id = lu.unit_id
+				where lu.lease_id = r.lease_id and u.property_id = s.property_id
+			)`
+		],
+		[
+			'leases name their main unit again as an extra unit',
+			`select count(*) as value from lease_units lu join leases l on l.id = lu.lease_id
+			where l.unit_id = lu.unit_id`
+		],
+		[
+			'statement postings point at a missing statement',
+			`select count(*) as value from rent_charges c where c.kind = 'statement_balance'
+			and not exists (select 1 from operating_cost_statements s where s.id = c.reference_id)`
+		],
+		[
+			'CO₂ postings point at a missing split',
+			`select count(*) as value from rent_charges c where c.kind = 'co2_reimbursement'
+			and c.reverses_charge_id is null
+			and not exists (select 1 from co2_cost_splits s where s.id = c.reference_id)`
+		],
+		[
+			'corrections point at a missing statement',
+			`select count(*) as value from operating_cost_statements s where s.corrects_id is not null
+			and not exists (select 1 from operating_cost_statements o where o.id = s.corrects_id)`
+		]
+	];
+	for (const [problem, query] of sameProperty) {
+		const [{ value }] = await db.all<{ value: number }>(sql.raw(query));
+		if (value > 0) problems.push(`${value} ${problem}`);
+	}
+	return problems;
 }

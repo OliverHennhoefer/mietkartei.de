@@ -1,5 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { firstOfMonth, monthOf, today } from '#lib/dates.ts';
+import { addMonthsToMonth, firstOfMonth, monthOf, today } from '#lib/dates.ts';
 import { depositWarning, parseLease, parseOpeningBalance } from '#lib/forms/leases.ts';
 import { parseCents } from '#lib/money.ts';
 import { createLease, listUnitsWithProperty } from '#lib/server/leases.ts';
@@ -16,9 +16,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		listUnitsWithProperty(locals.db, accountId),
 		listTenants(locals.db, accountId)
 	]);
+	// A new lease usually starts on the first of next month.
 	const defaults: Record<string, string> = {
 		unitId: url.searchParams.get('unitId') ?? '',
-		tenantIds: url.searchParams.get('tenantId') ?? ''
+		tenantIds: url.searchParams.get('tenantId') ?? '',
+		startDate: firstOfMonth(addMonthsToMonth(monthOf(today()), 1))
 	};
 	return { units, tenants, defaults };
 };
@@ -74,7 +76,12 @@ export const actions: Actions = {
 			const errors =
 				result.reason === 'unknown-unit'
 					? { unitId: 'Diese Einheit gibt es nicht.' }
-					: { tenantIds: 'Einen der Mieter gibt es nicht.' };
+					: result.reason === 'archived'
+						? {
+								tenantIds:
+									'Das Objekt oder einer der Mieter ist archiviert. Hol es zuerst aus dem Archiv.'
+							}
+						: { tenantIds: 'Einen der Mieter gibt es nicht.' };
 			return fail(400, { errors, values, depositWarning: warningFor(values) });
 		}
 

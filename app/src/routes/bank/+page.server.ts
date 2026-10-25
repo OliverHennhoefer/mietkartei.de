@@ -1,12 +1,16 @@
 import { error, fail } from '@sveltejs/kit';
 import { suggestLease, type SuggestionSource } from '#lib/domain/bank-matching.ts';
 import { parseAssignment, type AssignmentFields } from '#lib/forms/bank.ts';
+import { parseExpenseAssignment } from '#lib/forms/expenses.ts';
 import type { FieldErrors } from '#lib/forms/fields.ts';
 import { listBankAccounts } from '#lib/server/bank/accounts.ts';
 import { listRules } from '#lib/server/bank/rules.ts';
 import {
+	assignExpense,
 	assignTransaction,
 	countUnmatched,
+	expenseByCounterpart,
+	expensePreset,
 	getTransaction,
 	ignoreTransaction,
 	leaseByIban,
@@ -19,13 +23,15 @@ import {
 	type Assignment
 } from '#lib/server/bank/transactions.ts';
 import { bankTransactionStatuses, type BankTransactionStatus } from '#lib/server/db/schema.ts';
+import { scopeOptions } from '#lib/server/expenses.ts';
 import { listLeases } from '#lib/server/leases.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 // Umsätze: the review list. A fixed number of queries whatever the page shows: the bank
 // accounts, the transactions, the open count, the leases (with units and tenants), the rules,
-// the earlier assignments by IBAN, and the payments and deposit movements of the listed rows.
+// the earlier assignments by IBAN, the earlier expenses by counterpart, the properties and units for the expense select, and the
+// payments, deposit movements and expenses of the listed rows.
 
 export type StatusFilter = BankTransactionStatus | 'all';
 
@@ -45,14 +51,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const status = transactionId ? 'all' : statusOf(url.searchParams.get('status'));
 	const bankAccountId = transactionId ? null : url.searchParams.get('konto') || null;
 
-	const [bankAccounts, listed, openCount, leases, rules, byIban] = await Promise.all([
-		listBankAccounts(locals.db, accountId),
-		listTransactions(locals.db, accountId, { status, bankAccountId, transactionId }),
-		countUnmatched(locals.db, accountId),
-		listLeases(locals.db, accountId),
-		listRules(locals.db, accountId),
-		leaseByIban(locals.db, accountId)
-	]);
+	const [bankAccounts, listed, openCount, leases, rules, byIban, scopes, presets] =
+		await Promise.all([
+			listBankAccounts(locals.db, accountId),
+			listTransactions(locals.db, accountId, { status, bankAccountId, transactionId }),
+			countUnmatched(locals.db, accountId),
+			listLeases(locals.db, accountId),
+			listRules(locals.db, accountId),
+			leaseByIban(locals.db, accountId),
+			scopeOptions(locals.db, accountId),
+			expenseByCounterpart(locals.db, accountId)
+		]);
 	const assignments = await listAssignments(
 		locals.db,
 		accountId,
@@ -65,6 +74,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			row.status === 'unmatched'
 				? (suggestLease(row, { rules, leaseByIban: byIban, leases: hints }) ?? null)
 				: null,
+		expensePreset: row.status === 'unmatched' ? (expensePreset(row, presets) ?? null) : null,
 		assignments: (assignments.get(row.id) ?? []) as Assignment[]
 	}));
 	return {
@@ -75,7 +85,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		transactions,
 		more: listed.more,
 		openCount,
-		leases: leaseOptions(leases)
+		leases: leaseOptions(leases),
+		scopes
 	};
 };
 
@@ -110,6 +121,25 @@ export const actions: Actions = {
 		if (outcome !== 'assigned') {
 			const errors: FieldErrors<AssignmentFields> = { leaseId: assignMessages[outcome] };
 			return fail(400, { id, errors, values: stringValues(form) });
+		}
+		return { assigned: id };
+	},
+
+	expense: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		const result = parseExpenseAssignment(form);
+		if (!result.ok) {
+			return fail(400, { id, expenseErrors: result.errors, values: result.values });
+		}
+		const outcome = await assignExpense(locals.db, auditContext(locals), id, result.data);
+		if (outcome === 'missing') notFound();
+		if (outcome !== 'assigned') {
+			const message =
+				outcome === 'not-open'
+					? 'Dieser Umsatz ist nicht mehr offen.'
+					: 'Diese Zuordnung gibt es nicht.';
+			return fail(400, { id, expenseErrors: { scope: message }, values: result.values });
 		}
 		return { assigned: id };
 	},

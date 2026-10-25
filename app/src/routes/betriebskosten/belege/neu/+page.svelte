@@ -42,6 +42,7 @@
 			keys={data.keys}
 			circles={data.circles}
 			prefill={data.prefill}
+			history={data.history}
 			errors={form?.errors}
 			values={form?.values}
 			withNext

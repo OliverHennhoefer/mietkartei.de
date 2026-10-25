@@ -6,7 +6,16 @@ import { formatCents } from '../money';
 import { auditEntry } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import { auditLog, leases, payments, rentCharges, rentChanges } from './db/schema';
+import { createBankAccount } from './bank/accounts';
+import {
+	auditLog,
+	bankTransactions,
+	leases,
+	payments,
+	properties,
+	rentCharges,
+	rentChanges
+} from './db/schema';
 import { createLease } from './leases';
 import {
 	chargeEntry,
@@ -14,6 +23,7 @@ import {
 	deleteCharge,
 	deletePayment,
 	ensureCharges,
+	lastPayment,
 	listBalances,
 	listLedger,
 	paymentEntry,
@@ -67,6 +77,15 @@ describe('ensureCharges', () => {
 		} finally {
 			QUOTAS.rentCharges.max = max;
 		}
+	});
+
+	it('skips the holidays of the Bundesland of the property and moves due dates when it changes', async () => {
+		await ensureCharges(db, 'a', [leaseId], '2025-01');
+		expect((await rentRows(leaseId)).map((row) => row.dueDate)).toEqual(['2025-01-06']);
+		// Heilige Drei Könige on Mon 6 January is a holiday in Bavaria.
+		await db.update(properties).set({ state: 'BY' }).where(eq(properties.accountId, 'a'));
+		expect(await ensureCharges(db, 'a', [leaseId], '2025-01')).toMatchObject({ updated: 1 });
+		expect((await rentRows(leaseId)).map((row) => row.dueDate)).toEqual(['2025-01-07']);
 	});
 
 	it('inserts one rent charge per month up to untilMonth, and nothing twice', async () => {
@@ -303,7 +322,7 @@ describe('createPayment and deletePayment', () => {
 			note: 'Überweisung'
 		});
 
-		expect(await deletePayment(db, contextA, id!)).toBe(true);
+		expect(await deletePayment(db, contextA, id!)).toBe('deleted');
 		expect(await db.select().from(payments)).toEqual([]);
 		const audit = await db.select().from(auditLog).where(eq(auditLog.entityId, leaseId));
 		expect(audit.map((entry) => [entry.action, entry.summary])).toEqual([
@@ -317,6 +336,35 @@ describe('createPayment and deletePayment', () => {
 		await createPayment(db, contextA, { ...payment, leaseId, amount: -2500 });
 		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'create'));
 		expect(audit.at(-1)?.summary).toBe(`Rückzahlung ${formatCents(2500)} vom 03.04.2025 gebucht`);
+	});
+
+	it('leaves a payment from a bank transaction to the bank page', async () => {
+		const created = await createBankAccount(db, contextA, {
+			name: 'Mietkonto',
+			iban: 'DE02120300000000202051',
+			bic: null,
+			holder: 'Erika Vermieter'
+		});
+		if (!created.ok) throw new Error('setup failed');
+		const [transaction] = await db
+			.insert(bankTransactions)
+			.values({
+				accountId: 'a',
+				bankAccountId: created.id,
+				bookingDate: '2025-04-03',
+				amount: 65000,
+				fingerprint: 'f'
+			})
+			.returning({ id: bankTransactions.id });
+		const entry = paymentEntry(db, contextA, {
+			...payment,
+			leaseId,
+			source: 'bank',
+			bankTransactionId: transaction.id
+		});
+		await runBatch(db, [entry.statement]);
+		expect(await deletePayment(db, contextA, entry.id)).toBe('from-bank');
+		expect(await db.select().from(payments)).toHaveLength(1);
 	});
 
 	it('builds a statement for the banking feature to run in its own batch', async () => {
@@ -334,9 +382,37 @@ describe('createPayment and deletePayment', () => {
 		expect(await db.select().from(payments)).toEqual([]);
 
 		const foreign = await createPayment(db, contextB, { ...payment, leaseId: foreignLeaseId });
-		expect(await deletePayment(db, contextA, foreign!)).toBe(false);
+		expect(await deletePayment(db, contextA, foreign!)).toBe('missing');
 		expect(await db.select().from(payments)).toHaveLength(1);
 		expect(await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'))).toHaveLength(1);
+	});
+});
+
+describe('lastPayment', () => {
+	it('finds the latest incoming payment, with the note of a manual one only', async () => {
+		expect(await lastPayment(db, 'a', leaseId)).toBeUndefined();
+		const base = { leaseId, source: 'manual' as const };
+		await createPayment(db, contextA, { ...base, date: '2025-02-03', amount: 80000, note: 'bar' });
+		await createPayment(db, contextA, {
+			...base,
+			date: '2025-03-03',
+			amount: 85000,
+			note: 'Überweisung'
+		});
+		await createPayment(db, contextA, {
+			...base,
+			date: '2025-03-10',
+			amount: -2500,
+			note: 'Rückzahlung'
+		});
+		expect(await lastPayment(db, 'a', leaseId)).toEqual({
+			date: '2025-03-03',
+			amount: 85000,
+			note: 'Überweisung'
+		});
+		await db.update(payments).set({ source: 'bank' }).where(eq(payments.note, 'Überweisung'));
+		expect((await lastPayment(db, 'a', leaseId))?.note).toBeNull();
+		expect(await lastPayment(db, 'b', leaseId)).toBeUndefined();
 	});
 });
 
@@ -353,6 +429,7 @@ describe('listLedger', () => {
 		await pay('2025-03-05', 100000, 'Nachzahlung');
 		await pay('2025-01-03', 80000);
 		await pay('2025-02-10', 50000);
+		await pay('2025-03-20', -10000);
 	});
 
 	it('interleaves charges and payments with a running balance, charges first on a day', async () => {
@@ -366,9 +443,36 @@ describe('listLedger', () => {
 			['2025-02-05', 'charge', 'Miete Februar 2025', 80000, 80000],
 			['2025-02-10', 'payment', 'Zahlung', 50000, 30000],
 			['2025-03-05', 'charge', 'Miete März 2025', 80000, 110000],
-			['2025-03-05', 'payment', 'Nachzahlung', 100000, 10000]
+			['2025-03-05', 'payment', 'Nachzahlung', 100000, 10000],
+			// A refund to the tenant raises the balance again.
+			['2025-03-20', 'payment', 'Rückzahlung', -10000, 20000]
 		]);
-		expect(ledger).toMatchObject({ charged: 240000, paid: 230000, balance: 10000 });
+		expect(ledger).toMatchObject({ charged: 240000, paid: 220000, balance: 20000 });
+	});
+
+	it('keeps payments of the same day in the order they were booked', async () => {
+		await createPayment(db, contextA, {
+			leaseId: endedLeaseId,
+			date: '2025-02-10',
+			amount: 1000,
+			source: 'manual',
+			note: 'Rest'
+		});
+		// createdAt has millisecond resolution; spread the two bookings so the order is defined.
+		const sameDay = await db.select().from(payments).where(eq(payments.date, '2025-02-10'));
+		expect(sameDay).toHaveLength(2);
+		const base = Date.now();
+		for (const payment of sameDay) {
+			const offset = payment.note === 'Rest' ? 1000 : 0;
+			await db
+				.update(payments)
+				.set({ createdAt: new Date(base + offset) })
+				.where(eq(payments.id, payment.id));
+		}
+		const labels = (await listLedger(db, 'a', endedLeaseId)).lines
+			.filter((line) => line.date === '2025-02-10')
+			.map((line) => line.label);
+		expect(labels).toEqual(['Zahlung', 'Rest']);
 	});
 
 	it('limits the lines to a window and carries the balance over', async () => {
@@ -387,7 +491,7 @@ describe('listLedger', () => {
 		await postCharge(db, contextA, { leaseId: endedLeaseId, ...adjustment, period: '2025-03' });
 		const ledger = await listLedger(db, 'a', endedLeaseId, { from: '2025-05-01' });
 		expect(ledger.lines.map((line) => [line.label, line.amount, line.balance])).toEqual([
-			['Korrektur März 2025: Mietminderung Heizung', -5000, 5000]
+			['Korrektur März 2025: Mietminderung Heizung', -5000, 15000]
 		]);
 	});
 
@@ -465,7 +569,8 @@ describe('listBalances', () => {
 				balance: 160000,
 				overdue: 160000,
 				lastPaymentDate: null,
-				openSince: '2025-01'
+				openSince: '2025-01',
+				openSinceDate: '2025-01-06'
 			},
 			{
 				leaseId,
@@ -474,7 +579,8 @@ describe('listBalances', () => {
 				balance: 110000,
 				overdue: 110000,
 				lastPaymentDate: '2025-02-10',
-				openSince: '2025-02'
+				openSince: '2025-02',
+				openSinceDate: '2025-02-05'
 			},
 			{
 				leaseId: overpaid.id,
@@ -483,7 +589,8 @@ describe('listBalances', () => {
 				balance: -20000,
 				overdue: 0,
 				lastPaymentDate: '2025-01-02',
-				openSince: null
+				openSince: null,
+				openSinceDate: null
 			}
 		]);
 		expect(await rentRows(foreignLeaseId)).toEqual([]);
@@ -530,7 +637,8 @@ describe('listBalances', () => {
 			balance: 30000,
 			overdue: 30000,
 			lastPaymentDate: '2025-12-10',
-			openSince: '2025-12'
+			openSince: '2025-12',
+			openSinceDate: '2025-12-03'
 		});
 
 		const ledger = await listLedger(db, 'a', lease.id, { to: '2025-12-31' });
@@ -620,6 +728,30 @@ describe('listBalances', () => {
 		expect(await balanceOn('2026-04-01')).toMatchObject({ overdue: 20000, openSince: '2026-04' });
 	});
 
+	it('dates a Rückstand from a refund once the rent it follows was paid', async () => {
+		// January 2025: rent 800 € due 06.01., paid on 12.01.; 100 € refunded on 20.01.
+		await db.update(leases).set({ endDate: '2025-01-31' }).where(eq(leases.id, leaseId));
+		await createPayment(db, contextA, {
+			leaseId,
+			date: '2025-01-12',
+			amount: 80000,
+			source: 'manual'
+		});
+		await createPayment(db, contextA, {
+			leaseId,
+			date: '2025-01-20',
+			amount: -10000,
+			source: 'manual'
+		});
+		const [balance] = await listBalances(db, 'a', { untilMonth: '2025-01', asOf: '2025-01-31' });
+		expect(balance).toMatchObject({
+			overdue: 10000,
+			openSince: '2025-01',
+			openSinceDate: '2025-01-20',
+			lastPaymentDate: '2025-01-12'
+		});
+	});
+
 	it('counts the rent of the month only from its due day', async () => {
 		// January 2025: Neujahr does not count, so the rent is due on Monday 06.01. Paid nothing.
 		// On Friday 03.01. it is owed but not due.
@@ -656,7 +788,8 @@ describe('listBalances', () => {
 			balance: -40000,
 			overdue: 160000,
 			lastPaymentDate: null,
-			openSince: '2025-01'
+			openSince: '2025-01',
+			openSinceDate: '2025-01-06'
 		});
 	});
 

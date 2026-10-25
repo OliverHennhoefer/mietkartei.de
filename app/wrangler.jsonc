@@ -11,6 +11,8 @@
 	// See src/lib/server/registration.ts and .github/DEPLOYMENT.md.
 	// Mails (password reset, invitations) go out through Resend; the API key is the secret
 	// MAIL_API_KEY, see .github/DEPLOYMENT.md.
+	// The Verbraucherpreisindex comes from Destatis with the API token of the secret
+	// GENESIS_API_TOKEN, see src/lib/server/consumer-price-index.ts and .github/DEPLOYMENT.md.
 	// The subscription is on once the secrets STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are set
 	// as well; STRIPE_PRICE_ID is the monthly price in Stripe test mode. See .github/DEPLOYMENT.md.
 	"vars": {
@@ -25,10 +27,12 @@
 	// A request may use at most 10 s of CPU instead of the default 30 s. The slowest real path, a
 	// bank import of a 2 MB file (~27,000 rows), takes about 1 s each for preview and commit.
 	"limits": { "cpu_ms": 10000 },
-	// Posts of the sign-in, registration, reset and invitation forms per client address; see
-	// src/lib/server/rate-limit.
+	// Posts of the sign-in, registration, reset and invitation forms per client address, and calls
+	// of the API; see src/lib/server/rate-limit.
 	"ratelimits": [
-		{ "name": "AUTH_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }
+		{ "name": "AUTH_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+		// Calls of the API and the MCP server per key, and calls with a wrong key per address.
+		{ "name": "API_LIMITER", "namespace_id": "1002", "simple": { "limit": 120, "period": 60 } }
 	],
 	"d1_databases": [
 		{
@@ -47,5 +51,40 @@
 			"bucket_name": "mietkartei-documents",
 			"jurisdiction": "eu"
 		}
-	]
+	],
+	// The public demo at demo.mietkartei.de, deployed with `wrangler deploy --env demo` after the
+	// app. Every visitor gets a throwaway account (DEMO, see src/lib/server/demo-accounts.ts); mails
+	// stay in the outbox table and are never sent. The deploy job creates the bucket when it is
+	// missing.
+	"env": {
+		"demo": {
+			"name": "mietkartei-demo",
+			"routes": [{ "pattern": "demo.mietkartei.de", "custom_domain": true }],
+			"vars": {
+				"DEMO": "true",
+				"MAIL_TRANSPORT": "outbox",
+				"MAIL_FROM": "noreply@mietkartei.de",
+				// No subscription in the demo.
+				"STRIPE_PRICE_ID": ""
+			},
+			"ratelimits": [
+				{ "name": "AUTH_LIMITER", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }
+			],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "mietkartei-demo",
+					"database_id": "454147c0-ec65-4c1f-97d3-be5ce42d3691",
+					"migrations_dir": "drizzle"
+				}
+			],
+			"r2_buckets": [
+				{
+					"binding": "DOCUMENTS",
+					"bucket_name": "mietkartei-demo-documents",
+					"jurisdiction": "eu"
+				}
+			]
+		}
+	}
 }

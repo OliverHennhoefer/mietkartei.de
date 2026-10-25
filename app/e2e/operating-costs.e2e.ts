@@ -31,7 +31,7 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 		.click();
 	await expect(page).toHaveURL(/\/betriebskosten$/);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Betriebskosten');
-	await expect(page).toHaveTitle('Betriebskosten · mietkartei');
+	await expect(page).toHaveTitle('Betriebskosten | mietkartei');
 	await expect(page.getByRole('heading', { level: 2, name: 'Neue Abrechnung' })).toBeVisible();
 
 	// Categories: heating and hot water start with their HeizKV key, a combined system with none
@@ -244,6 +244,19 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 	await expect(page.getByRole('combobox', { name: 'Objekt', exact: true })).toHaveValue(propertyId);
 	await expect(page.getByLabel('Zeitraum von')).toHaveValue('2025-01-01');
 	await expect(page.getByLabel('Beschreibung')).toHaveValue('');
+
+	// "Übernehmen" repeats the last Beleg of the category for the next year.
+	await page.goto(`/betriebskosten/belege/neu?property=${propertyId}&year=2026`);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('combobox', { name: 'Kostenart' }).selectOption({ label: '1 Grundsteuer' });
+	await expect(page.getByText('Letzter Beleg dieser Kostenart: Stadt Berlin')).toBeVisible();
+	await page.getByRole('button', { name: 'Übernehmen' }).click();
+	await expect(page.getByLabel('Beschreibung')).toHaveValue(`Grundsteuer 2026 ${suffix}`);
+	await expect(page.getByLabel('Lieferant (optional)')).toHaveValue('Stadt Berlin');
+	await expect(page.getByLabel('Betrag in €')).toHaveValue('1.200,00');
+	await expect(
+		page.getByRole('combobox', { name: 'Abrechnungskreis' }).locator('option:checked')
+	).toHaveText(`${propertyName} – ${circleName}`);
 
 	// The list, filtered by the property and the year, with the sum per category.
 	await page.goto(`/betriebskosten/belege?property=${propertyId}&year=2025`);

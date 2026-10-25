@@ -5,12 +5,14 @@
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import TaskFields from '#lib/components/TaskFields.svelte';
 	import { dayOf, formatDate } from '#lib/dates.ts';
+	import { taskCategoryLabels } from '#lib/labels.ts';
+	import { repeatLabel, taskTemplates } from '#lib/task-templates.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
 	const errors = $derived(form && 'errors' in form ? form.errors : undefined);
-	const values = $derived(form?.values ?? {});
+	const values = $derived(form?.values ?? data.template ?? {});
 	const overdue = $derived(data.deadlines.filter((deadline) => deadline.overdue).length);
 </script>
 
@@ -78,7 +80,9 @@
 				</form>
 				<div class="body">
 					<a href="/aufgaben/{task.id}"><strong>{task.title}</strong></a>
+					{#if task.category !== 'other'}<Badge>{taskCategoryLabels[task.category]}</Badge>{/if}
 					<span class="muted">
+						{#if task.repeatMonths}· {repeatLabel(task.repeatMonths)}{/if}
 						{#if task.dueDate}
 							· bis {formatDate(task.dueDate)}
 							{#if task.dueDate < data.today}<Badge tone="danger">überfällig</Badge>{/if}
@@ -140,9 +144,21 @@
 	</details>
 {/if}
 
-<h2>Aufgabe anlegen</h2>
+<h2 id="anlegen">Aufgabe anlegen</h2>
+<p class="muted templates">
+	Vorlagen für wiederkehrende Pflichten:
+	{#each taskTemplates as template, index (template.key)}
+		{index > 0 ? ' · ' : ''}<a
+			href="?vorlage={template.key}#anlegen"
+			aria-current={data.template?.key === template.key ? 'true' : undefined}>{template.title}</a
+		>
+	{/each}
+</p>
 <form method="POST" action="?/create" class="card" use:enhance>
-	<TaskFields {values} {errors} properties={data.properties} leases={data.leases} />
+	<!-- Keyed, so choosing another template refills fields the browser has not touched yet. -->
+	{#key data.template?.key}
+		<TaskFields {values} {errors} properties={data.properties} leases={data.leases} />
+	{/key}
 	<div class="form-actions">
 		<button type="submit">Aufgabe anlegen</button>
 		{#if form && 'created' in form}
@@ -217,6 +233,9 @@
 		cursor: pointer;
 		color: var(--color-muted);
 		margin-bottom: 0.5rem;
+	}
+	.templates [aria-current] {
+		font-weight: 600;
 	}
 	.form-actions p {
 		margin: 0;

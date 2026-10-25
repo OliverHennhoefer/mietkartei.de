@@ -90,6 +90,10 @@ Complete these steps before merging the pull request that adds the R2 binding to
 1. **Create the bucket.** In Cloudflare, open **Storage & Databases → R2 → Create bucket**, name it `mietkartei-documents` and choose the location **Jurisdiction: European Union**. Alternatively run `npx wrangler r2 bucket create mietkartei-documents --jurisdiction eu` in `app/`. The binding names the jurisdiction, so the bucket must be the EU one.
 2. **Extend the token.** Edit the API token and add **Account → Workers R2 Storage → Edit**.
 
+### Public demo
+
+After the app, the same job deploys the demo at `demo.mietkartei.de`: the same build with the `demo` environment of `app/wrangler.jsonc`, as the Worker `mietkartei-demo` with its own D1 database `mietkartei-demo`, its own R2 bucket `mietkartei-demo-documents` and `DEMO=true`. Visitors start a throwaway account with the demo data at `/demo`; demo accounts are deleted 24 hours after they were created, whenever someone starts a new demo. Mails stay in the database and are never sent. The job creates the bucket when it is missing; the database was created by hand and its ID is in `app/wrangler.jsonc`. A failed demo deploy does not affect the app, which deployed before it.
+
 ### Bot check on registration (Cloudflare Turnstile)
 
 The registration form shows a Turnstile check once both keys are configured; without them it has none.
@@ -110,6 +114,17 @@ The app sends password reset links, invitations and the confirmation of a new em
 
 Links in mails point to the host Cloudflare routed the request to, so the hosted app needs no `ORIGIN`.
 
+### Consumer price index (Destatis)
+
+Index rent proposals need the Verbraucherpreisindex. The app fetches it from the GENESIS web service of Destatis (table 61111-0002, base year 2020 = 100) into one table shared by all accounts, at most every six hours, when someone opens the VPI settings or the Miethöhe tab of a lease. GENESIS has no guest access, so the app needs the API token of a free GENESIS account. Without it the app has no VPI values and refuses index proposals.
+
+1. Register at [genesis.destatis.de](https://genesis.destatis.de) and sign in.
+2. Open **Webservice-Schnittstelle (API)**, which GENESIS shows to signed-in users, and copy the API token.
+3. Store it as a Worker secret: run `npx wrangler secret put GENESIS_API_TOKEN` in `app/` and paste the token, or add it under **Workers & Pages → mietkartei-app → Settings → Variables and Secrets** as type **Secret**. For index proposals in the demo, add the same secret to `mietkartei-demo` (`npx wrangler secret put GENESIS_API_TOKEN --env demo`).
+4. After the next deploy, open `https://app.mietkartei.de/einstellungen/vpi`. The table fills within seconds; a failed fetch is shown on the page with the answer of Destatis and retried 30 minutes later.
+
+The page names Destatis as the source with the Datenlizenz Deutschland – Namensnennung – Version 2.0, as the license requires.
+
 ### Subscription (Stripe)
 
 The hosted app charges a monthly subscription through Stripe Checkout and the Stripe Customer Portal. Every account has a 30-day trial; once it ends, `BILLING_REQUIRED` decides whether an account without a running subscription can only read. The app shows nothing about billing until both `STRIPE_SECRET_KEY` and `STRIPE_PRICE_ID` are set, so it can be deployed before Stripe is ready. Set everything up in **test mode** first (the toggle in the Stripe dashboard); live mode repeats the same steps with live keys.
@@ -122,6 +137,10 @@ The hosted app charges a monthly subscription through Stripe Checkout and the St
 6. **Price ID.** Enter the price ID from step 1 as `STRIPE_PRICE_ID` under `vars` in `app/wrangler.jsonc`. The price ID is not a secret. This switches the subscription on with the next deploy.
 7. **Check.** After the deploy, open `https://app.mietkartei.de/abo`, choose **Abo abschließen** and pay with the test card `4242 4242 4242 4242`. Under **Developers → Webhooks**, the deliveries to the endpoint must answer 200, and the page must show the subscription as **Aktiv**. **Abo verwalten** opens the Customer Portal.
 8. **Read-only after the trial.** Add `"BILLING_REQUIRED": "true"` under `vars` only when accounts without a subscription should become read-only after their trial. Without it the app only shows a notice. Reading, the export, signing out, changing the name, email address or password and deleting the account always work.
+
+9. **One trial per address.** Run `npx wrangler secret put TRIAL_FINGERPRINT_KEY` in `app/` and enter a long random string (for example from `openssl rand -hex 32`). Every new account then stores an HMAC of its owner's address, lowercased, without a `+tag` and, at Gmail, without dots. The row outlives the account, so an address that registers again, after deleting its account or with such a variant, starts without a trial. Rows are deleted after two years. Without the secret every new account gets a trial. Changing the key forgets all earlier trials.
+10. **Free accounts.** For family and friends, run `npx wrangler secret put FREE_ACCOUNT_EMAILS` and enter the owners' addresses, separated by commas. Such an account shows no trial, no notice and never turns read-only; the subscription page calls it free and refuses Checkout. Removing an address ends it: the account falls back to its trial or subscription. Managers invited into an account never pay, so they need no entry.
+11. **Promotion codes.** Checkout offers a field for promotion codes. Create them in the Stripe dashboard under **Product catalog → Coupons**: a coupon sets the discount (a percentage or an amount) and how long it lasts (once, a number of months, forever; 100 % for three months gives three free months after the trial), and its promotion codes set the code customers type, with limits on redemptions, an expiry date and **First-time order only**. Stripe checks every code; the app never sees one.
 
 Deleting an account cancels every subscription of its Stripe customer first. If Stripe does not answer, the account is not deleted and the owner is asked to try again.
 

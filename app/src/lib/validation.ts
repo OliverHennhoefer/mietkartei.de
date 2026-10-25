@@ -1,7 +1,8 @@
 import { FormParser, type FieldErrors, type ParseResult } from './forms/fields';
-import { buildingUseLabels } from './labels';
-import type { BuildingUse } from './server/db/schema';
+import { buildingUseLabels, propertyKindLabels, stateLabels } from './labels';
+import type { BuildingUse, PropertyKind } from './server/db/schema';
 import { unitKinds, type UnitKind } from './units';
+import type { GermanState } from './working-days';
 
 export type { FieldErrors, ParseResult };
 
@@ -10,7 +11,15 @@ export type PropertyInput = {
 	street: string;
 	postalCode: string;
 	city: string;
+	kind: PropertyKind;
+	/** For a condominium: the WEG-Verwalter; null otherwise. */
+	associationManager: string | null;
+	/** For a condominium: its MEA and the MEA of the WEG, both or neither; null otherwise. */
+	ownershipShare: number | null;
+	ownershipShareTotal: number | null;
 	buildingUse: BuildingUse;
+	/** Bundesland for the public holidays; null when not given. */
+	state: GermanState | null;
 	/** Persons a vacant unit counts with in the persons key, 0–10. */
 	vacancyPersons: number;
 	notes: string | null;
@@ -27,6 +36,8 @@ export type UnitInput = {
 
 // validation.ts is also loaded in the browser, so the enum comes from the labels, not the schema.
 const buildingUses = Object.keys(buildingUseLabels) as BuildingUse[];
+const propertyKinds = Object.keys(propertyKindLabels) as PropertyKind[];
+const states = Object.keys(stateLabels) as GermanState[];
 
 function text(form: FormData, name: string): string {
 	const value = form.get(name);
@@ -51,7 +62,31 @@ export function parseProperty(form: FormData): ParseResult<PropertyInput> {
 	if (!city) parser.fail('city', 'Bitte gib den Ort an.');
 	else if (city.length > 100) parser.fail('city', 'Höchstens 100 Zeichen.');
 
+	const kind = parser.oneOf('kind', propertyKinds, { required: false }) ?? 'building';
+	const condominium = kind === 'condominium';
+	const associationManager = parser.optionalText('associationManager', 200);
+	const ownershipShare = parser.number('ownershipShare', { required: false, max: 1_000_000 });
+	const ownershipShareTotal = parser.number('ownershipShareTotal', {
+		required: false,
+		max: 1_000_000
+	});
+	if (condominium) {
+		if (ownershipShare !== null && ownershipShareTotal === null) {
+			parser.fail('ownershipShareTotal', 'Bitte gib auch die Miteigentumsanteile der WEG an.');
+		} else if (ownershipShare === null && ownershipShareTotal !== null) {
+			parser.fail('ownershipShare', 'Bitte gib auch den Miteigentumsanteil der Wohnung an.');
+		} else if (ownershipShare !== null && ownershipShareTotal !== null) {
+			if (ownershipShare <= 0) parser.fail('ownershipShare', 'Der Anteil muss über 0 liegen.');
+			else if (ownershipShare > ownershipShareTotal) {
+				parser.fail(
+					'ownershipShare',
+					'Der Anteil der Wohnung kann nicht größer sein als die Anteile der WEG.'
+				);
+			}
+		}
+	}
 	const buildingUse = parser.oneOf('buildingUse', buildingUses, { required: false });
+	const state = parser.oneOf('state', states, { required: false });
 	const vacancyPersons = parser.number('vacancyPersons', {
 		required: false,
 		integer: true,
@@ -65,7 +100,12 @@ export function parseProperty(form: FormData): ParseResult<PropertyInput> {
 		street,
 		postalCode,
 		city,
+		kind,
+		associationManager: condominium ? associationManager : null,
+		ownershipShare: condominium ? ownershipShare : null,
+		ownershipShareTotal: condominium ? ownershipShareTotal : null,
 		buildingUse: buildingUse ?? 'residential',
+		state,
 		vacancyPersons: vacancyPersons ?? 1,
 		notes
 	}));

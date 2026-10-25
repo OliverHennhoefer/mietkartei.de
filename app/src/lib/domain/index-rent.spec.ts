@@ -159,20 +159,15 @@ describe('referenceIndex', () => {
 });
 
 describe('latestIndex', () => {
-	it('picks the newest month of a single base year', () => {
+	it('picks the newest month', () => {
 		expect(latestIndex(values)).toEqual({
 			ok: true,
 			latest: { month: '2026-01', value: 124.3, baseYear: '2020' }
 		});
 	});
 
-	it('refuses an empty table and mixed base years', () => {
+	it('refuses an empty table', () => {
 		expect(latestIndex([])).toEqual({ ok: false, reason: 'none' });
-		expect(latestIndex([...values, { month: '2026-02', value: 131.9, baseYear: '2015' }])).toEqual({
-			ok: false,
-			reason: 'mixed',
-			baseYears: ['2015', '2020']
-		});
 	});
 });
 
@@ -263,7 +258,7 @@ describe('indexSituation', () => {
 	});
 
 	it('refuses VPI values of another base year than the reference', () => {
-		// The lease's reference is on base 2020; the account only has values on base 2025.
+		// The lease's reference is on base 2020; the table only has values on base 2025.
 		const situation = indexSituation(
 			lease,
 			[initial],
@@ -273,7 +268,7 @@ describe('indexSituation', () => {
 		expect(situation.proposal).toBeUndefined();
 		expect(situation.refusal).toBe(
 			'Der Bezugsindex beruht auf dem Basisjahr 2020, die VPI-Werte auf dem Basisjahr 2025. ' +
-				'Trage die VPI-Werte zum Basisjahr 2020 ein oder den Bezugsindex umgerechnet im Mietvertrag.'
+				'Trage den Bezugsindex im Mietvertrag auf das Basisjahr 2025 umgerechnet ein.'
 		);
 	});
 
@@ -299,14 +294,6 @@ describe('indexSituation', () => {
 			indexSituation(
 				lease,
 				[initial],
-				[...values, { month: '2026-02', value: 131.9, baseYear: '2015' }],
-				today
-			).refusal
-		).toContain('mehreren Basisjahren (2015, 2020)');
-		expect(
-			indexSituation(
-				lease,
-				[initial],
 				[{ month: '2023-12', value: 117.4, baseYear: '2020' }],
 				today
 			).refusal
@@ -322,9 +309,46 @@ describe('indexSituation', () => {
 	});
 });
 
+describe('index rent with an unordered or incomplete history', () => {
+	const indexed = (validFrom: string, indexMonth: string, indexValue: number) =>
+		change({ validFrom, reason: 'indexed', indexMonth, indexValue });
+
+	it('takes the latest change whatever the order of the history', () => {
+		const history = [
+			indexed('2026-01-01', '2025-10', 123),
+			initial,
+			indexed('2025-01-01', '2024-10', 120)
+		];
+		expect(referenceIndex(history, lease, '2026-12-01')).toMatchObject({ month: '2025-10' });
+		const steps = [
+			change({ validFrom: '2026-02-01', reason: 'graduated' }),
+			change({ validFrom: '2025-01-01' })
+		];
+		expect(nextGraduatedStepAllowed(steps)).toBe('2027-02-01');
+	});
+
+	it('takes a lease that starts after the effective date as of its start', () => {
+		const later = change({ validFrom: '2027-03-01' });
+		const situation = indexSituation(
+			{ ...lease, kind: 'commercial' },
+			[later],
+			values,
+			'2026-10-20'
+		);
+		expect(situation.provisionalFrom).toBe('2026-12-01');
+		expect(situation.proposal).toMatchObject({ currentBaseRent: 60000 });
+		expect(situation.refusal).toBeUndefined();
+	});
+
+	it('refuses without any rent', () => {
+		const situation = indexSituation(lease, [], values, '2026-10-20');
+		expect(situation.proposal).toBeUndefined();
+		expect(situation.refusal).toBe('Dem Mietvertrag fehlt die aktuelle Miete.');
+	});
+});
+
 describe('greeting', () => {
-	it('addresses the tenants by salutation in the informal register of the letter', () => {
-		// The letter says "dein Mietvertrag", so the greeting is "Guten Tag", not "Sehr geehrte".
+	it('addresses the tenants by salutation with a plain "Guten Tag"', () => {
 		expect(greeting([{ salutation: 'Frau', firstName: 'Erika', lastName: 'Muster' }])).toBe(
 			'Guten Tag Frau Muster,'
 		);
@@ -376,7 +400,7 @@ describe('letterFigures and indexLetterText', () => {
 		const paragraphs = text.split('\n\n');
 		expect(paragraphs).toHaveLength(4);
 		expect(paragraphs[0]).toBe('Guten Tag Frau Muster,');
-		expect(paragraphs[1]).toMatch(/^dein Mietvertrag für Wohnung EG links/);
+		expect(paragraphs[1]).toMatch(/^Ihr Mietvertrag für Wohnung EG links/);
 		expect(paragraphs[1]).toContain('Basisjahr 2020 = 100');
 		expect(paragraphs[2]).toContain(
 			'von 118,2 (Januar 2024) auf 124,3 (Januar 2026) gestiegen, das sind 5,16 %'
@@ -392,7 +416,7 @@ describe('letterFigures and indexLetterText', () => {
 		]);
 	});
 
-	it('says "euer Mietvertrag" to two tenants', () => {
+	it('says "Ihr Mietvertrag" to two tenants as well', () => {
 		const figures = letterFigures([initial, approved], lease, approved)!;
 		const text = indexLetterText({
 			unitName: 'Wohnung EG links',
@@ -404,7 +428,7 @@ describe('letterFigures and indexLetterText', () => {
 		});
 		const paragraphs = text.split('\n\n');
 		expect(paragraphs[0]).toBe('Guten Tag Frau Muster, Herr Muster,');
-		expect(paragraphs[1]).toMatch(/^euer Mietvertrag für Wohnung EG links/);
+		expect(paragraphs[1]).toMatch(/^Ihr Mietvertrag für Wohnung EG links/);
 	});
 });
 

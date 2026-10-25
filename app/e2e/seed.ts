@@ -53,7 +53,10 @@ export async function seedRows(
 	return (await post(request, { op: 'rows', table, rows })) as { ids: string[] };
 }
 
-/** Deletes the owner's rows of the named tables, in the order given (children before parents). */
+/**
+ * Deletes the owner's rows of the named tables, in the order given (children before parents).
+ * The VPI table (`consumer_price_index`) is shared by all accounts and is emptied.
+ */
 export async function clearTables(request: APIRequestContext, tables: string[]): Promise<void> {
 	await post(request, { op: 'clear', tables });
 }

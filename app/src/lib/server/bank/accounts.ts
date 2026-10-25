@@ -6,6 +6,7 @@ import type { Database } from '../db';
 import { runBatch } from '../db/batch';
 import { bankAccounts, bankTransactions } from '../db/schema';
 import { assertQuota } from '../quotas';
+import { bankOfIban } from './bank-codes';
 
 // Bankverbindungen: the landlord's accounts rent comes in on. Owners only (the pages enforce it).
 
@@ -42,6 +43,7 @@ export async function getBankAccount(
 /**
  * Refused when the account already has a bank account with this IBAN: transactions are unique
  * only per bank account, so the same statement imported into both would book every rent twice.
+ * A BIC left empty is taken from the Bankleitzahlendatei.
  */
 export async function createBankAccount(
 	db: Database,
@@ -55,8 +57,9 @@ export async function createBankAccount(
 		.where(and(eq(bankAccounts.accountId, context.accountId), eq(bankAccounts.iban, input.iban)));
 	if (existing) return { ok: false, reason: 'duplicate' };
 	const id = crypto.randomUUID();
+	const bic = input.bic ?? bankOfIban(input.iban)?.bic ?? null;
 	await runBatch(db, [
-		db.insert(bankAccounts).values({ id, accountId: context.accountId, ...input }),
+		db.insert(bankAccounts).values({ id, accountId: context.accountId, ...input, bic }),
 		auditEntry(
 			db,
 			context,

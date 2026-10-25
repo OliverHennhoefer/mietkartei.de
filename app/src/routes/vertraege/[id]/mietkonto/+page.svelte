@@ -6,6 +6,8 @@
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
+	import { formatRate } from '#lib/domain/default-interest.ts';
+	import { reminderLevelLabels } from '#lib/domain/reminders.ts';
 	import { formatCents, formatCentsPlain } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
@@ -17,6 +19,38 @@
 	const paymentValues = $derived(failed?.form === 'payment' ? failed.values : undefined);
 	const adjustmentErrors = $derived(failed?.form === 'adjustment' ? failed.errors : undefined);
 	const adjustmentValues = $derived(failed?.form === 'adjustment' ? failed.values : undefined);
+	const reminderErrors = $derived(failed?.form === 'reminder' ? failed.errors : undefined);
+	const reminderValues = $derived(failed?.form === 'reminder' ? failed.values : undefined);
+
+	const deletedMessages = {
+		payment: 'Zahlung gelöscht.',
+		adjustment: 'Korrektur gelöscht.',
+		reminder: 'Schreiben gelöscht.'
+	};
+	const reminderPdf = (id: string) => `/vertraege/${data.lease.id}/mietkonto/schreiben/${id}`;
+	const latest = $derived(data.reminders.current[0]);
+	const interestBasis = $derived.by(() => {
+		const rate = data.reminders.baseRates.latest;
+		const basis = 'Fünf Prozentpunkte über dem Basiszinssatz (§ 288 Abs. 1 BGB)';
+		return rate
+			? `${basis}, der seit ${formatDate(rate.validFrom)} ${formatRate(rate.rate)} beträgt (Quelle: Deutsche Bundesbank).`
+			: `${basis}.`;
+	});
+	const baseRateError = $derived(
+		data.reminders.baseRates.error ? ` (${data.reminders.baseRates.error})` : ''
+	);
+
+	let paymentForm = $state<HTMLFormElement>();
+
+	/** Fills the payment form like the last payment: today, its amount and its note. */
+	function repeatLastPayment() {
+		const last = data.lastPayment;
+		if (!last || !paymentForm) return;
+		const amount = paymentForm.elements.namedItem('amount');
+		const note = paymentForm.elements.namedItem('note');
+		if (amount instanceof HTMLInputElement) amount.value = formatCentsPlain(last.amount);
+		if (note instanceof HTMLInputElement) note.value = last.note ?? '';
+	}
 </script>
 
 <!-- The heading and tab bar come from +layout.svelte; this page is the "Mietkonto" tab. -->
@@ -43,9 +77,15 @@
 	<Alert tone="success">
 		<p>{form.booked === 'payment' ? 'Zahlung gebucht.' : 'Korrektur gebucht.'}</p>
 	</Alert>
-{:else if form && 'deleted' in form}
+{:else if form?.deleted}
 	<Alert tone="success">
-		<p>{form.deleted === 'payment' ? 'Zahlung gelöscht.' : 'Korrektur gelöscht.'}</p>
+		<p>{deletedMessages[form.deleted]}</p>
+	</Alert>
+{:else if form?.reminderId}
+	<Alert tone="success">
+		<p>
+			Schreiben erstellt. <a href={reminderPdf(form.reminderId)}>PDF herunterladen</a>
+		</p>
 	</Alert>
 {/if}
 
@@ -134,8 +174,178 @@
 	<p class="muted small">Saldo positiv = Rückstand, negativ = Guthaben.</p>
 {/if}
 
+<h2 id="zahlungserinnerung">Zahlungserinnerung und Mahnung</h2>
+{#if data.reminders.items.length === 0}
+	<p class="muted">Heute ist nichts überfällig.</p>
+{:else}
+	<p>
+		Heute überfällig: <strong><Money cents={data.reminders.overdue} /></strong>
+		{#if latest}
+			<span class="muted">
+				· zuletzt {reminderLevelLabels[latest.level]} vom {formatDate(latest.date)}, Frist bis
+				{formatDate(latest.paymentDeadline)}
+			</span>
+			{#if latest.paymentDeadline < data.today}
+				<Badge tone="danger">Frist abgelaufen</Badge>
+			{/if}
+		{/if}
+	</p>
+	{#if data.reminders.interest.amount > 0}
+		<p>
+			Verzugszinsen bis heute: <strong><Money cents={data.reminders.interest.amount} /></strong>
+			<span class="muted">· {interestBasis} Ab der Mahnung nennt das Schreiben den Betrag.</span>
+		</p>
+	{/if}
+	{#if data.reminders.baseRates.outdated}
+		<Alert tone="warning">
+			<p>
+				Der Basiszinssatz für das laufende Halbjahr liegt noch nicht vor{baseRateError}; die
+				Verzugszinsen rechnen bis dahin mit dem letzten bekannten Satz.
+			</p>
+		</Alert>
+	{/if}
+	<div class="table-wrap">
+		<table class="table" aria-label="Offene Posten">
+			<thead>
+				<tr>
+					<th>Fällig am</th>
+					<th>Buchung</th>
+					<th class="num">Betrag</th>
+					<th class="num">Offen</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each data.reminders.items as item, index (index)}
+					<tr>
+						<td>{formatDate(item.dueDate)}</td>
+						<td>{item.label}</td>
+						<td class="num"><Money cents={item.amount} /></td>
+						<td class="num"><Money cents={item.open} /></td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	</div>
+	<form
+		method="POST"
+		action="?/reminder"
+		class="card"
+		aria-label="Zahlungserinnerung erstellen"
+		use:enhance
+	>
+		<Field
+			label="Art des Schreibens"
+			error={reminderErrors?.level}
+			hint="Vorgeschlagen ist die Stufe nach dem letzten Schreiben zu diesem Rückstand. Verzug tritt bei der Miete auch ohne Mahnung ein."
+		>
+			<select name="level" required>
+				{#each [1, 2, 3] as const as level (level)}
+					<option
+						value={String(level)}
+						selected={(reminderValues?.level ?? String(data.reminders.suggestedLevel)) ===
+							String(level)}
+					>
+						{reminderLevelLabels[level]}
+					</option>
+				{/each}
+			</select>
+		</Field>
+		<Field
+			label="Datum des Schreibens"
+			error={reminderErrors?.date}
+			hint="Aufgeführt wird, was an diesem Tag offen ist."
+		>
+			<input
+				type="date"
+				name="date"
+				max={data.today}
+				defaultValue={reminderValues?.date ?? data.today}
+				aria-invalid={reminderErrors?.date ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		<Field label="Zahlungsfrist" error={reminderErrors?.paymentDeadline}>
+			<input
+				type="date"
+				name="paymentDeadline"
+				defaultValue={reminderValues?.paymentDeadline ?? data.paymentDeadlineDefault}
+				aria-invalid={reminderErrors?.paymentDeadline ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		{#if !data.landlordComplete}
+			<Alert tone="warning">
+				<p>
+					Der Absender für das Schreiben ist unvollständig.
+					<a href="/einstellungen/profil">Vermieterdaten ergänzen</a>
+				</p>
+			</Alert>
+		{/if}
+		<div class="form-actions">
+			<button type="submit">Schreiben erstellen</button>
+		</div>
+	</form>
+{/if}
+
+{#if data.reminders.reminders.length > 0}
+	<div class="table-wrap">
+		<table class="table" aria-label="Erstellte Schreiben">
+			<thead>
+				<tr>
+					<th>Datum</th>
+					<th>Schreiben</th>
+					<th class="num">Betrag</th>
+					<th>Zahlungsfrist</th>
+					<th class="actions"></th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each data.reminders.reminders as reminder (reminder.id)}
+					<tr>
+						<td>{formatDate(reminder.date)}</td>
+						<td>{reminderLevelLabels[reminder.level]}</td>
+						<td class="num"><Money cents={reminder.amount} /></td>
+						<td>{formatDate(reminder.paymentDeadline)}</td>
+						<td class="actions">
+							<a href={reminderPdf(reminder.id)}>PDF</a>
+							<ConfirmButton
+								action="?/deleteReminder"
+								label="Löschen"
+								message="{reminderLevelLabels[reminder.level]} vom {formatDate(
+									reminder.date
+								)} löschen? Das Schreiben verschwindet nur hier, nicht beim Mieter."
+							>
+								<input type="hidden" name="id" value={reminder.id} />
+							</ConfirmButton>
+						</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	</div>
+{/if}
+
 <h2>Zahlung buchen</h2>
-<form method="POST" action="?/payment" class="card" aria-label="Zahlung buchen" use:enhance>
+<form
+	method="POST"
+	action="?/payment"
+	class="card"
+	aria-label="Zahlung buchen"
+	bind:this={paymentForm}
+	use:enhance
+>
+	{#if data.lastPayment}
+		<p class="form-wide last-payment muted small">
+			<span>
+				Letzte Zahlung: {formatCents(data.lastPayment.amount)} am {formatDate(
+					data.lastPayment.date
+				)}{data.lastPayment.note ? ` („${data.lastPayment.note}“)` : ''}
+			</span>
+			<button type="button" class="secondary small" onclick={repeatLastPayment}>
+				Wie letzte Zahlung
+			</button>
+		</p>
+	{/if}
 	<Field label="Datum" error={paymentErrors?.date}>
 		<input
 			type="date"
@@ -222,6 +432,13 @@
 </form>
 
 <style>
+	.last-payment {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.25rem 0.75rem;
+		margin: 0;
+	}
 	.balance {
 		display: flex;
 		flex-wrap: wrap;

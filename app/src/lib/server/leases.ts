@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { formatDate, monthOf, today, type IsoDate } from '../dates';
 import { rentOn, type RentChange as RentHistoryEntry } from '../domain/rents';
@@ -12,15 +12,14 @@ import { chargeStatements } from './ledger';
 import { laterRows, laterRowsNote, type LaterRows } from './rent-history';
 import {
 	auditLog,
-	depositTransactions,
 	leasePersons,
 	leaseTenants,
 	leaseUnits,
 	leases,
-	payments,
+	operatingCostStatements,
 	properties,
-	rentCharges,
 	rentChanges,
+	statementResults,
 	tenants,
 	units,
 	type HeatingCostModel,
@@ -209,35 +208,51 @@ export async function getLease(
 	return lease;
 }
 
-export type LeaseError = 'unknown-unit' | 'unknown-tenant' | 'missing' | 'start-after-changes';
+export type LeaseError =
+	| 'unknown-unit'
+	| 'unknown-tenant'
+	| 'archived'
+	| 'missing'
+	| 'start-after-changes'
+	| 'settled-property';
 
+/**
+ * Whether the units and tenants exist in the account and none is archived (a unit counts as
+ * archived with its property). What the lease already names stays allowed, so an edit of a lease
+ * of a sold property or a moved-out tenant still saves.
+ */
 async function checkReferences(
 	db: Database,
 	accountId: string,
-	input: LeaseInput
+	input: LeaseInput,
+	kept: { unitIds: string[]; tenantIds: string[] } = { unitIds: [], tenantIds: [] }
 ): Promise<LeaseError | undefined> {
 	// The form does not cap the number of ids, so they go in groups (D1 binds at most 100).
 	const unitIds = [...new Set([input.unitId, ...input.extraUnitIds])];
 	let ownUnits = 0;
+	let archived = false;
 	for (const ids of chunkIds(unitIds)) {
 		const rows = await db
-			.select({ id: units.id })
+			.select({ id: units.id, archivedAt: properties.archivedAt })
 			.from(units)
+			.innerJoin(properties, eq(properties.id, units.propertyId))
 			.where(and(eq(units.accountId, accountId), inArray(units.id, ids)));
 		ownUnits += rows.length;
+		if (rows.some((row) => row.archivedAt && !kept.unitIds.includes(row.id))) archived = true;
 	}
 	if (ownUnits !== unitIds.length) return 'unknown-unit';
 	const tenantIds = [...new Set(input.tenantIds)];
 	let ownTenants = 0;
 	for (const ids of chunkIds(tenantIds)) {
 		const rows = await db
-			.select({ id: tenants.id })
+			.select({ id: tenants.id, archivedAt: tenants.archivedAt })
 			.from(tenants)
 			.where(and(eq(tenants.accountId, accountId), inArray(tenants.id, ids)));
 		ownTenants += rows.length;
+		if (rows.some((row) => row.archivedAt && !kept.tenantIds.includes(row.id))) archived = true;
 	}
 	if (ownTenants !== tenantIds.length) return 'unknown-tenant';
-	return undefined;
+	return archived ? 'archived' : undefined;
 }
 
 function leaseColumns(input: LeaseInput) {
@@ -365,6 +380,37 @@ export async function createLease(
 }
 
 /**
+ * Whether the new units leave a property for which an operating cost statement settled the lease:
+ * the statement would then name a lease that has nothing in its property.
+ */
+async function leavesSettledProperty(
+	db: Database,
+	accountId: string,
+	leaseId: string,
+	input: LeaseInput
+): Promise<boolean> {
+	const settled = await db
+		.selectDistinct({ propertyId: operatingCostStatements.propertyId })
+		.from(statementResults)
+		.innerJoin(
+			operatingCostStatements,
+			eq(operatingCostStatements.id, statementResults.statementId)
+		)
+		.where(and(eq(statementResults.accountId, accountId), eq(statementResults.leaseId, leaseId)));
+	if (settled.length === 0) return false;
+	const unitIds = [...new Set([input.unitId, ...input.extraUnitIds])];
+	const kept = new Set<string>();
+	for (const ids of chunkIds(unitIds)) {
+		const rows = await db
+			.select({ propertyId: units.propertyId })
+			.from(units)
+			.where(and(eq(units.accountId, accountId), inArray(units.id, ids)));
+		for (const row of rows) kept.add(row.propertyId);
+	}
+	return settled.some((row) => !kept.has(row.propertyId));
+}
+
+/**
  * Updates the lease, its tenants and extra units. The initial rent change and persons row follow
  * the new start date and initial values; later rows that carried an initial amount unchanged
  * follow it too (see laterRows). A start date on or after a later rent change or persons row is
@@ -381,8 +427,14 @@ export async function updateLease(
 	const { accountId } = context;
 	const existing = await getLease(db, accountId, leaseId);
 	if (!existing) return { ok: false, reason: 'missing' };
-	const reason = await checkReferences(db, accountId, input);
+	const reason = await checkReferences(db, accountId, input, {
+		unitIds: [existing.unitId, ...existing.extraUnits.map((unit) => unit.id)],
+		tenantIds: existing.tenants.map((tenant) => tenant.id)
+	});
 	if (reason) return { ok: false, reason };
+	if (await leavesSettledProperty(db, accountId, leaseId, input)) {
+		return { ok: false, reason: 'settled-property' };
+	}
 
 	const [changes, personsRows] = await Promise.all([
 		db
@@ -478,59 +530,22 @@ function updateSummary(existing: Lease, input: LeaseInput, later: LaterRows): st
 		: `Mietvertrag geändert: ${changed.join(', ')}${laterRowsNote(later)}`;
 }
 
-/**
- * Deletes the lease with its rent history, persons history and generated rent charges. A lease
- * with money on it (payments, corrections, deposit movements, statement balances) is ended, not
- * deleted, so the history stays; the page offers "Vertrag beenden" instead.
- */
-export async function deleteLease(
+/** The units of the account with their property, for selects; archived properties' only on request. */
+export async function listUnitsWithProperty(
 	db: Database,
-	context: AuditContext,
-	leaseId: string
-): Promise<'deleted' | 'in-use' | 'missing'> {
-	const existing = await getLease(db, context.accountId, leaseId);
-	if (!existing) return 'missing';
-	if (await hasMoney(db, leaseId)) return 'in-use';
-	await runBatch(db, [
-		db.delete(leases).where(and(eq(leases.accountId, context.accountId), eq(leases.id, leaseId))),
-		auditEntry(
-			db,
-			context,
-			'lease',
-			leaseId,
-			'delete',
-			`Mietvertrag ${leaseLabel(existing)} gelöscht`
-		)
-	]);
-	return 'deleted';
-}
-
-/**
- * Whether payments, deposit movements or postings other than the monthly rent exist; an approved
- * operating cost statement always posts its balance, so it counts too.
- */
-async function hasMoney(db: Database, leaseId: string): Promise<boolean> {
-	const [[paid], [deposit], [posted]] = await Promise.all([
-		db.select({ value: count() }).from(payments).where(eq(payments.leaseId, leaseId)),
-		db
-			.select({ value: count() })
-			.from(depositTransactions)
-			.where(eq(depositTransactions.leaseId, leaseId)),
-		db
-			.select({ value: count() })
-			.from(rentCharges)
-			.where(and(eq(rentCharges.leaseId, leaseId), ne(rentCharges.kind, 'rent')))
-	]);
-	return paid.value + deposit.value + posted.value > 0;
-}
-
-/** The units of the account with their property, for selects. */
-export async function listUnitsWithProperty(db: Database, accountId: string) {
+	accountId: string,
+	options: { archived?: boolean } = {}
+) {
 	return db
 		.select({ unit: units, property: properties })
 		.from(units)
 		.innerJoin(properties, eq(units.propertyId, properties.id))
-		.where(eq(units.accountId, accountId))
+		.where(
+			and(
+				eq(units.accountId, accountId),
+				options.archived ? undefined : isNull(properties.archivedAt)
+			)
+		)
 		.orderBy(asc(properties.name), asc(units.name));
 }
 

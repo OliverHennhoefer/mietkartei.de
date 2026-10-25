@@ -1,21 +1,26 @@
 import { error, fail } from '@sveltejs/kit';
 import { firstOfMonth, lastOfMonth, monthOf, today } from '#lib/dates.ts';
+import { defaultPaymentDeadline } from '#lib/domain/reminders.ts';
 import { total } from '#lib/domain/rents.ts';
 import { balanceSentence, ledgerRange, parseAdjustment, parsePayment } from '#lib/forms/ledger.ts';
+import { parseReminder } from '#lib/forms/reminders.ts';
+import { landlordAddress } from '#lib/server/accounts.ts';
 import {
 	createPayment,
 	deleteCharge,
 	deletePayment,
+	lastPayment,
 	listLedger,
 	listLedgerLineDetails,
 	postCharge,
 	type LedgerLine
 } from '#lib/server/ledger.ts';
+import { createReminder, deleteReminder, reminderState } from '#lib/server/reminders.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
-// The Mietkonto tab of a lease: the ledger lines of the chosen months, a form to book a payment
-// and one to post a correction. The lease comes from the layout, which answers 404 for a lease of
+// The Mietkonto tab of a lease: the ledger lines of the chosen months, a form to book a payment,
+// one to post a correction and the Zahlungserinnerungen and Mahnungen with the form for the next. The lease comes from the layout, which answers 404 for a lease of
 // another account; the actions run without it, so the ledger module checks the account and they
 // only ever post to params.id.
 
@@ -39,7 +44,13 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 	// one; the lines after `to` are dropped here. listLedger syncs the rent charges first, so the
 	// details are read after it.
 	const ledger = await listLedger(locals.db, accountId, lease.id, { from });
-	const details = await listLedgerLineDetails(locals.db, accountId, lease.id);
+	const currentDate = today();
+	const [details, reminders, landlord, latestPayment] = await Promise.all([
+		listLedgerLineDetails(locals.db, accountId, lease.id),
+		reminderState(locals.db, accountId, lease.id, currentDate),
+		landlordAddress(locals.db, accountId),
+		lastPayment(locals.db, accountId, lease.id)
+	]);
 
 	const shown = ledger.lines.filter((line) => line.date <= to);
 	const charged = shown.reduce(
@@ -59,7 +70,6 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 		return { ...line, deletable, fromBank, bankTransactionId };
 	});
 
-	const currentDate = today();
 	return {
 		range,
 		rows,
@@ -71,7 +81,11 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 		balance: ledger.balance,
 		balanceText: balanceSentence(ledger.balance),
 		today: currentDate,
-		paymentDefault: ledger.balance > 0 ? ledger.balance : total(lease.currentRent)
+		paymentDefault: ledger.balance > 0 ? ledger.balance : total(lease.currentRent),
+		lastPayment: latestPayment ?? null,
+		reminders,
+		paymentDeadlineDefault: defaultPaymentDeadline(currentDate),
+		landlordComplete: landlord.complete
 	};
 };
 
@@ -130,10 +144,9 @@ export const actions: Actions = {
 		if (!detail || detail.kind !== 'payment') {
 			return fail(400, { message: 'Diese Zahlung gibt es nicht mehr.' });
 		}
-		if (detail.source === 'bank') return fail(400, { message: bankPaymentMessage });
-		if (!(await deletePayment(locals.db, context, id))) {
-			return fail(400, { message: 'Diese Zahlung gibt es nicht mehr.' });
-		}
+		const outcome = await deletePayment(locals.db, context, id);
+		if (outcome === 'from-bank') return fail(400, { message: bankPaymentMessage });
+		if (outcome === 'missing') return fail(400, { message: 'Diese Zahlung gibt es nicht mehr.' });
 		return { deleted: 'payment' as const };
 	},
 
@@ -146,5 +159,24 @@ export const actions: Actions = {
 		}
 		if (!(await deleteCharge(locals.db, context, id))) return fail(400, { message: chargeMessage });
 		return { deleted: 'adjustment' as const };
+	},
+
+	reminder: async ({ request, locals, params }) => {
+		const result = parseReminder(await request.formData());
+		if (!result.ok) {
+			return fail(400, { form: 'reminder' as const, errors: result.errors, values: result.values });
+		}
+		const created = await createReminder(locals.db, auditContext(locals), params.id, result.data);
+		if (!created) error(404, 'Diesen Mietvertrag gibt es nicht.');
+		if (!created.ok) return fail(400, { message: created.message });
+		return { reminderId: created.id };
+	},
+
+	deleteReminder: async ({ request, locals, params }) => {
+		const id = idOf(await request.formData());
+		if (!(await deleteReminder(locals.db, auditContext(locals), params.id, id))) {
+			return fail(400, { message: 'Dieses Schreiben gibt es nicht mehr.' });
+		}
+		return { deleted: 'reminder' as const };
 	}
 };

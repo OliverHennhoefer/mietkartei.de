@@ -8,11 +8,14 @@ import {
 	billingCircles,
 	bankTransactions,
 	co2CostSplits,
-	consumerPriceIndex,
 	costCategories,
 	costItems,
 	depositTransactions,
 	emailChanges,
+	expenses,
+	insurancePolicies,
+	associationStatements,
+	taxYears,
 	invitations,
 	leasePersons,
 	leases,
@@ -20,6 +23,7 @@ import {
 	meterReadings,
 	meters,
 	operatingCostStatements,
+	paymentReminders,
 	payments,
 	properties,
 	rentChanges,
@@ -44,13 +48,18 @@ export const QUOTAS = {
 	leasePersons: { table: leasePersons, max: 20_000, label: 'Einträge zur Personenzahl' },
 	depositTransactions: { table: depositTransactions, max: 20_000, label: 'Kautionsbuchungen' },
 	payments: { table: payments, max: 200_000, label: 'Zahlungen' },
+	paymentReminders: {
+		table: paymentReminders,
+		max: 50_000,
+		label: 'Zahlungserinnerungen und Mahnungen'
+	},
 	/** Mostly the monthly rent charges, which every lease generates on its own. */
 	rentCharges: { table: rentCharges, max: 1_000_000, label: 'Sollstellungen' },
 	rentChanges: { table: rentChanges, max: 50_000, label: 'Mietänderungen' },
-	consumerPriceIndex: { table: consumerPriceIndex, max: 2_000, label: 'VPI-Werte' },
 	bankAccounts: { table: bankAccounts, max: 50, label: 'Bankverbindungen' },
 	matchingRules: { table: matchingRules, max: 2_000, label: 'Zuordnungsregeln' },
 	bankTransactions: { table: bankTransactions, max: 100_000, label: 'Bankumsätze' },
+	expenses: { table: expenses, max: 100_000, label: 'Ausgaben' },
 	costCategories: { table: costCategories, max: 200, label: 'Kostenarten' },
 	/** Also bounds the shares: one per unit of the key's property. */
 	allocationKeys: { table: allocationKeys, max: 200, label: 'Umlageschlüssel' },
@@ -70,7 +79,15 @@ export const QUOTAS = {
 	/** One per lease and year. */
 	co2CostSplits: { table: co2CostSplits, max: 50_000, label: 'CO₂-Kostenaufteilungen' },
 	tasks: { table: tasks, max: 20_000, label: 'Aufgaben' },
-	/** Accepted, expired and revoked invitations stay, so this also bounds the users of an account. */
+	insurancePolicies: { table: insurancePolicies, max: 2_000, label: 'Versicherungen' },
+	associationStatements: {
+		table: associationStatements,
+		max: 5_000,
+		label: 'Hausgeldabrechnungen'
+	},
+	/** One per property and year. */
+	taxYears: { table: taxYears, max: 50_000, label: 'Steuerjahre' },
+	/** Closed invitations stay until a month after their expiry; this bounds them in between. */
 	invitations: { table: invitations, max: 500, label: 'Einladungen' },
 	/** Requests to change an email address; each user may make five a day. */
 	emailChanges: { table: emailChanges, max: 5_000, label: 'Änderungen der E-Mail-Adresse' }

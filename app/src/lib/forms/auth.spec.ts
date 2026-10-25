@@ -7,7 +7,8 @@ import {
 	parseLandlord,
 	parseNewPassword,
 	parsePasswordChange,
-	parseProfile
+	parseProfile,
+	parseResetAccount
 } from './auth';
 import { formDataOf } from './fields';
 
@@ -75,7 +76,11 @@ describe('parsePasswordChange', () => {
 });
 
 describe('parseInvitation', () => {
-	it('invites a manager, with or without the role field', () => {
+	it('invites a viewer, or a manager with or without the role field', () => {
+		expect(parseInvitation(formDataOf({ email: 'neu@example.org', role: 'viewer' }))).toEqual({
+			ok: true,
+			data: { email: 'neu@example.org', role: 'viewer' }
+		});
 		expect(parseInvitation(formDataOf({ email: 'Neu@Example.org' }))).toEqual({
 			ok: true,
 			data: { email: 'neu@example.org', role: 'manager' }
@@ -217,6 +222,29 @@ describe('parseDeleteAccount', () => {
 			ok: false,
 			errors: { password: 'Das Passwort stimmt nicht.' },
 			values: {}
+		});
+	});
+});
+
+describe('parseResetAccount', () => {
+	it('needs the confirmation word in any case and the password, and never echoes it', () => {
+		expect(
+			parseResetAccount(formDataOf({ confirmation: ' zurücksetzen ', password: 'geheim' }))
+		).toEqual({ ok: true, data: { confirmation: 'zurücksetzen', password: 'geheim' } });
+		expect(parseResetAccount(formDataOf({}))).toEqual({
+			ok: false,
+			errors: {
+				confirmation: 'Bitte tippe ZURÜCKSETZEN zur Bestätigung.',
+				password: 'Bitte gib dein Passwort an.'
+			},
+			values: { confirmation: '' }
+		});
+		expect(
+			parseResetAccount(formDataOf({ confirmation: 'ZURÜCKSETZEN', password: 'x'.repeat(201) }))
+		).toEqual({
+			ok: false,
+			errors: { password: 'Das Passwort stimmt nicht.' },
+			values: { confirmation: 'ZURÜCKSETZEN' }
 		});
 	});
 });

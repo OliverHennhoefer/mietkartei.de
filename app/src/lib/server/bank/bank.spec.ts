@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseBankFile, type RowResult } from '../../domain/bank-matching';
 import { auditLog, bankTransactions, depositTransactions, payments } from '../db/schema';
 import type { Database } from '../db';
-import { createLease } from '../leases';
+import { createLease, listLeases, updateLease, leaseInputOf, getLease } from '../leases';
 import { contextA, contextB, leaseInput, seedTenant, seedUnit, testDatabase } from '../testing';
 import { createBankAccount, deleteBankAccount, listBankAccounts } from './accounts';
 import { commitImport, previewImport } from './imports';
@@ -11,23 +11,36 @@ import { confirmRule, createRule, deleteRule, listRules } from './rules';
 import {
 	assignTransaction,
 	countUnmatched,
+	expensePreset,
 	ignoreTransaction,
 	leaseByIban,
+	leaseHints,
+	leaseOptions,
 	listAssignments,
 	listTransactions,
 	reopenTransaction,
+	transactionLabel,
 	undoAssignment
 } from './transactions';
 
-// Lets a test hold every import after its analysis (listLeases is its last read) until the next
-// macrotask, so two commits of one file both analyse before either writes, as two requests do.
-const slowAnalysis = vi.hoisted(() => ({ on: false }));
+// Lets a test hold two imports after their analysis (listLeases is its last read) until both got
+// there, so two commits of one file both analyse before either writes, as two requests do.
+const slowAnalysis = vi.hoisted(() => ({ on: false, waiting: [] as (() => void)[] }));
 vi.mock('../leases', async (original) => {
 	const actual = await original<typeof import('../leases')>();
 	return {
 		...actual,
 		listLeases: async (...args: Parameters<typeof actual.listLeases>) => {
-			if (slowAnalysis.on) await new Promise((resolve) => setTimeout(resolve, 0));
+			if (slowAnalysis.on) {
+				await new Promise<void>((resolve) => {
+					slowAnalysis.waiting.push(resolve);
+					if (slowAnalysis.waiting.length === 2) {
+						// Once: the retry of the commit that loses must not wait for a third.
+						slowAnalysis.on = false;
+						for (const release of slowAnalysis.waiting.splice(0)) release();
+					}
+				});
+			}
 			return actual.listLeases(...args);
 		}
 	};
@@ -59,6 +72,7 @@ let foreignBankAccountId: string;
 
 beforeEach(async () => {
 	slowAnalysis.on = false;
+	slowAnalysis.waiting = [];
 	db = await testDatabase();
 	const { unitId } = await seedUnit(db, 'a');
 	const { unitId: secondUnit } = await seedUnit(db, 'a', { name: 'Stellplatz 1' });
@@ -94,6 +108,19 @@ describe('bank accounts', () => {
 		const list = await listBankAccounts(db, 'a');
 		expect(list.map((row) => [row.name, row.transactionCount])).toEqual([['Mietkonto', 3]]);
 		expect(await listBankAccounts(db, 'b')).toMatchObject([{ name: 'Fremd', transactionCount: 0 }]);
+	});
+
+	it('takes a missing BIC from the IBAN and keeps a given one', async () => {
+		const [own] = await listBankAccounts(db, 'a');
+		expect(own.bic).toBe('BYLADEM1001');
+		await createBankAccount(db, contextA, {
+			...konto,
+			name: 'Zweitkonto',
+			iban: 'DE89370400440532013000',
+			bic: 'COBADEFF'
+		});
+		const second = (await listBankAccounts(db, 'a')).find((row) => row.name === 'Zweitkonto');
+		expect(second?.bic).toBe('COBADEFF');
 	});
 
 	it('refuses to delete an account with assigned transactions, deletes otherwise', async () => {
@@ -483,6 +510,23 @@ describe('transactions', () => {
 		expect(await countUnmatched(db, 'a')).toBe(3);
 	});
 
+	it('ignores and reopens once when the button is pressed twice at the same time', async () => {
+		await importSparkasse();
+		const [outgoing] = (await openTransactions()).filter((row) => row.amount < 0);
+		const ignored = await Promise.all([
+			ignoreTransaction(db, contextA, outgoing.id),
+			ignoreTransaction(db, contextA, outgoing.id)
+		]);
+		expect(ignored.sort()).toEqual(['ignored', 'not-open']);
+		const reopened = await Promise.all([
+			reopenTransaction(db, contextA, outgoing.id),
+			reopenTransaction(db, contextA, outgoing.id)
+		]);
+		expect(reopened.sort()).toEqual(['not-ignored', 'reopened']);
+		const entries = await db.select().from(auditLog).where(eq(auditLog.entityId, outgoing.id));
+		expect(entries.map((entry) => entry.action).sort()).toEqual(['ignore', 'update']);
+	});
+
 	it('does not leak into another account', async () => {
 		await importSparkasse();
 		const [incoming] = (await openTransactions()).filter((row) => row.amount > 0);
@@ -544,5 +588,73 @@ describe('rules', () => {
 		expect(await deleteRule(db, contextA, foreign.id)).toBe(false);
 		expect(await listRules(db, 'a')).toEqual([]);
 		expect(await listRules(db, 'b')).toHaveLength(1);
+	});
+});
+
+describe('transaction helpers', () => {
+	it('suggests the lease of the latest payment from an IBAN', async () => {
+		await importSparkasse();
+		const [first, second] = (await openTransactions()).filter((row) => row.amount > 0);
+		for (const [transaction, lease] of [
+			[first, leaseId],
+			[second, secondLeaseId]
+		] as const) {
+			await assignTransaction(db, contextA, transaction.id, {
+				target: 'rent',
+				parts: [{ leaseId: lease, amount: 85000 }],
+				remember: false
+			});
+		}
+		expect(await leaseByIban(db, 'a')).toEqual(
+			new Map([['DE12500105175407324931', secondLeaseId]])
+		);
+	});
+
+	it('labels leases with their tenants and marks ended ones', async () => {
+		const lease = (await getLease(db, 'a', secondLeaseId))!;
+		await updateLease(db, contextA, secondLeaseId, {
+			...leaseInputOf(lease),
+			startDate: '2024-01-01',
+			endDate: '2024-12-31'
+		});
+		const summaries = await listLeases(db, 'a');
+		expect(leaseOptions(summaries)).toEqual(
+			expect.arrayContaining([
+				{ id: leaseId, label: 'EG links · Haus – Müller', active: true },
+				{ id: secondLeaseId, label: 'Stellplatz 1 · Haus (beendet)', active: false }
+			])
+		);
+		expect(leaseHints(summaries)).toEqual(
+			expect.arrayContaining([{ id: leaseId, lastNames: ['Müller'], unitNames: ['EG links'] }])
+		);
+	});
+
+	it('lets the suggestion look for the extra units of a lease too', async () => {
+		const { unitId: garage } = await seedUnit(db, 'a', { name: 'Garage 2' });
+		const lease = (await getLease(db, 'a', leaseId))!;
+		await updateLease(db, contextA, leaseId, { ...leaseInputOf(lease), extraUnitIds: [garage] });
+		expect(leaseHints(await listLeases(db, 'a'))).toEqual(
+			expect.arrayContaining([
+				{ id: leaseId, lastNames: ['Müller'], unitNames: ['EG links', 'Garage 2'] }
+			])
+		);
+	});
+
+	it('names a transaction without counterpart and finds the expense preset by IBAN or name', () => {
+		expect(
+			transactionLabel({ amount: -1250, bookingDate: '2026-10-02', counterpartName: '' })
+		).toBe('Umsatz -12,50\u00a0€ vom 02.10.2026 (ohne Namen)');
+		const preset = { category: 'other' as const, scope: '', description: 'Strom' };
+		const presets = {
+			byIban: new Map([['DE89370400440532013000', preset]]),
+			byName: new Map([['stadtwerke', { ...preset, description: 'Wasser' }]])
+		};
+		expect(
+			expensePreset({ counterpartIban: 'DE89370400440532013000', counterpartName: 'X' }, presets)
+		).toBe(preset);
+		expect(
+			expensePreset({ counterpartIban: null, counterpartName: ' Stadtwerke ' }, presets)
+		).toMatchObject({ description: 'Wasser' });
+		expect(expensePreset({ counterpartIban: null, counterpartName: '' }, presets)).toBeUndefined();
 	});
 });

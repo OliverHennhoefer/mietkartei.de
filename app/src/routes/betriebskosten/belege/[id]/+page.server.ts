@@ -4,6 +4,7 @@ import { documentErrorMessage } from '#lib/forms/documents.ts';
 import { costItemMessages, parseReceipt, parseUnitAmounts } from '#lib/forms/operating-costs.ts';
 import { deleteDocument, type DocumentError } from '#lib/server/documents.ts';
 import {
+	costItemHistory,
 	deleteCostItem,
 	ensureDefaults,
 	getCircle,
@@ -45,11 +46,12 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const accountId = requireAccount(locals);
 	await ensureDefaults(locals.db, accountId);
 	const item = await itemOf(locals, params.id);
-	const [properties, categories, keys, circles] = await Promise.all([
-		listProperties(locals.db, accountId),
+	const [properties, categories, keys, circles, history] = await Promise.all([
+		listProperties(locals.db, accountId, { archived: true }),
 		listCategories(locals.db, accountId),
 		listKeys(locals.db, accountId),
-		listCircles(locals.db, accountId)
+		listCircles(locals.db, accountId),
+		costItemHistory(locals.db, accountId)
 	]);
 	const direct = item.keyKind === 'direct';
 	const units = direct ? await splitUnits(locals, item) : [];
@@ -64,6 +66,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		categories,
 		keys,
 		circles,
+		history,
 		units,
 		unitAmounts,
 		receiptError: receiptError && documentErrorMessage(receiptError)

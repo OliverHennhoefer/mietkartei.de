@@ -8,6 +8,7 @@ import {
 	deleteAccount,
 	getLandlord,
 	landlordAddress,
+	resetAccount,
 	updateLandlord
 } from './accounts';
 import type { Database } from './db';
@@ -112,6 +113,13 @@ describe('updateLandlord and getLandlord', () => {
 		});
 	});
 
+	it('takes the bank name from the IBAN when it is left empty', async () => {
+		await updateLandlord(db, contextA, { ...block, bankName: null });
+		expect((await getLandlord(db, 'a')).bankName).toBe('Commerzbank');
+		await updateLandlord(db, contextA, { ...block, iban: null, bankName: null });
+		expect((await getLandlord(db, 'a')).bankName).toBeNull();
+	});
+
 	it('empties fields set to null and does not leak into another account', async () => {
 		await updateLandlord(db, contextB, block);
 		await updateLandlord(db, contextA, { ...block, street: 'Nebenweg 2' });
@@ -126,66 +134,66 @@ describe('updateLandlord and getLandlord', () => {
 	});
 });
 
-describe('deleteAccount', () => {
-	async function seedAccount(context: { accountId: string; userId: string }) {
-		const { unitId } = await seedUnit(db, context.accountId);
-		const tenantId = await seedTenant(db, context.accountId);
-		const created = await createLease(db, context, leaseInput(unitId, { tenantIds: [tenantId] }));
-		if (!created.ok) throw new Error(created.reason);
-		const lease = { id: created.id };
-		await ensureCharges(db, context.accountId, [lease.id], '2025-03');
-		await createPayment(db, context, {
-			leaseId: lease.id,
-			amount: 80000,
-			date: '2025-01-03',
-			source: 'manual',
-			note: null
-		});
-		await db.insert(costCategories).values({ accountId: context.accountId, name: 'Grundsteuer' });
-		const expiresAt = new Date('2030-01-01');
-		const [{ email }] = await db
-			.select({ email: users.email })
-			.from(users)
-			.where(eq(users.id, context.userId));
-		await db.insert(sessions).values({
-			id: `session-${context.accountId}`,
-			userId: context.userId,
-			expiresAt
-		});
-		await db.insert(passwordResets).values({
-			id: `reset-${context.accountId}`,
-			userId: context.userId,
-			expiresAt
-		});
-		await db.insert(emailChanges).values({
-			id: `change-${context.accountId}`,
-			accountId: context.accountId,
-			userId: context.userId,
-			email: `neu-${email}`,
-			expiresAt
-		});
-		await db.insert(invitations).values({
-			accountId: context.accountId,
-			email: `eingeladen-${email}`,
-			tokenHash: `invitation-${context.accountId}`,
-			expiresAt
-		});
-		await db.insert(loginAttempts).values({ email, failures: 1, firstFailureAt: new Date() });
-		const stored = await storeDocument(
-			db,
-			context,
-			{
-				name: 'Mietvertrag.pdf',
-				mimeType: 'application/pdf',
-				bytes: new TextEncoder().encode('%PDF-1.4 test'),
-				links: { leaseId: lease.id }
-			},
-			{ storage }
-		);
-		expect(stored.ok).toBe(true);
-		return lease.id;
-	}
+async function seedAccount(context: { accountId: string; userId: string }) {
+	const { unitId } = await seedUnit(db, context.accountId);
+	const tenantId = await seedTenant(db, context.accountId);
+	const created = await createLease(db, context, leaseInput(unitId, { tenantIds: [tenantId] }));
+	if (!created.ok) throw new Error(created.reason);
+	const lease = { id: created.id };
+	await ensureCharges(db, context.accountId, [lease.id], '2025-03');
+	await createPayment(db, context, {
+		leaseId: lease.id,
+		amount: 80000,
+		date: '2025-01-03',
+		source: 'manual',
+		note: null
+	});
+	await db.insert(costCategories).values({ accountId: context.accountId, name: 'Grundsteuer' });
+	const expiresAt = new Date('2030-01-01');
+	const [{ email }] = await db
+		.select({ email: users.email })
+		.from(users)
+		.where(eq(users.id, context.userId));
+	await db.insert(sessions).values({
+		id: `session-${context.accountId}`,
+		userId: context.userId,
+		expiresAt
+	});
+	await db.insert(passwordResets).values({
+		id: `reset-${context.accountId}`,
+		userId: context.userId,
+		expiresAt
+	});
+	await db.insert(emailChanges).values({
+		id: `change-${context.accountId}`,
+		accountId: context.accountId,
+		userId: context.userId,
+		email: `neu-${email}`,
+		expiresAt
+	});
+	await db.insert(invitations).values({
+		accountId: context.accountId,
+		email: `eingeladen-${email}`,
+		tokenHash: `invitation-${context.accountId}`,
+		expiresAt
+	});
+	await db.insert(loginAttempts).values({ email, failures: 1, firstFailureAt: new Date() });
+	const stored = await storeDocument(
+		db,
+		context,
+		{
+			name: 'Mietvertrag.pdf',
+			mimeType: 'application/pdf',
+			bytes: new TextEncoder().encode('%PDF-1.4 test'),
+			links: { leaseId: lease.id }
+		},
+		{ storage }
+	);
+	expect(stored.ok).toBe(true);
+	return lease.id;
+}
 
+describe('deleteAccount', () => {
 	it('removes every row and file of the account and nothing of another account', async () => {
 		await seedAccount(contextA);
 		const leaseB = await seedAccount(contextB);
@@ -307,5 +315,136 @@ describe('deleteAccount', () => {
 	it('reports a missing account', async () => {
 		expect(await deleteAccount(db, 'nobody', { storage })).toBe(false);
 		expect((await db.select().from(accounts)).length).toBe(2);
+	});
+});
+
+/** The stored files of an account, without the content type kept next to each. */
+async function storedFiles(accountId: string): Promise<string[]> {
+	const names = await readdir(join(root, accountId)).catch(() => []);
+	return names.filter((name) => !name.endsWith('.type'));
+}
+
+describe('resetAccount', () => {
+	it('deletes the data and files of the account and keeps the account, users and subscription', async () => {
+		await seedAccount(contextA);
+		const leaseB = await seedAccount(contextB);
+		await db
+			.update(accounts)
+			.set({
+				landlordName: 'Erika Vermieter',
+				subscriptionStatus: 'active',
+				stripeCustomerId: 'cus_a',
+				operatingCostDefaultsSeeded: true
+			})
+			.where(eq(accounts.id, 'a'));
+		// A file without a row stays: the reset goes by the documents, not by the prefix.
+		await storage.put('a/ohne-zeile', new TextEncoder().encode('x'), 'text/plain');
+
+		await resetAccount(db, contextA, { storage });
+
+		const [account] = await db.select().from(accounts).where(eq(accounts.id, 'a'));
+		expect(account).toMatchObject({
+			landlordName: 'Erika Vermieter',
+			subscriptionStatus: 'active',
+			stripeCustomerId: 'cus_a',
+			operatingCostDefaultsSeeded: false
+		});
+		expect((await db.select().from(users)).map((user) => user.id).sort()).toEqual([
+			'user-a',
+			'user-b'
+		]);
+		for (const table of [sessions, passwordResets]) {
+			expect(await db.select().from(table)).toHaveLength(2);
+		}
+		for (const table of [invitations, emailChanges]) {
+			expect(await db.select().from(table).where(eq(table.accountId, 'a'))).toHaveLength(1);
+		}
+		for (const table of [
+			properties,
+			units,
+			tenants,
+			leases,
+			rentCharges,
+			payments,
+			costCategories,
+			documents
+		]) {
+			const rows = await db.select({ accountId: table.accountId }).from(table);
+			expect(rows.length).toBeGreaterThan(0);
+			expect(rows.every((row) => row.accountId === 'b')).toBe(true);
+		}
+		expect(await db.select().from(leaseTenants)).toEqual([
+			expect.objectContaining({ leaseId: leaseB })
+		]);
+		// The log of a holds only the reset, the one of b is untouched.
+		expect(await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'))).toEqual([
+			expect.objectContaining({
+				userId: 'user-a',
+				entity: 'account',
+				summary: 'Konto auf Werkseinstellungen zurückgesetzt, alle Daten gelöscht'
+			})
+		]);
+		expect(
+			(await db.select().from(auditLog).where(eq(auditLog.accountId, 'b'))).length
+		).toBeGreaterThan(0);
+		expect(await storedFiles('a')).toEqual(['ohne-zeile']);
+		expect(await storedFiles('b')).toHaveLength(1);
+	});
+
+	it('keeps every row when the storage fails, so the reset can be retried', async () => {
+		await seedAccount(contextA);
+		const failing: Storage = {
+			...storage,
+			delete: () => Promise.reject(new Error('R2 nicht erreichbar'))
+		};
+
+		await expect(resetAccount(db, contextA, { storage: failing })).rejects.toThrow(
+			'R2 nicht erreichbar'
+		);
+		expect(await db.select().from(documents)).toHaveLength(1);
+		expect(await db.select().from(leases)).toHaveLength(1);
+
+		await resetAccount(db, contextA, { storage });
+		expect(await db.select().from(documents)).toHaveLength(0);
+		expect(await db.select().from(leases)).toHaveLength(0);
+		expect(await storedFiles('a')).toEqual([]);
+	});
+
+	it('deletes the file of a document uploaded while the reset runs', async () => {
+		await seedAccount(contextA);
+		let uploaded = false;
+		const racing: Storage = {
+			...storage,
+			delete: async (key) => {
+				await storage.delete(key);
+				if (uploaded) return;
+				uploaded = true;
+				const stored = await storeDocument(
+					db,
+					contextA,
+					{ name: 'Beleg.pdf', mimeType: 'application/pdf', bytes: new Uint8Array([1]) },
+					{ storage }
+				);
+				expect(stored.ok).toBe(true);
+			}
+		};
+
+		await resetAccount(db, contextA, { storage: racing });
+		expect(await db.select().from(documents)).toHaveLength(0);
+		expect(await storedFiles('a')).toEqual([]);
+	});
+
+	it('leaves a document uploaded after the reset with its file', async () => {
+		await seedAccount(contextA);
+		await resetAccount(db, contextA, { storage });
+		const stored = await storeDocument(
+			db,
+			contextA,
+			{ name: 'Neu.pdf', mimeType: 'application/pdf', bytes: new Uint8Array([1]) },
+			{ storage }
+		);
+		expect(stored.ok).toBe(true);
+		expect(await db.select().from(documents)).toHaveLength(1);
+		expect(await storedFiles('a')).toHaveLength(1);
 	});
 });

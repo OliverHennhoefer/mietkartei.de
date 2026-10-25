@@ -8,6 +8,7 @@ Die **Registerfaltung** ist die ausgewählte Bildmarke für mietkartei. Drei geo
 | [mark-white.svg](mark-white.svg) | Weiße Bildmarke für dunkle Hintergründe |
 | [lockup.svg](lockup.svg), [lockup-white.svg](lockup-white.svg) | Bildmarke mit Wortmarke für Startseite, Impressum, Dokumentation und README |
 | [favicon.svg](favicon.svg) | Kleine weiße Registerfaltung auf schwarzem Grund als Browser-Symbol |
+| [favicon.ico](favicon.ico), [apple-touch-icon.png](apple-touch-icon.png) | Gerasterte Fassungen des Favicons für Browser ohne SVG-Favicon (Safari) und für den Home-Bildschirm, aus `favicon.svg` gerendert |
 | [register/](register/README.md) | Vektorkonstruktion, Maße, kleine Fassung und Wortmarken-Kombinationen |
 | [logo.svg](logo.svg), [logo-white.svg](logo-white.svg) | Bestehende Geist-Medium-Wortmarken, weiterhin als separate Ressource verfügbar |
 | [fonts/geist/](fonts/geist/) | Originalschrift mit Quelle und SIL-OFL-Lizenz |

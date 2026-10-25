@@ -1,13 +1,18 @@
 import { isHttpError } from '@sveltejs/kit';
 import { and, asc, eq, lte, sum } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { addDays, today } from '../dates';
+import { addDays, formatDate, today } from '../dates';
+import { formatArea } from '../format';
 import { computeStatement, type LeaseStatement } from '../domain/statement';
 import type { Database } from './db';
 import {
+	allocationKeyShares,
 	allocationKeys,
 	auditLog,
+	billingCircleUnits,
+	billingCircles,
 	costCategories,
+	costItemUnitAmounts,
 	costItems,
 	meterReadings,
 	meters,
@@ -261,6 +266,28 @@ async function draft(db: Database, propertyId: string) {
 }
 
 describe('loadStatementInput', () => {
+	it('passes on the figures of the WEG an item has, and none for the others', async () => {
+		const { propertyId } = await seedScenario(db, 'a');
+		const [first] = await db.select().from(costItems).where(eq(costItems.accountId, 'a'));
+		await db
+			.update(costItems)
+			.set({
+				associationTotal: 420000,
+				associationKey: 'MEA',
+				associationKeyTotal: 1000,
+				associationKeyShare: 85
+			})
+			.where(eq(costItems.id, first.id));
+		const input = (await loadStatementInput(db, 'a', propertyId, period))!;
+		expect(input.items.find((item) => item.id === first.id)?.association).toEqual({
+			total: 420000,
+			key: 'MEA',
+			keyTotal: 1000,
+			keyShare: 85
+		});
+		expect(input.items.filter((item) => item.association === null)).toHaveLength(4);
+	});
+
 	it('loads the scenario and reproduces the hand-computed balances', async () => {
 		const { propertyId, leaseIds } = await seedScenario(db, 'a');
 		await seedScenario(db, 'b');
@@ -315,6 +342,84 @@ describe('loadStatementInput', () => {
 	it('is undefined for a property of another account', async () => {
 		const { propertyId } = await seedScenario(db, 'b');
 		expect(await loadStatementInput(db, 'a', propertyId, period)).toBeUndefined();
+	});
+
+	it('loads extra units of leases elsewhere, billing circles, direct amounts and custom shares', async () => {
+		const { propertyId, unit, category } = await seedScenario(db, 'a');
+		const [garage] = await db
+			.insert(units)
+			.values({ accountId: 'a', propertyId, name: 'Garage', kind: 'parking', floorArea: null })
+			.returning({ id: units.id });
+		// A tenant of another house rents the garage as an extra unit of their lease.
+		const other = await seedUnit(db, 'a', { propertyName: 'Nachbarhaus' });
+		const created = await createLease(
+			db,
+			contextA,
+			leaseInput(other.unitId, { extraUnitIds: [garage.id], startDate: '2025-03-01' })
+		);
+		if (!created.ok) throw new Error(created.reason);
+
+		const [circle] = await db
+			.insert(billingCircles)
+			.values({ accountId: 'a', propertyId, name: 'Aufzug' })
+			.returning({ id: billingCircles.id });
+		await db.insert(billingCircleUnits).values([
+			{ accountId: 'a', circleId: circle.id, unitId: unit.OG },
+			{ accountId: 'a', circleId: circle.id, unitId: unit.DG }
+		]);
+		const [ownKey, direct, foreignKey] = await db
+			.insert(allocationKeys)
+			.values([
+				{ accountId: 'a', propertyId, name: 'MEA', kind: 'custom' },
+				{ accountId: 'a', name: 'Messdienst', kind: 'direct' },
+				{ accountId: 'a', propertyId: other.propertyId, name: 'MEA Nachbarhaus', kind: 'custom' }
+			])
+			.returning({ id: allocationKeys.id });
+		await db.insert(allocationKeyShares).values([
+			{ accountId: 'a', keyId: ownKey.id, unitId: unit.EG, share: 400 },
+			{ accountId: 'a', keyId: ownKey.id, unitId: unit.OG, share: 600 }
+		]);
+		const [water] = await db
+			.insert(costItems)
+			.values({
+				accountId: 'a',
+				propertyId,
+				categoryId: category.Hauswart,
+				allocationKeyId: direct.id,
+				billingCircleId: circle.id,
+				description: 'Wasser laut Messdienst',
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				amount: 30000
+			})
+			.returning({ id: costItems.id });
+		await db.insert(costItemUnitAmounts).values([
+			{ accountId: 'a', costItemId: water.id, unitId: unit.OG, amount: 10000 },
+			{ accountId: 'a', costItemId: water.id, unitId: unit.DG, amount: 20000 }
+		]);
+
+		const input = (await loadStatementInput(db, 'a', propertyId, period))!;
+		const garageLease = input.leases.find((lease) => lease.id === created.id)!;
+		// Only the garage is in this property; the main unit of the lease is not.
+		expect(garageLease.unitIds).toEqual([garage.id]);
+		expect(input.circles).toEqual([
+			{ id: circle.id, name: 'Aufzug', unitIds: expect.arrayContaining([unit.OG, unit.DG]) }
+		]);
+		expect(input.items.find((item) => item.id === water.id)!.unitAmounts).toEqual(
+			expect.arrayContaining([
+				{ unitId: unit.OG, amount: 10000 },
+				{ unitId: unit.DG, amount: 20000 }
+			])
+		);
+		const keyIds = input.keys.map((key) => key.id);
+		expect(keyIds).toContain(direct.id);
+		expect(keyIds).not.toContain(foreignKey.id);
+		expect(input.keys.find((key) => key.id === ownKey.id)!.shares).toEqual(
+			expect.arrayContaining([
+				{ unitId: unit.EG, share: 400 },
+				{ unitId: unit.OG, share: 600 }
+			])
+		);
 	});
 });
 
@@ -676,13 +781,13 @@ describe('paid prepayments', () => {
 			'paragraph' in block ? [block.paragraph] : []
 		);
 		expect(paragraphs).toContain(
-			'Von den Vorauszahlungen für den Abrechnungszeitraum (2.400,00\u00a0€) hast du 200,00\u00a0€ nicht geleistet. Die Abrechnung rechnet nur die geleisteten an; die offenen Vorauszahlungen sind im Ergebnis enthalten und werden nicht zusätzlich verlangt.'
+			'Von den Vorauszahlungen für den Abrechnungszeitraum (2.400,00\u00a0€) haben Sie 200,00\u00a0€ nicht geleistet. Die Abrechnung rechnet nur die geleisteten an; die offenen Vorauszahlungen sind im Ergebnis enthalten und werden nicht zusätzlich verlangt.'
 		);
 		expect(paragraphs).toContain(
 			'Kosten gesamt 3.000,00\u00a0€, geleistete Vorauszahlungen 2.200,00\u00a0€: Nachzahlung 800,00\u00a0€.'
 		);
 		expect(paragraphs).toContain(
-			'Bitte überweise die Nachzahlung von 800,00\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
+			'Bitte überweisen Sie die Nachzahlung von 800,00\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
 		);
 	});
 
@@ -705,7 +810,7 @@ describe('paid prepayments', () => {
 			'paragraph' in block ? [block.paragraph] : []
 		);
 		expect(paragraphs).toContain(
-			'Die Abrechnung erreicht dich nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB); von der Nachzahlung verlangen wir nur die 200,00\u00a0€ Vorauszahlungen, die du nicht geleistet hast. Bitte überweise die Nachzahlung von 200,00\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
+			'Die Abrechnung erreicht Sie nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB); von der Nachzahlung verlangen wir nur die 200,00\u00a0€ Vorauszahlungen, die Sie nicht geleistet haben. Bitte überweisen Sie die Nachzahlung von 200,00\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
 		);
 	});
 
@@ -806,7 +911,7 @@ describe('approving a correction after the deadline', () => {
 			'paragraph' in block ? [block.paragraph] : []
 		);
 		expect(paragraphs).toContain(
-			'Nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB) gilt das rechtzeitig abgerechnete Ergebnis. Bitte überweise die Nachzahlung von 105,99\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
+			'Nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB) gilt das rechtzeitig abgerechnete Ergebnis. Bitte überweisen Sie die Nachzahlung von 105,99\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
 		);
 
 		// A lower result still lowers the claim: a credit note of 730 € by area.
@@ -869,7 +974,7 @@ describe('approving a correction after the deadline', () => {
 			(row) => row.referenceId === correction.id && row.amount === -6278
 		)!;
 		expect(reversal.dueDate).toBe('2027-02-04');
-		expect(reversal.note).toContain('in Höhe von 62,78 € ausgeschlossen');
+		expect(reversal.note).toContain('in Höhe von 62,78\u00a0€ ausgeschlossen');
 		expect(
 			(await getStatement(db, 'a', correction.id))!.leaseResults.find(
 				(row) => row.leaseId === leaseIds.ogA
@@ -890,6 +995,10 @@ describe('createCorrection', () => {
 	it('creates a new version whose approval reverses the old charges', async () => {
 		const { propertyId, leaseIds, category, key } = await seedScenario(db, 'a');
 		const id = await draft(db, propertyId);
+		expect(await createCorrection(db, contextA, id)).toEqual({
+			ok: false,
+			message: 'Nur eine freigegebene Abrechnung kann korrigiert werden.'
+		});
 		await approveStatement(db, contextA, id, { lateApprovalJustified: false, note: null });
 		expect(await createCorrection(db, contextA, 'missing')).toMatchObject({ ok: false });
 
@@ -1164,7 +1273,7 @@ describe('statementLetter', () => {
 			'Kostenart',
 			'Gesamtkosten',
 			'Umlageschlüssel',
-			'Dein Anteil'
+			'Ihr Anteil'
 		]);
 		expect(tables[0].rows).toHaveLength(4);
 		// The deducted CO₂ share and the allocated rest, each under its own label.
@@ -1201,7 +1310,7 @@ describe('statementLetter', () => {
 		);
 		// A Nachzahlung is due 30 days after the letter reached the tenant.
 		expect(paragraphs).toContain(
-			'Bitte überweise die Nachzahlung von 105,99\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
+			'Bitte überweisen Sie die Nachzahlung von 105,99\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
 		);
 		expect(paragraphs.some((p) => p.includes('nicht geleistet'))).toBe(false);
 		expect(letter.closing).toEqual(['Mit freundlichen Grüßen', '', 'Konto A']);
@@ -1212,7 +1321,166 @@ describe('statementLetter', () => {
 			'paragraph' in block ? [block.paragraph] : []
 		);
 		expect(egParagraphs).toContain(
-			`Das Guthaben von 105,67\u00a0€ erstatten wir dir bis zum ${addDays(today(), 30).split('-').reverse().join('.')} oder verrechnen es mit der nächsten Miete.`
+			`Das Guthaben von 105,67\u00a0€ erstatten wir Ihnen bis zum ${addDays(today(), 30).split('-').reverse().join('.')} oder verrechnen es mit der nächsten Miete.`
+		);
+	});
+});
+
+describe('statementLetter variants', () => {
+	let base: LeaseStatement;
+
+	beforeEach(async () => {
+		const { propertyId, leaseIds } = await seedScenario(db, 'a');
+		const id = await draft(db, propertyId);
+		await approveStatement(db, contextA, id, { lateApprovalJustified: false, note: null });
+		base = (await getLeaseResult(db, 'a', id, leaseIds.ogA)) as LeaseStatement;
+	});
+
+	function paragraphsOf(statement: LeaseStatement) {
+		return statementLetter(statement).blocks!.flatMap((block) =>
+			'paragraph' in block ? [block.paragraph] : []
+		);
+	}
+
+	it('greets tenants without Frau or Herr by full name and addresses them at their own street', () => {
+		const letter = statementLetter({
+			...base,
+			tenants: [
+				{
+					salutation: null,
+					firstName: 'Kim',
+					lastName: 'Klein',
+					street: 'Neue Str. 1',
+					postalCode: '20095',
+					city: 'Hamburg'
+				},
+				{ ...base.tenants[0] }
+			],
+			landlord: { ...base.landlord, city: 'Potsdam' }
+		});
+		expect(letter.recipient).toEqual([
+			'Kim Klein',
+			'Frau Anna Alt',
+			'Neue Str. 1',
+			'20095 Hamburg'
+		]);
+		expect(letter.date.startsWith('Potsdam, ')).toBe(true);
+		expect(letter.blocks![0]).toEqual({ paragraph: 'Guten Tag Kim Klein, Frau Alt,' });
+	});
+
+	it('dates a draft today in the property’s city and adds up the area of flat and parking space', () => {
+		const letter = statementLetter({
+			...base,
+			approvedOn: null,
+			landlord: { ...base.landlord, city: null },
+			units: [...base.units, { ...base.units[0], name: 'Stellplatz', floorArea: null }]
+		});
+		expect(letter.date).toBe(`${base.property.city}, ${formatDate(today())}`);
+		expect(
+			paragraphsOf({ ...base, units: [...base.units, { ...base.units[0], floorArea: null }] })[1]
+		).toContain(`Fläche ${formatArea(base.units[0].floorArea!)}`);
+	});
+
+	it('prints the cost of the WEG with the property’s share below it', () => {
+		const line = {
+			...base.lines[0],
+			itemTotal: 35700,
+			allocated: 35700,
+			keyName: 'MEA der WEG',
+			keyTotal: '1.000',
+			share: 'Gesamt 4.200,00 € · MEA 85 von 1.000 · Anteil 357,00 €',
+			association: { total: 420000, key: 'MEA', keyTotal: 1000, keyShare: 85 }
+		};
+		const [table] = statementLetter({ ...base, lines: [line] }).blocks!.flatMap((block) =>
+			'table' in block ? [block.table] : []
+		);
+		expect(table.rows[0][1]).toBe('4.200,00\u00a0€ WEG\nAnteil 357,00\u00a0€');
+		expect(table.rows[0][2]).toBe(
+			'MEA der WEG: 1.000\nGesamt 4.200,00 € · MEA 85 von 1.000 · Anteil 357,00 €'
+		);
+	});
+
+	it('greets nobody by name when the lease lists no tenant', () => {
+		expect(paragraphsOf({ ...base, tenants: [] })[0]).toBe('Guten Tag,');
+	});
+
+	it('lists the persons per period when they changed', () => {
+		const intro = paragraphsOf({
+			...base,
+			persons: [
+				{ from: '2025-01-01', to: '2025-03-31', persons: 1 },
+				{ from: '2025-04-01', to: '2025-06-30', persons: 3 }
+			]
+		})[1];
+		expect(intro).toContain(
+			'1\u00a0Person vom 01.01.2025 bis 31.03.2025, 3\u00a0Personen vom 01.04.2025 bis 30.06.2025.'
+		);
+	});
+
+	it('names the landlord account for a Nachzahlung', () => {
+		const paragraphs = paragraphsOf({
+			...base,
+			landlord: { ...base.landlord, iban: 'DE02120300000000202051', bankName: 'Testbank' }
+		});
+		expect(paragraphs).toContain(
+			'Bitte überweisen Sie die Nachzahlung von 105,99\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung auf das Konto IBAN DE02120300000000202051 bei der Testbank.'
+		);
+	});
+
+	it('says that nothing is owed when costs and prepayments match', () => {
+		const paragraphs = paragraphsOf({ ...base, balance: 0, posted: 0 });
+		expect(paragraphs).toContain(
+			'Kosten gesamt 1.185,99\u00a0€, geleistete Vorauszahlungen 1.080,00\u00a0€: Kosten und Vorauszahlungen gleichen sich aus.'
+		);
+		expect(paragraphs).toContain('Es ist nichts zu zahlen und nichts zu erstatten.');
+	});
+
+	it('refunds a Guthaben without a date before approval', () => {
+		expect(paragraphsOf({ ...base, balance: -500, posted: null, dueDate: null })).toContain(
+			'Das Guthaben von 5,00\u00a0€ erstatten wir Ihnen oder verrechnen es mit der nächsten Miete.'
+		);
+	});
+
+	it('explains what is left of a late Nachzahlung', () => {
+		const late = 'Die Abrechnung erreicht Sie nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB)';
+		expect(paragraphsOf({ ...base, posted: 0 })).toContain(
+			`${late}; die Nachzahlung von 105,99\u00a0€ wird nicht verlangt.`
+		);
+
+		const unpaid = paragraphsOf({ ...base, unpaidPrepayments: 3000, posted: 3000 });
+		expect(unpaid.some((p) => p.includes('haben Sie 30,00\u00a0€ nicht geleistet'))).toBe(true);
+		expect(unpaid).toContain(
+			`${late}; von der Nachzahlung verlangen wir nur die 30,00\u00a0€ Vorauszahlungen, die Sie nicht geleistet haben. Bitte überweisen Sie die Nachzahlung von 30,00\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.`
+		);
+
+		// A late correction keeps the result claimed in time.
+		expect(paragraphsOf({ ...base, posted: 5000 })).toContain(
+			'Nach Ablauf der Abrechnungsfrist (§ 556 Abs. 3 BGB) gilt das rechtzeitig abgerechnete Ergebnis. Bitte überweisen Sie die Nachzahlung von 50,00\u00a0€ innerhalb von 30 Tagen nach Zugang dieser Abrechnung.'
+		);
+	});
+
+	it('lists the costs left out of the statement', () => {
+		const paragraphs = paragraphsOf({
+			...base,
+			excluded: [
+				{
+					itemId: 'x',
+					description: 'Reparatur',
+					categoryName: 'Instandhaltung',
+					amount: 12345,
+					reason: 'nicht umlagefähig'
+				},
+				{
+					itemId: 'y',
+					description: 'Verwaltung',
+					categoryName: 'Verwaltungskosten',
+					amount: 500,
+					reason: 'nicht umlagefähig'
+				}
+			]
+		});
+		expect(paragraphs).toContain(
+			'Nicht enthalten (nicht umlagefähig): Instandhaltung 123,45\u00a0€, Verwaltungskosten 5,00\u00a0€.'
 		);
 	});
 });

@@ -5,7 +5,12 @@ import { requestRegistration } from '#lib/server/registration-requests.ts';
 import { outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
 import { actions, load } from './+page.server';
 
-const env = vi.hoisted(() => ({ REGISTRATION_EMAILS: 'neu@example.org' }));
+const env = vi.hoisted(() => ({
+	REGISTRATION_EMAILS: 'neu@example.org',
+	STRIPE_SECRET_KEY: '',
+	STRIPE_PRICE_ID: '',
+	TRIAL_FINGERPRINT_KEY: ''
+}));
 vi.mock('$app/env/private', () => env);
 
 let db: Database;

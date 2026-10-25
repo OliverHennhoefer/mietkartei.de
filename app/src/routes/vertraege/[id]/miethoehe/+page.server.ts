@@ -4,11 +4,11 @@ import { effectiveFrom, indexSituation, nextGraduatedStepAllowed } from '#lib/do
 import { rentOn } from '#lib/domain/rents.ts';
 import { parseApproval, parseGraduatedStep, parseManualChange } from '#lib/forms/rent.ts';
 import { landlordAddress } from '#lib/server/accounts.ts';
+import { currentIndexValues } from '#lib/server/consumer-price-index.ts';
 import { getLease, type LeaseSummary } from '#lib/server/leases.ts';
 import {
 	addGraduatedStep,
 	approveChange,
-	listIndexValues,
 	manualChange,
 	proposeIndexChange,
 	removeChange
@@ -26,7 +26,7 @@ export const load: PageServerLoad = async ({ locals, params, parent, url }) => {
 	const { lease } = await parent();
 	const [changes, values, landlord] = await Promise.all([
 		listRentChanges(locals.db, accountId, params.id),
-		listIndexValues(locals.db, accountId),
+		currentIndexValues(locals.db),
 		landlordAddress(locals.db, accountId)
 	]);
 	const day = today();

@@ -7,7 +7,7 @@
 </script>
 
 <svelte:head>
-	<title>Neues Passwort · mietkartei</title>
+	<title>Neues Passwort | mietkartei</title>
 </svelte:head>
 
 <div class="narrow">

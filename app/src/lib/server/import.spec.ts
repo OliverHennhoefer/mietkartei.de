@@ -22,6 +22,7 @@ import {
 	encodeContent,
 	loadImportContext,
 	planImport,
+	plannedCount,
 	proposeMapping,
 	unmappedRequiredFields,
 	type ImportContext,
@@ -131,7 +132,12 @@ describe('planImport: properties and units', () => {
 					street: 'Rosenweg 7',
 					postalCode: '10115',
 					city: 'Berlin',
+					kind: 'building',
+					associationManager: null,
+					ownershipShare: null,
+					ownershipShareTotal: null,
 					buildingUse: 'residential',
+					state: null,
 					vacancyPersons: 1,
 					notes: null
 				}
@@ -886,6 +892,31 @@ describe('commitImport', () => {
 		]);
 	});
 
+	it('finds the lease of a payment through an extra unit and the last name of the tenant', async () => {
+		const { propertyId, unitId } = await seedUnit(db, 'a', {
+			name: 'EG links',
+			propertyName: 'Haus'
+		});
+		const [parking] = await db
+			.insert(units)
+			.values({ accountId: 'a', propertyId, name: 'Stellplatz 1', kind: 'parking' })
+			.returning({ id: units.id });
+		const tenantId = await seedTenant(db, 'a', { firstName: 'Lena', lastName: 'Importmann' });
+		const created = await createLease(
+			db,
+			contextA,
+			leaseInput(unitId, { extraUnitIds: [parking.id], tenantIds: [tenantId] })
+		);
+		if (!created.ok) throw new Error(created.reason);
+		const summary = await run(
+			'payments',
+			'Datum;Objekt;Einheit;Mieter;Betrag\n03.02.2025;Haus;Stellplatz 1;Importmann;45,00\n'
+		);
+		expect(summary).toMatchObject({ count: 1, skipped: [] });
+		const rows = await db.select().from(payments).where(eq(payments.accountId, 'a'));
+		expect(rows.map((row) => [row.leaseId, row.amount])).toEqual([[created.id, 4500]]);
+	});
+
 	it('does not leak into another account', async () => {
 		// Account b has a property "Haus" with a unit; account a's import must neither see nor touch it.
 		await seedUnit(db, 'b', { name: 'EG links', propertyName: 'Haus' });
@@ -921,5 +952,132 @@ describe('content encoding', () => {
 		expect(decodeContent(encodeContent(text))).toBe(text);
 		expect(decodeContent('not base64!')).toBeUndefined();
 		expect(decodeContent('/w==')).toBeUndefined();
+	});
+});
+
+describe('planImport: rows that name too little', () => {
+	it('reports empty rows and rows without a property', () => {
+		const properties = plan('properties', 'Objekt;Einheit;Fläche\n;EG;50');
+		expect(reasons(properties)).toEqual([[2, 'Objekt: Bitte gib die Bezeichnung des Objekts an.']]);
+		const leases = plan('leases', 'Objekt;Einheit;Mieter;Beginn;Kaltmiete\n;;;;', leaseContext);
+		expect(reasons(leases)).toEqual([[2, 'Die Zeile ist leer.']]);
+		const payments = plan('payments', 'Datum;Objekt;Einheit;Betrag\n;;;', leaseContext);
+		expect(reasons(payments)).toEqual([[2, 'Die Zeile ist leer.']]);
+	});
+
+	it('asks for a unit name in the lease and payment import', () => {
+		const csv = 'Objekt;Einheit;Mieter;Beginn;Kaltmiete\nHaus;;Beispiel;01.01.2025;100';
+		expect(reasons(plan('leases', csv, leaseContext))).toEqual([
+			[2, 'Einheit: Bitte gib die Bezeichnung der Einheit an.']
+		]);
+		expect(
+			reasons(
+				plan(
+					'leases',
+					';;Beispiel;01.01.2025;100'.replace(/^/, 'Objekt;Einheit;Mieter;Beginn;Kaltmiete\n'),
+					leaseContext
+				)
+			)
+		).toEqual([[2, 'Objekt: Bitte gib die Bezeichnung des Objekts an.']]);
+	});
+
+	it('skips empty tenant names in a list and tells apart tenants by e-mail', () => {
+		const context: ImportContext = {
+			...leaseContext,
+			tenants: [
+				...leaseContext.tenants,
+				{
+					id: 't4',
+					...noAddress,
+					firstName: 'Eva',
+					lastName: 'Zwilling',
+					email: 'same@example.org'
+				},
+				{
+					id: 't5',
+					...noAddress,
+					firstName: 'Ina',
+					lastName: 'Zwilling',
+					email: 'same@example.org'
+				}
+			]
+		};
+		const csv = [
+			'Objekt;Einheit;Mieter;Beginn;Kaltmiete',
+			'Villa;Haus;"Beispiel; ;";01.01.2026;100',
+			'Villa;Haus;same@example.org;01.01.2026;100'
+		].join('\n');
+		const result = plan('leases', csv, context);
+		if (result.kind !== 'leases') throw new Error(result.kind);
+		expect(result.leases.map((lease) => lease.input.tenantIds)).toEqual([['t3']]);
+		expect(reasons(result)).toEqual([
+			[3, 'Die E-Mail-Adresse „same@example.org“ haben mehrere Mieter; gib „Nachname, Vorname“ an.']
+		]);
+	});
+
+	it('needs a lease of the unit, and one with the named tenant, for a payment', () => {
+		const context: ImportContext = {
+			...leaseContext,
+			units: [
+				...leaseContext.units,
+				{ id: 'u4', propertyId: 'p1', name: 'Keller', kind: 'apartment' }
+			]
+		};
+		const csv = [
+			'Datum;Objekt;Einheit;Mieter;Betrag',
+			'03.01.2025;Haus;Keller;;100,00',
+			'03.01.2025;Villa;Haus;Mustermann;100,00'
+		].join('\n');
+		expect(reasons(plan('payments', csv, context))).toEqual([
+			[2, 'Für „Keller“ in „Haus“ gibt es keinen Mietvertrag.'],
+			[3, 'Für „Haus“ in „Villa“ gibt es keinen Mietvertrag mit einem Mieter „Mustermann“.']
+		]);
+	});
+});
+
+describe('plannedCount', () => {
+	it('counts the units, tenants, leases or payments the import would create', () => {
+		expect(
+			plannedCount(
+				plan(
+					'properties',
+					'Objekt;Straße;PLZ;Ort;Einheit\nHaus;Weg 1;10115;Berlin;EG\nHaus;Weg 1;10115;Berlin;OG'
+				)
+			)
+		).toBe(2);
+		expect(plannedCount(plan('tenants', 'Vorname;Nachname\nLena;Neu'))).toBe(1);
+		expect(
+			plannedCount(
+				plan(
+					'leases',
+					'Objekt;Einheit;Mieter;Beginn;Kaltmiete\nVilla;Haus;Beispiel;01.01.2026;100',
+					leaseContext
+				)
+			)
+		).toBe(1);
+		expect(
+			plannedCount(
+				plan(
+					'payments',
+					'Datum;Objekt;Einheit;Betrag\n03.02.2025;Haus;EG links;850,00',
+					leaseContext
+				)
+			)
+		).toBe(1);
+	});
+});
+
+describe('commitImport without rows to create', () => {
+	it('writes nothing for tenants and payments that were all skipped', async () => {
+		const db = await testDatabase();
+		const tenants = await commitImport(db, contextA, plan('tenants', 'Vorname;Nachname\n;'));
+		expect(tenants).toMatchObject({ kind: 'tenants', count: 0, created: '0 Mieter angelegt' });
+		const payments = await commitImport(
+			db,
+			contextA,
+			plan('payments', 'Datum;Objekt;Einheit;Betrag\n03.01.2025;Haus;EG links;abc', leaseContext)
+		);
+		expect(payments).toMatchObject({ kind: 'payments', count: 0 });
+		expect(await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'))).toEqual([]);
 	});
 });

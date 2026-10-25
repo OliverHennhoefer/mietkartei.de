@@ -2,8 +2,18 @@ import { and, count, eq, ne } from 'drizzle-orm';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import { accounts, emailChanges, loginAttempts, sessions, users, type UserRole } from './db/schema';
+import {
+	accounts,
+	apiKeys,
+	emailChanges,
+	loginAttempts,
+	oauthCodes,
+	sessions,
+	users,
+	type UserRole
+} from './db/schema';
 import { DEFAULT_ACCOUNT_ID, ensureDefaultAccount } from './accounts';
+import { claimTrial } from './trials';
 
 // Sign-in uses only WebCrypto, which Node and Workers both provide, so both targets behave the same.
 
@@ -110,7 +120,9 @@ export async function registerUser(
 	if (first) {
 		accountId = await ensureDefaultAccount(db);
 	} else {
-		const [account] = await db.insert(accounts).values({ name: email }).returning();
+		// An address that had a trial before starts without one, even after deleting its account.
+		const trialEndsAt = await claimTrial(db, email);
+		const [account] = await db.insert(accounts).values({ name: email, trialEndsAt }).returning();
 		accountId = account.id;
 	}
 
@@ -313,6 +325,16 @@ export async function checkCurrentPassword(
 	return locked ? 'locked' : 'wrong-password';
 }
 
+/** The signed-in user with their password hash, looked up in their account. */
+export async function signedInUser(db: Database, context: AuditContext) {
+	if (!context.userId) return undefined;
+	const [user] = await db
+		.select({ id: users.id, email: users.email, passwordHash: users.passwordHash })
+		.from(users)
+		.where(and(eq(users.id, context.userId), eq(users.accountId, context.accountId)));
+	return user;
+}
+
 /**
  * checkCurrentPassword for the signed-in user, looked up in their account: the confirmation the
  * account deletion asks for. 'missing' when the user is not in the account.
@@ -322,11 +344,7 @@ export async function confirmPassword(
 	context: AuditContext,
 	password: string
 ): Promise<'ok' | 'wrong-password' | 'locked' | 'missing'> {
-	if (!context.userId) return 'missing';
-	const [user] = await db
-		.select({ email: users.email, passwordHash: users.passwordHash })
-		.from(users)
-		.where(and(eq(users.id, context.userId), eq(users.accountId, context.accountId)));
+	const user = await signedInUser(db, context);
 	if (!user) return 'missing';
 	return checkCurrentPassword(db, user, password);
 }
@@ -341,7 +359,7 @@ export async function otherSessions(userId: string, keepToken: string | undefine
 
 /**
  * Changes the password after checking the current one, ends every other session of the user
- * (the one in `keepToken` stays) and drops a pending address change, which the notice to the old
+ * (the one in `keepToken` stays), revokes their API keys and drops a pending address change, which the notice to the old
  * address tells its owner to stop this way. The audit entry carries no user id and no address.
  */
 export async function changePassword(
@@ -349,11 +367,7 @@ export async function changePassword(
 	context: AuditContext,
 	input: { currentPassword: string; password: string; keepToken: string | undefined }
 ): Promise<{ ok: true } | { ok: false; reason: 'wrong-password' | 'locked' | 'missing' }> {
-	if (!context.userId) return { ok: false, reason: 'missing' };
-	const [user] = await db
-		.select({ id: users.id, email: users.email, passwordHash: users.passwordHash })
-		.from(users)
-		.where(and(eq(users.id, context.userId), eq(users.accountId, context.accountId)));
+	const user = await signedInUser(db, context);
 	if (!user) return { ok: false, reason: 'missing' };
 	const checked = await checkCurrentPassword(db, user, input.currentPassword);
 	if (checked !== 'ok') return { ok: false, reason: checked };
@@ -362,6 +376,8 @@ export async function changePassword(
 		db.update(users).set({ passwordHash }).where(eq(users.id, user.id)),
 		db.delete(sessions).where(await otherSessions(user.id, input.keepToken)),
 		db.delete(emailChanges).where(eq(emailChanges.userId, user.id)),
+		db.delete(apiKeys).where(eq(apiKeys.userId, user.id)),
+		db.delete(oauthCodes).where(eq(oauthCodes.userId, user.id)),
 		auditEntry(
 			db,
 			{ accountId: context.accountId, userId: null },

@@ -44,10 +44,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		bankAccounts,
 		[categories]
 	] = await Promise.all([
-		listProperties(locals.db, accountId),
-		listTenants(locals.db, accountId),
+		listProperties(locals.db, accountId, { archived: true }),
+		listTenants(locals.db, accountId, { archived: true }),
 		listLeases(locals.db, accountId),
-		listUnitsWithProperty(locals.db, accountId),
+		listUnitsWithProperty(locals.db, accountId, { archived: true }),
 		listBalances(locals.db, accountId),
 		countUnmatched(locals.db, accountId),
 		countDeadlines(locals.db, accountId),
@@ -66,7 +66,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.filter((lease) => lease.active)
 			.flatMap((lease) => [lease.unitId, ...lease.extraUnits.map((unit) => unit.id)])
 	);
-	const vacant = units.filter((row) => !occupied.has(row.unit.id));
+	// Archived properties (sold) count for the first steps, but not as vacancy.
+	const current = units.filter((row) => !row.property.archivedAt);
+	const vacant = current.filter((row) => !occupied.has(row.unit.id));
 
 	const firstRun: FirstRun = {
 		properties: properties.length > 0,
@@ -83,7 +85,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			arrearsTotal: arrears.reduce((sum, balance) => sum + balance.overdue, 0),
 			arrearsCount: arrears.length,
 			vacantCount: vacant.length,
-			unitCount: units.length,
+			unitCount: current.length,
 			unmatched,
 			overdue: deadlines.overdue,
 			upcoming: deadlines.upcoming,

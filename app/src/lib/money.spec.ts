@@ -29,6 +29,8 @@ describe('parseCents', () => {
 		expect(parseCents('1,2,3')).toBeUndefined();
 		expect(parseCents('12,345')).toBeUndefined();
 		expect(parseCents('--1')).toBeUndefined();
+		// Beyond what a number holds exactly.
+		expect(parseCents('99999999999999999')).toBeUndefined();
 	});
 });
 
@@ -40,6 +42,10 @@ describe('distributeCents', () => {
 		expect(distributeCents(7, [0, 0, 0])).toEqual([0, 0, 0]);
 		expect(distributeCents(7, [0, 3, 0])).toEqual([0, 7, 0]);
 		expect(distributeCents(0, [1, 2])).toEqual([0, 0]);
+	});
+
+	it('refuses a total that is not whole cents', () => {
+		expect(() => distributeCents(10.5, [1, 1])).toThrow('integer total');
 	});
 
 	it('matches a hand-computed area split', () => {

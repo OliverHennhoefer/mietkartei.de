@@ -9,6 +9,7 @@ import {
 	monthOf,
 	today
 } from '../src/lib/dates';
+import { pdfText } from './pdf-text';
 import { seedLease, seedRows } from './seed';
 
 // The ledger pages: /mietkonto with every lease's balance and the Mietkonto tab of one lease.
@@ -80,6 +81,11 @@ test('shows arrears, books and deletes a payment and a correction', async ({ pag
 	await paymentForm.getByRole('button', { name: 'Zahlung buchen' }).click();
 	await expect(page.getByText('Zahlung gebucht.')).toBeVisible();
 	await expect(await balance(page)).toHaveText('Saldo: Rückstand 3.200,00 €');
+	// "Wie letzte Zahlung" repeats the amount and the note of the payment just booked.
+	await paymentForm.getByRole('button', { name: 'Wie letzte Zahlung' }).click();
+	await expect(paymentForm.getByLabel('Betrag in €')).toHaveValue('800,00');
+	await expect(paymentForm.getByLabel('Vermerk (optional)')).toHaveValue(`Überweisung ${suffix}`);
+	await page.reload();
 	const paymentRow = ledger.locator('tr', { hasText: `Überweisung ${suffix}` });
 	await expect(paymentRow).toContainText('800,00 €');
 	await expect(paymentForm.getByLabel('Betrag in €')).toHaveValue('3.200,00');
@@ -184,6 +190,55 @@ test('makes the rent due on the third working day after a public holiday', async
 		.getByRole('table', { name: 'Buchungen' })
 		.locator('tr', { hasText: 'Miete Oktober 2025' });
 	await expect(rent.getByRole('cell').first()).toHaveText('06.10.2025');
+});
+
+test('writes a Zahlungserinnerung, suggests a Mahnung next and lists it with the arrears', async ({
+	page
+}) => {
+	// Two months of 800 €, both overdue and unpaid.
+	const reminded = `Erinnert-${suffix}`;
+	const { leaseId } = await seedLease(page.request, {
+		tenant: { lastName: reminded },
+		lease: { startDate: '2025-10-01', endDate: '2025-11-30' }
+	});
+	await page.goto('/mietkonto?filter=rueckstaende');
+	const row = page.getByRole('table', { name: 'Salden' }).locator('tr', { hasText: reminded });
+	await expect(row).toContainText('noch nicht');
+	await row.getByRole('link', { name: 'Erinnern' }).click();
+	await expect(page).toHaveURL(new RegExp(`/vertraege/${leaseId}/mietkonto#zahlungserinnerung$`));
+
+	await expect(page.getByRole('table', { name: 'Offene Posten' })).toContainText(
+		'Miete Oktober 2025'
+	);
+	const form = page.getByRole('form', { name: 'Zahlungserinnerung erstellen' });
+	await expect(form.getByLabel('Art des Schreibens')).toHaveValue('1');
+	await expect(form.getByLabel('Zahlungsfrist')).toHaveValue(addDays(today(), 14));
+	await form.getByRole('button', { name: 'Schreiben erstellen' }).click();
+	await expect(page.getByText('Schreiben erstellt.')).toBeVisible();
+
+	const letters = page.getByRole('table', { name: 'Erstellte Schreiben' });
+	await expect(letters).toContainText('Zahlungserinnerung');
+	await expect(letters).toContainText('1.600,00 €');
+	const href = await letters.getByRole('link', { name: 'PDF' }).getAttribute('href');
+	const pdf = await page.request.get(href!);
+	expect(pdf.status()).toBe(200);
+	expect(pdf.headers()['content-type']).toContain('application/pdf');
+	const text = (await pdfText(await pdf.body())).replace(/\s+/g, ' ');
+	expect(text).toContain('Zahlungserinnerung zum Mietkonto');
+	expect(text).toContain('Miete November 2025');
+
+	// The next letter about the same Rückstand is a Mahnung.
+	await page.reload();
+	await expect(form.getByLabel('Art des Schreibens')).toHaveValue('2');
+	await page.goto('/mietkonto?filter=rueckstaende');
+	await expect(row).toContainText('Zahlungserinnerung vom');
+	await expect(row.getByRole('link', { name: 'Mahnen' })).toBeVisible();
+
+	await page.goto(`/vertraege/${leaseId}/mietkonto`);
+	confirmNextDialog(page);
+	await letters.getByRole('button', { name: 'Löschen' }).click();
+	await expect(page.getByText('Schreiben gelöscht.')).toBeVisible();
+	await expect(letters).toHaveCount(0);
 });
 
 test('answers an unknown lease with 404', async ({ page }) => {

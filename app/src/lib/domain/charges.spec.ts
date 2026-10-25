@@ -9,7 +9,13 @@ import {
 import type { RentChange } from './rents';
 
 // A lease from 15 January 2025 at 600 € + 150 € + 50 €, raised to 650 € from April.
-const lease = { startDate: '2025-01-15', endDate: null, ledgerStart: null, rentDueDay: 3 };
+const lease = {
+	startDate: '2025-01-15',
+	endDate: null,
+	ledgerStart: null,
+	rentDueDay: 3,
+	state: null
+};
 
 const changes: RentChange[] = [
 	{

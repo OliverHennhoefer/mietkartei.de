@@ -1,26 +1,43 @@
 [project]
-site_name = "mietkartei.de"
-site_description = "Die Dokumentation zu mietkartei.de ist in Arbeit."
+site_name = "mietkartei"
+site_description = "Dokumentation zu mietkartei, der Open-Source-Hausverwaltung für Privatvermieter: Nutzung, Selbsthosten und Mitarbeit."
 site_author = "Oliver Hennhoefer"
 copyright = 'Erstellt mit <a href="https://zensical.org/">Zensical</a>'
 site_url = "https://docs.mietkartei.de/"
+repo_url = "https://github.com/OliverHennhoefer/mietkartei.de"
+repo_name = "mietkartei.de"
 docs_dir = "docs"
 site_dir = "site"
 extra_css = ["assets/stylesheets/extra.css"]
 exclude_docs = """
 requirements.txt
 wrangler.toml
+overrides/
 """
 nav = [
   { "Dokumentation" = "index.md" },
+  { "Anleitungen" = [
+    { "Nebenkostenabrechnung erstellen" = "anleitungen/nebenkostenabrechnung.md" },
+    { "Umlageschlüssel" = "anleitungen/umlageschluessel.md" },
+    { "Eigentumswohnung vermieten" = "anleitungen/eigentumswohnung.md" },
+    { "Steuerübersicht für die Anlage V" = "anleitungen/steuer.md" },
+    { "Kontoauszüge importieren" = "anleitungen/kontoauszuege-importieren.md" },
+    { "Von Excel umsteigen" = "anleitungen/von-excel-umsteigen.md" },
+    { "KI-Assistenten anbinden" = "anleitungen/ki-assistenten.md" },
+  ] },
+  { "Selbst hosten" = "selbst-hosten.md" },
 ]
 
 [project.theme]
 language = "de"
 font = false
+custom_dir = "docs/overrides"
 logo = "assets/brand/lockup.svg"
 favicon = "assets/brand/favicon.svg?v=register"
 features = []
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
 
 [[project.theme.palette]]
 media = "(prefers-color-scheme: light)"
@@ -39,14 +56,34 @@ toggle.icon = "lucide/sun"
 toggle.name = "Zur hellen Darstellung wechseln"
 
 [project.markdown_extensions]
+admonition = {}
 attr_list = {}
 md_in_html = {}
 
 [project.plugins.search]
 enabled = false
 
+[project.plugins.llmstxt]
+full_output = "llms-full.txt"
+markdown_description = """
+mietkartei ist eine Open-Source-Hausverwaltung für Privatvermieter in Deutschland: Mieten, Bankumsätze und Betriebskostenabrechnung an einem Ort, gehostet unter app.mietkartei.de oder selbst betrieben als Docker-Container. Die Startseite ist https://mietkartei.de/, die Demo https://demo.mietkartei.de/.
+"""
+
+[project.plugins.llmstxt.sections]
+Dokumentation = [
+  { "index.md" = "Überblick über die Dokumentation" },
+  { "anleitungen/nebenkostenabrechnung.md" = "Nebenkostenabrechnung Schritt für Schritt: Belege, Entwurf, Freigabe, Zustellung" },
+  { "anleitungen/umlageschluessel.md" = "Umlageschlüssel für die Betriebskosten und wann welcher passt" },
+  { "anleitungen/eigentumswohnung.md" = "Eigentumswohnung in einer WEG: Verwalter, Miteigentumsanteile, Kosten aus der Hausgeldabrechnung und Abgleich mit dem Hausgeld" },
+  { "anleitungen/kontoauszuege-importieren.md" = "Kontoauszüge als camt.053 oder CSV importieren und Mietverträgen zuordnen" },
+  { "anleitungen/von-excel-umsteigen.md" = "Objekte, Mieter, Mietverträge und Zahlungen per CSV aus Excel übernehmen" },
+  { "selbst-hosten.md" = "mietkartei mit Docker oder aus dem Quellcode betreiben" },
+]
+
 [project.extra]
 generator = false
+# The logo leads to the homepage, not to the start of the documentation.
+homepage = "https://mietkartei.de/"
 
 [project.validation]
 invalid_links = true

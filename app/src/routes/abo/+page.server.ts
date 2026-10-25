@@ -43,6 +43,8 @@ function returnOrigin(url: URL): string | undefined {
 	return origin;
 }
 
+const FREE = 'Dein Konto ist kostenlos, du brauchst kein Abo.';
+
 const SETTING_UP = 'Dein Abo wird gerade eingerichtet. Lade die Seite in einer Minute noch einmal.';
 
 /**
@@ -100,8 +102,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		trialDaysLeft: trialDaysLeft(account, now),
 		currentPeriodEnd: account.currentPeriodEnd ? dayOf(account.currentPeriodEnd) : null,
 		hasSubscription: Boolean(account.stripeSubscriptionId),
+		subscriptionRuns: subscriptionRuns(account),
 		required: BILLING_REQUIRED,
-		price: await priceText(),
+		price: account.free ? null : await priceText(),
 		success: url.searchParams.get('erfolg') === '1'
 	};
 };
@@ -117,6 +120,7 @@ export const actions: Actions = {
 		const user = requireOwner(locals);
 		const account = await getBillingAccount(locals.db, user.accountId);
 		if (!account) error(404, 'Dieses Konto gibt es nicht.');
+		if (account.free) return fail(400, { message: FREE });
 		// A second Checkout would start a second subscription that bills at once.
 		if (subscriptionRuns(account))
 			return fail(400, { message: 'Du hast bereits ein laufendes Abo.' });

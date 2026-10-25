@@ -131,12 +131,12 @@ test('creates, approves, prints and corrects a statement', async ({ page }) => {
 	expect(text).toContain(`Betriebskostenabrechnung ${year}`);
 	expect(text).toContain('Gesamtkosten');
 	expect(text).toContain(`Wohnfläche ${suffix}: 72,5 m²`);
-	expect(text).toContain('Dein Anteil');
+	expect(text).toContain('Ihr Anteil');
 	expect(text).toContain('72,5 m² von 72,5 m²');
 	expect(text).toContain('3.000,00 €');
 	expect(text).toContain('Geleistete Vorauszahlungen');
 	expect(text).toContain('Summe 2.400,00 € 2.200,00 €');
-	expect(text).toContain('hast du 200,00 € nicht geleistet');
+	expect(text).toContain('haben Sie 200,00 € nicht geleistet');
 	expect(text).toContain('geleistete Vorauszahlungen 2.200,00 €: Nachzahlung 800,00 €');
 	expect(text).toContain('innerhalb von 30 Tagen nach Zugang dieser Abrechnung');
 	// The PDF route answers 404 for a lease that is not part of the statement.
@@ -427,7 +427,7 @@ test('prints the reference scenario with the four elements of a valid statement'
 	expect(text).toContain('730 von 1.641 Personentagen');
 	expect(text).toContain('1 von 3 Einheiten');
 	expect(text).toContain('70 % nach Verbrauch: 1.000 von 2.200 kWh');
-	// Dein Anteil per line and in sum.
+	// Ihr Anteil per line and in sum.
 	expect(text).toContain('471,54 €');
 	expect(text).toContain('266,91 €');
 	expect(text).toContain('1.255,88 €');

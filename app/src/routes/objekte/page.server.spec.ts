@@ -4,13 +4,13 @@ import { getProperty, getUnit } from '#lib/server/properties.ts';
 import { outcome, routeEvent, seedLease, seedUnit, testDatabase } from '#lib/server/testing.ts';
 import { load as loadProperty } from './[id]/+layout.server';
 import { actions as propertyActions, load as loadUnits } from './[id]/+page.server';
-import { actions as editActions } from './[id]/bearbeiten/+page.server';
+import { actions as editActions, load as loadEdit } from './[id]/bearbeiten/+page.server';
 import { actions as unitActions, load as loadUnit } from './[id]/einheiten/[unitId]/+page.server';
 import {
 	actions as unitEditActions,
 	load as loadUnitEdit
 } from './[id]/einheiten/[unitId]/bearbeiten/+page.server';
-import { actions as newActions } from './neu/+page.server';
+import { actions as newActions, load as loadNew } from './neu/+page.server';
 import { load } from './+page.server';
 
 // The property pages: list, new, the property with its units, editing and deleting both.
@@ -38,6 +38,8 @@ describe('objekte', () => {
 	});
 
 	it('creates a property and opens it', async () => {
+		expect(await run(loadNew, {})).toEqual({ data: {} });
+		expect(await run(loadNew, { user: null })).toEqual({ redirect: '/anmelden' });
 		const result = await run(newActions.create, { form: property });
 		const id = 'redirect' in result ? result.redirect.split('/').at(-1)! : '';
 		expect((await getProperty(db, 'a', id))?.name).toBe('Gartenhaus');
@@ -56,6 +58,8 @@ describe('objekte', () => {
 		});
 		expect(await run(editActions.update, { params, form: property })).toMatchObject({ error: 404 });
 		expect(await run(editActions.delete, { params, form: {} })).toMatchObject({ error: 404 });
+		expect(await run(editActions.archive, { params, form: {} })).toMatchObject({ error: 404 });
+		expect(await run(editActions.restore, { params, form: {} })).toMatchObject({ error: 404 });
 		expect(await run(loadUnit, { params })).toMatchObject({ error: 404 });
 		expect(await run(unitActions.delete, { params, form: {} })).toMatchObject({ error: 404 });
 		expect(await run(loadUnitEdit, { params })).toMatchObject({ error: 404 });
@@ -68,6 +72,40 @@ describe('objekte', () => {
 		expect(await run(loadUnit, { params })).toMatchObject({ error: 404 });
 		expect(await run(unitEditActions.update, { params, form: unit })).toMatchObject({ error: 404 });
 		expect(await run(unitActions.delete, { params, form: {} })).toMatchObject({ error: 404 });
+	});
+});
+
+describe('archive', () => {
+	it('archives a property without running leases, lists it apart and restores it', async () => {
+		const params = { id: propertyId };
+		expect(await run(loadEdit, { params })).toMatchObject({
+			data: { archiving: { archivedAt: null, runningLeases: [] } }
+		});
+		expect(await run(editActions.archive, { params, form: {} })).toEqual({
+			redirect: '/objekte'
+		});
+		expect(await run(load, {})).toMatchObject({
+			data: { properties: [], archived: [{ id: propertyId }] }
+		});
+		expect(await run(editActions.restore, { params, form: {} })).toEqual({
+			redirect: `/objekte/${propertyId}`
+		});
+		expect(await run(load, {})).toMatchObject({
+			data: { properties: [{ id: propertyId }], archived: [] }
+		});
+	});
+
+	it('refuses to archive while a lease runs and names it', async () => {
+		const leaseId = await seedLease(db, 'a', unitId);
+		const params = { id: propertyId };
+		expect(await run(loadEdit, { params })).toMatchObject({
+			data: { archiving: { runningLeases: [{ href: `/vertraege/${leaseId}` }] } }
+		});
+		expect(await run(editActions.archive, { params, form: {} })).toMatchObject({
+			fail: 400,
+			data: { archiveError: expect.any(String) }
+		});
+		expect((await getProperty(db, 'a', propertyId))?.archivedAt).toBeNull();
 	});
 });
 
@@ -98,16 +136,31 @@ describe('objekte/[id]', () => {
 
 	it('keeps a property and unit with a lease and names the lease', async () => {
 		const leaseId = await seedLease(db, 'a', unitId);
+		expect(await run(loadEdit, { params: params() })).toMatchObject({
+			data: {
+				deletion: {
+					blockers: [
+						{
+							links: [{ href: `/vertraege/${leaseId}`, label: expect.stringContaining('EG links') }]
+						}
+					]
+				}
+			}
+		});
 		expect(await run(editActions.delete, { params: params(), form: {} })).toMatchObject({
 			fail: 400,
-			data: { blockingLeases: [{ id: leaseId, label: expect.stringContaining('EG links') }] }
+			data: { deleteError: expect.any(String) }
 		});
 		expect(await run(unitActions.delete, { params: params(), form: {} })).toMatchObject({
 			fail: 400,
 			data: { deleteError: expect.any(String) }
 		});
 		expect(await run(loadUnit, { params: params() })).toMatchObject({
-			data: { unit: { id: unitId }, leases: [{ id: leaseId, main: true }] }
+			data: {
+				unit: { id: unitId },
+				leases: [{ id: leaseId, main: true }],
+				deletion: { blockers: [{ links: [{ href: `/vertraege/${leaseId}` }] }] }
+			}
 		});
 	});
 

@@ -7,13 +7,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '../db';
 import { auditLog, costItemUnitAmounts, costItems, documents, units } from '../db/schema';
 import { getDocument, storeDocument } from '../documents';
-import { deleteProperty } from '../properties';
+import { deleteProperty } from '../deletion';
 import { QUOTAS } from '../quotas';
 import { openFileStorage } from '../storage/fs';
 import type { Storage } from '../storage';
-import { contextA, contextB, seedUnit, testDatabase } from '../testing';
+import { createPolicy, linkCostItemToPolicy } from '../insurance';
+import { contextA, contextB, integrityProblems, seedUnit, testDatabase } from '../testing';
 import { createCircle } from './circles';
 import {
+	costItemHistory,
 	createCostItem,
 	deleteCostItem,
 	getCostItem,
@@ -69,6 +71,10 @@ function input(overrides: Partial<CostItemInput> = {}): CostItemInput {
 		fuelKwh: null,
 		co2Kg: null,
 		co2Cost: null,
+		associationTotal: null,
+		associationKey: null,
+		associationKeyTotal: null,
+		associationKeyShare: null,
 		...overrides
 	};
 }
@@ -215,6 +221,31 @@ describe('cost items', () => {
 		expect(await listCostItemYears(db, 'a')).toEqual([2026, 2025, 2024]);
 	});
 
+	it('remembers the texts and the last item per property and category for the next one', async () => {
+		await create(contextA);
+		await create(contextA, {
+			description: 'Grundsteuer 2026',
+			periodStart: '2026-01-01',
+			periodEnd: '2026-12-31',
+			amount: 125000
+		});
+		await create(contextA, {
+			categoryId: categoryId['Straßenreinigung und Müllbeseitigung'],
+			description: 'Müllabfuhr',
+			supplier: 'BSR'
+		});
+		const history = await costItemHistory(db, 'a');
+		expect(history.descriptions).toEqual(['Grundsteuer 2026', 'Müllabfuhr', 'Grundsteuer 2025']);
+		expect(history.suppliers).toEqual(['Stadt Berlin', 'BSR']);
+		expect(history.last).toHaveLength(2);
+		expect(history.last.find((row) => row.categoryId === categoryId.Grundsteuer)).toMatchObject({
+			description: 'Grundsteuer 2026',
+			amount: 125000,
+			periodEnd: '2026-12-31'
+		});
+		expect(await costItemHistory(db, 'b')).toEqual({ descriptions: [], suppliers: [], last: [] });
+	});
+
 	it('offers every year a period overlaps, also the years in between', async () => {
 		const long = await create(contextA, {
 			description: 'Wartungsvertrag',
@@ -350,7 +381,35 @@ describe('cost items', () => {
 		});
 	});
 
-	it('goes with its property; the receipt stays as a document without the links', async () => {
+	it('drops the link to the insurance policy of the property it leaves', async () => {
+		const other = await seedUnit(db, 'a', { propertyName: 'Anderes Haus' });
+		const policy = await createPolicy(db, contextA, propertyId, {
+			kind: 'building',
+			insurer: 'Versicherung AG',
+			policyNumber: null,
+			annualPremium: 120000,
+			renewalDate: '2026-01-01',
+			noticeMonths: 3,
+			endDate: null,
+			note: null
+		});
+		if (!policy.ok) throw new Error('setup failed');
+		const id = await create(contextA);
+		await linkCostItemToPolicy(db, 'a', id, policy.id);
+		expect(await getCostItem(db, 'a', id)).toMatchObject({ insurancePolicyId: policy.id });
+
+		expect(await updateCostItem(db, contextA, id, input({ description: 'Neu' }))).toEqual({
+			ok: true
+		});
+		expect(await getCostItem(db, 'a', id)).toMatchObject({ insurancePolicyId: policy.id });
+		expect(await updateCostItem(db, contextA, id, input({ propertyId: other.propertyId }))).toEqual(
+			{ ok: true }
+		);
+		expect(await getCostItem(db, 'a', id)).toMatchObject({ insurancePolicyId: null });
+		expect(await integrityProblems(db)).toEqual([]);
+	});
+
+	it('goes with its property, and so does its receipt', async () => {
 		const id = await create(contextA);
 		const stored = await storeDocument(
 			db,
@@ -365,12 +424,9 @@ describe('cost items', () => {
 		);
 		if (!stored.ok) throw new Error('setup failed');
 
-		expect(await deleteProperty(db, contextA, propertyId)).toBe('deleted');
+		expect(await deleteProperty(db, contextA, propertyId, { storage })).toBe('deleted');
 		expect(await getCostItem(db, 'a', id)).toBeUndefined();
-		expect(await getDocument(db, 'a', stored.id)).toMatchObject({
-			propertyId: null,
-			costItemId: null
-		});
+		expect(await getDocument(db, 'a', stored.id)).toBeUndefined();
 	});
 
 	it('does not leak into another account', async () => {

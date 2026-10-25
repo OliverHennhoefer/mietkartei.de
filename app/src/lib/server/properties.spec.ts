@@ -6,8 +6,6 @@ import { auditLog, meters, units } from './db/schema';
 import {
 	addProperty,
 	addUnit,
-	deleteProperty,
-	deleteUnit,
 	getProperty,
 	getUnit,
 	listProperties,
@@ -17,13 +15,19 @@ import {
 	updateProperty,
 	updateUnit
 } from './properties';
+import { deleteProperty, deleteUnit } from './deletion';
 import { address, contextA, contextB, seedLease, seedTenant, testDatabase } from './testing';
 
 function propertyInput(overrides: Partial<PropertyInput> = {}): PropertyInput {
 	return {
 		name: 'Haus',
 		...address,
+		kind: 'building',
+		associationManager: null,
+		ownershipShare: null,
+		ownershipShareTotal: null,
 		buildingUse: 'residential',
+		state: null,
 		vacancyPersons: 1,
 		notes: null,
 		...overrides

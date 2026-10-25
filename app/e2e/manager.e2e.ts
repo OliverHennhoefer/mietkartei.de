@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { closeLaunchNotice } from './launch-notice';
 import { linkInMailTo } from './outbox';
+import { clearTables } from './seed';
 
 // Project "manager", with the owner's storage state. The owner invites a manager through the
 // page, the manager registers through the link from the mail in a browser context of their own.
@@ -13,17 +15,28 @@ test('the owner invites a manager, who registers through the link', async ({
 }) => {
 	await page.goto('/einstellungen');
 	await page
-		.getByRole('list', { name: 'Einstellungen' })
-		.getByRole('link', { name: 'Mitverwalter' })
+		.getByRole('navigation', { name: 'Einstellungen' })
+		.getByRole('link', { name: 'Zugänge' })
 		.click();
-	await expect(page.getByRole('heading', { level: 1, name: 'Mitverwalter' })).toBeVisible();
+	await expect(page.getByRole('heading', { level: 1, name: 'Zugänge' })).toBeVisible();
 	await expect(page.getByRole('table', { name: 'Zugänge' })).toContainText('(du)');
+
+	// The feature tests, which have all finished, leave seeded managers and invitations in the
+	// account. They are removed, so the account has free seats for this test.
+	page.on('dialog', (dialog) => dialog.accept());
+	await clearTables(page.request, ['invitations']);
+	await page.reload();
+	const remove = page
+		.getByRole('table', { name: 'Zugänge' })
+		.getByRole('button', { name: 'Entfernen' });
+	for (let left = await remove.count(); left > 0; left--) {
+		await remove.first().click();
+		await expect(remove).toHaveCount(left - 1);
+	}
 	await page.getByLabel('E-Mail-Adresse').fill(manager.email);
 	await page.getByRole('button', { name: 'Einladen' }).click();
 	await expect(page.getByRole('status')).toContainText(`Die Einladung an ${manager.email}`);
-	await expect(page.getByRole('table', { name: 'Offene Einladungen' })).toContainText(
-		manager.email
-	);
+	await expect(page.getByRole('table', { name: 'Einladungen' })).toContainText(manager.email);
 	const link = await linkInMailTo(page.request, manager.email, '/einladung/');
 
 	// The same address cannot be invited twice while the invitation is open.
@@ -34,6 +47,7 @@ test('the owner invites a manager, who registers through the link', async ({
 	// The invitee has no session of their own yet.
 	const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
 	const invitee = await context.newPage();
+	await closeLaunchNotice(invitee);
 	await invitee.goto(link);
 	await expect(invitee.getByRole('heading', { level: 1, name: 'Einladung' })).toBeVisible();
 	await expect(invitee.getByLabel('E-Mail-Adresse')).toHaveValue(manager.email);
@@ -42,16 +56,18 @@ test('the owner invites a manager, who registers through the link', async ({
 	await invitee.locator('input[name="passwordConfirm"]').fill(manager.password);
 	await invitee.getByRole('button', { name: 'Konto anlegen' }).click();
 	await expect(invitee).toHaveURL(/\/$/);
-	await expect(invitee.getByRole('navigation')).toContainText('Max Mitverwalter');
+	await invitee.getByRole('button', { name: 'Konto' }).click();
+	await expect(invitee.locator('#account-menu')).toContainText('Max Mitverwalter');
+	await invitee.keyboard.press('Escape');
 
 	// A manager works in the owner's account but does not manage invitations.
 	const objekte = await invitee.goto('/objekte');
 	expect(objekte?.status()).toBe(200);
 	await expect(invitee.getByRole('heading', { level: 1, name: 'Objekte' })).toBeVisible();
-	const forbidden = await invitee.goto('/einstellungen/mitverwalter');
+	const forbidden = await invitee.goto('/einstellungen/zugaenge');
 	expect(forbidden?.status()).toBe(403);
-	await expect(invitee.getByText('Das dürfen nur Vermieter, keine Mitverwalter.')).toBeVisible();
-	const invite = await invitee.request.post('/einstellungen/mitverwalter?/invite', {
+	await expect(invitee.getByText('Das darf nur der Vermieter des Kontos.')).toBeVisible();
+	const invite = await invitee.request.post('/einstellungen/zugaenge?/invite', {
 		form: { email: 'durch-mitverwalter@example.org' },
 		headers: { origin: baseURL! }
 	});
@@ -77,7 +93,7 @@ test('the owner invites a manager, who registers through the link', async ({
 	// Bank accounts are the owner's too: the page says so, the actions answer 403.
 	await invitee.goto('/bank/konten');
 	await expect(
-		invitee.getByText('Bankverbindungen sind nur für Vermieter sichtbar, nicht für Mitverwalter.')
+		invitee.getByText('Bankverbindungen sieht nur der Vermieter des Kontos.')
 	).toBeVisible();
 	const createBankAccount = await invitee.request.post('/bank/konten?/create', {
 		form: { name: 'Fremdkonto', iban: 'DE89370400440532013000', holder: 'Max Mitverwalter' },
@@ -86,9 +102,7 @@ test('the owner invites a manager, who registers through the link', async ({
 	expect(createBankAccount.status()).toBe(403);
 	// So is the subscription: the page says who manages it, the actions answer 403.
 	await invitee.goto('/abo');
-	await expect(
-		invitee.getByText('Das Abo verwaltet der Vermieter des Kontos, nicht die Mitverwalter.')
-	).toBeVisible();
+	await expect(invitee.getByText('Das Abo verwaltet der Vermieter des Kontos.')).toBeVisible();
 	await expect(invitee.getByRole('button', { name: 'Abo abschließen' })).toHaveCount(0);
 	const checkout = await invitee.request.post('/abo?/checkout', {
 		form: {},
@@ -97,11 +111,11 @@ test('the owner invites a manager, who registers through the link', async ({
 	expect(checkout.status()).toBe(403);
 	// The settings hub does not send a manager to the owner-only pages.
 	await invitee.goto('/einstellungen');
-	const hub = invitee.getByRole('list', { name: 'Einstellungen' });
+	const hub = invitee.getByRole('navigation', { name: 'Einstellungen' });
 	await expect(hub.getByRole('link', { name: 'Profil' })).toBeVisible();
 	await expect(hub.getByRole('link', { name: 'Protokoll' })).toBeVisible();
 	await expect(hub.getByRole('link', { name: 'Konto' })).toBeVisible();
-	await expect(hub.getByRole('link', { name: 'Mitverwalter' })).toHaveCount(0);
+	await expect(hub.getByRole('link', { name: 'Zugänge' })).toHaveCount(0);
 	await expect(hub.getByRole('link', { name: 'Export' })).toHaveCount(0);
 
 	// The used link cannot be used again.
@@ -110,22 +124,50 @@ test('the owner invites a manager, who registers through the link', async ({
 
 	// The owner sees the new user instead of the invitation, and the log names the acceptance.
 	// Other tests may leave invitations of their own, so only these rows are checked.
-	const invitations = page.getByRole('table', { name: 'Offene Einladungen' });
+	const invitations = page.getByRole('table', { name: 'Einladungen' });
 	await page.reload();
 	await expect(page.getByRole('table', { name: 'Zugänge' })).toContainText('Max Mitverwalter');
 	await expect(invitations.getByRole('row', { name: new RegExp(manager.email) })).toHaveCount(0);
 	await page.goto('/einstellungen/protokoll?entity=user');
 	await expect(page.getByRole('table', { name: 'Protokoll' })).toContainText(
-		'Max Mitverwalter hat die Einladung angenommen und ist jetzt Mitverwalter'
+		'Max Mitverwalter hat die Einladung angenommen und ist jetzt als Mitverwalter dabei'
 	);
-	await page.goto('/einstellungen/mitverwalter');
+	await page.goto('/einstellungen/zugaenge');
 
-	// A second invitation is revoked before anyone uses it; its link then leads nowhere.
+	// With Lesezugriff, the manager still reads but can change nothing.
+	const people = page.getByRole('table', { name: 'Zugänge' });
+	await people.getByLabel('Rolle von Max Mitverwalter').selectOption('viewer');
+	await people
+		.getByRole('row', { name: /Max Mitverwalter/ })
+		.getByRole('button', { name: 'Ändern' })
+		.click();
+	await expect(page.getByText('Die Rolle wurde geändert.')).toBeVisible();
+	await invitee.goto('/objekte');
+	await expect(invitee.getByText('Du hast Lesezugriff und kannst nichts ändern.')).toBeVisible();
+	expect((await invitee.goto('/objekte/neu'))?.status()).toBe(403);
+	const write = await invitee.request.post('/objekte/neu', {
+		form: { name: 'Fremdobjekt' },
+		headers: { origin: baseURL! }
+	});
+	expect(write.status()).toBe(403);
+
+	// A second invitation is sent again and revoked before anyone uses it; its links then lead nowhere.
 	const second = 'zweite-einladung@example.org';
 	await page.getByLabel('E-Mail-Adresse').fill(second);
 	await page.getByRole('button', { name: 'Einladen' }).click();
 	await expect(invitations).toContainText(second);
+	const firstLink = await linkInMailTo(page.request, second, '/einladung/');
+
+	// Sending it again replaces the link.
+	await invitations
+		.getByRole('row', { name: new RegExp(second) })
+		.getByRole('button', { name: 'Erneut senden' })
+		.click();
+	await expect(page.getByRole('status')).toContainText(`Die Einladung an ${second}`);
+	await expect(invitations.getByRole('row', { name: new RegExp(second) })).toHaveCount(1);
+	expect((await page.request.get(firstLink)).status()).toBe(404);
 	const secondLink = await linkInMailTo(page.request, second, '/einladung/');
+	expect(secondLink).not.toBe(firstLink);
 	await invitations
 		.getByRole('row', { name: new RegExp(second) })
 		.getByRole('button', { name: 'Zurückziehen' })
@@ -135,7 +177,6 @@ test('the owner invites a manager, who registers through the link', async ({
 	expect((await page.request.get(secondLink)).status()).toBe(404);
 
 	// Removing the manager ends their access at once, including the open session.
-	page.on('dialog', (dialog) => dialog.accept());
 	const users = page.getByRole('table', { name: 'Zugänge' });
 	await users
 		.getByRole('row', { name: /Max Mitverwalter/ })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formDataOf } from './fields';
-import { parseApproval, parseGraduatedStep, parseIndexValue, parseManualChange } from './rent';
+import { parseApproval, parseGraduatedStep, parseManualChange } from './rent';
 
 // 600 € until a Staffel step to 650 € on 2026-12-01.
 const baseRentOn = (validFrom: string) => (validFrom >= '2026-12-01' ? 65000 : 60000);
@@ -111,31 +111,5 @@ describe('parseApproval', () => {
 		expect(result.ok).toBe(false);
 		if (!result.ok)
 			expect(result.errors.validFrom).toBe('Die neue Miete kann erst nach der Zustellung gelten.');
-	});
-});
-
-describe('parseIndexValue', () => {
-	it('accepts one decimal with a comma or a dot and defaults the base year', () => {
-		expect(parseIndexValue(formDataOf({ month: '2026-01', value: '124,3' }))).toEqual({
-			ok: true,
-			data: { month: '2026-01', value: 124.3, baseYear: '2020' }
-		});
-		expect(
-			parseIndexValue(formDataOf({ month: '2026-01', value: '124.3', baseYear: '2015' }))
-		).toEqual({ ok: true, data: { month: '2026-01', value: 124.3, baseYear: '2015' } });
-	});
-
-	it('refuses two decimals, zero, a bad month and a bad base year', () => {
-		const errorsOf = (entries: Record<string, string>) => {
-			const result = parseIndexValue(formDataOf(entries));
-			expect(result.ok).toBe(false);
-			return result.ok ? {} : result.errors;
-		};
-		expect(errorsOf({ month: '2026-01', value: '124,35' }).value).toContain(
-			'einer Nachkommastelle'
-		);
-		expect(errorsOf({ month: '2026-01', value: '0' }).value).toContain('größer als 0');
-		expect(errorsOf({ month: '2026-13', value: '124,3' }).month).toBeDefined();
-		expect(errorsOf({ month: '2026-01', value: '124,3', baseYear: '20' }).baseYear).toBeDefined();
 	});
 });

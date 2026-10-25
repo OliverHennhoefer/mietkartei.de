@@ -28,7 +28,7 @@ describe('requireOwner', () => {
 			expect.objectContaining({
 				status: 403,
 				body: expect.objectContaining({
-					message: 'Das dürfen nur Vermieter, keine Mitverwalter.'
+					message: 'Das darf nur der Vermieter des Kontos.'
 				})
 			})
 		);
