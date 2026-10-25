@@ -3,6 +3,7 @@ import { strFromU8, unzipSync } from 'fflate';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { getTableConfig } from 'drizzle-orm/sqlite-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from './db';
 import { chunk, rowsPerStatement } from './db/batch';
@@ -65,17 +66,15 @@ describe('exportTables', () => {
 
 	it('lists parents before children', () => {
 		const names = exportTables.map(getTableName);
-		const before = (parent: string, child: string) =>
-			expect(names.indexOf(parent)).toBeLessThan(names.indexOf(child));
-		before('properties', 'units');
-		before('units', 'leases');
-		before('leases', 'rent_charges');
-		before('leases', 'payments');
-		before('bank_accounts', 'bank_transactions');
-		before('cost_categories', 'cost_items');
-		before('allocation_keys', 'cost_items');
-		before('meters', 'meter_readings');
-		before('operating_cost_statements', 'statement_results');
+		for (const table of exportTables) {
+			for (const foreignKey of getTableConfig(table).foreignKeys) {
+				const parent = getTableName(foreignKey.reference().foreignTable);
+				if (!names.includes(parent) || parent === getTableName(table)) continue;
+				expect(names.indexOf(parent), `${getTableName(table)} → ${parent}`).toBeLessThan(
+					names.indexOf(getTableName(table))
+				);
+			}
+		}
 	});
 });
 
