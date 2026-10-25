@@ -140,7 +140,6 @@ test('suggests the lease by the tenant name, assigns and remembers a rule', asyn
 	const first = open.first();
 	await expect(first).toContainText('Vorschlag: Name des Mieters im Text');
 	await expect(first.locator('select[name="leaseId"]')).toHaveValue(leaseId);
-	await first.getByLabel('Zuordnung merken').check();
 	await first.getByRole('button', { name: 'Zuordnen' }).click();
 	await expect(card(page, purpose)).toHaveCount(1);
 

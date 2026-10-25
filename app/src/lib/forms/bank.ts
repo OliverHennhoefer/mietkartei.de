@@ -109,8 +109,6 @@ export type AssignmentInput = {
 	target: AssignmentTarget;
 	/** The lease(s) and signed amounts; they sum to the transaction's amount. */
 	parts: { leaseId: string; amount: number }[];
-	/** "Zuordnung merken": create a confirmed rule for the counterpart. */
-	remember: boolean;
 };
 
 /** Form fields of the inline assignment; the error keys the page shows. */
@@ -120,7 +118,6 @@ export type AssignmentFields = {
 	splitLeaseId: string;
 	amount: string;
 	splitAmount: string;
-	remember: string;
 };
 
 /**
@@ -136,7 +133,6 @@ export function parseAssignment(form: FormData, transactionAmount: number): Assi
 	const leaseId = parser.id('leaseId');
 	const target = parser.oneOf('target', assignmentTargets);
 	const splitLeaseId = parser.id('splitLeaseId', { required: false });
-	const remember = parser.flag('remember');
 	const sign = transactionAmount < 0 ? -1 : 1;
 	const total = Math.abs(transactionAmount);
 
@@ -152,9 +148,6 @@ export function parseAssignment(form: FormData, transactionAmount: number): Assi
 				'splitLeaseId',
 				'Eine Kaution kann nicht auf zwei Mietverträge aufgeteilt werden.'
 			);
-		}
-		if (remember) {
-			parser.fail('remember', 'Eine aufgeteilte Zuordnung kann nicht gemerkt werden.');
 		}
 		if (amount !== null && splitAmount !== null && amount + splitAmount !== total) {
 			parser.fail(
@@ -177,8 +170,7 @@ export function parseAssignment(form: FormData, transactionAmount: number): Assi
 		ok: true,
 		data: {
 			target: target!,
-			parts: parts.map((part) => ({ leaseId: part.leaseId, amount: sign * part.amount })),
-			remember
+			parts: parts.map((part) => ({ leaseId: part.leaseId, amount: sign * part.amount }))
 		}
 	};
 }

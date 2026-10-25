@@ -142,7 +142,7 @@ describe('bank', () => {
 			data: { errors: { leaseId: 'Diesen Mietvertrag gibt es nicht.' } }
 		});
 		expect(await assign({ target: 'rent' })).toMatchObject({ fail: 400 });
-		expect(await assign({ leaseId, target: 'rent', remember: 'on' })).toEqual({
+		expect(await assign({ leaseId, target: 'rent' })).toEqual({
 			data: { assigned: rent.id }
 		});
 		expect(await listRules(db, 'a')).toHaveLength(1);

@@ -21,11 +21,17 @@
 	Bestätigte Regeln ordnen eingehende Umsätze beim Import automatisch zu, unbestätigte machen nur
 	einen Vorschlag. Ausgaben werden nie automatisch zugeordnet.
 </p>
+<p class="muted">
+	Wenn du einen Umsatz als Miete einem Mietvertrag zuordnest, merkt sich Mietkartei die IBAN (ohne
+	IBAN den Namen) als bestätigte Regel. Ordnest du einen Umsatz, zu dem eine Regel passt, einem
+	anderen Mietvertrag zu, wird die Regel wieder zum Vorschlag – so landet Geld von einem Zahler für
+	mehrere Mietverträge (etwa dem Jobcenter) nicht automatisch beim falschen.
+</p>
 
 {#if data.rules.length === 0}
 	<EmptyState
 		title="Noch keine Zuordnungsregeln"
-		text="Lege eine Regel an oder setze beim Zuordnen eines Umsatzes den Haken „Zuordnung merken“."
+		text="Lege eine Regel an oder ordne einen Umsatz als Miete zu; die Zuordnung wird dann gemerkt."
 	/>
 {:else}
 	<div class="table-wrap">
