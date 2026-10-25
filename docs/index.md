@@ -1,6 +1,6 @@
 ---
 title: Dokumentation
-description: "Anleitungen zu mietkartei, der Open-Source-Hausverwaltung für Privatvermieter: ausprobieren, gehostet nutzen, selbst betreiben und mitmachen."
+description: "Anleitungen zu mietkartei, der Open-Source-Hausverwaltung und Mietverwaltung für Privatvermieter: ausprobieren, gehostet nutzen, selbst betreiben und mitmachen."
 hide:
   - navigation
   - toc
