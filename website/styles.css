@@ -81,8 +81,10 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .made-in { display: inline-flex; align-items: center; gap: 8px; margin-left: 16px; }
 .flag { border-radius: 2px; box-shadow: 0 0 0 1px var(--line); }
 .values { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 20px 32px; margin: 0; padding: clamp(12px, 2vh, 24px) 0 0; border-top: 1px solid var(--line); list-style: none; }
-.values li { display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 1.5; }
-.values strong { font-weight: 500; letter-spacing: -.01em; }
+.values li { display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.5; }
+.values strong { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
+/* A small neon tile like the block in the logo; black icon on it in both colour schemes. */
+.value-icon { display: inline-grid; flex: none; place-items: center; width: 26px; height: 26px; border-radius: 6px; background: var(--highlight); color: #000; }
 .values span { color: var(--muted); }
 
 .hero-shots { position: relative; margin: 0; min-width: 0; }
