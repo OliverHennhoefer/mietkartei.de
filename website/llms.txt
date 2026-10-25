@@ -14,16 +14,17 @@ Was mietkartei kann:
 - Mitverwalter, Datenübernahme per CSV, vollständiger Export und Änderungsprotokoll.
 - MCP-Server und REST-API: KI-Assistenten wie Claude lesen Mietkonten, Rückstände, Abrechnungen und Fristen und buchen auf Wunsch Zahlungen oder erfassen Belege.
 
-Was es kostet: Selbst betrieben ist mietkartei kostenlos und ohne Einschränkungen, der komplette Code ist Open Source unter der AGPL-3.0. Die gehostete Version unter app.mietkartei.de kostet 8 € im Monat, mit 30 Tagen kostenlosem Test und jederzeit kündbar.
+Was es kostet: Selbst betrieben ist mietkartei kostenlos und ohne Einschränkungen, der komplette Code ist Open Source unter der AGPL-3.0. Die gehostete Version unter app.mietkartei.de kostet 8 € im Monat inklusive Mehrwertsteuer, mit 30 Tagen kostenlosem Test und jederzeit kündbar.
 
 Für wen: Privatvermieter, die für große Verwaltungsprogramme zu klein und für Excel zu groß sind. Buchhaltungskenntnisse sind nicht nötig.
 
 ## Links
 
 - [Startseite](https://mietkartei.de/): Überblick über das Produkt
+- [Preise](https://mietkartei.de/preise/): Selbst betrieben kostenlos als Open Source, gehostet 8 € im Monat inklusive Mehrwertsteuer
 - [Häufige Fragen](https://mietkartei.de/fragen/): Zielgruppe, Kosten, Nebenkostenabrechnung, Bankimport, Datenübernahme, Datenhaltung und Selbsthosten
 - [Demo](https://demo.mietkartei.de/): eigener Beispielbestand ohne Anmeldung, wird nach 24 Stunden gelöscht
-- [Neuigkeiten](https://mietkartei.de/neuigkeiten/): Mietrecht für private Vermieter und Neues aus mietkartei, auch als [RSS-Feed](https://mietkartei.de/neuigkeiten/feed.xml)
+- [Ratgeber](https://mietkartei.de/ratgeber/): Mietrecht, Heiz- und Betriebskosten für private Vermieter, auch als [RSS-Feed](https://mietkartei.de/ratgeber/feed.xml)
 - [Dokumentation](https://docs.mietkartei.de/): Anleitungen zu mietkartei, als ein Textdokument unter [llms-full.txt](https://docs.mietkartei.de/llms-full.txt)
 - [Nebenkostenabrechnung erstellen](https://docs.mietkartei.de/anleitungen/nebenkostenabrechnung/): Schritt für Schritt von den Belegen bis zum PDF je Mieter
 - [Umlageschlüssel](https://docs.mietkartei.de/anleitungen/umlageschluessel/): welcher Schlüssel für welche Kostenart passt
@@ -33,9 +34,9 @@ Für wen: Privatvermieter, die für große Verwaltungsprogramme zu klein und fü
 - [Selbst hosten](https://docs.mietkartei.de/selbst-hosten/): mietkartei mit Docker oder aus dem Quellcode betreiben
 - [Quellcode auf GitHub](https://github.com/OliverHennhoefer/mietkartei.de): Code, Fehlerberichte und Funktionswünsche
 
-## Neuigkeiten
+## Ratgeber
 
-<!-- news -->
+<!-- guides -->
 
 ## Optional
 

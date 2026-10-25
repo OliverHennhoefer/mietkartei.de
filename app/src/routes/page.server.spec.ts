@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBankAccount } from '#lib/server/bank/accounts.ts';
 import type { Database } from '#lib/server/db/index.ts';
 import { accounts } from '#lib/server/db/schema.ts';
-import { createPayment } from '#lib/server/ledger.ts';
+import { createPayment, postCharge } from '#lib/server/ledger.ts';
 import {
 	contextA,
 	outcome,
@@ -13,7 +13,7 @@ import {
 	testDatabase
 } from '#lib/server/testing.ts';
 import { GET as health } from './health/+server';
-import { load as loadBalances } from './mietkonto/+page.server';
+import { actions as balanceActions, load as loadBalances } from './mietkonto/+page.server';
 import { load as loadLayout } from './+layout.server';
 import { load } from './+page.server';
 
@@ -121,6 +121,66 @@ describe('mietkonto', () => {
 		expect(await run(loadBalances, { url: '/mietkonto?filter=rueckstaende' })).toMatchObject({
 			data: { onlyArrears: true, rows: [{ leaseId: owing }] }
 		});
+	});
+
+	it('books "Miete ist da": what is owed, at most one month, dated today', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const owing = await seedLease(db, 'a', unitId, { startDate: '2026-02-01' });
+		const received = () => run(balanceActions.received, { form: { leaseId: owing } });
+		const rentReceived = async () =>
+			(
+				(await run(loadBalances, { url: '/mietkonto' })) as {
+					data: { rows: { rentReceived: number | null }[] };
+				}
+			).data.rows[0].rentReceived;
+
+		// Two months owed: each click books one month's rent.
+		expect(await rentReceived()).toBe(80000);
+		expect(await received()).toMatchObject({
+			data: { received: { leaseId: owing, amount: 80000 } }
+		});
+		expect(await received()).toMatchObject({ data: { received: { amount: 80000 } } });
+		expect(await rentReceived()).toBeNull();
+		expect(await received()).toMatchObject({ fail: 400 });
+		expect(await run(balanceActions.received, { form: { leaseId: 'fremd' } })).toMatchObject({
+			fail: 404
+		});
+	});
+
+	it('offers no "Miete ist da" for an ended lease or one without rent', async () => {
+		const ended = await seedUnit(db, 'a', { name: 'A' });
+		const free = await seedUnit(db, 'a', { name: 'B' });
+		const endedLease = await seedLease(db, 'a', ended.unitId, {
+			startDate: '2025-12-01',
+			endDate: '2026-01-31'
+		});
+		const freeLease = await seedLease(db, 'a', free.unitId, {
+			startDate: '2026-02-01',
+			baseRent: 0,
+			operatingCostPrepayment: 0,
+			heatingCostPrepayment: 0
+		});
+		// Owes a correction, but has no rent to book as "Miete ist da".
+		await postCharge(db, contextA, {
+			leaseId: freeLease,
+			kind: 'adjustment',
+			period: '2026-03',
+			dueDate: '2026-03-01',
+			amount: 5000
+		});
+		const loaded = (await run(loadBalances, { url: '/mietkonto' })) as {
+			data: { rows: { leaseId: string; balance: number; rentReceived: number | null }[] };
+		};
+		expect(loaded.data.rows.find((row) => row.leaseId === endedLease)).toMatchObject({
+			rentReceived: null
+		});
+		expect(loaded.data.rows.find((row) => row.leaseId === freeLease)).toMatchObject({
+			rentReceived: null
+		});
+		expect(await run(balanceActions.received, { form: { leaseId: endedLease } })).toMatchObject({
+			fail: 400
+		});
+		expect(await run(balanceActions.received, { form: {} })).toMatchObject({ fail: 404 });
 	});
 });
 

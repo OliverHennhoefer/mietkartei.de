@@ -68,7 +68,8 @@ export async function loadAnalysis(
 				id: leases.id,
 				unitId: leases.unitId,
 				startDate: leases.startDate,
-				endDate: leases.endDate
+				endDate: leases.endDate,
+				ledgerStart: leases.ledgerStart
 			})
 			.from(leases)
 			.where(eq(leases.accountId, accountId)),
@@ -129,7 +130,8 @@ export async function loadAnalysis(
 	// A loop, not Math.min(...rows): an account may have more payments than a call takes arguments.
 	let firstYear = currentYear;
 	for (const day of [
-		...leaseRows.map((lease) => lease.startDate),
+		// A lease entered later counts from its ledger start: nothing is booked before.
+		...leaseRows.map((lease) => lease.ledgerStart ?? lease.startDate),
 		...paymentRows.map((payment) => payment.date),
 		...expenseRows.map((expense) => expense.date),
 		// A unit counts for vacancy from its creation, so its history starts there too.

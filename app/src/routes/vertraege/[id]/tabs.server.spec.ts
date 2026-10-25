@@ -117,8 +117,7 @@ describe('mietkonto', () => {
 		});
 		await assignTransaction(db, contextA, 't-miete', {
 			target: 'rent',
-			parts: [{ leaseId, amount: 80000 }],
-			remember: false
+			parts: [{ leaseId, amount: 80000 }]
 		});
 		const rows = (
 			(await tab(loadLedger)) as {
@@ -289,8 +288,7 @@ describe('kaution', () => {
 		});
 		await assignTransaction(db, contextA, 't1', {
 			target: 'deposit',
-			parts: [{ leaseId, amount: 180000 }],
-			remember: false
+			parts: [{ leaseId, amount: 180000 }]
 		});
 		const [movement] = await listDepositMovements(db, 'a', leaseId);
 		expect(await act(depositActions.delete, { movementId: movement.id })).toEqual({

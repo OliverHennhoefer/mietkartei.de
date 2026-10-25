@@ -29,7 +29,10 @@ describe('startDemo', () => {
 		expect(['a', 'b']).not.toContain(accountId);
 		expect(session!.user.email).toMatch(/^demo-[0-9a-f-]+@demo\.invalid$/);
 		const rows = await db.select().from(properties).where(eq(properties.accountId, accountId));
-		expect(rows).toHaveLength(2);
+		expect(rows).toHaveLength(3);
+		// The letters of the demo have a sender.
+		const [account] = await db.select().from(accounts).where(eq(accounts.id, accountId));
+		expect(account).toMatchObject({ landlordName: 'Katrin Hoffmann', city: 'Berlin' });
 	});
 
 	it('deletes expired demo accounts first', async () => {

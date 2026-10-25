@@ -39,7 +39,7 @@ Unter **Bank → Umsätze** stehen die offenen Umsätze. Zu jedem schlägt mietk
 - der Name der Einheit im Verwendungszweck,
 - eine Zuordnungsregel.
 
-Passt der Vorschlag, klickst du **Zuordnen**. Zahlt ein Paar mit einer Überweisung für zwei Mietverträge, etwa Wohnung und Stellplatz, teilst du den Betrag auf. Ausgaben wie die Rechnung der Stadtwerke buchst du mit **Als Ausgabe buchen**, sie erscheinen dann in der Auswertung. Umsätze, die nichts mit der Vermietung zu tun haben, ignorierst du.
+Passt der Vorschlag, klickst du **Zuordnen**. Ordnest du einen Umsatz als Miete einem Mietvertrag zu, merkt sich mietkartei die IBAN (ohne IBAN den Namen) als bestätigte Regel; die nächste Überweisung ordnet der Import dann selbst zu. Zahlt jemand für mehrere Mietverträge, etwa das Jobcenter, und du ordnest einen Umsatz einem anderen Vertrag zu, als die Regel sagt, wird die Regel wieder zum bloßen Vorschlag. Zahlt ein Paar mit einer Überweisung für zwei Mietverträge, etwa Wohnung und Stellplatz, teilst du den Betrag auf. Ausgaben wie die Rechnung der Stadtwerke buchst du mit **Als Ausgabe buchen**, sie erscheinen dann in der Auswertung. Umsätze, die nichts mit der Vermietung zu tun haben, ignorierst du.
 
 ## 5. Regeln anlegen
 

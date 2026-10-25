@@ -21,7 +21,16 @@ export async function startDemo(db: Database, options?: { storage?: Storage }) {
 	await deleteExpiredDemoAccounts(db, Date.now(), options);
 	const [account] = await db
 		.insert(accounts)
-		.values({ name: 'Demo' })
+		.values({
+			name: 'Demo',
+			// The sender of the demo's letters and statements.
+			landlordName: 'Katrin Hoffmann',
+			street: 'Kastanienallee 25',
+			postalCode: '10435',
+			city: 'Berlin',
+			iban: 'DE63100500006600099110',
+			bankName: 'Berliner Sparkasse'
+		})
 		.returning({ id: accounts.id });
 	const [user] = await db
 		.insert(users)
