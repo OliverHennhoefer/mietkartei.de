@@ -21,7 +21,7 @@ Open Source, nachvollziehbar gerechnet und ohne Einarbeitung.
 
 <br>
 
-<a href="https://demo.mietkartei.de"><img src="assets/screenshots/uebersicht.png" alt="Übersicht von mietkartei mit Rückständen, Leerstand, offenen Bankumsätzen und Fristen" width="900"></a>
+<a href="https://demo.mietkartei.de"><img src="assets/screenshots/auswertung.png" alt="Auswertung von mietkartei mit Einnahmen, Ausgaben, Überschuss und Kaltmiete pro m² sowie dem Verlauf über ein Jahr" width="900"></a>
 
 </div>
 
