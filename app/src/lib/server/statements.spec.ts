@@ -407,8 +407,8 @@ describe('loadStatementInput', () => {
 		]);
 		expect(input.items.find((item) => item.id === water.id)!.unitAmounts).toEqual(
 			expect.arrayContaining([
-				{ unitId: unit.OG, amount: 10000 },
-				{ unitId: unit.DG, amount: 20000 }
+				{ unitId: unit.OG, leaseId: null, amount: 10000 },
+				{ unitId: unit.DG, leaseId: null, amount: 20000 }
 			])
 		);
 		const keyIds = input.keys.map((key) => key.id);
