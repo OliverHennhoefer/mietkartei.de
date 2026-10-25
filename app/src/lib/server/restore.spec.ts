@@ -154,6 +154,36 @@ describe('restoreExport', () => {
 		}
 	});
 
+	it('refuses references to rows outside the export, such as those of another account', async () => {
+		await seedSource();
+		const exported = await collect(source, 'a');
+		const foreign = await seedUnit(target, 'b');
+		const lease = exported.tables.leases[0];
+		const cases: ((data: ExportData) => void)[] = [
+			(data) =>
+				data.tables.units.push({
+					...data.tables.units[0],
+					id: crypto.randomUUID(),
+					propertyId: foreign.propertyId
+				}),
+			(data) => data.tables.lease_tenants.push({ leaseId: lease.id, tenantId: 'fremder-mieter' }),
+			(data) => (data.tables.documents[0].id = '../b/fremdes-dokument')
+		];
+		for (const change of cases) {
+			const data = structuredClone(exported);
+			change(data);
+			expect(await restoreExport(target, contextA, data)).toEqual({ ok: false, reason: 'invalid' });
+		}
+		expect(await target.select().from(properties).where(eq(properties.accountId, 'a'))).toEqual([]);
+	});
+
+	it('refuses more documents than an account may hold', async () => {
+		await seedSource();
+		const exported = await collect(source, 'a');
+		exported.tables.documents[0].size = 2 * 1024 * 1024 * 1024;
+		expect(await restoreExport(target, contextA, exported)).toEqual({ ok: false, reason: 'quota' });
+	});
+
 	it('leaves the account as it was when a row is refused', async () => {
 		await seedSource();
 		const exported = await collect(source, 'a');

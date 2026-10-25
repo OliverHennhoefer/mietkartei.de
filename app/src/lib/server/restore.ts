@@ -5,7 +5,7 @@ import type { Database } from './db';
 import { chunk, rowsPerStatement, runBatch } from './db/batch';
 import * as schema from './db/schema';
 import { accounts, documents, leaseTenants, leases, properties, users } from './db/schema';
-import { MAX_DOCUMENT_BYTES } from './documents';
+import { MAX_ACCOUNT_DOCUMENT_BYTES, MAX_ACCOUNT_DOCUMENTS, MAX_DOCUMENT_BYTES } from './documents';
 import { EXPORT_FORMAT, EXPORT_VERSION, exportTables } from './export';
 import { getStorage, storageKey, type Storage } from './storage';
 
@@ -45,7 +45,7 @@ const accountFields = [
 	'operatingCostDefaultsSeeded'
 ] as const;
 
-export type RestoreError = 'not-empty' | 'invalid' | 'rejected';
+export type RestoreError = 'not-empty' | 'invalid' | 'quota' | 'rejected';
 
 export type RestoreResult =
 	{ ok: true; rows: number; documents: number } | { ok: false; reason: RestoreError };
@@ -124,6 +124,42 @@ function parentsFirst(table: SQLiteTable, rows: Row[]): Row[] {
 	return sorted;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Whether every reference of the restored rows stays inside them: a crafted export must not link
+ * its rows to rows of another account on this instance (users are mapped, the account is this
+ * one). Document ids also name files, so they must be UUIDs, never a path.
+ */
+function referencesStayInside(restored: Map<SQLiteTable, Row[]>): boolean {
+	for (const [table, rows] of restored) {
+		for (const foreignKey of getTableConfig(table).foreignKeys) {
+			const reference = foreignKey.reference();
+			if (reference.foreignTable === users || reference.foreignTable === accounts) continue;
+			const parents = restored.get(reference.foreignTable) ?? [];
+			for (const [index, column] of reference.columns.entries()) {
+				const key = keyOf(table, column);
+				const parentKey = keyOf(reference.foreignTable, reference.foreignColumns[index]);
+				const allowed = new Set(parents.map((row) => row[parentKey]));
+				for (const row of rows) {
+					const value = row[key];
+					if (value !== null && value !== undefined && !allowed.has(value)) return false;
+				}
+			}
+		}
+	}
+	return (restored.get(documents) ?? []).every((row) => UUID.test(String(row.id)));
+}
+
+/** The key of a column in the rows of its table. */
+function keyOf(table: SQLiteTable, column: unknown): string {
+	const entry = Object.entries(getTableColumns(table)).find(
+		([, candidate]) => candidate === column
+	);
+	if (!entry) throw new Error(`No column of ${getTableName(table)} matches the reference`);
+	return entry[0];
+}
+
 function isRow(value: unknown): value is Row {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -196,14 +232,25 @@ export async function restoreExport(
 		statements.push(db.update(accounts).set(account).where(eq(accounts.id, accountId)));
 	}
 
-	let restoredRows = 0;
+	const restored = new Map<SQLiteTable, Row[]>();
 	for (const table of restoredTables) {
-		const rows = parentsFirst(
-			table,
-			(tables[getTableName(table)] ?? []).map((row) =>
-				restoredRow(table, row as Row, accountId, mapUser)
-			)
+		const rows = (tables[getTableName(table)] ?? []).map((row) =>
+			restoredRow(table, row as Row, accountId, mapUser)
 		);
+		restored.set(table, parentsFirst(table, rows));
+	}
+	if (!referencesStayInside(restored)) return { ok: false, reason: 'invalid' };
+	const restoredDocuments = restored.get(documents) ?? [];
+	const documentBytes = restoredDocuments.reduce((total, row) => total + Number(row.size), 0);
+	if (
+		restoredDocuments.length > MAX_ACCOUNT_DOCUMENTS ||
+		!(documentBytes <= MAX_ACCOUNT_DOCUMENT_BYTES)
+	) {
+		return { ok: false, reason: 'quota' };
+	}
+
+	let restoredRows = 0;
+	for (const [table, rows] of restored) {
 		restoredRows += rows.length;
 		for (const group of chunk(rows, rowsPerStatement(table))) {
 			statements.push(db.insert(table).values(group as never));
@@ -218,7 +265,7 @@ export async function restoreExport(
 		// still on this instance).
 		return { ok: false, reason: 'rejected' };
 	}
-	return { ok: true, rows: restoredRows, documents: tables.documents?.length ?? 0 };
+	return { ok: true, rows: restoredRows, documents: restoredDocuments.length };
 }
 
 export type DocumentRestoreError = 'unknown' | 'size' | 'exists';

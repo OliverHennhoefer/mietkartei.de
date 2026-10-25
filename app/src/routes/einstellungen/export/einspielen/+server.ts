@@ -10,6 +10,8 @@ const messages = {
 	invalid: 'Die Datei ist kein Export von mietkartei oder stammt aus einer anderen Version.',
 	'not-empty':
 		'Dein Konto enthält schon Objekte oder Dokumente. Ein Export lässt sich nur in ein leeres Konto einspielen.',
+	quota:
+		'Der Export enthält mehr Dokumente, als ein Konto haben darf (höchstens 2.000 Dokumente mit zusammen 1 GB).',
 	rejected:
 		'Der Export ließ sich nicht einspielen. Liegt das exportierte Konto noch auf dieser Instanz, lösche es dort zuerst oder nutze eine andere Instanz.'
 };
