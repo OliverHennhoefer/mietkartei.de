@@ -3,6 +3,7 @@
 import html
 import json
 import re
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from shutil import copyfile, rmtree
 
@@ -24,6 +25,7 @@ for filename in (
     "robots.txt",
     "sitemap.xml",
     "llms.txt",
+    ".well-known/security.txt",
     "_headers",
     "_redirects",
     "assets/social.png",
@@ -48,6 +50,11 @@ for filename in (
     destination = OUTPUT / "assets" / "brand" / filename
     destination.parent.mkdir(parents=True, exist_ok=True)
     copyfile(ROOT / "assets" / "brand" / filename, destination)
+
+# RFC 9116 makes an expired security.txt invalid, so the build fails a month before it runs out.
+expires = re.search(r"^Expires: (\S+)$", (OUTPUT / ".well-known" / "security.txt").read_text(), re.M)
+if not expires or datetime.fromisoformat(expires[1]) < datetime.now(timezone.utc) + timedelta(days=30):
+    raise ValueError("website/.well-known/security.txt: move Expires up to a year ahead")
 
 # Browsers without SVG favicons (Safari) and crawlers ask for /favicon.ico at the root.
 copyfile(ROOT / "assets" / "brand" / "favicon.ico", OUTPUT / "favicon.ico")
