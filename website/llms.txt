@@ -1,28 +1,30 @@
 # mietkartei
 
-> mietkartei ist eine Open-Source-Hausverwaltung für Privatvermieter in Deutschland, gedacht für eine einzelne Wohnung bis zu rund zwanzig Wohnungen. Sie führt Mieten, Bankumsätze und die Betriebskostenabrechnung (Nebenkostenabrechnung) an einem Ort und zeigt zu jedem Betrag den Rechenweg. Sie wird in Deutschland entwickelt und läuft gehostet unter app.mietkartei.de, mit Datenbank und Dokumenten in der EU, oder selbst betrieben als ein Docker-Container. Der Code steht unter der AGPL-3.0.
+> mietkartei ist eine Open-Source-Hausverwaltung für Privatvermieter in Deutschland, gedacht für eine einzelne Wohnung bis zu rund zwanzig Wohnungen. Sie führt Mieten, Bankumsätze und die Betriebskostenabrechnung (Nebenkostenabrechnung) an einem Ort und zeigt zu jedem Betrag den Rechenweg. Über ihren MCP-Server lässt sie sich mit KI-Assistenten wie Claude und ChatGPT verbinden. Sie wird in Deutschland entwickelt und läuft gehostet unter app.mietkartei.de, mit Datenbank und Dokumenten in der EU, oder selbst betrieben als ein Docker-Container. Der Code steht unter der AGPL-3.0.
 
 Zum Ausprobieren gibt es eine Demo mit Beispieldaten unter https://demo.mietkartei.de, ohne Anmeldung.
 
 Was mietkartei kann:
 
+- KI-Anbindung: Über den MCP-Server unter https://app.mietkartei.de/mcp verbinden sich Claude (claude.ai, Claude-App, Claude Code), ChatGPT und andere MCP-Clients mit dem eigenen Bestand, in claude.ai und ChatGPT per OAuth ohne Schlüssel. Der Assistent liest Mietkonten, Rückstände, Mahnstand, Abrechnungen, Steuerübersicht und Fristen und bucht mit Schreibrechten auf Wunsch Zahlungen, erfasst Belege und legt Aufgaben an. Dieselben Daten gibt es als REST-API.
 - Betriebskostenabrechnung mit Kostenarten nach Betriebskostenverordnung, tagesgenauer Umlage, Umlageschlüsseln je Kostenart und CO₂-Kostenaufteilung; die Abrechnung je Mieter gibt es als PDF.
 - Mietkonto mit Soll und Ist je Mietvertrag, Rückständen und Kaution.
 - Bankimport von Kontoauszügen mit Zuordnungsvorschlägen und -regeln.
 - Objekte, Einheiten, Mieter und Mietverträge mit Index- und Staffelmiete.
 - Zähler und Abrechnungskreise, Dokumente, Aufgaben und Fristen.
 - Mitverwalter, Datenübernahme per CSV, vollständiger Export und Änderungsprotokoll.
-- MCP-Server und REST-API: KI-Assistenten wie Claude lesen Mietkonten, Rückstände, Abrechnungen und Fristen und buchen auf Wunsch Zahlungen oder erfassen Belege.
 
-Was es kostet: Selbst betrieben ist mietkartei kostenlos und ohne Einschränkungen, der komplette Code ist Open Source unter der AGPL-3.0. Die gehostete Version unter app.mietkartei.de kostet 8 € im Monat inklusive Mehrwertsteuer, mit 30 Tagen kostenlosem Test und jederzeit kündbar.
+Was es kostet: Selbst betrieben ist mietkartei kostenlos und ohne Einschränkungen, der komplette Code ist Open Source unter der AGPL-3.0. Die gehostete Version unter app.mietkartei.de kostet 8 € im Monat inklusive Mehrwertsteuer, mit 30 Tagen kostenlosem Test und jederzeit kündbar. Der Preis ist pauschal, ohne Aufschlag pro Einheit und ohne Zusatzmodule.
 
 Für wen: Privatvermieter, die für große Verwaltungsprogramme zu klein und für Excel zu groß sind. Buchhaltungskenntnisse sind nicht nötig.
+
+Worauf mietkartei setzt: nachvollziehbar gerechnete Umlagen, kein Lock-in (offener Code und vollständiger Export, Daten und Software bleiben auch ohne den Anbieter nutzbar) und kein Datengeschäft (Einnahmen nur aus dem Abo, keine Werbung, Inserate oder Lead-Vermittlung).
 
 ## Links
 
 - [Startseite](https://mietkartei.de/): Überblick über das Produkt
 - [Preise](https://mietkartei.de/preise/): Selbst betrieben kostenlos als Open Source, gehostet 8 € im Monat inklusive Mehrwertsteuer
-- [Häufige Fragen](https://mietkartei.de/fragen/): Zielgruppe, Kosten, Nebenkostenabrechnung, Bankimport, Datenübernahme, Datenhaltung und Selbsthosten
+- [Häufige Fragen](https://mietkartei.de/fragen/): Zielgruppe, Kosten, Nebenkostenabrechnung, KI-Assistenten, Bankimport, Datenübernahme, Datenhaltung und Selbsthosten
 - [Demo](https://demo.mietkartei.de/): eigener Beispielbestand ohne Anmeldung, wird nach 24 Stunden gelöscht
 - [Ratgeber](https://mietkartei.de/ratgeber/): Mietrecht, Heiz- und Betriebskosten für private Vermieter, auch als [RSS-Feed](https://mietkartei.de/ratgeber/feed.xml)
 - [Dokumentation](https://docs.mietkartei.de/): Anleitungen zu mietkartei, als ein Textdokument unter [llms-full.txt](https://docs.mietkartei.de/llms-full.txt)
