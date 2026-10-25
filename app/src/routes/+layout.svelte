@@ -375,18 +375,6 @@
 						{/if}
 					</div>
 					<div class="account">
-						{#if accountOpen}
-							<div bind:this={accountMenu} id="account-menu" class="account-menu">
-								<a
-									href={resolve('/einstellungen/profil')}
-									onclick={(event) => settingsLink(event, '/einstellungen/profil', false)}
-									><Icon name="settings" />Einstellungen</a
-								>
-								<form method="POST" action={resolve('/abmelden')}>
-									<button type="submit"><Icon name="logout" />Abmelden</button>
-								</form>
-							</div>
-						{/if}
 						<button
 							bind:this={accountButton}
 							type="button"
@@ -404,6 +392,18 @@
 							</span>
 							<span class="account-switch"><Icon name="chevrons" size={14} /></span>
 						</button>
+						{#if accountOpen}
+							<div bind:this={accountMenu} id="account-menu" class="account-menu">
+								<a
+									href={resolve('/einstellungen/profil')}
+									onclick={(event) => settingsLink(event, '/einstellungen/profil', false)}
+									><Icon name="settings" />Einstellungen</a
+								>
+								<form method="POST" action={resolve('/abmelden')}>
+									<button type="submit"><Icon name="logout" />Abmelden</button>
+								</form>
+							</div>
+						{/if}
 					</div>
 					<p class="nav-version">
 						<a
