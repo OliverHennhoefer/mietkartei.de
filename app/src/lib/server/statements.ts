@@ -22,6 +22,7 @@ import {
 	type PropertyResult,
 	type StatementInput,
 	type StatementLease,
+	type StatementOptions,
 	type StatementResult,
 	type StatementWarning
 } from '../domain/statement';
@@ -69,7 +70,7 @@ type Statement = BatchItem<'sqlite'>;
  * A Nachzahlung is due this many days after the statement reached the tenant (decided on
  * 21.10.2026), a Guthaben this many days after the approval.
  */
-const DUE_DAYS = 30;
+export const DUE_DAYS = 30;
 
 export type StatementRow = typeof operatingCostStatements.$inferSelect;
 
@@ -650,13 +651,14 @@ async function correctionOf(db: Database, accountId: string, id: string) {
 async function computeDraft(
 	db: Database,
 	accountId: string,
-	row: StatementRow
+	row: StatementRow,
+	options: StatementOptions = {}
 ): Promise<StatementResult | undefined> {
 	const input = await loadStatementInput(db, accountId, row.propertyId, {
 		start: row.periodStart,
 		end: row.periodEnd
 	});
-	return input && computeStatement(input);
+	return input && computeStatement(input, options);
 }
 
 /** The statement with its result: recomputed for a draft, frozen for an approved one. */
@@ -863,14 +865,17 @@ export type ApprovalInput = {
  * Approves a draft once its period has ended: freezes the results, posts one `statement_balance`
  * charge per lease (the Nachzahlung of a residential lease after the deadline only with
  * `lateApprovalJustified`) and, for a correction, the reversal of the corrected statement's
- * charges, all in one batch with the audit entry.
+ * charges, all in one batch with the audit entry. `options.today` approves on an earlier day, as
+ * the demo data does for the statements of past years.
  */
 export async function approveStatement(
 	db: Database,
 	context: AuditContext,
 	id: string,
-	input: ApprovalInput
+	input: ApprovalInput,
+	options: StatementOptions = {}
 ): Promise<StatementOutcome> {
+	const approvedOn = options.today ?? today();
 	const { accountId } = context;
 	const row = await statementRow(db, accountId, id);
 	if (!row) return { ok: false, message: 'Diese Abrechnung gibt es nicht.' };
@@ -878,13 +883,13 @@ export async function approveStatement(
 		return { ok: false, message: 'Diese Abrechnung ist schon freigegeben.' };
 	}
 	// The prepayments of months still to come are not charged yet; they would count as unpaid.
-	if (row.periodEnd >= today()) {
+	if (row.periodEnd >= approvedOn) {
 		return {
 			ok: false,
 			message: `Der Abrechnungszeitraum endet am ${formatDate(row.periodEnd)}; freigeben kannst du die Abrechnung erst danach.`
 		};
 	}
-	const result = await computeDraft(db, accountId, row);
+	const result = await computeDraft(db, accountId, row, { today: approvedOn });
 	if (!result) return { ok: false, message: 'Dieses Objekt gibt es nicht.' };
 	const blocking = result.property.warnings.filter((warning) => warning.blocking);
 	if (blocking.length > 0) {
@@ -900,7 +905,6 @@ export async function approveStatement(
 		};
 	}
 
-	const approvedOn = today();
 	const creditDue = addDays(approvedOn, DUE_DAYS);
 	const period = monthOf(row.periodEnd);
 	const label = periodLabel(row.periodStart, row.periodEnd);
@@ -986,7 +990,7 @@ export async function approveStatement(
 				result: JSON.stringify(propertyResult),
 				lateApprovalJustified: input.lateApprovalJustified,
 				note: input.note,
-				approvedAt: new Date(),
+				approvedAt: options.today ? new Date(`${approvedOn}T10:00:00Z`) : new Date(),
 				approvedBy: context.userId
 			})
 			.where(

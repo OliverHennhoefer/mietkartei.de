@@ -26,7 +26,7 @@ Die kleine Fassung öffnet die senkrechte Fuge so weit, dass sie bei 16 Pixeln E
 
 In der gemeinsamen Signatur ist die Bildmarke auf 78 Einheiten Höhe vergrößert. Die originalen Geist-Konturen behalten ihre Höhe von 58 Einheiten. Beide sind vertikal zentriert, mit 21 Einheiten Abstand. Dadurch erhält das Zeichen neben dem Namen mehr Gewicht. Die gemeinsame Zeichenfläche misst 469 × 96 Einheiten.
 
-Startseite, Impressum und Neuigkeiten zeigen die Fassung mit gelbem Block mit 52 Pixeln Höhe, auf kleinen Bildschirmen mit 44 Pixeln. Der Dokumentationskopf verwendet 44 beziehungsweise 40 Pixel. Die Anwendung zeigt das freistehende Zeichen in einer 52 × 52 Pixel großen Fläche.
+Startseite, Impressum und Ratgeber zeigen die Fassung mit gelbem Block mit 52 Pixeln Höhe, auf kleinen Bildschirmen mit 44 Pixeln. Der Dokumentationskopf verwendet 44 beziehungsweise 40 Pixel. Die Anwendung zeigt das freistehende Zeichen in einer 52 × 52 Pixel großen Fläche.
 
 ## Quellen und Einsatz
 

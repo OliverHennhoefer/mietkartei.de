@@ -21,24 +21,25 @@ Then open [http://127.0.0.1:8002](http://127.0.0.1:8002). Rebuild the output aft
 | `website/impressum/index.html` | Legal notice (Impressum) with provider and contact details |
 | `website/styles.css` | Styles, including light and dark colors |
 | `website/assets/screenshots/` | App screenshots shown on the homepage, copied from `assets/screenshots/` (`npm run screenshots` in `app/`) |
-| `website/neuigkeiten/*.md` | News posts, one Markdown file per post; the file name is the URL slug |
-| `website/neuigkeiten/_layout.html` | Page frame for the news index and the posts |
+| `website/ratgeber/*.md` | Guides, one Markdown file per guide; the file name is the URL slug |
+| `website/ratgeber/_layout.html` | Page frame for the guide index and the guides |
 | `website/_headers` | HTTP response headers for Cloudflare |
+| `website/_redirects` | Permanent redirects for moved pages, such as the former `/neuigkeiten/` URLs |
 | `website/robots.txt` | Instructions for search engines, pointing to the sitemap |
 | `website/sitemap.xml` | List of the public pages; add every new page here |
 | `website/llms.txt` | Plain-text summary of the product for AI assistants and AI search ([llms.txt](https://llmstxt.org/)) |
-| `website/assets/social.png` | Preview image (1200×630) for links shared on social media and in messengers, used by the homepage, news, docs and app; rendered by `npm run social-images` in `app/` |
+| `website/assets/social.png` | Preview image (1200×630) for links shared on social media and in messengers, used by the homepage, guides, docs and app; rendered by `npm run social-images` in `app/` |
 | `website/wrangler.toml` | Cloudflare Worker and custom domain |
 | `scripts/build_homepage.py` | Builds the public output with the shared assets |
-| `scripts/build_news.py` | Renders the news pages, the RSS feed, the homepage teaser and their sitemap entries |
+| `scripts/build_guides.py` | Renders the guide pages, the RSS feed and their sitemap and `llms.txt` entries |
 | `.github/workflows/websites.yml` | Checks and deploys homepage and documentation |
 | `dist/homepage/` | Generated output; not committed |
 
-The build copies only the listed public files, the two homepage screenshots, the black and white register symbols and wordmark combinations, the favicon and the original font with its OFL license. The font and brand SVGs are maintained in `assets/brand/`. The homepage, legal-notice and news headers combine the larger register symbol with the Geist Semibold wordmark and a neon yellow block behind "kartei" that is as tall as the symbol, using `lockup-highlight.svg` in light mode and `lockup-highlight-white.svg` in dark mode. The combination is 52px high on desktop and 44px on smaller screens. The favicon uses the small register symbol on a black background. Next to `favicon.svg`, the build ships `/favicon.ico` (16, 32 and 48 px) for Safari and crawlers and `apple-touch-icon.png` (180 px) for home screen icons, both rendered from `favicon.svg`. Earlier wordmarks and design studies are not copied into the public output. Page-specific illustrations live in `website/assets/`.
+The build copies only the listed public files, the two homepage screenshots, the black and white register symbols and wordmark combinations, the favicon and the original font with its OFL license. The font and brand SVGs are maintained in `assets/brand/`. The homepage, legal-notice and guide headers combine the larger register symbol with the Geist Semibold wordmark and a neon yellow block behind "kartei" that is as tall as the symbol, using `lockup-highlight.svg` in light mode and `lockup-highlight-white.svg` in dark mode. The combination is 52px high on desktop and 44px on smaller screens. The favicon uses the small register symbol on a black background. Next to `favicon.svg`, the build ships `/favicon.ico` (16, 32 and 48 px) for Safari and crawlers and `apple-touch-icon.png` (180 px) for home screen icons, both rendered from `favicon.svg`. Earlier wordmarks and design studies are not copied into the public output. Page-specific illustrations live in `website/assets/`.
 
-## News
+## Guides
 
-Posts live in `website/neuigkeiten/` as Markdown files with a front matter block:
+Guides live in `website/ratgeber/` as Markdown files with a front matter block:
 
 ```markdown
 ---
@@ -50,7 +51,7 @@ description: One or two sentences, at most about 160 characters, used for search
 Body text. Supported: paragraphs, `## headings`, `- lists`, `**bold**` and `[links](https://…)`.
 ```
 
-The build renders `/neuigkeiten/` (all posts, newest first), `/neuigkeiten/<slug>/` per post with `BlogPosting` structured data, and `/neuigkeiten/feed.xml` (RSS). It replaces the `<!-- news -->` marker in `website/index.html` with the three latest posts and appends the news pages to `sitemap.xml`, so a new post needs no other edit. Use the categories `Mietrecht` and `Produkt`. Legal posts link the law on gesetze-im-internet.de and end with the note that they are general information, not legal advice. Keep post titles short enough that the teaser on the homepage still fits one screen; long titles are cut with an ellipsis there.
+The build renders `/ratgeber/` (all guides, newest first), `/ratgeber/<slug>/` per guide with `BlogPosting` structured data, and `/ratgeber/feed.xml` (RSS). It replaces the `<!-- guides -->` marker in `website/llms.txt` with the guide links and appends the guide pages to `sitemap.xml`, so a new guide needs no other edit. Use the categories `Mietrecht` and `Betriebskosten`; product updates do not belong here. Guides link the law on gesetze-im-internet.de and end with the note that they are general information, not legal advice.
 
 ## Search engines and AI search
 

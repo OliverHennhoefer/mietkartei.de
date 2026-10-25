@@ -1,6 +1,6 @@
-"""Renders the news posts in website/neuigkeiten/*.md into static pages.
+"""Renders the guides in website/ratgeber/*.md into static pages.
 
-Each post is a Markdown file with a front matter block (title, date, category, description).
+Each guide is a Markdown file with a front matter block (title, date, category, description).
 The renderer supports the subset the posts need: paragraphs, `##` headings, `-` lists,
 **bold** and [links](https://…).
 """
@@ -31,7 +31,7 @@ class Post:
 
     @property
     def path(self) -> str:
-        return f"/neuigkeiten/{self.slug}/"
+        return f"/ratgeber/{self.slug}/"
 
     @property
     def date_label(self) -> str:
@@ -104,7 +104,7 @@ def meta_line(post: Post) -> str:
 
 
 def render_post(layout: str, post: Post) -> str:
-    content = f"""        <a class="back-link" href="/neuigkeiten/"><span aria-hidden="true">←</span> Alle Neuigkeiten</a>
+    content = f"""        <a class="back-link" href="/ratgeber/"><span aria-hidden="true">←</span> Alle Ratgeber</a>
         <article>
           {meta_line(post)}
           <h1>{html.escape(post.title)}</h1>
@@ -148,42 +148,27 @@ def post_list_item(post: Post, heading: str) -> str:
 def render_index(layout: str, posts: list[Post]) -> str:
     items = "\n".join(f"          {post_list_item(post, 'h2')}" for post in posts)
     content = f"""        <a class="back-link" href="/"><span aria-hidden="true">←</span> Zur Startseite</a>
-        <h1>Neuigkeiten</h1>
-        <p class="lead">Was sich im Mietrecht für private Vermieter ändert und was es Neues in mietkartei gibt.</p>
+        <h1>Ratgeber</h1>
+        <p class="lead">Was private Vermieter zu Mietrecht, Heiz- und Betriebskosten wissen sollten.</p>
         <ul class="post-list">
 {items}
         </ul>"""
     return fill(
         layout,
-        title="Neuigkeiten",
-        description="Neuigkeiten für private Vermieter: Änderungen im Mietrecht, bei Heiz- und Betriebskosten und neue Funktionen in mietkartei.",
-        path="/neuigkeiten/",
+        title="Ratgeber",
+        description="Ratgeber für private Vermieter: Mietrecht, Heizkosten und Betriebskostenabrechnung verständlich erklärt.",
+        path="/ratgeber/",
         og_type="website",
         json_ld=json_ld({
             "@context": "https://schema.org",
             "@type": "Blog",
-            "name": "Neuigkeiten von mietkartei",
-            "url": f"{SITE}/neuigkeiten/",
+            "name": "Ratgeber von mietkartei",
+            "url": f"{SITE}/ratgeber/",
             "inLanguage": "de-DE",
             "publisher": {"@id": f"{SITE}/#organization"},
             "blogPost": [{"@type": "BlogPosting", "headline": post.title, "url": SITE + post.path, "datePublished": post.date.isoformat()} for post in posts],
         }),
         content=content,
-    )
-
-
-def render_teaser(posts: list[Post]) -> str:
-    items = "".join(
-        f'<li><a href="{post.path}"><time datetime="{post.date.isoformat()}">{post.date.strftime("%d.%m.%Y")}</time>'
-        f"<span>{html.escape(post.title)}</span></a></li>"
-        for post in posts[:3]
-    )
-    return (
-        '<section class="news" aria-labelledby="neuigkeiten">'
-        '<div class="news-head"><h2 id="neuigkeiten">Neuigkeiten</h2>'
-        '<a class="news-all" href="/neuigkeiten/">Alle Neuigkeiten<span aria-hidden="true">→</span></a></div>'
-        f'<ul>{items}</ul>'
-        "</section>"
     )
 
 
@@ -206,9 +191,9 @@ def render_feed(posts: list[Post]) -> str:
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
-    <title>Neuigkeiten von mietkartei</title>
-    <link>{SITE}/neuigkeiten/</link>
-    <description>Mietrecht und Neues aus mietkartei für private Vermieter.</description>
+    <title>Ratgeber von mietkartei</title>
+    <link>{SITE}/ratgeber/</link>
+    <description>Mietrecht, Heiz- und Betriebskosten für private Vermieter.</description>
     <language>de-de</language>{items}
   </channel>
 </rss>
@@ -219,34 +204,28 @@ def render_llms_links(posts: list[Post]) -> str:
     return "".join(f"- [{post.title}]({SITE}{post.path}): {post.description}\n" for post in posts)
 
 
-def build_news(website: Path, output: Path) -> None:
-    """Writes the news pages and feed and fills the teaser, sitemap and llms.txt entries."""
-    posts = read_posts(website / "neuigkeiten")
-    layout = (website / "neuigkeiten" / "_layout.html").read_text(encoding="utf-8")
+def build_guides(website: Path, output: Path) -> None:
+    """Writes the guide pages and feed and fills the sitemap and llms.txt entries."""
+    posts = read_posts(website / "ratgeber")
+    layout = (website / "ratgeber" / "_layout.html").read_text(encoding="utf-8")
 
-    pages = {"neuigkeiten/index.html": render_index(layout, posts)}
+    pages = {"ratgeber/index.html": render_index(layout, posts)}
     for post in posts:
-        pages[f"neuigkeiten/{post.slug}/index.html"] = render_post(layout, post)
-    pages["neuigkeiten/feed.xml"] = render_feed(posts)
+        pages[f"ratgeber/{post.slug}/index.html"] = render_post(layout, post)
+    pages["ratgeber/feed.xml"] = render_feed(posts)
     for name, text in pages.items():
         destination = output / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(text, encoding="utf-8")
 
-    homepage = output / "index.html"
-    text = homepage.read_text(encoding="utf-8")
-    if "<!-- news -->" not in text:
-        raise ValueError("website/index.html: missing <!-- news --> marker")
-    homepage.write_text(text.replace("<!-- news -->", render_teaser(posts)), encoding="utf-8")
-
     llms = output / "llms.txt"
     text = llms.read_text(encoding="utf-8")
-    if "<!-- news -->\n" not in text:
-        raise ValueError("website/llms.txt: missing <!-- news --> marker")
-    llms.write_text(text.replace("<!-- news -->\n", render_llms_links(posts)), encoding="utf-8")
+    if "<!-- guides -->\n" not in text:
+        raise ValueError("website/llms.txt: missing <!-- guides --> marker")
+    llms.write_text(text.replace("<!-- guides -->\n", render_llms_links(posts)), encoding="utf-8")
 
     sitemap = output / "sitemap.xml"
-    entries = [f"  <url>\n    <loc>{SITE}/neuigkeiten/</loc>\n  </url>\n"]
+    entries = [f"  <url>\n    <loc>{SITE}/ratgeber/</loc>\n  </url>\n"]
     entries += [
         f"  <url>\n    <loc>{SITE}{post.path}</loc>\n    <lastmod>{post.date.isoformat()}</lastmod>\n  </url>\n"
         for post in posts
