@@ -74,10 +74,10 @@ export const exportTables: AccountTable[] = [
 ];
 
 /**
- * Tables with an accountId column that stay out of the export: API keys are credentials, not the
- * landlord's data, and even their hashes have no use outside this instance.
+ * Tables with an accountId column that stay out of the export: API keys and the sessions of the
+ * Bankabruf are credentials, not the landlord's data, and have no use outside this instance.
  */
-export const unexportedTables: AccountTable[] = [schema.apiKeys];
+export const unexportedTables: AccountTable[] = [schema.apiKeys, schema.bankConnections];
 
 /** The tables of the schema that carry an accountId column, for the completeness check. */
 export function accountTables(): AccountTable[] {
