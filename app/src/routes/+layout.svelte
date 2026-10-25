@@ -48,7 +48,9 @@
 		'/einstellungen/konto': Account
 	};
 
-	const groups: { label: string; sections: { href: string; label: string; icon: IconName }[] }[] = [
+	/** `exact`: only the page itself is current, not the pages below it (the Überblick). */
+	type Section = { href: string; label: string; icon: IconName; exact?: boolean };
+	const groups: { label: string; sections: Section[] }[] = [
 		{
 			label: 'Alltag',
 			sections: [
@@ -70,15 +72,23 @@
 				{ href: '/mietkonto', label: 'Mietkonto', icon: 'wallet' },
 				{ href: '/bank', label: 'Bank', icon: 'bank' },
 				{ href: '/betriebskosten', label: 'Betriebskosten', icon: 'receipt' },
-				{ href: '/dokumente', label: 'Dokumente', icon: 'folder' },
-				{ href: '/auswertung', label: 'Auswertung', icon: 'trend' }
+				{ href: '/dokumente', label: 'Dokumente', icon: 'folder' }
+			]
+		},
+		{
+			label: 'Auswertung',
+			sections: [
+				{ href: '/auswertung', label: 'Überblick', icon: 'trend', exact: true },
+				{ href: '/auswertung/mieteinnahmen', label: 'Mieteinnahmen', icon: 'coins' },
+				{ href: '/auswertung/ausgaben', label: 'Ausgaben', icon: 'pie' },
+				{ href: '/auswertung/vergleich', label: 'Objekte im Vergleich', icon: 'bars' }
 			]
 		}
 	];
 
-	function current(href: string): 'page' | undefined {
+	function current(href: string, exact = false): 'page' | undefined {
 		const path = page.url.pathname;
-		if (href === '/') return path === '/' ? 'page' : undefined;
+		if (href === '/' || exact) return path === href ? 'page' : undefined;
 		return path === href || path.startsWith(`${href}/`) ? 'page' : undefined;
 	}
 
@@ -372,7 +382,7 @@
 					<div class="nav-group">
 						<p class="nav-label">{group.label}</p>
 						{#each group.sections as item (item.href)}
-							<a href={item.href} aria-current={current(item.href)}
+							<a href={item.href} aria-current={current(item.href, item.exact)}
 								><Icon name={item.icon} />{item.label}</a
 							>
 						{/each}

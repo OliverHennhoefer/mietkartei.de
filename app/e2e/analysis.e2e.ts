@@ -18,7 +18,7 @@ test('enters an expense and finds it in the analysis of its property', async ({ 
 	});
 
 	await page.goto('/auswertung/ausgaben');
-	await expect(page.getByRole('heading', { level: 1, name: 'Auswertung' })).toBeVisible();
+	await expect(page.getByRole('heading', { level: 1, name: 'Ausgaben' })).toBeVisible();
 	await page.getByLabel('Datum').fill(`${year}-01-15`);
 	await page.getByLabel('Betrag').fill('1.234,50');
 	await page.getByLabel('Kategorie').selectOption({ label: 'Instandhaltung und Reparaturen' });
@@ -50,8 +50,17 @@ test('enters an expense and finds it in the analysis of its property', async ({ 
 	await expect(page.getByRole('list', { name: 'Ausgaben nach Kategorie' })).toContainText(
 		'Instandhaltung und Reparaturen'
 	);
-	await expect(page.getByRole('row', { name: new RegExp(unitName) })).toContainText('1.234,50 €');
 	await expect(page.getByRole('img', { name: /Einnahmen und Ausgaben je Monat/ })).toBeVisible();
+	await page.getByRole('link', { name: 'Einheiten im Vergleich' }).click();
+	await expect(page.getByRole('heading', { level: 1, name: 'Objekte im Vergleich' })).toBeVisible();
+	await expect(page.getByRole('row', { name: new RegExp(unitName) })).toContainText('1.234,50 €');
+
+	await page.goto(`/auswertung/mieteinnahmen?objekt=${propertyId}`);
+	await expect(
+		page.getByRole('img', { name: 'Verlangte und eingegangene Miete je Jahr' })
+	).toBeVisible();
+
+	await page.goto(`/auswertung?jahr=${year}&objekt=${propertyId}`);
 
 	await page.getByLabel('Zeitraum').selectOption('gesamt');
 	await expect(page).toHaveURL(/jahr=gesamt/);
