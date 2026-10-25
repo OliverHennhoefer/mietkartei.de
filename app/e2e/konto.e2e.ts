@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { strFromU8, unzipSync } from 'fflate';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { closeLaunchNotice } from './launch-notice';
 import { linkInMailTo, readOutbox } from './outbox';
@@ -277,7 +277,31 @@ test('restores the export of the deleted account into the empty account', async 
 	await expect(log).toContainText('Export eingespielt');
 	await expect(log).toContainText('Stripe-Kunde angelegt');
 
-	// Now the account holds data, so nothing more can be restored into it.
-	await page.goto('/einstellungen/export');
-	await expect(page.getByText('Dein Konto enthält schon Objekte oder Dokumente.')).toBeVisible();
+	// Now the account holds data, so only missing documents can follow, as after an upload that
+	// failed part-way; the one document is there already.
+	const nachreichen = async () => {
+		await page.goto('/einstellungen/export');
+		await expect(page.getByText('Dein Konto enthält schon Objekte oder Dokumente.')).toBeVisible();
+		await restore.getByLabel('Exportdatei (ZIP)').setInputFiles(exportFile);
+		await restore.getByRole('button', { name: 'Dokumente nachreichen' }).click();
+	};
+	await nachreichen();
+	await expect(restore.getByRole('status')).toContainText(
+		'0\u00a0Dokumente nachgereicht, 1 schon vorhanden.'
+	);
+
+	// On node the file can be lost on purpose; then it follows.
+	if (process.env.DEPLOY_TARGET !== 'cloudflare') {
+		const folder = join('.e2e', 'documents');
+		const [file] = readdirSync(folder, { recursive: true, encoding: 'utf8' }).filter((name) =>
+			name.endsWith(documentId)
+		);
+		rmSync(join(folder, file));
+		await nachreichen();
+		await expect(restore.getByRole('status')).toContainText(
+			'1\u00a0Dokument nachgereicht, 0 schon vorhanden.'
+		);
+		const again = await page.request.get(`/dokumente/${documentId}/herunterladen`);
+		expect(Buffer.from(await again.body()).equals(content)).toBe(true);
+	}
 });

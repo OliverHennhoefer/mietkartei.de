@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Alert from '#lib/components/Alert.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import { pluralize } from '#lib/format.ts';
 	import { readZip } from '#lib/zip-reader.ts';
 	import type { PageProps } from './$types';
 
@@ -9,7 +10,15 @@
 	type Progress =
 		| { step: 'idle' }
 		| { step: 'running'; text: string }
-		| { step: 'done'; rows: number; documents: number; stored: number; failed: string[] }
+		| {
+				step: 'done';
+				rows: number;
+				documents: number;
+				stored: number;
+				present: number;
+				failed: string[];
+				documentsOnly: boolean;
+		  }
 		| { step: 'failed'; message: string };
 
 	let progress = $state<Progress>({ step: 'idle' });
@@ -33,16 +42,23 @@
 
 	/**
 	 * Sends what the ZIP holds: export.json first (it comes first in the archive), then each
-	 * document in its own request, so no request is larger than one document.
+	 * document in its own request, so no request is larger than one document. In an account that
+	 * holds data already, only the documents go, so files that failed before can follow later;
+	 * files that are there already are skipped.
 	 */
 	async function restore(file: File) {
+		const documentsOnly = !data.canRestore;
 		progress = { step: 'running', text: 'Lese die Datei …' };
-		let restored: { rows: number; documents: number } | undefined;
+		let restored: { rows: number; documents: number } | undefined = documentsOnly
+			? { rows: 0, documents: 0 }
+			: undefined;
 		let stored = 0;
+		let present = 0;
 		const failed: string[] = [];
 		try {
 			await readZip(file.stream(), async (path, bytes) => {
 				if (path === 'export.json') {
+					if (documentsOnly) return;
 					progress = { step: 'running', text: 'Übernehme die Einträge …' };
 					const body = await new Response(
 						new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'))
@@ -58,9 +74,12 @@
 				}
 				const id = documentId(path);
 				if (!restored || !id) return;
+				const done = stored + present + failed.length;
 				progress = {
 					step: 'running',
-					text: `Übernehme Dokument ${stored + failed.length + 1} von ${restored.documents} …`
+					text: documentsOnly
+						? `Übernehme Dokument ${done + 1} …`
+						: `Übernehme Dokument ${done + 1} von ${restored.documents} …`
 				};
 				const response = await fetch(`/einstellungen/export/einspielen/${id}`, {
 					method: 'PUT',
@@ -68,6 +87,7 @@
 					body: new Blob([bytes])
 				});
 				if (response.ok) stored += 1;
+				else if (response.status === 409) present += 1;
 				else failed.push(`${path.slice(`documents/${id}-`.length)}: ${await failure(response)}`);
 			});
 		} catch (error) {
@@ -80,7 +100,7 @@
 			progress = { step: 'failed', message: 'Die ZIP-Datei enthält keine export.json.' };
 			return;
 		}
-		progress = { step: 'done', ...restored, stored, failed };
+		progress = { step: 'done', ...restored, stored, present, failed, documentsOnly };
 	}
 
 	function start(event: SubmitEvent) {
@@ -116,7 +136,12 @@
 	{#if progress.step === 'done'}
 		<Alert tone={progress.failed.length > 0 ? 'warning' : 'success'}>
 			<p>
-				{progress.rows} Einträge und {progress.stored} von {progress.documents} Dokumenten übernommen.
+				{#if progress.documentsOnly}
+					{pluralize(progress.stored, 'Dokument', 'Dokumente')} nachgereicht, {progress.present} schon
+					vorhanden.
+				{:else}
+					{progress.rows} Einträge und {progress.stored} von {progress.documents} Dokumenten übernommen.
+				{/if}
 			</p>
 			{#if progress.failed.length > 0}
 				<ul>
@@ -125,14 +150,16 @@
 			{/if}
 		</Alert>
 		<p class="next"><a class="button" href="/objekte">Zu den Objekten</a></p>
-	{:else if !data.canRestore}
-		<Alert tone="info">
-			<p>
-				Dein Konto enthält schon Objekte oder Dokumente. Ein Export lässt sich nur in ein leeres
-				Konto einspielen, damit nichts verloren geht.
-			</p>
-		</Alert>
 	{:else}
+		{#if !data.canRestore}
+			<Alert tone="info" role="note">
+				<p>
+					Dein Konto enthält schon Objekte oder Dokumente. Ein Export lässt sich nur in ein leeres
+					Konto einspielen, damit nichts verloren geht. Fehlen nach dem Einspielen Dokumente, wähle
+					die Exportdatei noch einmal: Dann werden nur die fehlenden Dokumente nachgereicht.
+				</p>
+			</Alert>
+		{/if}
 		{#if progress.step === 'failed'}
 			<Alert tone="danger"><p>{progress.message}</p></Alert>
 		{/if}
@@ -149,7 +176,9 @@
 				bind:this={input}
 				disabled={progress.step === 'running'}
 			/>
-			<button type="submit" disabled={progress.step === 'running'}>Export einspielen</button>
+			<button type="submit" disabled={progress.step === 'running'}>
+				{data.canRestore ? 'Export einspielen' : 'Dokumente nachreichen'}
+			</button>
 		</form>
 		{#if progress.step === 'running'}
 			<p class="status" role="status">{progress.text}</p>
