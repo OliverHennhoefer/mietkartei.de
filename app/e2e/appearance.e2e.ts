@@ -63,11 +63,29 @@ test('opens and closes mobile navigation and restores the workspace after resizi
 	await expect(main.getByRole('heading', { name: 'Mieter', exact: true })).toBeVisible();
 });
 
+test('gives focus back to the menu button when the settings close on a phone', async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/mieter');
+	await page.waitForLoadState('networkidle');
+	const toggle = page.locator('.nav-toggle');
+	await toggle.click();
+	await page.getByRole('button', { name: 'Konto' }).click();
+	await page.getByRole('link', { name: 'Einstellungen' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Einstellungen' });
+	await expect(dialog).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(dialog).toHaveCount(0);
+	await expect(toggle).toBeFocused();
+});
+
 test('opens the settings as a dialog over the page and closes it again', async ({ page }) => {
 	await page.goto('/mieter');
 	await expect(page).toHaveTitle('Mieter | mietkartei');
 	const account = page.getByRole('button', { name: 'Konto' });
 	await account.click();
+	// The menu opens above the account card but follows it for the keyboard.
+	await page.keyboard.press('Tab');
+	await expect(page.getByRole('link', { name: 'Einstellungen' })).toBeFocused();
 	await page.getByRole('link', { name: 'Einstellungen' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Einstellungen' });
 	await expect(dialog.getByRole('heading', { level: 1, name: 'Profil' })).toBeVisible();
