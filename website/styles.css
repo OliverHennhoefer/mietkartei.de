@@ -77,6 +77,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .trust svg { flex: none; }
 .price-link { color: var(--foreground); font-weight: 500; text-decoration: underline; text-decoration-color: var(--highlight); text-decoration-thickness: 3px; text-underline-offset: 4px; }
 .price-link:hover { text-decoration-color: currentColor; }
+.price-link > span { display: inline-block; margin-left: 6px; font-weight: 400; text-decoration: none; }
 .made-in { display: inline-flex; align-items: center; gap: 8px; margin-left: 16px; }
 .flag { border-radius: 2px; box-shadow: 0 0 0 1px var(--line); }
 .values { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px 40px; margin: 0; padding: clamp(12px, 2vh, 24px) 0 0; border-top: 1px solid var(--line); list-style: none; }
