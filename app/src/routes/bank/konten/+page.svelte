@@ -4,6 +4,7 @@
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Field from '#lib/components/Field.svelte';
+	import { formatDate } from '#lib/dates.ts';
 	import { formatIban } from '#lib/domain/bank-matching.ts';
 	import type { PageProps } from './$types';
 
@@ -12,6 +13,13 @@
 	const errors = $derived(form && 'errors' in form ? form.errors : undefined);
 	const values = $derived(form && 'values' in form ? form.values : undefined);
 	const message = $derived(form && 'message' in form ? form.message : undefined);
+	const synced = $derived(form && 'synced' in form ? form.synced : undefined);
+
+	const dateTime = new Intl.DateTimeFormat('de-DE', {
+		dateStyle: 'medium',
+		timeStyle: 'short',
+		timeZone: 'Europe/Berlin'
+	});
 </script>
 
 <!-- The heading and the tab bar come from +layout.svelte; this page is the "Konten" tab. -->
@@ -25,6 +33,26 @@
 	{/if}
 	{#if form && 'deleted' in form}
 		<Alert tone="success"><p>Die Bankverbindung wurde gelöscht.</p></Alert>
+	{/if}
+	{#if form && 'ended' in form}
+		<Alert tone="success"><p>Der Bankabruf ist beendet. Die Umsätze bleiben erhalten.</p></Alert>
+	{/if}
+	{#if synced}
+		<Alert tone="success">
+			<p>
+				Abgerufen: {synced.imported === 1
+					? 'ein neuer Umsatz'
+					: `${synced.imported} neue Umsätze`}{#if synced.assigned > 0},
+					{synced.assigned} per Regel zugeordnet{/if}.
+			</p>
+		</Alert>
+	{/if}
+	{#if data.query.abruf === 'ok'}
+		<Alert tone="success">
+			<p>
+				Der Bankabruf ist eingerichtet. Neue Umsätze holt mietkartei, sobald du die Umsätze öffnest.
+			</p>
+		</Alert>
 	{/if}
 
 	{#if data.bankAccounts.length === 0}
@@ -42,6 +70,7 @@
 						<th>BIC</th>
 						<th>Kontoinhaber</th>
 						<th class="num">Umsätze</th>
+						{#if data.sync}<th>Bankabruf</th>{/if}
 						<th class="actions"><span class="visually-hidden">Aktionen</span></th>
 					</tr>
 				</thead>
@@ -53,6 +82,42 @@
 							<td>{account.bic ?? '–'}</td>
 							<td>{account.holder}</td>
 							<td class="num">{account.transactionCount}</td>
+							{#if data.sync}
+								{@const sync = data.sync[account.id]}
+								<td class="sync">
+									{#if sync?.active}
+										<span>{sync.bank}, freigegeben bis {formatDate(sync.validUntil!)}</span>
+										{#if sync.lastSyncedAt}
+											<span class="muted small"
+												>Zuletzt abgerufen {dateTime.format(new Date(sync.lastSyncedAt))}</span
+											>
+										{/if}
+										{#if sync.lastError}
+											<span class="error small">Letzter Abruf fehlgeschlagen: {sync.lastError}</span
+											>
+										{/if}
+										<span class="sync-actions">
+											<form method="POST" action="?/sync" use:enhance>
+												<input type="hidden" name="id" value={account.id} />
+												<button type="submit" class="secondary small">Jetzt abrufen</button>
+											</form>
+											<a href="/bank/konten/{account.id}/abruf">Erneuern</a>
+											<ConfirmButton
+												action="?/end"
+												label="Beenden"
+												message="Bankabruf für „{account.name}“ beenden? Die Umsätze bleiben erhalten."
+											>
+												<input type="hidden" name="id" value={account.id} />
+											</ConfirmButton>
+										</span>
+									{:else if sync && !sync.pending}
+										<span class="error small">Freigabe bei {sync.bank} abgelaufen</span>
+										<a href="/bank/konten/{account.id}/abruf">Erneuern</a>
+									{:else}
+										<a href="/bank/konten/{account.id}/abruf">Einrichten</a>
+									{/if}
+								</td>
+							{/if}
 							<td class="actions">
 								<ConfirmButton
 									action="?/delete"
@@ -122,6 +187,17 @@
 {/if}
 
 <style>
+	.sync {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	.sync-actions {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.75rem;
+	}
 	.iban {
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;

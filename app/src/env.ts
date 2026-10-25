@@ -89,6 +89,23 @@ export const variables = defineEnvVars({
 		description: 'How many accounts get the founder price. Default 100.',
 		schema: (value) => (value ? Math.max(0, Number.parseInt(value, 10) || 0) : 100)
 	},
+	ENABLE_BANKING_APP_ID: {
+		description:
+			'Application id at Enable Banking (enablebanking.com). Together with ' +
+			'ENABLE_BANKING_PRIVATE_KEY it turns on the Bankabruf, which fetches the transactions of ' +
+			'a bank account instead of a file import; unset, there is none.',
+		schema: (value) => value || ''
+	},
+	ENABLE_BANKING_PRIVATE_KEY: {
+		description:
+			'The private key of that application as PKCS#8 PEM ("-----BEGIN PRIVATE KEY-----"); ' +
+			'line breaks may be written as \\n. A secret.',
+		schema: (value) => value || ''
+	},
+	ENABLE_BANKING_API_BASE: {
+		description: 'Base URL of the Enable Banking API; the tests point it at a fake.',
+		schema: (value) => value || 'https://api.enablebanking.com'
+	},
 	STRIPE_WEBHOOK_SECRET: {
 		description:
 			'Signing secret of the Stripe webhook endpoint /api/webhooks/stripe (whsec_…). A secret ' +

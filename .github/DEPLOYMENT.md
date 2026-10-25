@@ -125,6 +125,15 @@ Index rent proposals need the Verbraucherpreisindex. The app fetches it from the
 
 The page names Destatis as the source with the Datenlizenz Deutschland – Namensnennung – Version 2.0, as the license requires.
 
+### Bankabruf (Enable Banking)
+
+The Bankabruf fetches the booked transactions of a bank account through [Enable Banking](https://enablebanking.com), which holds the PSD2 licence for account information. The landlord authorizes the access once at their bank; the app stores the session in `bank_connections` and fetches new transactions when someone opens **Bank → Umsätze**, at most every six hours per bank account, or at once with **Jetzt abrufen**. There is no scheduled job. Without `ENABLE_BANKING_APP_ID` and `ENABLE_BANKING_PRIVATE_KEY` the app shows nothing of it.
+
+1. **Application.** Sign up in the [Enable Banking control panel](https://enablebanking.com/cp/applications) and register an application for the environment **Production**, with the redirect URL `https://app.mietkartei.de/bank/abruf`. Let the control panel generate the key pair; it downloads the private key as a `.pem` file and shows the application id.
+2. **Restricted mode.** Until a contract with Enable Banking is signed, the application runs in restricted mode: it works, but only for bank accounts linked in the control panel (**Link accounts**). That is enough to test with your own accounts. Do not set the secrets on `mietkartei-app` before the contract, or every landlord sees a Bankabruf that fails at their bank.
+3. **Secrets.** In `app/`, run `npx wrangler secret put ENABLE_BANKING_APP_ID` and paste the application id, then `npx wrangler secret put ENABLE_BANKING_PRIVATE_KEY` and paste the whole `.pem` file (PKCS#8, `-----BEGIN PRIVATE KEY-----`). Line breaks may also be written as `\n`.
+4. **Check.** After the deploy, open **Bank → Konten**, choose **Einrichten** for an account, authorize at the bank and come back. The account then shows the bank, how long the authorization lasts and when it last fetched; a failure shows the answer of Enable Banking.
+
 ### Subscription (Stripe)
 
 The hosted app charges a monthly subscription through Stripe Checkout and the Stripe Customer Portal. Every account has a 30-day trial; once it ends, `BILLING_REQUIRED` decides whether an account without a running subscription can only read. The app shows nothing about billing until both `STRIPE_SECRET_KEY` and `STRIPE_PRICE_ID` are set, so it can be deployed before Stripe is ready. Set everything up in **test mode** first (the toggle in the Stripe dashboard); live mode repeats the same steps with live keys.

@@ -45,8 +45,14 @@ export default defineConfig({
 					'object-src': ['none'],
 					'base-uri': ['none'],
 					// The subscription page's forms answer with a redirect to Stripe Checkout or the
-					// Customer Portal, which a browser without JavaScript follows as part of the post.
-					'form-action': ['self', 'https://checkout.stripe.com', 'https://billing.stripe.com'],
+					// Customer Portal, and the Bankabruf's with one to Enable Banking, which a browser
+					// without JavaScript follows as part of the post.
+					'form-action': [
+						'self',
+						'https://checkout.stripe.com',
+						'https://billing.stripe.com',
+						'https://*.enablebanking.com'
+					],
 					'frame-ancestors': ['none']
 				}
 			}
