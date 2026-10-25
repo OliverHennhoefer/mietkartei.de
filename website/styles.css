@@ -75,6 +75,9 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .trust { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: clamp(18px, 3vh, 28px) 0 0; padding: 0; list-style: none; color: var(--muted); font-size: 13px; }
 .trust li { display: inline-flex; align-items: center; gap: 8px; }
 .trust svg { flex: none; }
+.price-link { color: var(--foreground); font-weight: 500; text-decoration: underline; text-decoration-color: var(--highlight); text-decoration-thickness: 3px; text-underline-offset: 4px; }
+.price-link:hover { text-decoration-color: currentColor; }
+.made-in { display: inline-flex; align-items: center; gap: 8px; margin-left: 16px; }
 .flag { border-radius: 2px; box-shadow: 0 0 0 1px var(--line); }
 .values { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px 40px; margin: 0; padding: clamp(12px, 2vh, 24px) 0 0; border-top: 1px solid var(--line); list-style: none; }
 .values li { display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 1.5; }
@@ -104,9 +107,10 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .news li a:hover span { text-decoration: underline; text-underline-offset: 3px; }
 .news time { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
 
-.pricing { padding-block: clamp(64px, 10vh, 112px) clamp(56px, 9vh, 96px); border-top: 1px solid var(--line); scroll-margin-top: 24px; }
+.pricing-page { display: block; width: 100%; padding-block: 48px 88px; }
+.pricing-page .back-link { margin-bottom: 24px; }
 .pricing-head { max-width: 640px; margin-inline: auto; text-align: center; }
-.pricing h2 { margin: 0; font-size: clamp(32px, 4vw, 48px); font-weight: 500; letter-spacing: -.045em; line-height: 1.08; }
+.pricing-head h1 { margin: 0; font-size: clamp(32px, 4vw, 48px); font-weight: 500; letter-spacing: -.045em; line-height: 1.08; }
 .pricing-head .lead { margin-inline: auto; }
 .plans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; max-width: 920px; margin: 48px auto 0; }
 /* Subgrid rows keep each part of the two plans level with the other. */
