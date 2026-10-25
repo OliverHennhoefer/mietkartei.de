@@ -91,7 +91,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .shot { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 24px 48px -16px rgb(0 0 0 / .14); }
 .shot-main { width: calc(100% + 32px); max-width: none; }
 @media (max-height: 760px) { .shot-main { width: 100%; } }
-.shot-detail { position: absolute; left: -40px; bottom: -12px; width: 40%; border-radius: 10px; box-shadow: 0 1px 2px rgb(0 0 0 / .06), 0 20px 40px -12px rgb(0 0 0 / .22); }
+.shot-detail { position: absolute; left: -48px; bottom: -80px; width: 48%; border-radius: 10px; box-shadow: 0 1px 2px rgb(0 0 0 / .06), 0 20px 40px -12px rgb(0 0 0 / .22); }
 .app-link { display: inline-flex; align-items: center; gap: 16px; padding: 12px 20px; border-radius: 8px; background: var(--foreground); color: var(--background); font-size: 14px; font-weight: 500; text-decoration: none; transition: background-color 140ms; }
 .app-link:hover { background: color-mix(in srgb, var(--foreground), var(--background) 15%); }
 .app-link > span { font-size: 18px; font-weight: 400; }
@@ -211,8 +211,9 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 @media (max-width: 900px) {
   main { grid-template-columns: minmax(0, 1fr); gap: 48px; padding-block: 56px 32px; }
   .values { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .hero-shots { margin-bottom: 72px; }
-  .shot-detail { left: auto; right: -12px; bottom: -64px; width: 44%; }
+  /* The share hangs mostly below the Auswertung, over its navigation rather than the chart. */
+  .hero-shots { margin-bottom: 32%; }
+  .shot-detail { left: -12px; bottom: -62%; width: 52%; }
   .footer { align-items: flex-start; flex-direction: column; gap: 8px; }
   .faq-group { grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 40px; }
   .plans { grid-template-columns: minmax(0, 1fr); row-gap: 24px; }
@@ -230,6 +231,5 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
   .values { grid-template-columns: minmax(0, 1fr); }
   .plan { padding: 28px 24px; }
   .shot { border-radius: 8px; }
-  .shot-detail { right: -8px; bottom: -48px; width: 52%; border-radius: 6px; }
-  .hero-shots { margin-bottom: 56px; }
+  .shot-detail { left: -8px; border-radius: 6px; }
 }

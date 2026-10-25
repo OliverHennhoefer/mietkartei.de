@@ -79,10 +79,10 @@ try {
 		);
 	}
 
-	// The Auswertung of the largest property in the last full year: the figures and the monthly chart
-	// in one frame. The page is scrolled to the figures and loses what would push the chart out of
-	// the frame; the homepage frame is lower, so it also drops the top bar and the notes below the
-	// figures.
+	// The Auswertung of the largest property in the last full year: its tabs, the figures and the
+	// monthly chart in one frame. The page loses what would push the chart out of the frame: the
+	// heading, the filters, the smaller figures and the notes; the homepage frame is lower, so it
+	// also drops the chart legend.
 	const year = new Date().getFullYear() - 1;
 	await page.goto(`/auswertung?jahr=${year}`);
 	const property = await page
@@ -96,19 +96,20 @@ try {
 		await page.evaluate((compact) => {
 			/** @param {Element | null} element */
 			const hide = (element) => element instanceof HTMLElement && (element.style.display = 'none');
+			const tabs = /** @type {HTMLElement} */ (document.querySelector('nav.tabs'));
 			const tiles = /** @type {HTMLElement} */ (document.querySelector('ul.tiles'));
 			const chart = /** @type {HTMLElement} */ (document.querySelector('#flow')?.parentElement);
+			hide(document.querySelector('.page-header'));
+			hide(document.querySelector('form.filters'));
 			hide(document.querySelector('ul.tiles.small'));
 			hide(chart.querySelector('#flow'));
 			hide(chart.querySelector('.readout'));
 			hide(chart.querySelector('details'));
-			tiles.style.marginBottom = '8px';
-			if (compact) {
-				hide(document.querySelector('.site-header'));
-				for (const pill of tiles.querySelectorAll('.pill')) hide(pill);
-			}
-			const top = compact ? 24 : (document.querySelector('.site-header')?.clientHeight ?? 0) + 8;
-			window.scrollTo(0, tiles.getBoundingClientRect().top + window.scrollY - top);
+			for (const pill of tiles.querySelectorAll('.pill')) hide(pill);
+			if (compact) hide(chart.querySelector('.legend'));
+			tabs.style.marginBottom = compact ? '8px' : '16px';
+			tiles.style.marginBottom = compact ? '6px' : '8px';
+			window.scrollTo(0, tabs.getBoundingClientRect().top + window.scrollY - (compact ? 6 : 20));
 		}, compact);
 		await page.screenshot({ path: file });
 		console.log(path.relative(path.resolve(import.meta.dirname, '../..'), file));
