@@ -313,17 +313,10 @@
 								</label>
 							</div>
 						</details>
-						<label class="inline">
-							<input
-								type="checkbox"
-								name="remember"
-								checked={rowValue(transaction, 'remember') === 'on'}
-							/>
-							Zuordnung merken
-						</label>
-						{#if formId === transaction.id && errors?.remember}
-							<span class="error">{errors.remember}</span>
-						{/if}
+						<p class="hint muted small">
+							Als Miete auf einen Mietvertrag zugeordnet, merkt sich Mietkartei den Zahler für den
+							nächsten Import.
+						</p>
 						<div class="row">
 							<button type="submit" disabled={pending === transaction.id}>Zuordnen</button>
 							<button
@@ -496,7 +489,7 @@
 		padding-top: 0.75rem;
 	}
 	.assign .split,
-	.assign .inline,
+	.assign .hint,
 	.assign .row,
 	.assign .error,
 	.assign .preset {
