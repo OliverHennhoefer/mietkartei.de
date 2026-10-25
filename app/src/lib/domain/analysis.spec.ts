@@ -118,7 +118,9 @@ describe('analyse', () => {
 			charged: 80000,
 			received: 80000,
 			expenses: 0,
-			net: 80000
+			net: 80000,
+			baseRent: 60000,
+			rentPerSqm: 10
 		});
 		expect(series[6]).toMatchObject({
 			key: '2026-07',
@@ -207,6 +209,20 @@ describe('analyse', () => {
 			{ category: 'operating_costs', amount: 30000 }
 		]);
 		expect(topExpenses.map((expense) => expense.id)).toEqual(['e1', 'e3', 'e2']);
+	});
+
+	it('keeps the same buckets per property in view', () => {
+		const { propertySeries } = analyse(input(), year);
+		expect(propertySeries.map((row) => row.id)).toEqual(['haus', 'hof']);
+		const haus = propertySeries[0].series;
+		expect(haus[2]).toMatchObject({ key: '2026-03', expenses: 120000, baseRent: 60000 });
+		// July: EG 600 € on 60 m² and OG 500 € on 40 m², 1.100 € on 100 m².
+		expect(haus[6].rentPerSqm).toBeCloseTo(11);
+		expect(haus[6]).toMatchObject({ received: 70000, baseRent: 110000, expenses: 30000 });
+		// The portfolio-wide expense of May belongs to no property.
+		expect(haus[4].expenses).toBe(0);
+		expect(propertySeries[1].series.every((point) => point.charged === 0)).toBe(true);
+		expect(analyse(input(), { ...year, propertyId: 'hof' }).propertySeries).toHaveLength(1);
 	});
 
 	it('shows years over a longer range', () => {

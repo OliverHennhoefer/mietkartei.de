@@ -14,6 +14,8 @@ import {
 } from '#lib/server/testing.ts';
 import { actions, load as loadExpenses } from './ausgaben/+page.server';
 import { load } from './+page.server';
+import { load as loadRent } from './mieteinnahmen/+page.server';
+import { load as loadComparison } from './vergleich/+page.server';
 
 let db: Database;
 let propertyId: string;
@@ -44,6 +46,24 @@ describe('auswertung', () => {
 		expect(await run(load, { url: '/auswertung?jahr=abc' })).toMatchObject({
 			data: { period: year }
 		});
+	});
+});
+
+describe('auswertung/mieteinnahmen', () => {
+	it('always shows every year, for one property when asked', async () => {
+		const result = await run(loadRent, { url: `/auswertung/mieteinnahmen?jahr=2024` });
+		expect(result).toMatchObject({ data: { period: 'all', propertyId: null } });
+		const { data } = result as { data: { series: { key: string }[]; propertySeries: unknown[] } };
+		expect(data.series[0].key).toBe('2024');
+		expect(data.propertySeries).toHaveLength(1);
+	});
+});
+
+describe('auswertung/vergleich', () => {
+	it('reads the same filters as the Überblick', async () => {
+		expect(
+			await run(loadComparison, { url: `/auswertung/vergleich?jahr=2024&objekt=${propertyId}` })
+		).toMatchObject({ data: { period: 2024, propertyId, units: { length: 1 } } });
 	});
 });
 
