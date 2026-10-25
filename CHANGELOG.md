@@ -19,7 +19,7 @@ Erste öffentliche Version. Sie enthält:
 - Bankimport per camt.053 oder CSV mit Zuordnungsvorschlägen und -regeln.
 - Objekte, Einheiten, Mieter und Mietverträge mit Index- und Staffelmiete.
 - Zähler und Abrechnungskreise, Dokumente, Aufgaben und Fristen.
-- Auswertung mit Überblick, Mieteinnahmen, Ausgaben, Objektvergleich sowie Rendite und Cashflow nach Zins und Tilgung.
+- Auswertung mit Überblick, Mieteinnahmen, Ausgaben, Objektvergleich, Rendite und Cashflow nach Zins und Tilgung sowie Nebenkosten-Vergleich mit dem Betriebskostenspiegel des Mieterbunds.
 - Zugänge für Mitverwalter und mit Lesezugriff.
 - Datenübernahme per CSV, vollständiger Export und Änderungsprotokoll.
 - MCP-Server und REST-API für KI-Assistenten wie Claude und ChatGPT.
