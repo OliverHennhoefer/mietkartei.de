@@ -1,7 +1,7 @@
 import { importFields, importKinds, type ColumnMapping, type ImportKind } from '../server/import';
 import { FormParser, type ParseResult } from './fields';
 
-// Parses the form of /datenuebernahme. Step 1 sends the kind and the file; step 2 (preview and commit)
+// Parses the form of /einstellungen/datenuebernahme. Step 1 sends the kind and the file; step 2 (preview and commit)
 // sends the kind, the file as base64 content and one `map.<field>` select per target field,
 // whose value is the column index or '' for "nicht importieren".
 

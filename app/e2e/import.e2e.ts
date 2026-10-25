@@ -5,7 +5,7 @@ import { formatCents } from '../src/lib/money';
 import { watchCspViolations } from './csp';
 
 // The CSV import: four files in the order a landlord migrates (properties and units, tenants,
-// leases, payments), each through mapping, preview and commit on /datenuebernahme. The fixtures carry
+// leases, payments), each through mapping, preview and commit on /einstellungen/datenuebernahme. The fixtures carry
 // names no other test uses, and every run starts from a fresh database.
 
 function fixture(name: string): string {
@@ -18,7 +18,7 @@ async function preview(page: Page, kind: string, file: string) {
 		.getByRole('navigation', { name: 'Einstellungen' })
 		.getByRole('link', { name: 'Datenübernahme' })
 		.click();
-	await expect(page).toHaveURL(/\/datenuebernahme$/);
+	await expect(page).toHaveURL(/\/einstellungen\/datenuebernahme$/);
 	await expect(page.getByRole('heading', { level: 1, name: 'Datenübernahme' })).toBeVisible();
 	await page.getByLabel('Art der Daten').selectOption({ label: kind });
 	await page.getByLabel('CSV-Datei').setInputFiles(fixture(file));
@@ -50,7 +50,7 @@ test('imports properties, tenants, leases and payments from CSV files in order',
 		.getByRole('navigation', { name: 'Einstellungen' })
 		.getByRole('link', { name: 'Datenübernahme' })
 		.click();
-	await expect(page).toHaveURL(/\/datenuebernahme$/);
+	await expect(page).toHaveURL(/\/einstellungen\/datenuebernahme$/);
 
 	await test.step('properties and units', async () => {
 		await preview(page, 'Objekte und Einheiten', 'import-objekte.csv');
@@ -173,8 +173,32 @@ test('a file whose columns match nothing cannot be imported', async ({ page }) =
 	await commit(page, '1 Mieter angelegt');
 });
 
-test('answers unknown pages under /datenuebernahme with 404', async ({ page }) => {
-	const response = await page.goto('/datenuebernahme/does-not-exist');
+test('answers unknown pages under /einstellungen/datenuebernahme with 404', async ({ page }) => {
+	const response = await page.goto('/einstellungen/datenuebernahme/does-not-exist');
 	expect(response?.status()).toBe(404);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Nicht gefunden');
+});
+
+test('runs in the settings dialog over the page it was opened from', async ({ page }) => {
+	await page.goto('/mieter');
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'Konto' }).click();
+	await page.getByRole('link', { name: 'Einstellungen' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Einstellungen' });
+	await dialog.getByRole('link', { name: 'Datenübernahme' }).click();
+	await expect(dialog.getByRole('heading', { level: 1, name: 'Datenübernahme' })).toBeVisible();
+	await expect(page).toHaveURL(/\/einstellungen\/datenuebernahme$/);
+
+	// The steps post from the dialog and stay in it; "Abbrechen" leads back to step 1 in place.
+	await dialog.getByLabel('Art der Daten').selectOption({ label: 'Mieter' });
+	await dialog.getByLabel('CSV-Datei').setInputFiles(fixture('import-falsch.csv'));
+	await dialog.getByRole('button', { name: 'Vorschau anzeigen' }).click();
+	await expect(dialog.getByRole('heading', { level: 2, name: 'Spalten zuordnen' })).toBeVisible();
+	await dialog.getByRole('button', { name: 'Abbrechen' }).click();
+	await expect(dialog.getByRole('button', { name: 'Vorschau anzeigen' })).toBeVisible();
+	await expect(page).toHaveURL(/\/einstellungen\/datenuebernahme$/);
+
+	await page.keyboard.press('Escape');
+	await expect(dialog).toHaveCount(0);
+	await expect(page).toHaveURL(/\/mieter$/);
 });
