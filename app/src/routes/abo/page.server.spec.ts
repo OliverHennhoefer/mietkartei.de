@@ -459,4 +459,38 @@ describe('plans', () => {
 			}
 		});
 	});
+
+	it('reads the period from the plan when Stripe gives none, and words it when Stripe fails', async () => {
+		answers['GET /v1/prices/price_unit'] = () => ({ body: { id: 'price_unit', unit_amount: 800 } });
+		answers['GET /v1/prices/price_founder'] = () => ({ status: 500, body: {} });
+		answers['GET /v1/prices/price_year'] = () => ({
+			body: { id: 'price_year', unit_amount: 7200 }
+		});
+		const result = await outcome(() =>
+			load(routeEvent(db, { url: 'https://app.mietkartei.de/abo', user: ownerA }))
+		);
+		expect(result).toMatchObject({
+			data: {
+				price: 'monatlich',
+				yearlyPrice: expect.stringMatching(/^72,00\s€ pro Jahr$/),
+				founder: { regularPrice: expect.stringMatching(/^8,00\s€ pro Monat$/), spotsLeft: 100 }
+			}
+		});
+
+		answers['GET /v1/prices/price_year'] = () => ({ status: 500, body: {} });
+		expect(
+			await outcome(() =>
+				load(routeEvent(db, { url: 'https://app.mietkartei.de/abo', user: ownerA }))
+			)
+		).toMatchObject({ data: { yearlyPrice: 'jährlich' } });
+	});
+
+	it('shows no spots left to a founder, who keeps the price anyway', async () => {
+		env.FOUNDER_SPOTS = 1;
+		await db.update(accounts).set({ founder: true }).where(eq(accounts.id, 'a'));
+		const result = await outcome(() =>
+			load(routeEvent(db, { url: 'https://app.mietkartei.de/abo', user: ownerA }))
+		);
+		expect(result).toMatchObject({ data: { founder: { spotsLeft: null } } });
+	});
 });

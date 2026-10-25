@@ -35,7 +35,7 @@ export async function foundersTaken(db: Database): Promise<number> {
 		.select({ taken: count() })
 		.from(accounts)
 		.where(eq(accounts.founder, true));
-	return row?.taken ?? 0;
+	return row.taken;
 }
 
 /**
