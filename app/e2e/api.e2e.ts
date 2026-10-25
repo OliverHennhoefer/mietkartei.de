@@ -15,11 +15,11 @@ test('creates an API key, reads with it through REST and MCP, and revokes it', a
 	const own = await seedLease(page.request, { property: { name: `API-Haus ${suffix}` } });
 	const foreign = await seedForeignLease(page.request);
 
-	await page.goto('/einstellungen/api-schluessel');
-	await expect(page.getByRole('heading', { level: 1, name: 'API-Schlüssel' })).toBeVisible();
+	await page.goto('/einstellungen/ki-assistenten');
+	await expect(page.getByRole('heading', { level: 1, name: 'KI-Assistenten' })).toBeVisible();
 	await page.getByLabel('Name').fill(keyName);
 	await page.getByRole('button', { name: 'Schlüssel anlegen' }).click();
-	const shown = page.locator('.key code');
+	const shown = page.locator('.created .key code');
 	await expect(shown).toHaveText(/^mk_[\w-]{43}$/);
 	const key = (await shown.textContent())!;
 	await expect(
@@ -80,11 +80,11 @@ test('lets an assistant with a write key add a task that the page then shows', a
 	baseURL
 }) => {
 	const title = `Rauchmelder prüfen ${suffix}`;
-	await page.goto('/einstellungen/api-schluessel');
+	await page.goto('/einstellungen/ki-assistenten');
 	await page.getByLabel('Name').fill(`Schreiben ${suffix}`);
 	await page.getByLabel('Rechte').selectOption({ label: 'Lesen und schreiben' });
 	await page.getByRole('button', { name: 'Schlüssel anlegen' }).click();
-	const key = (await page.locator('.key code').textContent())!;
+	const key = (await page.locator('.created .key code').textContent())!;
 
 	const client = await request.newContext({
 		baseURL,

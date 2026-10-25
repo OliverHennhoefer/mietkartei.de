@@ -39,7 +39,7 @@
 			<p class="muted">Die App darf nur lesen.</p>
 		{/if}
 		<p class="muted">
-			Du kannst die Verbindung jederzeit unter Einstellungen → API-Schlüssel trennen.
+			Du kannst die Verbindung jederzeit unter Einstellungen → KI-Assistenten trennen.
 		</p>
 		<div class="form-actions">
 			<button type="submit" name="decision" value="approve">Erlauben</button>
