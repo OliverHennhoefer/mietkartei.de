@@ -1,4 +1,5 @@
 import { daysInclusive, overlapDays, type DateRange, type IsoDate } from '../dates';
+import type { UnitKind } from '../units';
 
 // Nebenkosten-Vergleich: the operating costs of a year per m² and month, by the items of § 2
 // BetrKV, set against the Betriebskostenspiegel of the Deutscher Mieterbund. A cost item counts
@@ -44,7 +45,7 @@ export const referenceTotal = 267;
 
 export type BenchmarkInput = {
 	properties: readonly { id: string; name: string }[];
-	units: readonly { propertyId: string; floorArea: number | null }[];
+	units: readonly { propertyId: string; kind: UnitKind; floorArea: number | null }[];
 	costItems: readonly {
 		propertyId: string;
 		betrkvItem: number;
@@ -77,7 +78,10 @@ export type Benchmark = {
 	/** Every group, also those without costs, in the order of the Mieterbund. */
 	rows: BenchmarkRow[];
 	properties: PropertyBenchmark[];
-	/** Properties with costs in the year but no floor area, left out of the figures per m². */
+	/**
+	 * Properties with costs in the year but no floor area (or a unit without one), left out of the
+	 * figures per m².
+	 */
 	withoutArea: string[];
 };
 
@@ -90,10 +94,15 @@ export function costBenchmark(
 		(property) => !options.propertyId || property.id === options.propertyId
 	);
 
+	// A property with a flat or a shop of unknown area has no area at all: dividing by the units
+	// that have one would overstate the costs. A parking space needs none.
 	const areaOf = new Map<string, number>();
+	const incomplete = new Set<string>();
 	for (const unit of input.units) {
+		if (!unit.floorArea && unit.kind !== 'parking') incomplete.add(unit.propertyId);
 		areaOf.set(unit.propertyId, (areaOf.get(unit.propertyId) ?? 0) + (unit.floorArea ?? 0));
 	}
+	for (const propertyId of incomplete) areaOf.set(propertyId, 0);
 
 	/** Cents in the year per property and § 2 item. */
 	const amounts = new Map<string, Map<number, number>>();

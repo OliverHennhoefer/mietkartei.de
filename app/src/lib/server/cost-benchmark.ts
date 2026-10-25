@@ -3,8 +3,8 @@ import { costBenchmark, type Benchmark } from '../domain/cost-benchmark';
 import type { Database } from './db';
 import { costCategories, costItems, properties, units } from './db/schema';
 
-// Loads the cost items of the Nebenkosten-Vergleich: the allocable ones in a category of § 2
-// BetrKV, with the floor area of every property.
+// Loads the cost items of the Nebenkosten-Vergleich: the allocable ones in an allocable category of
+// § 2 BetrKV, as the statement counts them, with the floor area of every property.
 
 export type BenchmarkPage = Benchmark & {
 	/** The years with cost items, newest first. */
@@ -24,7 +24,7 @@ export async function loadCostBenchmark(
 			.where(eq(properties.accountId, accountId))
 			.orderBy(properties.name),
 		db
-			.select({ propertyId: units.propertyId, floorArea: units.floorArea })
+			.select({ propertyId: units.propertyId, kind: units.kind, floorArea: units.floorArea })
 			.from(units)
 			.where(eq(units.accountId, accountId)),
 		db
@@ -41,6 +41,7 @@ export async function loadCostBenchmark(
 				and(
 					eq(costItems.accountId, accountId),
 					eq(costItems.allocable, true),
+					eq(costCategories.allocable, true),
 					isNotNull(costCategories.betrkvItem)
 				)
 			)

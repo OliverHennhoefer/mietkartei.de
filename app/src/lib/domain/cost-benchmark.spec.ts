@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { benchmarkGroups, costBenchmark, type BenchmarkInput } from './cost-benchmark';
 
-// Haus: 100 m² over two units. Hof: no floor area. 2025.
+// Haus: 100 m² over two flats and a parking space. Hof: one of its two flats has no area. 2025.
 
 function input(overrides: Partial<BenchmarkInput> = {}): BenchmarkInput {
 	return {
@@ -10,9 +10,11 @@ function input(overrides: Partial<BenchmarkInput> = {}): BenchmarkInput {
 			{ id: 'hof', name: 'Hof' }
 		],
 		units: [
-			{ propertyId: 'haus', floorArea: 60 },
-			{ propertyId: 'haus', floorArea: 40 },
-			{ propertyId: 'hof', floorArea: null }
+			{ propertyId: 'haus', kind: 'apartment', floorArea: 60 },
+			{ propertyId: 'haus', kind: 'apartment', floorArea: 40 },
+			{ propertyId: 'haus', kind: 'parking', floorArea: null },
+			{ propertyId: 'hof', kind: 'apartment', floorArea: 50 },
+			{ propertyId: 'hof', kind: 'apartment', floorArea: null }
 		],
 		costItems: [
 			// 1.200 € Grundsteuer for 2025: 1 € per m² and month.
@@ -55,7 +57,7 @@ describe('costBenchmark', () => {
 		expect(result.area).toBe(100);
 	});
 
-	it('leaves a property without floor area out of the figures per m² and names it', () => {
+	it('leaves a property with a flat of unknown area out of the figures per m² and names it', () => {
 		const result = costBenchmark(input(), { year: 2025, propertyId: null });
 		expect(result.withoutArea).toEqual(['Hof']);
 		expect(result.properties.find((row) => row.id === 'hof')).toMatchObject({
