@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, isNotNull, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { formatDate } from '../../dates';
 import { rememberStep, type LeaseHints } from '../../domain/bank-matching';
@@ -331,7 +331,8 @@ async function earlierLeaseIds(
 ): Promise<string[]> {
 	const counterpart = transaction.counterpartIban
 		? eq(bankTransactions.counterpartIban, transaction.counterpartIban)
-		: eq(bankTransactions.counterpartName, transaction.counterpartName);
+		: // Name rules match case-insensitively, so the history does too (SQLite lowers ASCII only).
+			sql`lower(${bankTransactions.counterpartName}) = lower(${transaction.counterpartName})`;
 	const [paymentRows, depositRows] = await Promise.all([
 		db
 			.selectDistinct({ leaseId: payments.leaseId })

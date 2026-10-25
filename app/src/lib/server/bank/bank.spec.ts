@@ -383,6 +383,25 @@ describe('transactions', () => {
 		expect(await listRules(db, 'a')).toMatchObject([
 			{ leaseId, field: 'counterpartName', pattern: 'Max Müller', confirmed: true }
 		]);
+
+		// The same name in other capitals, whose money now went to another lease: no rule.
+		await deleteRule(db, contextA, (await listRules(db, 'a'))[0].id);
+		await undoAssignment(db, contextA, incoming.id);
+		await assignTransaction(db, contextA, incoming.id, {
+			target: 'rent',
+			parts: [{ leaseId: secondLeaseId, amount: 85000 }]
+		});
+		await deleteRule(db, contextA, (await listRules(db, 'a'))[0].id);
+		const [other] = (await openTransactions()).filter((row) => row.id !== incoming.id);
+		await db
+			.update(bankTransactions)
+			.set({ counterpartIban: null, counterpartName: 'max müller', amount: 85000 })
+			.where(eq(bankTransactions.id, other.id));
+		await assignTransaction(db, contextA, other.id, {
+			target: 'rent',
+			parts: [{ leaseId, amount: 85000 }]
+		});
+		expect(await listRules(db, 'a')).toEqual([]);
 	});
 
 	it('assigns without remembering when the rule quota is full', async () => {
