@@ -154,13 +154,11 @@ describe('parseAssignment', () => {
 	it('assigns the whole amount to one lease, signed like the transaction', () => {
 		expect(parseAssignment(formDataOf({ leaseId: 'l1', target: 'rent' }), 85000)).toEqual({
 			ok: true,
-			data: { target: 'rent', parts: [{ leaseId: 'l1', amount: 85000 }], remember: false }
+			data: { target: 'rent', parts: [{ leaseId: 'l1', amount: 85000 }] }
 		});
-		expect(
-			parseAssignment(formDataOf({ leaseId: 'l1', target: 'deposit', remember: 'on' }), -180000)
-		).toEqual({
+		expect(parseAssignment(formDataOf({ leaseId: 'l1', target: 'deposit' }), -180000)).toEqual({
 			ok: true,
-			data: { target: 'deposit', parts: [{ leaseId: 'l1', amount: -180000 }], remember: true }
+			data: { target: 'deposit', parts: [{ leaseId: 'l1', amount: -180000 }] }
 		});
 	});
 
@@ -182,8 +180,7 @@ describe('parseAssignment', () => {
 				parts: [
 					{ leaseId: 'l1', amount: 80000 },
 					{ leaseId: 'l2', amount: 5000 }
-				],
-				remember: false
+				]
 			}
 		});
 	});
@@ -207,15 +204,14 @@ describe('parseAssignment', () => {
 		expect(result.values.amount).toBe('800,00');
 	});
 
-	it('refuses to split a deposit, the same lease twice, or to remember a split', () => {
+	it('refuses to split a deposit or over the same lease twice', () => {
 		const result = parseAssignment(
 			formDataOf({
 				leaseId: 'l1',
 				target: 'deposit',
 				splitLeaseId: 'l1',
 				amount: '1',
-				splitAmount: '1',
-				remember: 'on'
+				splitAmount: '1'
 			}),
 			200
 		);
@@ -224,7 +220,6 @@ describe('parseAssignment', () => {
 		expect(result.errors.splitLeaseId).toBe(
 			'Bitte wähle einen anderen Mietvertrag für den zweiten Teil.'
 		);
-		expect(result.errors.remember).toBe('Eine aufgeteilte Zuordnung kann nicht gemerkt werden.');
 	});
 
 	it('needs a lease and a target', () => {
