@@ -3,6 +3,7 @@
 	import FlowChart from '#lib/components/FlowChart.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import Sections from '../Sections.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
 	import { cappingLimit } from '#lib/domain/forecast.ts';
 	import type { PageProps } from './$types';
@@ -36,6 +37,8 @@
 	title="Prognose"
 	lead="Was die nächsten zwölf Monate bringen, wo die Miete steigen kann und wie die nächste Nebenkostenabrechnung ausfallen dürfte."
 />
+
+<Sections />
 
 {#if data.propertyOptions.length === 0}
 	<EmptyState

@@ -3,6 +3,7 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import Sections from '../Sections.svelte';
 	import { benchmarkSource, referenceTotal } from '#lib/domain/cost-benchmark.ts';
 	import { formatNumber } from '#lib/format.ts';
 	import { perSqm } from '../figures';
@@ -24,6 +25,8 @@
 	title="Nebenkosten-Vergleich"
 	lead="Deine umlagefähigen Betriebskosten je m² neben dem Durchschnitt aus dem Betriebskostenspiegel des Mieterbunds."
 />
+
+<Sections />
 
 {#if data.years.length === 0}
 	<EmptyState

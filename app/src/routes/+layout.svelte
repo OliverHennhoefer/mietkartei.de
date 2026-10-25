@@ -48,14 +48,14 @@
 		'/einstellungen/konto': Account
 	};
 
-	/** `exact`: only the page itself is current, not the pages below it (the Überblick). */
-	type Section = { href: string; label: string; icon: IconName; exact?: boolean };
+	type Section = { href: string; label: string; icon: IconName };
 	const groups: { label: string; sections: Section[] }[] = [
 		{
 			label: 'Alltag',
 			sections: [
 				{ href: '/', label: 'Übersicht', icon: 'home' },
-				{ href: '/aufgaben', label: 'Aufgaben', icon: 'check' }
+				{ href: '/aufgaben', label: 'Aufgaben', icon: 'check' },
+				{ href: '/auswertung', label: 'Auswertung', icon: 'trend' }
 			]
 		},
 		{
@@ -74,24 +74,12 @@
 				{ href: '/betriebskosten', label: 'Betriebskosten', icon: 'receipt' },
 				{ href: '/dokumente', label: 'Dokumente', icon: 'folder' }
 			]
-		},
-		{
-			label: 'Auswertung',
-			sections: [
-				{ href: '/auswertung', label: 'Überblick', icon: 'trend', exact: true },
-				{ href: '/auswertung/rendite', label: 'Rendite', icon: 'percent' },
-				{ href: '/auswertung/mieteinnahmen', label: 'Mieteinnahmen', icon: 'coins' },
-				{ href: '/auswertung/ausgaben', label: 'Ausgaben', icon: 'pie' },
-				{ href: '/auswertung/nebenkosten', label: 'Nebenkosten', icon: 'gauge' },
-				{ href: '/auswertung/prognose', label: 'Prognose', icon: 'calendar' },
-				{ href: '/auswertung/vergleich', label: 'Vergleich', icon: 'bars' }
-			]
 		}
 	];
 
-	function current(href: string, exact = false): 'page' | undefined {
+	function current(href: string): 'page' | undefined {
 		const path = page.url.pathname;
-		if (href === '/' || exact) return path === href ? 'page' : undefined;
+		if (href === '/') return path === href ? 'page' : undefined;
 		return path === href || path.startsWith(`${href}/`) ? 'page' : undefined;
 	}
 
@@ -165,6 +153,12 @@
 		};
 	});
 
+	const home = $derived(page.url.pathname === '/');
+	// The subscription notice stays on the Übersicht, unless writes are refused.
+	const notice = $derived(
+		data.notice && (home || data.notice.tone === 'danger') ? data.notice : undefined
+	);
+	const notices = $derived(!!notice || (home && (data.demo || data.role === 'viewer')));
 	const sections = $derived(settingsSections(data.role, data.billingEnabled));
 	// A settings page opened by its address renders the dialog itself (see SettingsFrame).
 	const onSettingsPage = $derived(!!settingsSectionOf(page.url.pathname));
@@ -299,37 +293,6 @@
 					<Icon name={open ? 'close' : 'menu'} size={20} />
 				</button>
 			</div>
-			<div class="workspace-bar">
-				{#if data.demo}
-					<p class="billing-notice info" role="note">
-						<Icon name="info" size={16} />
-						<span>Demo mit Beispieldaten, wird nach 24 Stunden gelöscht.</span>
-						<a href="https://mietkartei.de">Mehr über mietkartei</a>
-					</p>
-				{/if}
-				{#if data.role === 'viewer'}
-					<p class="billing-notice info" role="note">
-						<Icon name="info" size={16} />
-						<span>Du hast Lesezugriff und kannst nichts ändern.</span>
-					</p>
-				{/if}
-				{#if data.notice}
-					<!-- The subscription notice stays in this bar, so it never pushes the page down. -->
-					<p
-						class="billing-notice {data.notice.tone}"
-						class:highlight={data.notice.highlight}
-						role="note"
-					>
-						<Icon name={data.notice.tone === 'info' ? 'info' : 'alert'} size={16} />
-						<span>{data.notice.text}</span>
-						<a
-							href={data.notice.href}
-							onclick={(event) => data.notice && settingsLink(event, data.notice.href, false)}
-							>Zum Abo</a
-						>
-					</p>
-				{/if}
-			</div>
 		</header>
 	{/if}
 
@@ -340,18 +303,12 @@
 				></button>
 			{/if}
 			<nav id="site-nav" class="site-nav" class:open aria-label="Hauptnavigation">
-				<a class="nav-brand" href={resolve('/')}>
-					<picture>
-						<source media="(prefers-color-scheme: dark)" srcset={lockupWhite} />
-						<img src={lockup} alt="mietkartei" width="489" height="96" />
-					</picture>
-				</a>
 				<div class="nav-groups">
 					{#each groups as group (group.label)}
 						<div class="nav-group">
 							<p class="nav-label">{group.label}</p>
 							{#each group.sections as item (item.href)}
-								{@const here = current(item.href, item.exact)}
+								{@const here = current(item.href)}
 								<a class="nav-item" href={item.href} aria-current={here}
 									><span class="nav-icon"><Icon name={item.icon} size={16} /></span><span
 										class="nav-text">{item.label}</span
@@ -362,20 +319,6 @@
 					{/each}
 				</div>
 				<div class="nav-footer">
-					<!-- Quiet links above the account card. -->
-					<div class="nav-links">
-						<a
-							href="https://docs.mietkartei.de/"
-							target="_blank"
-							rel="noreferrer"
-							aria-label="Hilfe und Dokumentation (neuer Tab)"><Icon name="help" />Hilfe</a
-						>
-						{#if data.billingEnabled}
-							<a href={resolve('/abo')} onclick={(event) => settingsLink(event, '/abo', false)}
-								><Icon name="card" />Abo</a
-							>
-						{/if}
-					</div>
 					<div class="account">
 						<button
 							bind:this={accountButton}
@@ -400,6 +343,13 @@
 									href={resolve('/einstellungen/profil')}
 									onclick={(event) => settingsLink(event, '/einstellungen/profil', false)}
 									><Icon name="settings" />Einstellungen</a
+								>
+								<a
+									href="https://docs.mietkartei.de/"
+									target="_blank"
+									rel="noreferrer"
+									aria-label="Hilfe und Dokumentation (neuer Tab)"
+									onclick={() => (accountOpen = false)}><Icon name="help" />Hilfe</a
 								>
 								<form method="POST" action={resolve('/abmelden')}>
 									<button type="submit"><Icon name="logout" />Abmelden</button>
@@ -439,6 +389,34 @@
 						<img src={lockup} alt="mietkartei" width="489" height="96" />
 					</picture>
 				</a>
+			{/if}
+			{#if notices}
+				<!-- The Übersicht carries the notes; a refused write is named above every page. -->
+				<div class="page-notices">
+					{#if data.demo && home}
+						<p class="billing-notice info" role="note">
+							<Icon name="info" size={16} />
+							<span>Demo mit Beispieldaten, wird nach 24 Stunden gelöscht.</span>
+							<a href="https://mietkartei.de">Mehr über mietkartei</a>
+						</p>
+					{/if}
+					{#if data.role === 'viewer' && home}
+						<p class="billing-notice info" role="note">
+							<Icon name="info" size={16} />
+							<span>Du hast Lesezugriff und kannst nichts ändern.</span>
+						</p>
+					{/if}
+					{#if notice}
+						<p class="billing-notice {notice.tone}" class:highlight={notice.highlight} role="note">
+							<Icon name={notice.tone === 'info' ? 'info' : 'alert'} size={16} />
+							<span>{notice.text}</span>
+							<a
+								href={notice.href}
+								onclick={(event) => notice && settingsLink(event, notice.href, false)}>Zum Abo</a
+							>
+						</p>
+					{/if}
+				</div>
 			{/if}
 			{@render children()}
 		</main>

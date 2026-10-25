@@ -5,6 +5,7 @@
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import Sections from '../Sections.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { expenseCategoryLabels } from '#lib/labels.ts';
 	import type { PageProps } from './$types';
@@ -46,6 +47,8 @@
 	title="Ausgaben"
 	lead="Was du für deinen Bestand bezahlt hast, je Jahr. Die Auswertung rechnet damit."
 />
+
+<Sections />
 
 <div class="toolbar">
 	<form method="GET" class="row">

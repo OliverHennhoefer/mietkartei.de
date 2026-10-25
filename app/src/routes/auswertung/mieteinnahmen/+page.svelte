@@ -2,6 +2,7 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import Sections from '../Sections.svelte';
 	import RentChart from '#lib/components/RentChart.svelte';
 	import Sparkline from '#lib/components/Sparkline.svelte';
 	import Filters from '../Filters.svelte';
@@ -45,6 +46,8 @@
 	title="Mieteinnahmen"
 	lead="Was du verlangt hast und was angekommen ist, über die Jahre."
 />
+
+<Sections />
 
 <Filters
 	years={[]}
