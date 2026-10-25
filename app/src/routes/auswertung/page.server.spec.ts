@@ -8,6 +8,7 @@ import {
 	contextA,
 	outcome,
 	routeEvent,
+	seedCostItem,
 	seedLease,
 	seedUnit,
 	testDatabase
@@ -16,6 +17,7 @@ import { actions, load as loadExpenses } from './ausgaben/+page.server';
 import { load } from './+page.server';
 import { load as loadRent } from './mieteinnahmen/+page.server';
 import { load as loadComparison } from './vergleich/+page.server';
+import { load as loadBenchmark } from './nebenkosten/+page.server';
 import { actions as returnsActions, load as loadReturns } from './rendite/+page.server';
 
 let db: Database;
@@ -97,6 +99,21 @@ describe('auswertung/rendite', () => {
 		expect(
 			await run(returnsActions.financing, { form: { propertyId: 'fremd', loanAmount: '1' } })
 		).toMatchObject({ error: 404 });
+	});
+});
+
+describe('auswertung/nebenkosten', () => {
+	it('compares the latest year over with the Mieterbund, or a chosen one', async () => {
+		expect(await run(loadBenchmark)).toMatchObject({ data: { years: [], amount: 0 } });
+		await seedCostItem(db, 'a', propertyId);
+		const result = await run(loadBenchmark);
+		// 600 € Grundsteuer for 2025 on 64 m².
+		expect(result).toMatchObject({ data: { year: 2025, years: [2025], area: 64, amount: 600_00 } });
+		const { data } = result as { data: { rows: { key: string; perSqm: number }[] } };
+		expect(data.rows.find((row) => row.key === 'propertyTax')!.perSqm).toBeCloseTo(60000 / 64 / 12);
+		expect(await run(loadBenchmark, { url: '/auswertung/nebenkosten?jahr=2024' })).toMatchObject({
+			data: { year: 2024, amount: 0 }
+		});
 	});
 });
 
