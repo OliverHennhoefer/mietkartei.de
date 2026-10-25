@@ -1,14 +1,20 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
 	import { reminderLevelLabels } from '#lib/domain/reminders.ts';
+	import { formatCents } from '#lib/money.ts';
 	import { pluralize } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
+
+	/** The row whose "Miete ist da" is being booked; every button waits until it is done. */
+	let pending = $state<string | null>(null);
 </script>
 
 <PageHeader
@@ -38,6 +44,17 @@
 			</span>
 		</div>
 	</div>
+
+	{#if form && 'message' in form}
+		<Alert tone="danger"><p>{form.message}</p></Alert>
+	{:else if form?.received}
+		<Alert tone="success">
+			<p>
+				Zahlung über {formatCents(form.received.amount)} für {form.received.label} gebucht.
+				<a href="/vertraege/{form.received.leaseId}/mietkonto">Im Mietkonto ansehen</a>
+			</p>
+		</Alert>
+	{/if}
 
 	<nav class="toolbar" aria-label="Filter">
 		<a href="/mietkonto" aria-current={data.onlyArrears ? undefined : 'page'}>Alle</a>
@@ -116,6 +133,32 @@
 								{/if}
 							</td>
 							<td class="actions">
+								{#if row.rentReceived}
+									<form
+										method="POST"
+										action="?/received"
+										use:enhance={() => {
+											pending = row.leaseId;
+											return async ({ update }) => {
+												try {
+													await update();
+												} finally {
+													pending = null;
+												}
+											};
+										}}
+									>
+										<input type="hidden" name="leaseId" value={row.leaseId} />
+										<button
+											type="submit"
+											class="small"
+											disabled={pending !== null}
+											title="Bucht {formatCents(row.rentReceived)} mit Datum von heute als Zahlung"
+										>
+											Miete ist da · {formatCents(row.rentReceived)}
+										</button>
+									</form>
+								{/if}
 								{#if row.overdue > 0}
 									<a href="/vertraege/{row.leaseId}/mietkonto#zahlungserinnerung">
 										{row.reminder ? 'Mahnen' : 'Erinnern'}

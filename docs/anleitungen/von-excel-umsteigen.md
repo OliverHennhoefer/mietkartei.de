@@ -43,6 +43,6 @@ Damit Rückstände von Anfang an stimmen, gibst du je Mietvertrag an, ab wann da
 
 ## Danach
 
-Für neue Zahlungen musst du nicht mehr tippen: [Kontoauszüge importieren](kontoauszuege-importieren.md). Wenn das Jahr um ist, hilft [Nebenkostenabrechnung erstellen](nebenkostenabrechnung.md).
+Für neue Zahlungen musst du nicht mehr tippen: Unter **Mietkonto** bucht **Miete ist da** die offene Miete eines Vertrags mit einem Klick, höchstens eine Monatsmiete, mit dem heutigen Datum. Oder du [importierst Kontoauszüge](kontoauszuege-importieren.md). Wenn das Jahr um ist, hilft [Nebenkostenabrechnung erstellen](nebenkostenabrechnung.md).
 
 Du willst erst schauen, ob sich der Umstieg lohnt? Die [Demo](https://demo.mietkartei.de) zeigt einen fertigen Bestand ohne Anmeldung.
