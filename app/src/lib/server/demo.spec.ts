@@ -4,12 +4,17 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { countUnmatched } from './bank/transactions';
 import type { Database } from './db';
 import {
+	associationStatements,
 	auditLog,
+	co2CostSplits,
 	costItems,
 	leases,
+	operatingCostStatements,
+	paymentReminders,
 	payments,
 	properties,
 	tasks,
+	taxYears,
 	tenants,
 	units
 } from './db/schema';
@@ -25,30 +30,60 @@ beforeEach(async () => {
 });
 
 describe('createDemoData', () => {
-	it('fills an empty account with properties, leases, payments, transactions and tasks', async () => {
+	it('fills an empty account with properties, leases, history, letters and tasks', async () => {
 		expect(await isEmptyAccount(db, 'a')).toBe(true);
 		const result = await createDemoData(db, contextA);
-		expect(result).toEqual({ ok: true, leases: 5 });
+		expect(result).toEqual({ ok: true, leases: 6 });
 
-		expect(await db.select().from(properties).where(eq(properties.accountId, 'a'))).toHaveLength(2);
-		expect(await db.select().from(units).where(eq(units.accountId, 'a'))).toHaveLength(6);
-		expect(await db.select().from(tenants).where(eq(tenants.accountId, 'a'))).toHaveLength(5);
-		expect(await db.select().from(leases).where(eq(leases.accountId, 'a'))).toHaveLength(5);
-		expect(await db.select().from(costItems).where(eq(costItems.accountId, 'a'))).toHaveLength(5);
-		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(2);
+		const rows = async (
+			table: typeof properties | typeof units | typeof tenants | typeof leases | typeof tasks
+		) => db.select().from(table).where(eq(table.accountId, 'a'));
+		const propertyRows = await db.select().from(properties).where(eq(properties.accountId, 'a'));
+		expect(propertyRows.map((row) => [row.kind, row.state])).toEqual([
+			['building', 'BE'],
+			['condominium', 'BB'],
+			['condominium', 'BY']
+		]);
+		expect(await rows(units)).toHaveLength(6);
+		expect(await rows(tenants)).toHaveLength(7);
+		expect(await rows(leases)).toHaveLength(6);
+		expect(await rows(tasks)).toHaveLength(4);
 		expect(await countUnmatched(db, 'a')).toBe(3);
 
+		// Every history year but the last is settled: three properties over four years, each
+		// statement approved; the WEG figures and the Zinsbescheinigungen cover all five years.
+		const statements = await db
+			.select()
+			.from(operatingCostStatements)
+			.where(eq(operatingCostStatements.accountId, 'a'));
+		expect(statements).toHaveLength(12);
+		expect(statements.every((row) => row.status === 'approved')).toBe(true);
+		expect(
+			await db.select().from(associationStatements).where(eq(associationStatements.accountId, 'a'))
+		).toHaveLength(10);
+		expect(await db.select().from(taxYears).where(eq(taxYears.accountId, 'a'))).toHaveLength(15);
+		expect(
+			(await db.select().from(costItems).where(eq(costItems.accountId, 'a'))).length
+		).toBeGreaterThan(100);
+		const reminders = await db
+			.select()
+			.from(paymentReminders)
+			.where(eq(paymentReminders.accountId, 'a'));
+		expect(reminders.map((row) => row.level).sort()).toEqual([1, 2]);
+		expect(
+			await db.select().from(co2CostSplits).where(eq(co2CostSplits.accountId, 'a'))
+		).toHaveLength(1);
+
 		// Only Berger is in arrears, by the two unpaid months before the current one plus the
-		// current month (open on the bank account, not booked yet); everyone else owes this month.
+		// current month; Schmidt and Yılmaz owe this month (open on the bank account), the CO₂
+		// share is a credit to Weber and Albrecht, everyone else is settled.
 		const balances = await listBalances(db, 'a');
-		const inArrears = balances.filter((balance) => balance.balance > 0);
-		expect(inArrears.length).toBeGreaterThan(0);
 		const berger = balances.reduce((max, balance) =>
 			balance.balance > max.balance ? balance : max
 		);
-		expect(berger.balance).toBe(3 * (83000 + 16000 + 7500));
-		// The ended lease is settled: no charge after its end, nothing before its ledger start.
-		expect(balances.every((balance) => balance.balance >= 0)).toBe(true);
+		expect(berger.balance).toBe(3 * (92000 + 16500 + 12500));
+		expect(balances.filter((balance) => balance.balance > 0)).toHaveLength(3);
+		expect(balances.filter((balance) => balance.balance < 0)).toHaveLength(1);
 
 		expect(await isEmptyAccount(db, 'b')).toBe(true);
 	});
@@ -65,16 +100,36 @@ describe('createDemoData', () => {
 		}
 
 		await db.run(sql`drop trigger refuse_tasks`);
-		expect(await createDemoData(db, contextA)).toEqual({ ok: true, leases: 5 });
-		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(2);
+		expect(await createDemoData(db, contextA)).toEqual({ ok: true, leases: 6 });
+		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(4);
+	});
+
+	it('takes its rows out again when a later step fails, keeping what the account held', async () => {
+		const [own] = await db
+			.insert(tenants)
+			.values({ accountId: 'a', firstName: 'Eva', lastName: 'Vorher' })
+			.returning();
+		// The letters to the tenant in arrears come after the batch.
+		await db.run(
+			sql`create trigger refuse_reminders before insert on payment_reminders begin select raise(abort, 'D1 down'); end`
+		);
+		await expect(createDemoData(db, contextA)).rejects.toThrow('D1 down');
+		expect(await isEmptyAccount(db, 'a')).toBe(true);
+		expect(await db.select().from(tenants).where(eq(tenants.accountId, 'a'))).toEqual([own]);
+		for (const table of [leases, payments, costItems, operatingCostStatements, tasks]) {
+			expect(await db.select().from(table).where(eq(table.accountId, 'a'))).toEqual([]);
+		}
+
+		await db.run(sql`drop trigger refuse_reminders`);
+		expect(await createDemoData(db, contextA)).toEqual({ ok: true, leases: 6 });
 	});
 
 	it('creates the demo once when the button is pressed twice at the same time', async () => {
 		const results = await Promise.all([createDemoData(db, contextA), createDemoData(db, contextA)]);
-		expect(results).toContainEqual({ ok: true, leases: 5 });
+		expect(results).toContainEqual({ ok: true, leases: 6 });
 		expect(results).toContainEqual({ ok: false, reason: 'not-empty' });
-		expect(await db.select().from(properties).where(eq(properties.accountId, 'a'))).toHaveLength(2);
-		expect(await db.select().from(leases).where(eq(leases.accountId, 'a'))).toHaveLength(5);
+		expect(await db.select().from(properties).where(eq(properties.accountId, 'a'))).toHaveLength(3);
+		expect(await db.select().from(leases).where(eq(leases.accountId, 'a'))).toHaveLength(6);
 		const audit = await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'));
 		expect(audit.filter((entry) => entry.summary === 'Demodaten angelegt')).toHaveLength(1);
 	});

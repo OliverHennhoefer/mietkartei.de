@@ -19,7 +19,8 @@ const env = vi.hoisted(() => ({
 	FREE_ACCOUNT_EMAILS: '',
 	STRIPE_API_BASE: 'http://stripe.test',
 	BILLING_REQUIRED: false,
-	MAIL_TRANSPORT: 'outbox'
+	MAIL_TRANSPORT: 'outbox',
+	GENESIS_API_TOKEN: ''
 }));
 vi.mock('$app/env/private', () => env);
 

@@ -96,6 +96,8 @@ test('opens the settings as a dialog over the page and closes it again', async (
 	await expect(
 		dialog.getByRole('heading', { level: 1, name: 'Verbraucherpreisindex' })
 	).toBeVisible();
+	// The close button works only once the page is hydrated.
+	await page.waitForLoadState('networkidle');
 	await dialog.getByRole('button', { name: 'Einstellungen schließen' }).click();
 	await expect(page).toHaveURL(/\/$/);
 });

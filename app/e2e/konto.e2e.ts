@@ -202,7 +202,7 @@ test('fills a fresh account with demo data and resets it to factory settings', a
 
 	await page.goto('/objekte');
 	await expect(page.getByText('Lindenstraße 12').first()).toBeVisible();
-	await expect(page.getByText('Gartenweg 3').first()).toBeVisible();
+	await expect(page.getByText('Parkallee 8, Wohnung 14').first()).toBeVisible();
 
 	// The button is gone once the account holds data.
 	await page.goto('/einstellungen/konto');
