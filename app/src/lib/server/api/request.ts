@@ -38,7 +38,7 @@ export async function authenticateRequest(
 			'unauthorized',
 			token
 				? 'The API key is unknown, expired or revoked.'
-				: 'Send an API key as "Authorization: Bearer mk_…". Keys are created under Einstellungen → API-Schlüssel.'
+				: 'Send an API key as "Authorization: Bearer mk_…". Keys are created under Einstellungen → KI-Assistenten.'
 		);
 	}
 	if (!(await limiter.limit(`key:${caller.keyId}`))) throw tooManyRequests();
