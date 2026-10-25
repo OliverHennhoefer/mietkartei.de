@@ -164,6 +164,16 @@ describe('bank/konten/[id]/abruf', () => {
 		).toMatchObject({ fail: 502 });
 	});
 
+	it('needs ORIGIN behind a public address', async () => {
+		expect(
+			await run(startActions.start, {
+				url: 'https://mietkartei.example.org/bank/konten/x/abruf',
+				params: { id: bankAccountId },
+				form: { bank: 'Testbank' }
+			})
+		).toMatchObject({ fail: 503 });
+	});
+
 	it('is not there while the instance has no application', async () => {
 		env.ENABLE_BANKING_APP_ID = '';
 		expect(await run(loadStart, { params: { id: bankAccountId } })).toMatchObject({ error: 404 });
@@ -236,6 +246,20 @@ describe('bank/konten Bankabruf', () => {
 		expect(await run(accountActions.end, { form: { id: bankAccountId } })).toMatchObject({
 			error: 404
 		});
+	});
+
+	it('shows a Bankabruf that waits for the bank and knows no form without an id', async () => {
+		await run(startActions.start, { params: { id: bankAccountId }, form: { bank: 'Testbank' } });
+		const page = (await run(loadAccounts)) as { data: { sync: Record<string, unknown> } };
+		expect(page.data.sync[bankAccountId]).toMatchObject({
+			pending: true,
+			active: false,
+			validUntil: null,
+			lastSyncedAt: null
+		});
+		expect(await run(accountActions.sync, { form: {} })).toMatchObject({ fail: 400 });
+		expect(await run(accountActions.end, { form: {} })).toMatchObject({ error: 404 });
+		expect(await run(accountActions.delete, { form: {} })).toMatchObject({ error: 404 });
 	});
 
 	it('ends the session at the bank with the bank account', async () => {

@@ -202,6 +202,22 @@ describe('toRow', () => {
 		});
 	});
 
+	it('falls back to the transaction id and copes with missing names and texts', () => {
+		expect(
+			toRow(
+				rent({
+					entry_reference: null,
+					transaction_id: 'tx-9',
+					transaction_amount: { amount: '7', currency: 'EUR' },
+					debtor: null,
+					remittance_information: null
+				})
+			)
+		).toMatchObject({
+			row: { amount: 700, counterpartName: '', purpose: '', externalId: 'tx-9' }
+		});
+	});
+
 	it('refuses rows without a date, with a broken amount or in another currency', () => {
 		expect(toRow(rent({ booking_date: null, value_date: null }))).toMatchObject({ ok: false });
 		expect(toRow(rent({ transaction_amount: { amount: '1,00', currency: 'EUR' } }))).toMatchObject({
@@ -292,6 +308,38 @@ describe('Bankabruf', () => {
 				: { body: { transactions: [rent()], continuation_key: 'next' } };
 		await syncConnection(db, contextA, await connection(), { force: true });
 		expect(await transactions()).toHaveLength(2);
+	});
+
+	it('ends the old session once a renewal brings a new one', async () => {
+		await connect();
+		answers['POST /sessions'] = () => ({
+			body: {
+				session_id: 'session-2',
+				accounts: [{ uid: 'acc-2', account_id: { iban: IBAN } }]
+			}
+		});
+		await startConnection(db, contextA, bankAccountId, aspsp, 'https://app.mietkartei.de');
+		calls = [];
+		const outcome = await finishConnection(db, contextA, (await connection()).state!, 'code-2');
+		expect(outcome).toEqual({ ok: true, bankAccountId });
+		expect(calls).toContain('DELETE /sessions/session-1');
+		expect(await connection()).toMatchObject({
+			sessionId: 'session-2',
+			accountUid: 'acc-2',
+			validUntil: null
+		});
+		expect(
+			await startConnection(db, contextA, 'missing', aspsp, 'https://app.mietkartei.de')
+		).toBeUndefined();
+	});
+
+	it('fetches once when two requests claim the same fetch', async () => {
+		await connect();
+		answers['GET /accounts/acc-1/transactions'] = () => ({ body: {} });
+		const now = new Date('2026-10-25T10:00:00Z');
+		const row = await connection();
+		expect(await syncConnection(db, contextA, row, { now })).toEqual({ imported: 0, assigned: 0 });
+		expect(await syncConnection(db, contextA, row, { now })).toBeUndefined();
 	});
 
 	it('refuses a session without the IBAN of the bank account and ends it', async () => {
