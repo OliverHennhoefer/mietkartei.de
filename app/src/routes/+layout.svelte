@@ -83,6 +83,7 @@
 				{ href: '/auswertung/mieteinnahmen', label: 'Mieteinnahmen', icon: 'coins' },
 				{ href: '/auswertung/ausgaben', label: 'Ausgaben', icon: 'pie' },
 				{ href: '/auswertung/nebenkosten', label: 'Nebenkosten', icon: 'gauge' },
+				{ href: '/auswertung/prognose', label: 'Prognose', icon: 'calendar' },
 				{ href: '/auswertung/vergleich', label: 'Vergleich', icon: 'bars' }
 			]
 		}

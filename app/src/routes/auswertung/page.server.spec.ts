@@ -18,6 +18,7 @@ import { load } from './+page.server';
 import { load as loadRent } from './mieteinnahmen/+page.server';
 import { load as loadComparison } from './vergleich/+page.server';
 import { load as loadBenchmark } from './nebenkosten/+page.server';
+import { load as loadForecast } from './prognose/+page.server';
 import { actions as returnsActions, load as loadReturns } from './rendite/+page.server';
 
 let db: Database;
@@ -113,6 +114,20 @@ describe('auswertung/nebenkosten', () => {
 		expect(data.rows.find((row) => row.key === 'propertyTax')!.perSqm).toBeCloseTo(60000 / 64 / 12);
 		expect(await run(loadBenchmark, { url: '/auswertung/nebenkosten?jahr=2024' })).toMatchObject({
 			data: { year: 2024, amount: 0 }
+		});
+	});
+});
+
+describe('auswertung/prognose', () => {
+	it('runs the next twelve months of the lease, for one property when asked', async () => {
+		const result = await run(loadForecast);
+		expect(result).toMatchObject({
+			data: { propertyId: null, months: { length: 12 }, propertyOptions: [{ id: propertyId }] }
+		});
+		const { data } = result as { data: { months: { rent: number }[] } };
+		expect(data.months[0].rent).toBeGreaterThan(0);
+		expect(await run(loadForecast, { url: '/auswertung/prognose?objekt=fremd' })).toMatchObject({
+			data: { propertyId: 'fremd', increases: [], settlements: [] }
 		});
 	});
 });
