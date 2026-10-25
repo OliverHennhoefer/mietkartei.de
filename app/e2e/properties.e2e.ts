@@ -277,7 +277,8 @@ test('deletes a property without leases', async ({ page }) => {
 });
 
 test('shows each property on a map and hides the maps in the settings', async ({ page }) => {
-	const name = `Kartenhaus ${suffix()}`;
+	// Not "Kartenhaus": later tests look for the label "Art", which matches inside option texts.
+	const name = `Neonpunkt ${suffix()}`;
 	await seedLease(page.request, { property: { name, city: 'Berlin' } });
 	await page.goto('/objekte');
 	const tile = page.getByRole('button', { name: `${name} auf der Karte zeigen` });
