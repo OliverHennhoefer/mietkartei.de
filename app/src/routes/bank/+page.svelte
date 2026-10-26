@@ -98,15 +98,12 @@
 	}
 
 	/**
-	 * The expense form starts open for money paid out, or from a counterpart booked as an expense
-	 * before, that no lease is suggested for, and after its own refusal; otherwise the lease
-	 * assignment is what the row is usually for.
+	 * The expense form, shown only for money paid out, starts open when no lease is suggested and
+	 * after its own refusal; otherwise the lease assignment is what the row is usually for.
 	 */
 	function expenseOpen(transaction: (typeof data.transactions)[number]): boolean {
 		if (formId === transaction.id && expenseErrors) return true;
-		return (
-			(transaction.amount < 0 || transaction.expensePreset !== null) && !transaction.suggestion
-		);
+		return !transaction.suggestion;
 	}
 
 	const categoryEntries = Object.entries(expenseCategoryLabels);
@@ -333,90 +330,92 @@
 								</button>
 							</div>
 						</form>
-						<details class="expense" open={expenseOpen(transaction)}>
-							<summary>Als Ausgabe buchen</summary>
-							<form
-								method="POST"
-								action={action('expense')}
-								class="assign"
-								use:enhance={submitting(transaction.id)}
-							>
-								<input type="hidden" name="id" value={transaction.id} />
-								{#if transaction.expensePreset}
-									<p class="muted small preset">
-										Vorbelegt wie die letzte Ausgabe an diesen Empfänger.
-									</p>
-								{/if}
-								<label>
-									Kategorie
-									<select
-										name="category"
-										aria-invalid={formId === transaction.id && expenseErrors?.category
-											? 'true'
-											: undefined}
-									>
-										<option value="" selected={expenseValue(transaction, 'category') === ''}>
-											– bitte wählen –
-										</option>
-										{#each categoryEntries as [value, label] (value)}
-											<option {value} selected={expenseValue(transaction, 'category') === value}>
-												{label}
+						{#if transaction.amount < 0}
+							<details class="expense" open={expenseOpen(transaction)}>
+								<summary>Als Ausgabe buchen</summary>
+								<form
+									method="POST"
+									action={action('expense')}
+									class="assign"
+									use:enhance={submitting(transaction.id)}
+								>
+									<input type="hidden" name="id" value={transaction.id} />
+									{#if transaction.expensePreset}
+										<p class="muted small preset">
+											Vorbelegt wie die letzte Ausgabe an diesen Empfänger.
+										</p>
+									{/if}
+									<label>
+										Kategorie
+										<select
+											name="category"
+											aria-invalid={formId === transaction.id && expenseErrors?.category
+												? 'true'
+												: undefined}
+										>
+											<option value="" selected={expenseValue(transaction, 'category') === ''}>
+												– bitte wählen –
 											</option>
-										{/each}
-									</select>
-									{#if formId === transaction.id && expenseErrors?.category}
-										<span class="error">{expenseErrors.category}</span>
-									{/if}
-								</label>
-								<label>
-									Betrifft
-									<select
-										name="scope"
-										aria-invalid={formId === transaction.id && expenseErrors?.scope
-											? 'true'
-											: undefined}
-									>
-										<option value="" selected={expenseValue(transaction, 'scope') === ''}>
-											Gesamter Bestand
-										</option>
-										{#each data.scopes as group (group.id)}
-											<optgroup label={group.label}>
-												{#each group.options as option (option.value)}
-													<option
-														value={option.value}
-														selected={expenseValue(transaction, 'scope') === option.value}
-													>
-														{option.label}
-													</option>
-												{/each}
-											</optgroup>
-										{/each}
-									</select>
-									{#if formId === transaction.id && expenseErrors?.scope}
-										<span class="error">{expenseErrors.scope}</span>
-									{/if}
-								</label>
-								<label>
-									Beschreibung
-									<input
-										name="description"
-										maxlength="200"
-										defaultValue={expenseDescription(transaction)}
-										aria-invalid={formId === transaction.id && expenseErrors?.description
-											? 'true'
-											: undefined}
-									/>
-									{#if formId === transaction.id && expenseErrors?.description}
-										<span class="error">{expenseErrors.description}</span>
-									{/if}
-								</label>
-								<div class="row">
-									<button type="submit" disabled={pending === transaction.id}>
-										Als Ausgabe buchen
-									</button>
-								</div>
-							</form>
-						</details>
+											{#each categoryEntries as [value, label] (value)}
+												<option {value} selected={expenseValue(transaction, 'category') === value}>
+													{label}
+												</option>
+											{/each}
+										</select>
+										{#if formId === transaction.id && expenseErrors?.category}
+											<span class="error">{expenseErrors.category}</span>
+										{/if}
+									</label>
+									<label>
+										Betrifft
+										<select
+											name="scope"
+											aria-invalid={formId === transaction.id && expenseErrors?.scope
+												? 'true'
+												: undefined}
+										>
+											<option value="" selected={expenseValue(transaction, 'scope') === ''}>
+												Gesamter Bestand
+											</option>
+											{#each data.scopes as group (group.id)}
+												<optgroup label={group.label}>
+													{#each group.options as option (option.value)}
+														<option
+															value={option.value}
+															selected={expenseValue(transaction, 'scope') === option.value}
+														>
+															{option.label}
+														</option>
+													{/each}
+												</optgroup>
+											{/each}
+										</select>
+										{#if formId === transaction.id && expenseErrors?.scope}
+											<span class="error">{expenseErrors.scope}</span>
+										{/if}
+									</label>
+									<label>
+										Beschreibung
+										<input
+											name="description"
+											maxlength="200"
+											defaultValue={expenseDescription(transaction)}
+											aria-invalid={formId === transaction.id && expenseErrors?.description
+												? 'true'
+												: undefined}
+										/>
+										{#if formId === transaction.id && expenseErrors?.description}
+											<span class="error">{expenseErrors.description}</span>
+										{/if}
+									</label>
+									<div class="row">
+										<button type="submit" disabled={pending === transaction.id}>
+											Als Ausgabe buchen
+										</button>
+									</div>
+								</form>
+							</details>
+						{/if}
 					{:else if transaction.status === 'matched'}
 						<div class="row between">
 							<ul class="assignments">
