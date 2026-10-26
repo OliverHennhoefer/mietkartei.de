@@ -30,20 +30,22 @@ export const load: PageServerLoad = async ({ locals }) => {
 			label: leaseLabel(lease)
 		}))
 	}));
-	const groupOf = (row: (typeof rows)[number]) =>
-		(activeByTenant.get(row.id) ?? [])
-			.map((lease) => lease.property)
-			.sort((a, b) => a.name.localeCompare(b.name, 'de') || a.id.localeCompare(b.id))[0];
+	// By name, and properties of the same name apart by id, so each group stays together.
+	const byProperty = (a: LeaseSummary['property'], b: LeaseSummary['property']) =>
+		a.name.localeCompare(b.name, 'de') || a.id.localeCompare(b.id);
 	const active = rows
 		.filter((tenant) => !tenant.archivedAt)
-		.map((tenant) => ({ tenant, property: groupOf(tenant) }))
-		.sort((a, b) => {
-			if (!a.property || !b.property) return Number(!a.property) - Number(!b.property);
-			return (
-				a.property.name.localeCompare(b.property.name, 'de') ||
-				a.property.id.localeCompare(b.property.id)
-			);
-		})
+		.map((tenant) => ({
+			tenant,
+			property: (activeByTenant.get(tenant.id) ?? [])
+				.map((lease) => lease.property)
+				.sort(byProperty)[0]
+		}))
+		.sort((a, b) =>
+			a.property && b.property
+				? byProperty(a.property, b.property)
+				: Number(!a.property) - Number(!b.property)
+		)
 		.map(({ tenant, property }) => ({ ...tenant, groupId: property?.id ?? null }));
 	return {
 		tenants: active,
