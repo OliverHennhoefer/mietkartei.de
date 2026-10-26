@@ -1,6 +1,6 @@
 <div align="center">
 
-<a href="https://mietkartei.de"><img src="assets/brand/lockup-card.svg" alt="mietkartei" width="398"></a>
+<a href="https://mietkartei.de"><img src="assets/brand/lockup-card.svg" alt="mietkartei" width="396"></a>
 
 ### Die Hausverwaltung von Vermietern für Vermieter.
 
