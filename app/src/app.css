@@ -1152,6 +1152,18 @@ button.icon-button:hover {
 	margin: 0.75rem 0 0;
 	color: var(--color-muted);
 }
+/* The way back to the homepage, as on the website's own pages (Preise, Fragen, Impressum). */
+.back-link {
+	display: inline-block;
+	margin-bottom: 1.5rem;
+	color: var(--color-muted);
+	font-size: 0.8125rem;
+	text-decoration-color: currentColor;
+	text-underline-offset: 4px;
+}
+.back-link:hover {
+	color: var(--color-text);
+}
 
 /* Compact utilities used throughout the application. */
 /* Hidden on screen, read by screen readers: e.g. the heading of a tab, whose name the tab bar shows. */
