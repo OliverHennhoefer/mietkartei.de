@@ -38,6 +38,35 @@ describe('mieter', () => {
 		});
 	});
 
+	it('groups the tenants by property, the ones without an active lease last', async () => {
+		const lindenweg = await seedUnit(db, 'a', { propertyName: 'Lindenweg' });
+		const otherLindenweg = await seedUnit(db, 'a', { propertyName: 'Lindenweg' });
+		const ahornstrasse = await seedUnit(db, 'a', { propertyName: 'Ahornstraße' });
+		const birkenallee = await seedUnit(db, 'a', { propertyName: 'Birkenallee' });
+		const zedernweg = await seedUnit(db, 'a', { propertyName: 'Zedernweg' });
+		const anna = await seedTenant(db, 'a', { firstName: 'Anna', lastName: 'Zeller' });
+		const bernd = await seedTenant(db, 'a', { firstName: 'Bernd', lastName: 'Adler' });
+		const carla = await seedTenant(db, 'a', { firstName: 'Carla', lastName: 'Berg' });
+		const dora = await seedTenant(db, 'a', { firstName: 'Dora', lastName: 'Christ' });
+		await seedLease(db, 'a', lindenweg.unitId, { tenantIds: [bernd] });
+		await seedLease(db, 'a', otherLindenweg.unitId, { tenantIds: [dora] });
+		await seedLease(db, 'a', ahornstrasse.unitId, { tenantIds: [anna] });
+		// Renting in two properties, Carla goes with the first by name.
+		await seedLease(db, 'a', zedernweg.unitId, { tenantIds: [carla] });
+		await seedLease(db, 'a', birkenallee.unitId, { tenantIds: [carla] });
+		const lindenwegRows = [
+			[bernd, lindenweg.propertyId],
+			[dora, otherLindenweg.propertyId]
+		].sort((a, b) => a[1].localeCompare(b[1]));
+		const result = (await run(load)) as { data: { tenants: { id: string; groupId: string }[] } };
+		expect(result.data.tenants.map((row) => [row.id, row.groupId])).toEqual([
+			[anna, ahornstrasse.propertyId],
+			[carla, birkenallee.propertyId],
+			...lindenwegRows,
+			[tenantId, null]
+		]);
+	});
+
 	it('creates a tenant and returns to a safe path with it preselected', async () => {
 		expect(await run(loadNew, { url: '/mieter/neu?return=/vertraege/neu' })).toEqual({
 			data: { returnTo: '/vertraege/neu' }
