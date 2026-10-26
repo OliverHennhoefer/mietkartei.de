@@ -35,10 +35,9 @@ for filename in (
     destination.parent.mkdir(parents=True, exist_ok=True)
     copyfile(ROOT / "website" / filename, destination)
 
-for filename in ("auswertung.png", "abrechnung-mieter.png"):
-    destination = OUTPUT / "assets" / "screenshots" / filename
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    copyfile(ROOT / "website" / "assets" / "screenshots" / filename, destination)
+(OUTPUT / "assets" / "screenshots").mkdir(parents=True, exist_ok=True)
+for screenshot in sorted((ROOT / "website" / "assets" / "screenshots").glob("*.png")):
+    copyfile(screenshot, OUTPUT / "assets" / "screenshots" / screenshot.name)
 
 for filename in (
     "mark.svg",

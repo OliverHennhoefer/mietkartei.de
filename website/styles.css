@@ -87,11 +87,27 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .value-icon { display: inline-grid; flex: none; place-items: center; width: 26px; height: 26px; border-radius: 6px; background: var(--highlight); color: #000; }
 .values span { color: var(--muted); }
 
-.hero-shots { position: relative; margin: 0; min-width: 0; }
-.shot { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 24px 48px -16px rgb(0 0 0 / .14); }
-.shot-main { width: calc(100% + 32px); max-width: none; }
-@media (max-height: 760px) { .shot-main { width: 100%; } }
-.shot-detail { position: absolute; left: -48px; bottom: -80px; width: 48%; border-radius: 10px; box-shadow: 0 1px 2px rgb(0 0 0 / .06), 0 20px 40px -12px rgb(0 0 0 / .22); }
+/* Five slides of the same size take turns every 6 s: each fades in, drifts slightly closer and fades
+   out while the next fades in. The ticks fill with the slide on show; hovering pauses both. */
+.carousel { --slide: 6s; position: relative; margin: 0; min-width: 0; }
+.slides { display: grid; margin: 0; padding: 0; list-style: none; }
+.slide { grid-area: 1 / 1; min-width: 0; opacity: 0; animation: slide calc(5 * var(--slide)) linear infinite both; }
+.frame { display: block; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 24px 48px -16px rgb(0 0 0 / .14); }
+.frame img { display: block; width: 100%; height: auto; transform-origin: 30% 20%; animation: drift calc(5 * var(--slide)) linear infinite both; }
+.slide p { margin: 18px 0 0; padding-right: 112px; font-size: 15px; font-weight: 500; letter-spacing: -.015em; }
+.ticks { position: absolute; right: 0; bottom: 6px; display: flex; gap: 6px; }
+.ticks > span { position: relative; width: 16px; height: 3px; overflow: hidden; border-radius: 2px; background: var(--line); }
+.ticks > span::after { content: ""; position: absolute; inset: 0; background: var(--foreground); transform: scaleX(0); transform-origin: left; animation: tick calc(5 * var(--slide)) linear infinite both; }
+/* The first slide starts in full view; the others wait for their turn. */
+.slide:nth-child(1), .slide:nth-child(1) img, .ticks > span:nth-child(1)::after { animation-delay: calc(-.15 * var(--slide)); }
+.slide:nth-child(2), .slide:nth-child(2) img, .ticks > span:nth-child(2)::after { animation-delay: calc(.85 * var(--slide)); }
+.slide:nth-child(3), .slide:nth-child(3) img, .ticks > span:nth-child(3)::after { animation-delay: calc(1.85 * var(--slide)); }
+.slide:nth-child(4), .slide:nth-child(4) img, .ticks > span:nth-child(4)::after { animation-delay: calc(2.85 * var(--slide)); }
+.slide:nth-child(5), .slide:nth-child(5) img, .ticks > span:nth-child(5)::after { animation-delay: calc(3.85 * var(--slide)); }
+.carousel:hover .slide, .carousel:hover .frame img, .carousel:hover .ticks > span::after { animation-play-state: paused; }
+@keyframes slide { 0% { opacity: 0; } 3%, 20% { opacity: 1; } 23%, 100% { opacity: 0; } }
+@keyframes drift { 0% { transform: none; } 23%, 100% { transform: scale(1.03); } }
+@keyframes tick { 0% { transform: scaleX(0); } 21.5% { transform: scaleX(1); opacity: 1; } 23%, 100% { transform: scaleX(1); opacity: 0; } }
 .app-link { display: inline-flex; align-items: center; gap: 16px; padding: 12px 20px; border-radius: 8px; background: var(--foreground); color: var(--background); font-size: 14px; font-weight: 500; text-decoration: none; transition: background-color 140ms; }
 .app-link:hover { background: color-mix(in srgb, var(--foreground), var(--background) 15%); }
 .app-link > span { font-size: 18px; font-weight: 400; }
@@ -192,27 +208,28 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 
 @media (prefers-color-scheme: dark) {
   :root { --background: #1e1e1e; --foreground: #ededed; --muted: #a0a0a0; --line: #303030; --code-background: #2c2c2c; }
-  .shot { border-color: #3a3a3a; box-shadow: 0 24px 48px -16px rgb(0 0 0 / .6); }
+  .frame { border-color: #3a3a3a; box-shadow: 0 24px 48px -16px rgb(0 0 0 / .6); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .app-link, .documentation, .github, .plan-cta, .billing-switch label { transition: none; }
+  /* Without motion the slides stand in a row to swipe or scroll through. */
+  .slides { display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 32px; margin-bottom: -32px; }
+  .slide { flex: 0 0 100%; opacity: 1; scroll-snap-align: start; animation: none; }
+  .frame img { animation: none; }
+  .slide p { padding-right: 0; }
+  .ticks { display: none; }
 }
 
 @media (max-width: 1100px) {
   .page { padding-inline: 40px; }
   main { column-gap: 40px; }
   .values { column-gap: 24px; }
-  .shot-main { width: 100%; }
-  .shot-detail { left: -24px; }
 }
 
 @media (max-width: 900px) {
   main { grid-template-columns: minmax(0, 1fr); gap: 48px; padding-block: 56px 32px; }
   .values { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  /* The share hangs mostly below the Auswertung, over its navigation rather than the chart. */
-  .hero-shots { margin-bottom: 32%; }
-  .shot-detail { left: -12px; bottom: -62%; width: 52%; }
   .footer { align-items: flex-start; flex-direction: column; gap: 8px; }
   .faq-group { grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 40px; }
   .plans { grid-template-columns: minmax(0, 1fr); row-gap: 24px; }
@@ -229,6 +246,6 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
   .intro { font-size: 17px; margin-top: 22px; }
   .values { grid-template-columns: minmax(0, 1fr); }
   .plan { padding: 28px 24px; }
-  .shot { border-radius: 8px; }
-  .shot-detail { left: -8px; border-radius: 6px; }
+  .frame { border-radius: 8px; }
+  .slide p { margin-top: 14px; font-size: 14px; }
 }

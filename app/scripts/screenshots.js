@@ -47,13 +47,14 @@ async function waitForServer() {
 
 try {
 	await waitForServer();
-	const context = await browser.newContext({
+	/** @type {import('@playwright/test').BrowserContextOptions} */
+	const contextOptions = {
 		baseURL,
 		viewport: { width: 1280, height: 800 },
-		deviceScaleFactor: 2,
 		locale: 'de-DE',
 		colorScheme: 'light'
-	});
+	};
+	const context = await browser.newContext({ ...contextOptions, deviceScaleFactor: 2 });
 	const page = await context.newPage();
 
 	// The first visitor registers as the owner and loads the demo data into the empty account.
@@ -79,21 +80,75 @@ try {
 		);
 	}
 
+	// The homepage carousel: every slide has the same 1600 × 1000 pixels. A whole screen is the
+	// 1280 × 800 window; a detail is a region of the page around the given elements, enlarged to the
+	// same size. Each slide is taken in its own context, whose scale fits the region into the slide.
+	const slideWidth = 1600;
+	/**
+	 * @param {string} name @param {string} url
+	 * @param {string[]} [around] selectors of the elements a detail shows; none for the whole screen
+	 * @param {(page: import('@playwright/test').Page) => Promise<void>} [prepare]
+	 */
+	async function shootSlide(name, url, around = [], prepare = async () => {}) {
+		let region = { x: 0, y: 0, width: 1280, height: 800 };
+		if (around.length) {
+			await page.goto(url);
+			await prepare(page);
+			region = await page.evaluate(
+				({ around, ratio }) => {
+					const boxes = around.map((selector) => {
+						const element = document.querySelector(selector);
+						if (!element) throw new Error(`${selector} is missing.`);
+						return element.getBoundingClientRect();
+					});
+					const pad = 24;
+					const left = Math.min(...boxes.map((box) => box.left)) - pad;
+					const top = Math.min(...boxes.map((box) => box.top)) - pad + window.scrollY;
+					let width = Math.max(...boxes.map((box) => box.right)) + pad - left;
+					let height = Math.max(...boxes.map((box) => box.bottom)) + pad + window.scrollY - top;
+					// Widened or heightened to the slide's ratio around the same centre, in whole pixels.
+					if (width / height < ratio) width = height * ratio;
+					width = Math.ceil(width / 8) * 8;
+					height = (width * 5) / 8;
+					const x = (left + (Math.max(...boxes.map((box) => box.right)) + pad)) / 2 - width / 2;
+					return {
+						x: Math.round(x),
+						y: Math.round(top),
+						width: Math.round(width),
+						height: Math.round(height)
+					};
+				},
+				{ around, ratio: 1.6 }
+			);
+		}
+		const slideContext = await browser.newContext({
+			...contextOptions,
+			deviceScaleFactor: slideWidth / region.width,
+			storageState: await context.storageState()
+		});
+		const slidePage = await slideContext.newPage();
+		await slidePage.goto(url);
+		await prepare(slidePage);
+		await slidePage.evaluate((y) => window.scrollTo(0, y), region.y);
+		const scrolled = await slidePage.evaluate(() => window.scrollY);
+		const file = path.join(websiteOutput, `${name}.png`);
+		await slidePage.screenshot({ path: file, clip: { ...region, y: region.y - scrolled } });
+		await slideContext.close();
+		console.log(path.relative(path.resolve(import.meta.dirname, '../..'), file));
+	}
+
 	// The Auswertung of the largest property in the last full year: its tabs, the figures and the
 	// monthly chart in one frame. The page loses what would push the chart out of the frame: the
-	// heading, the filters, the smaller figures and the notes; the homepage frame is lower, so it
-	// also drops the chart legend.
+	// heading, the filters, the smaller figures and the notes.
 	const year = new Date().getFullYear() - 1;
 	await page.goto(`/auswertung?jahr=${year}`);
 	const property = await page
 		.locator('select[name="objekt"] option')
 		.filter({ hasText: 'Lindenstraße 12' })
 		.getAttribute('value');
-	/** @param {string} file @param {number} height @param {boolean} compact */
-	async function shootEvaluation(file, height, compact) {
-		await page.setViewportSize({ width: 1280, height });
-		await page.goto(`/auswertung?jahr=${year}&objekt=${property}`);
-		await page.evaluate((compact) => {
+	/** @param {import('@playwright/test').Page} page @param {number} top */
+	async function focusEvaluation(page, top) {
+		await page.evaluate((top) => {
 			/** @param {Element | null} element */
 			const hide = (element) => element instanceof HTMLElement && (element.style.display = 'none');
 			const tabs = /** @type {HTMLElement} */ (document.querySelector('nav.tabs'));
@@ -106,17 +161,48 @@ try {
 			hide(chart.querySelector('.readout'));
 			hide(chart.querySelector('details'));
 			for (const pill of tiles.querySelectorAll('.pill')) hide(pill);
-			if (compact) hide(chart.querySelector('.legend'));
-			tabs.style.marginBottom = compact ? '8px' : '16px';
-			tiles.style.marginBottom = compact ? '6px' : '8px';
-			window.scrollTo(0, tabs.getBoundingClientRect().top + window.scrollY - (compact ? 6 : 20));
-		}, compact);
-		await page.screenshot({ path: file });
-		console.log(path.relative(path.resolve(import.meta.dirname, '../..'), file));
+			tabs.style.marginBottom = '16px';
+			tiles.style.marginBottom = '8px';
+			window.scrollTo(0, tabs.getBoundingClientRect().top + window.scrollY - top);
+		}, top);
 	}
-	await shootEvaluation(path.join(output, 'auswertung.png'), 640, false);
-	await shootEvaluation(path.join(websiteOutput, 'auswertung.png'), 560, true);
+	await page.setViewportSize({ width: 1280, height: 640 });
+	await page.goto(`/auswertung?jahr=${year}&objekt=${property}`);
+	await focusEvaluation(page, 20);
+	await page.screenshot({ path: path.join(output, 'auswertung.png') });
+	console.log('assets/screenshots/auswertung.png');
 	await page.setViewportSize({ width: 1280, height: 800 });
+	await shootSlide('auswertung', `/auswertung?jahr=${year}&objekt=${property}`, [], (page) =>
+		focusEvaluation(page, 40)
+	);
+	// Return and cash flow of the same property: its figures and the waterfall from rent to cash flow.
+	await shootSlide(
+		'rendite',
+		`/auswertung/rendite?objekt=${property}`,
+		['main ul.tiles', 'main svg'],
+		async (page) => {
+			await page.locator('form.filters').evaluate((form) => {
+				if (form instanceof HTMLElement) form.style.visibility = 'hidden';
+			});
+		}
+	);
+	// A rent payment from a known IBAN, with the lease already suggested.
+	/** @param {string} selector @param {string} text */
+	const mark = (selector, text) => async (/** @type {import('@playwright/test').Page} */ page) => {
+		await page
+			.locator(selector)
+			.filter({ hasText: text })
+			.first()
+			.evaluate((element) => {
+				element.setAttribute('data-slide', '');
+			});
+	};
+	await shootSlide(
+		'bankumsaetze',
+		'/bank',
+		['[data-slide] .head', '[data-slide] button'],
+		mark('li.transaction', 'Anna Schmidt')
+	);
 
 	// The guides: the bank page while its suggestions are still open, then the setup pages.
 	await shoot('bankumsaetze', '/bank', docsOutput);
@@ -142,6 +228,7 @@ try {
 		await card.waitFor({ state: 'detached' });
 	}
 	await shoot('mietkonto', '/mietkonto');
+	await shootSlide('mietkonto', '/mietkonto');
 
 	await page.goto('/betriebskosten');
 	await page.getByRole('button', { name: 'Entwurf erstellen' }).click();
@@ -154,13 +241,13 @@ try {
 		window.scrollTo(0, section.getBoundingClientRect().top + window.scrollY - header - 24);
 	});
 	await shoot('abrechnung-mieter');
-	// The homepage shows the top of the share alone, in front of the Auswertung.
-	const box = await share.boundingBox();
-	if (!box) throw new Error('The share is not visible.');
-	await page.screenshot({
-		path: path.join(websiteOutput, 'abrechnung-mieter.png'),
-		clip: { x: box.x, y: box.y, width: box.width, height: 670 }
-	});
+	// The homepage shows the top of the share: the costs with their allocation keys.
+	await shootSlide(
+		'abrechnung-mieter',
+		page.url(),
+		['[data-slide] h3', '[data-slide] table tbody tr:nth-child(5)'],
+		mark('section.lease', 'Anna Schmidt')
+	);
 	await page.evaluate(() => window.scrollTo(0, 0));
 	await shoot('abrechnung-entwurf', undefined, docsOutput);
 } finally {
