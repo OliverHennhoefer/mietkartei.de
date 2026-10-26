@@ -7,7 +7,6 @@ import {
 	addDepositMovement,
 	deleteDepositMovement,
 	depositSummary,
-	instalmentDeadlines,
 	listDepositMovements,
 	signedDepositAmount
 } from './deposits';
@@ -203,69 +202,5 @@ describe('deleteDepositMovement', () => {
 		});
 		expect(await deleteDepositMovement(db, contextA, leaseId, id!)).toBe('missing');
 		expect(await listDepositMovements(db, 'a', otherLeaseId)).toHaveLength(1);
-	});
-});
-
-describe('instalmentDeadlines', () => {
-	it('puts the three instalments on the first three rent due dates', async () => {
-		// Third working days: Mon 6 Jan (Neujahr does not count), Wed 5 Feb, Wed 5 Mar 2025;
-		// 1.800 € / 3 = 600 € each.
-		expect(await instalmentDeadlines(db, 'a', leaseId)).toEqual([
-			{ dueDate: '2025-01-06', amount: 60000 },
-			{ dueDate: '2025-02-05', amount: 60000 },
-			{ dueDate: '2025-03-05', amount: 60000 }
-		]);
-	});
-
-	it('splits an odd deposit to the cent and ignores the ledger start', async () => {
-		const { unitId } = await seedUnit(db, 'a', { name: 'OG' });
-		const result = await createLease(
-			db,
-			contextA,
-			leaseInput(unitId, {
-				startDate: '2024-06-15',
-				ledgerStart: '2026-01-01',
-				securityDeposit: 100000
-			})
-		);
-		if (!result.ok) throw new Error('setup failed');
-		// Third working days: Wed 5 Jun, Wed 3 Jul, Mon 5 Aug 2024. The first instalment is due at
-		// the start of the tenancy (§ 551 Abs. 2 BGB), so 5 June becomes the start date, 15 June.
-		// 1.000,00 € over three: 333,34 + 333,33 + 333,33 (largest remainder, first index wins).
-		expect(await instalmentDeadlines(db, 'a', result.id)).toEqual([
-			{ dueDate: '2024-06-15', amount: 33334 },
-			{ dueDate: '2024-07-03', amount: 33333 },
-			{ dueDate: '2024-08-05', amount: 33333 }
-		]);
-	});
-
-	it('keeps three instalments when the lease ends in its first or second month', async () => {
-		// The tenant may pay in three equal monthly parts whatever the end date: 600 € each on the
-		// rent due days of January, February and March 2025.
-		const expected = [
-			{ dueDate: '2025-01-06', amount: 60000 },
-			{ dueDate: '2025-02-05', amount: 60000 },
-			{ dueDate: '2025-03-05', amount: 60000 }
-		];
-		for (const [name, endDate] of [
-			['EG', '2025-01-31'],
-			['OG', '2025-02-15']
-		]) {
-			const { unitId } = await seedUnit(db, 'a', { name });
-			const result = await createLease(db, contextA, leaseInput(unitId, { endDate }));
-			if (!result.ok) throw new Error('setup failed');
-			expect(await instalmentDeadlines(db, 'a', result.id)).toEqual(expected);
-		}
-	});
-
-	it('is empty for commercial leases, leases without a deposit and foreign leases', async () => {
-		const { unitId } = await seedUnit(db, 'a', { name: 'Laden' });
-		const commercial = await createLease(db, contextA, leaseInput(unitId, { kind: 'commercial' }));
-		const { unitId: other } = await seedUnit(db, 'a', { name: 'DG' });
-		const free = await createLease(db, contextA, leaseInput(other, { securityDeposit: 0 }));
-		if (!commercial.ok || !free.ok) throw new Error('setup failed');
-		expect(await instalmentDeadlines(db, 'a', commercial.id)).toEqual([]);
-		expect(await instalmentDeadlines(db, 'a', free.id)).toEqual([]);
-		expect(await instalmentDeadlines(db, 'a', foreignLeaseId)).toEqual([]);
 	});
 });

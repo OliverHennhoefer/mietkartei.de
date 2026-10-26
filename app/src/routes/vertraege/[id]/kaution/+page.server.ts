@@ -1,11 +1,11 @@
 import { error, fail } from '@sveltejs/kit';
 import { today } from '#lib/dates.ts';
+import { depositInstalments } from '#lib/domain/deposit.ts';
 import { parseDepositMovement } from '#lib/forms/deposits.ts';
 import {
 	addDepositMovement,
 	deleteDepositMovement,
 	depositSummary,
-	instalmentDeadlines,
 	listDepositMovements
 } from '#lib/server/deposits.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
@@ -21,7 +21,7 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 	// § 551 Abs. 2 BGB: the instalments are shown until the tenant has paid the deposit in.
 	const instalments =
 		summary.received < lease.securityDeposit
-			? await instalmentDeadlines(locals.db, accountId, lease.id)
+			? depositInstalments({ ...lease, state: lease.property.state })
 			: [];
 	return { movements, summary, instalments, today: today() };
 };

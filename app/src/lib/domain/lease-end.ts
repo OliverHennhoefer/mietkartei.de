@@ -10,6 +10,7 @@ import {
 	type IsoMonth
 } from '../dates';
 import type { LeaseKind, TerminatedBy } from '../server/db/schema';
+import { statementDeadline } from './statement';
 import { isPublicHoliday, isWorkingDay, type GermanState } from '../working-days';
 
 // The end of a lease after a notice (Kündigung), § 573c BGB for dwellings and § 580a BGB for
@@ -99,10 +100,9 @@ export type LeaseEndDeadlines = {
 
 /** What the landlord has to do once the end date is known. */
 export function leaseEndDeadlines(endDate: IsoDate): LeaseEndDeadlines {
-	const periodEnd = `${endDate.slice(0, 4)}-12-31`;
 	return {
 		readMeters: endDate,
 		settleDeposit: addMonths(endDate, 6),
-		operatingCostStatement: addMonths(periodEnd, 12)
+		operatingCostStatement: statementDeadline(`${endDate.slice(0, 4)}-12-31`)
 	};
 }
