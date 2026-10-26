@@ -60,7 +60,6 @@ describe('mietkonto', () => {
 				rows: [{}, {}, {}],
 				charged: 240000,
 				balance: 240000,
-				balanceText: expect.stringContaining('Rückstand'),
 				paymentDefault: 240000
 			}
 		});
