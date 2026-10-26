@@ -38,10 +38,16 @@
 	let open = $state(false);
 	let active = $state(0);
 	let input: HTMLInputElement;
+	let list = $state<HTMLUListElement>();
 
 	const byValue = $derived(new Map(options.map((option) => [option.value, option])));
 	const matches = $derived(matchOptions(options, chosen, query));
 	const activeIndex = $derived(Math.min(active, matches.length - 1));
+
+	// Keeps the active option visible when the arrow keys move past the visible rows.
+	$effect(() => {
+		list?.children[activeIndex]?.scrollIntoView({ block: 'nearest' });
+	});
 
 	function add(option: MultiSelectOption) {
 		chosen.push(option.value);
@@ -135,7 +141,7 @@
 		/>
 	</div>
 	{#if open}
-		<ul class="options" id={listId} role="listbox" aria-label={label}>
+		<ul bind:this={list} class="options" id={listId} role="listbox" aria-label={label}>
 			{#each matches as option, index (option.value)}
 				<!-- Options are picked with the arrow keys and Enter in the search field. -->
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
