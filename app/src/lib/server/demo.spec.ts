@@ -8,6 +8,7 @@ import {
 	auditLog,
 	co2CostSplits,
 	costItems,
+	depositTransactions,
 	leases,
 	operatingCostStatements,
 	paymentReminders,
@@ -19,6 +20,7 @@ import {
 	units
 } from './db/schema';
 import { createDemoData, isEmptyAccount } from './demo';
+import { addressKey } from './geocoding';
 import { listBalances } from './ledger';
 import { QUOTAS } from './quotas';
 import { contextA, contextB, seedUnit, testDatabase } from './testing';
@@ -33,7 +35,7 @@ describe('createDemoData', () => {
 	it('fills an empty account with properties, leases, history, letters and tasks', async () => {
 		expect(await isEmptyAccount(db, 'a')).toBe(true);
 		const result = await createDemoData(db, contextA);
-		expect(result).toEqual({ ok: true, leases: 6 });
+		expect(result).toEqual({ ok: true, leases: 10 });
 
 		const rows = async (
 			table: typeof properties | typeof units | typeof tenants | typeof leases | typeof tasks
@@ -44,24 +46,40 @@ describe('createDemoData', () => {
 			['condominium', 'BB'],
 			['condominium', 'BY']
 		]);
+		// Placed on the map without asking the geocoder.
+		for (const row of propertyRows) {
+			expect(row.latitude).toBeTypeOf('number');
+			expect(row.geocodedAddress).toBe(addressKey(row));
+		}
 		expect(await rows(units)).toHaveLength(6);
-		expect(await rows(tenants)).toHaveLength(7);
-		expect(await rows(leases)).toHaveLength(6);
+		// Every flat changed tenants in the history; the former tenants are archived with the
+		// address they moved to, their deposits paid back.
+		const tenantRows = await db.select().from(tenants).where(eq(tenants.accountId, 'a'));
+		expect(tenantRows).toHaveLength(12);
+		const former = tenantRows.filter((row) => row.archivedAt);
+		expect(former).toHaveLength(6);
+		expect(former.every((row) => row.city)).toBe(true);
+		const deposits = await db
+			.select()
+			.from(depositTransactions)
+			.where(eq(depositTransactions.accountId, 'a'));
+		expect(deposits.filter((row) => row.kind === 'returned')).toHaveLength(5);
+		expect(await rows(leases)).toHaveLength(10);
 		expect(await rows(tasks)).toHaveLength(4);
 		expect(await countUnmatched(db, 'a')).toBe(3);
 
-		// Every history year but the last is settled: three properties over four years, each
-		// statement approved; the WEG figures and the Zinsbescheinigungen cover all five years.
+		// Every history year but the last is settled: three properties over seven years, each
+		// statement approved; the WEG figures and the Zinsbescheinigungen cover all eight years.
 		const statements = await db
 			.select()
 			.from(operatingCostStatements)
 			.where(eq(operatingCostStatements.accountId, 'a'));
-		expect(statements).toHaveLength(12);
+		expect(statements).toHaveLength(21);
 		expect(statements.every((row) => row.status === 'approved')).toBe(true);
 		expect(
 			await db.select().from(associationStatements).where(eq(associationStatements.accountId, 'a'))
-		).toHaveLength(10);
-		expect(await db.select().from(taxYears).where(eq(taxYears.accountId, 'a'))).toHaveLength(15);
+		).toHaveLength(16);
+		expect(await db.select().from(taxYears).where(eq(taxYears.accountId, 'a'))).toHaveLength(24);
 		expect(
 			(await db.select().from(costItems).where(eq(costItems.accountId, 'a'))).length
 		).toBeGreaterThan(100);
@@ -100,7 +118,7 @@ describe('createDemoData', () => {
 		}
 
 		await db.run(sql`drop trigger refuse_tasks`);
-		expect(await createDemoData(db, contextA)).toEqual({ ok: true, leases: 6 });
+		expect(await createDemoData(db, contextA)).toEqual({ ok: true, leases: 10 });
 		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(4);
 	});
 
@@ -121,15 +139,15 @@ describe('createDemoData', () => {
 		}
 
 		await db.run(sql`drop trigger refuse_reminders`);
-		expect(await createDemoData(db, contextA)).toEqual({ ok: true, leases: 6 });
+		expect(await createDemoData(db, contextA)).toEqual({ ok: true, leases: 10 });
 	});
 
 	it('creates the demo once when the button is pressed twice at the same time', async () => {
 		const results = await Promise.all([createDemoData(db, contextA), createDemoData(db, contextA)]);
-		expect(results).toContainEqual({ ok: true, leases: 6 });
+		expect(results).toContainEqual({ ok: true, leases: 10 });
 		expect(results).toContainEqual({ ok: false, reason: 'not-empty' });
 		expect(await db.select().from(properties).where(eq(properties.accountId, 'a'))).toHaveLength(3);
-		expect(await db.select().from(leases).where(eq(leases.accountId, 'a'))).toHaveLength(6);
+		expect(await db.select().from(leases).where(eq(leases.accountId, 'a'))).toHaveLength(10);
 		const audit = await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'));
 		expect(audit.filter((entry) => entry.summary === 'Demodaten angelegt')).toHaveLength(1);
 	});

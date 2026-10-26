@@ -55,12 +55,19 @@ describe('deleteExpiredDemoAccounts', () => {
 	});
 
 	it('deletes at most five accounts at a time', async () => {
-		const sessions = [];
+		// Empty demo accounts: the limit does not depend on the demo data, which takes long to seed.
 		for (let index = 0; index < 7; index++) {
-			sessions.push(await validateSession(db, (await startDemo(db, { storage })).token));
-		}
-		for (const [index, session] of sessions.entries()) {
-			await ageAccount(session!.user.accountId, DEMO_LIFETIME * 2 + index * 1000);
+			const [account] = await db
+				.insert(accounts)
+				.values({ name: 'Demo' })
+				.returning({ id: accounts.id });
+			await db.insert(users).values({
+				accountId: account.id,
+				email: `demo-${crypto.randomUUID()}@demo.invalid`,
+				passwordHash: 'x',
+				name: 'Demo'
+			});
+			await ageAccount(account.id, DEMO_LIFETIME * 2 + index * 1000);
 		}
 		expect(await deleteExpiredDemoAccounts(db, Date.now(), { storage })).toBe(5);
 		expect(await deleteExpiredDemoAccounts(db, Date.now(), { storage })).toBe(2);
