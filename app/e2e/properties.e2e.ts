@@ -291,15 +291,36 @@ test('shows each property on a map and hides the maps in the settings', async ({
 		.toBe(480);
 	await expect(page.getByText('Straßenkarten: © OpenStreetMap-Mitwirkende')).toBeVisible();
 
+	// The large map is the interactive street map: tiles drawn by the server, the property as a
+	// dot named in its label, zoomable and leading to the property.
 	await tile.click();
 	const map = page.getByRole('dialog', { name: 'Deine Objekte auf der Karte' });
 	await expect(map).toBeVisible();
-	await expect(map.locator('.country')).toHaveCount(1);
-	await expect(map.getByRole('link', { name })).toBeVisible();
+	const tiles = map.locator('img.leaflet-tile-loaded');
+	await expect(tiles.first()).toHaveAttribute('src', /\/objekte\/karte\/\d+\/\d+\/\d+\?v=/);
+	const zoom = Number((await tiles.first().getAttribute('src'))!.split('/')[3]);
+	// Other tests' properties may share the postal code and the dot.
+	await expect(map.locator('.street-map-label')).toContainText(name);
+	await map.getByRole('button', { name: 'Verkleinern' }).click();
+	await expect(
+		map.locator(`img.leaflet-tile-loaded[src*="/karte/${zoom - 1}/"]`).first()
+	).toBeVisible();
 	await map.getByRole('button', { name: 'Ganz Deutschland' }).click();
 	await expect(map.getByRole('button', { name: 'Auf Objekte zoomen' })).toBeVisible();
 	await page.keyboard.press('Escape');
 	await expect(map).toHaveCount(0);
+	await tile.click();
+	// The dots are buttons for the keyboard too.
+	await map.locator('.street-map-dot.selected').focus();
+	await page.keyboard.press('Enter');
+	const figures = map.locator('.street-map-popup');
+	await expect(figures).toContainText('kein Leerstand');
+	await expect(figures).toContainText('Kaltmiete');
+	await expect(figures.getByRole('link').first()).toBeFocused();
+	await figures.getByRole('link', { name }).focus();
+	await page.keyboard.press('Enter');
+	await expect(page).toHaveURL(/\/objekte\/[\w-]+$/);
+	await expect(page.getByRole('heading', { name })).toBeVisible();
 
 	await page.goto('/einstellungen/darstellung');
 	const setting = page.getByLabel('Karte bei den Objekten zeigen');

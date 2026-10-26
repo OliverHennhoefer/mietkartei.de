@@ -7,7 +7,7 @@ import { zxyToTileId } from 'pmtiles';
 // directory, and tiles with lines and polygons.
 
 export type FixtureFeature = {
-	type: 'line' | 'polygon';
+	type: 'point' | 'line' | 'polygon';
 	properties: Record<string, string>;
 	/** Rings or lines in tile coordinates (0 … extent). */
 	geometry: [number, number][][];
@@ -42,7 +42,7 @@ export function encodeTile(layers: FixtureLayer[]): Uint8Array {
 						const points = feature.type === 'polygon' ? part.slice(0, -1) : part;
 						commands.push((1 & 7) | (1 << 3), zigzag(points[0][0] - x), zigzag(points[0][1] - y));
 						[x, y] = points[0];
-						commands.push((2 & 7) | ((points.length - 1) << 3));
+						if (points.length > 1) commands.push((2 & 7) | ((points.length - 1) << 3));
 						for (const [px, py] of points.slice(1)) {
 							commands.push(zigzag(px - x), zigzag(py - y));
 							[x, y] = [px, py];
@@ -53,7 +53,7 @@ export function encodeTile(layers: FixtureLayer[]): Uint8Array {
 						2,
 						(__: unknown, f: PbfWriter) => {
 							f.writePackedVarint(2, tags);
-							f.writeVarintField(3, feature.type === 'line' ? 2 : 3);
+							f.writeVarintField(3, { point: 1, line: 2, polygon: 3 }[feature.type]);
 							f.writePackedVarint(4, commands);
 						},
 						undefined
@@ -155,9 +155,13 @@ export function writeArchive(tiles: Record<string, Uint8Array>): Uint8Array {
 
 /**
  * A made-up quarter for one tile: a street grid with a main road, blocks of houses, a park and a
- * river, varied by the tile coordinates so neighbouring tiles differ.
+ * river, varied by the tile coordinates so neighbouring tiles differ, and the place it names.
  */
-export function fixtureQuarter(x: number, y: number): FixtureLayer[] {
+export function fixtureQuarter(
+	x: number,
+	y: number,
+	place?: { name: string; at: [number, number] }
+): FixtureLayer[] {
 	const random = (() => {
 		let seed = (x * 73856093) ^ (y * 19349663);
 		return () => {
@@ -260,6 +264,18 @@ export function fixtureQuarter(x: number, y: number): FixtureLayer[] {
 			]
 		},
 		{ name: 'roads', features: roads },
-		{ name: 'buildings', features: buildings }
+		{ name: 'buildings', features: buildings },
+		{
+			name: 'places',
+			features: place
+				? [
+						{
+							type: 'point',
+							properties: { kind: 'locality', name: place.name, population_rank: '11' },
+							geometry: [[place.at]]
+						}
+					]
+				: []
+		}
 	];
 }

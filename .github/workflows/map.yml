@@ -4,8 +4,8 @@ name: Map
 # mietkartei-map: an extract of the OpenStreetMap basemap that Protomaps builds every day, as a
 # PMTiles archive in parts of 250 MiB (wrangler uploads no larger object), with map/manifest.json
 # naming them (see app/src/lib/server/map/tiles.ts). The app reads the manifest again every ten
-# minutes. The parts of the version before stay for the instances that still read it; older ones
-# are deleted. Runs once a month and by hand.
+# minutes; a quarter of an hour after the switch the parts of the version before are deleted, so
+# the bucket holds one map. Runs once a month and by hand.
 
 "on":
   schedule:
@@ -110,37 +110,28 @@ jobs:
               --content-type application/octet-stream --remote --jurisdiction eu
           done
 
-      # The new manifest goes up last, so the app never names parts that are not there yet.
+      # The new manifest goes up last, so the app never names parts that are not there yet. The
+      # parts of the version before are deleted once every instance has read the new manifest,
+      # which the app does every ten minutes.
       - name: Switch to the new map
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           VERSION: ${{ steps.build.outputs.version }}
         run: |
-          get() {
-            npx wrangler r2 object get "$BUCKET/$1" --pipe --remote --jurisdiction eu 2> /dev/null || true
-          }
-          put() {
-            npx wrangler r2 object put "$BUCKET/$1" --file "$2" --content-type application/json \
-              --remote --jurisdiction eu
-          }
-          get map/manifest.json > "$RUNNER_TEMP/current.json"
-          get map/previous.json > "$RUNNER_TEMP/previous.json"
-          put map/manifest.json "$RUNNER_TEMP/manifest.json"
-          parts() {
-            node -e '
-              const text = require("fs").readFileSync(process.argv[1], "utf8").trim();
-              if (text.startsWith("{")) for (const part of JSON.parse(text).parts) console.log(part);
-            ' "$1"
-          }
-          current=$(node -e 'try { console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).version) } catch {}' "$RUNNER_TEMP/current.json")
-          if [ -n "$current" ] && [ "$current" != "$VERSION" ]; then
-            put map/previous.json "$RUNNER_TEMP/current.json"
-            # Parts of the version before last, unless the new map reuses its name.
-            for part in $(parts "$RUNNER_TEMP/previous.json"); do
-              case "$part" in
-                "map/$VERSION/"*|"map/$current/"*) ;;
-                *) npx wrangler r2 object delete "$BUCKET/$part" --remote --jurisdiction eu || true ;;
-              esac
+          npx wrangler r2 object get "$BUCKET/map/manifest.json" --pipe --remote --jurisdiction eu \
+            > "$RUNNER_TEMP/current.json" 2> /dev/null || true
+          npx wrangler r2 object put "$BUCKET/map/manifest.json" --file "$RUNNER_TEMP/manifest.json" \
+            --content-type application/json --remote --jurisdiction eu
+          old=$(node -e '
+            try {
+              const { version, parts } = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+              if (version !== process.argv[2]) for (const part of parts) console.log(part);
+            } catch {}
+          ' "$RUNNER_TEMP/current.json" "$VERSION")
+          if [ -n "$old" ]; then
+            sleep 900
+            for part in $old; do
+              npx wrangler r2 object delete "$BUCKET/$part" --remote --jurisdiction eu || true
             done
           fi
