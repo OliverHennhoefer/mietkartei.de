@@ -77,7 +77,7 @@ Der Testserver startet mit `E2E=true`. Damit ist der Endpunkt `/api/e2e/seed` ak
 
 ## Bildschirmfotos der README
 
-`npm run build && npm run screenshots` erneuert die Bildschirmfotos in `assets/screenshots/`. Das Skript startet den Produktions-Build mit einer leeren Datenbank auf Port 4180, legt ein Konto mit den Demodaten an und fotografiert Übersicht, Mietkonto und den Anteil eines Mieters in der Betriebskostenabrechnung. Erneuere sie, wenn sich diese Seiten sichtbar ändern.
+`npm run build && npm run screenshots` erneuert die Bildschirmfotos der README (`assets/screenshots/`), der Startseite (`website/assets/screenshots/`) und der Anleitungen (`docs/assets/screenshots/`). Das Skript startet den Produktions-Build mit einer leeren Datenbank auf Port 4180, legt ein Konto mit den Demodaten an und fotografiert unter anderem Auswertung, Mietkonto, Bankumsätze und den Anteil eines Mieters in der Betriebskostenabrechnung. Erneuere sie, wenn sich diese Seiten sichtbar ändern.
 
 `npm run social-images` erzeugt danach die Vorschaubilder für geteilte Links neu: `website/assets/social.png` (1200×630, für Startseite, Ratgeber, Dokumentation und App) und `assets/social-preview.png` (1280×640, das Vorschaubild des Repositorys, das unter _Settings → General → Social preview_ von Hand hochgeladen wird). Erhöhe nach einer sichtbaren Änderung den Parameter `?v=` an der Bildadresse in den Meta-Tags, damit Messenger und soziale Netzwerke das neue Bild laden.
 
