@@ -117,7 +117,7 @@ describe('mieter', () => {
 		const { unitId } = await seedUnit(db, 'a');
 		const leaseId = await seedLease(db, 'a', unitId, { tenantIds: [tenantId] });
 		expect(await run(loadTenant, { params: { id: tenantId } })).toMatchObject({
-			data: { leases: [{ id: leaseId, active: true }] }
+			data: { dossier: { leases: [{ id: leaseId, active: true }] } }
 		});
 		expect(await run(tenantActions.delete, { params: { id: tenantId }, form: {} })).toMatchObject({
 			fail: 400,

@@ -64,6 +64,9 @@ test('keeps a tenant on a lease and names the lease instead of offering to delet
 	await expect(leases.getByRole('listitem')).toHaveCount(1);
 	await expect(leases).toContainText('seit 01.01.2025');
 	await expect(leases).toContainText('Aktiv');
+	await expect(page.getByText('Warmmiete im Monat')).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Finanzen' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Verlauf' })).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Dokumente dieses Mieters' })).toHaveAttribute(
 		'href',
 		`/dokumente?tenantId=${tenantId}`
