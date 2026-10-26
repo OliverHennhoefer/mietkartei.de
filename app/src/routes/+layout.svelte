@@ -57,7 +57,6 @@
 		{
 			label: 'Alltag',
 			sections: [
-				{ href: '/', label: 'Übersicht', icon: 'home' },
 				{ href: '/aufgaben', label: 'Aufgaben', icon: 'check' },
 				{ href: '/auswertung', label: 'Auswertung', icon: 'trend' }
 			]
@@ -83,7 +82,6 @@
 
 	function current(href: string): 'page' | undefined {
 		const path = page.url.pathname;
-		if (href === '/') return path === href ? 'page' : undefined;
 		return path === href || path.startsWith(`${href}/`) ? 'page' : undefined;
 	}
 
@@ -157,8 +155,8 @@
 		};
 	});
 
-	const home = $derived(page.url.pathname === '/');
-	// The subscription notice stays on the Übersicht, unless writes are refused.
+	const home = $derived(page.url.pathname === '/aufgaben');
+	// The subscription notice stays on the start page (Aufgaben), unless writes are refused.
 	const notice = $derived(
 		data.notice && (home || data.notice.tone === 'danger') ? data.notice : undefined
 	);
@@ -395,7 +393,7 @@
 				</a>
 			{/if}
 			{#if notices}
-				<!-- The Übersicht carries the notes; a refused write is named above every page. -->
+				<!-- The start page carries the notes; a refused write is named above every page. -->
 				<div class="page-notices">
 					{#if data.demo && home}
 						<p class="billing-notice info" role="note">

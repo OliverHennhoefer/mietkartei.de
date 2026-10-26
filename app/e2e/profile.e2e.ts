@@ -150,7 +150,7 @@ test('changes the name, the password and the address, which sign out the other b
 	await otherPage.getByLabel('E-Mail-Adresse').fill(user.email);
 	await otherPage.getByLabel('Passwort').fill(user.newPassword);
 	await otherPage.getByRole('button', { name: 'Anmelden' }).click();
-	await expect(otherPage).toHaveURL(/\/$/);
+	await expect(otherPage).toHaveURL(/\/aufgaben$/);
 
 	// A new address counts only once the link mailed to it is used; the old address is told.
 	const newEmail = `neu-${user.email}`;

@@ -1,4 +1,4 @@
-import { and, asc, count, eq, notExists, sql } from 'drizzle-orm';
+import { and, asc, eq, notExists, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { addMonths, formatDate, today as todayInBerlin, type IsoDate } from '../dates';
 import { auditEntry, type AuditContext } from './audit';
@@ -87,15 +87,6 @@ export async function listTasks(
 		.filter((task) => task.done)
 		.sort((a, b) => (b.doneAt?.getTime() ?? 0) - (a.doneAt?.getTime() ?? 0));
 	return { open, done };
-}
-
-/** The number of open tasks, for the dashboard tile. */
-export async function countOpenTasks(db: Database, accountId: string): Promise<number> {
-	const [row] = await db
-		.select({ value: count() })
-		.from(tasks)
-		.where(and(eq(tasks.accountId, accountId), eq(tasks.done, false)));
-	return row?.value ?? 0;
 }
 
 export async function getTask(

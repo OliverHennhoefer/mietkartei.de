@@ -19,7 +19,7 @@ mietkartei ist die Hausverwaltung von Vermietern für Vermieter: Mieten, Bankums
 
 ## Erste Schritte in der Anwendung
 
-Nach der Anmeldung führt dich die Übersicht durch die ersten Schritte: Objekt und Einheiten anlegen, Mieter erfassen, Mietvertrag mit Miete und Kaution anlegen, Bankverbindung hinzufügen und Kostenarten prüfen. Hast du deine Daten schon in einer Tabelle, übernimmt die Datenübernahme sie per CSV.
+Nach der Anmeldung führt dich die Startseite Aufgaben durch die ersten Schritte: Objekt und Einheiten anlegen, Mieter erfassen, Mietvertrag mit Miete und Kaution anlegen, Bankverbindung hinzufügen und Kostenarten prüfen. Hast du deine Daten schon in einer Tabelle, übernimmt die Datenübernahme sie per CSV.
 
 ## Anleitungen
 

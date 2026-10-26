@@ -1,13 +1,39 @@
 import { fail } from '@sveltejs/kit';
+import { count, eq } from 'drizzle-orm';
 import { addMonths, today } from '#lib/dates.ts';
 import { parseTask } from '#lib/forms/tasks.ts';
+import { listBankAccounts } from '#lib/server/bank/accounts.ts';
+import { countUnmatched } from '#lib/server/bank/transactions.ts';
+import { costCategories } from '#lib/server/db/schema.ts';
 import { listDeadlines } from '#lib/server/deadlines.ts';
-import { leaseLabel, listLeases } from '#lib/server/leases.ts';
+import { leaseLabel, listLeases, listUnitsWithProperty } from '#lib/server/leases.ts';
+import { listBalances } from '#lib/server/ledger.ts';
 import { listProperties } from '#lib/server/properties.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { createTask, deleteTask, listTasks, setDone } from '#lib/server/tasks.ts';
+import { listTenants } from '#lib/server/tenants.ts';
 import { taskTemplates } from '#lib/task-templates.ts';
 import type { Actions, PageServerLoad } from './$types';
+
+// The start page: the first-run checklist until the account has a lease and a bank account, what
+// needs doing outside the deadlines (arrears, unmatched bank transactions, vacant units), the
+// deadlines and the user's own tasks. listBalances syncs the rent charges first, so the arrears are
+// current when the page opens (the same as /mietkonto does).
+
+export type FirstRun = {
+	properties: boolean;
+	units: boolean;
+	tenants: boolean;
+	leases: boolean;
+	bankAccounts: boolean;
+	/**
+	 * The default cost categories are created when a Betriebskosten page is first opened, or with
+	 * the demo data.
+	 */
+	categories: boolean;
+	/** Where "Einheit anlegen" leads: the first property's page, which has the unit form. */
+	firstPropertyId: string | null;
+};
 
 const linkErrors = {
 	'unknown-property': 'Dieses Objekt gibt es nicht.',
@@ -20,14 +46,65 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// ?vorlage=<key> fills the create form from a template.
 	const template = taskTemplates.find((entry) => entry.key === url.searchParams.get('vorlage'));
 	const date = today();
-	const [deadlines, tasks, properties, leases] = await Promise.all([
+	const [
+		deadlines,
+		tasks,
+		properties,
+		leases,
+		tenants,
+		units,
+		balances,
+		unmatched,
+		bankAccounts,
+		[categories]
+	] = await Promise.all([
 		listDeadlines(locals.db, accountId, { to: addMonths(date, 12) }),
 		listTasks(locals.db, accountId),
-		listProperties(locals.db, accountId),
-		listLeases(locals.db, accountId)
+		listProperties(locals.db, accountId, { archived: true }),
+		listLeases(locals.db, accountId),
+		listTenants(locals.db, accountId, { archived: true }),
+		listUnitsWithProperty(locals.db, accountId, { archived: true }),
+		listBalances(locals.db, accountId),
+		countUnmatched(locals.db, accountId),
+		listBankAccounts(locals.db, accountId),
+		locals.db
+			.select({ value: count() })
+			.from(costCategories)
+			.where(eq(costCategories.accountId, accountId))
 	]);
+
+	// Rückstand is what is overdue today, not this month's rent before its due day.
+	const arrears = balances.filter((balance) => balance.overdue > 0);
+	const occupied = new Set(
+		leases
+			.filter((lease) => lease.active)
+			.flatMap((lease) => [lease.unitId, ...lease.extraUnits.map((unit) => unit.id)])
+	);
+	// Archived properties (sold) count for the first steps, but not as vacancy.
+	const vacant = units.filter((row) => !row.property.archivedAt && !occupied.has(row.unit.id));
+	const firstRun: FirstRun = {
+		properties: properties.length > 0,
+		units: units.length > 0,
+		tenants: tenants.length > 0,
+		leases: leases.length > 0,
+		bankAccounts: bankAccounts.length > 0,
+		categories: categories.value > 0,
+		firstPropertyId: properties[0]?.id ?? null
+	};
 	return {
 		today: date,
+		firstRun: firstRun.leases && firstRun.bankAccounts ? null : firstRun,
+		attention: {
+			arrearsTotal: arrears.reduce((sum, balance) => sum + balance.overdue, 0),
+			arrearsCount: arrears.length,
+			unmatched,
+			vacantCount: vacant.length,
+			vacant: vacant.slice(0, 5).map((row) => ({
+				unitId: row.unit.id,
+				propertyId: row.property.id,
+				label: `${row.unit.name} · ${row.property.name}`
+			}))
+		},
 		template: template
 			? {
 					key: template.key,
@@ -40,7 +117,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		deadlines,
 		open: tasks.open,
 		done: tasks.done,
-		properties: properties.map((property) => ({ id: property.id, name: property.name })),
+		properties: properties
+			.filter((property) => !property.archivedAt)
+			.map((property) => ({ id: property.id, name: property.name })),
 		leases: leases.map((lease) => ({
 			id: lease.id,
 			label: leaseLabel(lease),

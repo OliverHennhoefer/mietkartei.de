@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { countDeadlines, listDeadlines, type Deadline } from './deadlines';
+import { listDeadlines, type Deadline } from './deadlines';
 import type { Database } from './db';
 import {
 	co2CostSplits,
@@ -615,7 +615,7 @@ describe('Versicherungen', () => {
 	});
 });
 
-describe('listDeadlines and countDeadlines', () => {
+describe('listDeadlines', () => {
 	it('sorts by date, keeps overdue rows whatever `from` says and cuts at `to`', async () => {
 		await lease('a', { endDate: '2027-03-31' });
 		const all = await list();
@@ -639,18 +639,11 @@ describe('listDeadlines and countDeadlines', () => {
 			['lease_end', '2027-03-31']
 			// The deposit return on 30.09.2027 lies after `to`.
 		]);
-
-		expect(await countDeadlines(db, 'a', { today: TODAY })).toEqual({ overdue: 3, upcoming: 3 });
-		expect(await countDeadlines(db, 'a', { today: TODAY, months: 1 })).toEqual({
-			overdue: 3,
-			upcoming: 0
-		});
 	});
 
 	it('does not leak into another account', async () => {
 		await lease('b', { endDate: '2026-12-31' });
 		expect(await list()).toEqual([]);
-		expect(await countDeadlines(db, 'a', { today: TODAY })).toEqual({ overdue: 0, upcoming: 0 });
 		expect((await listDeadlines(db, 'b', { today: TODAY })).length).toBeGreaterThan(0);
 	});
 });

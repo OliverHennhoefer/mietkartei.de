@@ -55,7 +55,7 @@ test('the owner invites a manager, who registers through the link', async ({
 	await invitee.locator('input[name="password"]').fill(manager.password);
 	await invitee.locator('input[name="passwordConfirm"]').fill(manager.password);
 	await invitee.getByRole('button', { name: 'Konto anlegen' }).click();
-	await expect(invitee).toHaveURL(/\/$/);
+	await expect(invitee).toHaveURL(/\/aufgaben$/);
 	await expect(invitee.getByRole('button', { name: 'Konto' })).toContainText('Max Mitverwalter');
 
 	// A manager works in the owner's account but does not manage invitations.

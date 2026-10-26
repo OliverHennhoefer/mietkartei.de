@@ -201,17 +201,17 @@ test('fills a fresh account with demo data and resets it to factory settings', a
 		await page.getByLabel('Passwort').fill(owner.password);
 	}
 	await page.getByRole('button', { name: 'Konto anlegen' }).click();
-	await expect(page).toHaveURL(/\/$/);
+	await expect(page).toHaveURL(/\/aufgaben$/);
 
 	const firstRun = page.getByRole('region', { name: 'Erste Schritte' });
 	await firstRun.getByRole('link', { name: 'Demodaten' }).click();
 	await expect(page).toHaveURL(/\/einstellungen\/konto$/);
 	await page.getByRole('button', { name: 'Demodaten anlegen' }).click();
-	await expect(page).toHaveURL(/\/$/);
+	await expect(page).toHaveURL(/\/aufgaben$/);
 	await expect(firstRun).toHaveCount(0);
-	const tiles = page.getByRole('list', { name: 'Kennzahlen' }).getByRole('listitem');
-	await expect(tiles.nth(1).locator('.value')).not.toHaveText('0,00 €');
-	await expect(tiles.nth(3).locator('.value')).toHaveText('3');
+	const attention = page.getByRole('list', { name: 'Handlungsbedarf' });
+	await expect(attention).toContainText('Rückstände bei');
+	await expect(attention).toContainText('3 offene Bankumsätze zuordnen');
 
 	await page.goto('/objekte');
 	await expect(page.getByText('Lindenstraße 12').first()).toBeVisible();
@@ -231,7 +231,7 @@ test('fills a fresh account with demo data and resets it to factory settings', a
 	await reset.getByLabel('Tippe ZURÜCKSETZEN zur Bestätigung').fill('ZURÜCKSETZEN');
 	await reset.getByLabel('Passwort').fill(owner.password);
 	await reset.getByRole('button', { name: 'Alle Daten löschen' }).click();
-	await expect(page).toHaveURL(/\/$/);
+	await expect(page).toHaveURL(/\/aufgaben$/);
 	await expect(page.getByRole('region', { name: 'Erste Schritte' })).toBeVisible();
 
 	await page.goto('/objekte');
@@ -255,7 +255,7 @@ test('restores the export of the deleted account into the empty account', async 
 	await page.getByLabel('E-Mail-Adresse').fill(owner.email);
 	await page.getByLabel('Passwort').fill(owner.password);
 	await page.getByRole('button', { name: 'Anmelden' }).click();
-	await expect(page).toHaveURL(/\/$/);
+	await expect(page).toHaveURL(/\/aufgaben$/);
 	await page.goto('/einstellungen/export');
 	const restore = page.getByRole('region', { name: 'Export einspielen' });
 	await restore.getByLabel('Exportdatei (ZIP)').setInputFiles(exportFile);

@@ -15,9 +15,10 @@ import {
 import { GET as health } from './health/+server';
 import { actions as balanceActions, load as loadBalances } from './mietkonto/+page.server';
 import { load as loadLayout } from './+layout.server';
+import { load as loadTasks } from './aufgaben/+page.server';
 import { load } from './+page.server';
 
-// The dashboard, the root layout, the balances of all leases and the health check.
+// The start page, the root layout, the balances of all leases and the health check.
 
 const env = vi.hoisted(() => ({
 	DEMO: false,
@@ -47,9 +48,13 @@ function run(handler: (event: never) => unknown, options: Parameters<typeof rout
 	return outcome(() => handler(routeEvent(db, options)));
 }
 
-describe('dashboard', () => {
+describe('start page', () => {
+	it('leads to Aufgaben', async () => {
+		expect(await run(load)).toMatchObject({ redirect: '/aufgaben' });
+	});
+
 	it('shows the first-run checklist until there is a lease and a bank account', async () => {
-		expect(await run(load)).toMatchObject({
+		expect(await run(loadTasks)).toMatchObject({
 			data: {
 				firstRun: {
 					properties: false,
@@ -62,7 +67,7 @@ describe('dashboard', () => {
 		});
 		const { propertyId, unitId } = await seedUnit(db, 'a');
 		await seedLease(db, 'a', unitId);
-		expect(await run(load)).toMatchObject({
+		expect(await run(loadTasks)).toMatchObject({
 			data: {
 				firstRun: {
 					properties: true,
@@ -78,7 +83,7 @@ describe('dashboard', () => {
 			bic: null,
 			holder: 'Oliver'
 		});
-		expect(await run(load)).toMatchObject({ data: { firstRun: null } });
+		expect(await run(loadTasks)).toMatchObject({ data: { firstRun: null } });
 	});
 
 	it('counts arrears, vacant units and the account’s own data only', async () => {
@@ -87,17 +92,15 @@ describe('dashboard', () => {
 		await seedLease(db, 'a', unitId, { startDate: '2026-01-01' });
 		const other = await seedUnit(db, 'b');
 		await seedLease(db, 'b', other.unitId);
-		expect(await run(load)).toMatchObject({
+		expect(await run(loadTasks)).toMatchObject({
 			data: {
-				tiles: {
-					propertyCount: 2,
-					activeLeaseCount: 1,
+				attention: {
 					arrearsTotal: 240000,
 					arrearsCount: 1,
+					unmatched: 0,
 					vacantCount: 1,
-					unitCount: 2
-				},
-				vacant: [{ label: 'Leer · Zweites' }]
+					vacant: [{ label: 'Leer · Zweites' }]
+				}
 			}
 		});
 	});

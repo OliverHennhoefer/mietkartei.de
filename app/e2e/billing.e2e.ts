@@ -55,7 +55,7 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	page,
 	baseURL
 }) => {
-	// A fresh account is in its 30-day trial: the page and the notice on the Übersicht say so.
+	// A fresh account is in its 30-day trial: the page and the notice on the start page say so.
 	// The settings and the notice lead to the page.
 	await page.goto('/einstellungen');
 	await page
@@ -67,7 +67,7 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 		page.getByRole('navigation', { name: 'Einstellungen' }).getByRole('link', { name: 'Abo' })
 	).toHaveAttribute('aria-current', 'page');
 	await page.getByRole('button', { name: 'Einstellungen schließen' }).click();
-	await expect(page).toHaveURL(/\/$/);
+	await expect(page).toHaveURL(/\/aufgaben$/);
 	const notice = page.getByRole('note').filter({ hasText: 'Deine Testphase endet am' });
 	await expect(notice).toBeVisible();
 	await expect(notice.getByRole('link', { name: 'Zum Abo' })).toHaveAttribute('href', '/abo');
@@ -147,7 +147,7 @@ test('shows the trial, subscribes through Checkout and follows the webhooks', as
 	await expect(page.getByText('15.01.2030')).toBeVisible();
 	await expect(page.getByRole('note').filter({ hasText: 'Testphase' })).toHaveCount(0);
 
-	// A failed payment shows a warning on the Übersicht … (the app reads the status back from
+	// A failed payment shows a warning on the start page … (the app reads the status back from
 	// the API, so the fake's subscription changes first, as Stripe's would)
 	subscription.status = 'past_due';
 	const failed = await postEvent(page.request, {

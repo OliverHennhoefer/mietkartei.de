@@ -13,6 +13,13 @@
 	let search = $state('');
 	/** The property whose map tile opened the large map; undefined while it is closed. */
 	let mapFor = $state<string>();
+	// The stock in one line: the current properties, their units, the running leases and vacancy.
+	const lead = $derived.by(() => {
+		if (data.properties.length === 0) return 'Gebäude, Einheiten und Vermietung im Überblick.';
+		const sum = (key: 'unitCount' | 'activeLeases' | 'vacantUnits') =>
+			data.properties.reduce((total, property) => total + property[key], 0);
+		return `${pluralize(data.properties.length, 'Objekt', 'Objekte')} mit ${pluralize(sum('unitCount'), 'Einheit', 'Einheiten')}, ${pluralize(sum('activeLeases'), 'laufender Mietvertrag', 'laufende Mietverträge')}, ${sum('vacantUnits')} leer.`;
+	});
 	const filteredProperties = $derived(
 		data.properties.filter((property) =>
 			[property.name, property.street, property.postalCode, property.city]
@@ -23,7 +30,7 @@
 	);
 </script>
 
-<PageHeader title="Objekte" lead="Gebäude, Einheiten und Vermietung im Überblick.">
+<PageHeader title="Objekte" {lead}>
 	{#snippet actions()}
 		<a class="button" href="/objekte/neu"><Icon name="plus" size={16} />Objekt anlegen</a>
 	{/snippet}

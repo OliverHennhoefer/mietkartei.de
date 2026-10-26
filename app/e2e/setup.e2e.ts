@@ -23,7 +23,7 @@ test('the first visitor registers and becomes the owner', async ({ page, request
 		await page.locator('input[name="password"]').fill(owner.password);
 		await page.locator('input[name="passwordConfirm"]').fill(owner.password);
 		await page.getByRole('button', { name: 'Konto anlegen' }).click();
-		await expect(page).toHaveURL(/\/$/);
+		await expect(page).toHaveURL(/\/aufgaben$/);
 		// The link is used up (asked signed out: a signed-in visit is sent to the start page).
 		expect((await request.get(link)).status()).toBe(404);
 	} else {
@@ -31,13 +31,12 @@ test('the first visitor registers and becomes the owner', async ({ page, request
 		await page.getByRole('button', { name: 'Konto anlegen' }).click();
 	}
 
-	await expect(page).toHaveURL(/\/$/);
+	await expect(page).toHaveURL(/\/aufgaben$/);
 	await expect(page.getByRole('button', { name: 'Konto' })).toContainText(owner.email);
 
-	// The empty account gets the first steps instead of the tiles, each linked to its form.
+	// The empty account gets the first steps, each linked to its form.
 	const steps = page.getByRole('region', { name: 'Erste Schritte' });
 	await expect(steps).toContainText('Dein Bestand ist noch leer.');
-	await expect(page.getByRole('list', { name: 'Kennzahlen' })).toHaveCount(0);
 	for (const [name, href] of [
 		['Objekt anlegen', '/objekte/neu'],
 		['Einheit anlegen', '/objekte/neu'],
@@ -78,7 +77,6 @@ test('the first visitor registers and becomes the owner', async ({ page, request
 		{ name: 'Erstes Haus', street: 'Anfangsweg 1', postalCode: '10115', city: 'Berlin' }
 	]);
 	await page.reload();
-	await expect(page.getByRole('list', { name: 'Kennzahlen' })).toHaveCount(0);
 	const items = steps.locator('ol > li');
 	await expect(items.nth(0)).toContainText('erledigt');
 	await expect(items.nth(1)).not.toContainText('erledigt');
