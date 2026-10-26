@@ -554,19 +554,20 @@ function overdueSince(
  * The balance of every lease of the account, largest balance first. Charges are synced up to
  * `untilMonth` (default: the current month) before the sums are taken; `asOf` (default: today)
  * decides which charges are due and which payments are made for `overdue`, `openSince` and
- * `lastPaymentDate`.
+ * `lastPaymentDate`. `leaseIds` narrows it to those leases (the tenant page).
  */
 export async function listBalances(
 	db: Database,
 	accountId: string,
-	options: { untilMonth?: IsoMonth; asOf?: IsoDate } = {}
+	options: { untilMonth?: IsoMonth; asOf?: IsoDate; leaseIds?: readonly string[] } = {}
 ): Promise<LeaseBalance[]> {
 	const asOf = options.asOf ?? today();
 	const leaseRows = await db
 		.select({ id: leases.id })
 		.from(leases)
 		.where(eq(leases.accountId, accountId));
-	const leaseIds = leaseRows.map((row) => row.id);
+	const only = options.leaseIds && new Set(options.leaseIds);
+	const leaseIds = leaseRows.map((row) => row.id).filter((id) => !only || only.has(id));
 	await ensureCharges(db, accountId, leaseIds, options.untilMonth);
 
 	const [chargeRows, paymentRows] = await Promise.all([
