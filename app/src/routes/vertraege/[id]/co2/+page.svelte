@@ -69,7 +69,7 @@
 	}
 </script>
 
-<h2>CO₂-Kostenaufteilung</h2>
+<h2 class="visually-hidden">CO₂-Kostenaufteilung</h2>
 <p>
 	Diese Seite ist für Mietverträge, bei denen der Mieter den Brennstoff selbst einkauft, etwa bei
 	einer Gasetagenheizung (§ 6 CO2KostAufG). Der Mieter legt dir die Rechnung seines Versorgers vor,
@@ -239,14 +239,3 @@
 		</table>
 	</div>
 {/if}
-
-<style>
-	.visually-hidden {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip: rect(0 0 0 0);
-		white-space: nowrap;
-	}
-</style>

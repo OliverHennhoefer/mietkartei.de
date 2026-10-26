@@ -54,7 +54,7 @@
 </script>
 
 <!-- The heading and tab bar come from +layout.svelte; this page is the "Mietkonto" tab. -->
-<h2>Mietkonto</h2>
+<h2 class="visually-hidden">Mietkonto</h2>
 
 <div class="toolbar">
 	<form method="GET" class="row" aria-label="Zeitraum">
