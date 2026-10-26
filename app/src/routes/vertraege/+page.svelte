@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Badge from '#lib/components/Badge.svelte';
+	import LeaseStatus from '#lib/components/LeaseStatus.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
@@ -58,13 +58,7 @@
 						</td>
 						<td class="num"><Money cents={lease.total} /></td>
 						<td>
-							{#if lease.status === 'active'}
-								<Badge tone="success">Aktiv</Badge>
-							{:else if lease.status === 'upcoming'}
-								<Badge tone="info">Beginnt später</Badge>
-							{:else}
-								<Badge>Beendet</Badge>
-							{/if}
+							<LeaseStatus status={lease.status} />
 						</td>
 					</tr>
 				{/each}

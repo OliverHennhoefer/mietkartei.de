@@ -231,7 +231,7 @@ test('writes a Zahlungserinnerung, suggests a Mahnung next and lists it with the
 	await page.reload();
 	await expect(form.getByLabel('Art des Schreibens')).toHaveValue('2');
 	await page.goto('/mietkonto?filter=rueckstaende');
-	await expect(row).toContainText('Zahlungserinnerung vom');
+	await expect(row).toContainText(/Erinnerung\s+\d{2}\.\d{2}\. · Frist bis \d{2}\.\d{2}\./);
 	await expect(row.getByRole('link', { name: 'Mahnen' })).toBeVisible();
 
 	await page.goto(`/vertraege/${leaseId}/mietkonto`);
