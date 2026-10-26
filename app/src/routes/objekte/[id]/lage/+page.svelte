@@ -18,7 +18,7 @@
 <h2>Gemeinde</h2>
 {#if municipality}
 	<p>
-		<strong>{municipality.name}</strong>
+		<strong>{municipality.name.split(',')[0]}</strong>
 		<span class="muted">
 			· {stateLabels[municipality.state]} · Gemeindeschlüssel {municipality.key}
 		</span>
@@ -78,15 +78,16 @@
 <h2>Grundsteuer</h2>
 <p>
 	{#if municipality?.propertyTaxRate != null}
-		Hebesatz der Grundsteuer B: <strong>{formatNumber(municipality.propertyTaxRate, 0)} %</strong
-		>{#if data.propertyTaxYear}<span class="muted"> ({data.propertyTaxYear})</span>{/if}
+		Hebesatz der Grundsteuer B: <strong>{formatNumber(municipality.propertyTaxRate, 0)} %</strong>
+		{#if data.propertyTaxYear}<span class="muted">(Stand {data.propertyTaxYear})</span>{/if}
 	{:else}
 		Zum Hebesatz der Grundsteuer B liegt keine Angabe vor.
 	{/if}
 </p>
 <p class="muted small">
-	Manche Länder erlauben seit 2025 getrennte Hebesätze für Wohn- und Nichtwohngrundstücke; dann
-	steht hier der allgemeine Satz. Maßgeblich ist der Grundsteuerbescheid.
+	Die Hebesätze stammen von vor der Grundsteuerreform. Viele Gemeinden haben sie 2025 geändert,
+	manche Länder erlauben seitdem getrennte Sätze für Wohn- und Nichtwohngrundstücke. Maßgeblich ist
+	dein Grundsteuerbescheid.
 </p>
 
 <h2>Indexmieten</h2>

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { matchMunicipality, normalizeName, parseMunicipalities } from './municipalities.ts';
+import { municipalityData } from './municipalities-data.ts';
+import {
+	findMunicipality,
+	matchMunicipality,
+	normalizeName,
+	parseMunicipalities
+} from './municipalities.ts';
 
 // Test rows in the format of the bundled table; the rents and rates are made up.
 const rows = parseMunicipalities(
@@ -63,7 +69,7 @@ describe('matchMunicipality', () => {
 		expect(matchMunicipality(rows, at(50.1, 8.62), 'Frankfurt-Höchst')?.key).toBe('06412000');
 	});
 
-	it('falls back to a seat right at the postal code, but not to one farther away', () => {
+	it('falls back to a Gemeinde right at the postal code, but not to one farther away', () => {
 		expect(matchMunicipality(rows, at(52.52, 13.41), 'Mitte')).toMatchObject({
 			key: '11000000',
 			byName: false
@@ -74,5 +80,58 @@ describe('matchMunicipality', () => {
 	it('keeps to the Land when one is known', () => {
 		expect(matchMunicipality(rows, at(52.52, 13.41), 'Berlin', 'BB')).toBeNull();
 		expect(matchMunicipality(rows, at(52.52, 13.41), 'Berlin', 'BE')?.key).toBe('11000000');
+	});
+});
+
+describe('findMunicipality', () => {
+	const find = (postalCode: string, city: string) =>
+		findMunicipality({ postalCode, city, state: null });
+
+	it('finds Gemeinden of the bundled table', () => {
+		expect(find('10115', 'Berlin')).toMatchObject({ key: '11000000', byName: true });
+		expect(find('80331', 'München')?.key).toBe('09162000');
+		expect(find('60311', 'Frankfurt')?.key).toBe('06412000');
+		expect(find('15230', 'Frankfurt (Oder)')?.key).toBe('12053000');
+		expect(find('06108', 'Halle')?.key).toBe('15002000');
+		expect(find('25715', 'Averlak')?.key).toBe('01051003');
+	});
+
+	it('carries the Zensus rent and the Hebesatz', () => {
+		const berlin = find('10115', 'Berlin');
+		expect(berlin?.rentPerSquareMetre).toBeGreaterThan(500);
+		expect(berlin?.propertyTaxRate).toBeGreaterThan(100);
+	});
+
+	it('has no Gemeinde for an unknown postal code', () => {
+		expect(find('00000', 'Berlin')).toBeNull();
+	});
+});
+
+describe('the bundled table', () => {
+	const all = parseMunicipalities(municipalityData);
+
+	it('holds every Gemeinde once, inside Germany', () => {
+		expect(all.length).toBeGreaterThan(10_000);
+		expect(new Set(all.map((row) => row.key)).size).toBe(all.length);
+		for (const row of all) {
+			expect(row.key).toMatch(/^\d{8}$/);
+			expect(row.lat).toBeGreaterThan(47.2);
+			expect(row.lat).toBeLessThan(55.1);
+			expect(row.lon).toBeGreaterThan(5.8);
+			expect(row.lon).toBeLessThan(15.1);
+		}
+	});
+
+	it('has plausible rents and rates', () => {
+		for (const row of all) {
+			if (row.rentPerSquareMetre !== null) {
+				expect(row.rentPerSquareMetre).toBeGreaterThan(100);
+				expect(row.rentPerSquareMetre).toBeLessThan(3000);
+			}
+			if (row.propertyTaxRate !== null) {
+				expect(row.propertyTaxRate).toBeGreaterThan(0);
+				expect(row.propertyTaxRate).toBeLessThan(2000);
+			}
+		}
 	});
 });

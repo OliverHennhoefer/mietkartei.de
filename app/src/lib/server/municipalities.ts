@@ -4,7 +4,7 @@ import { locatePostalCode } from './postal-codes.ts';
 
 // The Gemeinde of a property and what the official statistics say about it: the average
 // Nettokaltmiete of the Zensus 2022 and the Hebesatz of the Grundsteuer B. The table is bundled
-// (scripts/municipalities.js builds it), so no address leaves the server. The Gemeinde is found
+// (scripts/municipalities.py builds it), so no address leaves the server. The Gemeinde is found
 // by the property's city name, near the position of its postal code; addresses name an Ortsteil
 // or leave out "am Main" often enough that a near Gemeinde with a similar name counts too.
 
@@ -48,12 +48,12 @@ const stateOfKey: Record<string, GermanState> = {
 
 /** A name match farther than this from the postal code is another place of the same name. */
 const NAME_RADIUS_KM = 30;
-/** Without a name match, the nearest Gemeinde counts only when its seat is this close. */
+/** Without a name match, the nearest Gemeinde counts only when its centre is this close. */
 const POSITION_RADIUS_KM = 4;
 
 /**
- * The rows of the bundled table: key;name;lat;lon;rent;rate, one Gemeinde per line, positions in
- * hundredths of a degree, the rent in cents per square metre, empty fields for missing values.
+ * The rows of the bundled table: key;name;lat;lon;rent;rate, one Gemeinde per line, the position
+ * of its centre in hundredths of a degree, the rent in cents per square metre, empty fields for missing values.
  */
 export function parseMunicipalities(data: string): Municipality[] {
 	const number = (field: string) => (field === '' ? null : Number(field));
@@ -108,7 +108,7 @@ function distanceKm(a: { lat: number; lon: number }, b: { lat: number; lon: numb
 
 /**
  * The Gemeinde of a place: the nearest one whose name is the city's (or shares its leading word,
- * "Frankfurt" for "Frankfurt am Main"), else the nearest seat right at the postal code's position.
+ * "Frankfurt" for "Frankfurt am Main"), else the nearest Gemeinde centre right at the postal code's position.
  * A state, when known, rules out the Gemeinden of other Länder.
  */
 export function matchMunicipality(
