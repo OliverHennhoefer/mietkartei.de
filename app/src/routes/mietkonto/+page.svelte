@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
-	import Badge from '#lib/components/Badge.svelte';
 	import Balance from '#lib/components/Balance.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
+	import Icon from '#lib/components/Icon.svelte';
+	import LeaseStatus from '#lib/components/LeaseStatus.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
-	import { reminderLevelLabels } from '#lib/domain/reminders.ts';
 	import { formatCents } from '#lib/money.ts';
 	import { pluralize } from '#lib/format.ts';
 	import type { PageProps } from './$types';
@@ -15,6 +15,10 @@
 
 	/** The row whose "Miete ist da" is being booked; every button waits until it is done. */
 	let pending = $state<string | null>(null);
+
+	// Short enough that the letter and its deadline fit on one line: „Mahnung 14.09. · Frist abgelaufen“.
+	const levelLabels = { 1: 'Erinnerung', 2: 'Mahnung', 3: 'Letzte Mahnung' };
+	const dayMonth = (date: string) => formatDate(date).slice(0, 6);
 </script>
 
 <PageHeader
@@ -85,7 +89,7 @@
 							<td>
 								<a href="/vertraege/{row.leaseId}/mietkonto">{row.label}</a>
 								{#if !row.active}
-									<Badge>beendet</Badge>
+									<span class="ended"><LeaseStatus status="ended" /></span>
 								{/if}
 							</td>
 							<td>{row.tenants}</td>
@@ -108,14 +112,16 @@
 							<td>{row.lastPaymentDate ? formatDate(row.lastPaymentDate) : '–'}</td>
 							<td>
 								{#if row.reminder}
-									{reminderLevelLabels[row.reminder.level]} vom {formatDate(row.reminder.date)}
-									{#if row.reminder.paymentDeadline < data.today}
-										<Badge tone="danger">Frist abgelaufen</Badge>
-									{:else}
-										<span class="muted small due">
-											Frist bis {formatDate(row.reminder.paymentDeadline)}
-										</span>
-									{/if}
+									{@const expired = row.reminder.paymentDeadline < data.today}
+									<span class="reminder" class:expired>
+										{#if expired}<Icon name="alert" size={13} />{/if}
+										{levelLabels[row.reminder.level]}
+										{dayMonth(row.reminder.date)}
+										<span class="separator">·</span>
+										{expired
+											? 'Frist abgelaufen'
+											: `Frist bis ${dayMonth(row.reminder.paymentDeadline)}`}
+									</span>
 								{:else if row.overdue > 0}
 									<span class="muted">noch nicht</span>
 								{:else}
@@ -123,38 +129,54 @@
 								{/if}
 							</td>
 							<td class="actions">
-								{#if row.rentReceived}
-									<form
-										method="POST"
-										action="?/received"
-										use:enhance={() => {
-											pending = row.leaseId;
-											return async ({ update }) => {
-												try {
-													await update();
-												} finally {
-													pending = null;
-												}
-											};
-										}}
-									>
-										<input type="hidden" name="leaseId" value={row.leaseId} />
-										<button
-											type="submit"
-											class="small"
-											disabled={pending !== null}
-											title="Bucht {formatCents(row.rentReceived)} mit Datum von heute als Zahlung"
+								<div class="row-actions">
+									{#if row.rentReceived}
+										<form
+											method="POST"
+											action="?/received"
+											use:enhance={() => {
+												pending = row.leaseId;
+												return async ({ update }) => {
+													try {
+														await update();
+													} finally {
+														pending = null;
+													}
+												};
+											}}
 										>
-											Miete ist da · {formatCents(row.rentReceived)}
-										</button>
-									</form>
-								{/if}
-								{#if row.overdue > 0}
-									<a href="/vertraege/{row.leaseId}/mietkonto#zahlungserinnerung">
-										{row.reminder ? 'Mahnen' : 'Erinnern'}
+											<input type="hidden" name="leaseId" value={row.leaseId} />
+											<button
+												type="submit"
+												class="small secondary"
+												disabled={pending !== null}
+												title="Bucht {formatCents(
+													row.rentReceived
+												)} mit Datum von heute als Zahlung"
+											>
+												<Icon name="check" size={14} />
+												Miete ist da · {formatCents(row.rentReceived)}
+											</button>
+										</form>
+									{/if}
+									{#if row.overdue > 0}
+										<a
+											class="button secondary small"
+											href="/vertraege/{row.leaseId}/mietkonto#zahlungserinnerung"
+										>
+											{row.reminder ? 'Mahnen' : 'Erinnern'}
+										</a>
+									{/if}
+									<!-- The name in the first column leads there too; the arrow is for the eye. -->
+									<a
+										class="open"
+										href="/vertraege/{row.leaseId}/mietkonto"
+										aria-label="Mietkonto öffnen"
+										title="Mietkonto öffnen"
+									>
+										<Icon name="chevron-right" size={18} />
 									</a>
-								{/if}
-								<a href="/vertraege/{row.leaseId}/mietkonto">Mietkonto</a>
+								</div>
 							</td>
 						</tr>
 					{/each}
@@ -167,6 +189,54 @@
 <style>
 	.due {
 		display: block;
+	}
+	.ended {
+		margin-left: 0.4rem;
+	}
+	.ended :global(.lease-status) {
+		font-size: 0.78rem;
+	}
+	.reminder {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		white-space: nowrap;
+	}
+	.reminder.expired {
+		color: var(--color-danger);
+		font-weight: 500;
+	}
+	.separator {
+		color: var(--color-muted);
+	}
+	.row-actions {
+		display: inline-flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 0.5rem;
+	}
+	.row-actions form {
+		display: contents;
+	}
+	.row-actions .button.small {
+		min-height: 2rem;
+		padding: 0.3rem 0.65rem;
+		font-size: 0.8rem;
+	}
+	.row-actions button {
+		gap: 0.35rem;
+	}
+	.open {
+		display: inline-grid;
+		place-items: center;
+		width: 2rem;
+		height: 2rem;
+		border-radius: 8px;
+		color: var(--color-muted);
+	}
+	.open:hover {
+		background: var(--color-hover);
+		color: var(--color-text);
 	}
 	.toolbar a[aria-current='page'] {
 		font-weight: 600;

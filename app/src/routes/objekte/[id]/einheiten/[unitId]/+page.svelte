@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Badge from '#lib/components/Badge.svelte';
+	import LeaseStatus from '#lib/components/LeaseStatus.svelte';
 	import DeleteSection from '#lib/components/DeleteSection.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { formatArea, formatNumber, personName } from '#lib/format.ts';
@@ -76,9 +77,9 @@
 						</td>
 						<td>{lease.main ? 'Haupteinheit' : 'Mitvermietet'}</td>
 						<td>
-							{#if lease.active}<Badge tone="success">Aktiv</Badge>{:else if lease.upcoming}<Badge
-									tone="info">Beginnt später</Badge
-								>{:else}<Badge>Beendet</Badge>{/if}
+							<LeaseStatus
+								status={lease.active ? 'active' : lease.upcoming ? 'upcoming' : 'ended'}
+							/>
 						</td>
 					</tr>
 				{/each}

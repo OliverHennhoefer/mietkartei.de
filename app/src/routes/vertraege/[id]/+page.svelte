@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { untrack } from 'svelte';
 	import Alert from '#lib/components/Alert.svelte';
-	import Badge from '#lib/components/Badge.svelte';
+	import LeaseStatus from '#lib/components/LeaseStatus.svelte';
 	import Balance from '#lib/components/Balance.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import DeleteSection from '#lib/components/DeleteSection.svelte';
@@ -56,9 +56,7 @@
 <!-- The heading, tenants and tab bar come from +layout.svelte; this page is the "Übersicht" tab. -->
 <div class="toolbar">
 	<a href="/vertraege/{lease.id}/bearbeiten" class="button">Bearbeiten</a>
-	{#if lease.active}<Badge tone="success">Aktiv</Badge>{:else if lease.upcoming}<Badge tone="info"
-			>Beginnt später</Badge
-		>{:else}<Badge>Beendet</Badge>{/if}
+	<LeaseStatus status={lease.active ? 'active' : lease.upcoming ? 'upcoming' : 'ended'} />
 </div>
 
 {#if form?.message}

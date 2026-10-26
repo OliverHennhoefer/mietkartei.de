@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Alert from '#lib/components/Alert.svelte';
 	import ArchiveSection from '#lib/components/ArchiveSection.svelte';
-	import Badge from '#lib/components/Badge.svelte';
+	import LeaseStatus from '#lib/components/LeaseStatus.svelte';
 	import Balance from '#lib/components/Balance.svelte';
 	import DeleteSection from '#lib/components/DeleteSection.svelte';
 	import Money from '#lib/components/Money.svelte';
@@ -151,13 +151,7 @@
 						{#if lease.depositAgreed > 0}von <Money cents={lease.depositAgreed} />{/if}
 					</span>
 				</span>
-				{#if lease.active}
-					<Badge tone="success">Aktiv</Badge>
-				{:else if lease.upcoming}
-					<Badge tone="info">Beginnt später</Badge>
-				{:else}
-					<Badge>Beendet</Badge>
-				{/if}
+				<LeaseStatus status={lease.active ? 'active' : lease.upcoming ? 'upcoming' : 'ended'} />
 			</li>
 		{/each}
 	</ul>
