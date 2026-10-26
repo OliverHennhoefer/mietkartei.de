@@ -110,7 +110,7 @@ test('imports properties, tenants, leases and payments from CSV files in order',
 		await expect(page).toHaveURL(/\/vertraege\/[\w-]+\/mietkonto$/);
 		await page.goto(`${page.url()}?from=2025-12&to=2026-01`);
 		await expect(page.locator('.balance strong')).toHaveText(
-			`Saldo: Rückstand ${formatCents(balance)}`
+			`Saldo −${formatCents(balance)} Rückstand`
 		);
 		const rows = page.getByRole('table', { name: 'Buchungen' }).locator('tbody tr');
 		// Nothing before the ledger start: the opening balance, January's rent and the payment.
@@ -125,7 +125,7 @@ test('imports properties, tenants, leases and payments from CSV files in order',
 		const payment = rows.filter({ hasText: '05.01.2026' }).filter({ hasNotText: 'Januar 2026' });
 		await expect(payment.locator('td').nth(3)).toHaveText(formatCents(85000));
 		// After the three lines January is paid; the opening balance is what is left.
-		await expect(rows.nth(2).locator('td').nth(4)).toHaveText(formatCents(15000));
+		await expect(rows.nth(2).locator('td').nth(4)).toHaveText(`−${formatCents(15000)} Rückstand`);
 	});
 
 	await test.step('a second import of the same units is skipped as duplicates', async () => {

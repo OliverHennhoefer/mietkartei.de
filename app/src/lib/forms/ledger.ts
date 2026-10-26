@@ -6,7 +6,6 @@ import {
 	type IsoDate,
 	type IsoMonth
 } from '../dates';
-import { formatCents } from '../money';
 import { FormParser, type ParseResult } from './fields';
 
 // Forms of the ledger pages: booking a payment, posting an adjustment, choosing the months shown.
@@ -62,11 +61,4 @@ export function ledgerRange(params: URLSearchParams, current: IsoDate = today())
 		return { from: addMonthsToMonth(currentMonth, -11), to: currentMonth };
 	}
 	return from <= to ? { from, to } : { from: to, to: from };
-}
-
-/** `Rückstand 1.234,56 €`, `Guthaben 12,00 €` or `ausgeglichen`. */
-export function balanceSentence(balance: number): string {
-	if (balance > 0) return `Rückstand ${formatCents(balance)}`;
-	if (balance < 0) return `Guthaben ${formatCents(-balance)}`;
-	return 'ausgeglichen';
 }

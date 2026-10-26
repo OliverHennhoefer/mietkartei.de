@@ -52,4 +52,10 @@
 	.danger :global(.icon) {
 		color: var(--color-danger);
 	}
+	.success {
+		border-left: 3px solid var(--color-success);
+	}
+	.success :global(.icon) {
+		color: var(--color-success);
+	}
 </style>

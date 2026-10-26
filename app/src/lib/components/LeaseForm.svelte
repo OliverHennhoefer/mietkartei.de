@@ -283,7 +283,7 @@
 		<Field
 			label="Anfangssaldo (optional)"
 			error={errors.openingBalance}
-			hint="Der Stand des Mietkontos am Tag „Mietkonto führen ab“: positiv = Rückstand, negativ = Guthaben."
+			hint="Der Stand des Mietkontos am Tag „Mietkonto führen ab“, als Forderung: einen Rückstand positiv, ein Guthaben negativ."
 		>
 			<input
 				name="openingBalance"

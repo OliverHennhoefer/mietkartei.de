@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
+	import Balance from '#lib/components/Balance.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
@@ -90,7 +91,7 @@
 {/if}
 
 <p class="balance">
-	<strong>Saldo: {data.balanceText}</strong>
+	<strong>Saldo <Balance cents={data.balance} label /></strong>
 	<span class="muted small">
 		über alle Buchungen · {formatMonth(data.range.from)} bis {formatMonth(data.range.to)} unten
 	</span>
@@ -127,7 +128,7 @@
 						<td class="num"
 							>{#if row.kind === 'payment'}<Money cents={row.amount} />{/if}</td
 						>
-						<td class="num"><Money cents={row.balance} /></td>
+						<td class="num"><Balance cents={row.balance} tone={false} /></td>
 						<td class="actions">
 							{#if row.fromBank}
 								<span class="muted small">
@@ -165,13 +166,13 @@
 					<td colspan="2">Summe {formatMonth(data.range.from)} bis {formatMonth(data.range.to)}</td>
 					<td class="num"><Money cents={data.charged} /></td>
 					<td class="num"><Money cents={data.paid} /></td>
-					<td class="num"><Money cents={data.windowBalance} /></td>
+					<td class="num"><Balance cents={data.windowBalance} tone={false} /></td>
 					<td></td>
 				</tr>
 			</tfoot>
 		</table>
 	</div>
-	<p class="muted small">Saldo positiv = Rückstand, negativ = Guthaben.</p>
+	<p class="muted small">Saldo aus Sicht des Mieters: + = Guthaben, − = Rückstand.</p>
 {/if}
 
 <h2 id="zahlungserinnerung">Zahlungserinnerung und Mahnung</h2>

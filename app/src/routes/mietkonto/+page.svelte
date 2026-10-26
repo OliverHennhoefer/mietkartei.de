@@ -2,8 +2,8 @@
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
+	import Balance from '#lib/components/Balance.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
-	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
 	import { reminderLevelLabels } from '#lib/domain/reminders.ts';
@@ -32,13 +32,13 @@
 {:else}
 	<div class="stats">
 		<div class="stat card">
-			<span class="value"><Money cents={data.stats.arrearsTotal} /></span>
+			<span class="value"><Balance cents={data.stats.arrearsTotal} /></span>
 			<span class="label">
 				Rückstände · {pluralize(data.stats.arrearsCount, 'Mietvertrag', 'Mietverträge')}
 			</span>
 		</div>
 		<div class="stat card">
-			<span class="value"><Money cents={data.stats.creditTotal} /></span>
+			<span class="value"><Balance cents={-data.stats.creditTotal} /></span>
 			<span class="label">
 				Guthaben · {pluralize(data.stats.creditCount, 'Mietvertrag', 'Mietverträge')}
 			</span>
@@ -92,23 +92,13 @@
 							<td class="num">
 								<!-- The sign of the balance and the Rückstand are separate: a payment dated later can
 								     turn the balance into a Guthaben while rent due today is still unpaid. -->
-								<Money cents={Math.abs(row.balance)} />
-								{#if row.balance > 0}
-									{#if row.overdue > 0}
-										<Badge tone="danger">Rückstand</Badge>
-									{:else}
-										<Badge>noch nicht fällig</Badge>
-									{/if}
-								{:else if row.balance < 0}
-									<Badge tone="success">Guthaben</Badge>
-								{/if}
-								{#if row.overdue > 0 && row.overdue !== row.balance}
+								<Balance cents={row.balance} overdue={row.overdue > 0} />
+								{#if row.balance > 0 && row.overdue === 0}
+									<span class="muted small due">noch nicht fällig</span>
+								{:else if row.overdue > 0 && row.overdue !== row.balance}
 									<span class="muted small due">
-										{#if row.balance <= 0}
-											<Badge tone="danger">Rückstand</Badge>
-										{/if}
 										{row.overdue < row.balance ? 'davon fällig' : 'fällig'}
-										<Money cents={row.overdue} />
+										<Balance cents={row.overdue} />
 									</span>
 								{/if}
 							</td>
