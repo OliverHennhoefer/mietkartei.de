@@ -62,6 +62,21 @@ export const variables = defineEnvVars({
 			'from Destatis; unset, it has no VPI values. A secret on the hosted variant.',
 		schema: (value) => value || ''
 	},
+	MAP_TILES_PATH: {
+		description:
+			'Path of a PMTiles archive with vector tiles of OpenStreetMap in the Protomaps schema, e.g. ' +
+			'an extract of Germany (see docs/selbst-hosten.md). Set, the property list shows each ' +
+			'property on a small street map; unset, on an outline map of Germany. Only used by the node ' +
+			'target; the cloudflare target reads the map from the R2 bucket MAP.',
+		schema: (value) => value || ''
+	},
+	GEOCODER_URL: {
+		description:
+			'Search endpoint of a Nominatim server that turns property addresses into map positions, ' +
+			'asked once per address when it is saved. Defaults to the public server of OpenStreetMap; ' +
+			'"off" asks none and places properties by their postal code.',
+		schema: (value) => value || 'https://nominatim.openstreetmap.org/search'
+	},
 	STRIPE_SECRET_KEY: {
 		description:
 			'Stripe secret key (sk_test_… in test mode). Together with STRIPE_PRICE_ID it turns on the ' +

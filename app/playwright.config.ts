@@ -19,17 +19,24 @@ const stripePort = Number(process.env.STRIPE_FAKE_PORT || 4299);
 // header Workers take the address from, and on node through ADDRESS_HEADER, as behind a proxy.
 //
 // The subscription runs against e2e/stripe-fake.ts, with test keys that only the fake accepts.
+//
+// The street map is the made-up one of scripts/map-fixture.js, from a file on node and from the
+// local R2 on cloudflare; GEOCODER_URL=off keeps the tests away from Nominatim.
 const commands = {
 	node: [
 		'rm -rf .e2e',
+		'node scripts/map-fixture.js .e2e/map.pmtiles',
 		'npm run build',
-		`DATABASE_PATH=.e2e/node.db DATA_DIR=.e2e/documents MAIL_TRANSPORT=outbox E2E=true ADDRESS_HEADER=cf-connecting-ip STRIPE_SECRET_KEY=sk_test_fake STRIPE_PRICE_ID=price_fake STRIPE_WEBHOOK_SECRET=whsec_fake STRIPE_API_BASE=http://localhost:${stripePort} PORT=${port} node server.js`
+		`DATABASE_PATH=.e2e/node.db DATA_DIR=.e2e/documents MAP_TILES_PATH=.e2e/map.pmtiles GEOCODER_URL=off MAIL_TRANSPORT=outbox E2E=true ADDRESS_HEADER=cf-connecting-ip STRIPE_SECRET_KEY=sk_test_fake STRIPE_PRICE_ID=price_fake STRIPE_WEBHOOK_SECRET=whsec_fake STRIPE_API_BASE=http://localhost:${stripePort} PORT=${port} node server.js`
 	],
 	cloudflare: [
 		'rm -rf .e2e',
+		'node scripts/map-fixture.js .e2e/map.pmtiles',
 		'npm run build:cloudflare',
 		'wrangler d1 migrations apply DB --local --persist-to .e2e/wrangler',
-		`wrangler dev --port ${port} --local-upstream localhost:${port} --inspector-port 0 --persist-to .e2e/wrangler --var MAIL_TRANSPORT:outbox --var E2E:true --var REGISTRATION_EMAILS:vermieterin@example.org --var STRIPE_SECRET_KEY:sk_test_fake --var STRIPE_PRICE_ID:price_fake --var STRIPE_WEBHOOK_SECRET:whsec_fake --var STRIPE_API_BASE:http://localhost:${stripePort}`
+		'wrangler r2 object put mietkartei-map/map/fixture.pmtiles --file .e2e/map.pmtiles --local --persist-to .e2e/wrangler',
+		'wrangler r2 object put mietkartei-map/map/manifest.json --file .e2e/map.pmtiles.manifest.json --local --persist-to .e2e/wrangler',
+		`wrangler dev --port ${port} --local-upstream localhost:${port} --inspector-port 0 --persist-to .e2e/wrangler --var MAIL_TRANSPORT:outbox --var GEOCODER_URL:off --var E2E:true --var REGISTRATION_EMAILS:vermieterin@example.org --var STRIPE_SECRET_KEY:sk_test_fake --var STRIPE_PRICE_ID:price_fake --var STRIPE_WEBHOOK_SECRET:whsec_fake --var STRIPE_API_BASE:http://localhost:${stripePort}`
 	]
 };
 

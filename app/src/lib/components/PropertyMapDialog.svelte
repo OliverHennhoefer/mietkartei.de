@@ -166,8 +166,8 @@
 		</svg>
 	</div>
 	<p class="map-source muted">
-		Karte: Natural Earth · Postleitzahlen: GeoNames (CC BY 4.0). Die Karte lädt nichts von anderen
-		Diensten.
+		Karte: Natural Earth · Postleitzahlen: GeoNames (CC BY 4.0) · Straßenkarten: ©
+		OpenStreetMap-Mitwirkende (ODbL), Protomaps. Die Karten laden nichts von anderen Diensten.
 	</p>
 </dialog>
 

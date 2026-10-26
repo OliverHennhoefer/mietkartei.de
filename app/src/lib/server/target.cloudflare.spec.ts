@@ -15,7 +15,8 @@ const mailEnv = vi.hoisted(() => ({
 	MAIL_TRANSPORT: 'console' as 'outbox' | 'resend' | 'console',
 	MAIL_API_KEY: '',
 	MAIL_FROM: 'mietkartei <noreply@example.org>',
-	GENESIS_API_TOKEN: 'token'
+	GENESIS_API_TOKEN: 'token',
+	GEOCODER_URL: 'https://geocoder.example/search'
 }));
 vi.mock('$app/env/private', () => mailEnv);
 
@@ -116,5 +117,65 @@ describe('the VPI fetch on the cloudflare target', () => {
 			{ baseYear: '2020', month: '2026-01', value: 122.8 }
 		]);
 		expect(workers.waitUntil).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe('the street map on the cloudflare target', () => {
+	it('reads the parts the manifest in the MAP bucket names', async () => {
+		const { encodeTile, fixtureQuarter, writeArchive } = await import('./map/fixture');
+		const archive = writeArchive({ '14/1/1': encodeTile(fixtureQuarter(1, 1)) });
+		const partSize = 4000;
+		const parts = Array.from(
+			{ length: Math.ceil(archive.length / partSize) },
+			(_, index) => `map/v1/part-${index}`
+		);
+		const manifest = { version: 'v1', size: archive.length, partSize, parts };
+		const get = vi.fn(
+			async (key: string, options?: { range: { offset: number; length: number } }) => {
+				if (key === 'map/manifest.json') return { json: async () => manifest };
+				const index = parts.indexOf(key);
+				if (index < 0 || !options) return null;
+				const start = index * partSize + options.range.offset;
+				const bytes = archive.slice(start, start + options.range.length);
+				return { arrayBuffer: async () => bytes.buffer };
+			}
+		);
+		const { getStreetMap } = await import('./map/tiles');
+		expect(await getStreetMap()).toBeNull();
+		vi.resetModules();
+		workers.env.MAP = { get };
+		const map = await (await import('./map/tiles')).getStreetMap();
+		expect(map?.version).toBe('v1');
+		expect((await map!.tiles.getZxy(14, 1, 1))?.data.byteLength).toBeGreaterThan(0);
+
+		// A part that went missing leaves the map without tiles instead of failing the page.
+		vi.resetModules();
+		workers.env.MAP = {
+			get: async (key: string) =>
+				key === 'map/manifest.json'
+					? { json: async () => ({ ...manifest, parts: ['gone'] }) }
+					: null
+		};
+		const broken = await (await import('./map/tiles')).getStreetMap();
+		await expect(broken!.tiles.getHeader()).rejects.toThrow('gone');
+		vi.resetModules();
+		workers.env.MAP = { get: async () => null };
+		expect(await (await import('./map/tiles')).getStreetMap()).toBeNull();
+	});
+
+	it('lets the Worker finish placing the properties after the response', async () => {
+		const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([]));
+		const { seedUnit, testDatabase } = await import('./testing');
+		const { locateInBackground, propertiesToLocate } = await import('./geocoding');
+		const db = await testDatabase();
+		await seedUnit(db, 'a');
+		workers.env.MAP = {
+			get: async () => ({ json: async () => ({ version: 'v', size: 0, partSize: 1, parts: [] }) })
+		};
+		await locateInBackground(db, 'a');
+		expect(workers.waitUntil).toHaveBeenCalledTimes(1);
+		await workers.waitUntil.mock.calls[0][0];
+		expect(fetcher).toHaveBeenCalledTimes(1);
+		expect(await propertiesToLocate(db, 'a', 5)).toEqual([]);
 	});
 });

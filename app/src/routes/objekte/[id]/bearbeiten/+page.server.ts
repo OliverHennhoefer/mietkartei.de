@@ -2,8 +2,10 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { today } from '#lib/dates.ts';
 import { archiveProperty, propertyArchiving, restoreProperty } from '#lib/server/archive.ts';
 import { deleteProperty, propertyDeletion } from '#lib/server/deletion.ts';
+import { locateInBackground } from '#lib/server/geocoding.ts';
+import { showsPropertyMaps } from '#lib/server/preferences.ts';
 import { updateProperty } from '#lib/server/properties.ts';
-import { auditContext, requireAccount } from '#lib/server/session.ts';
+import { auditContext, requireAccount, requireUser } from '#lib/server/session.ts';
 import { parseProperty } from '#lib/validation.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -24,6 +26,10 @@ export const actions: Actions = {
 		if (!result.ok) return fail(400, { errors: result.errors, values: result.values });
 		const updated = await updateProperty(locals.db, auditContext(locals), params.id, result.data);
 		if (!updated) error(404, 'Dieses Objekt gibt es nicht.');
+		// A changed address is placed again in the background.
+		if (await showsPropertyMaps(locals.db, requireUser(locals).id)) {
+			await locateInBackground(locals.db, requireAccount(locals));
+		}
 		redirect(303, `/objekte/${params.id}`);
 	},
 	archive: async ({ locals, params }) => {

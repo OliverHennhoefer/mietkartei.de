@@ -142,6 +142,13 @@ export const properties = sqliteTable(
 		/** For the Rendite: what the bank lent for the purchase, in cents; the rest is equity. */
 		loanAmount: integer('loan_amount'),
 		notes: text('notes'),
+		/**
+		 * Where the address lies, from the geocoder (see geocoding.ts), and the address it was asked
+		 * for; a changed address is asked again. Null coordinates with an address: it found nothing.
+		 */
+		latitude: real('latitude'),
+		longitude: real('longitude'),
+		geocodedAddress: text('geocoded_address'),
 		/** The day it was archived (e.g. sold); hidden from lists and selects, its history stays. */
 		archivedAt: text('archived_at'),
 		createdAt: createdAt()

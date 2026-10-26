@@ -190,7 +190,7 @@ jobs:
     environment:
       name: production
       url: https://app.mietkartei.de
-    # The Cloudflare token can take over the production app and its database, so only the two
+    # The Cloudflare token can take over the production app and its database, so only the
     # wrangler steps see it; the install and the build run third-party code.
     steps:
       - name: Check out repository
@@ -224,6 +224,15 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler d1 migrations apply DB --remote
+
+      # The street map bucket; the Map workflow fills it.
+      - name: Create the map bucket
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx wrangler r2 bucket info mietkartei-map --jurisdiction eu ||
+            npx wrangler r2 bucket create mietkartei-map --jurisdiction eu
 
       - name: Deploy to Cloudflare
         env:
