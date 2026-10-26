@@ -3,7 +3,6 @@ import { addMonthsToMonth, firstOfMonth, monthOf, today } from '#lib/dates.ts';
 import { depositWarning, parseLease, parseOpeningBalance } from '#lib/forms/leases.ts';
 import { parseCents } from '#lib/money.ts';
 import { createLease, listUnitsWithProperty } from '#lib/server/leases.ts';
-import { ensureCharges } from '#lib/server/ledger.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -85,7 +84,6 @@ export const actions: Actions = {
 			return fail(400, { errors, values, depositWarning: warningFor(values) });
 		}
 
-		await ensureCharges(locals.db, context.accountId, [result.id]);
 		redirect(303, `/vertraege/${result.id}`);
 	}
 };

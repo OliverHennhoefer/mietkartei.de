@@ -11,7 +11,7 @@ import {
 	getLease,
 	listLeasePersons
 } from '#lib/server/leases.ts';
-import { ensureCharges, listLedger } from '#lib/server/ledger.ts';
+import { listLedger } from '#lib/server/ledger.ts';
 import { rentOnDate } from '#lib/server/rents.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -153,8 +153,6 @@ export const actions: Actions = {
 				values
 			});
 		}
-		// Months after the end leave the ledger with the next sync; do it now, so the tab is right.
-		await ensureCharges(locals.db, context.accountId, [params.id]);
 		return { which: 'end' as const };
 	},
 

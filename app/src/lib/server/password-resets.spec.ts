@@ -136,6 +136,32 @@ describe('resetPassword', () => {
 		expect(audit[0].summary).not.toContain('@');
 	});
 
+	it('lets only one of two simultaneous uses of a token set the password', async () => {
+		const request = await requestPasswordReset(db, 'a@example.org', now);
+		const results = await Promise.all([
+			resetPassword(db, request!.token, 'das-erste-passwort', now),
+			resetPassword(db, request!.token, 'das-zweite-passwort', now)
+		]);
+		expect(results.filter((result) => result.ok)).toHaveLength(1);
+		const winner = results[0].ok ? 'das-erste-passwort' : 'das-zweite-passwort';
+		const loser = results[0].ok ? 'das-zweite-passwort' : 'das-erste-passwort';
+		expect(await authenticate(db, 'a@example.org', winner)).toBe('user-a');
+		expect(await authenticate(db, 'a@example.org', loser)).toBeUndefined();
+		expect(await db.select().from(auditLog)).toHaveLength(1);
+	});
+
+	it('lets only one of two simultaneously used links of a user set the password', async () => {
+		const first = await requestPasswordReset(db, 'a@example.org', now);
+		const second = await requestPasswordReset(db, 'a@example.org', now);
+		const results = await Promise.all([
+			resetPassword(db, first!.token, 'das-erste-passwort', now),
+			resetPassword(db, second!.token, 'das-zweite-passwort', now)
+		]);
+		expect(results.filter((result) => result.ok)).toHaveLength(1);
+		const winner = results[0].ok ? 'das-erste-passwort' : 'das-zweite-passwort';
+		expect(await authenticate(db, 'a@example.org', winner)).toBe('user-a');
+	});
+
 	it('refuses an expired token and keeps the old password', async () => {
 		const request = await requestPasswordReset(db, 'a@example.org', now);
 		expect(

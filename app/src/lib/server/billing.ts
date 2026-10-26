@@ -273,19 +273,30 @@ export async function billingNotice(locals: App.Locals): Promise<BillingNotice |
 	return noticeFor(account, new Date(), BILLING_REQUIRED);
 }
 
-/** Remembers the Stripe customer of the account, so Checkout and the portal reuse it. */
+/**
+ * Remembers the Stripe customer of the account, so Checkout and the portal reuse it. Only the
+ * first customer is stored: of two simultaneous first checkouts, the later one gets the customer
+ * the earlier one stored, so both open their session for it. Returns the stored customer.
+ */
 export async function setStripeCustomer(
 	db: Database,
 	context: AuditContext,
 	customerId: string
-): Promise<void> {
-	await runBatch(db, [
-		db
-			.update(accounts)
-			.set({ stripeCustomerId: customerId })
-			.where(eq(accounts.id, context.accountId)),
-		auditEntry(db, context, 'account', context.accountId, 'update', 'Stripe-Kunde angelegt')
-	]);
+): Promise<string | null> {
+	const stored = await db
+		.update(accounts)
+		.set({ stripeCustomerId: customerId })
+		.where(and(eq(accounts.id, context.accountId), isNull(accounts.stripeCustomerId)))
+		.returning({ id: accounts.id });
+	if (stored.length > 0) {
+		await auditEntry(db, context, 'account', context.accountId, 'update', 'Stripe-Kunde angelegt');
+		return customerId;
+	}
+	const [account] = await db
+		.select({ customerId: accounts.stripeCustomerId })
+		.from(accounts)
+		.where(eq(accounts.id, context.accountId));
+	return account?.customerId ?? null;
 }
 
 /** Stripe's subscription statuses mapped onto the account column. */

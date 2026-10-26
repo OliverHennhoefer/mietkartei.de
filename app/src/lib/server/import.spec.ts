@@ -809,7 +809,7 @@ describe('commitImport', () => {
 		]);
 	});
 
-	it('writes all leases with their opening balances in one batch, so a later failure loses none', async () => {
+	it('writes all leases with their opening balances and rent charges in one batch, or nothing', async () => {
 		await seedUnit(db, 'a', { name: 'EG links', propertyName: 'Haus' });
 		await seedUnit(db, 'a', { name: 'OG', propertyName: 'Haus 2' });
 		await seedTenant(db, 'a', { firstName: 'Lena', lastName: 'Importmann' });
@@ -824,29 +824,42 @@ describe('commitImport', () => {
 			].join('\n'),
 			context
 		);
-		// The database accepts the first write and fails every later one, as D1 does once the
-		// invocation's query limit is reached.
+		// The database fails the batch, as D1 does once the invocation's query limit is reached.
 		const sqlite = db as unknown as { transaction(fn: () => void): void };
 		const transaction = sqlite.transaction.bind(db);
-		let writes = 0;
-		sqlite.transaction = (fn) => {
-			writes += 1;
-			if (writes > 1) throw new Error('D1_ERROR: too many queries');
-			transaction(fn);
+		sqlite.transaction = () => {
+			throw new Error('D1_ERROR: too many queries');
 		};
 		await expect(commitImport(db, contextA, leasePlan)).rejects.toThrow('too many queries');
+		expect(await db.select().from(leases).where(eq(leases.accountId, 'a'))).toEqual([]);
+		expect(await db.select().from(rentCharges).where(eq(rentCharges.accountId, 'a'))).toEqual([]);
+		expect(await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'))).toEqual([]);
 
-		// Both leases exist and both carry their Anfangssaldo (150,00 € Rückstand, 75,50 €
-		// Guthaben) and the import line; only the derived rent charges are missing.
+		sqlite.transaction = transaction;
+		await commitImport(db, contextA, leasePlan);
+		// Both leases exist with their Anfangssaldo (150,00 € Rückstand, 75,50 € Guthaben) and
+		// their rent charges from the ledger start.
 		const created = await db.select().from(leases).where(eq(leases.accountId, 'a'));
 		expect(created).toHaveLength(2);
 		const charges = await db.select().from(rentCharges).where(eq(rentCharges.accountId, 'a'));
-		expect(charges.map((charge) => [charge.leaseId, charge.kind, charge.amount]).sort()).toEqual(
+		const first = created.find((lease) => lease.baseRent === 65000)!.id;
+		const second = created.find((lease) => lease.baseRent === 50000)!.id;
+		expect(
+			charges
+				.filter((charge) => charge.kind === 'adjustment')
+				.map((charge) => [charge.leaseId, charge.amount])
+				.sort()
+		).toEqual(
 			[
-				[created.find((lease) => lease.baseRent === 65000)!.id, 'adjustment', 15000],
-				[created.find((lease) => lease.baseRent === 50000)!.id, 'adjustment', -7550]
+				[first, 15000],
+				[second, -7550]
 			].sort()
 		);
+		for (const id of [first, second]) {
+			const rents = charges.filter((charge) => charge.leaseId === id && charge.kind === 'rent');
+			expect(rents.length).toBeGreaterThan(0);
+			expect(rents.every((charge) => charge.period >= '2026-01')).toBe(true);
+		}
 		const audit = await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'));
 		expect(audit.map((entry) => entry.summary)).toEqual([
 			'Mietvertrag angelegt',

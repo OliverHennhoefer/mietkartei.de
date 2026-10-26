@@ -1,4 +1,4 @@
-import { and, count, eq, gt } from 'drizzle-orm';
+import { and, count, eq, exists, gt } from 'drizzle-orm';
 import { revokeAllApiKeys } from './api-keys';
 import { auditEntry } from './audit';
 import {
@@ -68,6 +68,10 @@ export async function findPasswordReset(
  * Sets the password of the user behind a valid token, deletes all resets, sessions, API keys and
  * pending address changes of the user and forgets the failed attempts of the address. The audit entry names neither the user
  * nor the address. Returns the user, so the caller can sign them in.
+ *
+ * Every statement of the batch only applies while the reset still exists, and the batch deletes
+ * all resets of the user last. Of two simultaneous uses of one link, or of two links of one user,
+ * only the first batch changes anything; the outcome is read back, as the salted hash is unique.
  */
 export async function resetPassword(
 	db: Database,
@@ -83,22 +87,36 @@ export async function resetPassword(
 		.where(eq(users.id, reset.userId));
 	if (!user) return { ok: false };
 	const passwordHash = await hashPassword(password);
+	const open = exists(
+		db
+			.select({ id: passwordResets.id })
+			.from(passwordResets)
+			.where(and(eq(passwordResets.id, reset.id), gt(passwordResets.expiresAt, new Date(now))))
+	);
 	await runBatch(db, [
-		db.update(users).set({ passwordHash }).where(eq(users.id, user.id)),
-		db.delete(sessions).where(eq(sessions.userId, user.id)),
-		db.delete(passwordResets).where(eq(passwordResets.userId, user.id)),
-		db.delete(emailChanges).where(eq(emailChanges.userId, user.id)),
-		revokeAllApiKeys(db, user.id),
-		db.delete(oauthCodes).where(eq(oauthCodes.userId, user.id)),
-		auditEntry(
-			db,
-			{ accountId: user.accountId, userId: null },
-			'user',
-			user.id,
-			'reset',
-			'Passwort über einen Link zurückgesetzt'
-		)
+		db
+			.update(users)
+			.set({ passwordHash })
+			.where(and(eq(users.id, user.id), open)),
+		db.delete(sessions).where(and(eq(sessions.userId, user.id), open)),
+		db.delete(emailChanges).where(and(eq(emailChanges.userId, user.id), open)),
+		revokeAllApiKeys(db, user.id, open),
+		db.delete(oauthCodes).where(and(eq(oauthCodes.userId, user.id), open)),
+		db.delete(passwordResets).where(and(eq(passwordResets.userId, user.id), open))
 	]);
+	const [stored] = await db
+		.select({ passwordHash: users.passwordHash })
+		.from(users)
+		.where(eq(users.id, user.id));
+	if (stored?.passwordHash !== passwordHash) return { ok: false };
+	await auditEntry(
+		db,
+		{ accountId: user.accountId, userId: null },
+		'user',
+		user.id,
+		'reset',
+		'Passwort über einen Link zurückgesetzt'
+	);
 	await clearFailedAttempts(db, user.email);
 	return { ok: true, userId: user.id };
 }

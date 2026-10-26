@@ -16,7 +16,6 @@ import {
 	rentCharges,
 	rentChanges
 } from './db/schema';
-import { createLease } from './leases';
 import {
 	chargeEntry,
 	createPayment,
@@ -30,7 +29,14 @@ import {
 	postCharge
 } from './ledger';
 import { QUOTAS } from './quotas';
-import { contextA, contextB, leaseInput, seedUnit, testDatabase } from './testing';
+import {
+	contextA,
+	contextB,
+	createLeaseWithoutCharges,
+	leaseInput,
+	seedUnit,
+	testDatabase
+} from './testing';
 
 let db: Database;
 let unitId: string;
@@ -42,8 +48,8 @@ beforeEach(async () => {
 	({ unitId } = await seedUnit(db, 'a'));
 	const { unitId: foreignUnit } = await seedUnit(db, 'b');
 	// 600 € + 150 € + 50 € from 2025-01-01, due on the third working day (Neujahr skipped).
-	const own = await createLease(db, contextA, leaseInput(unitId));
-	const foreign = await createLease(db, contextB, leaseInput(foreignUnit));
+	const own = await createLeaseWithoutCharges(db, contextA, leaseInput(unitId));
+	const foreign = await createLeaseWithoutCharges(db, contextB, leaseInput(foreignUnit));
 	if (!own.ok || !foreign.ok) throw new Error('setup failed');
 	leaseId = own.id;
 	foreignLeaseId = foreign.id;
@@ -179,7 +185,7 @@ describe('ensureCharges', () => {
 	});
 
 	it('starts at the ledger start of a lease entered late', async () => {
-		const late = await createLease(
+		const late = await createLeaseWithoutCharges(
 			db,
 			contextA,
 			leaseInput(unitId, { startDate: '2015-04-01', ledgerStart: '2025-03-01' })
@@ -421,7 +427,11 @@ describe('listLedger', () => {
 
 	beforeEach(async () => {
 		// Ends in March, so the sync up to the current month stops there whatever today is.
-		const ended = await createLease(db, contextA, leaseInput(unitId, { endDate: '2025-03-31' }));
+		const ended = await createLeaseWithoutCharges(
+			db,
+			contextA,
+			leaseInput(unitId, { endDate: '2025-03-31' })
+		);
 		if (!ended.ok) throw new Error('setup failed');
 		endedLeaseId = ended.id;
 		const pay = (date: string, amount: number, note: string | null = null) =>
@@ -544,9 +554,17 @@ describe('listBalances', () => {
 			source: 'manual'
 		});
 		// Lease 2: two months, nothing paid.
-		const unpaid = await createLease(db, contextA, leaseInput(unitId, { endDate: '2025-02-28' }));
+		const unpaid = await createLeaseWithoutCharges(
+			db,
+			contextA,
+			leaseInput(unitId, { endDate: '2025-02-28' })
+		);
 		// Lease 3: one month, overpaid.
-		const overpaid = await createLease(db, contextA, leaseInput(unitId, { endDate: '2025-01-31' }));
+		const overpaid = await createLeaseWithoutCharges(
+			db,
+			contextA,
+			leaseInput(unitId, { endDate: '2025-01-31' })
+		);
 		if (!unpaid.ok || !overpaid.ok) throw new Error('setup failed');
 		await createPayment(db, contextA, {
 			leaseId: overpaid.id,
@@ -618,7 +636,7 @@ describe('listBalances', () => {
 		// 500 € in December. Charged 12 × 800 = 9.600 €, paid 11 × 800 + 500 = 9.300 €, so
 		// 300 € are open, all of them from December (FIFO).
 		const { unitId: eg } = await seedUnit(db, 'a', { name: 'EG' });
-		const lease = await createLease(db, contextA, leaseInput(eg));
+		const lease = await createLeaseWithoutCharges(db, contextA, leaseInput(eg));
 		if (!lease.ok) throw new Error('setup failed');
 		await payRents(lease.id, months2025.slice(0, 11));
 		await createPayment(db, contextA, {
