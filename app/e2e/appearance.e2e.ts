@@ -83,6 +83,8 @@ test('gives focus back to the menu button when the settings close on a phone', a
 test('opens the settings as a dialog over the page and closes it again', async ({ page }) => {
 	await page.goto('/mieter');
 	await expect(page).toHaveTitle('Mieter | mietkartei');
+	// The menu button works only once the page is hydrated.
+	await page.waitForLoadState('networkidle');
 	const account = page.getByRole('button', { name: 'Konto' });
 	await account.click();
 	// The menu opens above the account card but follows it for the keyboard.

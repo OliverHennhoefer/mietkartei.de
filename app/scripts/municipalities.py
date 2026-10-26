@@ -6,33 +6,39 @@ come from the Statistisches Bundesamt (Destatis) and the Statistische Ämter des
 Länder under the Datenlizenz Deutschland – Namensnennung – Version 2.0 and load without login.
 The table is bundled, so the app sends no address to another service.
 
-Run from app/: python3 -I scripts/municipalities.py   (needs openpyxl)
-Raise GV_DATE and RATE_YEAR when Destatis publishes newer editions.
+Run from app/: python3 -I scripts/municipalities.py
+(needs openpyxl: pip install --require-hashes -r scripts/requirements-municipalities.txt)
+It takes the newest edition of the Gemeindeverzeichnis and of the Hebesätze that Destatis has
+published; the workflow "Update Gemeinde data" runs it every month and opens a pull request when
+the table changes.
 """
 import csv
+import datetime
 import io
 import json
 import re
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
 import openpyxl
 
-GV_DATE = "31122025"
 GV_PAGE = (
     "https://www.destatis.de/DE/Themen/Laender-Regionen/Regionales/Gemeindeverzeichnis/"
-    f"Administrativ/Archiv/GVAuszugJ/{GV_DATE}_Auszug_GV.html"
+    "Administrativ/Archiv/GVAuszugJ/3112{year}_Auszug_GV.html"
 )
 ZENSUS = (
     "https://ergebnisse.zensus2022.de/proxy/api/rest/tables/4000W-0004/data/"
     "4000W%20GEOGM4%20STAG%20WHG012"
 )
-RATE_YEAR = 2024
 RATES = (
-    f"https://service.destatis.de/DE/karten/hebesaetze-gemeinden-{RATE_YEAR}/data/"
-    f"hebesaetze-gemeinden-{RATE_YEAR}.csv"
+    "https://service.destatis.de/DE/karten/hebesaetze-gemeinden-{year}/data/"
+    "hebesaetze-gemeinden-{year}.csv"
 )
+# The oldest editions the script reads; newer ones are found by trying the years since.
+FIRST_GV_YEAR = 2025
+FIRST_RATE_YEAR = 2024
 OUTPUT = Path(__file__).resolve().parent.parent / "src/lib/server/municipalities-data.ts"
 
 
@@ -40,6 +46,21 @@ def fetch(url):
     request = urllib.request.Request(url, headers={"User-Agent": "mietkartei.de"})
     with urllib.request.urlopen(request, timeout=60) as response:
         return response.read()
+
+
+def newest(url, first_year, marker):
+    """The newest year, from this one back to first_year, whose edition loads and contains the
+    marker (a missing edition may answer with an error page instead of 404); and its content."""
+    for year in range(datetime.date.today().year, first_year - 1, -1):
+        try:
+            content = fetch(url.format(year=year))
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                raise
+            continue
+        if marker.format(year=year).encode() in content:
+            return year, content
+    sys.exit(f"No edition of {url} since {first_year}")
 
 
 def rents():
@@ -55,27 +76,29 @@ def rents():
 
 
 def rates():
-    """The Hebesatz of the Grundsteuer B by Gemeindeschlüssel; 0 (not levied) is left out."""
-    text = fetch(RATES).decode("utf-8-sig")
+    """The year and the Hebesatz B by Gemeindeschlüssel; 0 (not levied) is left out."""
+    year, content = newest(RATES, FIRST_RATE_YEAR, '"Grundsteuer B"')
+    text = content.decode("utf-8-sig")
     result = {}
     for row in csv.DictReader(io.StringIO(text), delimiter=";"):
         value = row["Grundsteuer B"].strip()
         if value.isdigit() and int(value) > 0:
             result[row["AGS"]] = int(value)
-    return result
+    return year, result
 
 
 def municipalities():
     """The Gemeinden of the Gemeindeverzeichnis: key, name, latitude and longitude of the centre."""
-    page = fetch(GV_PAGE).decode("utf-8")
-    link = re.search(rf'href="([^"]*{GV_DATE}_Auszug_GV\.xlsx[^"]*)"', page)
+    year, page = newest(GV_PAGE, FIRST_GV_YEAR, "3112{year}_Auszug_GV.xlsx")
+    date = f"3112{year}"
+    link = re.search(rf'href="([^"]*{date}_Auszug_GV\.xlsx[^"]*)"', page.decode("utf-8"))
     if not link:
-        sys.exit(f"No xlsx link on {GV_PAGE}")
+        sys.exit(f"No xlsx link on {GV_PAGE.format(year=year)}")
     url = link.group(1).replace("&amp;", "&")
     if url.startswith("/"):
         url = "https://www.destatis.de" + url
     book = openpyxl.load_workbook(io.BytesIO(fetch(url)), read_only=True)
-    sheet = book[f"Onlineprodukt_Gemeinden{GV_DATE}"]
+    sheet = book[f"Onlineprodukt_Gemeinden{date}"]
     for row in sheet.iter_rows(min_row=7, values_only=True):
         # Satzart 60 is a Gemeinde; Textkennzeichen 65 and 66 are gemeindefreie Gebiete.
         if row[0] != "60" or row[1] in ("65", "66"):
@@ -99,12 +122,13 @@ def write_module(rows, rate_year):
 
 
 def main():
-    rent, rate = rents(), rates()
+    rent = rents()
+    rate_year, rate = rates()
     rows = [
         (key, name, lat, lon, rent.get(key, ""), rate.get(key, ""))
         for key, name, lat, lon in municipalities()
     ]
-    write_module(rows, RATE_YEAR)
+    write_module(rows, rate_year)
     print(
         f"{len(rows)} Gemeinden, {sum(r[4] != '' for r in rows)} with rent, "
         f"{sum(r[5] != '' for r in rows)} with Hebesatz"

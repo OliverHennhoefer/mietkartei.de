@@ -12,6 +12,8 @@ import { seedLease, seedRows, seedUser, signInAs } from './seed';
 test('saves the landlord sender block, which the letters print', async ({ page }) => {
 	// Reached through the account menu: the settings open as a dialog over the page.
 	await page.goto('/objekte');
+	// The menu button works only once the page is hydrated, which the map images can delay.
+	await page.waitForLoadState('networkidle');
 	await page.getByRole('button', { name: 'Konto' }).click();
 	await page.getByRole('link', { name: 'Einstellungen' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Einstellungen' });
