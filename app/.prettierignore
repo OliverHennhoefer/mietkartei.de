@@ -16,3 +16,6 @@ bun.lockb
 /src/lib/map/germany-outline.ts
 /src/lib/map/germany-shapes.ts
 /src/lib/server/postal-codes-data.ts
+
+# Generated Gemeinde table (scripts/municipalities.py)
+/src/lib/server/municipalities-data.ts
