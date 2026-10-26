@@ -21,7 +21,7 @@
 </script>
 
 <!-- The heading and tab bar come from +layout.svelte; this page is the "Kaution" tab. -->
-<h2>Kaution</h2>
+<h2 class="visually-hidden">Kaution</h2>
 
 {#if form?.message}
 	<Alert tone="danger"><p>{form.message}</p></Alert>

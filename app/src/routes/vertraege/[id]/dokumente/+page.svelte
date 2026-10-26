@@ -12,7 +12,7 @@
 </script>
 
 <!-- The heading and tab bar come from +layout.svelte; this page is the "Dokumente" tab. -->
-<h2>Dokumente</h2>
+<h2 class="visually-hidden">Dokumente</h2>
 <div class="toolbar">
 	<a href="/dokumente?leaseId={data.lease.id}" class="button secondary">Alle Dokumente</a>
 </div>

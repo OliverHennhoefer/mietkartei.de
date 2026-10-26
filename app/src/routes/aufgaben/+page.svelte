@@ -218,14 +218,6 @@
 	.check label {
 		padding-top: 0.2rem;
 	}
-	.visually-hidden {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip: rect(0 0 0 0);
-		white-space: nowrap;
-	}
 	.done {
 		margin-top: 1rem;
 	}

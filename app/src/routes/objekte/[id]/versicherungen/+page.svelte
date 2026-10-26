@@ -13,7 +13,7 @@
 </script>
 
 <!-- The heading and tab bar come from the layout; this page is the "Versicherungen" tab. -->
-<h2>Versicherungen</h2>
+<h2 class="visually-hidden">Versicherungen</h2>
 <p class="muted">
 	Mit Hauptfälligkeit und Kündigungsfrist erscheint die Frist zum Kündigen unter Aufgaben. Den
 	Beitrag eines Versicherungsjahres kannst du als Beleg übernehmen; die Abrechnung verteilt ihn

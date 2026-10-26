@@ -1,7 +1,8 @@
 <script lang="ts">
 	// The frame of every page under /vertraege/[id]: heading, tenants, tab bar. The lease comes from
 	// +layout.server.ts; child pages read it from the layout data (data.lease) and render only h2
-	// sections, no PageHeader. Pages put their primary action buttons in a <div class="toolbar">
+	// sections, no PageHeader; a first h2 that only repeats the tab name is .visually-hidden, as the
+	// current tab already shows it. Pages put their primary action buttons in a <div class="toolbar">
 	// below the tabs, not in the PageHeader actions snippet, because every tab has actions of its
 	// own.
 	import PageHeader from '#lib/components/PageHeader.svelte';

@@ -23,7 +23,7 @@
 </script>
 
 <!-- The heading and the tab bar come from +layout.svelte; this page is the "Konten" tab. -->
-<h2>Bankverbindungen</h2>
+<h2 class="visually-hidden">Bankverbindungen</h2>
 
 {#if data.ownerOnly}
 	<p>Bankverbindungen sieht nur der Vermieter des Kontos.</p>
@@ -201,12 +201,5 @@
 	.iban {
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
-	}
-	.visually-hidden {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip: rect(0 0 0 0);
 	}
 </style>

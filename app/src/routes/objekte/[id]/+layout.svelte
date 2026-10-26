@@ -1,7 +1,8 @@
 <script lang="ts">
 	// The frame of every page under /objekte/[id]: heading, address, tab bar. The property comes
 	// from +layout.server.ts; child pages read it from the layout data (data.property) and render
-	// only h2 sections, no PageHeader. Pages put their primary action buttons in a
+	// only h2 sections, no PageHeader; a first h2 that only repeats the tab name is .visually-hidden,
+	// as the current tab already shows it. Pages put their primary action buttons in a
 	// <div class="toolbar"> below the tabs, not in the PageHeader actions snippet, because every
 	// tab has actions of its own.
 	import { formatDate } from '#lib/dates.ts';

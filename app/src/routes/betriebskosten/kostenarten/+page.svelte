@@ -11,7 +11,7 @@
 	};
 </script>
 
-<h2>Kostenarten</h2>
+<h2 class="visually-hidden">Kostenarten</h2>
 <p class="muted">
 	Die 17 Kostenarten aus § 2 Betriebskostenverordnung sind vorbelegt. Der Standardschlüssel und der
 	Standardkreis werden in jeden neuen Beleg der Kostenart übernommen.

@@ -20,7 +20,7 @@
 	<a class="button" href="#neue-abrechnung">Neue Abrechnung</a>
 </div>
 
-<h2>Abrechnungen</h2>
+<h2 class="visually-hidden">Abrechnungen</h2>
 {#if data.groups.length === 0}
 	<p class="muted">
 		Noch keine Abrechnung. Lege unten einen Entwurf für ein Objekt und einen Zeitraum an.

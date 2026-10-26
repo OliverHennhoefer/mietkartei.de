@@ -14,7 +14,7 @@
 </script>
 
 <!-- The heading and tab bar come from the layout; this page is the "Hausgeld" tab. -->
-<h2>Hausgeldabrechnungen</h2>
+<h2 class="visually-hidden">Hausgeldabrechnungen</h2>
 <p class="muted">
 	Die Hausgeldabrechnung des Verwalters mit dem Anteil der Wohnung: umlagefähige und nicht
 	umlagefähige Kosten, die Zuführung zur Erhaltungsrücklage und das Hausgeld laut Wirtschaftsplan.

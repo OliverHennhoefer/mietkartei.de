@@ -8,7 +8,7 @@
 </script>
 
 <!-- The heading and tab bar come from the layout; this page is the "Abrechnungskreise" tab. -->
-<h2>Abrechnungskreise</h2>
+<h2 class="visually-hidden">Abrechnungskreise</h2>
 <p class="muted">
 	Ein Abrechnungskreis ist die Gruppe von Einheiten, die sich eine Kostenart teilt: etwa die
 	Stellplätze, die nichts zu den Gebäudekosten beitragen, oder ein Haus mit mehreren Eingängen, bei
