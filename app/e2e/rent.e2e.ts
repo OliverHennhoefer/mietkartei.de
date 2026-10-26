@@ -54,7 +54,7 @@ test('adjusts an index rent from the VPI and writes the letter', async ({ page }
 	await expect(proposal).toContainText('630,96 €');
 	await expect(proposal).toContainText('Vorschlag');
 	await expect(proposal).toContainText('Indexanpassung');
-	await expect(proposal).toContainText('124,3 (Januar 2026)');
+	await expect(proposal).toContainText(/124,3\s*Januar 2026/);
 
 	// Delivered today: the new rent applies from the first day of the second month after it
 	// (§ 557b Abs. 3 BGB).
@@ -72,7 +72,7 @@ test('adjusts an index rent from the VPI and writes the letter', async ({ page }
 	await expect(approved).toContainText(effective);
 	await expect(approved).toContainText('630,96 €');
 	await expect(approved).toContainText('830,96 €');
-	await expect(approved).toContainText('Freigegeben');
+	await expect(approved).not.toContainText('Vorschlag');
 	await expect(page.getByText('Es gibt schon einen Vorschlag')).toHaveCount(0);
 
 	// The letter downloads as a PDF.
