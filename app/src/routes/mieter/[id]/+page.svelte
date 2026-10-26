@@ -250,7 +250,11 @@
 								<td class="num">
 									<Money cents={Math.abs(statement.amount)} />
 									<span class="muted small"
-										>{statement.amount > 0 ? 'Nachzahlung' : 'Guthaben'}</span
+										>{statement.amount > 0
+											? 'Nachzahlung'
+											: statement.amount < 0
+												? 'Guthaben'
+												: 'nichts zu zahlen'}</span
 									>
 								</td>
 							</tr>

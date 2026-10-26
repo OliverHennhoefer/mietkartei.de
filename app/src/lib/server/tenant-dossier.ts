@@ -1,6 +1,7 @@
-import { and, desc, eq, inArray, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, or } from 'drizzle-orm';
 import { today, type IsoDate, type IsoMonth } from '../dates';
 import { total } from '../domain/rents';
+import { periodLabel, type LeaseStatement } from '../domain/statement';
 import type { Database } from './db';
 import { chunkIds } from './db/batch';
 import {
@@ -9,8 +10,10 @@ import {
 	documents,
 	expenses,
 	payments,
+	operatingCostStatements,
 	paymentReminders,
 	rentCharges,
+	statementResults,
 	tasks,
 	users,
 	type ExpenseCategory,
@@ -18,7 +21,7 @@ import {
 } from './db/schema';
 import { depositSummary } from './deposits';
 import { leaseLabel, type LeaseSummary } from './leases';
-import { chargeLabel, listBalances } from './ledger';
+import { listBalances } from './ledger';
 
 // The tenant page as a dossier: what matters today (where the tenant lives, what they pay, what
 // is open), then the money over the whole tenancy and everything else that belongs to the tenant,
@@ -84,7 +87,7 @@ export type TenantDossier = {
 		statementId: string;
 		leaseId: string;
 		label: string;
-		/** Positive = Nachzahlung, negative = Guthaben. */
+		/** What the statement claims: positive = Nachzahlung, negative = Guthaben. */
 		amount: number;
 	}[];
 	unitCosts: {
@@ -105,11 +108,6 @@ export type TenantDossier = {
 	documents: { id: string; name: string; createdAt: Date }[];
 	history: { id: string; at: Date; summary: string; userName: string | null }[];
 };
-
-/** "Betriebskostenabrechnung 2024": the statement's note up to the due-date remark. */
-function statementLabel(charge: Parameters<typeof chargeLabel>[0]): string {
-	return charge.note?.split(';')[0].trim() || chargeLabel(charge);
-}
 
 /** Whether `date` falls into the lease term, up to `asOf` for a lease without an end. */
 function inTerm(
@@ -147,7 +145,9 @@ export async function tenantDossier(
 		taskRows,
 		expenseRows,
 		documentRows,
-		historyRows
+		historyRows,
+		resultRows,
+		correctionRows
 	] = await Promise.all([
 		leaseIds.length ? listBalances(db, accountId, { asOf, leaseIds }) : Promise.resolve([]),
 		inLeases((ids) =>
@@ -251,7 +251,41 @@ export async function tenantDossier(
 					.orderBy(desc(auditLog.at))
 					.limit(HISTORY)
 			)
-		).then((rows) => rows.flat())
+		).then((rows) => rows.flat()),
+		inLeases((ids) =>
+			db
+				.select({
+					statementId: statementResults.statementId,
+					leaseId: statementResults.leaseId,
+					balance: statementResults.balance,
+					result: statementResults.result,
+					periodStart: operatingCostStatements.periodStart,
+					periodEnd: operatingCostStatements.periodEnd
+				})
+				.from(statementResults)
+				.innerJoin(
+					operatingCostStatements,
+					eq(statementResults.statementId, operatingCostStatements.id)
+				)
+				.where(
+					and(
+						eq(statementResults.accountId, accountId),
+						eq(operatingCostStatements.status, 'approved'),
+						inArray(statementResults.leaseId, ids)
+					)
+				)
+		),
+		// The statements an approved correction replaces.
+		db
+			.select({ correctsId: operatingCostStatements.correctsId })
+			.from(operatingCostStatements)
+			.where(
+				and(
+					eq(operatingCostStatements.accountId, accountId),
+					eq(operatingCostStatements.status, 'approved'),
+					isNotNull(operatingCostStatements.correctsId)
+				)
+			)
 	]);
 
 	const balanceByLease = new Map(balances.map((balance) => [balance.leaseId, balance]));
@@ -281,28 +315,33 @@ export async function tenantDossier(
 		};
 	});
 
-	// A reversal (a correction, a late delivery) counts towards the statement whose charge it
-	// reverses, so a corrected statement nets out and only what is left per statement is shown.
+	// What each approved, not corrected statement claims from the tenant: the frozen result (less
+	// after the deadline), less what a late delivery took back. The ledger posting is not the
+	// claim, it leaves out the unpaid prepayments that are already charged on the rent account.
+	const corrected = new Set(correctionRows.map((row) => row.correctsId));
 	const chargeById = new Map(statementRows.map((row) => [row.id, row]));
-	const byStatement = new Map<string, TenantDossier['statements'][number] & { period: string }>();
-	for (const row of statementRows) {
-		const original = (row.reversesChargeId && chargeById.get(row.reversesChargeId)) || row;
-		const key = original.id;
-		const entry = byStatement.get(key);
-		if (entry) entry.amount += row.amount;
-		else {
-			byStatement.set(key, {
-				statementId: original.referenceId ?? '',
-				leaseId: original.leaseId,
-				label: statementLabel(original),
-				amount: row.amount,
-				period: original.period
-			});
-		}
-	}
-	const statements = [...byStatement.values()]
-		.filter((entry) => entry.amount !== 0)
-		.sort((a, b) => (a.period < b.period ? 1 : a.period > b.period ? -1 : 0))
+	const statements = resultRows
+		.filter((row) => !corrected.has(row.statementId))
+		.map((row) => {
+			const frozen = JSON.parse(row.result) as Pick<LeaseStatement, 'posted'>;
+			const takenBack = statementRows
+				.filter(
+					(charge) =>
+						charge.referenceId === row.statementId &&
+						charge.leaseId === row.leaseId &&
+						charge.reversesChargeId !== null &&
+						chargeById.get(charge.reversesChargeId)?.referenceId === row.statementId
+				)
+				.reduce((sum, charge) => sum + charge.amount, 0);
+			return {
+				statementId: row.statementId,
+				leaseId: row.leaseId,
+				label: `Betriebskostenabrechnung ${periodLabel(row.periodStart, row.periodEnd)}`,
+				amount: (frozen.posted ?? row.balance) + takenBack,
+				periodEnd: row.periodEnd
+			};
+		})
+		.sort((a, b) => (a.periodEnd < b.periodEnd ? 1 : a.periodEnd > b.periodEnd ? -1 : 0))
 		.map(({ statementId, leaseId, label, amount }) => ({ statementId, leaseId, label, amount }));
 
 	// An expense counts when it falls into the term of a lease on its unit; counted once even when
