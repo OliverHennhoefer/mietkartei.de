@@ -54,7 +54,11 @@ async function readTiles(page: Page): Promise<Tiles> {
 	return {
 		properties: whole(await value(0)),
 		activeLeases: whole(await label(0), /([\d.]+)\slaufende?r? Mietvertr/),
-		arrears: parseCents(await value(1)) ?? Number.NaN,
+		// The Rückstand is shown signed (−1.234,56 €), with the word for screen readers.
+		arrears: Math.abs(
+			parseCents((await tiles.nth(1).locator('.amount').innerText()).replace('\u2212', '-')) ??
+				Number.NaN
+		),
 		arrearsCount: whole(await label(1), /([\d.]+)\sMietvertr/),
 		vacant: whole(await value(2)),
 		units: whole(await label(2), /von\s([\d.]+)\sEinheit/),
