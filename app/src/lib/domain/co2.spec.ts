@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { behgCost, behgHint, co2KgFromKwh, landlordSharePercent, splitCo2Cost } from './co2';
+import {
+	behgCost,
+	behgHint,
+	co2Deadline,
+	co2KgFromKwh,
+	landlordSharePercent,
+	splitCo2Cost
+} from './co2';
 
 describe('landlordSharePercent', () => {
 	it('follows the tiers of Anlage 1 CO2KostAufG for residential buildings', () => {
@@ -84,5 +91,12 @@ describe('behgCost and behgHint', () => {
 		expect(behgCost(2027, 1000)).toBeNull();
 		expect(behgCost(2025, 0)).toBeNull();
 		expect(behgHint(2025, Number.NaN)).toBeNull();
+	});
+});
+
+describe('co2Deadline', () => {
+	it('is twelve months after the claim', () => {
+		expect(co2Deadline('2026-03-15')).toBe('2027-03-15');
+		expect(co2Deadline('2024-02-29')).toBe('2025-02-28');
 	});
 });

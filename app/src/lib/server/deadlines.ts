@@ -10,12 +10,14 @@ import {
 	today as todayInBerlin,
 	type IsoDate
 } from '../dates';
+import { co2Deadline } from '../domain/co2';
+import { depositInstalments } from '../domain/deposit';
 import { nextCancellation } from '../domain/insurance';
+import { leaseEndDeadlines } from '../domain/lease-end';
 import { objectionDeadline, statementDeadline } from '../domain/statement';
 import { insuranceKindLabels } from '../labels';
 import { personName } from '../format';
-import { distributeCents, formatCents } from '../money';
-import { nthWorkingDay } from '../working-days';
+import { formatCents } from '../money';
 import type { Database } from './db';
 import {
 	co2CostSplits,
@@ -301,6 +303,7 @@ export async function listDeadlines(
 		const movements = depositRows.filter((row) => row.leaseId === lease.id);
 
 		if (lease.endDate) {
+			const end = leaseEndDeadlines(lease.endDate);
 			push(
 				{
 					kind: 'lease_end',
@@ -320,7 +323,7 @@ export async function listDeadlines(
 			if (!settled) {
 				push({
 					kind: 'deposit_return',
-					date: addMonths(lease.endDate, 6),
+					date: end.settleDeposit,
 					title: 'Kaution abrechnen',
 					detail,
 					href: `/vertraege/${lease.id}/kaution`,
@@ -330,7 +333,7 @@ export async function listDeadlines(
 
 			// Zählerstände ablesen at the end, when the unit has meters in place on that day and no
 			// final reading yet. A meter removed before the end or installed after it is not read.
-			const endDate = lease.endDate;
+			const endDate = end.readMeters;
 			const meterIds = [lease.unitId, ...lease.extraUnits.map((unit) => unit.id)]
 				.flatMap((unitId) => metersByUnit.get(unitId) ?? [])
 				.filter(
@@ -350,7 +353,7 @@ export async function listDeadlines(
 				if (!read) {
 					push({
 						kind: 'meter_reading',
-						date: lease.endDate,
+						date: endDate,
 						title: 'Zählerstände ablesen',
 						detail,
 						href: `/objekte/${lease.property.id}/zaehler`,
@@ -363,22 +366,20 @@ export async function listDeadlines(
 		// Kaution in drei Raten (§ 551 Abs. 2 BGB), due with the first three rents (not before the
 		// lease starts), until the received amount covers them. An ended lease collects no deposit
 		// any more.
-		if (lease.kind === 'residential' && lease.securityDeposit > 0 && !ended) {
+		if (!ended) {
 			const received = movements
 				.filter((row) => row.kind === 'received')
 				.reduce((sum, row) => sum + row.amount, 0);
-			const instalments = distributeCents(lease.securityDeposit, [1, 1, 1]);
+			const instalments = depositInstalments({ ...lease, state: lease.property.state });
 			let covered = 0;
-			for (let index = 0; index < 3; index += 1) {
-				covered += instalments[index];
+			for (const [index, instalment] of instalments.entries()) {
+				covered += instalment.amount;
 				if (received >= covered) continue;
-				const month = monthOf(addMonths(lease.startDate, index));
-				const dueDate = nthWorkingDay(month, Math.max(1, lease.rentDueDay), lease.property.state);
 				push({
 					kind: 'deposit_instalment',
-					date: dueDate < lease.startDate ? lease.startDate : dueDate,
+					date: instalment.dueDate,
 					title: `Kaution: ${index + 1}. Rate fällig`,
-					detail: `${formatCents(instalments[index])} von ${formatCents(lease.securityDeposit)} · ${detail}`,
+					detail: `${formatCents(instalment.amount)} von ${formatCents(lease.securityDeposit)} · ${detail}`,
 					href: `/vertraege/${lease.id}/kaution`,
 					...base
 				});
@@ -446,7 +447,7 @@ export async function listDeadlines(
 			push(
 				{
 					kind: 'co2_reimbursement',
-					date: addMonths(split.claimedOn, 12),
+					date: co2Deadline(split.claimedOn),
 					title: `CO₂-Kostenanteil ${split.year} erstatten`,
 					detail: `${formatCents(split.amount)} · ${detail}`,
 					href: `/vertraege/${lease.id}/co2`,

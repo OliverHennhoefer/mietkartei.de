@@ -1,3 +1,4 @@
+import { addMonths, type IsoDate } from '../dates';
 import { formatNumber } from '../format';
 import { formatCents, proRata } from '../money';
 import type { BuildingUse } from '../server/db/schema';
@@ -133,4 +134,9 @@ export function behgHint(year: number, co2Kg: number): string | null {
 		`(Versteigerung), für ${kg} also ${formatCents(cost.min)} bis ${formatCents(cost.max)} ` +
 		'ohne Umsatzsteuer.'
 	);
+}
+
+/** § 6 Abs. 2 CO2KostAufG: the landlord settles a tenant's claim within 12 months of it. */
+export function co2Deadline(claimedOn: IsoDate): IsoDate {
+	return addMonths(claimedOn, 12);
 }
