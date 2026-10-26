@@ -128,6 +128,9 @@ describe('street maps of the property list', () => {
 		expect(response.headers.get('Content-Type')).toBe('image/svg+xml; charset=utf-8');
 		expect(response.headers.get('ETag')).toMatch(new RegExp(`-14-${x}-${y}"$`));
 		expect(await response.text()).toContain('<path');
+		// Beyond the street map's data, an empty tile.
+		const empty = (await tile({ ...params, x: String(x + 5) })) as Response;
+		expect(await empty.text()).not.toContain('<path');
 		for (const wrong of [
 			{ z: '4', x: '0', y: '0' },
 			{ z: '18', x: '0', y: '0' },

@@ -126,6 +126,7 @@
 				const label = document.createElement('span');
 				label.textContent = `${shown.name}${extra}`;
 				const attention = place.properties.some(needsAttention);
+				let byKeyboard = false;
 				const marker = L.circleMarker([place.lat, place.lon], {
 					radius: chosen ? 8 : 6,
 					color: '#141414',
@@ -144,9 +145,35 @@
 						className: 'street-map-popup',
 						offset: [0, -4]
 					})
-					// The figures take the place of the name while they are open.
-					.on('popupopen', () => marker.closeTooltip())
-					.on('popupclose', () => chosen && marker.openTooltip())
+					// The figures take the place of the name while they are open; opened from the
+					// keyboard, the focus moves to the first property and back to the dot after.
+					.on('popupopen', (event) => {
+						marker.closeTooltip();
+						if (byKeyboard) event.popup.getElement()?.querySelector('a')?.focus();
+					})
+					.on('popupclose', () => {
+						if (chosen) marker.openTooltip();
+						if (byKeyboard) (marker.getElement() as SVGElement | undefined)?.focus();
+						byKeyboard = false;
+					})
+					// Leaflet draws the dots as paths no key reaches; each becomes a button once the
+					// map has its first view and draws it.
+					.on('add', () => {
+						const dot = marker.getElement();
+						dot?.setAttribute('tabindex', '0');
+						dot?.setAttribute('role', 'button');
+						dot?.setAttribute(
+							'aria-label',
+							place.properties.map((property) => property.name).join(', ')
+						);
+						dot?.addEventListener('keydown', (event) => {
+							const key = (event as KeyboardEvent).key;
+							if (key !== 'Enter' && key !== ' ') return;
+							event.preventDefault();
+							byKeyboard = true;
+							marker.openPopup();
+						});
+					})
 					.addTo(created);
 			}
 			const legend = new L.Control({ position: 'bottomleft' });

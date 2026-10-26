@@ -310,11 +310,15 @@ test('shows each property on a map and hides the maps in the settings', async ({
 	await page.keyboard.press('Escape');
 	await expect(map).toHaveCount(0);
 	await tile.click();
-	await map.locator('.street-map-dot.selected').click();
+	// The dots are buttons for the keyboard too.
+	await map.locator('.street-map-dot.selected').focus();
+	await page.keyboard.press('Enter');
 	const figures = map.locator('.street-map-popup');
 	await expect(figures).toContainText('kein Leerstand');
 	await expect(figures).toContainText('Kaltmiete');
-	await figures.getByRole('link', { name }).click();
+	await expect(figures.getByRole('link').first()).toBeFocused();
+	await figures.getByRole('link', { name }).focus();
+	await page.keyboard.press('Enter');
 	await expect(page).toHaveURL(/\/objekte\/[\w-]+$/);
 	await expect(page.getByRole('heading', { name })).toBeVisible();
 

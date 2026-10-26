@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contains, frame, placeLabels, places } from './frame.ts';
+import { contains, frame, needsAttention, placeLabels, places } from './frame.ts';
 import { project, VIEW } from './projection.ts';
 
 describe('project', () => {
@@ -99,5 +99,17 @@ describe('placeLabels', () => {
 		expect(placeLabels([label], [], 5, edge)).toMatchObject([{ anchor: 'end' }]);
 		expect(placeLabels([{ ...label, x: 300, required: false }], [], 5, edge)).toEqual([]);
 		expect(placeLabels([{ ...label, x: 300 }], [], 5, edge)).toMatchObject([{ anchor: 'start' }]);
+	});
+});
+
+describe('needsAttention', () => {
+	const property = { id: 'a', name: 'A', city: 'Berlin', position: null };
+	const facts = { overdue: 0, rentPerSquareMetre: null, municipality: null };
+
+	it('marks a vacant unit or a Rückstand, and nothing without figures', () => {
+		expect(needsAttention(property)).toBe(false);
+		expect(needsAttention({ ...property, vacantUnits: 0, facts })).toBe(false);
+		expect(needsAttention({ ...property, vacantUnits: 1, facts })).toBe(true);
+		expect(needsAttention({ ...property, facts: { ...facts, overdue: 100 } })).toBe(true);
 	});
 });

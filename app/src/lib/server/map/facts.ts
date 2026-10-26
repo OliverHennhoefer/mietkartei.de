@@ -21,13 +21,15 @@ export async function propertyMapFacts(
 		listLeases(db, accountId),
 		listBalances(db, accountId)
 	]);
-	const overdue = new Map(balances.map((balance) => [balance.leaseId, balance.overdue]));
 	const facts: Record<string, MapFacts> = {};
 	for (const property of properties) {
 		const own = leases.filter((lease) => lease.property.id === property.id);
+		const ids = new Set(own.map((lease) => lease.id));
 		const municipality = findMunicipality(property);
 		facts[property.id] = {
-			overdue: own.reduce((sum, lease) => sum + (overdue.get(lease.id) ?? 0), 0),
+			overdue: balances
+				.filter((balance) => ids.has(balance.leaseId))
+				.reduce((sum, balance) => sum + balance.overdue, 0),
 			rentPerSquareMetre: rentLevel(own.filter((lease) => lease.active))?.perSquareMetre ?? null,
 			municipality: municipality && {
 				name: municipality.name,

@@ -259,6 +259,54 @@ describe('renderTile', () => {
 		expect(deeper).toContain('>Quartier<');
 	});
 
+	it('sizes the names of places by their population and skips places without a kind', async () => {
+		const tile = encodeTile([
+			{
+				name: 'places',
+				features: [
+					point({ kind: 'locality', name: 'Großstadt', population_rank: '11' }, [2048, 800]),
+					point({ kind: 'locality', name: 'Mittel', population_rank: '9' }, [2048, 1600]),
+					point({ kind: 'locality', name: 'Dorf' }, [2048, 2400]),
+					point({ name: 'Ohne Art' }, [2048, 3200])
+				]
+			}
+		]);
+		const svg = await renderTile(async () => tile, 12, 2200, 1360, 14);
+		const sizes = [...svg.matchAll(/font-size="([\d.]+)">([^<]*)</g)].map(([, size, name]) => [
+			name,
+			Number(size)
+		]);
+		expect(sizes).toEqual([
+			['Großstadt', 14],
+			['Mittel', 12.5],
+			['Dorf', 11]
+		]);
+	});
+
+	it('leaves out points of a line that add less than half a pixel', async () => {
+		const tile = encodeTile([
+			{
+				name: 'roads',
+				features: [
+					{
+						type: 'line' as const,
+						properties: { kind: 'minor_road' },
+						geometry: [
+							[
+								[0, 2048],
+								[1, 2048],
+								[2, 2048],
+								[4096, 2048]
+							]
+						]
+					}
+				]
+			}
+		]);
+		const svg = await renderTile(async () => tile, 14, 0, 0, 14);
+		expect(svg).toContain('d="M0 128L256 128"');
+	});
+
 	it('scales the deepest tiles up and thins the roads further out', async () => {
 		const read = vi.fn(async () => encodeTile(fixtureQuarter(0, 0)));
 		const deep = await renderTile(read, 16, 4 * 1000 + 1, 4 * 600 + 2, 14);
@@ -266,6 +314,8 @@ describe('renderTile', () => {
 		expect(deep).toMatch(/stroke="#424242" stroke-width="2\.24"/);
 		const far = await renderTile(read, 6, 33, 21, 14);
 		expect(far).toMatch(/stroke="#424242" stroke-width="0\.6"/);
+		const named = encodeTile(fixtureQuarter(0, 0, { name: 'Kreuzberg', at: [2048, 2048] }));
+		expect(await renderTile(async () => named, 14, 0, 0, 14)).toContain('>Kreuzberg<');
 	});
 });
 

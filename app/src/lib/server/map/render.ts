@@ -191,8 +191,7 @@ function placeLabel(
 	if (!text) return undefined;
 	const rank = Number(feature.properties.population_rank ?? 0);
 	const size = kind === 'locality' ? (rank >= 11 ? 14 : rank >= 9 ? 12.5 : 11) : 10.5;
-	const [point] = feature.loadGeometry()[0] ?? [];
-	if (!point) return undefined;
+	const point = feature.loadGeometry()[0][0];
 	const x = originX + point.x * unit;
 	const y = originY + point.y * unit;
 	const half = (text.length * size * 0.56) / 2 + 3;
