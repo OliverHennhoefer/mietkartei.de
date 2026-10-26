@@ -17,6 +17,7 @@
 	} from '../server/db/schema';
 	import type { LeaseSummary, Property, Tenant, Unit } from '../server/leases';
 	import Field from './Field.svelte';
+	import MultiSelect from './MultiSelect.svelte';
 
 	// The lease form, shared by /vertraege/neu (mode create: units and amounts included) and
 	// /vertraege/[id]/bearbeiten (mode edit: the units are shown, not edited; the amounts, deposit
@@ -53,8 +54,19 @@
 	const heatingCostModels = Object.keys(heatingCostModelLabels) as HeatingCostModel[];
 	const terminatedByParties = Object.keys(terminatedByLabels) as TerminatedBy[];
 
-	const selectedTenants = $derived(new Set((values.tenantIds ?? '').split(',').filter(Boolean)));
-	const selectedExtras = $derived(new Set((values.extraUnitIds ?? '').split(',').filter(Boolean)));
+	const tenantOptions = $derived(
+		tenants.map((tenant) => ({
+			value: tenant.id,
+			label: personName(tenant),
+			hint: tenant.email ?? undefined
+		}))
+	);
+	const unitOptions = $derived(
+		units.map(({ unit, property }) => ({
+			value: unit.id,
+			label: `${unit.name} · ${property.name}`
+		}))
+	);
 	const invalid = (name: string) => (errors[name] ? 'true' : undefined);
 	// In the edit form the amounts are the ones at the start of the lease.
 	const atStart = (label: string) => (mode === 'edit' ? `${label} bei Vertragsbeginn` : label);
@@ -72,27 +84,16 @@
 				{/each}
 			</select>
 		</Field>
-		<fieldset class="form-wide">
-			<legend>Weitere Einheiten (optional)</legend>
-			<p class="muted small">
-				Ein Stellplatz, der mit der Wohnung vermietet wird, gehört in denselben Mietvertrag: eine
-				Miete, eine Zahlung, ein Mietkonto.
-			</p>
-			<div class="choices">
-				{#each units as { unit, property } (unit.id)}
-					<label class="inline">
-						<input
-							type="checkbox"
-							name="extraUnitIds"
-							value={unit.id}
-							defaultChecked={selectedExtras.has(unit.id)}
-						/>
-						{unit.name} · {property.name}
-					</label>
-				{/each}
-			</div>
-			{#if errors.extraUnitIds}<span class="error">{errors.extraUnitIds}</span>{/if}
-		</fieldset>
+		<MultiSelect
+			name="extraUnitIds"
+			label="Weitere Einheiten (optional)"
+			options={unitOptions}
+			selected={(values.extraUnitIds ?? '').split(',').filter(Boolean)}
+			placeholder="Einheit suchen …"
+			empty="Keine Einheit gefunden."
+			hint="Ein Stellplatz, der mit der Wohnung vermietet wird, gehört in denselben Mietvertrag: eine Miete, eine Zahlung, ein Mietkonto."
+			error={errors.extraUnitIds}
+		/>
 	{:else if lease}
 		<div class="form-wide">
 			<p>
@@ -106,23 +107,16 @@
 		</div>
 	{/if}
 
-	<fieldset class="form-wide">
-		<legend>Mieter</legend>
-		<div class="choices">
-			{#each tenants as tenant (tenant.id)}
-				<label class="inline">
-					<input
-						type="checkbox"
-						name="tenantIds"
-						value={tenant.id}
-						defaultChecked={selectedTenants.has(tenant.id)}
-					/>
-					{personName(tenant)}
-				</label>
-			{/each}
-		</div>
-		{#if errors.tenantIds}<span class="error">{errors.tenantIds}</span>{/if}
-	</fieldset>
+	<MultiSelect
+		name="tenantIds"
+		label="Mieter"
+		options={tenantOptions}
+		selected={(values.tenantIds ?? '').split(',').filter(Boolean)}
+		placeholder="Mieter suchen …"
+		empty="Kein Mieter gefunden."
+		hint="Mehrere Mieter für Paare und WGs: einfach weitere auswählen."
+		error={errors.tenantIds}
+	/>
 
 	<Field label="Beginn" error={errors.startDate}>
 		<input
@@ -226,7 +220,8 @@
 	<Field
 		label="Kaution"
 		error={errors.securityDeposit}
-		hint={depositWarning ?? 'Bei Wohnraum höchstens drei Nettokaltmieten (§ 551 BGB).'}
+		hint="Bei Wohnraum höchstens drei Nettokaltmieten (§ 551 BGB)."
+		note={depositWarning}
 	>
 		<input
 			name="securityDeposit"
@@ -364,29 +359,3 @@
 		<a href={cancelHref} class="button secondary">Abbrechen</a>
 	</div>
 </form>
-
-<style>
-	fieldset {
-		border: 0;
-		padding: 0;
-		margin: 0;
-		min-width: 0;
-	}
-	legend {
-		font-weight: 500;
-		font-size: 0.9rem;
-		padding: 0;
-		margin-bottom: 0.25rem;
-	}
-	.choices {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.25rem 1.5rem;
-	}
-	.choices label {
-		font-weight: 400;
-	}
-	fieldset p {
-		margin: 0 0 0.5rem;
-	}
-</style>

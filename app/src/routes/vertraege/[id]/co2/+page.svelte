@@ -45,13 +45,13 @@
 	const field = (name: string, fallback: string) => typed?.[name] ?? values?.[name] ?? fallback;
 
 	/** The cost the emissions of the year have at the BEHG price, under the CO₂ cost field. */
-	const costHint = $derived.by(() => {
+	const costNote = $derived.by(() => {
 		const fuel = field('fuel', 'gas');
 		const kg =
 			parseDecimal(field('co2Kg', '')) ?? co2KgFromKwh(fuel, parseDecimal(field('fuelKwh', '')));
 		const year = Number(field('year', String(data.defaults.year)));
 		const behg = kg === null ? null : behgHint(year, kg);
-		return behg ? `Wie auf der Rechnung angegeben. ${behg}` : 'Wie auf der Rechnung angegeben.';
+		return behg ?? undefined;
 	});
 
 	function readFields(element: HTMLFormElement) {
@@ -139,7 +139,12 @@
 			aria-invalid={errors?.co2Kg ? 'true' : undefined}
 		/>
 	</Field>
-	<Field label="CO₂-Kosten in €" error={errors?.co2Cost} hint={costHint}>
+	<Field
+		label="CO₂-Kosten in €"
+		error={errors?.co2Cost}
+		hint="Wie auf der Rechnung angegeben."
+		note={costNote}
+	>
 		<input
 			name="co2Cost"
 			inputmode="decimal"
