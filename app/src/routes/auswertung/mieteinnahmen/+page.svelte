@@ -82,7 +82,7 @@
 						<span>{percent(share)} eingegangen</span>
 						{#if data.arrears > 0}
 							<a class="negative" href="/mietkonto?filter=rueckstaende">
-								<Balance cents={data.arrears} label /> heute
+								<Balance cents={data.arrears} /> Rückstand heute
 							</a>
 						{/if}
 					</span>
