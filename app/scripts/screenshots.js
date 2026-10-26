@@ -62,7 +62,7 @@ try {
 	await page.getByLabel('E-Mail-Adresse').fill('vermieterin@example.org');
 	await page.getByLabel('Passwort').fill('ein-sicheres-passwort');
 	await page.getByRole('button', { name: 'Konto anlegen' }).click();
-	await page.waitForURL(/\/$/);
+	await page.waitForURL(/\/aufgaben$/);
 	await page.goto('/einstellungen/konto');
 	await page.getByRole('button', { name: 'Demodaten anlegen' }).click();
 	await page.getByRole('button', { name: 'Demodaten anlegen' }).waitFor({ state: 'detached' });

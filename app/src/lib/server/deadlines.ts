@@ -499,21 +499,3 @@ export async function listDeadlines(
 		)
 		.sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title, 'de'));
 }
-
-/**
- * For the dashboard tile: how many deadlines are overdue and how many lie within `months`
- * (default twelve). Runs the same queries as listDeadlines; nothing is cheaper to compute.
- */
-export async function countDeadlines(
-	db: Database,
-	accountId: string,
-	options: { months?: number; today?: IsoDate } = {}
-): Promise<{ overdue: number; upcoming: number }> {
-	const today = options.today ?? todayInBerlin();
-	const deadlines = await listDeadlines(db, accountId, {
-		to: addMonths(today, options.months ?? 12),
-		today
-	});
-	const overdue = deadlines.filter((deadline) => deadline.overdue).length;
-	return { overdue, upcoming: deadlines.length - overdue };
-}

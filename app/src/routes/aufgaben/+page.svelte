@@ -2,9 +2,11 @@
 	import { enhance } from '$app/forms';
 	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import TaskFields from '#lib/components/TaskFields.svelte';
 	import { dayOf, formatDate } from '#lib/dates.ts';
+	import { pluralize } from '#lib/format.ts';
 	import { taskCategoryLabels } from '#lib/labels.ts';
 	import { repeatLabel, taskTemplates } from '#lib/task-templates.ts';
 	import type { PageProps } from './$types';
@@ -14,12 +16,126 @@
 	const errors = $derived(form && 'errors' in form ? form.errors : undefined);
 	const values = $derived(form?.values ?? data.template ?? {});
 	const overdue = $derived(data.deadlines.filter((deadline) => deadline.overdue).length);
+	const attention = $derived(
+		data.attention.arrearsCount > 0 ||
+			data.attention.unmatched > 0 ||
+			data.attention.vacantCount > 0
+	);
+
+	// The setup checklist, in the order the data depends on each other; each step leads to the
+	// page that creates what it asks for.
+	const steps = $derived(
+		data.firstRun
+			? [
+					{ done: data.firstRun.properties, href: '/objekte/neu', label: 'Objekt anlegen' },
+					{
+						done: data.firstRun.units,
+						href: data.firstRun.firstPropertyId
+							? `/objekte/${data.firstRun.firstPropertyId}`
+							: '/objekte/neu',
+						label: 'Einheit anlegen'
+					},
+					{ done: data.firstRun.tenants, href: '/mieter/neu', label: 'Mieter anlegen' },
+					{
+						done: data.firstRun.leases,
+						href: '/vertraege/neu',
+						label: 'Mietvertrag mit Miete und Kaution anlegen'
+					},
+					{
+						done: data.firstRun.bankAccounts,
+						href: '/bank/konten',
+						label: 'Bankverbindung für den Umsatzabgleich anlegen'
+					},
+					{
+						done: data.firstRun.categories,
+						href: '/betriebskosten/kostenarten',
+						label: 'Kostenarten und Umlageschlüssel prüfen'
+					}
+				]
+			: []
+	);
 </script>
 
 <PageHeader
 	title="Aufgaben"
-	lead="Fristen, die sich aus deinen Verträgen und Abrechnungen ergeben, und was du dir selbst vornimmst."
+	lead="Was ansteht: Rückstände, Bankumsätze, Leerstand, Fristen aus Verträgen und Abrechnungen und was du dir selbst vornimmst."
 />
+
+{#if data.firstRun}
+	<section class="card first-run" aria-labelledby="first-run">
+		<h2 id="first-run">Erste Schritte</h2>
+		{#if !data.firstRun.properties}
+			<p class="muted">
+				Dein Bestand ist noch leer. So fängst du an{#if data.role === 'owner'}, oder du probierst
+					mietkartei erst mit <a href="/einstellungen/konto">Demodaten</a> aus{/if}. Hast du die
+				Daten schon in einer Tabelle, nimmt die
+				<a href="/einstellungen/datenuebernahme">Datenübernahme</a> sie dir ab.
+			</p>
+		{:else}
+			<p class="muted">
+				Sobald ein Mietvertrag und eine Bankverbindung angelegt sind, siehst du hier Rückstände und
+				offene Bankumsätze. Hast du die Daten in einer Tabelle, nimmt die
+				<a href="/einstellungen/datenuebernahme">Datenübernahme</a> sie dir ab.
+			</p>
+		{/if}
+		<ol class="steps">
+			{#each steps as step (step.label)}
+				<li class:done={step.done}>
+					<a href={step.href}>{step.label}</a>
+					{#if step.done}<span class="muted">erledigt</span>{/if}
+				</li>
+			{/each}
+		</ol>
+		<p class="muted ai-hint">
+			Tipp: Verbinde <a href="/einstellungen/ki-assistenten">Claude oder ChatGPT</a> mit mietkartei und
+			frag dann einfach nach Rückständen, Fristen oder Abrechnungen.
+		</p>
+	</section>
+{/if}
+
+{#if attention}
+	<section aria-labelledby="attention">
+		<h2 id="attention">Handlungsbedarf</h2>
+		<ul class="list" aria-label="Handlungsbedarf">
+			{#if data.attention.arrearsCount > 0}
+				<li class="card">
+					<a href="/mietkonto?filter=rueckstaende"
+						>Rückstände bei {pluralize(
+							data.attention.arrearsCount,
+							'Mietvertrag',
+							'Mietverträgen'
+						)}</a
+					>
+					<Money cents={data.attention.arrearsTotal} />
+				</li>
+			{/if}
+			{#if data.attention.unmatched > 0}
+				<li class="card">
+					<a href="/bank"
+						>{pluralize(data.attention.unmatched, 'offener Bankumsatz', 'offene Bankumsätze')} zuordnen</a
+					>
+				</li>
+			{/if}
+			{#each data.attention.vacant as row (row.unitId)}
+				<li class="card">
+					<span>Leerstand: <a href="/objekte/{row.propertyId}">{row.label}</a></span>
+					<a href="/vertraege/neu?unitId={row.unitId}">Mietvertrag anlegen</a>
+				</li>
+			{/each}
+			{#if data.attention.vacantCount > data.attention.vacant.length}
+				<li class="card">
+					<a href="/objekte"
+						>Leerstand: {pluralize(
+							data.attention.vacantCount - data.attention.vacant.length,
+							'weitere Einheit',
+							'weitere Einheiten'
+						)}</a
+					>
+				</li>
+			{/if}
+		</ul>
+	</section>
+{/if}
 
 <h2>Fristen</h2>
 {#if data.deadlines.length === 0}
@@ -168,6 +284,33 @@
 </form>
 
 <style>
+	.first-run {
+		margin-bottom: 1.5rem;
+	}
+	.first-run h2 {
+		margin-top: 0;
+	}
+	.steps {
+		margin: 0;
+		padding-left: 1.5rem;
+		display: grid;
+		gap: 0.5rem;
+	}
+	/* An open step sits on the neon block of the logo; a done one goes back to plain text. */
+	.steps li:not(.done) a {
+		padding: 0 0.2em;
+		background: var(--color-highlight);
+		color: var(--color-highlight-text);
+		text-decoration-color: currentColor;
+		-webkit-box-decoration-break: clone;
+		box-decoration-break: clone;
+	}
+	.steps .done a {
+		text-decoration: line-through;
+	}
+	.ai-hint {
+		margin: 1rem 0 0;
+	}
 	.date {
 		white-space: nowrap;
 		font-variant-numeric: tabular-nums;

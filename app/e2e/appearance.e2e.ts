@@ -121,7 +121,7 @@ test('opens the settings as a dialog over the page and closes it again', async (
 	// The close button works only once the page is hydrated.
 	await page.waitForLoadState('networkidle');
 	await dialog.getByRole('button', { name: 'Einstellungen schließen' }).click();
-	await expect(page).toHaveURL(/\/$/);
+	await expect(page).toHaveURL(/\/aufgaben$/);
 });
 
 test('stacks table rows with their column headings on a phone, without sideways scrolling', async ({

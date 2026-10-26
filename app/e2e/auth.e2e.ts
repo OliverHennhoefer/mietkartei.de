@@ -33,7 +33,7 @@ test('signs in and out', async ({ page }) => {
 	await page.getByLabel('E-Mail-Adresse').fill(owner.email);
 	await page.getByLabel('Passwort').fill(owner.password);
 	await page.getByRole('button', { name: 'Anmelden' }).click();
-	await expect(page).toHaveURL(/\/$/);
+	await expect(page).toHaveURL(/\/aufgaben$/);
 
 	await page.getByRole('button', { name: 'Konto' }).click();
 	await page.getByRole('button', { name: 'Abmelden' }).click();
@@ -126,7 +126,7 @@ test('resets the password through the link from the mail', async ({ page }) => {
 	await page.locator('input[name="password"]').fill(user.newPassword);
 	await page.locator('input[name="passwordConfirm"]').fill(user.newPassword);
 	await page.getByRole('button', { name: 'Passwort setzen' }).click();
-	await expect(page).toHaveURL(/\/$/);
+	await expect(page).toHaveURL(/\/aufgaben$/);
 	await expect(page.getByRole('button', { name: 'Konto' })).toContainText(user.email);
 
 	// The link is used up.
@@ -140,7 +140,7 @@ test('resets the password through the link from the mail', async ({ page }) => {
 	await page.getByLabel('E-Mail-Adresse').fill(user.email);
 	await page.getByLabel('Passwort').fill(user.newPassword);
 	await page.getByRole('button', { name: 'Anmelden' }).click();
-	await expect(page).toHaveURL(/\/$/);
+	await expect(page).toHaveURL(/\/aufgaben$/);
 });
 
 test('sends no reset link to a host named by the request', async ({ page, baseURL }) => {
