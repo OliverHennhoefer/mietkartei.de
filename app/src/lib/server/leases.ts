@@ -428,7 +428,8 @@ export async function createLease(
 	const charges = await chargeSyncStatements(
 		db,
 		context.accountId,
-		await newChargeLeases(db, context.accountId, [{ id, input }])
+		await newChargeLeases(db, context.accountId, [{ id, input }]),
+		{ otherCharges: openingBalance ? 1 : 0 }
 	);
 	await runBatch(db, [
 		...newLeaseStatements(db, context, [{ id, input }]),

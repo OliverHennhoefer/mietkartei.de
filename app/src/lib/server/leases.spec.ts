@@ -178,6 +178,25 @@ describe('a refused charge sync', () => {
 		expect(await db.select().from(auditLog)).toEqual([]);
 	});
 
+	it('counts the opening balance against the limit', async () => {
+		// The same lease in another account shows how many rent charges it generates.
+		const { unitId: foreignUnit } = await seedUnit(db, 'b');
+		await createLease(db, contextB, leaseInput(foreignUnit));
+		const rents = await db.select().from(rentCharges).where(eq(rentCharges.accountId, 'b'));
+		const { unitId } = await seedUnit(db, 'a');
+		const limit = QUOTAS.rentCharges.max;
+		QUOTAS.rentCharges.max = rents.length;
+		try {
+			await expect(createLease(db, contextA, leaseInput(unitId), -4500)).rejects.toMatchObject({
+				status: 409
+			});
+		} finally {
+			QUOTAS.rentCharges.max = limit;
+		}
+		expect(await listLeases(db, 'a')).toEqual([]);
+		expect(await db.select().from(rentCharges).where(eq(rentCharges.accountId, 'a'))).toEqual([]);
+	});
+
 	it('leaves an edited lease as it was', async () => {
 		const { unitId } = await seedUnit(db, 'a');
 		const result = await createLease(db, contextA, leaseInput(unitId));

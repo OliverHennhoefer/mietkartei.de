@@ -138,16 +138,22 @@ export async function unitStates(
  * once that batch ran, so a command that changes a lease or its history commits the change and
  * the charges together, or neither; the quota is checked here, before anything is written. Rows
  * already stored beyond `untilMonth` stay as long as they are within the term, so a call with an
- * earlier horizon never deletes what a later one generated. Only leases of the account are
- * touched, other kinds of charges never. Derived data, so no audit entries.
+ * earlier horizon never deletes what a later one generated. `otherCharges` counts the rows of other
+ * kinds the caller's batch inserts as well (an Anfangssaldo), so the quota check covers the whole
+ * batch. Only leases of the account are touched, other kinds of charges never. Derived data, so
+ * no audit entries.
  */
 export async function chargeSyncStatements(
 	db: Database,
 	accountId: string,
 	chargeLeases: readonly ChargeLease[],
-	untilMonth: IsoMonth = monthOf(today())
+	{
+		untilMonth = monthOf(today()),
+		otherCharges = 0
+	}: { untilMonth?: IsoMonth; otherCharges?: number } = {}
 ): Promise<{ statements: Statement[]; sync: ChargeSync }> {
 	const nothing = { statements: [], sync: { inserted: 0, updated: 0, removed: 0 } };
+	if (otherCharges > 0) await assertQuota(db, accountId, 'rentCharges', otherCharges);
 	if (chargeLeases.length === 0) return nothing;
 	const chargeRows = (
 		await Promise.all(
@@ -204,7 +210,9 @@ export async function chargeSyncStatements(
 		removals.push(...diff.remove);
 	}
 
-	if (inserts.length > 0) await assertQuota(db, accountId, 'rentCharges', inserts.length);
+	if (inserts.length > 0) {
+		await assertQuota(db, accountId, 'rentCharges', inserts.length + otherCharges);
+	}
 	const statements: Statement[] = [
 		// Two requests may sync the same lease at once; the unique index lets the second one lose.
 		...chunk(inserts, rowsPerStatement(rentCharges)).map((rows) =>
@@ -267,7 +275,9 @@ export async function ensureCharges(
 	untilMonth: IsoMonth = monthOf(today())
 ): Promise<ChargeSync> {
 	const chargeLeases = await loadChargeLeases(db, accountId, leaseIds);
-	const { statements, sync } = await chargeSyncStatements(db, accountId, chargeLeases, untilMonth);
+	const { statements, sync } = await chargeSyncStatements(db, accountId, chargeLeases, {
+		untilMonth
+	});
 	await runBatch(db, statements);
 	return sync;
 }

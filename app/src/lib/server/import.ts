@@ -1338,7 +1338,8 @@ export async function commitImport(
 			const charges = await chargeSyncStatements(
 				db,
 				accountId,
-				await newChargeLeases(db, accountId, entries)
+				await newChargeLeases(db, accountId, entries),
+				{ otherCharges: openings.length }
 			);
 			// One batch: every lease with its opening balance, rent charges and the audit line, or
 			// nothing.
