@@ -2,6 +2,7 @@
 	import DonutChart from '#lib/components/DonutChart.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import FlowChart from '#lib/components/FlowChart.svelte';
+	import Balance from '#lib/components/Balance.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import Sections from './Sections.svelte';
@@ -130,7 +131,7 @@
 		</li>
 		<li class="card tile">
 			<a href="/mietkonto?filter=rueckstaende">
-				<span class="value" class:negative={data.arrears > 0}><Money cents={data.arrears} /></span>
+				<span class="value"><Balance cents={data.arrears} /></span>
 				<span class="label">Rückstände heute</span>
 			</a>
 		</li>

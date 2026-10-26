@@ -1,5 +1,6 @@
 <script lang="ts">
 	import EmptyState from '#lib/components/EmptyState.svelte';
+	import Balance from '#lib/components/Balance.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import Sections from '../Sections.svelte';
@@ -81,7 +82,7 @@
 						<span>{percent(share)} eingegangen</span>
 						{#if data.arrears > 0}
 							<a class="negative" href="/mietkonto?filter=rueckstaende">
-								<Money cents={data.arrears} /> Rückstand heute
+								<Balance cents={data.arrears} /> Rückstand heute
 							</a>
 						{/if}
 					</span>
