@@ -5,7 +5,9 @@ import type { PageServerLoad } from './$types';
 
 // Tenants with their active leases, the archived ones (moved out) apart: one query for the
 // tenants, one set for the leases, so the number of queries does not grow with the number of
-// tenants.
+// tenants. The active tenants are grouped by property (by name; a tenant renting in several goes
+// with the first), the tenants without an active lease last; within a group they keep the name
+// order. groupId (the property's id, null for none) lets the page draw a divider between groups.
 export const load: PageServerLoad = async ({ locals }) => {
 	const accountId = requireAccount(locals);
 	const [tenants, leases] = await Promise.all([
@@ -28,8 +30,25 @@ export const load: PageServerLoad = async ({ locals }) => {
 			label: leaseLabel(lease)
 		}))
 	}));
+	// By name, and properties of the same name apart by id, so each group stays together.
+	const byProperty = (a: LeaseSummary['property'], b: LeaseSummary['property']) =>
+		a.name.localeCompare(b.name, 'de') || a.id.localeCompare(b.id);
+	const active = rows
+		.filter((tenant) => !tenant.archivedAt)
+		.map((tenant) => ({
+			tenant,
+			property: (activeByTenant.get(tenant.id) ?? [])
+				.map((lease) => lease.property)
+				.sort(byProperty)[0]
+		}))
+		.sort((a, b) =>
+			a.property && b.property
+				? byProperty(a.property, b.property)
+				: Number(!a.property) - Number(!b.property)
+		)
+		.map(({ tenant, property }) => ({ ...tenant, groupId: property?.id ?? null }));
 	return {
-		tenants: rows.filter((tenant) => !tenant.archivedAt),
+		tenants: active,
 		archived: rows.filter((tenant) => tenant.archivedAt)
 	};
 };
