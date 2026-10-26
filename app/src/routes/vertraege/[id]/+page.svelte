@@ -267,7 +267,7 @@
 			<Field
 				label="Vertragsende"
 				error={endForm?.errors.endDate}
-				hint={earliestEnd ? `Nach ${law} frühestens am ${formatDate(earliestEnd)}.` : undefined}
+				note={earliestEnd ? `Nach ${law} frühestens am ${formatDate(earliestEnd)}.` : undefined}
 			>
 				<input
 					name="endDate"
