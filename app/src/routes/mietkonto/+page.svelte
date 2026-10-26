@@ -113,14 +113,18 @@
 							<td>
 								{#if row.reminder}
 									{@const expired = row.reminder.paymentDeadline < data.today}
+									<!-- One line where the table has room; on a narrower screen the deadline wraps as a whole. -->
 									<span class="reminder" class:expired>
-										{#if expired}<Icon name="alert" size={13} />{/if}
-										{levelLabels[row.reminder.level]}
-										{dayMonth(row.reminder.date)}
-										<span class="separator">·</span>
-										{expired
-											? 'Frist abgelaufen'
-											: `Frist bis ${dayMonth(row.reminder.paymentDeadline)}`}
+										<span
+											>{#if expired}<Icon name="alert" size={13} />{/if}
+											{levelLabels[row.reminder.level]}
+											{dayMonth(row.reminder.date)} <span class="separator">·</span></span
+										>
+										<span
+											>{expired
+												? 'Frist abgelaufen'
+												: `Frist bis ${dayMonth(row.reminder.paymentDeadline)}`}</span
+										>
 									</span>
 								{:else if row.overdue > 0}
 									<span class="muted">noch nicht</span>
@@ -196,11 +200,12 @@
 	.ended :global(.lease-status) {
 		font-size: 0.78rem;
 	}
-	.reminder {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.3rem;
+	.reminder > span {
 		white-space: nowrap;
+	}
+	.reminder :global(svg) {
+		margin-right: 0.15rem;
+		vertical-align: -0.1em;
 	}
 	.reminder.expired {
 		color: var(--color-danger);
@@ -209,11 +214,38 @@
 	.separator {
 		color: var(--color-muted);
 	}
+	/* Seven columns: narrower gutters than other tables, so the row fits a laptop screen. */
+	@media (min-width: 40.0625rem) {
+		.table th,
+		.table td {
+			padding-inline: 0.7rem;
+		}
+		.table th:first-child,
+		.table td:first-child {
+			padding-left: 1.25rem;
+		}
+		.table th:last-child,
+		.table td:last-child {
+			padding-right: 1rem;
+		}
+	}
+	/* Side by side; only where even that does not fit (a small laptop) do the buttons wrap. */
+	td.actions {
+		white-space: normal;
+	}
 	.row-actions {
-		display: inline-flex;
+		display: flex;
 		align-items: center;
 		justify-content: flex-end;
-		gap: 0.5rem;
+		gap: 0.4rem;
+	}
+	.row-actions > * {
+		white-space: nowrap;
+	}
+	@media (max-width: 75rem) {
+		.row-actions {
+			flex-wrap: wrap;
+		}
 	}
 	.row-actions form {
 		display: contents;
