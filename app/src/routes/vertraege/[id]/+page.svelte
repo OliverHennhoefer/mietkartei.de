@@ -228,65 +228,64 @@
 		label="Vertrag beenden"
 		message="Den Vertrag wirklich zu diesem Datum beenden? Die Sollstellungen nach dem Vertragsende entfallen."
 		tone="primary"
+		card
 	>
-		<div class="card form end-form">
-			<p class="form-wide muted small">
-				{#if lease.kind === 'commercial'}
-					Das Vertragsende folgt § 580a Abs. 2 BGB: Eine Kündigung, die bis zum dritten Werktag
-					eines Quartals eingeht, beendet den Vertrag zum Ende des nächsten Quartals.
-				{:else}
-					Das Vertragsende folgt § 573c BGB: Eine Kündigung, die bis zum dritten Werktag eines
-					Monats eingeht (der Samstag zählt mit, bundesweite Feiertage nicht), beendet den Vertrag
-					zum Ende des übernächsten Monats. Bei einer Kündigung durch den Vermieter verlängert sich
-					die Frist nach fünf und acht Jahren Mietdauer um drei und sechs Monate.
-				{/if}
-				Das Datum passt sich an, wenn du Eingang oder Partei änderst.
-			</p>
-			<Field label="Kündigung erhalten am" error={endForm?.errors.terminatedAt}>
-				<input
-					name="terminatedAt"
-					type="date"
-					bind:value={endAt}
-					oninput={proposeEnd}
-					aria-invalid={endForm?.errors.terminatedAt ? 'true' : undefined}
-					required
-				/>
-			</Field>
-			<Field label="Gekündigt" error={endForm?.errors.terminatedBy}>
-				<select
-					name="terminatedBy"
-					bind:value={endBy}
-					onchange={proposeEnd}
-					aria-invalid={endForm?.errors.terminatedBy ? 'true' : undefined}
-				>
-					{#each parties as [party, label] (party)}
-						<option value={party}>{label}</option>
-					{/each}
-				</select>
-			</Field>
-			<Field
-				label="Vertragsende"
-				error={endForm?.errors.endDate}
-				hint={earliestEnd ? `Nach ${law} frühestens am ${formatDate(earliestEnd)}.` : undefined}
+		<p class="form-wide muted small end-note">
+			{#if lease.kind === 'commercial'}
+				Das Vertragsende folgt § 580a Abs. 2 BGB: Eine Kündigung, die bis zum dritten Werktag eines
+				Quartals eingeht, beendet den Vertrag zum Ende des nächsten Quartals.
+			{:else}
+				Das Vertragsende folgt § 573c BGB: Eine Kündigung, die bis zum dritten Werktag eines Monats
+				eingeht (der Samstag zählt mit, bundesweite Feiertage nicht), beendet den Vertrag zum Ende
+				des übernächsten Monats. Bei einer Kündigung durch den Vermieter verlängert sich die Frist
+				nach fünf und acht Jahren Mietdauer um drei und sechs Monate.
+			{/if}
+			Das Datum passt sich an, wenn du Eingang oder Partei änderst.
+		</p>
+		<Field label="Kündigung erhalten am" error={endForm?.errors.terminatedAt}>
+			<input
+				name="terminatedAt"
+				type="date"
+				bind:value={endAt}
+				oninput={proposeEnd}
+				aria-invalid={endForm?.errors.terminatedAt ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		<Field label="Gekündigt" error={endForm?.errors.terminatedBy}>
+			<select
+				name="terminatedBy"
+				bind:value={endBy}
+				onchange={proposeEnd}
+				aria-invalid={endForm?.errors.terminatedBy ? 'true' : undefined}
 			>
-				<input
-					name="endDate"
-					type="date"
-					value={endOn}
-					oninput={(event) => (endTyped = event.currentTarget.value)}
-					aria-invalid={endForm?.errors.endDate ? 'true' : undefined}
-					required
-				/>
-			</Field>
-			<label class="inline form-wide">
-				<input
-					type="checkbox"
-					name="earlyEndAgreed"
-					defaultChecked={endForm?.values.earlyEndAgreed === 'on'}
-				/>
-				Früheres Ende vereinbart (Aufhebungsvertrag)
-			</label>
-		</div>
+				{#each parties as [party, label] (party)}
+					<option value={party}>{label}</option>
+				{/each}
+			</select>
+		</Field>
+		<Field
+			label="Vertragsende"
+			error={endForm?.errors.endDate}
+			hint={earliestEnd ? `Nach ${law} frühestens am ${formatDate(earliestEnd)}.` : undefined}
+		>
+			<input
+				name="endDate"
+				type="date"
+				value={endOn}
+				oninput={(event) => (endTyped = event.currentTarget.value)}
+				aria-invalid={endForm?.errors.endDate ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		<label class="inline form-wide">
+			<input
+				type="checkbox"
+				name="earlyEndAgreed"
+				defaultChecked={endForm?.values.earlyEndAgreed === 'on'}
+			/>
+			Früheres Ende vereinbart (Aufhebungsvertrag)
+		</label>
 	</ConfirmButton>
 {/if}
 
@@ -306,11 +305,7 @@
 		margin: 0 0 1rem;
 		padding-left: 1.25rem;
 	}
-	.end-form {
-		display: grid;
-		margin: 0 0 0.75rem;
-	}
-	.end-form p {
+	.end-note {
 		margin: 0;
 	}
 </style>
