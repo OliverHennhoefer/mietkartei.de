@@ -266,9 +266,14 @@
 									<option value="rent" selected={rowValue(transaction, 'target') !== 'deposit'}>
 										Miete (Zahlung)
 									</option>
-									<option value="deposit" selected={rowValue(transaction, 'target') === 'deposit'}>
-										Kaution
-									</option>
+									{#if data.depositAgreed}
+										<option
+											value="deposit"
+											selected={rowValue(transaction, 'target') === 'deposit'}
+										>
+											Kaution
+										</option>
+									{/if}
 								</select>
 							</label>
 							{#if data.leases.length > 1}

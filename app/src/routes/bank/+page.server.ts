@@ -90,6 +90,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		more: listed.more,
 		openCount,
 		leases: leaseOptions(leases),
+		// Booking as a deposit only makes sense once some lease has one agreed.
+		depositAgreed: leases.some((lease) => lease.securityDeposit > 0),
 		scopes
 	};
 };

@@ -14,10 +14,15 @@
 	const lease = $derived(data.lease);
 	const errors = $derived(form?.errors ?? {});
 	const values = $derived(form?.values ?? { date: data.today, kind: 'received' });
-	const kinds = Object.entries(depositTransactionKindLabels) as [
-		keyof typeof depositTransactionKindLabels,
-		string
-	][];
+	// Until money has come in, interest, a return or a withholding cannot happen yet.
+	const kinds = $derived(
+		(
+			Object.entries(depositTransactionKindLabels) as [
+				keyof typeof depositTransactionKindLabels,
+				string
+			][]
+		).filter(([kind]) => kind === 'received' || data.summary.received > 0)
+	);
 </script>
 
 <!-- The heading and tab bar come from +layout.svelte; this page is the "Kaution" tab. -->
