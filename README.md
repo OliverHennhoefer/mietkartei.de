@@ -4,7 +4,7 @@
 
 ### Die Hausverwaltung von Vermietern für Vermieter.
 
-Mieten, Bankumsätze und die Betriebskostenabrechnung für private Vermieter an einem Ort.<br>
+Mietverwaltung, Bankabgleich und Betriebskostenabrechnung (Nebenkostenabrechnung) für private Vermieter an einem Ort.<br>
 Open Source, nachvollziehbar gerechnet, ohne Einarbeitung und direkt mit Claude oder ChatGPT nutzbar.
 
 [![Tests](https://img.shields.io/github/actions/workflow/status/OliverHennhoefer/mietkartei.de/app.yml?branch=main&label=Tests)](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/app.yml)
@@ -30,24 +30,32 @@ Gebaut für private Vermieter: zu klein für die großen Verwaltungsprogramme, a
 - **Ein Preis, alles drin:** Selbst betrieben kostenlos, gehostet 8 € im Monat, egal wie viele Wohnungen.
 - **Frag einfach Claude:** Über den MCP-Server beantworten Claude oder ChatGPT Fragen wie „Wer ist im Rückstand?“.
 
-## So sieht es aus
+## Funktionen
 
-**Betriebskostenabrechnung:** Belege erfassen, Umlageschlüssel wählen, fertig. Jeder Mieter sieht, wie sich sein Anteil berechnet, und bekommt die Abrechnung als PDF.
+### Betriebskostenabrechnung (Nebenkostenabrechnung)
+
+Belege erfassen, Umlageschlüssel wählen, fertig. Jeder Mieter sieht, wie sich sein Anteil berechnet, und bekommt die Abrechnung als PDF.
 
 <img src="assets/screenshots/abrechnung-mieter.png" alt="Anteil eines Mieters in der Betriebskostenabrechnung mit Umlageschlüssel je Kostenart" width="900">
 
-**Mietkonto:** Soll und Ist für jeden Mietvertrag. Rückstände stehen oben, Kontoauszüge ordnet mietkartei per Vorschlag den Verträgen zu.
+### Mietkonto und Bankabgleich
+
+Soll und Ist für jeden Mietvertrag. Rückstände stehen oben, Kontoauszüge ordnet mietkartei per Vorschlag den Verträgen zu.
 
 <img src="assets/screenshots/mietkonto.png" alt="Mietkonto mit Saldo, Rückständen und letzter Zahlung je Mietvertrag" width="900">
 
-**KI-Assistenten:** Verbinde Claude, ChatGPT oder einen anderen MCP-Client mit `https://app.mietkartei.de/mcp` und frag: „Wer ist mit der Miete im Rückstand?“ oder „Welche Fristen stehen in den nächsten drei Monaten an?“ Mit Schreibrechten bucht der Assistent auf Wunsch Zahlungen und erfasst Belege. Dieselben Daten gibt es als REST-API. → [KI-Assistenten anbinden](https://docs.mietkartei.de/anleitungen/ki-assistenten/)
+### KI-Assistenten über MCP: Claude und ChatGPT
 
-**Außerdem dabei:** Objekte und Einheiten · Mieter und Mietverträge mit Kaution · Index- und Staffelmiete · Bankimport mit Zuordnungsregeln · Zähler und Abrechnungskreise · Dokumente · Aufgaben und Fristen · Zugänge für Mitverwalter und mit Lesezugriff · Datenübernahme per CSV · vollständiger Export · Änderungsprotokoll
+Verbinde Claude, ChatGPT oder einen anderen MCP-Client mit `https://app.mietkartei.de/mcp` und frag: „Wer ist mit der Miete im Rückstand?“ oder „Welche Fristen stehen in den nächsten drei Monaten an?“ Mit Schreibrechten bucht der Assistent auf Wunsch Zahlungen und erfasst Belege. Dieselben Daten gibt es als REST-API. → [KI-Assistenten anbinden](https://docs.mietkartei.de/anleitungen/ki-assistenten/)
 
-## Ausprobieren
+### Weitere Funktionen
+
+Objekte und Einheiten · Mieter und Mietverträge mit Kaution · Index- und Staffelmiete · Bankimport mit Zuordnungsregeln · Zähler und Abrechnungskreise · Dokumente · Aufgaben und Fristen · Zugänge für Mitverwalter und mit Lesezugriff · Datenübernahme per CSV · vollständiger Export · Änderungsprotokoll
+
+## Ausprobieren: Demo oder selbst hosten
 
 - **[Demo](https://demo.mietkartei.de):** eigener Beispielbestand mit fertiger Betriebskostenabrechnung, ohne Anmeldung, nach 24 Stunden gelöscht.
-- **[Selbst hosten](https://docs.mietkartei.de/selbst-hosten/):** als Docker-Container auf dem eigenen Rechner oder Server.
+- **[Selbst hosten](https://docs.mietkartei.de/selbst-hosten/):** als Docker-Container auf dem eigenen Rechner oder Server, kostenlos und mit allen Funktionen.
 
 ## Mitmachen
 
