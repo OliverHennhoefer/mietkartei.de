@@ -1,35 +1,28 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { today } from '#lib/dates.ts';
 import { archiveTenant, restoreTenant, tenantArchiving } from '#lib/server/archive.ts';
-import { leaseLabel, listLeases } from '#lib/server/leases.ts';
+import { listLeases } from '#lib/server/leases.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { deleteTenant, tenantDeletion } from '#lib/server/deletion.ts';
+import { tenantDossier } from '#lib/server/tenant-dossier.ts';
 import { getTenant } from '#lib/server/tenants.ts';
 import type { Actions, PageServerLoad } from './$types';
 
+// The tenant as a dossier: the key figures first, then money, leases, letters, tasks,
+// documents and the history across all the tenant's leases (see tenant-dossier.ts).
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const accountId = requireAccount(locals);
 	const tenant = await getTenant(locals.db, accountId, params.id);
 	if (!tenant) error(404, 'Diesen Mieter gibt es nicht.');
-	const [leases, archiving, deletion] = await Promise.all([
-		listLeases(locals.db, accountId, { tenantId: tenant.id }),
-		tenantArchiving(locals.db, accountId, tenant.id, today()),
+	const date = today();
+	const leases = await listLeases(locals.db, accountId, { tenantId: tenant.id });
+	const [dossier, archiving, deletion] = await Promise.all([
+		tenantDossier(locals.db, accountId, tenant.id, leases, date),
+		tenantArchiving(locals.db, accountId, tenant.id, date),
 		tenantDeletion(locals.db, accountId, tenant.id)
 	]);
 	if (!archiving) error(404, 'Diesen Mieter gibt es nicht.');
-	return {
-		tenant,
-		archiving,
-		deletion,
-		leases: leases.map((lease) => ({
-			id: lease.id,
-			label: leaseLabel(lease),
-			startDate: lease.startDate,
-			endDate: lease.endDate,
-			active: lease.active,
-			upcoming: lease.upcoming
-		}))
-	};
+	return { tenant, archiving, deletion, dossier };
 };
 
 export const actions: Actions = {
