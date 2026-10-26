@@ -38,6 +38,21 @@ describe('mieter', () => {
 		});
 	});
 
+	it('groups the tenants by property, the ones without an active lease last', async () => {
+		const lindenweg = await seedUnit(db, 'a', { propertyName: 'Lindenweg' });
+		const ahornstrasse = await seedUnit(db, 'a', { propertyName: 'Ahornstraße' });
+		const anna = await seedTenant(db, 'a', { firstName: 'Anna', lastName: 'Zeller' });
+		const bernd = await seedTenant(db, 'a', { firstName: 'Bernd', lastName: 'Adler' });
+		await seedLease(db, 'a', lindenweg.unitId, { tenantIds: [bernd] });
+		await seedLease(db, 'a', ahornstrasse.unitId, { tenantIds: [anna] });
+		const result = (await run(load)) as { data: { tenants: { id: string; groupId: string }[] } };
+		expect(result.data.tenants.map((row) => [row.id, row.groupId])).toEqual([
+			[anna, ahornstrasse.propertyId],
+			[bernd, lindenweg.propertyId],
+			[tenantId, null]
+		]);
+	});
+
 	it('creates a tenant and returns to a safe path with it preselected', async () => {
 		expect(await run(loadNew, { url: '/mieter/neu?return=/vertraege/neu' })).toEqual({
 			data: { returnTo: '/vertraege/neu' }
