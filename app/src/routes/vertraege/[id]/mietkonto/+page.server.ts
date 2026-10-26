@@ -2,7 +2,7 @@ import { error, fail } from '@sveltejs/kit';
 import { firstOfMonth, lastOfMonth, monthOf, today } from '#lib/dates.ts';
 import { defaultPaymentDeadline } from '#lib/domain/reminders.ts';
 import { total } from '#lib/domain/rents.ts';
-import { balanceSentence, ledgerRange, parseAdjustment, parsePayment } from '#lib/forms/ledger.ts';
+import { ledgerRange, parseAdjustment, parsePayment } from '#lib/forms/ledger.ts';
 import { parseReminder } from '#lib/forms/reminders.ts';
 import { landlordAddress } from '#lib/server/accounts.ts';
 import {
@@ -79,7 +79,6 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 		windowBalance: carried + charged - paid,
 		/** The lease's balance over everything booked. */
 		balance: ledger.balance,
-		balanceText: balanceSentence(ledger.balance),
 		today: currentDate,
 		paymentDefault: ledger.balance > 0 ? ledger.balance : total(lease.currentRent),
 		lastPayment: latestPayment ?? null,

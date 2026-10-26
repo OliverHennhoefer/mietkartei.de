@@ -2,6 +2,7 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import ArchiveSection from '#lib/components/ArchiveSection.svelte';
 	import Badge from '#lib/components/Badge.svelte';
+	import Balance from '#lib/components/Balance.svelte';
 	import DeleteSection from '#lib/components/DeleteSection.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
@@ -74,8 +75,9 @@
 		</div>
 		<div class="stat card">
 			<span class="value"
-				><Money
-					cents={finances.overdue > 0 ? finances.overdue : Math.abs(finances.balance)}
+				><Balance
+					cents={finances.overdue > 0 ? finances.overdue : finances.balance}
+					overdue={finances.overdue > 0}
 				/></span
 			>
 			<span class="label">
@@ -143,8 +145,7 @@
 					<span class="figures muted small">
 						<Money cents={lease.rent} /> warm ·
 						<a href="/vertraege/{lease.id}/mietkonto"
-							>{lease.balance < 0 ? 'Guthaben' : 'Saldo'}
-							<Money cents={Math.abs(lease.balance)} /></a
+							>Saldo <Balance cents={lease.balance} overdue={lease.overdue > 0} /></a
 						>
 						· Kaution <Money cents={lease.depositHeld} />
 						{#if lease.depositAgreed > 0}von <Money cents={lease.depositAgreed} />{/if}
@@ -175,14 +176,7 @@
 		</dd>
 		<dt>Saldo</dt>
 		<dd>
-			<Money cents={Math.abs(finances.balance)} />
-			<span class="muted small">
-				{finances.balance > 0
-					? 'schuldet der Mieter'
-					: finances.balance < 0
-						? 'Guthaben des Mieters'
-						: 'ausgeglichen'}
-			</span>
+			<Balance cents={finances.balance} overdue={finances.overdue > 0} label />
 		</dd>
 		<dt>Letzte Zahlung</dt>
 		<dd>{finances.lastPaymentDate ? formatDate(finances.lastPaymentDate) : '–'}</dd>

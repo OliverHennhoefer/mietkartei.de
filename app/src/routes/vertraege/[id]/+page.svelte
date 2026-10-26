@@ -3,6 +3,7 @@
 	import { untrack } from 'svelte';
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
+	import Balance from '#lib/components/Balance.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import DeleteSection from '#lib/components/DeleteSection.svelte';
 	import Field from '#lib/components/Field.svelte';
@@ -129,13 +130,7 @@
 
 <h2>Saldo</h2>
 <p aria-label="Saldo">
-	{#if data.balance > 0}
-		Rückstand <strong><Money cents={data.balance} /></strong>
-	{:else if data.balance < 0}
-		Guthaben <strong><Money cents={-data.balance} /></strong>
-	{:else}
-		Ausgeglichen
-	{/if}
+	<strong><Balance cents={data.balance} label /></strong>
 	· <a href="/vertraege/{lease.id}/mietkonto">Mietkonto</a>
 </p>
 

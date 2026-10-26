@@ -62,7 +62,7 @@ test('shows arrears, books and deletes a payment and a correction', async ({ pag
 	).toHaveAttribute('aria-current', 'page');
 
 	await expect(page.getByRole('heading', { level: 2, name: 'Mietkonto' })).toBeVisible();
-	await expect(await balance(page)).toHaveText('Saldo: Rückstand 4.000,00 €');
+	await expect(await balance(page)).toHaveText('Saldo −4.000,00 € Rückstand');
 	const ledger = page.getByRole('table', { name: 'Buchungen' });
 	const firstRent = ledger.locator('tr', { hasText: `Miete ${formatMonth(startMonth)}` });
 	await expect(firstRent).toContainText('800,00 €');
@@ -80,7 +80,7 @@ test('shows arrears, books and deletes a payment and a correction', async ({ pag
 	await paymentForm.getByLabel('Vermerk (optional)').fill(`Überweisung ${suffix}`);
 	await paymentForm.getByRole('button', { name: 'Zahlung buchen' }).click();
 	await expect(page.getByText('Zahlung gebucht.')).toBeVisible();
-	await expect(await balance(page)).toHaveText('Saldo: Rückstand 3.200,00 €');
+	await expect(await balance(page)).toHaveText('Saldo −3.200,00 € Rückstand');
 	// "Wie letzte Zahlung" repeats the amount and the note of the payment just booked.
 	await paymentForm.getByRole('button', { name: 'Wie letzte Zahlung' }).click();
 	await expect(paymentForm.getByLabel('Betrag in €')).toHaveValue('800,00');
@@ -96,7 +96,7 @@ test('shows arrears, books and deletes a payment and a correction', async ({ pag
 	await adjustmentForm.getByLabel('Vermerk').fill(`Mietminderung ${suffix}`);
 	await adjustmentForm.getByRole('button', { name: 'Korrektur buchen' }).click();
 	await expect(page.getByText('Korrektur gebucht.')).toBeVisible();
-	await expect(await balance(page)).toHaveText('Saldo: Rückstand 3.000,00 €');
+	await expect(await balance(page)).toHaveText('Saldo −3.000,00 € Rückstand');
 	const adjustmentRow = ledger.locator('tr', { hasText: `Mietminderung ${suffix}` });
 	await expect(adjustmentRow).toContainText(`Korrektur ${formatMonth(monthOf(today()))}`);
 	await expect(adjustmentRow).toContainText('-200,00 €');
@@ -108,20 +108,20 @@ test('shows arrears, books and deletes a payment and a correction', async ({ pag
 	await expect(page).toHaveURL(new RegExp(`from=${startMonth}&to=${startMonth}`));
 	await expect(ledger.locator('tbody tr')).toHaveCount(1);
 	await expect(ledger).toContainText(`Miete ${formatMonth(startMonth)}`);
-	await expect(await balance(page)).toHaveText('Saldo: Rückstand 3.000,00 €');
+	await expect(await balance(page)).toHaveText('Saldo −3.000,00 € Rückstand');
 
 	// Back to the default months; delete the correction, then the payment.
 	await page.goto(`/vertraege/${leaseId}/mietkonto`);
 	confirmNextDialog(page);
 	await adjustmentRow.getByRole('button', { name: 'Löschen' }).click();
 	await expect(page.getByText('Korrektur gelöscht.')).toBeVisible();
-	await expect(await balance(page)).toHaveText('Saldo: Rückstand 3.200,00 €');
+	await expect(await balance(page)).toHaveText('Saldo −3.200,00 € Rückstand');
 	await expect(adjustmentRow).toHaveCount(0);
 
 	confirmNextDialog(page);
 	await paymentRow.getByRole('button', { name: 'Löschen' }).click();
 	await expect(page.getByText('Zahlung gelöscht.')).toBeVisible();
-	await expect(await balance(page)).toHaveText('Saldo: Rückstand 4.000,00 €');
+	await expect(await balance(page)).toHaveText('Saldo −4.000,00 € Rückstand');
 	await expect(paymentRow).toHaveCount(0);
 });
 
@@ -174,7 +174,7 @@ test('shows a Guthaben and the Rückstand side by side when a later payment over
 	await expect(saldo).toContainText('400,00 €');
 	await expect(saldo).toContainText('Guthaben');
 	await expect(saldo).toContainText('Rückstand');
-	await expect(saldo).toContainText('fällig 1.600,00 €');
+	await expect(saldo).toContainText('fällig −1.600,00 €');
 	await expect(saldo).not.toContainText('davon');
 });
 

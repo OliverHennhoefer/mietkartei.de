@@ -32,7 +32,9 @@
 		color: var(--color-muted);
 	}
 	.success {
-		color: var(--color-text);
+		background: var(--color-success-subtle);
+		border-color: var(--color-success-border);
+		color: var(--color-success);
 	}
 	.warning {
 		background: var(--color-hover);

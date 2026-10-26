@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formDataOf } from './fields';
-import { balanceSentence, ledgerRange, parseAdjustment, parsePayment } from './ledger';
+import { ledgerRange, parseAdjustment, parsePayment } from './ledger';
 
 describe('parsePayment', () => {
 	it('parses a German amount into cents and keeps the note', () => {
@@ -79,13 +79,5 @@ describe('ledgerRange', () => {
 			from: '2025-04',
 			to: '2026-03'
 		});
-	});
-});
-
-describe('balanceSentence', () => {
-	it('names arrears, credit and a settled account', () => {
-		expect(balanceSentence(123456)).toBe('Rückstand 1.234,56\u00a0€');
-		expect(balanceSentence(-1200)).toBe('Guthaben 12,00\u00a0€');
-		expect(balanceSentence(0)).toBe('ausgeglichen');
 	});
 });

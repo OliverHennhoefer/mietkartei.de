@@ -27,6 +27,12 @@
 	--color-danger: #b4332a;
 	--color-danger-subtle: #fbf1f0;
 	--color-danger-border: #ecc9c5;
+	/* Its counterpart, a muted green, only for what is settled or in the tenant's favour: a
+	   Guthaben, and status labels such as „Freigegeben“. Never on its own, always with a sign,
+	   a word or a check mark. */
+	--color-success: #2f7a4b;
+	--color-success-subtle: #f0f7f2;
+	--color-success-border: #c6e0cf;
 	/* Charts: money in dark, money out mid-grey; told apart by lightness, never by hue alone. */
 	--color-chart-income: #202020;
 	--color-chart-expense: #8c8c8c;
@@ -1380,6 +1386,9 @@ dl.details dd {
 		--color-danger: #f0857b;
 		--color-danger-subtle: #2a1d1c;
 		--color-danger-border: #5a2f2b;
+		--color-success: #7cc49a;
+		--color-success-subtle: #1c2620;
+		--color-success-border: #2f5640;
 		--color-chart-income: #ededed;
 		--color-chart-expense: #7a7a7a;
 		--color-chart-1: #ededed;
@@ -1423,6 +1432,9 @@ dl.details dd {
 		--color-danger: #b4332a;
 		--color-danger-subtle: #fff;
 		--color-danger-border: #b4332a;
+		--color-success: #2f7a4b;
+		--color-success-subtle: #fff;
+		--color-success-border: #2f7a4b;
 		--color-chart-income: #111;
 		--color-chart-expense: #8c8c8c;
 		color-scheme: light;
