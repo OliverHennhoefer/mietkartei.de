@@ -19,7 +19,7 @@
     <meta property="og:url" content="https://mietkartei.de/">
     <meta property="og:title" content="mietkartei: Open-Source-Hausverwaltung von Vermietern für Vermieter">
     <meta property="og:description" content="Mieten, Bankumsätze und die Betriebskostenabrechnung für private Vermieter an einem Ort. Open Source, nachvollziehbar gerechnet und ohne Einarbeitung.">
-    <meta property="og:image" content="https://mietkartei.de/assets/social.png?v=neon">
+    <meta property="og:image" content="https://mietkartei.de/assets/social.png?v=auswertung">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:image:alt" content="mietkartei: Vermieten. Mit Überblick. Mieten, Bankumsätze und die Betriebskostenabrechnung ohne Excel-Chaos, daneben die Übersicht der App.">
@@ -133,9 +133,31 @@
           </ul>
         </div>
         <div class="hero-side">
-          <figure class="hero-shots">
-            <img class="shot shot-main" src="assets/screenshots/auswertung.png" alt="Auswertung von mietkartei mit Einnahmen, Ausgaben, Überschuss und Kaltmiete pro m² sowie dem Verlauf über ein Jahr" width="2560" height="1120" decoding="async">
-            <img class="shot shot-detail" src="assets/screenshots/abrechnung-mieter.png" alt="Anteil eines Mieters in der Betriebskostenabrechnung mit Umlageschlüssel je Kostenart" width="1930" height="1340" decoding="async" loading="lazy">
+          <!-- Pure CSS: the slides take turns by their animation delays, since the page runs no scripts. -->
+          <figure class="carousel" aria-label="Einblicke in mietkartei">
+            <ol class="slides">
+              <li class="slide">
+                <span class="frame"><img src="assets/screenshots/auswertung.png" alt="Auswertung eines Objekts mit Einnahmen, Ausgaben, Überschuss und Kaltmiete pro m² sowie dem Verlauf über ein Jahr" width="1600" height="1000" decoding="async"></span>
+                <p>Auswertung mit Jahresverlauf</p>
+              </li>
+              <li class="slide">
+                <span class="frame"><img src="assets/screenshots/rendite.png" alt="Rendite eines Objekts mit Brutto-, Netto- und Eigenkapitalrendite und dem Weg vom Mieteingang zum Cashflow" width="1600" height="1000" decoding="async" loading="lazy"></span>
+                <p>Rendite und Cashflow je Objekt</p>
+              </li>
+              <li class="slide">
+                <span class="frame"><img src="assets/screenshots/mietkonto.png" alt="Mietkonto mit Saldo, Rückständen, letzter Zahlung und Mahnung je Mietvertrag" width="1600" height="1000" decoding="async" loading="lazy"></span>
+                <p>Rückstände sofort im Blick</p>
+              </li>
+              <li class="slide">
+                <span class="frame"><img src="assets/screenshots/bankumsaetze.png" alt="Ein Mieteingang aus dem Kontoauszug, dem mietkartei anhand der IBAN den passenden Mietvertrag vorschlägt" width="1600" height="1000" decoding="async" loading="lazy"></span>
+                <p>Bankumsätze zuordnen</p>
+              </li>
+              <li class="slide">
+                <span class="frame"><img src="assets/screenshots/abrechnung-mieter.png" alt="Anteil eines Mieters in der Betriebskostenabrechnung mit Umlageschlüssel je Kostenart" width="1600" height="1000" decoding="async" loading="lazy"></span>
+                <p>Nebenkosten mit Rechenweg</p>
+              </li>
+            </ol>
+            <span class="ticks" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span>
           </figure>
         </div>
         <ul class="values" aria-label="Was mietkartei ausmacht">

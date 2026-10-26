@@ -129,7 +129,7 @@ def render_post(layout: str, post: Post) -> str:
             "inLanguage": "de-DE",
             "url": SITE + post.path,
             "mainEntityOfPage": SITE + post.path,
-            "image": f"{SITE}/assets/social.png?v=neon",
+            "image": f"{SITE}/assets/social.png?v=auswertung",
             "author": {"@type": "Person", "name": "Oliver Hennhöfer", "url": "https://github.com/OliverHennhoefer"},
             "publisher": {"@id": f"{SITE}/#organization"},
         }),

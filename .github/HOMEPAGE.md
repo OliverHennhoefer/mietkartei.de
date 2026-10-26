@@ -1,6 +1,6 @@
 # Maintaining the public homepage
 
-The static landing page at `https://mietkartei.de/` summarizes the product on a single screen: positioning, the links to the app and the documentation, two app screenshots, the three latest news posts and four value points. On desktop it fits into one viewport without scrolling (checked down to 1280×720 and 1024×768); on narrow screens it stacks and scrolls. It consists of HTML and CSS. Geist, the register symbol/wordmark combination and the favicon are taken from the shared brand assets; the page needs no JavaScript.
+The static landing page at `https://mietkartei.de/` summarizes the product on a single screen: positioning, the links to the app and the documentation, a slowly cross-fading carousel of five app screenshots with short captions, the three latest news posts and four value points. On desktop it fits into one viewport without scrolling (checked down to 1280×720 and 1024×768); on narrow screens it stacks and scrolls. It consists of HTML and CSS. Geist, the register symbol/wordmark combination and the favicon are taken from the shared brand assets; the page needs no JavaScript.
 
 ## Preview
 
@@ -20,7 +20,7 @@ Then open [http://127.0.0.1:8002](http://127.0.0.1:8002). Rebuild the output aft
 | `website/index.html` | Public German homepage |
 | `website/impressum/index.html` | Legal notice (Impressum) with provider and contact details |
 | `website/styles.css` | Styles, including light and dark colors |
-| `website/assets/screenshots/` | App screenshots shown on the homepage: the Auswertung and one tenant's share of the operating cost statement, taken by `npm run screenshots` in `app/` |
+| `website/assets/screenshots/` | The slides of the homepage carousel, all 1600 × 1000: whole screens (Auswertung, Mietkonto) and enlarged details (Rendite, a bank transaction, one tenant's share of the operating cost statement), taken by `npm run screenshots` in `app/`. The carousel is pure CSS, since the page runs no scripts; its order and captions live in `website/index.html`, its timing in `website/styles.css` |
 | `website/ratgeber/*.md` | Guides, one Markdown file per guide; the file name is the URL slug |
 | `website/ratgeber/_layout.html` | Page frame for the guide index and the guides |
 | `website/_headers` | HTTP response headers for Cloudflare |
@@ -36,7 +36,7 @@ Then open [http://127.0.0.1:8002](http://127.0.0.1:8002). Rebuild the output aft
 | `.github/workflows/websites.yml` | Checks and deploys homepage and documentation |
 | `dist/homepage/` | Generated output; not committed |
 
-The build copies only the listed public files, the two homepage screenshots (linked with a content hash, so a retaken screenshot bypasses the one-day cache of `/assets/`), the black and white register symbols and wordmark combinations, the favicon and the original font with its OFL license. The font and brand SVGs are maintained in `assets/brand/`. The homepage, legal-notice and guide headers combine the larger register symbol with the Geist Semibold wordmark and a neon yellow block behind "kartei" that is as tall as the symbol, using `lockup-highlight.svg` in light mode and `lockup-highlight-white.svg` in dark mode. The combination is 52px high on desktop and 44px on smaller screens. The favicon uses the small register symbol on a black background. Next to `favicon.svg`, the build ships `/favicon.ico` (16, 32 and 48 px) for Safari and crawlers and `apple-touch-icon.png` (180 px) for home screen icons, both rendered from `favicon.svg`. Earlier wordmarks and design studies are not copied into the public output. Page-specific illustrations live in `website/assets/`.
+The build copies only the listed public files, the homepage screenshots (linked with a content hash, so a retaken screenshot bypasses the one-day cache of `/assets/`), the black and white register symbols and wordmark combinations, the favicon and the original font with its OFL license. The font and brand SVGs are maintained in `assets/brand/`. The homepage, legal-notice and guide headers combine the larger register symbol with the Geist Semibold wordmark and a neon yellow block behind "kartei" that is as tall as the symbol, using `lockup-highlight.svg` in light mode and `lockup-highlight-white.svg` in dark mode. The combination is 52px high on desktop and 44px on smaller screens. The favicon uses the small register symbol on a black background. Next to `favicon.svg`, the build ships `/favicon.ico` (16, 32 and 48 px) for Safari and crawlers and `apple-touch-icon.png` (180 px) for home screen icons, both rendered from `favicon.svg`. Earlier wordmarks and design studies are not copied into the public output. Page-specific illustrations live in `website/assets/`.
 
 ## Guides
 

@@ -253,7 +253,7 @@
 	<!-- The link preview of every app page; the demo page adds its own title and description. -->
 	<meta property="og:site_name" content="mietkartei" />
 	<meta property="og:locale" content="de_DE" />
-	<meta property="og:image" content="https://mietkartei.de/assets/social.png?v=neon" />
+	<meta property="og:image" content="https://mietkartei.de/assets/social.png?v=auswertung" />
 	<meta property="og:image:width" content="1200" />
 	<meta property="og:image:height" content="630" />
 	<meta
