@@ -319,11 +319,7 @@
 	</ul>
 {/if}
 <p>
-	<a href="/dokumente?tenantId={data.tenant.id}"
-		>{dossier.documentCount > dossier.documents.length
-			? `Alle ${dossier.documentCount} Dokumente`
-			: 'Dokumente dieses Mieters'}</a
-	>
+	<a href="/dokumente?tenantId={data.tenant.id}">Dokumente dieses Mieters</a>
 </p>
 
 <h2>Verlauf</h2>

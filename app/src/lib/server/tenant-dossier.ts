@@ -103,7 +103,6 @@ export type TenantDossier = {
 	}[];
 	openTasks: { id: string; title: string; dueDate: IsoDate | null }[];
 	documents: { id: string; name: string; createdAt: Date }[];
-	documentCount: number;
 	history: { id: string; at: Date; summary: string; userName: string | null }[];
 };
 
@@ -401,8 +400,8 @@ export async function tenantDossier(
 				return a.dueDate.localeCompare(b.dueDate);
 			})
 			.map((row) => ({ id: row.id, title: row.title, dueDate: row.dueDate })),
-		documents: uniqueDocuments.slice(0, RECENT),
-		documentCount: uniqueDocuments.length,
+		// All of them: /dokumente filters by one link only and would miss the lease documents.
+		documents: uniqueDocuments,
 		history
 	};
 }
