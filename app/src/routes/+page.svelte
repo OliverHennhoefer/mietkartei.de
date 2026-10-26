@@ -42,7 +42,7 @@
 
 <PageHeader
 	title="Übersicht"
-	lead="Rückstände, Leerstand, Bankumsätze und Fristen auf einen Blick."
+	lead="Bestand, Rückstände, Leerstand, Bankumsätze und Fristen auf einen Blick."
 />
 
 {#if data.firstRun}
@@ -77,6 +77,18 @@
 	</section>
 {:else}
 	<ul class="tiles" aria-label="Kennzahlen">
+		<li class="card tile">
+			<a href="/objekte">
+				<span class="value">{data.tiles.propertyCount}</span>
+				<span class="label">
+					{data.tiles.propertyCount === 1 ? 'Objekt' : 'Objekte'} · {pluralize(
+						data.tiles.activeLeaseCount,
+						'laufender Mietvertrag',
+						'laufende Mietverträge'
+					)}
+				</span>
+			</a>
+		</li>
 		<li class="card tile">
 			<a href="/mietkonto?filter=rueckstaende">
 				<span class="value"><Money cents={data.tiles.arrearsTotal} /></span>
