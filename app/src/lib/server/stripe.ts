@@ -99,6 +99,11 @@ export async function createCustomer(email: string, accountId: string): Promise<
 	});
 }
 
+/** Deletes a customer that was created but not stored; it has no subscription yet. */
+export async function deleteCustomer(id: string): Promise<void> {
+	await stripeRequest(`/v1/customers/${encodeURIComponent(id)}`, {}, { method: 'DELETE' });
+}
+
 /**
  * A Checkout session for a subscription with one price. `trialDays` (1 or more) carries the rest of
  * the app's trial into the subscription; without it the price's own trial settings apply.

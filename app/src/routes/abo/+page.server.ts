@@ -24,6 +24,7 @@ import { auditContext, requireOwner, requireUser } from '#lib/server/session.ts'
 import {
 	createCheckoutSession,
 	createCustomer,
+	deleteCustomer,
 	createPortalSession,
 	expireCheckoutSession,
 	getCheckoutSession,
@@ -163,8 +164,16 @@ export const actions: Actions = {
 		try {
 			let customerId = account.stripeCustomerId;
 			if (!customerId) {
-				customerId = (await createCustomer(user.email, user.accountId)).id;
-				await setStripeCustomer(locals.db, auditContext(locals), customerId);
+				const created = (await createCustomer(user.email, user.accountId)).id;
+				// Another first checkout may have stored its customer in the meantime; then this
+				// one uses that customer too, so the subscription lands on the stored one.
+				customerId = await setStripeCustomer(locals.db, auditContext(locals), created);
+				if (!customerId) error(404, 'Dieses Konto gibt es nicht.');
+				if (customerId !== created) {
+					await deleteCustomer(created).catch((cause) =>
+						console.error('[stripe] An unused customer was not deleted:', cause)
+					);
+				}
 			}
 			const pending = await pendingCheckout(account.stripeCheckoutSessionId);
 			// A session without the price (opened before plans existed) is not reused either.

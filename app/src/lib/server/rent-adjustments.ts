@@ -23,15 +23,15 @@ import { runBatch } from './db/batch';
 import { listIndexValues } from './consumer-price-index';
 import { rentChanges } from './db/schema';
 import { getLease, type LeaseSummary } from './leases';
-import { ensureCharges } from './ledger';
+import { leaseChargeStatements } from './ledger';
 import type { Letter } from './pdf';
-import { laterRows, laterRowsNote } from './rent-history';
+import { laterRows, laterRowsNote, noLaterRows, withLaterRows } from './rent-history';
 import { listRentChanges, type RentChangeRow } from './rents';
 import { assertQuota } from './quotas';
 
 // Changes of the rent beyond the initial one: manual changes, Staffel steps and index proposals
-// with their approval and letter. Every write re-syncs the rent charges, so the ledger follows the
-// history at once.
+// with their approval and letter. Every write re-syncs the rent charges in its own batch, so the
+// ledger follows the history at once, and a refused sync (the quota) leaves the history as it was.
 
 export type AdjustmentResult = { ok: true; id: string } | { ok: false; message: string };
 
@@ -145,6 +145,10 @@ export async function manualChange(
 			? `Vorauszahlungen ab ${formatDate(input.validFrom)} nach Abrechnung angepasst, Gesamtmiete ${formatCents(total(input))}`
 			: `Miete ab ${formatDate(input.validFrom)} auf ${formatCents(total(input))} geändert`) +
 		laterRowsNote(later);
+	const history = [
+		...withLaterRows(changes, later),
+		{ ...amountsOf(input), validFrom: input.validFrom, status: 'approved' as const }
+	];
 	await runBatch(db, [
 		db.insert(rentChanges).values({
 			id,
@@ -156,9 +160,9 @@ export async function manualChange(
 			createdBy: context.userId
 		}),
 		...later.statements,
-		auditEntry(db, context, 'lease', leaseId, 'update', summary)
+		auditEntry(db, context, 'lease', leaseId, 'update', summary),
+		...(await leaseChargeStatements(db, context.accountId, leaseId, { changes: history }))
 	]);
-	await ensureCharges(db, context.accountId, [leaseId]);
 	return { ok: true, id };
 }
 
@@ -204,6 +208,10 @@ export async function addGraduatedStep(
 		amountsOf(before),
 		after
 	);
+	const history = [
+		...withLaterRows(changes, later),
+		{ ...after, validFrom: input.validFrom, status: 'approved' as const }
+	];
 	await runBatch(db, [
 		db.insert(rentChanges).values({
 			id,
@@ -225,9 +233,9 @@ export async function addGraduatedStep(
 			'update',
 			`Staffel ab ${formatDate(input.validFrom)}: Kaltmiete ${formatCents(input.baseRent)}` +
 				laterRowsNote(later)
-		)
+		),
+		...(await leaseChargeStatements(db, context.accountId, leaseId, { changes: history }))
 	]);
-	await ensureCharges(db, context.accountId, [leaseId]);
 	return { ok: true, id };
 }
 
@@ -280,9 +288,10 @@ export async function proposeIndexChange(
 			leaseId,
 			'create',
 			`Indexanpassung der Kaltmiete auf ${formatCents(proposal.newBaseRent)} vorgeschlagen`
-		)
+		),
+		// A proposal is not part of the history yet; the charges are only brought up to date.
+		...(await leaseChargeStatements(db, context.accountId, leaseId))
 	]);
-	await ensureCharges(db, context.accountId, [leaseId]);
 	return { ok: true, id };
 }
 
@@ -379,9 +388,11 @@ export async function approveChange(
 			'approve',
 			`Indexanpassung ab ${formatDate(validFrom)} auf ${formatCents(change.baseRent)} Kaltmiete freigegeben` +
 				laterRowsNote(later)
-		)
+		),
+		...(await leaseChargeStatements(db, context.accountId, leaseId, {
+			changes: [...withLaterRows(others, later), approved]
+		}))
 	]);
-	await ensureCharges(db, context.accountId, [leaseId]);
 	return { ok: true, id: changeId };
 }
 
@@ -429,7 +440,7 @@ export async function removeChange(
 				amountsOf(change),
 				amountsOf(previous)
 			)
-		: { statements: [], count: 0 };
+		: noLaterRows;
 	await runBatch(db, [
 		db
 			.delete(rentChanges)
@@ -442,9 +453,11 @@ export async function removeChange(
 			leaseId,
 			'update',
 			`Mietänderung ab ${formatDate(change.validFrom)} entfernt` + laterRowsNote(later)
-		)
+		),
+		...(await leaseChargeStatements(db, context.accountId, leaseId, {
+			changes: withLaterRows(others, later)
+		}))
 	]);
-	await ensureCharges(db, context.accountId, [leaseId]);
 	return { ok: true };
 }
 

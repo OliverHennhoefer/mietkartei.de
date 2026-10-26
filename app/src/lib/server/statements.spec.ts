@@ -24,7 +24,6 @@ import {
 	tenants,
 	units
 } from './db/schema';
-import { createLease } from './leases';
 import { ensureCharges } from './ledger';
 import { QUOTAS } from './quotas';
 import {
@@ -41,7 +40,14 @@ import {
 	statementFilename,
 	statementLetter
 } from './statements';
-import { contextA, contextB, leaseInput, seedUnit, testDatabase } from './testing';
+import {
+	contextA,
+	contextB,
+	createLeaseWithoutCharges,
+	leaseInput,
+	seedUnit,
+	testDatabase
+} from './testing';
 
 let db: Database;
 
@@ -116,7 +122,7 @@ async function seedScenario(db: Database, accountId: string) {
 	const tenant = Object.fromEntries(tenantRows.map((row) => [row.lastName, row.id]));
 	const context = { accountId, userId: `user-${accountId}` };
 	const lease = async (input: ReturnType<typeof leaseInput>) => {
-		const result = await createLease(db, context, input);
+		const result = await createLeaseWithoutCharges(db, context, input);
 		if (!result.ok) throw new Error(result.reason);
 		return result.id;
 	};
@@ -352,7 +358,7 @@ describe('loadStatementInput', () => {
 			.returning({ id: units.id });
 		// A tenant of another house rents the garage as an extra unit of their lease.
 		const other = await seedUnit(db, 'a', { propertyName: 'Nachbarhaus' });
-		const created = await createLease(
+		const created = await createLeaseWithoutCharges(
 			db,
 			contextA,
 			leaseInput(other.unitId, { extraUnitIds: [garage.id], startDate: '2025-03-01' })
@@ -544,7 +550,11 @@ describe('createStatement and getStatement', () => {
  */
 async function seedSingleLease(db: Database, year: number, paidMonths: number) {
 	const { propertyId, unitId } = await seedUnit(db, 'a');
-	const lease = await createLease(db, contextA, leaseInput(unitId, { startDate: `${year}-01-01` }));
+	const lease = await createLeaseWithoutCharges(
+		db,
+		contextA,
+		leaseInput(unitId, { startDate: `${year}-01-01` })
+	);
 	if (!lease.ok) throw new Error(lease.reason);
 	const [category] = await db
 		.insert(costCategories)

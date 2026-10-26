@@ -178,6 +178,32 @@ describe('checkout', () => {
 		expect(await pending()).toBe('cs_other');
 	});
 
+	it('uses the customer another request stored first and deletes its own', async () => {
+		answers['POST /v1/customers'] = () => {
+			// The other request stores its customer while this one waits for Stripe.
+			db.update(accounts).set({ stripeCustomerId: 'cus_other' }).where(eq(accounts.id, 'a')).run();
+			return { body: { id: 'cus_mine' } };
+		};
+		answers['DELETE /v1/customers/cus_mine'] = () => ({ body: { id: 'cus_mine', deleted: true } });
+		answers['POST /v1/checkout/sessions'] = session('cs_1', 'open', CHECKOUT_URL);
+		expect(await run('checkout')).toEqual({ redirect: { status: 303, to: CHECKOUT_URL } });
+		const [row] = await db.select().from(accounts).where(eq(accounts.id, 'a'));
+		expect(row.stripeCustomerId).toBe('cus_other');
+		expect(sent.at(-1)?.get('customer')).toBe('cus_other');
+		expect(calls).toContain('DELETE /v1/customers/cus_mine');
+	});
+
+	it('still opens the checkout when its unused customer cannot be deleted', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		answers['POST /v1/customers'] = () => {
+			db.update(accounts).set({ stripeCustomerId: 'cus_other' }).where(eq(accounts.id, 'a')).run();
+			return { body: { id: 'cus_mine' } };
+		};
+		answers['POST /v1/checkout/sessions'] = session('cs_1', 'open', CHECKOUT_URL);
+		expect(await run('checkout')).toEqual({ redirect: { status: 303, to: CHECKOUT_URL } });
+		expect(sent.at(-1)?.get('customer')).toBe('cus_other');
+	});
+
 	it('answers 502 instead of redirecting anywhere but Stripe', async () => {
 		answers['POST /v1/checkout/sessions'] = session('cs_1', 'open', 'https://evil.example/pay');
 		const { failure } = await run('checkout');

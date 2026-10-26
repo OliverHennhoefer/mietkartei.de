@@ -20,10 +20,17 @@ import {
 	type ExportData
 } from './export';
 import { createPayment, ensureCharges } from './ledger';
-import { createLease } from './leases';
 import { openFileStorage } from './storage/fs';
 import type { Storage } from './storage';
-import { contextA, contextB, leaseInput, seedTenant, seedUnit, testDatabase } from './testing';
+import {
+	contextA,
+	contextB,
+	createLeaseWithoutCharges,
+	leaseInput,
+	seedTenant,
+	seedUnit,
+	testDatabase
+} from './testing';
 
 let db: Database;
 let root: string;
@@ -43,7 +50,11 @@ afterEach(async () => {
 async function seedAccount(context: typeof contextA) {
 	const { propertyId, unitId } = await seedUnit(db, context.accountId);
 	const tenantId = await seedTenant(db, context.accountId);
-	const created = await createLease(db, context, leaseInput(unitId, { tenantIds: [tenantId] }));
+	const created = await createLeaseWithoutCharges(
+		db,
+		context,
+		leaseInput(unitId, { tenantIds: [tenantId] })
+	);
 	if (!created.ok) throw new Error(created.reason);
 	await ensureCharges(db, context.accountId, [created.id], '2025-03');
 	await createPayment(db, context, {

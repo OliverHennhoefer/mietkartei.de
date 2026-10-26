@@ -9,10 +9,16 @@ import {
 	type IsoDate,
 	type IsoMonth
 } from '../dates';
-import { diffCharges, expectedRentCharges, type ExpectedCharge } from '../domain/charges';
+import {
+	diffCharges,
+	expectedRentCharges,
+	type ChargeTerm,
+	type ExpectedCharge
+} from '../domain/charges';
 import type { RentChange } from '../domain/rents';
 import { rentChargeKindLabels } from '../labels';
 import { formatCents } from '../money';
+import type { GermanState } from '../working-days';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { chunk, chunkIds, rowsPerStatement, runBatch } from './db/batch';
@@ -48,23 +54,17 @@ function groupByLease<T extends { leaseId: string }>(rows: readonly T[]): Map<st
 
 export type ChargeSync = { inserted: number; updated: number; removed: number };
 
-/**
- * Brings the `rent` charges of the given leases in line with their term and rent history, up to
- * `untilMonth`. Rows already stored beyond that month stay as long as they are within the term,
- * so a call with an earlier horizon never deletes what a later one generated. Only leases of the
- * account are touched, other kinds of charges never. Derived data, so no audit entries.
- */
-export async function ensureCharges(
+/** A lease as the rent charges see it: its term, due day and state, and its rent history. */
+export type ChargeLease = ChargeTerm & { id: string; changes: readonly RentChange[] };
+
+/** The charge view of the given leases of the account, as stored. Three selects per 90 leases. */
+export async function loadChargeLeases(
 	db: Database,
 	accountId: string,
-	leaseIds: string[],
-	untilMonth: IsoMonth = monthOf(today())
-): Promise<ChargeSync> {
-	const nothing = { inserted: 0, updated: 0, removed: 0 };
+	leaseIds: readonly string[]
+): Promise<ChargeLease[]> {
 	const requested = [...new Set(leaseIds)];
-	if (requested.length === 0) return nothing;
-
-	// Three selects per 90 leases, however many leases there are.
+	if (requested.length === 0) return [];
 	const leaseRows = (
 		await Promise.all(
 			chunkIds(requested).map((ids) =>
@@ -84,12 +84,10 @@ export async function ensureCharges(
 			)
 		)
 	).flat();
-	if (leaseRows.length === 0) return nothing;
-	const ownIds = leaseRows.map((lease) => lease.id);
-
-	const [changeRows, chargeRows] = await Promise.all([
-		Promise.all(
-			chunkIds(ownIds).map((ids) =>
+	if (leaseRows.length === 0) return [];
+	const changeRows = (
+		await Promise.all(
+			chunkIds(leaseRows.map((lease) => lease.id)).map((ids) =>
 				db
 					.select({
 						leaseId: rentChanges.leaseId,
@@ -108,9 +106,52 @@ export async function ensureCharges(
 						)
 					)
 			)
-		).then((groups) => groups.flat()),
-		Promise.all(
-			chunkIds(ownIds).map((ids) =>
+		)
+	).flat();
+	const changesByLease: Map<string, RentChange[]> = groupByLease(changeRows);
+	return leaseRows.map((lease) => ({ ...lease, changes: changesByLease.get(lease.id) ?? [] }));
+}
+
+/** The Bundesland of each unit's property, for the due dates of leases not stored yet. */
+export async function unitStates(
+	db: Database,
+	accountId: string,
+	unitIds: readonly string[]
+): Promise<Map<string, GermanState | null>> {
+	const rows = (
+		await Promise.all(
+			chunkIds([...new Set(unitIds)]).map((ids) =>
+				db
+					.select({ unitId: units.id, state: properties.state })
+					.from(units)
+					.innerJoin(properties, eq(properties.id, units.propertyId))
+					.where(and(eq(units.accountId, accountId), inArray(units.id, ids)))
+			)
+		)
+	).flat();
+	return new Map(rows.map((row) => [row.unitId, row.state]));
+}
+
+/**
+ * The statements that bring the `rent` charges of the given leases in line with their term and
+ * rent history, up to `untilMonth`, for the caller's batch. The leases are passed as they will be
+ * once that batch ran, so a command that changes a lease or its history commits the change and
+ * the charges together, or neither; the quota is checked here, before anything is written. Rows
+ * already stored beyond `untilMonth` stay as long as they are within the term, so a call with an
+ * earlier horizon never deletes what a later one generated. Only leases of the account are
+ * touched, other kinds of charges never. Derived data, so no audit entries.
+ */
+export async function chargeSyncStatements(
+	db: Database,
+	accountId: string,
+	chargeLeases: readonly ChargeLease[],
+	untilMonth: IsoMonth = monthOf(today())
+): Promise<{ statements: Statement[]; sync: ChargeSync }> {
+	const nothing = { statements: [], sync: { inserted: 0, updated: 0, removed: 0 } };
+	if (chargeLeases.length === 0) return nothing;
+	const chargeRows = (
+		await Promise.all(
+			chunkIds(chargeLeases.map((lease) => lease.id)).map((ids) =>
 				db
 					.select({
 						id: rentCharges.id,
@@ -131,10 +172,8 @@ export async function ensureCharges(
 						)
 					)
 			)
-		).then((groups) => groups.flat())
-	]);
-
-	const changesByLease: Map<string, RentChange[]> = groupByLease(changeRows);
+		)
+	).flat();
 	// Rent charges always have a due date; only a statement's Nachzahlung waits for one.
 	const chargesByLease = groupByLease(
 		chargeRows.map((row) => ({ ...row, dueDate: row.dueDate ?? '' }))
@@ -143,14 +182,14 @@ export async function ensureCharges(
 	const inserts: (typeof rentCharges.$inferInsert)[] = [];
 	const updates: (ExpectedCharge & { id: string })[] = [];
 	const removals: string[] = [];
-	for (const lease of leaseRows) {
+	for (const lease of chargeLeases) {
 		const existing = chargesByLease.get(lease.id) ?? [];
 		// Keep checking the months already generated, even past the requested horizon.
 		const horizon = existing.reduce(
 			(latest, row) => (row.period > latest ? row.period : latest),
 			untilMonth
 		);
-		const expected = expectedRentCharges(lease, changesByLease.get(lease.id) ?? [], horizon);
+		const expected = expectedRentCharges(lease, lease.changes, horizon);
 		const diff = diffCharges(existing, expected);
 		for (const charge of diff.insert) {
 			inserts.push({
@@ -195,8 +234,42 @@ export async function ensureCharges(
 				)
 		)
 	];
+	return {
+		statements,
+		sync: { inserted: inserts.length, updated: updates.length, removed: removals.length }
+	};
+}
+
+/**
+ * chargeSyncStatements for one stored lease, with what the caller's batch changes in it (`pending`:
+ * the term, the state of a new unit, the rent history). Nothing when the lease is not the account's.
+ */
+export async function leaseChargeStatements(
+	db: Database,
+	accountId: string,
+	leaseId: string,
+	pending: Partial<Omit<ChargeLease, 'id'>> = {}
+): Promise<Statement[]> {
+	const [lease] = await loadChargeLeases(db, accountId, [leaseId]);
+	if (!lease) return [];
+	return (await chargeSyncStatements(db, accountId, [{ ...lease, ...pending }])).statements;
+}
+
+/**
+ * Brings the `rent` charges of the given stored leases in line with their term and rent history,
+ * up to `untilMonth`; see chargeSyncStatements. A command that changes a lease or its history
+ * builds those statements into its own batch instead.
+ */
+export async function ensureCharges(
+	db: Database,
+	accountId: string,
+	leaseIds: string[],
+	untilMonth: IsoMonth = monthOf(today())
+): Promise<ChargeSync> {
+	const chargeLeases = await loadChargeLeases(db, accountId, leaseIds);
+	const { statements, sync } = await chargeSyncStatements(db, accountId, chargeLeases, untilMonth);
 	await runBatch(db, statements);
-	return { inserted: inserts.length, updated: updates.length, removed: removals.length };
+	return sync;
 }
 
 async function ownsLease(db: Database, accountId: string, leaseId: string): Promise<boolean> {
