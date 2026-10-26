@@ -39,6 +39,9 @@ import { formatCents } from '../../money';
 
 export type CostItem = typeof costItems.$inferSelect;
 
+// Breaks ties of created_at, which two items saved within one millisecond share.
+const insertOrder = sql`"cost_items"."rowid"`;
+
 export type CostItemInput = {
 	propertyId: string;
 	categoryId: string;
@@ -110,7 +113,12 @@ function query(db: Database, accountId: string, filter: CostItemFilter & { id?: 
 		.innerJoin(allocationKeys, eq(allocationKeys.id, costItems.allocationKeyId))
 		.leftJoin(billingCircles, eq(billingCircles.id, costItems.billingCircleId))
 		.where(and(...conditions))
-		.orderBy(desc(costItems.invoiceDate), desc(costItems.periodStart), desc(costItems.createdAt));
+		.orderBy(
+			desc(costItems.invoiceDate),
+			desc(costItems.periodStart),
+			desc(costItems.createdAt),
+			desc(insertOrder)
+		);
 }
 
 /** The receipt documents of the given items, oldest first, as a map by item. */
@@ -209,7 +217,7 @@ export async function costItemHistory(db: Database, accountId: string): Promise<
 		})
 		.from(costItems)
 		.where(eq(costItems.accountId, accountId))
-		.orderBy(desc(costItems.periodEnd), desc(costItems.createdAt));
+		.orderBy(desc(costItems.periodEnd), desc(costItems.createdAt), desc(insertOrder));
 	const descriptions = new Set<string>();
 	const suppliers = new Set<string>();
 	const last = new Map<string, LastCostItem>();
