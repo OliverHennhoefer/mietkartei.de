@@ -2,9 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from './db';
 import {
 	depositTransactions,
+	documents,
 	operatingCostStatements,
+	paymentReminders,
 	rentCharges,
-	statementResults
+	statementResults,
+	tasks
 } from './db/schema';
 import { createExpense } from './expenses';
 import { listLeases } from './leases';
@@ -146,6 +149,83 @@ describe('tenantDossier', () => {
 			expect.objectContaining({ id: leaseId, rent: 80000, depositHeld: 120000 })
 		]);
 		expect(dossier.history.length).toBeGreaterThan(0);
+	});
+
+	it('gathers reminders, open tasks, documents and the costs of every unit across the leases', async () => {
+		const tenantId = await seedTenant(db, 'a');
+		const { unitId: oldUnit } = await seedUnit(db, 'a', { name: 'Alt' });
+		const { unitId: flat } = await seedUnit(db, 'a', { name: 'Wohnung' });
+		const { unitId: garage } = await seedUnit(db, 'a', { name: 'Garage' });
+		const oldLease = await seedLease(db, 'a', oldUnit, {
+			tenantIds: [tenantId],
+			endDate: '2024-12-31',
+			startDate: '2024-01-01'
+		});
+		const lease = await seedLease(db, 'a', flat, {
+			tenantIds: [tenantId],
+			extraUnitIds: [garage]
+		});
+		for (const [unit, date] of [
+			[oldUnit, '2024-06-01'],
+			[garage, '2025-02-01'],
+			[flat, '2025-03-01']
+		]) {
+			await createExpense(db, contextA, {
+				date,
+				amount: 1000,
+				category: 'maintenance',
+				description: 'Reparatur',
+				scope: { kind: 'unit', id: unit }
+			});
+		}
+		await db.insert(paymentReminders).values(
+			[
+				['2025-02-10', 1],
+				['2025-03-10', 2]
+			].map(([date, level]) => ({
+				accountId: 'a',
+				leaseId: lease,
+				level: level as 1 | 2,
+				date: date as string,
+				paymentDeadline: '2025-03-31',
+				amount: 80000,
+				items: [],
+				letterText: 'Bitte zahlen.'
+			}))
+		);
+		await db.insert(tasks).values([
+			{ accountId: 'a', leaseId: lease, title: 'Ohne Datum' },
+			{ accountId: 'a', leaseId: lease, title: 'Später', dueDate: '2025-06-01' },
+			{ accountId: 'a', leaseId: oldLease, title: 'Früher', dueDate: '2025-04-01' },
+			{ accountId: 'a', leaseId: lease, title: 'Auch ohne Datum' },
+			{ accountId: 'a', leaseId: lease, title: 'Erledigt', done: true }
+		]);
+		const file = { mimeType: 'application/pdf', size: 1, storageKey: 'k' };
+		await db.insert(documents).values([
+			{ accountId: 'a', name: 'Ausweis.pdf', tenantId, createdAt: new Date(1000), ...file },
+			{ accountId: 'a', name: 'Vertrag.pdf', leaseId: lease, createdAt: new Date(2000), ...file },
+			{ accountId: 'a', name: 'Fremd.pdf', createdAt: new Date(3000), ...file }
+		]);
+
+		const dossier = await dossierOf(tenantId);
+
+		expect(dossier.unitCosts.map((cost) => cost.date)).toEqual([
+			'2025-03-01',
+			'2025-02-01',
+			'2024-06-01'
+		]);
+		expect(dossier.finances.unitCosts).toBe(3000);
+		expect(dossier.reminders.map((reminder) => reminder.level)).toEqual([2, 1]);
+		expect(dossier.openTasks.map((task) => task.title)).toEqual([
+			'Früher',
+			'Später',
+			'Ohne Datum',
+			'Auch ohne Datum'
+		]);
+		expect(dossier.documents.map((document) => document.name)).toEqual([
+			'Vertrag.pdf',
+			'Ausweis.pdf'
+		]);
 	});
 
 	it('works for a tenant without a lease and sees nothing of another account', async () => {
