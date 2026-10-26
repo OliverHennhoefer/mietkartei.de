@@ -48,13 +48,13 @@ const page = ({ width, height, footer }) => `<!doctype html>
 	.footer { font-size: 20px; color: #6b6b6b; letter-spacing: -.01em; }
 	.footer strong { color: #202020; font-weight: 600; }
 	.shot { position: absolute; display: block; height: auto; border: 1px solid #e8e8e8; background: #fff; }
-	.main { left: ${width - 520}px; top: 92px; width: 900px; border-radius: 14px; box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 28px 56px -18px rgb(0 0 0 / .18); }
-	.detail { left: ${width - 576}px; top: ${height - 278}px; width: 330px; border-radius: 10px; box-shadow: 0 1px 2px rgb(0 0 0 / .06), 0 22px 44px -12px rgb(0 0 0 / .26); }
+	.main { left: ${width - 520}px; top: 92px; width: 760px; border-radius: 14px; box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 28px 56px -18px rgb(0 0 0 / .18); }
+	.detail { left: ${width - 640}px; top: ${height - 266}px; width: 360px; border-radius: 10px; box-shadow: 0 1px 2px rgb(0 0 0 / .06), 0 22px 44px -12px rgb(0 0 0 / .26); }
 </style>
 </head>
 <body>
 	<img class="shot main" src="${file('website/assets/screenshots/auswertung.png')}" alt="">
-	<img class="shot detail" src="${file('assets/screenshots/abrechnung-mieter.png')}" alt="">
+	<img class="shot detail" src="${file('website/assets/screenshots/abrechnung-mieter.png')}" alt="">
 	<div class="copy">
 		<img class="lockup" src="${file('assets/brand/lockup-highlight.svg')}" alt="">
 		<h1>Vermieten.<br>Mit Überblick.</h1>
