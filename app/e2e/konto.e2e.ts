@@ -210,8 +210,8 @@ test('fills a fresh account with demo data and resets it to factory settings', a
 	await expect(page).toHaveURL(/\/$/);
 	await expect(firstRun).toHaveCount(0);
 	const tiles = page.getByRole('list', { name: 'Kennzahlen' }).getByRole('listitem');
-	await expect(tiles.nth(0).locator('.value')).not.toHaveText('0,00 €');
-	await expect(tiles.nth(2).locator('.value')).toHaveText('3');
+	await expect(tiles.nth(1).locator('.value')).not.toHaveText('0,00 €');
+	await expect(tiles.nth(3).locator('.value')).toHaveText('3');
 
 	await page.goto('/objekte');
 	await expect(page.getByText('Lindenstraße 12').first()).toBeVisible();

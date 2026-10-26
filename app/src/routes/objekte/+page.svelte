@@ -13,11 +13,6 @@
 	let search = $state('');
 	/** The property whose map tile opened the large map; undefined while it is closed. */
 	let mapFor = $state<string>();
-	const totals = $derived({
-		units: data.properties.reduce((sum, property) => sum + property.unitCount, 0),
-		leases: data.properties.reduce((sum, property) => sum + property.activeLeases, 0),
-		vacant: data.properties.reduce((sum, property) => sum + property.vacantUnits, 0)
-	});
 	const filteredProperties = $derived(
 		data.properties.filter((property) =>
 			[property.name, property.street, property.postalCode, property.city]
@@ -45,21 +40,6 @@
 		>
 	</EmptyState>
 {:else}
-	<div class="stats" aria-label="Bestandsübersicht">
-		<div class="stat card">
-			<span class="value">{data.properties.length}</span><span class="label">Objekte</span>
-		</div>
-		<div class="stat card">
-			<span class="value">{totals.units}</span><span class="label">Einheiten gesamt</span>
-		</div>
-		<div class="stat card">
-			<span class="value">{totals.leases}</span><span class="label">Laufende Mietverträge</span>
-		</div>
-		<div class="stat card">
-			<span class="value">{totals.vacant}</span><span class="label">Einheiten im Leerstand</span>
-		</div>
-	</div>
-
 	<div class="list-toolbar">
 		<h2>
 			Deine Objekte <span class="result-count" aria-live="polite">{filteredProperties.length}</span>
@@ -163,9 +143,6 @@
 		font-size: 0.72rem;
 		text-align: right;
 	}
-	.stats {
-		grid-template-columns: repeat(4, minmax(0, 1fr));
-	}
 	.property-list {
 		list-style: none;
 		padding: 0;
@@ -265,11 +242,6 @@
 	.archive-list li {
 		display: grid;
 		gap: 0.1rem;
-	}
-	@media (max-width: 75rem) {
-		.stats {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
 	}
 	@media (max-width: 40rem) {
 		.property-link {

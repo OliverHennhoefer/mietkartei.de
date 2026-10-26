@@ -734,7 +734,7 @@ table.table {
 	align-items: center;
 	justify-content: space-between;
 	gap: 1rem;
-	margin: 2.75rem 0 1.25rem;
+	margin: 0 0 1.25rem;
 }
 .list-toolbar h2 {
 	display: flex;
