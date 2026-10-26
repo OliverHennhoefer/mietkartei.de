@@ -180,7 +180,7 @@
 	<p class="muted">Heute ist nichts überfällig.</p>
 {:else}
 	<p>
-		Heute überfällig: <strong><Money cents={data.reminders.overdue} /></strong>
+		Heute überfällig: <strong><Balance cents={data.reminders.overdue} /></strong>
 		{#if latest}
 			<span class="muted">
 				· zuletzt {reminderLevelLabels[latest.level]} vom {formatDate(latest.date)}, Frist bis
