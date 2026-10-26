@@ -493,10 +493,8 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 		unpaidMonths?: number;
 		/** An ended lease: the deposit paid back that day, less what was withheld and why. */
 		moveOut?: { day: IsoDate; withheld?: [amount: number, note: string] };
-		/** Who the rent comes from, as the bank shows it. */
-		payer: string;
-		iban: string;
-		purpose: (month: IsoMonth) => string;
+		/** Who the rent comes from, as the bank shows it; only for leases paying on the bank account. */
+		bank?: { payer: string; iban: string; purpose: (month: IsoMonth) => string };
 	}[] = [
 		{
 			key: 'kraus',
@@ -524,10 +522,7 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			moveOut: {
 				day: at(-4, '10-20'),
 				withheld: [38000, 'Einbehalt: Reparatur Badtür und Herd laut Abnahmeprotokoll']
-			},
-			payer: 'Helga Kraus',
-			iban: 'DE49100500000190087453',
-			purpose: (month) => `Miete ${month} Kraus`
+			}
 		},
 		{
 			key: 'hartmann',
@@ -552,10 +547,7 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 					note: 'Mieterhöhung auf die ortsübliche Vergleichsmiete (§ 558 BGB)'
 				}
 			],
-			moveOut: { day: at(-6, '05-18') },
-			payer: 'Peter Hartmann',
-			iban: 'DE27100100100654321098',
-			purpose: (month) => `Miete ${month} Hartmann EG li`
+			moveOut: { day: at(-6, '05-18') }
 		},
 		{
 			key: 'schulze',
@@ -584,10 +576,7 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			moveOut: {
 				day: at(-7, '02-20'),
 				withheld: [25000, 'Einbehalt: Schönheitsreparaturen Küche laut Abnahmeprotokoll']
-			},
-			payer: 'Dieter und Monika Schulze',
-			iban: 'DE89370400440532013000',
-			purpose: (month) => `Miete ${month} Schulze`
+			}
 		},
 		{
 			key: 'lorenz',
@@ -612,10 +601,7 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 					note: 'Mieterhöhung laut Mietspiegel Potsdam (§ 558 BGB)'
 				}
 			],
-			moveOut: { day: at(-7, '05-27') },
-			payer: 'Sabine Lorenz',
-			iban: 'DE02160500003527841190',
-			purpose: (month) => `Miete ${month} Parkallee 8`
+			moveOut: { day: at(-7, '05-27') }
 		},
 		{
 			key: 'fischer',
@@ -643,10 +629,7 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			moveOut: {
 				day: at(-6, '12-14'),
 				withheld: [42000, 'Einbehalt: Bohrlöcher im Bad und fehlender Kellerschlüssel']
-			},
-			payer: 'Markus Fischer',
-			iban: 'DE44700202700015938211',
-			purpose: (month) => `Miete ${month} Fischer Whg 9`
+			}
 		},
 
 		{
@@ -675,9 +658,11 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 				},
 				{ validFrom: at(-1, '07-01'), reason: 'statement', heatingCostPrepayment: 9500 }
 			],
-			payer: 'Anna Schmidt',
-			iban: 'DE80100500001062734591',
-			purpose: (month) => `Miete ${month} Lindenstr. 12 EG links`
+			bank: {
+				payer: 'Anna Schmidt',
+				iban: 'DE80100500001062734591',
+				purpose: (month) => `Miete ${month} Lindenstr. 12 EG links`
+			}
 		},
 		{
 			key: 'yilmaz',
@@ -718,9 +703,11 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 					indexValue: vpi(Y - 1)
 				}
 			],
-			payer: 'Murat Yilmaz',
-			iban: 'DE11120300001027384650',
-			purpose: () => 'Miete EG rechts'
+			bank: {
+				payer: 'Murat Yilmaz',
+				iban: 'DE11120300001027384650',
+				purpose: () => 'Miete EG rechts'
+			}
 		},
 		{
 			key: 'berger',
@@ -751,9 +738,11 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 				{ validFrom: at(-1, '07-01'), reason: 'statement', heatingCostPrepayment: 12500 }
 			],
 			unpaidMonths: 2,
-			payer: 'Lena Berger',
-			iban: 'DE18100700240584221300',
-			purpose: (month) => `Miete ${month} Berger 1.OG + Stellplatz`
+			bank: {
+				payer: 'Lena Berger',
+				iban: 'DE18100700240584221300',
+				purpose: (month) => `Miete ${month} Berger 1.OG + Stellplatz`
+			}
 		},
 		{
 			key: 'nowak',
@@ -776,9 +765,11 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 				{ validFrom: at(-2, '08-01'), reason: 'statement', heatingCostPrepayment: 15000 },
 				{ validFrom: at(-1, '08-01'), reason: 'statement', operatingCostPrepayment: 16000 }
 			],
-			payer: 'Tomasz Nowak',
-			iban: 'DE54500105175419038277',
-			purpose: (month) => `Miete ${month} Parkallee 8 Whg 14`
+			bank: {
+				payer: 'Tomasz Nowak',
+				iban: 'DE54500105175419038277',
+				purpose: (month) => `Miete ${month} Parkallee 8 Whg 14`
+			}
 		},
 		{
 			key: 'weber',
@@ -802,9 +793,11 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 				})),
 				{ validFrom: at(-1, '08-01'), reason: 'statement', operatingCostPrepayment: 13000 }
 			],
-			payer: 'Julia Weber',
-			iban: 'DE36120300001044198277',
-			purpose: (month) => `Miete ${month} Rosenheimer Str 104 WE 9 Weber/Albrecht`
+			bank: {
+				payer: 'Julia Weber',
+				iban: 'DE36120300001044198277',
+				purpose: (month) => `Miete ${month} Rosenheimer Str 104 WE 9 Weber/Albrecht`
+			}
 		}
 	];
 	// Only the history years are booked: an older lease starts its ledger there.
@@ -928,9 +921,16 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			const amounts = monthlyAmounts(history, entry.input, month);
 			const amount = total(amounts);
 			const day = soFar(nthWorkingDay(month, 2, entry.state));
-			const bankTransactionId = onBank(month)
-				? bankTransaction(day, amount, entry.payer, entry.iban, entry.purpose(month))
-				: null;
+			const bankTransactionId =
+				onBank(month) && entry.bank
+					? bankTransaction(
+							day,
+							amount,
+							entry.bank.payer,
+							entry.bank.iban,
+							entry.bank.purpose(month)
+						)
+					: null;
 			paymentRows.push({
 				id: crypto.randomUUID(),
 				accountId,
@@ -945,13 +945,14 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 	}
 	for (const key of ['schmidt', 'yilmaz'] as const) {
 		const entry = leaseEntries.find((candidate) => candidate.key === key)!;
+		const { payer, iban, purpose } = entry.bank!;
 		const amount = total(monthlyAmounts(historyOf(entry), entry.input, currentMonth));
 		bankTransaction(
 			soFar(nthWorkingDay(currentMonth, 2, 'BE')),
 			amount,
-			entry.payer,
-			entry.iban,
-			entry.purpose(currentMonth),
+			payer,
+			iban,
+			purpose(currentMonth),
 			'unmatched'
 		);
 	}
