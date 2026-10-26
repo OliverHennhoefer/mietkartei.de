@@ -218,18 +218,17 @@
 	.property-list li + li {
 		border-top: 1px solid var(--color-border);
 	}
-	/* With maps, the tile sits in front of the link; the row as a whole reacts to the pointer. */
+	/* With maps, the tile fills the first quarter of the row from edge to edge; the row as a whole
+	   reacts to the pointer. */
 	.property-list li.with-map {
-		display: flex;
-		align-items: center;
-		padding-left: 1.5rem;
+		display: grid;
+		grid-template-columns: minmax(7rem, 25%) minmax(0, 1fr);
 		transition: background 140ms;
 	}
 	.property-list li.with-map:hover {
 		background: var(--color-subtle);
 	}
 	.with-map .property-link {
-		flex: 1;
 		min-width: 0;
 	}
 	.with-map .property-link:hover {
@@ -343,11 +342,7 @@
 			display: none;
 		}
 		.property-list li.with-map {
-			align-items: flex-start;
-			padding: 1.25rem 0 0 1.25rem;
-		}
-		.with-map .property-link {
-			padding-top: 0;
+			grid-template-columns: 6.5rem minmax(0, 1fr);
 		}
 	}
 </style>

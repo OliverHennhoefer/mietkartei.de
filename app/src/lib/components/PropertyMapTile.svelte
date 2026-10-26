@@ -41,24 +41,26 @@
 <style>
 	.map-tile {
 		display: block;
-		flex-shrink: 0;
-		align-self: center;
+		width: 100%;
+		height: 100%;
 		min-height: 0;
-		width: 5.75rem;
-		height: 3.85rem;
 		padding: 0;
-		border: 1px solid var(--color-map-border);
-		border-radius: 10px;
+		border: 0;
+		border-right: 1px solid var(--color-border);
+		border-radius: 0;
 		background: var(--color-map-water);
 		overflow: hidden;
 		cursor: pointer;
-		transition:
-			border-color 140ms,
-			transform 140ms;
+		align-self: stretch;
 	}
 	.map-tile:hover {
-		border-color: var(--color-muted);
 		background: var(--color-map-water);
+	}
+	.map-tile:hover svg {
+		opacity: 0.85;
+	}
+	.map-tile:focus-visible {
+		outline-offset: -3px;
 	}
 	.map-tile svg {
 		display: block;
@@ -77,12 +79,5 @@
 	.map-halo {
 		fill: var(--color-highlight);
 		opacity: 0.22;
-	}
-	@media (max-width: 40rem) {
-		.map-tile {
-			align-self: flex-start;
-			width: 4.5rem;
-			height: 3rem;
-		}
 	}
 </style>
