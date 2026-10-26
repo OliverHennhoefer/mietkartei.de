@@ -226,6 +226,11 @@ test('writes a Zahlungserinnerung, suggests a Mahnung next and lists it with the
 	expect(pdf.headers()['content-type']).toContain('application/pdf');
 	// The app shows it in a frame of its preview dialog.
 	expect(pdf.headers()['x-frame-options']).toBe('SAMEORIGIN');
+	// The headless shell of CI shows no PDF inside a page and would follow the link instead.
+	await page.addInitScript(() =>
+		Object.defineProperty(navigator, 'pdfViewerEnabled', { get: () => true })
+	);
+	await page.reload();
 	await view.click();
 	const preview = page.getByRole('dialog', { name: /^Zahlungserinnerung vom / });
 	await expect(preview.locator('iframe')).toHaveAttribute('src', href!);
