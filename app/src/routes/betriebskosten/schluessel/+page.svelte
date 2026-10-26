@@ -6,7 +6,7 @@
 	let { data, form }: PageProps = $props();
 </script>
 
-<h2>Umlageschlüssel</h2>
+<h2 class="visually-hidden">Umlageschlüssel</h2>
 <p class="muted">
 	Wie eine Kostenart auf die Einheiten verteilt wird: nach Wohnfläche, Personen, Einheiten,
 	Verbrauch oder eigenen Anteilen. Die vorbelegten Schlüssel gelten für alle Objekte.

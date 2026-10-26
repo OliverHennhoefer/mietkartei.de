@@ -39,7 +39,7 @@
 </script>
 
 <!-- The heading and the tab bar come from +layout.svelte; this page is the "Import" tab. -->
-<h2>Kontoauszug importieren</h2>
+<h2 class="visually-hidden">Kontoauszug importieren</h2>
 
 {#if result}
 	<Alert tone="success">

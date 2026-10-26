@@ -17,7 +17,7 @@
 	);
 </script>
 
-<h2>Belege</h2>
+<h2 class="visually-hidden">Belege</h2>
 
 <div class="toolbar between">
 	<form method="GET" class="row" aria-label="Filter">

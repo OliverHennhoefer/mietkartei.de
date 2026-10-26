@@ -17,7 +17,7 @@
 	<a class="button secondary" href="/objekte/{data.property.id}/bearbeiten">Bearbeiten</a>
 </div>
 
-<h2>Einheiten</h2>
+<h2 class="visually-hidden">Einheiten</h2>
 {#if data.units.length === 0}
 	<p>Dieses Objekt hat noch keine Einheiten.</p>
 {:else}

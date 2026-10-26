@@ -1,6 +1,7 @@
 <script lang="ts">
 	// The frame of every page under /betriebskosten: heading and tab bar. Child pages render only
-	// h2 sections, no PageHeader, and put their primary action buttons in a <div class="toolbar">
+	// h2 sections, no PageHeader (a first h2 that only repeats the tab name is .visually-hidden, as the
+	// current tab already shows it), and put their primary action buttons in a <div class="toolbar">
 	// below the tabs, not in the PageHeader actions snippet, because every tab has actions of its
 	// own.
 	import PageHeader from '#lib/components/PageHeader.svelte';

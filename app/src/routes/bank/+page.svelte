@@ -113,7 +113,7 @@
 </script>
 
 <!-- The heading and the tab bar come from +layout.svelte; this page is the "Umsätze" tab. -->
-<h2>Umsätze</h2>
+<h2 class="visually-hidden">Umsätze</h2>
 
 <div class="toolbar">
 	<strong>{pluralize(data.openCount, 'offener Umsatz', 'offene Umsätze')}</strong>

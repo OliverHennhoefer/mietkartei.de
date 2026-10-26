@@ -55,7 +55,7 @@
 </script>
 
 <!-- The heading and tab bar come from the layout; this page is the "Zähler" tab. -->
-<h2>Zähler</h2>
+<h2 class="visually-hidden">Zähler</h2>
 <p class="muted">
 	Zähler des Gebäudes und der Einheiten mit ihren Zählerständen. Ein ausgetauschter Zähler wird
 	ausgebaut und der neue angelegt; die Abrechnung rechnet den Verbrauch je Einheit zusammen.

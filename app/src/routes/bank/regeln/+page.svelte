@@ -15,7 +15,7 @@
 </script>
 
 <!-- The heading and the tab bar come from +layout.svelte; this page is the "Regeln" tab. -->
-<h2>Zuordnungsregeln</h2>
+<h2 class="visually-hidden">Zuordnungsregeln</h2>
 <p class="muted">
 	Regeln gelten in der Reihenfolge, in der sie angelegt wurden; die erste passende gewinnt.
 	Bestätigte Regeln ordnen eingehende Umsätze beim Import automatisch zu, unbestätigte machen nur
@@ -129,12 +129,5 @@
 	.inline {
 		display: inline;
 		margin-right: 0.5rem;
-	}
-	.visually-hidden {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip: rect(0 0 0 0);
 	}
 </style>
