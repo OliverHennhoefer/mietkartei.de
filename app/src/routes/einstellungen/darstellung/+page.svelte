@@ -20,8 +20,10 @@
 		Karte bei den Objekten zeigen
 	</label>
 	<p class="muted hint">
-		Jedes Objekt erscheint in der Liste als Punkt auf einer kleinen Deutschlandkarte, platziert nach
-		seiner Postleitzahl. Die Karte ist Teil von mietkartei und lädt nichts von anderen Diensten.
+		Jedes Objekt erscheint in der Liste mit einer kleinen Straßenkarte seiner Umgebung. Dafür fragt
+		mietkartei einmal je Adresse beim Geocoder von OpenStreetMap (Nominatim) nach, wo das Objekt
+		liegt; übermittelt wird nur die Adresse des Objekts. Bis dahin zeigt die Karte die Gegend der
+		Postleitzahl. Die Karten selbst kommen von mietkartei, nicht von anderen Diensten.
 	</p>
 	{#if form?.saved}
 		<Alert tone="success"><p>Gespeichert.</p></Alert>

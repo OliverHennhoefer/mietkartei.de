@@ -1,0 +1,146 @@
+name: Map
+
+# Uploads the street map of Germany for the map previews of the properties to the R2 bucket
+# mietkartei-map: an extract of the OpenStreetMap basemap that Protomaps builds every day, as a
+# PMTiles archive in parts of 250 MiB (wrangler uploads no larger object), with map/manifest.json
+# naming them (see app/src/lib/server/map/tiles.ts). The app reads the manifest again every ten
+# minutes. The parts of the version before stay for the instances that still read it; older ones
+# are deleted. Runs once a month and by hand.
+
+"on":
+  schedule:
+    - cron: "17 3 2 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: map
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: app
+
+env:
+  NODE_VERSION: "26"
+  BUCKET: mietkartei-map
+  # Germany with a margin, as min lon, min lat, max lon, max lat.
+  BBOX: "5.5,47.1,15.5,55.2"
+  MAX_ZOOM: "14"
+  PART_SIZE: "262144000"
+
+jobs:
+  upload:
+    name: Extract and upload the map
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    environment:
+      name: production
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install go-pmtiles
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/pmtiles"
+          gh release download --repo protomaps/go-pmtiles --pattern '*_Linux_x86_64.tar.gz' \
+            --dir "$RUNNER_TEMP/pmtiles"
+          tar -xzf "$RUNNER_TEMP"/pmtiles/*.tar.gz -C "$RUNNER_TEMP/pmtiles" pmtiles
+          echo "$RUNNER_TEMP/pmtiles" >> "$GITHUB_PATH"
+
+      # Protomaps keeps the builds of the last days; take the newest one there is.
+      - name: Find the newest Protomaps build
+        id: build
+        run: |
+          for days in $(seq 0 14); do
+            date=$(date -u -d "-$days days" +%Y%m%d)
+            if curl -sfI "https://build.protomaps.com/$date.pmtiles" > /dev/null; then
+              echo "version=$date" >> "$GITHUB_OUTPUT"
+              echo "Build $date"
+              exit 0
+            fi
+          done
+          echo "::error::No Protomaps build of the last two weeks was found."
+          exit 1
+
+      - name: Extract Germany
+        env:
+          VERSION: ${{ steps.build.outputs.version }}
+        run: |
+          pmtiles extract "https://build.protomaps.com/$VERSION.pmtiles" "$RUNNER_TEMP/germany.pmtiles" \
+            --bbox="$BBOX" --maxzoom="$MAX_ZOOM" --download-threads=8
+          pmtiles show "$RUNNER_TEMP/germany.pmtiles"
+          mkdir "$RUNNER_TEMP/parts"
+          split -b "$PART_SIZE" -d -a 3 "$RUNNER_TEMP/germany.pmtiles" "$RUNNER_TEMP/parts/part-"
+          size=$(stat -c %s "$RUNNER_TEMP/germany.pmtiles")
+          rm "$RUNNER_TEMP/germany.pmtiles"
+          node -e '
+            const [version, size, partSize, ...files] = process.argv.slice(1);
+            const parts = files.map((file) => `map/${version}/${file.split("/").pop()}`);
+            console.log(JSON.stringify({ version, size: +size, partSize: +partSize, parts }));
+          ' "$VERSION" "$size" "$PART_SIZE" "$RUNNER_TEMP"/parts/part-* > "$RUNNER_TEMP/manifest.json"
+          cat "$RUNNER_TEMP/manifest.json"
+
+      - name: Upload the parts
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          VERSION: ${{ steps.build.outputs.version }}
+        run: |
+          npx wrangler r2 bucket info "$BUCKET" --jurisdiction eu ||
+            npx wrangler r2 bucket create "$BUCKET" --jurisdiction eu
+          for part in "$RUNNER_TEMP"/parts/part-*; do
+            npx wrangler r2 object put "$BUCKET/map/$VERSION/$(basename "$part")" --file "$part" \
+              --content-type application/octet-stream --remote --jurisdiction eu
+          done
+
+      # The new manifest goes up last, so the app never names parts that are not there yet.
+      - name: Switch to the new map
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          VERSION: ${{ steps.build.outputs.version }}
+        run: |
+          get() {
+            npx wrangler r2 object get "$BUCKET/$1" --pipe --remote --jurisdiction eu 2> /dev/null || true
+          }
+          put() {
+            npx wrangler r2 object put "$BUCKET/$1" --file "$2" --content-type application/json \
+              --remote --jurisdiction eu
+          }
+          get map/manifest.json > "$RUNNER_TEMP/current.json"
+          get map/previous.json > "$RUNNER_TEMP/previous.json"
+          put map/manifest.json "$RUNNER_TEMP/manifest.json"
+          parts() {
+            node -e '
+              const text = require("fs").readFileSync(process.argv[1], "utf8").trim();
+              if (text.startsWith("{")) for (const part of JSON.parse(text).parts) console.log(part);
+            ' "$1"
+          }
+          current=$(node -e 'try { console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).version) } catch {}' "$RUNNER_TEMP/current.json")
+          if [ -n "$current" ] && [ "$current" != "$VERSION" ]; then
+            put map/previous.json "$RUNNER_TEMP/current.json"
+            # Parts of the version before last, unless the new map reuses its name.
+            for part in $(parts "$RUNNER_TEMP/previous.json"); do
+              case "$part" in
+                "map/$VERSION/"*|"map/$current/"*) ;;
+                *) npx wrangler r2 object delete "$BUCKET/$part" --remote --jurisdiction eu || true ;;
+              esac
+            done
+          fi

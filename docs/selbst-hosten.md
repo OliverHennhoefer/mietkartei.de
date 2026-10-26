@@ -51,6 +51,17 @@ Jedes [Release](https://github.com/OliverHennhoefer/mietkartei.de/releases) enth
 
 Damit mietkartei die Umsätze selbst bei deiner Bank abholt, legst du kostenlos eine eigene Anwendung bei [Enable Banking](https://enablebanking.com/cp/applications) an. Als Weiterleitungsadresse trägst du die Adresse deiner Installation mit `/bank/abruf` am Ende ein, etwa `https://mietkartei.example.de/bank/abruf`, und setzt `ORIGIN` auf dieselbe Adresse. Ohne Vertrag läuft die Anwendung im eingeschränkten Modus und ruft nur Konten ab, die du im Control Panel von Enable Banking verknüpft hast. Für die eigenen Konten reicht das. Die Anwendungs-Id und den heruntergeladenen privaten Schlüssel übergibst du als `ENABLE_BANKING_APP_ID` und `ENABLE_BANKING_PRIVATE_KEY`.
 
+## Straßenkarte
+
+Ohne weitere Einstellung zeigt jedes Objekt eine kleine Deutschlandkarte mit einem Punkt an seiner Postleitzahl. Für eine Straßenkarte der Umgebung lädst du mit dem Programm [pmtiles](https://github.com/protomaps/go-pmtiles/releases) einen Ausschnitt Deutschlands aus den Kartendaten von OpenStreetMap, die [Protomaps](https://maps.protomaps.com/builds/) täglich baut. Er ist einige Gigabyte groß:
+
+```sh
+pmtiles extract https://build.protomaps.com/20261025.pmtiles deutschland.pmtiles \
+  --bbox=5.5,47.1,15.5,55.2 --maxzoom=14
+```
+
+Lege die Datei ins Datenverzeichnis und setze `MAP_TILES_PATH=/data/deutschland.pmtiles`. mietkartei fragt dann einmal je Adresse beim Geocoder von OpenStreetMap nach, wo ein Objekt liegt; übermittelt wird nur die Adresse. Mit `GEOCODER_URL=off` unterbleibt das, die Karte zeigt dann die Gegend der Postleitzahl.
+
 ## Weiterführend
 
 - Alle Einstellungen über Umgebungsvariablen, etwa für den Mailversand, stehen in der [Beschreibung der Anwendung](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/app/README.md).

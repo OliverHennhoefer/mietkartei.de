@@ -131,9 +131,10 @@ describe('wrangler.jsonc', () => {
 	it('binds what the adapters read', () => {
 		const config = wranglerConfig();
 		expect(config.d1_databases.map((db: { binding: string }) => db.binding)).toContain('DB');
-		expect(config.r2_buckets.map((bucket: { binding: string }) => bucket.binding)).toContain(
-			'DOCUMENTS'
-		);
+		expect(config.r2_buckets.map((bucket: { binding: string }) => bucket.binding)).toEqual([
+			'DOCUMENTS',
+			'MAP'
+		]);
 		expect(config.ratelimits.map((limit: { name: string }) => limit.name)).toEqual([
 			'AUTH_LIMITER',
 			'API_LIMITER'
@@ -169,6 +170,8 @@ describe('wrangler.jsonc', () => {
 		expect(demo.d1_databases[0].database_id).not.toBe(config.d1_databases[0].database_id);
 		expect(demo.r2_buckets[0].binding).toBe('DOCUMENTS');
 		expect(demo.r2_buckets[0].bucket_name).not.toBe(config.r2_buckets[0].bucket_name);
+		// The street map is the same for both.
+		expect(demo.r2_buckets[1]).toEqual(config.r2_buckets[1]);
 		expect(demo.ratelimits[0]).toMatchObject({
 			name: 'AUTH_LIMITER',
 			simple: { limit: AUTH_LIMIT, period: AUTH_PERIOD_SECONDS }

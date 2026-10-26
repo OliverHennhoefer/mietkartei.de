@@ -5,6 +5,8 @@ declare module 'cloudflare:workers' {
 	export const env: {
 		DB?: D1Database;
 		DOCUMENTS?: R2Bucket;
+		/** The street map of the property list, see src/lib/server/map/tiles.ts. */
+		MAP?: R2Bucket;
 		AUTH_LIMITER?: RateLimit;
 		API_LIMITER?: RateLimit;
 	};

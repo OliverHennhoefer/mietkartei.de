@@ -96,6 +96,7 @@
 					{#if data.showMaps}
 						<PropertyMapTile
 							position={property.position}
+							image={property.mapImage}
 							label="{property.name} auf der Karte zeigen"
 							onclick={() => (mapFor = property.id)}
 						/>
@@ -126,6 +127,9 @@
 				</li>
 			{/each}
 		</ul>
+		{#if filteredProperties.some((property) => property.mapImage)}
+			<p class="map-credit muted">Straßenkarten: © OpenStreetMap-Mitwirkende</p>
+		{/if}
 		{#if mapFor}
 			<PropertyMapDialog
 				properties={data.properties}
@@ -153,6 +157,11 @@
 {/if}
 
 <style>
+	.map-credit {
+		margin: 0.5rem 0 0;
+		font-size: 0.72rem;
+		text-align: right;
+	}
 	.stats {
 		grid-template-columns: repeat(4, minmax(0, 1fr));
 	}
