@@ -24,7 +24,8 @@
 		...(data.property.kind === 'condominium'
 			? [{ href: `/objekte/${data.property.id}/hausgeld`, label: 'Hausgeld' }]
 			: []),
-		{ href: `/objekte/${data.property.id}/steuer`, label: 'Steuer' }
+		{ href: `/objekte/${data.property.id}/steuer`, label: 'Steuer' },
+		{ href: `/objekte/${data.property.id}/lage`, label: 'Lage' }
 	]);
 
 	/** For an Eigentumswohnung: the WEG, its MEA and its Verwalter. */
