@@ -111,7 +111,6 @@
 				<th class="num">Heizkosten</th>
 				<th class="num">Gesamtmiete</th>
 				<th>Grund</th>
-				<th>Status</th>
 				<th>Index</th>
 				<th>Notiz</th>
 				<th class="actions"></th>
@@ -123,6 +122,7 @@
 					<td>
 						{formatDate(change.validFrom)}
 						{#if change === current}<Badge tone="info">Aktuell</Badge>{/if}
+						{#if change.status !== 'approved'}<Badge tone="warning">Vorschlag</Badge>{/if}
 					</td>
 					<td class="num"><Money cents={change.baseRent} /></td>
 					<td class="num"><Money cents={change.operatingCostPrepayment} /></td>
@@ -130,15 +130,9 @@
 					<td class="num"><Money cents={total(change)} /></td>
 					<td>{rentChangeReasonLabels[change.reason]}</td>
 					<td>
-						{#if change.status === 'approved'}
-							<Badge tone="success">Freigegeben</Badge>
-						{:else}
-							<Badge tone="warning">Vorschlag</Badge>
-						{/if}
-					</td>
-					<td>
 						{#if change.indexMonth && change.indexValue !== null}
-							{formatIndexValue(change.indexValue)} ({formatMonth(change.indexMonth)})
+							{formatIndexValue(change.indexValue)}
+							<span class="muted small nowrap">{formatMonth(change.indexMonth)}</span>
 						{/if}
 					</td>
 					<td class="note">{change.note ?? ''}</td>
@@ -402,6 +396,10 @@
 </form>
 
 <style>
+	.nowrap {
+		display: block;
+		white-space: nowrap;
+	}
 	.note {
 		max-width: 16rem;
 		white-space: pre-line;

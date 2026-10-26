@@ -190,7 +190,8 @@ try {
 			});
 		}
 	);
-	// A rent payment from a known IBAN, with the lease already suggested.
+	// A rent payment from a known IBAN, with the lease already suggested: the whole card, the
+	// payment on the left and its assignment on the right.
 	/** @param {string} selector @param {string} text */
 	const mark = (selector, text) => async (/** @type {import('@playwright/test').Page} */ page) => {
 		await page
@@ -204,7 +205,7 @@ try {
 	await shootSlide(
 		'bankumsaetze',
 		'/bank',
-		['[data-slide] .head', '[data-slide] button'],
+		['[data-slide]'],
 		mark('li.transaction', 'Anna Schmidt')
 	);
 
