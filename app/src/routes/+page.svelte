@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Money from '#lib/components/Money.svelte';
+	import Balance from '#lib/components/Balance.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import { pluralize } from '#lib/format.ts';
 	import type { PageProps } from './$types';
@@ -91,7 +91,7 @@
 		</li>
 		<li class="card tile">
 			<a href="/mietkonto?filter=rueckstaende">
-				<span class="value"><Money cents={data.tiles.arrearsTotal} /></span>
+				<span class="value"><Balance cents={data.tiles.arrearsTotal} /></span>
 				<span class="label">
 					Rückstände · {pluralize(data.tiles.arrearsCount, 'Mietvertrag', 'Mietverträge')}
 				</span>
