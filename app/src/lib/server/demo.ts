@@ -21,6 +21,7 @@ import type { UnitKind } from '../units';
 import { nthWorkingDay, type GermanState } from '../working-days';
 import { auditEntry, type AuditContext } from './audit';
 import { createCo2Split } from './co2';
+import { addressKey } from './geocoding';
 import type { Database } from './db';
 import { chunk, chunkIds, rowsPerStatement, runBatch } from './db/batch';
 import {
@@ -60,12 +61,14 @@ import { approveStatement, DUE_DAYS } from './statements';
 import type { TenantInput } from './tenants';
 
 // Demo data for an empty account: a small portfolio that touches every feature with as few rows
-// as it takes, but with five years of history, so the Auswertung and the tax overview have
-// something to show. A Mehrfamilienhaus in Berlin (three flats and a parking space, central gas
-// heating with heat meters) and two Eigentumswohnungen in a WEG, in Potsdam and in Munich, with
-// their Hausgeld and the Verwalter's Hausgeldabrechnungen. Six leases: a fixed rent with a rise to
-// the Mietspiegel, an index rent, a Staffelmiete, one ended and one two months in arrears with a
-// Zahlungserinnerung and a Mahnung. Values follow German averages of the years (Kaltmiete per m²,
+// as it takes, but with eight years of history, so the Auswertung, the tax overview and the tenant
+// dossiers have something to show. A Mehrfamilienhaus in Berlin (three flats and a parking space,
+// central gas heating with heat meters) and two Eigentumswohnungen in a WEG, in Potsdam and in
+// Munich, with their Hausgeld and the Verwalter's Hausgeldabrechnungen. Ten leases: a fixed rent
+// with a rise to the Mietspiegel, an index rent, a Staffelmiete, one two months in arrears with a
+// Zahlungserinnerung and a Mahnung, and a tenant change in the history of every flat, the former
+// tenants archived with their new address and their deposit settled. The properties carry their
+// position, so the map shows them without asking the geocoder. Values follow German averages of the years (Kaltmiete per m²,
 // Betriebskosten, gas prices, CO₂ price, interest rates); they are made up, but plausible.
 //
 // Dates are relative to the current year, so the demo never ages. Price tables are keyed by the
@@ -80,12 +83,14 @@ import type { TenantInput } from './tenants';
 export type DemoResult = { ok: true; leases: number } | { ok: false; reason: 'not-empty' };
 
 /** Years of history before the current one, from 1 January. */
-const HISTORY_YEARS = 5;
+const HISTORY_YEARS = 8;
 
-// Price tables by calendar year, from 2020 on.
+// Price tables by calendar year, from 2018 on.
 
 /** Erdgas for a small building, cents per kWh gross. */
 const GAS_PRICE: Record<number, number> = {
+	2018: 6.1,
+	2019: 6.3,
 	2020: 6.4,
 	2021: 6.8,
 	2022: 11.9,
@@ -96,6 +101,8 @@ const GAS_PRICE: Record<number, number> = {
 };
 /** Gas the Mehrfamilienhaus used, kWh (weather and the savings of 2022). */
 const GAS_KWH: Record<number, number> = {
+	2018: 31_200,
+	2019: 32_900,
 	2020: 32_400,
 	2021: 31_800,
 	2022: 27_900,
@@ -106,6 +113,8 @@ const GAS_KWH: Record<number, number> = {
 };
 /** Prices of services and supplies against 2021. */
 const COST_INDEX: Record<number, number> = {
+	2018: 0.95,
+	2019: 0.97,
 	2020: 0.98,
 	2021: 1,
 	2022: 1.05,
@@ -118,6 +127,8 @@ const COST_INDEX: Record<number, number> = {
 const CO2_PRICE: Record<number, number> = { 2023: 30, 2024: 45, 2025: 55, 2026: 60 };
 /** Verbraucherpreisindex (2020 = 100) in September. */
 const VPI_SEPTEMBER: Record<number, number> = {
+	2018: 98.4,
+	2019: 99.9,
 	2020: 99.6,
 	2021: 103.2,
 	2022: 112.7,
@@ -128,6 +139,8 @@ const VPI_SEPTEMBER: Record<number, number> = {
 };
 /** Interest on a Mietkautionskonto, percent per year. */
 const DEPOSIT_RATE: Record<number, number> = {
+	2018: 0.01,
+	2019: 0.01,
 	2020: 0.01,
 	2021: 0.01,
 	2022: 0.05,
@@ -138,6 +151,8 @@ const DEPOSIT_RATE: Record<number, number> = {
 };
 /** Premium of the Wohngebäudeversicherung for the insurance year starting in the year, cents. */
 const BUILDING_PREMIUM: Record<number, number> = {
+	2018: 89_000,
+	2019: 93_000,
 	2020: 98_000,
 	2021: 104_000,
 	2022: 112_000,
@@ -161,7 +176,9 @@ function tenant(
 	firstName: string,
 	lastName: string,
 	email: string | null,
-	phone: string | null = null
+	phone: string | null = null,
+	/** The new address of a tenant who moved out; a current tenant gets letters at the unit. */
+	address: [street: string, postalCode: string, city: string] | null = null
 ): TenantInput {
 	return {
 		salutation,
@@ -169,9 +186,9 @@ function tenant(
 		lastName,
 		email,
 		phone,
-		street: null,
-		postalCode: null,
-		city: null,
+		street: address?.[0] ?? null,
+		postalCode: address?.[1] ?? null,
+		city: address?.[2] ?? null,
 		notes: null
 	};
 }
@@ -280,9 +297,9 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 		[rosenheimId]: 'BY'
 	};
 	const acquisition = {
-		[lindenId]: at(-10, '03-01'),
-		[parkId]: at(-7, '04-01'),
-		[rosenheimId]: at(-6, '10-01')
+		[lindenId]: at(-12, '03-01'),
+		[parkId]: at(-11, '04-01'),
+		[rosenheimId]: at(-9, '10-01')
 	};
 	const propertyRows = [
 		{
@@ -302,7 +319,9 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			buildingShare: 70,
 			// Built 1906: 2.5 % (§ 7 Abs. 4 Nr. 2 b EStG).
 			depreciationRate: 2.5,
-			notes: 'Altbau von 1906, Zentralheizung Gas, Wärmemengenzähler je Wohnung.'
+			notes: 'Altbau von 1906, Zentralheizung Gas, Wärmemengenzähler je Wohnung.',
+			latitude: 52.50215,
+			longitude: 13.39508
 		},
 		{
 			id: parkId,
@@ -321,7 +340,9 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			loanAmount: 200_000_00,
 			buildingShare: 80,
 			depreciationRate: 2,
-			notes: 'WEG mit 14 Einheiten, Baujahr 1996, Aufzug, Zentralheizung.'
+			notes: 'WEG mit 14 Einheiten, Baujahr 1996, Aufzug, Zentralheizung.',
+			latitude: 52.41372,
+			longitude: 13.04466
 		},
 		{
 			id: rosenheimId,
@@ -340,9 +361,11 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			loanAmount: 380_000_00,
 			buildingShare: 45,
 			depreciationRate: 2,
-			notes: 'WEG mit 21 Einheiten, Baujahr 1972, Gasetagenheizung je Wohnung.'
+			notes: 'WEG mit 21 Einheiten, Baujahr 1972, Gasetagenheizung je Wohnung.',
+			latitude: 48.12384,
+			longitude: 11.60036
 		}
-	];
+	].map((row) => ({ ...row, geocodedAddress: addressKey(row) }));
 	const unitRows = [
 		{
 			propertyId: lindenId,
@@ -396,21 +419,58 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 	const unitId = (name: string) => unitRows.find((row) => row.name === name)!.id;
 	const unitOf = (id: string) => unitRows.find((row) => row.id === id)!;
 
-	// Tenants. Kraus moved out years ago and is archived.
+	// Tenants. Those who moved out are archived, with the address they moved to.
 	const tenantInputs = {
 		schmidt: tenant('Frau', 'Anna', 'Schmidt', 'anna.schmidt@example.org', '0170 2345678'),
-		kraus: tenant('Frau', 'Helga', 'Kraus', null, '030 6912345'),
+		kraus: tenant('Frau', 'Helga', 'Kraus', null, '030 6912345', [
+			'Wilhelmsaue 41',
+			'10713',
+			'Berlin'
+		]),
+		hartmann: tenant('Herr', 'Peter', 'Hartmann', 'p.hartmann@example.org', null, [
+			'Karl-Liebknecht-Straße 18',
+			'04107',
+			'Leipzig'
+		]),
+		dieterSchulze: tenant('Herr', 'Dieter', 'Schulze', 'schulze.familie@example.org', null, [
+			'Am Gutspark 7',
+			'14612',
+			'Falkensee'
+		]),
+		monikaSchulze: tenant('Frau', 'Monika', 'Schulze', null, '030 7854120', [
+			'Am Gutspark 7',
+			'14612',
+			'Falkensee'
+		]),
+		lorenz: tenant('Frau', 'Sabine', 'Lorenz', 'sabine.lorenz@example.org', null, [
+			'Brandenburger Straße 31',
+			'14467',
+			'Potsdam'
+		]),
+		fischer: tenant('Herr', 'Markus', 'Fischer', 'markus.fischer@example.org', '0176 4410982', [
+			'Eppendorfer Weg 140',
+			'20253',
+			'Hamburg'
+		]),
 		yilmaz: tenant('Herr', 'Murat', 'Yılmaz', 'murat.yilmaz@example.org'),
 		berger: tenant('Frau', 'Lena', 'Berger', 'lena.berger@example.org', '0151 9876543'),
 		nowak: tenant('Herr', 'Tomasz', 'Nowak', 'tomasz.nowak@example.org'),
 		weber: tenant('Frau', 'Julia', 'Weber', 'julia.weber@example.org'),
 		albrecht: tenant('Herr', 'Jonas', 'Albrecht', 'jonas.albrecht@example.org')
 	};
+	const archived: Partial<Record<keyof typeof tenantInputs, IsoDate>> = {
+		kraus: at(-4, '12-01'),
+		hartmann: at(-6, '07-01'),
+		dieterSchulze: at(-7, '03-01'),
+		monikaSchulze: at(-7, '03-01'),
+		lorenz: at(-7, '06-01'),
+		fischer: at(-5, '01-15')
+	};
 	const tenantRows = Object.entries(tenantInputs).map(([key, input]) => ({
 		id: crypto.randomUUID(),
 		accountId,
 		...input,
-		archivedAt: key === 'kraus' ? at(-4, '12-01') : null
+		archivedAt: archived[key as keyof typeof tenantInputs] ?? null
 	}));
 	const tenantIds = Object.fromEntries(
 		Object.keys(tenantInputs).map((key, index) => [key, tenantRows[index].id])
@@ -431,10 +491,10 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 		changes: DemoRentChange[];
 		/** Months left unpaid at the end: the arrears. */
 		unpaidMonths?: number;
-		/** Who the rent comes from, as the bank shows it. */
-		payer: string;
-		iban: string;
-		purpose: (month: IsoMonth) => string;
+		/** An ended lease: the deposit paid back that day, less what was withheld and why. */
+		moveOut?: { day: IsoDate; withheld?: [amount: number, note: string] };
+		/** Who the rent comes from, as the bank shows it; only for leases paying on the bank account. */
+		bank?: { payer: string; iban: string; purpose: (month: IsoMonth) => string };
 	}[] = [
 		{
 			key: 'kraus',
@@ -459,10 +519,119 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 					note: 'Mieterhöhung auf die ortsübliche Vergleichsmiete (§ 558 BGB)'
 				}
 			],
-			payer: 'Helga Kraus',
-			iban: 'DE49100500000190087453',
-			purpose: (month) => `Miete ${month} Kraus`
+			moveOut: {
+				day: at(-4, '10-20'),
+				withheld: [38000, 'Einbehalt: Reparatur Badtür und Herd laut Abnahmeprotokoll']
+			}
 		},
+		{
+			key: 'hartmann',
+			state: 'BE',
+			input: lease(unitId('Wohnung EG links'), [tenantIds.hartmann], {
+				startDate: at(-15, '06-01'),
+				endDate: at(-6, '03-31'),
+				baseRent: 41000,
+				operatingCostPrepayment: 10500,
+				heatingCostPrepayment: 6000,
+				securityDeposit: 123000,
+				persons: 2,
+				terminatedAt: at(-7, '12-20'),
+				terminatedBy: 'tenant',
+				notes: 'Beruflich nach Leipzig gezogen.'
+			}),
+			changes: [
+				{
+					validFrom: at(-9, '05-01'),
+					reason: 'manual',
+					baseRent: 47100,
+					note: 'Mieterhöhung auf die ortsübliche Vergleichsmiete (§ 558 BGB)'
+				}
+			],
+			moveOut: { day: at(-6, '05-18') }
+		},
+		{
+			key: 'schulze',
+			state: 'BE',
+			input: lease(unitId('Wohnung 1. OG'), [tenantIds.dieterSchulze, tenantIds.monikaSchulze], {
+				extraUnitIds: [unitId('Stellplatz 1')],
+				startDate: at(-21, '05-01'),
+				endDate: at(-8, '12-31'),
+				baseRent: 61000,
+				operatingCostPrepayment: 15000,
+				heatingCostPrepayment: 8500,
+				securityDeposit: 165000,
+				persons: 3,
+				terminatedAt: at(-8, '09-25'),
+				terminatedBy: 'tenant',
+				notes: 'Ins eigene Haus in Falkensee gezogen. Kaltmiete inklusive Stellplatz.'
+			}),
+			changes: [
+				{
+					validFrom: at(-10, '04-01'),
+					reason: 'manual',
+					baseRent: 68500,
+					note: 'Mieterhöhung auf die ortsübliche Vergleichsmiete (§ 558 BGB)'
+				}
+			],
+			moveOut: {
+				day: at(-7, '02-20'),
+				withheld: [25000, 'Einbehalt: Schönheitsreparaturen Küche laut Abnahmeprotokoll']
+			}
+		},
+		{
+			key: 'lorenz',
+			state: 'BB',
+			input: lease(unitId('Wohnung 14'), [tenantIds.lorenz], {
+				startDate: at(-13, '08-01'),
+				endDate: at(-7, '03-31'),
+				baseRent: 52000,
+				operatingCostPrepayment: 14000,
+				heatingCostPrepayment: 9000,
+				securityDeposit: 156000,
+				persons: 1,
+				terminatedAt: at(-8, '12-28'),
+				terminatedBy: 'tenant',
+				notes: 'Vom Voreigentümer übernommen.'
+			}),
+			changes: [
+				{
+					validFrom: at(-9, '08-01'),
+					reason: 'manual',
+					baseRent: 58500,
+					note: 'Mieterhöhung laut Mietspiegel Potsdam (§ 558 BGB)'
+				}
+			],
+			moveOut: { day: at(-7, '05-27') }
+		},
+		{
+			key: 'fischer',
+			state: 'BY',
+			input: lease(unitId('Wohnung 9'), [tenantIds.fischer], {
+				startDate: at(-12, '02-01'),
+				endDate: at(-6, '10-31'),
+				baseRent: 76000,
+				operatingCostPrepayment: 11000,
+				heatingCostPrepayment: 0,
+				securityDeposit: 228000,
+				persons: 1,
+				terminatedAt: at(-6, '07-30'),
+				terminatedBy: 'tenant',
+				notes: 'Vom Voreigentümer übernommen. Eigener Gasvertrag für die Etagenheizung.'
+			}),
+			changes: [
+				{
+					validFrom: at(-8, '03-01'),
+					reason: 'manual',
+					baseRent: 84500,
+					note: 'Mieterhöhung laut Mietspiegel München (§ 558 BGB)'
+				}
+			],
+			moveOut: {
+				day: at(-6, '12-14'),
+				withheld: [42000, 'Einbehalt: Bohrlöcher im Bad und fehlender Kellerschlüssel']
+			}
+		},
+
 		{
 			key: 'schmidt',
 			state: 'BE',
@@ -489,9 +658,11 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 				},
 				{ validFrom: at(-1, '07-01'), reason: 'statement', heatingCostPrepayment: 9500 }
 			],
-			payer: 'Anna Schmidt',
-			iban: 'DE80100500001062734591',
-			purpose: (month) => `Miete ${month} Lindenstr. 12 EG links`
+			bank: {
+				payer: 'Anna Schmidt',
+				iban: 'DE80100500001062734591',
+				purpose: (month) => `Miete ${month} Lindenstr. 12 EG links`
+			}
 		},
 		{
 			key: 'yilmaz',
@@ -532,9 +703,11 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 					indexValue: vpi(Y - 1)
 				}
 			],
-			payer: 'Murat Yilmaz',
-			iban: 'DE11120300001027384650',
-			purpose: () => 'Miete EG rechts'
+			bank: {
+				payer: 'Murat Yilmaz',
+				iban: 'DE11120300001027384650',
+				purpose: () => 'Miete EG rechts'
+			}
 		},
 		{
 			key: 'berger',
@@ -565,9 +738,11 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 				{ validFrom: at(-1, '07-01'), reason: 'statement', heatingCostPrepayment: 12500 }
 			],
 			unpaidMonths: 2,
-			payer: 'Lena Berger',
-			iban: 'DE18100700240584221300',
-			purpose: (month) => `Miete ${month} Berger 1.OG + Stellplatz`
+			bank: {
+				payer: 'Lena Berger',
+				iban: 'DE18100700240584221300',
+				purpose: (month) => `Miete ${month} Berger 1.OG + Stellplatz`
+			}
 		},
 		{
 			key: 'nowak',
@@ -590,9 +765,11 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 				{ validFrom: at(-2, '08-01'), reason: 'statement', heatingCostPrepayment: 15000 },
 				{ validFrom: at(-1, '08-01'), reason: 'statement', operatingCostPrepayment: 16000 }
 			],
-			payer: 'Tomasz Nowak',
-			iban: 'DE54500105175419038277',
-			purpose: (month) => `Miete ${month} Parkallee 8 Whg 14`
+			bank: {
+				payer: 'Tomasz Nowak',
+				iban: 'DE54500105175419038277',
+				purpose: (month) => `Miete ${month} Parkallee 8 Whg 14`
+			}
 		},
 		{
 			key: 'weber',
@@ -616,9 +793,11 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 				})),
 				{ validFrom: at(-1, '08-01'), reason: 'statement', operatingCostPrepayment: 13000 }
 			],
-			payer: 'Julia Weber',
-			iban: 'DE36120300001044198277',
-			purpose: (month) => `Miete ${month} Rosenheimer Str 104 WE 9 Weber/Albrecht`
+			bank: {
+				payer: 'Julia Weber',
+				iban: 'DE36120300001044198277',
+				purpose: (month) => `Miete ${month} Rosenheimer Str 104 WE 9 Weber/Albrecht`
+			}
 		}
 	];
 	// Only the history years are booked: an older lease starts its ledger there.
@@ -742,9 +921,16 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			const amounts = monthlyAmounts(history, entry.input, month);
 			const amount = total(amounts);
 			const day = soFar(nthWorkingDay(month, 2, entry.state));
-			const bankTransactionId = onBank(month)
-				? bankTransaction(day, amount, entry.payer, entry.iban, entry.purpose(month))
-				: null;
+			const bankTransactionId =
+				onBank(month) && entry.bank
+					? bankTransaction(
+							day,
+							amount,
+							entry.bank.payer,
+							entry.bank.iban,
+							entry.bank.purpose(month)
+						)
+					: null;
 			paymentRows.push({
 				id: crypto.randomUUID(),
 				accountId,
@@ -759,13 +945,14 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 	}
 	for (const key of ['schmidt', 'yilmaz'] as const) {
 		const entry = leaseEntries.find((candidate) => candidate.key === key)!;
+		const { payer, iban, purpose } = entry.bank!;
 		const amount = total(monthlyAmounts(historyOf(entry), entry.input, currentMonth));
 		bankTransaction(
 			soFar(nthWorkingDay(currentMonth, 2, 'BE')),
 			amount,
-			entry.payer,
-			entry.iban,
-			entry.purpose(currentMonth),
+			payer,
+			iban,
+			purpose(currentMonth),
 			'unmatched'
 		);
 	}
@@ -788,7 +975,7 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 	].map((row) => ({ id: crypto.randomUUID(), accountId, ...row }));
 
 	// Deposits: received at the start, interest on the Mietkautionskonto at every year end, and
-	// Kraus's paid back after moving out, less the cost of repairs she owed.
+	// paid back to the former tenants after moving out, less the cost of repairs they owed.
 	const depositRows: (typeof depositTransactions.$inferInsert)[] = [];
 	const deposit = (
 		leaseKey: string,
@@ -824,16 +1011,16 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			balance += interest;
 			deposit(entry.key, `${year}-12-31`, 'interest', interest, `Zinsen Mietkautionskonto ${year}`);
 		}
-		if (entry.key === 'kraus') {
-			const withheld = 38000;
+		if (entry.moveOut) {
+			const { day, withheld } = entry.moveOut;
+			if (withheld) deposit(entry.key, day, 'withheld', withheld[0], withheld[1]);
 			deposit(
-				'kraus',
-				at(-4, '10-20'),
-				'withheld',
-				withheld,
-				'Einbehalt: Reparatur Badtür und Herd laut Abnahmeprotokoll'
+				entry.key,
+				day,
+				'returned',
+				balance - (withheld?.[0] ?? 0),
+				'Rückzahlung nach Auszug'
 			);
-			deposit('kraus', at(-4, '10-20'), 'returned', balance - withheld, 'Rückzahlung nach Auszug');
 		}
 	}
 
@@ -1119,6 +1306,12 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 		['Wohnung 1. OG', 76 * 1.08, 'WMZ 4471 0023']
 	];
 	const weightTotal = heatWeights.reduce((sum, [, weight]) => sum + weight, 0);
+	/** Readings between tenants: the day, and the share of the year's heat used by then. */
+	const changeovers: [unit: string, readAt: IsoDate, part: number, note: string][] = [
+		['Wohnung EG links', at(-6, '03-31'), 0.62, 'Zwischenablesung bei Mieterwechsel'],
+		['Wohnung EG rechts', at(-4, '08-31'), 0.7, 'Zwischenablesung bei Auszug'],
+		['Wohnung EG rechts', at(-4, '09-30'), 0.71, 'Zwischenablesung bei Einzug']
+	];
 	for (const [name, weight, serialNumber] of heatWeights) {
 		const id = crypto.randomUUID();
 		meterRows.push({
@@ -1130,7 +1323,7 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			serialNumber,
 			unit: 'kWh',
 			location: 'Flur, Heizkreisverteiler',
-			installedAt: at(-8, '09-15'),
+			installedAt: at(-12, '09-15'),
 			removedAt: null
 		});
 		let value = 18_000 + Math.round(weight * 50);
@@ -1148,14 +1341,13 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 		for (const year of historyYears) {
 			// Four fifths of the gas reaches the flats; the rest stays in boiler and pipes.
 			const used = Math.round((byYear(GAS_KWH, year) * 0.8 * weight) / weightTotal);
-			if (name === 'Wohnung EG rechts' && year === Y - 4) {
-				const start = value;
-				value = start + Math.round(used * 0.7);
-				reading(at(-4, '08-31'), 'Zwischenablesung bei Auszug');
-				value = start + Math.round(used * 0.71);
-				reading(at(-4, '09-30'), 'Zwischenablesung bei Einzug');
-				value = start + used;
-			} else value += used;
+			const start = value;
+			for (const [unit, readAt, part, note] of changeovers) {
+				if (unit !== name || Number(readAt.slice(0, 4)) !== year) continue;
+				value = start + Math.round(used * part);
+				reading(readAt, note);
+			}
+			value = start + used;
 			reading(`${year}-12-31`);
 		}
 	}
@@ -1443,6 +1635,30 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 		'modernization',
 		'Funk-Rauchwarnmelder, alle Wohnungen',
 		lindenId
+	);
+	expense(
+		at(-8, '09-03'),
+		214000,
+		'modernization',
+		'Klingel- und Gegensprechanlage erneuert',
+		lindenId
+	);
+	expense(at(-5, '07-14'), 156000, 'maintenance', 'Hofpflaster ausgebessert', lindenId);
+	expense(
+		at(-7, '04-12'),
+		412000,
+		'maintenance',
+		'Renovierung vor Neuvermietung: Böden, Malerarbeiten, Badfliesen',
+		parkId,
+		'Wohnung 14'
+	);
+	expense(
+		at(-6, '11-15'),
+		268000,
+		'maintenance',
+		'Malerarbeiten und Kleinreparaturen vor Neuvermietung',
+		rosenheimId,
+		'Wohnung 9'
 	);
 	expense(at(-1, '06-18'), 318000, 'maintenance', 'Wasserschaden Bad', lindenId, 'Wohnung 1. OG');
 	expense(at(0, '04-09'), 89000, 'maintenance', 'Dachrinne und Fallrohr erneuert', lindenId);
