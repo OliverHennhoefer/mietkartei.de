@@ -88,9 +88,10 @@ try {
 	 * @param {string} name @param {string} url
 	 * @param {string[]} [around] selectors of the elements a detail shows; none for the whole screen
 	 * @param {(page: import('@playwright/test').Page) => Promise<void>} [prepare]
+	 * @param {number} [screen] the window width of a whole screen
 	 */
-	async function shootSlide(name, url, around = [], prepare = async () => {}) {
-		let region = { x: 0, y: 0, width: 1280, height: 800 };
+	async function shootSlide(name, url, around = [], prepare = async () => {}, screen = 1280) {
+		let region = { x: 0, y: 0, width: screen, height: (screen * 5) / 8 };
 		if (around.length) {
 			await page.goto(url);
 			await prepare(page);
@@ -123,6 +124,9 @@ try {
 		}
 		const slideContext = await browser.newContext({
 			...contextOptions,
+			viewport: around.length
+				? contextOptions.viewport
+				: { width: region.width, height: region.height },
 			deviceScaleFactor: slideWidth / region.width,
 			storageState: await context.storageState()
 		});
@@ -209,26 +213,17 @@ try {
 	await shoot('umlageschluessel', '/betriebskosten/schluessel', docsOutput);
 	await shoot('datenuebernahme', '/einstellungen/datenuebernahme', docsOutput);
 
-	// The open rent payments of October go to their leases, so the rent ledger shows the two
-	// leases really in arrears rather than every one.
-	for (const [payer, lastName] of [
-		['Anna Schmidt', 'Schmidt'],
-		['Murat Yilmaz', 'Yılmaz']
-	]) {
-		await page.goto('/bank');
-		const card = page.getByRole('listitem').filter({ hasText: payer });
-		const lease = card.locator('select[name="leaseId"]');
-		const option = await lease
-			.locator('option')
-			.filter({ hasText: lastName })
-			.first()
-			.getAttribute('value');
-		await lease.selectOption(option ?? '');
-		await card.getByRole('button', { name: 'Zuordnen', exact: true }).click();
-		await card.waitFor({ state: 'detached' });
-	}
-	await shoot('mietkonto', '/mietkonto');
-	await shootSlide('mietkonto', '/mietkonto');
+	// The leases in arrears, the October rent among them, whose payments still wait in the bank
+	// transactions. The wider window keeps the row actions beside the reminders.
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.goto('/mietkonto?filter=rueckstaende');
+	await page.screenshot({
+		path: path.join(output, 'mietkonto.png'),
+		clip: { x: 0, y: 0, width: 1440, height: 720 }
+	});
+	console.log('assets/screenshots/mietkonto.png');
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await shootSlide('mietkonto', '/mietkonto?filter=rueckstaende', [], undefined, 1440);
 
 	await page.goto('/betriebskosten');
 	await page.getByRole('button', { name: 'Entwurf erstellen' }).click();
