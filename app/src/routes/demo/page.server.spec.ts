@@ -8,6 +8,7 @@ const env = vi.hoisted(() => ({ DEMO: true, GENESIS_API_TOKEN: '' }));
 vi.mock('$app/env/private', () => env);
 vi.mock('#lib/server/storage/index.ts', () => ({
 	accountPrefix: (accountId: string) => `${accountId}/`,
+	storageKey: (accountId: string, documentId: string) => `${accountId}/${documentId}`,
 	getStorage: async () => memoryStorage()
 }));
 

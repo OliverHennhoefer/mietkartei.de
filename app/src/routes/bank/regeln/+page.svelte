@@ -67,6 +67,7 @@
 							{/if}
 							<ConfirmButton
 								action="?/delete"
+								small
 								label="Löschen"
 								message="Regel „{matchingFieldLabels[rule.field]} enthält {rule.pattern}“ löschen?"
 							>

@@ -117,7 +117,7 @@
 							{/if}
 						</td>
 						<td class="actions">
-							<a href={withUnit(meter.id)}>Stände</a>
+							<a class="button secondary small" href={withUnit(meter.id)}>Stände</a>
 						</td>
 					</tr>
 				{/each}
@@ -167,6 +167,7 @@
 								<td class="actions">
 									<ConfirmButton
 										action={actionOn('deleteReading', meter.id)}
+										small
 										label="Löschen"
 										message="Zählerstand vom {formatDate(reading.readAt)} wirklich löschen?"
 									>

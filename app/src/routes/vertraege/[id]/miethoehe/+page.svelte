@@ -5,6 +5,8 @@
 	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import Field from '#lib/components/Field.svelte';
+	import Icon from '#lib/components/Icon.svelte';
+	import PreviewLink from '#lib/components/PreviewLink.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import { formatDate, formatMonth, isIsoDate } from '#lib/dates.ts';
 	import { effectiveFrom, formatIndexValue, formatPercent } from '#lib/domain/index-rent.ts';
@@ -143,14 +145,25 @@
 					</td>
 					<td class="note">{change.note ?? ''}</td>
 					<td class="actions">
-						{#if change.letterText}
-							<a href="/vertraege/{lease.id}/miethoehe/brief/{change.id}">Brief</a>
-						{/if}
-						{#if deletable(change)}
-							<ConfirmButton action="?/delete" label="Löschen" message={deleteMessage(change)}>
-								<input type="hidden" name="changeId" value={change.id} />
-							</ConfirmButton>
-						{/if}
+						<div class="row-actions">
+							{#if change.letterText}
+								<PreviewLink
+									href="/vertraege/{lease.id}/miethoehe/brief/{change.id}"
+									title="Mieterhöhung zum {formatDate(change.validFrom)}"
+									class="button secondary small"><Icon name="file" size={14} /> Brief</PreviewLink
+								>
+							{/if}
+							{#if deletable(change)}
+								<ConfirmButton
+									action="?/delete"
+									label="Löschen"
+									small
+									message={deleteMessage(change)}
+								>
+									<input type="hidden" name="changeId" value={change.id} />
+								</ConfirmButton>
+							{/if}
+						</div>
 					</td>
 				</tr>
 			{/each}

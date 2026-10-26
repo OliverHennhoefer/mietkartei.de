@@ -69,6 +69,7 @@
 						{#if user.id !== data.userId}
 							<ConfirmButton
 								action="?/remove"
+								small
 								label="Entfernen"
 								message="Zugang von {user.name ??
 									user.email} entfernen? Die Person kann sich dann nicht mehr anmelden."

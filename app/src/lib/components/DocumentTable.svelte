@@ -1,5 +1,8 @@
 <script lang="ts">
 	import ConfirmButton from './ConfirmButton.svelte';
+	import DocumentLink from './DocumentLink.svelte';
+	import Icon from './Icon.svelte';
+	import PreviewLink from './PreviewLink.svelte';
 	import { formatDateTime } from '../dates';
 	import {
 		canInline,
@@ -52,7 +55,7 @@
 			{#each documents as document (document.id)}
 				{@const links = describeDocumentLinks(document, options, omit)}
 				<tr>
-					<td><a href="/dokumente/{document.id}/herunterladen">{document.name}</a></td>
+					<td><DocumentLink {document} /></td>
 					<td>{documentTypeLabel(document.mimeType)}</td>
 					<td class="num">{formatFileSize(document.size)}</td>
 					<td>{formatDateTime(document.createdAt)}</td>
@@ -71,26 +74,28 @@
 						{/if}
 					</td>
 					<td class="actions">
-						<a href="/dokumente/{document.id}/herunterladen" class="button secondary small">
-							Herunterladen
-						</a>
-						{#if canInline(document.mimeType)}
-							<a
-								href="/dokumente/{document.id}/herunterladen?inline=1"
-								target="_blank"
-								rel="noopener"
-								class="button secondary small"
-							>
-								Ansehen
+						<div class="row-actions">
+							{#if canInline(document.mimeType)}
+								<PreviewLink
+									href="/dokumente/{document.id}/herunterladen?inline=1"
+									download="/dokumente/{document.id}/herunterladen"
+									title={document.name}
+									image={document.mimeType.startsWith('image/')}
+									class="button secondary small"><Icon name="file" size={14} /> Ansehen</PreviewLink
+								>
+							{/if}
+							<a href="/dokumente/{document.id}/herunterladen" class="button secondary small">
+								<Icon name="download" size={14} /> Herunterladen
 							</a>
-						{/if}
-						<ConfirmButton
-							action={deleteAction}
-							label="Löschen"
-							message={`Dokument „${document.name}“ wirklich löschen?`}
-						>
-							<input type="hidden" name="documentId" value={document.id} />
-						</ConfirmButton>
+							<ConfirmButton
+								action={deleteAction}
+								label="Löschen"
+								small
+								message={`Dokument „${document.name}“ wirklich löschen?`}
+							>
+								<input type="hidden" name="documentId" value={document.id} />
+							</ConfirmButton>
+						</div>
 					</td>
 				</tr>
 			{/each}
@@ -105,12 +110,5 @@
 		padding: 0;
 		display: grid;
 		gap: 0.125rem;
-	}
-	.actions :global(button) {
-		padding: 0.3rem 0.6rem;
-		font-size: 0.85rem;
-	}
-	.actions > * {
-		margin-left: 0.25rem;
 	}
 </style>

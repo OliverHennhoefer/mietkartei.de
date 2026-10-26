@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Alert from '#lib/components/Alert.svelte';
 	import ArchiveSection from '#lib/components/ArchiveSection.svelte';
+	import DocumentLink from '#lib/components/DocumentLink.svelte';
 	import LeaseStatus from '#lib/components/LeaseStatus.svelte';
 	import Balance from '#lib/components/Balance.svelte';
 	import DeleteSection from '#lib/components/DeleteSection.svelte';
@@ -304,7 +305,7 @@
 	<ul class="plain" aria-label="Dokumente">
 		{#each dossier.documents as document (document.id)}
 			<li>
-				<a href="/dokumente/{document.id}/herunterladen">{document.name}</a>
+				<DocumentLink {document} />
 				<span class="muted small"> · {formatDateTime(document.createdAt)}</span>
 			</li>
 		{/each}

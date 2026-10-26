@@ -19,6 +19,7 @@ import { monthlyAmounts, total, type RentChange } from '../domain/rents';
 import { formatCents } from '../money';
 import type { UnitKind } from '../units';
 import { nthWorkingDay, type GermanState } from '../working-days';
+import { addressLines, landlordAddress } from './accounts';
 import { auditEntry, type AuditContext } from './audit';
 import { createCo2Split } from './co2';
 import { addressKey } from './geocoding';
@@ -53,11 +54,14 @@ import {
 	type RentChangeReason
 } from './db/schema';
 import { signedDepositAmount } from './deposits';
+import { deleteDocument, storeDocument } from './documents';
 import { newLeaseStatements, type LeaseInput } from './leases';
 import { ensureDefaults, listCategories, listKeys } from './operating-costs';
 import { assertQuota, type QuotaKind } from './quotas';
+import { renderLetter } from './pdf';
 import { createReminder } from './reminders';
 import { approveStatement, DUE_DAYS } from './statements';
+import type { Storage } from './storage';
 import type { TenantInput } from './tenants';
 
 // Demo data for an empty account: a small portfolio that touches every feature with as few rows
@@ -262,7 +266,11 @@ export async function isEmptyAccount(db: Database, accountId: string): Promise<b
 	return row.count === 0;
 }
 
-export async function createDemoData(db: Database, context: AuditContext): Promise<DemoResult> {
+export async function createDemoData(
+	db: Database,
+	context: AuditContext,
+	options?: { storage?: Storage }
+): Promise<DemoResult> {
 	const { accountId } = context;
 	if (!(await isEmptyAccount(db, accountId))) return { ok: false, reason: 'not-empty' };
 	const date = today();
@@ -1092,11 +1100,13 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 	};
 	const grundsteuerOf = (propertyId: string, year: number) =>
 		grundsteuer[propertyId][year >= 2025 ? 1 : 0];
+	/** The Lindenstraße's Grundsteuer Belege by year; the Bescheid is stored as their receipt. */
+	const lindenGrundsteuer = new Map<number, string>();
 	for (const propertyId of [lindenId, parkId, rosenheimId]) {
 		for (const year of [...historyYears, Y]) {
 			const amount = grundsteuerOf(propertyId, year);
-			if (year < Y)
-				yearItem(
+			if (year < Y) {
+				const id = yearItem(
 					propertyId,
 					year,
 					'Grundsteuer',
@@ -1105,6 +1115,8 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 					amount,
 					{ invoiceDate: `${year}-01-20` }
 				);
+				if (propertyId === lindenId) lindenGrundsteuer.set(year, id);
+			}
 			for (const day of ['02-15', '05-15', '08-15', '11-15']) {
 				if (`${year}-${day}` <= date)
 					expense(
@@ -1845,6 +1857,7 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 	// The landlord's year, made with the features' own functions on the day it happened.
 	// A failure from here on takes the demo's rows out again, so the account is empty and the
 	// button offers the demo again; rows the account held before stay.
+	const documentIds: string[] = [];
 	try {
 		// Betriebskostenabrechnungen of the past years, each approved in the spring after and delivered
 		// two days later; the tenants paid a Nachzahlung three weeks later, a Guthaben went back after
@@ -1944,7 +1957,81 @@ export async function createDemoData(db: Database, context: AuditContext): Promi
 			claimedOn: soFar(at(0, '04-14'))
 		});
 		if (!split.ok) throw new Error(`CO₂-Kostenaufteilung: ${split.reason}`);
+
+		// Documents to open in the preview: Berger's signed Mietvertrag and Übergabeprotokoll, and
+		// the Grundsteuerbescheid of every past year as the receipt of the Lindenstraße's Beleg.
+		const landlord = addressLines(await landlordAddress(db, accountId));
+		const berger = ['Frau Lena Berger', 'Lindenstraße 12', '10969 Berlin'];
+		const moveIn = at(-7, '01-01');
+		const letter = (
+			sender: string[],
+			recipient: string[],
+			day: IsoDate,
+			subject: string,
+			paragraphs: string[]
+		) =>
+			renderLetter({
+				sender,
+				recipient,
+				date: `Berlin, ${formatDate(day)}`,
+				subject,
+				paragraphs,
+				closing: ['Mit freundlichen Grüßen', '', sender[0]]
+			});
+		const files = [
+			{
+				name: 'Mietvertrag Berger (unterschrieben).pdf',
+				links: { leaseId: leaseId('berger') },
+				bytes: await letter(
+					landlord,
+					berger,
+					at(-8, '11-24'),
+					'Mietvertrag über die Wohnung 1. OG und Stellplatz 1',
+					[
+						`Mietbeginn ist der ${formatDate(moveIn)}. Die Kaltmiete beträgt 848,00 € einschließlich 50,00 € für den Stellplatz, dazu Vorauszahlungen von 160,00 € auf die Betriebskosten und 90,00 € auf die Heizkosten.`,
+						'Die Kaution beträgt 2.544,00 € und kann in drei Raten gezahlt werden (§ 551 BGB).',
+						'Beide Seiten haben den Vertrag am selben Tag unterschrieben; das Original liegt im Ordner der Lindenstraße 12.'
+					]
+				)
+			},
+			{
+				name: 'Übergabeprotokoll Einzug Berger.pdf',
+				links: { leaseId: leaseId('berger') },
+				bytes: await letter(landlord, berger, moveIn, 'Übergabeprotokoll Wohnung 1. OG', [
+					'Übergeben wurden drei Wohnungsschlüssel, zwei Haustürschlüssel, ein Briefkastenschlüssel und eine Fernbedienung für den Stellplatz.',
+					'Zählerstände bei Übergabe: Strom 18.342 kWh, Wasser kalt 412,6 m³, Wasser warm 198,3 m³.',
+					'Die Wohnung ist frisch renoviert; im Bad ist eine kleine Absplitterung an der Wanne vermerkt.'
+				])
+			},
+			...(await Promise.all(
+				[...lindenGrundsteuer].map(async ([year, costItemId]) => ({
+					name: `Grundsteuerbescheid ${year} Lindenstraße 12.pdf`,
+					links: { propertyId: lindenId, costItemId },
+					bytes: await letter(
+						[cities[lindenId], 'Steuerverwaltung', '10958 Berlin'],
+						landlord,
+						at(year - Y, '01-10'),
+						`Grundsteuerbescheid ${year} für das Grundstück Lindenstraße 12`,
+						[
+							`Die Grundsteuer für ${year} wird auf ${formatCents(grundsteuerOf(lindenId, year))} festgesetzt.`,
+							'Sie ist zu je einem Viertel am 15.02., 15.05., 15.08. und 15.11. fällig.'
+						]
+					)
+				}))
+			))
+		];
+		for (const file of files) {
+			const stored = await storeDocument(
+				db,
+				context,
+				{ ...file, mimeType: 'application/pdf' },
+				options
+			);
+			if (!stored.ok) throw new Error(`Dokument ${file.name}: ${stored.reason}`);
+			documentIds.push(stored.id);
+		}
 	} catch (error) {
+		for (const id of documentIds) await deleteDocument(db, context, id, options);
 		const ids = (rows: { id?: string }[]) => chunkIds(rows.map((row) => row.id!));
 		const propertyIds = propertyRows.map((row) => row.id);
 		await runBatch(db, [

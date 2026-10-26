@@ -9,6 +9,7 @@ import {
 	co2CostSplits,
 	costItems,
 	depositTransactions,
+	documents,
 	leases,
 	operatingCostStatements,
 	paymentReminders,
@@ -23,18 +24,20 @@ import { createDemoData, isEmptyAccount } from './demo';
 import { addressKey } from './geocoding';
 import { listBalances } from './ledger';
 import { QUOTAS } from './quotas';
-import { contextA, contextB, seedUnit, testDatabase } from './testing';
+import { contextA, contextB, memoryStorage, seedUnit, testDatabase } from './testing';
 
 let db: Database;
+let storage: ReturnType<typeof memoryStorage>;
 
 beforeEach(async () => {
 	db = await testDatabase();
+	storage = memoryStorage();
 });
 
 describe('createDemoData', () => {
 	it('fills an empty account with properties, leases, history, letters and tasks', async () => {
 		expect(await isEmptyAccount(db, 'a')).toBe(true);
-		const result = await createDemoData(db, contextA);
+		const result = await createDemoData(db, contextA, { storage });
 		expect(result).toEqual({ ok: true, leases: 10 });
 
 		const rows = async (
@@ -91,6 +94,12 @@ describe('createDemoData', () => {
 		expect(
 			await db.select().from(co2CostSplits).where(eq(co2CostSplits.accountId, 'a'))
 		).toHaveLength(1);
+		// Berger's Mietvertrag and Übergabeprotokoll, and a Grundsteuerbescheid per past year.
+		const files = await db.select().from(documents).where(eq(documents.accountId, 'a'));
+		expect(files).toHaveLength(2 + 8);
+		expect(files.every((row) => row.mimeType === 'application/pdf')).toBe(true);
+		expect(files.filter((row) => row.costItemId)).toHaveLength(8);
+		expect(storage.files.size).toBe(10);
 
 		// Only Berger is in arrears, by the two unpaid months before the current one plus the
 		// current month; Schmidt and Yılmaz owe this month (open on the bank account), the CO₂
@@ -111,14 +120,14 @@ describe('createDemoData', () => {
 		await db.run(
 			sql`create trigger refuse_tasks before insert on tasks begin select raise(abort, 'D1 down'); end`
 		);
-		await expect(createDemoData(db, contextA)).rejects.toThrow('D1 down');
+		await expect(createDemoData(db, contextA, { storage })).rejects.toThrow('D1 down');
 		expect(await isEmptyAccount(db, 'a')).toBe(true);
 		for (const table of [properties, units, tenants, leases, payments, costItems]) {
 			expect(await db.select().from(table).where(eq(table.accountId, 'a'))).toEqual([]);
 		}
 
 		await db.run(sql`drop trigger refuse_tasks`);
-		expect(await createDemoData(db, contextA)).toEqual({ ok: true, leases: 10 });
+		expect(await createDemoData(db, contextA, { storage })).toEqual({ ok: true, leases: 10 });
 		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(4);
 	});
 
@@ -131,7 +140,7 @@ describe('createDemoData', () => {
 		await db.run(
 			sql`create trigger refuse_reminders before insert on payment_reminders begin select raise(abort, 'D1 down'); end`
 		);
-		await expect(createDemoData(db, contextA)).rejects.toThrow('D1 down');
+		await expect(createDemoData(db, contextA, { storage })).rejects.toThrow('D1 down');
 		expect(await isEmptyAccount(db, 'a')).toBe(true);
 		expect(await db.select().from(tenants).where(eq(tenants.accountId, 'a'))).toEqual([own]);
 		for (const table of [leases, payments, costItems, operatingCostStatements, tasks]) {
@@ -139,11 +148,24 @@ describe('createDemoData', () => {
 		}
 
 		await db.run(sql`drop trigger refuse_reminders`);
-		expect(await createDemoData(db, contextA)).toEqual({ ok: true, leases: 10 });
+
+		// The documents come last; their files go with their rows.
+		await db.run(
+			sql`create trigger refuse_documents before insert on documents when (select count(*) from documents) >= 3 begin select raise(abort, 'D1 down'); end`
+		);
+		await expect(createDemoData(db, contextA, { storage })).rejects.toThrow('D1 down');
+		expect(await isEmptyAccount(db, 'a')).toBe(true);
+		expect(await db.select().from(documents).where(eq(documents.accountId, 'a'))).toEqual([]);
+		expect(storage.files.size).toBe(0);
+		await db.run(sql`drop trigger refuse_documents`);
+		expect(await createDemoData(db, contextA, { storage })).toEqual({ ok: true, leases: 10 });
 	});
 
 	it('creates the demo once when the button is pressed twice at the same time', async () => {
-		const results = await Promise.all([createDemoData(db, contextA), createDemoData(db, contextA)]);
+		const results = await Promise.all([
+			createDemoData(db, contextA, { storage }),
+			createDemoData(db, contextA, { storage })
+		]);
 		expect(results).toContainEqual({ ok: true, leases: 10 });
 		expect(results).toContainEqual({ ok: false, reason: 'not-empty' });
 		expect(await db.select().from(properties).where(eq(properties.accountId, 'a'))).toHaveLength(3);
@@ -156,7 +178,7 @@ describe('createDemoData', () => {
 		const limit = QUOTAS.tasks.max;
 		QUOTAS.tasks.max = 1;
 		try {
-			const refusal = await createDemoData(db, contextA).catch((e) => e);
+			const refusal = await createDemoData(db, contextA, { storage }).catch((e) => e);
 			expect(isHttpError(refusal, 409)).toBe(true);
 		} finally {
 			QUOTAS.tasks.max = limit;
@@ -166,7 +188,10 @@ describe('createDemoData', () => {
 
 	it('refuses an account that already has a property', async () => {
 		await seedUnit(db, 'a');
-		expect(await createDemoData(db, contextA)).toEqual({ ok: false, reason: 'not-empty' });
-		expect(await createDemoData(db, contextB)).toMatchObject({ ok: true });
+		expect(await createDemoData(db, contextA, { storage })).toEqual({
+			ok: false,
+			reason: 'not-empty'
+		});
+		expect(await createDemoData(db, contextB, { storage })).toMatchObject({ ok: true });
 	});
 });

@@ -32,9 +32,10 @@ export default defineConfig({
 				directives: {
 					'default-src': ['self'],
 					// Cloudflare Turnstile, the bot check of the registration form, loads its script
-					// from there and shows its challenge in a frame from there.
+					// from there and shows its challenge in a frame from there. The app's own PDFs
+					// show in a frame of the preview dialog.
 					'script-src': ['self', 'https://challenges.cloudflare.com'],
-					'frame-src': ['https://challenges.cloudflare.com'],
+					'frame-src': ['self', 'https://challenges.cloudflare.com'],
 					'style-src': ['self'],
 					// SvelteKit's route announcer for screen readers is hidden with a style attribute.
 					// Style attributes cannot run scripts; <style> elements still need the nonce.

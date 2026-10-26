@@ -9,12 +9,15 @@
 		label,
 		message,
 		tone = 'danger',
+		small = false,
 		children
 	}: {
 		action: string;
 		label: string;
 		message: string;
 		tone?: 'danger' | 'primary' | 'secondary';
+		/** The size of the other buttons in a table row. */
+		small?: boolean;
 		children?: Snippet;
 	} = $props();
 </script>
@@ -28,7 +31,7 @@
 	}}
 >
 	{#if children}{@render children()}{/if}
-	<button type="submit" class={tone}>{label}</button>
+	<button type="submit" class={[tone, small && 'small']}>{label}</button>
 </form>
 
 <style>

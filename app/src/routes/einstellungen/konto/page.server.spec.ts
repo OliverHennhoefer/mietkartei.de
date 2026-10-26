@@ -26,6 +26,7 @@ const env = vi.hoisted(() => ({
 vi.mock('$app/env/private', () => env);
 
 const storage = vi.hoisted(() => ({
+	put: vi.fn<(key: string) => Promise<void>>(async () => {}),
 	deletePrefix: vi.fn<(prefix: string) => Promise<void>>(async () => {}),
 	delete: vi.fn<(key: string) => Promise<void>>(async () => {})
 }));

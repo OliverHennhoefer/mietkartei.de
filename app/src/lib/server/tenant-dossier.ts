@@ -105,7 +105,7 @@ export type TenantDossier = {
 		amount: number;
 	}[];
 	openTasks: { id: string; title: string; dueDate: IsoDate | null }[];
-	documents: { id: string; name: string; createdAt: Date }[];
+	documents: { id: string; name: string; mimeType: string; createdAt: Date }[];
 	history: { id: string; at: Date; summary: string; userName: string | null }[];
 };
 
@@ -213,7 +213,12 @@ export async function tenantDossier(
 		Promise.all(
 			(groups.length ? groups : [[]]).map((ids) =>
 				db
-					.select({ id: documents.id, name: documents.name, createdAt: documents.createdAt })
+					.select({
+						id: documents.id,
+						name: documents.name,
+						mimeType: documents.mimeType,
+						createdAt: documents.createdAt
+					})
 					.from(documents)
 					.where(
 						and(

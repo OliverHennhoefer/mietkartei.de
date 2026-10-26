@@ -65,7 +65,7 @@ export type CostItemInput = {
 	associationKeyShare: number | null;
 };
 
-export type Receipt = { id: string; name: string };
+export type Receipt = { id: string; name: string; mimeType: string };
 
 export type CostItemSummary = CostItem & {
 	propertyName: string;
@@ -130,7 +130,12 @@ async function receiptsOf(
 	const byItem = new Map<string, Receipt[]>();
 	for (const ids of chunkIds(itemIds)) {
 		const rows = await db
-			.select({ id: documents.id, name: documents.name, costItemId: documents.costItemId })
+			.select({
+				id: documents.id,
+				name: documents.name,
+				mimeType: documents.mimeType,
+				costItemId: documents.costItemId
+			})
 			.from(documents)
 			.where(and(eq(documents.accountId, accountId), inArray(documents.costItemId, ids)))
 			.orderBy(asc(documents.createdAt), asc(documents.name));
@@ -138,7 +143,7 @@ async function receiptsOf(
 			if (!row.costItemId) continue;
 			byItem.set(row.costItemId, [
 				...(byItem.get(row.costItemId) ?? []),
-				{ id: row.id, name: row.name }
+				{ id: row.id, name: row.name, mimeType: row.mimeType }
 			]);
 		}
 	}

@@ -24,8 +24,9 @@ export const GET: RequestHandler = async ({ locals, params, url }) => {
 			// explicit identity encoding keeps a download byte for byte as it was uploaded.
 			'Content-Encoding': 'identity',
 			'X-Content-Type-Options': 'nosniff',
+			// An inline PDF also shows in a frame of the app's preview dialog (PreviewLink).
 			...(inline && opened.contentType.startsWith('application/pdf')
-				? {}
+				? { 'X-Frame-Options': 'SAMEORIGIN' }
 				: { 'Content-Security-Policy': "sandbox; default-src 'none'; img-src 'self'" })
 		}
 	});

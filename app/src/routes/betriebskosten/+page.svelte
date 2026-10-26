@@ -68,7 +68,9 @@
 						<td class="num"><Money cents={statement.nachzahlungen} /></td>
 						<td class="num"><Money cents={statement.guthaben} /></td>
 						<td class="actions">
-							<a href="/betriebskosten/abrechnungen/{statement.id}">Öffnen</a>
+							<a class="button secondary small" href="/betriebskosten/abrechnungen/{statement.id}"
+								>Öffnen</a
+							>
 						</td>
 					</tr>
 				{/each}
