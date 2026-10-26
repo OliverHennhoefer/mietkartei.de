@@ -278,7 +278,7 @@ test('splits a line over two leases and books a deposit', async ({ page }) => {
 	await page.goto('/bank');
 	const split = card(page, `Wohnung und Stellplatz ${suffix}`);
 	await split.locator('select[name="leaseId"]').selectOption(leaseId);
-	await split.getByText('Auf zwei Mietverträge aufteilen').click();
+	await split.getByText('Zahlung für zwei Verträge? Betrag aufteilen').click();
 	await split.getByLabel('Zweiter Mietvertrag').selectOption(parking.leaseId);
 	await split.getByLabel('Betrag erster Vertrag').fill('800,00');
 	await split.getByLabel('Betrag zweiter Vertrag').fill('50,00');

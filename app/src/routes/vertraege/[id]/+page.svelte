@@ -141,68 +141,71 @@
 	· <a href="/vertraege/{lease.id}/kaution">Kaution</a>
 </p>
 
-<h2>Personen</h2>
-<div class="table-wrap">
-	<table class="table" aria-label="Personenstand">
-		<thead>
-			<tr>
-				<th>Ab</th>
-				<th class="num">Personen</th>
-				<th>Notiz</th>
-				<th class="actions"></th>
-			</tr>
-		</thead>
-		<tbody>
-			{#each data.persons as row, index (row.id)}
+<!-- The head count only feeds cost allocation by persons; a parking space has none. -->
+{#if lease.kind !== 'parking'}
+	<h2>Personen</h2>
+	<div class="table-wrap">
+		<table class="table" aria-label="Personenstand">
+			<thead>
 				<tr>
-					<td>{formatDate(row.validFrom)}</td>
-					<td class="num">{row.persons}</td>
-					<td>{row.note ?? ''}</td>
-					<td class="actions">
-						{#if index > 0}
-							<ConfirmButton
-								action="?/deletePersons"
-								label="Entfernen"
-								message="Diesen Eintrag wirklich entfernen?"
-								tone="secondary"
-							>
-								<input type="hidden" name="rowId" value={row.id} />
-							</ConfirmButton>
-						{/if}
-					</td>
+					<th>Ab</th>
+					<th class="num">Personen</th>
+					<th>Notiz</th>
+					<th class="actions"></th>
 				</tr>
-			{/each}
-		</tbody>
-	</table>
-</div>
-<form method="POST" action="?/addPersons" class="card form" use:enhance>
-	<Field label="Personen ab Datum" error={personsForm?.errors.validFrom}>
-		<input
-			name="validFrom"
-			type="date"
-			defaultValue={personsForm?.values.validFrom ?? ''}
-			aria-invalid={personsForm?.errors.validFrom ? 'true' : undefined}
-			required
-		/>
-	</Field>
-	<Field label="Personen" error={personsForm?.errors.persons}>
-		<input
-			name="persons"
-			type="number"
-			min="0"
-			max="20"
-			defaultValue={personsForm?.values.persons ?? ''}
-			aria-invalid={personsForm?.errors.persons ? 'true' : undefined}
-			required
-		/>
-	</Field>
-	<Field label="Notiz (optional)" error={personsForm?.errors.note}>
-		<input name="note" defaultValue={personsForm?.values.note ?? ''} />
-	</Field>
-	<div class="form-actions">
-		<button type="submit">Personenstand eintragen</button>
+			</thead>
+			<tbody>
+				{#each data.persons as row, index (row.id)}
+					<tr>
+						<td>{formatDate(row.validFrom)}</td>
+						<td class="num">{row.persons}</td>
+						<td>{row.note ?? ''}</td>
+						<td class="actions">
+							{#if index > 0}
+								<ConfirmButton
+									action="?/deletePersons"
+									label="Entfernen"
+									message="Diesen Eintrag wirklich entfernen?"
+									tone="secondary"
+								>
+									<input type="hidden" name="rowId" value={row.id} />
+								</ConfirmButton>
+							{/if}
+						</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
 	</div>
-</form>
+	<form method="POST" action="?/addPersons" class="card form" use:enhance>
+		<Field label="Personen ab Datum" error={personsForm?.errors.validFrom}>
+			<input
+				name="validFrom"
+				type="date"
+				defaultValue={personsForm?.values.validFrom ?? ''}
+				aria-invalid={personsForm?.errors.validFrom ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		<Field label="Personen" error={personsForm?.errors.persons}>
+			<input
+				name="persons"
+				type="number"
+				min="0"
+				max="20"
+				defaultValue={personsForm?.values.persons ?? ''}
+				aria-invalid={personsForm?.errors.persons ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		<Field label="Notiz (optional)" error={personsForm?.errors.note}>
+			<input name="note" defaultValue={personsForm?.values.note ?? ''} />
+		</Field>
+		<div class="form-actions">
+			<button type="submit">Personenstand eintragen</button>
+		</div>
+	</form>
+{/if}
 
 <h2>Vertragsende</h2>
 {#if lease.terminatedAt && lease.terminatedBy}

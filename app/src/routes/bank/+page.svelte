@@ -109,6 +109,11 @@
 		);
 	}
 
+	/** Money paid out is an expense; money coming in is booked as a refund, a negative expense. */
+	function expenseLabel(transaction: (typeof data.transactions)[number]): string {
+		return transaction.amount < 0 ? 'Als Ausgabe buchen' : 'Als Erstattung buchen';
+	}
+
 	const categoryEntries = Object.entries(expenseCategoryLabels);
 </script>
 
@@ -261,64 +266,71 @@
 									<option value="rent" selected={rowValue(transaction, 'target') !== 'deposit'}>
 										Miete (Zahlung)
 									</option>
-									<option value="deposit" selected={rowValue(transaction, 'target') === 'deposit'}>
-										Kaution
-									</option>
+									{#if data.depositAgreed}
+										<option
+											value="deposit"
+											selected={rowValue(transaction, 'target') === 'deposit'}
+										>
+											Kaution
+										</option>
+									{/if}
 								</select>
 							</label>
-							<details class="split" open={rowValue(transaction, 'splitLeaseId') !== ''}>
-								<summary>Auf zwei Mietverträge aufteilen</summary>
-								<div class="split-fields">
-									<label>
-										Zweiter Mietvertrag
-										<select
-											name="splitLeaseId"
-											aria-invalid={formId === transaction.id && errors?.splitLeaseId
-												? 'true'
-												: undefined}
-										>
-											<option value="" selected={rowValue(transaction, 'splitLeaseId') === ''}>
-												– keine Aufteilung –
-											</option>
-											{#each data.leases as lease (lease.id)}
-												<option
-													value={lease.id}
-													selected={rowValue(transaction, 'splitLeaseId') === lease.id}
-												>
-													{lease.label}
+							{#if data.leases.length > 1}
+								<details class="split" open={rowValue(transaction, 'splitLeaseId') !== ''}>
+									<summary>Zahlung für zwei Verträge? Betrag aufteilen</summary>
+									<div class="split-fields">
+										<label>
+											Zweiter Mietvertrag
+											<select
+												name="splitLeaseId"
+												aria-invalid={formId === transaction.id && errors?.splitLeaseId
+													? 'true'
+													: undefined}
+											>
+												<option value="" selected={rowValue(transaction, 'splitLeaseId') === ''}>
+													– keine Aufteilung –
 												</option>
-											{/each}
-										</select>
-										{#if formId === transaction.id && errors?.splitLeaseId}
-											<span class="error">{errors.splitLeaseId}</span>
-										{/if}
-									</label>
-									<label>
-										Betrag erster Vertrag
-										<input
-											name="amount"
-											inputmode="decimal"
-											defaultValue={rowValue(transaction, 'amount')}
-											placeholder={formatCents(Math.abs(transaction.amount))}
-										/>
-										{#if formId === transaction.id && errors?.amount}
-											<span class="error">{errors.amount}</span>
-										{/if}
-									</label>
-									<label>
-										Betrag zweiter Vertrag
-										<input
-											name="splitAmount"
-											inputmode="decimal"
-											defaultValue={rowValue(transaction, 'splitAmount')}
-											placeholder="0,00"
-										/>
-										{#if formId === transaction.id && errors?.splitAmount}
-											<span class="error">{errors.splitAmount}</span>
-										{/if}
-									</label>
-								</div>
-							</details>
+												{#each data.leases as lease (lease.id)}
+													<option
+														value={lease.id}
+														selected={rowValue(transaction, 'splitLeaseId') === lease.id}
+													>
+														{lease.label}
+													</option>
+												{/each}
+											</select>
+											{#if formId === transaction.id && errors?.splitLeaseId}
+												<span class="error">{errors.splitLeaseId}</span>
+											{/if}
+										</label>
+										<label>
+											Betrag erster Vertrag
+											<input
+												name="amount"
+												inputmode="decimal"
+												defaultValue={rowValue(transaction, 'amount')}
+												placeholder={formatCents(Math.abs(transaction.amount))}
+											/>
+											{#if formId === transaction.id && errors?.amount}
+												<span class="error">{errors.amount}</span>
+											{/if}
+										</label>
+										<label>
+											Betrag zweiter Vertrag
+											<input
+												name="splitAmount"
+												inputmode="decimal"
+												defaultValue={rowValue(transaction, 'splitAmount')}
+												placeholder="0,00"
+											/>
+											{#if formId === transaction.id && errors?.splitAmount}
+												<span class="error">{errors.splitAmount}</span>
+											{/if}
+										</label>
+									</div>
+								</details>
+							{/if}
 							<div class="row">
 								<button type="submit" disabled={pending === transaction.id}>Zuordnen</button>
 								<button
@@ -332,7 +344,7 @@
 							</div>
 						</form>
 						<details class="expense" open={expenseOpen(transaction)}>
-							<summary>Als Ausgabe buchen</summary>
+							<summary>{expenseLabel(transaction)}</summary>
 							<form
 								method="POST"
 								action={action('expense')}
@@ -410,7 +422,7 @@
 								</label>
 								<div class="row">
 									<button type="submit" disabled={pending === transaction.id}>
-										Als Ausgabe buchen
+										{expenseLabel(transaction)}
 									</button>
 								</div>
 							</form>
