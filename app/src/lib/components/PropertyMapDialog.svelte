@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Icon from '#lib/components/Icon.svelte';
+	import StreetMap from '#lib/components/StreetMap.svelte';
 	import { pluralize } from '#lib/format.ts';
 	import {
 		contains,
@@ -10,16 +11,20 @@
 		type PlacedLabel
 	} from '#lib/map/frame.ts';
 
-	// All properties on a larger map of Germany, zoomed to where they are, the chosen one marked.
-	// The outlines are loaded only when the map opens for the first time.
+	// All properties on a larger map, zoomed to where they are, the chosen one marked: the
+	// interactive street map where it is set up, else the map of Germany, whose outlines are loaded
+	// only when it opens for the first time.
 	let {
 		properties,
 		selected,
+		streetMap,
 		onclose
 	}: {
 		properties: MapProperty[];
 		/** The property whose tile opened the map. */
 		selected: string | undefined;
+		/** The version of the street map, or null without one. */
+		streetMap: string | null;
 		onclose: () => void;
 	} = $props();
 
@@ -28,7 +33,9 @@
 	let clientHeight = $state(0);
 	let wholeCountry = $state(false);
 	let map = $state<typeof import('#lib/map/germany-shapes.ts')>();
-	import('#lib/map/germany-shapes.ts').then((module) => (map = module));
+	$effect(() => {
+		if (!streetMap) import('#lib/map/germany-shapes.ts').then((module) => (map = module));
+	});
 
 	const located = $derived(places(properties));
 	const missing = $derived(properties.filter((property) => !property.position).length);
@@ -104,7 +111,8 @@
 		<div>
 			<h2 id="map-dialog-title">Deine Objekte auf der Karte</h2>
 			<p class="muted">
-				{pluralize(located.length, 'Ort', 'Orte')} nach Postleitzahl{#if missing > 0}
+				{pluralize(located.length, 'Ort', 'Orte')}
+				{streetMap ? 'nach Adresse' : 'nach Postleitzahl'}{#if missing > 0}
 					· {pluralize(missing, 'Objekt', 'Objekte')} ohne bekannte Postleitzahl{/if}
 			</p>
 		</div>
@@ -122,48 +130,52 @@
 		</div>
 	</div>
 	<div class="map-canvas" bind:clientWidth bind:clientHeight>
-		<svg viewBox="{box.x} {box.y} {box.width} {box.height}" role="img" aria-label="Karte">
-			{#if map}
-				<path class="neighbours" d={map.neighbourShapes} />
-				<path class="states" d={map.stateShapes} />
-				<path class="country" d={map.germanyDetail} />
-			{/if}
-			{#each cities as city (city.name)}
-				{@const label = labels[`${city.x},${city.y},${city.name}`]}
-				{#if label}
-					<circle class="city-dot" cx={city.x} cy={city.y} r={2 * unit} />
-					<text
-						class="city"
-						x={city.x + label.dx}
-						y={city.y + label.dy}
-						text-anchor={label.anchor}
-						font-size={label.size}>{city.name}</text
-					>
+		{#if streetMap}
+			<StreetMap {properties} {selected} version={streetMap} {wholeCountry} />
+		{:else}
+			<svg viewBox="{box.x} {box.y} {box.width} {box.height}" role="img" aria-label="Karte">
+				{#if map}
+					<path class="neighbours" d={map.neighbourShapes} />
+					<path class="states" d={map.stateShapes} />
+					<path class="country" d={map.germanyDetail} />
 				{/if}
-			{/each}
-			{#each dots as dot (dot.position.join(','))}
-				{@const [x, y] = dot.position}
-				{@const label = labels[`${x},${y},${dot.text}`]}
-				<a href="/objekte/{dot.shown.id}" class="place" class:selected={dot.selected}>
-					<title
-						>{dot.properties
-							.map((property) => `${property.name}, ${property.city}`)
-							.join('\n')}</title
-					>
-					<circle class="halo" cx={x} cy={y} r={(dot.selected ? 16 : 11) * unit} />
-					<circle class="dot" cx={x} cy={y} r={(dot.selected ? 6.5 : 5) * unit} />
+				{#each cities as city (city.name)}
+					{@const label = labels[`${city.x},${city.y},${city.name}`]}
 					{#if label}
+						<circle class="city-dot" cx={city.x} cy={city.y} r={2 * unit} />
 						<text
-							class="label"
-							x={x + label.dx}
-							y={y + label.dy}
+							class="city"
+							x={city.x + label.dx}
+							y={city.y + label.dy}
 							text-anchor={label.anchor}
-							font-size={label.size}>{dot.text}</text
+							font-size={label.size}>{city.name}</text
 						>
 					{/if}
-				</a>
-			{/each}
-		</svg>
+				{/each}
+				{#each dots as dot (dot.position.join(','))}
+					{@const [x, y] = dot.position}
+					{@const label = labels[`${x},${y},${dot.text}`]}
+					<a href="/objekte/{dot.shown.id}" class="place" class:selected={dot.selected}>
+						<title
+							>{dot.properties
+								.map((property) => `${property.name}, ${property.city}`)
+								.join('\n')}</title
+						>
+						<circle class="halo" cx={x} cy={y} r={(dot.selected ? 16 : 11) * unit} />
+						<circle class="dot" cx={x} cy={y} r={(dot.selected ? 6.5 : 5) * unit} />
+						{#if label}
+							<text
+								class="label"
+								x={x + label.dx}
+								y={y + label.dy}
+								text-anchor={label.anchor}
+								font-size={label.size}>{dot.text}</text
+							>
+						{/if}
+					</a>
+				{/each}
+			</svg>
+		{/if}
 	</div>
 	<p class="map-source muted">
 		Karte: Natural Earth · Postleitzahlen: GeoNames (CC BY 4.0) · Straßenkarten: ©

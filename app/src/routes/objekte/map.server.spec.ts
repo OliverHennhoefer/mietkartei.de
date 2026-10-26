@@ -8,8 +8,9 @@ import { properties, users } from '#lib/server/db/schema.ts';
 import { encodeTile, fixtureQuarter, writeArchive } from '#lib/server/map/fixture.ts';
 import { worldPixel } from '#lib/server/map/render.ts';
 import { resetStreetMap } from '#lib/server/map/tiles.ts';
-import { outcome, routeEvent, seedUnit, testDatabase } from '#lib/server/testing.ts';
+import { outcome, routeEvent, seedLease, seedUnit, testDatabase } from '#lib/server/testing.ts';
 import { GET } from './[id]/karte/+server';
+import { GET as getTile } from './karte/[z]/[x]/[y]/+server';
 import { load } from './+page.server';
 
 // The street maps of the property list: the link of each property's image, and the image.
@@ -34,12 +35,13 @@ function writeMap() {
 
 let db: Database;
 let propertyId: string;
+let unitId: string;
 
 beforeEach(async () => {
 	env.MAP_TILES_PATH = '';
 	resetStreetMap();
 	db = await testDatabase();
-	({ propertyId } = await seedUnit(db, 'a'));
+	({ propertyId, unitId } = await seedUnit(db, 'a'));
 });
 
 async function place() {
@@ -75,7 +77,15 @@ describe('street maps of the property list', () => {
 		await place();
 		const after = await outcome(() => load(routeEvent(db, {})));
 		expect(after).toMatchObject({
-			data: { properties: [{ mapImage: expect.stringMatching(/-52\.53210-13\.38490-15\.5$/) }] }
+			data: {
+				streetMap: expect.stringMatching(/^\d+-\d+$/),
+				properties: [
+					{
+						mapImage: expect.stringMatching(/-52\.53210-13\.38490-15\.5$/),
+						location: { lat, lon }
+					}
+				]
+			}
 		});
 	});
 
@@ -102,5 +112,62 @@ describe('street maps of the property list', () => {
 		expect(await outcome(() => load(routeEvent(db, {})))).toMatchObject({
 			data: { showMaps: false, properties: [{ mapImage: null, position: null }] }
 		});
+	});
+
+	it('draws the tiles of the interactive map for signed-in users with an account', async () => {
+		const tile = (params: Record<string, string>) =>
+			Promise.resolve()
+				.then(() => getTile(routeEvent(db, { params })))
+				.catch((error: { status: number }) => error);
+		const [x, y] = worldPixel(lat, lon, 14).map((value) => Math.floor(value / 256));
+		const params = { z: '14', x: String(x), y: String(y) };
+		expect(await tile(params)).toMatchObject({ status: 404 });
+		env.MAP_TILES_PATH = writeMap();
+		resetStreetMap();
+		const response = (await tile(params)) as Response;
+		expect(response.headers.get('Content-Type')).toBe('image/svg+xml; charset=utf-8');
+		expect(response.headers.get('ETag')).toMatch(new RegExp(`-14-${x}-${y}"$`));
+		expect(await response.text()).toContain('<path');
+		for (const wrong of [
+			{ z: '4', x: '0', y: '0' },
+			{ z: '18', x: '0', y: '0' },
+			{ z: '14', x: '16384', y: '0' },
+			{ z: '14', x: '-1', y: '0' },
+			{ z: '14', x: '1e3', y: '0' }
+		]) {
+			expect(await tile(wrong)).toMatchObject({ status: 404 });
+		}
+		await expect(getTile(routeEvent(db, { params, user: null }))).rejects.toMatchObject({
+			status: 303
+		});
+	});
+
+	it('tells the Rückstand and the rent beside the Zensus average for the interactive map', async () => {
+		await seedLease(db, 'a', unitId);
+		expect(await outcome(() => load(routeEvent(db, {})))).toMatchObject({
+			data: { properties: [{ facts: null }] }
+		});
+		env.MAP_TILES_PATH = writeMap();
+		resetStreetMap();
+		expect(await outcome(() => load(routeEvent(db, {})))).toMatchObject({
+			data: {
+				properties: [
+					{
+						vacantUnits: 0,
+						facts: {
+							overdue: expect.any(Number),
+							rentPerSquareMetre: Math.round(60000 / 64),
+							municipality: { name: expect.stringContaining('Berlin'), rentPerSquareMetre: 767 }
+						}
+					}
+				]
+			}
+		});
+		const [property] = (
+			(await outcome(() => load(routeEvent(db, {})))) as {
+				data: { properties: { facts: { overdue: number } }[] };
+			}
+		).data.properties;
+		expect(property.facts.overdue).toBeGreaterThan(0);
 	});
 });

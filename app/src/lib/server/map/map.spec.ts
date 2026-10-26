@@ -5,7 +5,7 @@ import { PMTiles } from 'pmtiles';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { encodeTile, fixtureQuarter, writeArchive } from './fixture.ts';
 import { mapCenter, previewVersion } from './preview.ts';
-import { renderPreview, worldPixel, type TileReader } from './render.ts';
+import { renderPreview, renderTile, worldPixel, type TileReader } from './render.ts';
 import { getStreetMap, partedSource, partRanges, resetStreetMap } from './tiles.ts';
 
 // The street map: reading the archive from its parts, drawing a view of it, and where the view
@@ -194,6 +194,78 @@ describe('renderPreview', () => {
 		expect(svg).not.toContain('fill="#272727"');
 		expect(svg).not.toContain('fill="#141414" d=');
 		expect(svg).toContain('stroke="#363636"');
+	});
+});
+
+describe('renderTile', () => {
+	const point = (properties: Record<string, string>, at: [number, number]) => ({
+		type: 'point' as const,
+		properties,
+		geometry: [[at]]
+	});
+
+	it('draws the quarter with the names that fit and borders', async () => {
+		const tile = encodeTile([
+			...fixtureQuarter(3, 4).filter((layer) => layer.name !== 'places'),
+			{
+				name: 'places',
+				features: [
+					point({ kind: 'locality', name: 'Leipzig <Mitte>' }, [2048, 2048]),
+					point({ kind: 'locality', name: 'Am Rand' }, [40, 2048]),
+					point({ kind: 'locality', name: 'Später', min_zoom: '15' }, [2048, 1000]),
+					point({ kind: 'neighbourhood', name: 'Quartier' }, [2048, 3000]),
+					point({ kind: 'country', name: 'Deutschland' }, [2048, 3500]),
+					point({ kind: 'locality', name: '' }, [1000, 3500]),
+					point({ kind: 'locality', 'name:de': 'Mailand', name: 'Milano' }, [2048, 600])
+				]
+			},
+			{
+				name: 'boundaries',
+				features: [
+					{
+						type: 'line',
+						properties: { kind: 'region' },
+						geometry: [
+							[
+								[0, 100],
+								[4096, 100]
+							]
+						]
+					},
+					{
+						type: 'line',
+						properties: { kind: 'county' },
+						geometry: [
+							[
+								[0, 200],
+								[4096, 200]
+							]
+						]
+					}
+				]
+			}
+		]);
+		const read = vi.fn(async () => tile);
+		const svg = await renderTile(read, 11, 1100, 680, 14);
+		expect(read).toHaveBeenCalledExactlyOnceWith(11, 1100, 680);
+		expect(svg).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 256 256"/);
+		const names = [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map(([, name]) => name);
+		// Too close to the edge, too early, a quarter before zoom 12, a country, no name: left out.
+		expect(names.sort()).toEqual(['Leipzig &lt;Mitte&gt;', 'Mailand']);
+		expect(svg.match(/stroke-dasharray/g)).toHaveLength(1);
+		expect(svg).toContain('fill="#2e2e2e"');
+
+		const deeper = await renderTile(read, 12, 2200, 1360, 14);
+		expect(deeper).toContain('>Quartier<');
+	});
+
+	it('scales the deepest tiles up and thins the roads further out', async () => {
+		const read = vi.fn(async () => encodeTile(fixtureQuarter(0, 0)));
+		const deep = await renderTile(read, 16, 4 * 1000 + 1, 4 * 600 + 2, 14);
+		expect(read).toHaveBeenLastCalledWith(14, 1000, 600);
+		expect(deep).toMatch(/stroke="#424242" stroke-width="2\.24"/);
+		const far = await renderTile(read, 6, 33, 21, 14);
+		expect(far).toMatch(/stroke="#424242" stroke-width="0\.6"/);
 	});
 });
 

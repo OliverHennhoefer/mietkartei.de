@@ -2,7 +2,31 @@ import { VIEW } from './projection.ts';
 
 // The section of the large map and the dots on it, in projected units (see projection.ts).
 
-export type MapProperty = { id: string; name: string; city: string; position: number[] | null };
+export type MapProperty = {
+	id: string;
+	name: string;
+	city: string;
+	position: number[] | null;
+	unitCount?: number;
+	vacantUnits?: number;
+	/** Latitude and longitude for the interactive street map, where it is set up. */
+	location?: { lat: number; lon: number } | null;
+	facts?: MapFacts | null;
+};
+
+/** What the interactive street map shows of a property beside its dot; amounts in euro cents. */
+export type MapFacts = {
+	/** The Rückstand of its leases today. */
+	overdue: number;
+	/** The average Kaltmiete per square metre of its let flats. */
+	rentPerSquareMetre: number | null;
+	municipality: { name: string; rentPerSquareMetre: number | null } | null;
+};
+
+/** Whether the property needs a look: a vacant unit or a Rückstand. */
+export function needsAttention(property: MapProperty): boolean {
+	return (property.vacantUnits ?? 0) > 0 || (property.facts?.overdue ?? 0) > 0;
+}
 
 export type Box = { x: number; y: number; width: number; height: number };
 

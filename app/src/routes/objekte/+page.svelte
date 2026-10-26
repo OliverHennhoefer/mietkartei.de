@@ -134,6 +134,7 @@
 			<PropertyMapDialog
 				properties={data.properties}
 				selected={mapFor}
+				streetMap={data.streetMap}
 				onclose={() => (mapFor = undefined)}
 			/>
 		{/if}
