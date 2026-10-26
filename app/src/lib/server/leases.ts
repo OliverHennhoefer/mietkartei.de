@@ -4,12 +4,25 @@ import { formatDate, monthOf, today, type IsoDate } from '../dates';
 import { rentOn, type RentChange as RentHistoryEntry } from '../domain/rents';
 import { terminatedByLabels } from '../labels';
 import { formatCents } from '../money';
+import type { GermanState } from '../working-days';
 import type { AuditContext } from './audit';
 import { auditEntry } from './audit';
 import type { Database } from './db';
 import { chunk, chunkIds, rowsPerStatement, runBatch } from './db/batch';
-import { chargeStatements } from './ledger';
-import { laterRows, laterRowsNote, type LaterRows } from './rent-history';
+import {
+	chargeStatements,
+	chargeSyncStatements,
+	leaseChargeStatements,
+	unitStates,
+	type ChargeLease
+} from './ledger';
+import {
+	laterRows,
+	laterRowsNote,
+	noLaterRows,
+	withLaterRows,
+	type LaterRows
+} from './rent-history';
 import {
 	auditLog,
 	leasePersons,
@@ -348,9 +361,58 @@ export function newLeaseStatements(
 	];
 }
 
+/** The lease as the rent charges see it once `input` is stored, with its rent history. */
+function chargeLeaseOf(
+	id: string,
+	input: LeaseInput,
+	states: Map<string, GermanState | null>,
+	changes: readonly RentHistoryEntry[]
+): ChargeLease {
+	return {
+		id,
+		startDate: input.startDate,
+		endDate: input.endDate,
+		ledgerStart: input.ledgerStart,
+		rentDueDay: input.rentDueDay,
+		state: states.get(input.unitId) ?? null,
+		changes
+	};
+}
+
+/** The initial rent of a lease about to be created, as its rent history. */
+function initialHistory(input: LeaseInput): RentHistoryEntry[] {
+	return [
+		{
+			validFrom: input.startDate,
+			baseRent: input.baseRent,
+			operatingCostPrepayment: input.operatingCostPrepayment,
+			heatingCostPrepayment: input.heatingCostPrepayment,
+			status: 'approved'
+		}
+	];
+}
+
 /**
- * Creates the lease with its tenants, extra units, the initial rent and persons, atomically. A
- * non-zero opening balance (Anfangssaldo) is posted in the same batch, due at the ledger start.
+ * The leases about to be created as the rent charges see them, so their charges go into the
+ * batch that creates them. The units must already be checked against the account.
+ */
+export async function newChargeLeases(
+	db: Database,
+	accountId: string,
+	entries: { id: string; input: LeaseInput }[]
+): Promise<ChargeLease[]> {
+	const states = await unitStates(
+		db,
+		accountId,
+		entries.map(({ input }) => input.unitId)
+	);
+	return entries.map(({ id, input }) => chargeLeaseOf(id, input, states, initialHistory(input)));
+}
+
+/**
+ * Creates the lease with its tenants, extra units, the initial rent and persons, and its rent
+ * charges up to this month, atomically. A non-zero opening balance (Anfangssaldo) is posted in
+ * the same batch, due at the ledger start.
  */
 export async function createLease(
 	db: Database,
@@ -363,6 +425,12 @@ export async function createLease(
 	if (reason) return { ok: false, reason };
 	const id = crypto.randomUUID();
 	const ledgerStart = input.ledgerStart ?? input.startDate;
+	const charges = await chargeSyncStatements(
+		db,
+		context.accountId,
+		await newChargeLeases(db, context.accountId, [{ id, input }]),
+		{ otherCharges: openingBalance ? 1 : 0 }
+	);
 	await runBatch(db, [
 		...newLeaseStatements(db, context, [{ id, input }]),
 		...(openingBalance
@@ -374,7 +442,8 @@ export async function createLease(
 					amount: openingBalance,
 					note: 'Anfangssaldo'
 				})
-			: [])
+			: []),
+		...charges.statements
 	]);
 	return { ok: true, id };
 }
@@ -415,8 +484,8 @@ async function leavesSettledProperty(
  * the new start date and initial values; later rows that carried an initial amount unchanged
  * follow it too (see laterRows). A start date on or after a later rent change or persons row is
  * refused ('start-after-changes'), since those rows would then come first or collide with the
- * initial ones. The rent charges are not touched here; the caller syncs them through the ledger
- * module.
+ * initial ones. A new start, end, due day, ledger start or unit moves the rent charges, which are
+ * synced in the same batch.
  */
 export async function updateLease(
 	db: Database,
@@ -464,7 +533,14 @@ export async function updateLease(
 	};
 	const later = initial
 		? laterRows(db, accountId, changes, input.startDate, initial, amounts, initial.id)
-		: { statements: [], count: 0 };
+		: noLaterRows;
+	const history = withLaterRows(changes, later).map((change) =>
+		change.reason === 'initial' ? { ...change, validFrom: input.startDate, ...amounts } : change
+	);
+	const states = await unitStates(db, accountId, [input.unitId]);
+	const charges = await chargeSyncStatements(db, accountId, [
+		chargeLeaseOf(leaseId, input, states, history)
+	]);
 	const extraUnitIds = [...new Set(input.extraUnitIds)].filter((unitId) => unitId !== input.unitId);
 	const tenantIds = [...new Set(input.tenantIds)];
 	await runBatch(db, [
@@ -501,7 +577,8 @@ export async function updateLease(
 					eq(leasePersons.validFrom, existing.startDate)
 				)
 			),
-		auditEntry(db, context, 'lease', leaseId, 'update', updateSummary(existing, input, later))
+		auditEntry(db, context, 'lease', leaseId, 'update', updateSummary(existing, input, later)),
+		...charges.statements
 	]);
 	return { ok: true };
 }
@@ -587,8 +664,8 @@ export type LeaseEndInput = {
 };
 
 /**
- * Records the notice and the end date ("Vertrag beenden"). The caller syncs the rent charges
- * through the ledger module afterwards, so months after the end disappear from the ledger.
+ * Records the notice and the end date ("Vertrag beenden"). The rent charges are synced in the
+ * same batch, so months after the end disappear from the ledger.
  */
 export async function endLease(
 	db: Database,
@@ -615,7 +692,8 @@ export async function endLease(
 			leaseId,
 			'update',
 			`Mietvertrag ${leaseLabel(existing)} zum ${formatDate(input.endDate)} beendet (Kündigung vom ${formatDate(input.terminatedAt)} ${terminatedByLabels[input.terminatedBy]}${input.earlyEndAgreed ? ', früheres Ende vereinbart' : ''})`
-		)
+		),
+		...(await leaseChargeStatements(db, context.accountId, leaseId, { endDate: input.endDate }))
 	]);
 	return 'ended';
 }

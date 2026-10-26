@@ -5,9 +5,15 @@ import { auditLog, co2CostSplits, properties, rentCharges } from './db/schema';
 import type { Database } from './db';
 import { createCo2Split, deleteCo2Split, listCo2Splits } from './co2';
 import type { Co2SplitInput } from './co2';
-import { createLease } from './leases';
 import { QUOTAS } from './quotas';
-import { contextA, contextB, leaseInput, seedUnit, testDatabase } from './testing';
+import {
+	contextA,
+	contextB,
+	createLeaseWithoutCharges,
+	leaseInput,
+	seedUnit,
+	testDatabase
+} from './testing';
 
 let db: Database;
 let propertyId: string;
@@ -20,8 +26,8 @@ beforeEach(async () => {
 	const own = await seedUnit(db, 'a');
 	const foreign = await seedUnit(db, 'b');
 	propertyId = own.propertyId;
-	const lease = await createLease(db, contextA, leaseInput(own.unitId));
-	const foreignLease = await createLease(db, contextB, leaseInput(foreign.unitId));
+	const lease = await createLeaseWithoutCharges(db, contextA, leaseInput(own.unitId));
+	const foreignLease = await createLeaseWithoutCharges(db, contextB, leaseInput(foreign.unitId));
 	if (!lease.ok || !foreignLease.ok) throw new Error('setup failed');
 	leaseId = lease.id;
 	foreignLeaseId = foreignLease.id;
@@ -226,7 +232,7 @@ describe('deleteCo2Split', () => {
 		expect(await deleteCo2Split(db, contextA, leaseId, 'no-such-split')).toBe('missing');
 		// A split of the account is deleted only through its own lease.
 		const own = await seedUnit(db, 'a', { name: 'OG' });
-		const other = await createLease(db, contextA, leaseInput(own.unitId));
+		const other = await createLeaseWithoutCharges(db, contextA, leaseInput(own.unitId));
 		if (!other.ok) throw new Error('setup failed');
 		const created = await createCo2Split(db, contextA, leaseId, reference);
 		if (!created.ok) throw new Error('setup failed');

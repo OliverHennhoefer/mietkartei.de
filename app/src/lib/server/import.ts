@@ -24,8 +24,8 @@ import {
 	type LeaseKind,
 	type OperatingCostModel
 } from './db/schema';
-import { newLeaseStatements, type LeaseInput } from './leases';
-import { ensureCharges, type PaymentInput } from './ledger';
+import { newChargeLeases, newLeaseStatements, type LeaseInput } from './leases';
+import { chargeSyncStatements, type PaymentInput } from './ledger';
 import { assertQuota } from './quotas';
 import type { TenantInput } from './tenants';
 
@@ -1334,24 +1334,23 @@ export async function commitImport(
 						note: 'Anfangssaldo'
 					};
 				});
-			// One batch: every lease with its opening balance and the audit line, or nothing.
+			const entries = created.map(({ id, lease }) => ({ id, input: lease.input }));
+			const charges = await chargeSyncStatements(
+				db,
+				accountId,
+				await newChargeLeases(db, accountId, entries),
+				{ otherCharges: openings.length }
+			);
+			// One batch: every lease with its opening balance, rent charges and the audit line, or
+			// nothing.
 			await runBatch(db, [
-				...newLeaseStatements(
-					db,
-					context,
-					created.map(({ id, lease }) => ({ id, input: lease.input }))
-				),
+				...newLeaseStatements(db, context, entries),
 				...chunk(openings, rowsPerStatement(rentCharges)).map((rows) =>
 					db.insert(rentCharges).values(rows)
 				),
+				...charges.statements,
 				auditEntry(db, context, 'import', importId, 'import', auditSummary(text, skipped.length))
 			]);
-			// Derived data: a page that shows balances recomputes them anyway.
-			await ensureCharges(
-				db,
-				accountId,
-				created.map((entry) => entry.id)
-			);
 			return { kind: plan.kind, count: created.length, created: text, skipped };
 		}
 		case 'payments': {

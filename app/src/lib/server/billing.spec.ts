@@ -262,6 +262,14 @@ describe('with a database', () => {
 		expect(entries[0]).toMatchObject({ userId: 'user-a', entity: 'account', entityId: 'a' });
 	});
 
+	it('keeps the first stored customer and answers with it', async () => {
+		expect(await setStripeCustomer(db, contextA, 'cus_first')).toBe('cus_first');
+		expect(await setStripeCustomer(db, contextA, 'cus_second')).toBe('cus_first');
+		expect((await row('a')).stripeCustomerId).toBe('cus_first');
+		const entries = await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'));
+		expect(entries).toHaveLength(1);
+	});
+
 	it('applies a subscription update to the account of the customer, once', async () => {
 		await setStripeCustomer(db, contextA, 'cus_a');
 		await setStripeCustomer(db, { accountId: 'b', userId: 'user-b' }, 'cus_b');

@@ -4,7 +4,7 @@ import { addMonthsToMonth, firstOfMonth, monthOf, today } from '../dates';
 import { effectiveFrom } from '../domain/index-rent';
 import type { Database } from './db';
 import { auditLog, consumerPriceIndex, rentCharges } from './db/schema';
-import { createLease, getLease, leaseInputOf, updateLease, type LeaseSummary } from './leases';
+import { getLease, leaseInputOf, updateLease, type LeaseSummary } from './leases';
 import { ensureCharges } from './ledger';
 import {
 	addGraduatedStep,
@@ -15,8 +15,17 @@ import {
 	removeChange,
 	recipientLines
 } from './rent-adjustments';
+import { QUOTAS } from './quotas';
 import { listRentChanges } from './rents';
-import { contextA, contextB, leaseInput, seedTenant, seedUnit, testDatabase } from './testing';
+import {
+	contextA,
+	contextB,
+	createLeaseWithoutCharges,
+	leaseInput,
+	seedTenant,
+	seedUnit,
+	testDatabase
+} from './testing';
 
 let db: Database;
 let unitId: string;
@@ -45,12 +54,12 @@ beforeEach(async () => {
 		postalCode: '10115',
 		city: 'Berlin'
 	});
-	const own = await createLease(
+	const own = await createLeaseWithoutCharges(
 		db,
 		contextA,
 		leaseInput(unitId, { ...indexed, tenantIds: [tenantId] })
 	);
-	const foreign = await createLease(db, contextB, leaseInput(foreignUnit, indexed));
+	const foreign = await createLeaseWithoutCharges(db, contextB, leaseInput(foreignUnit, indexed));
 	if (!own.ok || !foreign.ok) throw new Error('setup failed');
 	leaseId = own.id;
 	foreignLeaseId = foreign.id;
@@ -143,7 +152,7 @@ describe('proposeIndexChange and approveChange', () => {
 	it('lets a commercial lease choose the effective date', async () => {
 		await seedValues();
 		const { unitId: office } = await seedUnit(db, 'a', { name: 'Büro' });
-		const lease = await createLease(
+		const lease = await createLeaseWithoutCharges(
 			db,
 			contextA,
 			leaseInput(office, { ...indexed, kind: 'commercial' })
@@ -164,7 +173,7 @@ describe('proposeIndexChange and approveChange', () => {
 		// 650,00 € takes effect before the proposal would: 630,96 € would now be a decrease.
 		await seedValues();
 		const { unitId: office } = await seedUnit(db, 'a', { name: 'Büro' });
-		const lease = await createLease(
+		const lease = await createLeaseWithoutCharges(
 			db,
 			contextA,
 			leaseInput(office, { ...indexed, kind: 'commercial' })
@@ -368,7 +377,7 @@ describe('addGraduatedStep', () => {
 	let graduatedId: string;
 
 	beforeEach(async () => {
-		const lease = await createLease(
+		const lease = await createLeaseWithoutCharges(
 			db,
 			contextA,
 			leaseInput(unitId, { startDate: '2025-01-01', rentModel: 'graduated' })
@@ -407,7 +416,7 @@ describe('addGraduatedStep', () => {
 	});
 
 	it('lets a commercial lease step without a year between, but not before it began', async () => {
-		const lease = await createLease(
+		const lease = await createLeaseWithoutCharges(
 			db,
 			contextA,
 			leaseInput(unitId, { startDate: '2025-01-01', rentModel: 'graduated', kind: 'commercial' })
@@ -599,7 +608,7 @@ describe('later rows follow a change of a field', () => {
 		]);
 
 	beforeEach(async () => {
-		const lease = await createLease(
+		const lease = await createLeaseWithoutCharges(
 			db,
 			contextA,
 			leaseInput(unitId, { startDate: '2025-01-01', rentModel: 'graduated' })
@@ -746,6 +755,53 @@ describe('later rows follow a change of a field', () => {
 		expect((await summaries('a')).at(-1)).toBe(
 			'update: Mietänderung ab 01.06.2026 entfernt (gilt auch für 1 spätere Mietänderung)'
 		);
+	});
+});
+
+describe('a refused charge sync', () => {
+	/** Runs the command while the account may hold no more rent charges. */
+	async function withoutChargeRoom(command: () => Promise<unknown>) {
+		const limit = QUOTAS.rentCharges.max;
+		QUOTAS.rentCharges.max = 0;
+		try {
+			await expect(command()).rejects.toMatchObject({ status: 409 });
+		} finally {
+			QUOTAS.rentCharges.max = limit;
+		}
+	}
+
+	it('leaves the history as it was', async () => {
+		const before = await listRentChanges(db, 'a', leaseId);
+		const audit = await summaries('a');
+		await withoutChargeRoom(() =>
+			manualChange(db, contextA, leaseId, {
+				validFrom: '2025-03-01',
+				baseRent: 65000,
+				operatingCostPrepayment: 15000,
+				heatingCostPrepayment: 5000,
+				reason: 'manual',
+				note: null
+			})
+		);
+		expect(await listRentChanges(db, 'a', leaseId)).toEqual(before);
+		expect(await summaries('a')).toEqual(audit);
+		expect(await db.select().from(rentCharges)).toEqual([]);
+	});
+
+	it('keeps a change that is to be removed', async () => {
+		const added = await manualChange(db, contextA, leaseId, {
+			validFrom: '2025-03-01',
+			baseRent: 65000,
+			operatingCostPrepayment: 15000,
+			heatingCostPrepayment: 5000,
+			reason: 'manual',
+			note: null
+		});
+		if (!added?.ok) throw new Error('setup failed');
+		await db.delete(rentCharges);
+		const before = await listRentChanges(db, 'a', leaseId);
+		await withoutChargeRoom(() => removeChange(db, contextA, leaseId, added.id));
+		expect(await listRentChanges(db, 'a', leaseId)).toEqual(before);
 	});
 });
 

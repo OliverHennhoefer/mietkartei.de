@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from './db';
-import { createLease } from './leases';
 import { createPayment, listLedgerLineDetails, postCharge } from './ledger';
-import { contextA, contextB, leaseInput, seedUnit, testDatabase } from './testing';
+import {
+	contextA,
+	contextB,
+	createLeaseWithoutCharges,
+	leaseInput,
+	seedUnit,
+	testDatabase
+} from './testing';
 
 // listLedgerLineDetails is the ledger page's addition to ledger.ts; the rest is covered by
 // ledger.spec.ts.
@@ -15,8 +21,8 @@ beforeEach(async () => {
 	db = await testDatabase();
 	const { unitId } = await seedUnit(db, 'a');
 	const { unitId: foreignUnit } = await seedUnit(db, 'b');
-	const own = await createLease(db, contextA, leaseInput(unitId));
-	const foreign = await createLease(db, contextB, leaseInput(foreignUnit));
+	const own = await createLeaseWithoutCharges(db, contextA, leaseInput(unitId));
+	const foreign = await createLeaseWithoutCharges(db, contextB, leaseInput(foreignUnit));
 	if (!own.ok || !foreign.ok) throw new Error('setup failed');
 	leaseId = own.id;
 	foreignLeaseId = foreign.id;

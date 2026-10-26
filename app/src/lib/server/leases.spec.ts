@@ -28,6 +28,7 @@ import {
 	updateLease
 } from './leases';
 import { deleteLease } from './deletion';
+import { QUOTAS } from './quotas';
 import { ensureCharges, postCharge } from './ledger';
 import {
 	contextA,
@@ -135,7 +136,11 @@ describe('createLease', () => {
 		if (!result.ok) return;
 
 		const charges = await db.select().from(rentCharges).where(eq(rentCharges.leaseId, result.id));
-		expect(charges).toEqual([
+		// The rent charges come with the lease, from the ledger start on.
+		const rents = charges.filter((charge) => charge.kind === 'rent');
+		expect(rents.length).toBeGreaterThan(0);
+		expect(rents.map((charge) => charge.period).sort()[0]).toBe('2025-03');
+		expect(charges.filter((charge) => charge.kind !== 'rent')).toEqual([
 			expect.objectContaining({
 				accountId: 'a',
 				kind: 'adjustment',
@@ -150,6 +155,61 @@ describe('createLease', () => {
 			[result.id, 'create'],
 			[result.id, 'post']
 		]);
+	});
+});
+
+describe('a refused charge sync', () => {
+	/** Runs the command while the account may hold no more rent charges than it has. */
+	async function withoutChargeRoom(command: () => Promise<unknown>) {
+		const limit = QUOTAS.rentCharges.max;
+		QUOTAS.rentCharges.max = (await db.select().from(rentCharges)).length;
+		try {
+			await expect(command()).rejects.toMatchObject({ status: 409 });
+		} finally {
+			QUOTAS.rentCharges.max = limit;
+		}
+	}
+
+	it('creates no lease', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		await withoutChargeRoom(() => createLease(db, contextA, leaseInput(unitId)));
+		expect(await listLeases(db, 'a')).toEqual([]);
+		expect(await db.select().from(rentChanges)).toEqual([]);
+		expect(await db.select().from(auditLog)).toEqual([]);
+	});
+
+	it('counts the opening balance against the limit', async () => {
+		// The same lease in another account shows how many rent charges it generates.
+		const { unitId: foreignUnit } = await seedUnit(db, 'b');
+		await createLease(db, contextB, leaseInput(foreignUnit));
+		const rents = await db.select().from(rentCharges).where(eq(rentCharges.accountId, 'b'));
+		const { unitId } = await seedUnit(db, 'a');
+		const limit = QUOTAS.rentCharges.max;
+		QUOTAS.rentCharges.max = rents.length;
+		try {
+			await expect(createLease(db, contextA, leaseInput(unitId), -4500)).rejects.toMatchObject({
+				status: 409
+			});
+		} finally {
+			QUOTAS.rentCharges.max = limit;
+		}
+		expect(await listLeases(db, 'a')).toEqual([]);
+		expect(await db.select().from(rentCharges).where(eq(rentCharges.accountId, 'a'))).toEqual([]);
+	});
+
+	it('leaves an edited lease as it was', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const result = await createLease(db, contextA, leaseInput(unitId));
+		if (!result.ok) throw new Error('setup failed');
+		const before = await getLease(db, 'a', result.id);
+		const history = await db.select().from(rentChanges);
+		// An earlier start adds the months of 2024 to the ledger.
+		await withoutChargeRoom(() =>
+			updateLease(db, contextA, result.id, leaseInput(unitId, { startDate: '2024-01-01' }))
+		);
+		expect(await getLease(db, 'a', result.id)).toEqual(before);
+		expect(await db.select().from(rentChanges)).toEqual(history);
+		expect(await db.select().from(auditLog).where(eq(auditLog.action, 'update'))).toEqual([]);
 	});
 });
 
@@ -635,8 +695,7 @@ describe('endLease', () => {
 			'Mietvertrag EG links · Haus zum 31.05.2025 beendet (Kündigung vom 02.03.2025 durch Mieter)'
 		]);
 
-		// The months after the end disappear with the next sync.
-		await ensureCharges(db, 'a', [result.id], '2025-12');
+		// The months after the end leave the ledger with the change.
 		const periods = (await db.select().from(rentCharges).where(eq(rentCharges.leaseId, result.id)))
 			.map((row) => row.period)
 			.sort();

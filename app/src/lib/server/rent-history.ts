@@ -11,7 +11,11 @@ import { rentChanges } from './db/schema';
 
 type HistoryRow = Parameters<typeof laterRowUpdates>[0][number];
 
-export type LaterRows = { statements: ReturnType<typeof updateStatements>; count: number };
+export type LaterRows = {
+	statements: ReturnType<typeof updateStatements>;
+	count: number;
+	updates: RentFieldUpdate[];
+};
 
 function updateStatements(db: Database, accountId: string, updates: RentFieldUpdate[]) {
 	return updates.flatMap((update) =>
@@ -39,8 +43,22 @@ export function laterRows(
 ): LaterRows {
 	const updates = laterRowUpdates(changes, validFrom, before, after, excludeId);
 	const count = new Set(updates.flatMap((update) => update.ids)).size;
-	return { statements: updateStatements(db, accountId, updates), count };
+	return { statements: updateStatements(db, accountId, updates), count, updates };
 }
+
+/** The rows as they are once the statements of `later` ran, for the charges of the same batch. */
+export function withLaterRows<T extends HistoryRow>(rows: readonly T[], later: LaterRows): T[] {
+	return rows.map((row) => {
+		let updated = row;
+		for (const update of later.updates) {
+			if (update.ids.includes(row.id)) updated = { ...updated, [update.field]: update.value };
+		}
+		return updated;
+	});
+}
+
+/** No later rows to update, for a change that moves no field. */
+export const noLaterRows: LaterRows = { statements: [], count: 0, updates: [] };
 
 /** The audit sentence's tail when later rows follow: " (gilt auch für 2 spätere Mietänderungen)". */
 export function laterRowsNote(rows: LaterRows): string {

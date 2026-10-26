@@ -1,10 +1,10 @@
 import { isActionFailure, isHttpError, isRedirect } from '@sveltejs/kit';
-import { eq, is, sql } from 'drizzle-orm';
+import { and, eq, is, sql } from 'drizzle-orm';
 import { getTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { hashPassword, type SessionUser } from './auth';
 import type { Database } from './db';
 import * as schema from './db/schema';
-import { accounts, properties, tenants, units, users } from './db/schema';
+import { accounts, properties, rentCharges, tenants, units, users } from './db/schema';
 import { createSqliteDatabase } from './db/sqlite';
 import type { Storage } from './storage';
 import { createLease, type LeaseInput } from './leases';
@@ -162,14 +162,34 @@ export function leaseInput(unitId: string, overrides: Partial<LeaseInput> = {}):
 	};
 }
 
-/** Creates a lease of the unit with leaseInput() and the overrides; returns its id. */
+/**
+ * createLease without the rent charges it syncs up to this month, for tests that sync them with
+ * ensureCharges up to a month of their own.
+ */
+export async function createLeaseWithoutCharges(
+	...args: Parameters<typeof createLease>
+): ReturnType<typeof createLease> {
+	const result = await createLease(...args);
+	if (result.ok) {
+		await args[0]
+			.delete(rentCharges)
+			.where(and(eq(rentCharges.leaseId, result.id), eq(rentCharges.kind, 'rent')));
+	}
+	return result;
+}
+
+/** Creates a lease of the unit with leaseInput() and the overrides, without rent charges; returns its id. */
 export async function seedLease(
 	db: Database,
 	accountId: string,
 	unitId: string,
 	overrides: Partial<LeaseInput> = {}
 ): Promise<string> {
-	const result = await createLease(db, { accountId, userId: null }, leaseInput(unitId, overrides));
+	const result = await createLeaseWithoutCharges(
+		db,
+		{ accountId, userId: null },
+		leaseInput(unitId, overrides)
+	);
 	if (!result.ok) throw new Error(`seedLease failed: ${result.reason}`);
 	return result.id;
 }

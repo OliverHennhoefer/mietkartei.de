@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNotNull, isNull, lt, or } from 'drizzle-orm';
+import { and, asc, count, eq, isNotNull, isNull, lt, or, type SQL } from 'drizzle-orm';
 import { dayOf, formatDate } from '../dates';
 import { auditEntry, type AuditContext } from './audit';
 import { generateToken, hashToken, type SessionUser } from './auth';
@@ -156,9 +156,12 @@ export async function revokeApiKey(
 	return true;
 }
 
-/** The statement that revokes every key of a user, to run in the batch of a password change. */
-export function revokeAllApiKeys(db: Database, userId: string) {
-	return db.delete(apiKeys).where(eq(apiKeys.userId, userId));
+/**
+ * The statement that revokes every key of a user, to run in the batch of a password change;
+ * `guard` limits it to when that change still applies.
+ */
+export function revokeAllApiKeys(db: Database, userId: string, guard?: SQL) {
+	return db.delete(apiKeys).where(and(eq(apiKeys.userId, userId), guard));
 }
 
 export type ApiCaller = { user: SessionUser; scope: ApiKeyScope; keyId: string };
