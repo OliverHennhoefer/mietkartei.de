@@ -29,6 +29,8 @@ test('opens and closes mobile navigation and restores the workspace after resizi
 }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto('/objekte');
+	// The menu button works only once the page is hydrated, which the map images can delay.
+	await page.waitForLoadState('networkidle');
 	const nav = page.getByRole('navigation', { name: 'Hauptnavigation' });
 	const toggle = page.locator('.nav-toggle');
 	const main = page.getByRole('main');

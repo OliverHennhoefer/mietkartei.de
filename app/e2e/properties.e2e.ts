@@ -281,8 +281,15 @@ test('shows each property on a map and hides the maps in the settings', async ({
 	const name = `Neonpunkt ${suffix()}`;
 	await seedLease(page.request, { property: { name, city: 'Berlin' } });
 	await page.goto('/objekte');
+	// The street map of scripts/map-fixture.js, drawn by the server around the postal code.
 	const tile = page.getByRole('button', { name: `${name} auf der Karte zeigen` });
-	await expect(tile.locator('circle')).toHaveCount(2);
+	const image = tile.locator('img');
+	await expect(image).toHaveAttribute('src', /\/karte\?v=/);
+	await image.scrollIntoViewIfNeeded();
+	await expect
+		.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth))
+		.toBe(480);
+	await expect(page.getByText('Straßenkarten: © OpenStreetMap-Mitwirkende')).toBeVisible();
 
 	await tile.click();
 	const map = page.getByRole('dialog', { name: 'Deine Objekte auf der Karte' });

@@ -51,6 +51,14 @@
 			"binding": "DOCUMENTS",
 			"bucket_name": "mietkartei-documents",
 			"jurisdiction": "eu"
+		},
+		{
+			// The street map of Germany for the map previews of the properties, uploaded by the
+			// Map workflow (.github/workflows/map.yml). The deploy job creates the bucket when it
+			// is missing; until the first upload the previews show the outline of Germany.
+			"binding": "MAP",
+			"bucket_name": "mietkartei-map",
+			"jurisdiction": "eu"
 		}
 	],
 	// The public demo at demo.mietkartei.de, deployed with `wrangler deploy --env demo` after the
@@ -84,7 +92,9 @@
 					"binding": "DOCUMENTS",
 					"bucket_name": "mietkartei-demo-documents",
 					"jurisdiction": "eu"
-				}
+				},
+				// The demo reads the same street map as the app.
+				{ "binding": "MAP", "bucket_name": "mietkartei-map", "jurisdiction": "eu" }
 			]
 		}
 	}

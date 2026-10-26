@@ -69,6 +69,8 @@ export default defineConfig({
 	},
 	test: {
 		expect: { requireAssertions: true },
+		// No test asks the public geocoder; geocoding.spec.ts passes its own fetch.
+		env: { GEOCODER_URL: 'off' },
 		// CI uploads the lcov report to Codecov; the e2e tests are not part of the coverage. The
 		// unit tests never render a component, so the .svelte files are left out: their markup is
 		// what the Playwright tests click through on both targets, and logic worth a unit test
