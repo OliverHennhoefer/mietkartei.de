@@ -18,6 +18,7 @@ GitHub uses the issue and pull request templates from the default branch `main`.
 | `workflows/websites.yml` | Checks and deploys homepage and documentation |
 | `workflows/scorecard.yml` | Rates the repository's security practices with OpenSSF Scorecard |
 | `workflows/release.yml` | Attaches the source archive, checksum and SLSA provenance to a published release |
+| `workflows/municipalities.yml` | Monthly update of the bundled Gemeinde table from Destatis |
 | `HOMEPAGE.md` | Preview, build and deployment of the homepage |
 | `DOCUMENTATION.md` | Preview, build and deployment of the documentation |
 | `DEPLOYMENT.md` | Cloudflare access, domains and hosting migration |
@@ -30,6 +31,12 @@ GitHub uses the issue and pull request templates from the default branch `main`.
 ## Languages
 
 Everything close to code is written in English: code, comments, commits, pull requests, reviews, CI messages, workflow names and the maintainer guides in `.github/`. Everything aimed at users and the community is written in German: the app, website, user documentation, README, CONTRIBUTING, code of conduct, support and security policy, issue forms, labels and release notes.
+
+## Updating the Gemeinde data
+
+The "Lage" tab of a property reads a bundled table of all Gemeinden (`app/src/lib/server/municipalities-data.ts`): name and centre from the Destatis Gemeindeverzeichnis, the average Nettokaltmiete of the Zensus 2022 and the Hebesatz of the Grundsteuer B. [`app/scripts/municipalities.py`](../app/scripts/municipalities.py) downloads the newest published editions (plain HTTP, no account) and rewrites the table.
+
+The workflow "Update Gemeinde data" ([municipalities.yml](workflows/municipalities.yml)) runs the script on the 3rd of every month and can be started manually under "Actions". When the table changed, it pushes the branch `data/municipalities` and opens a pull request. It needs **Settings → Actions → General → Allow GitHub Actions to create and approve pull requests**. A pull request opened with the workflow token starts no workflows on its own, so the workflow starts "App" and "Websites" on the branch itself; their checks show on the pull request.
 
 ## Managing labels
 
