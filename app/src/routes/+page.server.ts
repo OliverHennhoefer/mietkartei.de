@@ -11,7 +11,7 @@ import { countOpenTasks } from '#lib/server/tasks.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import type { PageServerLoad } from './$types';
 
-// The dashboard: four tiles that link to their lists, and instead of them a first-run checklist
+// The dashboard: five tiles that link to their lists, and instead of them a first-run checklist
 // until the account has a lease and a bank account. listBalances syncs the rent charges first, so
 // the arrears are current when the page opens (the same as /mietkonto does).
 
@@ -82,6 +82,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		firstRun: firstRun.leases && firstRun.bankAccounts ? null : firstRun,
 		tiles: {
+			propertyCount: properties.filter((property) => !property.archivedAt).length,
+			activeLeaseCount: leases.filter((lease) => lease.active).length,
 			arrearsTotal: arrears.reduce((sum, balance) => sum + balance.overdue, 0),
 			arrearsCount: arrears.length,
 			vacantCount: vacant.length,

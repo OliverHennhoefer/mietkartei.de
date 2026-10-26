@@ -89,7 +89,14 @@ describe('dashboard', () => {
 		await seedLease(db, 'b', other.unitId);
 		expect(await run(load)).toMatchObject({
 			data: {
-				tiles: { arrearsTotal: 240000, arrearsCount: 1, vacantCount: 1, unitCount: 2 },
+				tiles: {
+					propertyCount: 2,
+					activeLeaseCount: 1,
+					arrearsTotal: 240000,
+					arrearsCount: 1,
+					vacantCount: 1,
+					unitCount: 2
+				},
 				vacant: [{ label: 'Leer · Zweites' }]
 			}
 		});

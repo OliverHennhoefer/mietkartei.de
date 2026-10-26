@@ -21,6 +21,8 @@ const dueRents = nthWorkingDay(monthOf(currentMonth), 3, null) <= today() ? 3 : 
 const propertyName = `AAA Übersicht ${suffix}`;
 
 type Tiles = {
+	properties: number;
+	activeLeases: number;
 	arrears: number;
 	arrearsCount: number;
 	vacant: number;
@@ -43,26 +45,30 @@ async function readTiles(page: Page): Promise<Tiles> {
 	await page.goto('/');
 	await expect(page.getByRole('heading', { name: 'Erste Schritte' })).toHaveCount(0);
 	const tiles = page.getByRole('list', { name: 'Kennzahlen' }).getByRole('listitem');
-	await expect(tiles).toHaveCount(4);
+	await expect(tiles).toHaveCount(5);
 	const value = async (index: number) =>
 		(await tiles.nth(index).locator('.value').innerText()).trim();
 	const label = async (index: number) =>
 		(await tiles.nth(index).locator('.label').innerText()).trim();
-	const tasks = await label(3);
+	const tasks = await label(4);
 	return {
-		arrears: parseCents(await value(0)) ?? Number.NaN,
-		arrearsCount: whole(await label(0), /([\d.]+)\sMietvertr/),
-		vacant: whole(await value(1)),
-		units: whole(await label(1), /von\s([\d.]+)\sEinheit/),
-		unmatched: whole(await value(2)),
-		todo: whole(await value(3)),
+		properties: whole(await value(0)),
+		activeLeases: whole(await label(0), /([\d.]+)\slaufende?r? Mietvertr/),
+		arrears: parseCents(await value(1)) ?? Number.NaN,
+		arrearsCount: whole(await label(1), /([\d.]+)\sMietvertr/),
+		vacant: whole(await value(2)),
+		units: whole(await label(2), /von\s([\d.]+)\sEinheit/),
+		unmatched: whole(await value(3)),
+		todo: whole(await value(4)),
 		overdue: whole(tasks, /([\d.]+)\süberfällige/),
 		openTasks: whole(tasks, /([\d.]+)\soffene Aufgabe/),
 		upcoming: whole(tasks, /([\d.]+)\sFristen? in den nächsten 12 Monaten/)
 	};
 }
 
-test('shows the tiles with arrears, vacancy, open transactions and deadlines', async ({ page }) => {
+test('shows the tiles with stock, arrears, vacancy, open transactions and deadlines', async ({
+	page
+}) => {
 	const {
 		ids: [bankAccountId]
 	} = await seedRows(page.request, 'bankAccounts', [
@@ -118,6 +124,8 @@ test('shows the tiles with arrears, vacancy, open transactions and deadlines', a
 
 	const after = await readTiles(page);
 	expect(after).toEqual({
+		properties: before.properties + 1,
+		activeLeases: before.activeLeases + 1,
 		arrears: before.arrears + dueRents * 80000,
 		arrearsCount: before.arrearsCount + 1,
 		vacant: before.vacant + 1,
@@ -132,17 +140,19 @@ test('shows the tiles with arrears, vacancy, open transactions and deadlines', a
 	expect(after.todo).toBe(after.overdue + after.openTasks);
 
 	const tiles = page.getByRole('list', { name: 'Kennzahlen' }).getByRole('listitem');
-	await expect(tiles.nth(0)).toContainText('Rückstände');
-	await expect(tiles.nth(0).getByRole('link')).toHaveAttribute(
+	await expect(tiles.nth(0)).toContainText('Mietvertr');
+	await expect(tiles.nth(0).getByRole('link')).toHaveAttribute('href', '/objekte');
+	await expect(tiles.nth(1)).toContainText('Rückstände');
+	await expect(tiles.nth(1).getByRole('link')).toHaveAttribute(
 		'href',
 		'/mietkonto?filter=rueckstaende'
 	);
-	await expect(tiles.nth(1)).toContainText('Leerstand');
-	await expect(tiles.nth(1).getByRole('link')).toHaveAttribute('href', '/objekte');
-	await expect(tiles.nth(2)).toContainText(/offene[rn]? Bankums/);
-	await expect(tiles.nth(2).getByRole('link')).toHaveAttribute('href', '/bank');
-	await expect(tiles.nth(3)).toContainText('in den nächsten 12 Monaten');
-	await expect(tiles.nth(3).getByRole('link')).toHaveAttribute('href', '/aufgaben');
+	await expect(tiles.nth(2)).toContainText('Leerstand');
+	await expect(tiles.nth(2).getByRole('link')).toHaveAttribute('href', '/objekte');
+	await expect(tiles.nth(3)).toContainText(/offene[rn]? Bankums/);
+	await expect(tiles.nth(3).getByRole('link')).toHaveAttribute('href', '/bank');
+	await expect(tiles.nth(4)).toContainText('in den nächsten 12 Monaten');
+	await expect(tiles.nth(4).getByRole('link')).toHaveAttribute('href', '/aufgaben');
 
 	// The vacant unit is listed with a link into the lease form, preselected.
 	const vacant = page
