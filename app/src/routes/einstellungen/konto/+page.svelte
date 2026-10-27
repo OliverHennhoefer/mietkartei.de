@@ -3,6 +3,7 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import { RESET_CONFIRMATION } from '#lib/forms/auth.ts';
+	import { PRIVACY_POLICY_URL } from '#lib/legal.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -30,6 +31,13 @@
 {/snippet}
 
 <PageHeader title="Konto" />
+
+{#if PRIVACY_POLICY_URL}
+	<p class="muted">
+		Welche Daten mietkartei speichert, bei welchen Dienstleistern und wie lange, steht in der
+		<a href={PRIVACY_POLICY_URL}>Datenschutzerklärung</a>.
+	</p>
+{/if}
 
 {#if data.canLoadDemo}
 	<section class="card demo" aria-labelledby="demodaten">
