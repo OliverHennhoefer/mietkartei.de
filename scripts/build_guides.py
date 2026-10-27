@@ -148,8 +148,9 @@ def post_list_item(post: Post, heading: str) -> str:
 def render_index(layout: str, posts: list[Post]) -> str:
     items = "\n".join(f"          {post_list_item(post, 'h2')}" for post in posts)
     content = f"""        <a class="back-link" href="/"><span aria-hidden="true">←</span> Zur Startseite</a>
+        <p class="eyebrow">Wissen für Vermieter</p>
         <h1>Ratgeber</h1>
-        <p class="lead">Was private Vermieter zu Mietrecht, Heiz- und Betriebskosten wissen sollten.</p>
+        <p class="lead">Was private Vermieter zu Mietrecht, Heiz- und Betriebskosten wissen sollten. Neue Beiträge gibt es auch als <a href="/ratgeber/feed.xml">RSS-Feed</a>.</p>
         <ul class="post-list">
 {items}
         </ul>"""

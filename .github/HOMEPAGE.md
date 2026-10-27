@@ -18,6 +18,8 @@ Then open [http://127.0.0.1:8002](http://127.0.0.1:8002). Rebuild the output aft
 | Path | Purpose |
 | --- | --- |
 | `website/index.html` | Public German homepage |
+| `website/_header.html`, `website/_footer.html` | The one header and footer of every page; the build puts them in place of the `<!-- header -->` and `<!-- footer -->` markers and marks the footer link of the page itself |
+| `website/preise/index.html`, `website/fragen/index.html` | Pricing and FAQ pages |
 | `website/impressum/index.html` | Legal notice (Impressum) with provider and contact details |
 | `website/styles.css` | Styles, including light and dark colors |
 | `website/assets/screenshots/` | The slides of the homepage carousel, all 1600 × 1000: whole screens (Auswertung, Mietkonto) and enlarged details (Rendite, a bank transaction, one tenant's share of the operating cost statement), taken by `npm run screenshots` in `app/`. The carousel is pure CSS, since the page runs no scripts; its order and captions live in `website/index.html`, its timing in `website/styles.css` |
@@ -37,6 +39,10 @@ Then open [http://127.0.0.1:8002](http://127.0.0.1:8002). Rebuild the output aft
 | `dist/homepage/` | Generated output; not committed |
 
 The build copies only the listed public files, the homepage screenshots (linked with a content hash, so a retaken screenshot bypasses the one-day cache of `/assets/`), the black and white register symbols and wordmark combinations, the favicon and the original font with its OFL license. The font and brand SVGs are maintained in `assets/brand/`. The homepage, legal-notice and guide headers combine the larger register symbol with the Geist Semibold wordmark and a neon yellow block behind "kartei" that is as tall as the symbol, using `lockup-highlight.svg` in light mode and `lockup-highlight-white.svg` in dark mode. The combination is 52px high on desktop and 44px on smaller screens. The favicon uses the small register symbol on a black background. Next to `favicon.svg`, the build ships `/favicon.ico` (16, 32 and 48 px) for Safari and crawlers and `apple-touch-icon.png` (180 px) for home screen icons, both rendered from `favicon.svg`. Earlier wordmarks and design studies are not copied into the public output. Page-specific illustrations live in `website/assets/`.
+
+## Page frame
+
+Every page but the homepage follows the pricing page: the shared header, `<main class="subpage …">` with the "← Zur Startseite" link first, then an eyebrow, the `h1` and an optional lead in one size, and the shared footer. Text pages (legal notice, guides) keep a reading width of 720px, the FAQ 1080px. The signed-out app pages (`app/src/lib/components/WebsiteHeader.svelte`, `WebsiteFooter.svelte`) and the documentation (`docs/overrides/main.html`) copy this frame in the same pixel sizes; change them together with `website/_header.html`, `_footer.html` and `website/styles.css`.
 
 ## Guides
 

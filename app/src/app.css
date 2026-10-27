@@ -535,22 +535,124 @@ button.account-card[aria-expanded='true'] {
 	width: 100%;
 	margin-inline: auto;
 }
+/* Signed out, the pages take the frame of the website (website/styles.css: .page, .header,
+   .subpage, .footer), in its pixel sizes: header, the way back to the homepage at the left edge
+   as on the pricing page, the form centred below it, and the footer. */
+.app-shell:not(.authenticated) {
+	display: flex;
+	flex-direction: column;
+	min-height: 100svh;
+	max-width: 1320px;
+	margin-inline: auto;
+	padding: clamp(20px, 4vh, 40px) 64px clamp(16px, 2.5vh, 24px);
+}
+.app-shell:not(.authenticated) .site-layout {
+	flex: 1;
+}
 .app-shell:not(.authenticated) .site-main {
-	max-width: 32rem;
-	padding-top: clamp(3rem, 10vh, 8rem);
+	max-width: none;
+	padding: 48px 0 88px;
 }
-/* Signed out, the logo stands centered above the form in place of a header. */
-.auth-brand {
-	display: block;
-	width: fit-content;
-	margin: 0 auto 2.5rem;
+/* The title and lead centred over the form, as the pricing page has them over its plans, and as
+   wide as there: they reach out of the narrow form column to either side. */
+.app-shell:not(.authenticated) .narrow > h1,
+.app-shell:not(.authenticated) .narrow > .auth-lead {
+	width: min(640px, 100vw - 48px);
+	margin-left: 50%;
+	translate: -50%;
+	text-align: center;
 }
-.auth-brand img {
+.app-shell:not(.authenticated) .narrow > h1 {
+	font-size: clamp(32px, 4vw, 48px);
+	font-weight: 500;
+	letter-spacing: -0.045em;
+	line-height: 1.08;
+}
+.app-shell:not(.authenticated) .narrow > .auth-lead {
+	width: min(560px, 100vw - 48px);
+}
+.website-header,
+.website-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px;
+}
+.website-brand {
+	display: inline-flex;
+}
+.website-brand img {
 	display: block;
 	width: auto;
-	max-width: 100%;
-	height: 3.75rem;
-	object-fit: contain;
+	height: 52px;
+}
+.website-github {
+	display: inline-flex;
+	padding: 8px;
+	margin-right: -8px;
+	border-radius: 8px;
+	color: var(--color-muted);
+}
+.website-github:hover {
+	color: var(--color-text);
+}
+.website-github svg {
+	display: block;
+}
+.website-footer {
+	border-top: 1px solid var(--color-border);
+	padding-top: clamp(14px, 2.2vh, 20px);
+	font-size: 12px;
+	line-height: 1.5;
+	color: var(--color-muted);
+}
+.website-footer .status,
+.website-footer-links {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 6px 24px;
+}
+.website-footer .made-in {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+}
+.website-footer .flag {
+	border-radius: 2px;
+	box-shadow: 0 0 0 1px var(--color-border);
+}
+.website-footer a {
+	color: inherit;
+	text-decoration: none;
+	text-underline-offset: 3px;
+}
+.website-footer a:hover {
+	color: var(--color-text);
+	text-decoration: underline;
+}
+@media (max-width: 1100px) {
+	.app-shell:not(.authenticated) {
+		padding-inline: 40px;
+	}
+}
+@media (max-width: 900px) {
+	.website-footer {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 8px;
+	}
+}
+@media (max-width: 600px) {
+	.app-shell:not(.authenticated) {
+		padding: 28px 24px 20px;
+	}
+	.app-shell:not(.authenticated) .site-main {
+		padding: 32px 0 64px;
+	}
+	.website-brand img {
+		height: 44px;
+	}
 }
 
 /* The launch notice over the sign-in page, closed with one click. */
@@ -1173,12 +1275,13 @@ button.icon-button:hover {
 	margin: 0.75rem 0 0;
 	color: var(--color-muted);
 }
-/* The way back to the homepage, as on the website's own pages (Preise, Fragen, Impressum). */
+/* The way back to the homepage, as on the website's own pages (website/styles.css). */
 .back-link {
 	display: inline-block;
-	margin-bottom: 1.5rem;
+	margin-bottom: 24px;
 	color: var(--color-muted);
-	font-size: 0.8125rem;
+	font-size: 13px;
+	line-height: normal;
 	text-decoration-color: currentColor;
 	text-underline-offset: 4px;
 }
