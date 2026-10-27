@@ -84,8 +84,8 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .values li { display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.5; }
 .values strong { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
 /* A small neon tile like the block in the logo; black icon on it in both colour schemes. */
-.value-icon { display: inline-grid; flex: none; place-items: center; width: 26px; height: 26px; border-radius: 6px; background: var(--highlight); color: #000; }
-.values span { color: var(--muted); }
+.value-icon { display: inline-grid; flex: none; place-items: center; width: 26px; height: 26px; border-radius: 6px; background: var(--highlight); color: #1b1c1f; }
+.values li > span { color: var(--muted); }
 
 /* Five slides of the same size take turns every 6 s: each fades in, drifts slightly closer and fades
    out while the next fades in. The ticks fill with the slide on show; hovering pauses both. */
@@ -141,7 +141,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .pricing-faq { margin: 48px 0 0; color: var(--muted); font-size: 15px; text-align: center; }
 .plan-list svg { flex: none; margin-top: 2px; }
 /* What only the hosted plan brings: the check on the logo's neon tile, black in both schemes. */
-.plan-list .check { display: inline-grid; flex: none; place-items: center; width: 20px; height: 20px; margin-top: 0; border-radius: 5px; background: var(--highlight); color: #000; }
+.plan-list .check { display: inline-grid; flex: none; place-items: center; width: 20px; height: 20px; margin-top: 0; border-radius: 5px; background: var(--highlight); color: #1b1c1f; }
 .plan-list .check svg { width: 14px; height: 14px; margin: 0; }
 .plan-list .hosted-only { font-weight: 500; }
 /* Monthly or yearly without script: two radios ahead of the plans, styled as one switch. */
@@ -207,8 +207,8 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 .skip-link:focus { transform: none; }
 
 @media (prefers-color-scheme: dark) {
-  :root { --background: #1e1e1e; --foreground: #ededed; --muted: #a0a0a0; --line: #303030; --code-background: #2c2c2c; }
-  .frame { border-color: #3a3a3a; box-shadow: 0 24px 48px -16px rgb(0 0 0 / .6); }
+  :root { --background: #1b1c1f; --foreground: #ececee; --muted: #a2a4aa; --line: #36383d; --code-background: #2d2e33; }
+  .frame { border-color: #3d3f44; box-shadow: 0 24px 48px -16px rgb(0 0 0 / .6); }
 }
 
 @media (prefers-reduced-motion: reduce) {
