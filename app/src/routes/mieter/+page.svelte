@@ -85,8 +85,14 @@
 											)}</span
 										>{/if}
 								{:else if item.kind === 'out'}
-									{item.terminatedBy === 'landlord' ? 'Gekündigt' : 'Hat gekündigt'}, zieht am
-									{formatDate(item.date)} aus <span class="muted">· {item.label}</span>
+									{#if item.terminatedBy === 'tenant'}Hat gekündigt, zieht am {formatDate(
+											item.date
+										)} aus
+									{:else if item.terminatedBy === 'landlord'}Gekündigt, zieht am {formatDate(
+											item.date
+										)} aus
+									{:else}Mietvertrag endet am {formatDate(item.date)}{/if}
+									<span class="muted">· {item.label}</span>
 								{:else}
 									Zieht am {formatDate(item.date)} ein
 									<span class="muted">· <a href="/vertraege/{item.id}">{item.label}</a></span>

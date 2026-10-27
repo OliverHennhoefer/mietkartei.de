@@ -112,7 +112,7 @@ describe('mieter', () => {
 		expect(byId.get(tenantId)!.overdue).toBeGreaterThan(0);
 		expect(byId.get(leaving)).toMatchObject({
 			overdue: 0,
-			moveOut: { date: moveOut, terminatedBy: 'tenant' }
+			moveOut: { date: moveOut, terminatedBy: 'tenant', label: expect.any(String) }
 		});
 		expect(byId.get(coming)).toMatchObject({
 			activeLeases: [],

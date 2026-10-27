@@ -94,7 +94,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 					.filter((lease) => !lease.upcoming)
 					.map((lease) => lease.startDate)
 					.sort()[0] ?? null,
-			moveOut: moveOut ? { date: moveOut.endDate!, terminatedBy: moveOut.terminatedBy } : null,
+			moveOut: moveOut
+				? {
+						date: moveOut.endDate!,
+						terminatedBy: moveOut.terminatedBy,
+						label: leaseLabel(moveOut)
+					}
+				: null,
 			moveIn: moveIn ? { id: moveIn.id, date: moveIn.startDate, label: leaseLabel(moveIn) } : null
 		};
 	});
@@ -128,7 +134,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				name,
 				date: tenant.moveOut.date,
 				terminatedBy: tenant.moveOut.terminatedBy,
-				label: tenant.activeLeases.map((lease) => lease.label).join(', ')
+				label: tenant.moveOut.label
 			});
 		}
 		if (tenant.moveIn) {
