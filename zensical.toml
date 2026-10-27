@@ -72,7 +72,7 @@ Dokumentation = [
   { "anleitungen/eigentumswohnung.md" = "Eigentumswohnung in einer WEG: Verwalter, Miteigentumsanteile, Kosten aus der Hausgeldabrechnung und Abgleich mit dem Hausgeld" },
   { "anleitungen/kontoauszuege-importieren.md" = "Kontoauszüge als camt.053 oder CSV importieren und Mietverträgen zuordnen" },
   { "anleitungen/von-excel-umsteigen.md" = "Objekte, Mieter, Mietverträge und Zahlungen per CSV aus Excel übernehmen" },
-  { "selbst-hosten.md" = "mietkartei mit Docker oder aus dem Quellcode betreiben" },
+  { "selbst-hosten.md" = "mietkartei im eigenen Cloudflare-Konto, mit Docker oder aus dem Quellcode betreiben" },
 ]
 
 [project.extra]
