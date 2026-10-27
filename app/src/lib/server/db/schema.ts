@@ -1310,6 +1310,9 @@ export const tasks = sqliteTable(
 	(table) => [index('tasks_account_id_idx').on(table.accountId)]
 );
 
+export const themes = ['system', 'light', 'dark'] as const;
+export type Theme = (typeof themes)[number];
+
 export const userRoles = ['owner', 'manager', 'viewer'] as const;
 export type UserRole = (typeof userRoles)[number];
 /** The roles an owner gives others: by invitation or by changing a member's role. */
@@ -1333,6 +1336,8 @@ export const users = sqliteTable(
 		name: text('name'),
 		/** Whether the property list shows each property on a small map of Germany. */
 		showPropertyMaps: bool('show_property_maps', true),
+		/** Light or dark colours, or whatever the device is set to. */
+		theme: text('theme', { enum: themes }).notNull().default('system'),
 		createdAt: createdAt()
 	},
 	(table) => [

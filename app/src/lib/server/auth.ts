@@ -10,6 +10,7 @@ import {
 	oauthCodes,
 	sessions,
 	users,
+	type Theme,
 	type UserRole
 } from './db/schema';
 import { DEFAULT_ACCOUNT_ID, ensureDefaultAccount } from './accounts';
@@ -186,17 +187,18 @@ export type SessionUser = {
 /**
  * Looks up the user of a session token. Expired sessions are deleted; sessions close to expiry
  * are extended up to SESSION_MAX_AGE after sign-in, in which case `expiresAt` is set and the
- * cookie must be renewed.
+ * cookie must be renewed. `theme` is the user's colour scheme, rendered into every page.
  */
 export async function validateSession(
 	db: Database,
 	token: string
-): Promise<{ user: SessionUser; expiresAt?: Date } | undefined> {
+): Promise<{ user: SessionUser; theme: Theme; expiresAt?: Date } | undefined> {
 	const id = await sessionId(token);
 	const [row] = await db
 		.select({
 			expiresAt: sessions.expiresAt,
 			createdAt: sessions.createdAt,
+			theme: users.theme,
 			user: {
 				id: users.id,
 				email: users.email,
@@ -219,9 +221,9 @@ export async function validateSession(
 	if (row.expiresAt.getTime() - now < SESSION_RENEWAL && row.expiresAt.getTime() < maxExpiry) {
 		const expiresAt = new Date(Math.min(now + SESSION_LIFETIME, maxExpiry));
 		await db.update(sessions).set({ expiresAt }).where(eq(sessions.id, id));
-		return { user: row.user, expiresAt };
+		return { user: row.user, theme: row.theme, expiresAt };
 	}
-	return { user: row.user };
+	return { user: row.user, theme: row.theme };
 }
 
 export async function deleteSession(db: Database, token: string): Promise<void> {

@@ -2,6 +2,7 @@
 // for information about these interfaces
 import type { SessionUser } from '#lib/server/auth.ts';
 import type { Database } from '#lib/server/db/index.ts';
+import type { Theme } from '#lib/server/db/schema.ts';
 
 declare global {
 	/** Set by vite.config.ts from the DEPLOY_TARGET environment variable. */
@@ -20,6 +21,8 @@ declare global {
 			db: Database;
 			/** Set for signed-in requests; the hook redirects everything else to the sign-in page. */
 			user: SessionUser | undefined;
+			/** The signed-in user's colour scheme; 'system' for visitors. */
+			theme: Theme;
 			/** An origin outside the app a form on the page redirects to, see allowFormRedirect. */
 			formRedirectOrigin?: string;
 		}
