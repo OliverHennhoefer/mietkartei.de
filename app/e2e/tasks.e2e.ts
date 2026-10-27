@@ -29,8 +29,8 @@ test('shows the deadlines of a lease that ends next month', async ({ page }) => 
 	await expect(page.getByRole('heading', { level: 1, name: 'Aufgaben' })).toBeVisible();
 	await expect(page).toHaveTitle('Aufgaben | mietkartei');
 
-	const deadlines = page.getByRole('table', { name: 'Fristen' });
-	const ours = deadlines.getByRole('row').filter({ hasText: tenantName });
+	const deadlines = page.getByRole('list', { name: 'Fristen' });
+	const ours = deadlines.getByRole('listitem').filter({ hasText: tenantName });
 
 	const leaseEnd = ours.filter({ hasText: 'Vertragsende' });
 	await expect(leaseEnd).toHaveCount(1);
@@ -53,7 +53,7 @@ test('shows the deadlines of a lease that ends next month', async ({ page }) => 
 
 	// The statement for 2025 is due by the end of 2026.
 	await expect(
-		deadlines.getByRole('row').filter({ hasText: propertyName }).filter({
+		deadlines.getByRole('listitem').filter({ hasText: propertyName }).filter({
 			hasText: 'Betriebskostenabrechnung 2025'
 		})
 	).toContainText('31.12.2026');

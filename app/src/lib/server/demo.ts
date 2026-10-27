@@ -1752,7 +1752,7 @@ export async function createDemoData(
 	}));
 
 	// Tasks: two repeating, one for the tenant in arrears, the handover of the flat being re-let, one
-	// done.
+	// overdue (so the start page shows how it marks one), one done.
 	const taskRows = [
 		{
 			id: crypto.randomUUID(),
@@ -1795,6 +1795,15 @@ export async function createDemoData(
 			propertyId: null,
 			leaseId: leaseId('nowak'),
 			note: 'Zählerstände ablesen, Schlüssel an Frau Krüger übergeben.'
+		},
+		{
+			id: crypto.randomUUID(),
+			accountId,
+			title: 'Angebote für die Treppenhausreinigung einholen',
+			dueDate: addDays(date, -3),
+			propertyId: lindenId,
+			leaseId: null,
+			note: 'Der Vertrag mit Glanz & Co. läuft zum Jahresende aus.'
 		},
 		{
 			id: crypto.randomUUID(),
