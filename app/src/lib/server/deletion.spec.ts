@@ -221,8 +221,8 @@ describe('leases', () => {
 
 describe('integrity', () => {
 	it('stays intact whatever is deleted, in any order', async () => {
-		await createDemoData(db, contextA);
-		await createDemoData(db, contextB);
+		await createDemoData(db, contextA, { storage });
+		await createDemoData(db, contextB, { storage });
 		expect(await integrityProblems(db)).toEqual([]);
 		const before = await db.select().from(leases).where(eq(leases.accountId, 'b'));
 
@@ -258,7 +258,16 @@ describe('integrity', () => {
 		expect(
 			(await db.select().from(expenses).where(eq(expenses.accountId, 'a'))).length
 		).toBeGreaterThan(0);
-		expect(await db.select().from(documents)).toEqual([]);
+		// The receipts went with their Belege; the lease documents stay with the leases that stay.
+		const kept = new Set(
+			(await db.select().from(leases).where(eq(leases.accountId, 'a'))).map((row) => row.id)
+		);
+		const left = await db.select().from(documents).where(eq(documents.accountId, 'a'));
+		expect(left.map((row) => row.name).sort()).toEqual([
+			'Mietvertrag Berger (unterschrieben).pdf',
+			'Übergabeprotokoll Einzug Berger.pdf'
+		]);
+		expect(left.every((row) => row.leaseId && kept.has(row.leaseId))).toBe(true);
 		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).not.toEqual([]);
 	});
 });

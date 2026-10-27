@@ -4,6 +4,7 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import CostItemForm from '#lib/components/CostItemForm.svelte';
+	import DocumentLink from '#lib/components/DocumentLink.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { unitAmountsSummary } from '#lib/domain/operating-costs.ts';
@@ -213,7 +214,7 @@
 	<ul class="list" aria-label="Belegdateien">
 		{#each data.item.receipts as receipt (receipt.id)}
 			<li class="card">
-				<a href="/dokumente/{receipt.id}/herunterladen">{receipt.name}</a>
+				<DocumentLink document={receipt} />
 				<ConfirmButton
 					action="?/deleteReceipt"
 					label="Datei löschen"

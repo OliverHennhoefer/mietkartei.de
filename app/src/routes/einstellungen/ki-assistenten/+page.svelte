@@ -124,6 +124,7 @@
 						<td class="actions">
 							<ConfirmButton
 								action="?/revoke"
+								small
 								label="Trennen"
 								message="Verbindung mit „{app.name}“ trennen? Die App hat dann keinen Zugriff mehr."
 							>
@@ -168,6 +169,7 @@
 						<td class="actions">
 							<ConfirmButton
 								action="?/revoke"
+								small
 								label="Widerrufen"
 								message="API-Schlüssel „{key.name}“ widerrufen? Programme, die ihn nutzen, haben dann keinen Zugriff mehr."
 							>

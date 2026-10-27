@@ -107,7 +107,7 @@ jobs:
   e2e:
     name: End-to-end tests (${{ matrix.target }})
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -131,7 +131,12 @@ jobs:
         run: npm ci
 
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        # A stalled apt or browser download once took 13 minutes and cut off the tests after
+        # them; it is retried after three minutes instead.
+        timeout-minutes: 8
+        run: |
+          timeout 180 npx playwright install --with-deps chromium \
+            || npx playwright install --with-deps chromium
 
       - name: Run end-to-end tests
         run: npm run test:e2e

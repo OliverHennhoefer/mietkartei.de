@@ -105,6 +105,7 @@
 									action="?/delete"
 									label="Löschen"
 									tone="secondary"
+									small
 									message="Ausgabe „{expense.description}“ wirklich löschen?"
 								>
 									<input type="hidden" name="id" value={expense.id} />

@@ -732,6 +732,23 @@ table.table {
 	text-align: right;
 	white-space: nowrap;
 }
+/* The buttons of a table row, side by side at the right edge. */
+.row-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.4rem;
+}
+.row-actions > * {
+	white-space: nowrap;
+}
+.row-actions form {
+	display: contents;
+}
+.row-actions .button,
+.row-actions button {
+	gap: 0.35rem;
+}
 
 /* A list's heading with its result count and a live search field (Objekte, Mieter). */
 .list-toolbar {
@@ -1105,7 +1122,8 @@ button:disabled {
 	opacity: 0.45;
 	cursor: default;
 }
-button.small {
+button.small,
+.button.small {
 	min-height: 2rem;
 	padding: 0.3rem 0.65rem;
 	font-size: 0.8rem;

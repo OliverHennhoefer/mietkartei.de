@@ -42,7 +42,7 @@ export async function startDemo(db: Database, options?: { storage?: Storage }) {
 			name: 'Demo'
 		})
 		.returning({ id: users.id });
-	await createDemoData(db, { accountId: account.id, userId: user.id });
+	await createDemoData(db, { accountId: account.id, userId: user.id }, options);
 	return createSession(db, user.id);
 }
 

@@ -487,7 +487,9 @@ export function pdfResponse(bytes: Uint8Array, filename: string): Response {
 		headers: {
 			'Content-Type': 'application/pdf',
 			'Content-Disposition': `inline; filename="${fallback}"; filename*=UTF-8''${encoded}`,
-			'Cache-Control': 'private, no-store'
+			'Cache-Control': 'private, no-store',
+			// The app shows it in a frame of its preview dialog (PreviewLink).
+			'X-Frame-Options': 'SAMEORIGIN'
 		}
 	});
 }

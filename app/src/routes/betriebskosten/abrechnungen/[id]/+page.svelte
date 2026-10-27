@@ -3,7 +3,9 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import Icon from '#lib/components/Icon.svelte';
 	import Money from '#lib/components/Money.svelte';
+	import PreviewLink from '#lib/components/PreviewLink.svelte';
 	import { formatDate, formatDateTime, formatMonth } from '#lib/dates.ts';
 	import {
 		balanceLabel,
@@ -357,12 +359,11 @@
 			{@const adjustHref = frozen.active && !view.superseded ? prepaymentHref(lease) : null}
 			<div class="row between lease-actions">
 				<span class="row">
-					<a
+					<PreviewLink
 						class="button secondary small"
 						href="/betriebskosten/abrechnungen/{statement.id}/pdf/{lease.leaseId}"
+						title="Abrechnung {unitNames(lease)}"><Icon name="file" size={14} /> PDF</PreviewLink
 					>
-						PDF
-					</a>
 					{#if adjustHref}
 						<a class="button secondary small" href={adjustHref}>Vorauszahlung anpassen</a>
 					{/if}

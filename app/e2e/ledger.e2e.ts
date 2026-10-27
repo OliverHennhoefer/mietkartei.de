@@ -219,10 +219,24 @@ test('writes a Zahlungserinnerung, suggests a Mahnung next and lists it with the
 	const letters = page.getByRole('table', { name: 'Erstellte Schreiben' });
 	await expect(letters).toContainText('Zahlungserinnerung');
 	await expect(letters).toContainText('1.600,00 €');
-	const href = await letters.getByRole('link', { name: 'PDF' }).getAttribute('href');
+	const view = letters.getByRole('link', { name: 'Ansehen' });
+	const href = await view.getAttribute('href');
 	const pdf = await page.request.get(href!);
 	expect(pdf.status()).toBe(200);
 	expect(pdf.headers()['content-type']).toContain('application/pdf');
+	// The app shows it in a frame of its preview dialog.
+	expect(pdf.headers()['x-frame-options']).toBe('SAMEORIGIN');
+	// The headless shell of CI shows no PDF inside a page and would follow the link instead.
+	await page.addInitScript(() =>
+		Object.defineProperty(navigator, 'pdfViewerEnabled', { get: () => true })
+	);
+	await page.reload();
+	await view.click();
+	const preview = page.getByRole('dialog', { name: /^Zahlungserinnerung vom / });
+	await expect(preview.locator('iframe')).toHaveAttribute('src', href!);
+	await expect(preview.getByRole('link', { name: 'Herunterladen' })).toHaveAttribute('href', href!);
+	await preview.getByRole('button', { name: 'Vorschau schließen' }).click();
+	await expect(preview).toBeHidden();
 	const text = (await pdfText(await pdf.body())).replace(/\s+/g, ' ');
 	expect(text).toContain('Zahlungserinnerung zum Mietkonto');
 	expect(text).toContain('Miete November 2025');

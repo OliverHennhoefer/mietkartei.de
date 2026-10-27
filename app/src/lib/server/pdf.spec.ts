@@ -209,6 +209,7 @@ describe('pdfResponse', () => {
 		expect(response.headers.get('Content-Disposition')).toBe(
 			`inline; filename="Abrechnung 2025 Mueller _ Soehne.pdf"; filename*=UTF-8''Abrechnung%202025%20M%C3%BCller%20%26%20S%C3%B6hne.pdf`
 		);
+		expect(response.headers.get('X-Frame-Options')).toBe('SAMEORIGIN');
 		expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
 	});
 });

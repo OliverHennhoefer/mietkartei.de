@@ -6,6 +6,8 @@
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
+	import PreviewLink from '#lib/components/PreviewLink.svelte';
+	import Icon from '#lib/components/Icon.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
 	import { formatRate } from '#lib/domain/default-interest.ts';
 	import { reminderLevelLabels } from '#lib/domain/reminders.ts';
@@ -29,6 +31,13 @@
 		reminder: 'Schreiben gelöscht.'
 	};
 	const reminderPdf = (id: string) => `/vertraege/${data.lease.id}/mietkonto/schreiben/${id}`;
+	const reminderTitle = (reminder: (typeof data.reminders.reminders)[number]) =>
+		`${reminderLevelLabels[reminder.level]} vom ${formatDate(reminder.date)}`;
+	const created = $derived(
+		form?.reminderId
+			? data.reminders.reminders.find((reminder) => reminder.id === form.reminderId)
+			: undefined
+	);
 	const latest = $derived(data.reminders.current[0]);
 	const interestBasis = $derived.by(() => {
 		const rate = data.reminders.baseRates.latest;
@@ -85,7 +94,11 @@
 {:else if form?.reminderId}
 	<Alert tone="success">
 		<p>
-			Schreiben erstellt. <a href={reminderPdf(form.reminderId)}>PDF herunterladen</a>
+			Schreiben erstellt.
+			<PreviewLink
+				href={reminderPdf(form.reminderId)}
+				title={created ? reminderTitle(created) : 'Schreiben'}>Schreiben ansehen</PreviewLink
+			>
 		</p>
 	</Alert>
 {/if}
@@ -308,16 +321,23 @@
 						<td class="num"><Money cents={reminder.amount} /></td>
 						<td>{formatDate(reminder.paymentDeadline)}</td>
 						<td class="actions">
-							<a href={reminderPdf(reminder.id)}>PDF</a>
-							<ConfirmButton
-								action="?/deleteReminder"
-								label="Löschen"
-								message="{reminderLevelLabels[reminder.level]} vom {formatDate(
-									reminder.date
-								)} löschen? Das Schreiben verschwindet nur hier, nicht beim Mieter."
-							>
-								<input type="hidden" name="id" value={reminder.id} />
-							</ConfirmButton>
+							<div class="row-actions">
+								<PreviewLink
+									href={reminderPdf(reminder.id)}
+									title={reminderTitle(reminder)}
+									class="button secondary small"><Icon name="file" size={14} /> Ansehen</PreviewLink
+								>
+								<ConfirmButton
+									action="?/deleteReminder"
+									label="Löschen"
+									small
+									message="{reminderTitle(
+										reminder
+									)} löschen? Das Schreiben verschwindet nur hier, nicht beim Mieter."
+								>
+									<input type="hidden" name="id" value={reminder.id} />
+								</ConfirmButton>
+							</div>
 						</td>
 					</tr>
 				{/each}

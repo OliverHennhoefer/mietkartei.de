@@ -1,4 +1,5 @@
 <script lang="ts">
+	import DocumentLink from '#lib/components/DocumentLink.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import { formatDate } from '#lib/dates.ts';
@@ -94,7 +95,7 @@
 						<td class="num"><Money cents={item.amount} /></td>
 						<td>
 							{#each item.receipts as receipt (receipt.id)}
-								<a href="/dokumente/{receipt.id}/herunterladen">{receipt.name}</a>
+								<DocumentLink document={receipt} />
 							{/each}
 						</td>
 					</tr>

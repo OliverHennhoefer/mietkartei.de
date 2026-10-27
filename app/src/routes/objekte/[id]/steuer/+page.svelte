@@ -2,7 +2,9 @@
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
 	import Field from '#lib/components/Field.svelte';
+	import Icon from '#lib/components/Icon.svelte';
 	import Money from '#lib/components/Money.svelte';
+	import PreviewLink from '#lib/components/PreviewLink.svelte';
 	import { FORM_YEAR, type TaxLine } from '#lib/domain/tax.ts';
 	import { formatNumber } from '#lib/format.ts';
 	import type { FieldErrors } from '#lib/forms/fields.ts';
@@ -46,8 +48,15 @@
 		</select>
 	</label>
 	<noscript><button type="submit" class="secondary small">Anzeigen</button></noscript>
-	<a class="button secondary small" href="/objekte/{property.id}/steuer/pdf{query}">PDF</a>
-	<a class="button secondary small" href="/objekte/{property.id}/steuer/csv{query}" download>CSV</a>
+	<PreviewLink
+		class="button secondary small"
+		href="/objekte/{property.id}/steuer/pdf{query}"
+		title="Steuerübersicht {property.name} {data.year}"
+		><Icon name="file" size={14} /> PDF</PreviewLink
+	>
+	<a class="button secondary small" href="/objekte/{property.id}/steuer/csv{query}" download
+		><Icon name="download" size={14} /> CSV</a
+	>
 </form>
 
 <Alert role="note">

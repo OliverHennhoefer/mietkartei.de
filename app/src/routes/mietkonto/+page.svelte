@@ -233,30 +233,10 @@
 	td.actions {
 		white-space: normal;
 	}
-	.row-actions {
-		display: flex;
-		align-items: center;
-		justify-content: flex-end;
-		gap: 0.4rem;
-	}
-	.row-actions > * {
-		white-space: nowrap;
-	}
 	@media (max-width: 75rem) {
 		.row-actions {
 			flex-wrap: wrap;
 		}
-	}
-	.row-actions form {
-		display: contents;
-	}
-	.row-actions .button.small {
-		min-height: 2rem;
-		padding: 0.3rem 0.65rem;
-		font-size: 0.8rem;
-	}
-	.row-actions button {
-		gap: 0.35rem;
 	}
 	.open {
 		display: inline-grid;

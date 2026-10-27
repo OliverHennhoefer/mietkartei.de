@@ -371,7 +371,7 @@ describe('cost items', () => {
 		);
 		if (!stored.ok) throw new Error('setup failed');
 		expect((await getCostItem(db, 'a', id))!.receipts).toEqual([
-			{ id: stored.id, name: 'Bescheid.pdf' }
+			{ id: stored.id, name: 'Bescheid.pdf', mimeType: 'application/pdf' }
 		]);
 
 		expect(await deleteCostItem(db, contextA, id, { storage })).toBe('deleted');

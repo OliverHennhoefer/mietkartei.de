@@ -24,9 +24,9 @@ async function collect(db: Database, accountId: string): Promise<ExportData> {
 	return JSON.parse(text) as ExportData;
 }
 
-/** The demo account with a document, in account a of the source database. */
+/** The demo account with one more document, in account a of the source database. */
 async function seedSource() {
-	const created = await createDemoData(source, contextA);
+	const created = await createDemoData(source, contextA, { storage: memoryStorage() });
 	if (!created.ok) throw new Error(created.reason);
 	await source
 		.update(accounts)
@@ -53,7 +53,7 @@ describe('restoreExport', () => {
 		const exported = await collect(source, 'a');
 
 		const result = await restoreExport(target, contextA, exported);
-		expect(result).toMatchObject({ ok: true, documents: 1 });
+		expect(result).toMatchObject({ ok: true, documents: exported.tables.documents.length });
 
 		const again = await collect(target, 'a');
 		for (const table of restoredTables) {
@@ -243,7 +243,7 @@ describe('restoreDocument', () => {
 			ok: false,
 			reason: 'exists'
 		});
-		const [row] = await target.select().from(documents);
+		const [row] = await target.select().from(documents).where(eq(documents.id, documentId));
 		expect(row.storageKey).toBe(storageKey('b', documentId));
 	});
 });
