@@ -113,7 +113,6 @@
 				<th class="num">Heizkosten</th>
 				<th class="num">Gesamtmiete</th>
 				<th>Grund</th>
-				<th>Status</th>
 				<th>Index</th>
 				<th>Notiz</th>
 				<th class="actions"></th>
@@ -125,6 +124,7 @@
 					<td>
 						{formatDate(change.validFrom)}
 						{#if change === current}<Badge tone="info">Aktuell</Badge>{/if}
+						{#if change.status !== 'approved'}<Badge tone="warning">Vorschlag</Badge>{/if}
 					</td>
 					<td class="num"><Money cents={change.baseRent} /></td>
 					<td class="num"><Money cents={change.operatingCostPrepayment} /></td>
@@ -132,15 +132,9 @@
 					<td class="num"><Money cents={total(change)} /></td>
 					<td>{rentChangeReasonLabels[change.reason]}</td>
 					<td>
-						{#if change.status === 'approved'}
-							<Badge tone="success">Freigegeben</Badge>
-						{:else}
-							<Badge tone="warning">Vorschlag</Badge>
-						{/if}
-					</td>
-					<td>
 						{#if change.indexMonth && change.indexValue !== null}
-							{formatIndexValue(change.indexValue)} ({formatMonth(change.indexMonth)})
+							{formatIndexValue(change.indexValue)}
+							<span class="muted small nowrap">{formatMonth(change.indexMonth)}</span>
 						{/if}
 					</td>
 					<td class="note">{change.note ?? ''}</td>
@@ -313,27 +307,25 @@
 			{/each}
 		</ul>
 	{/if}
-	<ConfirmButton action="?/step" label="Staffel anlegen" message={stepMessage} tone="primary">
-		<div class="card step-form">
-			<Field label="Beginn der Staffel" error={stepErrors?.validFrom}>
-				<input
-					type="date"
-					name="validFrom"
-					bind:value={stepFrom}
-					aria-invalid={stepErrors?.validFrom ? 'true' : undefined}
-					required
-				/>
-			</Field>
-			<Field label="Neue Kaltmiete" error={stepErrors?.baseRent}>
-				<input
-					name="baseRent"
-					inputmode="decimal"
-					bind:value={stepRent}
-					aria-invalid={stepErrors?.baseRent ? 'true' : undefined}
-					required
-				/>
-			</Field>
-		</div>
+	<ConfirmButton action="?/step" label="Staffel anlegen" message={stepMessage} tone="primary" card>
+		<Field label="Beginn der Staffel" error={stepErrors?.validFrom}>
+			<input
+				type="date"
+				name="validFrom"
+				bind:value={stepFrom}
+				aria-invalid={stepErrors?.validFrom ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		<Field label="Neue Kaltmiete" error={stepErrors?.baseRent}>
+			<input
+				name="baseRent"
+				inputmode="decimal"
+				bind:value={stepRent}
+				aria-invalid={stepErrors?.baseRent ? 'true' : undefined}
+				required
+			/>
+		</Field>
 	</ConfirmButton>
 {/if}
 
@@ -415,6 +407,10 @@
 </form>
 
 <style>
+	.nowrap {
+		display: block;
+		white-space: nowrap;
+	}
 	.note {
 		max-width: 16rem;
 		white-space: pre-line;
@@ -431,9 +427,5 @@
 	}
 	.approval .from {
 		margin: 0 0 0.5rem;
-	}
-	.step-form {
-		display: grid;
-		margin: 0 0 0.75rem;
 	}
 </style>

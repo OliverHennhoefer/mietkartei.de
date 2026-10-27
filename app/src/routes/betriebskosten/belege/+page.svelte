@@ -70,9 +70,7 @@
 					<th>Lieferant</th>
 					{#if !data.property}<th>Objekt</th>{/if}
 					<th>Kostenart</th>
-					<th>Umlageschlüssel</th>
-					<th>Abrechnungskreis</th>
-					<th>Zeitraum</th>
+					<th>Verteilung</th>
 					<th class="num">Betrag</th>
 					<th>Datei</th>
 				</tr>
@@ -81,13 +79,19 @@
 				{#each data.items as item (item.id)}
 					<tr>
 						<td>{item.invoiceDate ? formatDate(item.invoiceDate) : '–'}</td>
-						<td><a href="/betriebskosten/belege/{item.id}">{item.description}</a></td>
+						<td>
+							<a href="/betriebskosten/belege/{item.id}">{item.description}</a>
+							<span class="detail nowrap">
+								{formatDate(item.periodStart)} – {formatDate(item.periodEnd)}
+							</span>
+						</td>
 						<td>{item.supplier ?? '–'}</td>
 						{#if !data.property}<td>{item.propertyName}</td>{/if}
 						<td>{item.categoryName}</td>
-						<td>{item.keyName}</td>
-						<td>{item.circleName ?? 'alle Einheiten'}</td>
-						<td class="nowrap">{formatDate(item.periodStart)} – {formatDate(item.periodEnd)}</td>
+						<td>
+							{item.keyName}
+							<span class="detail">{item.circleName ?? 'alle Einheiten'}</span>
+						</td>
 						<td class="num"><Money cents={item.amount} /></td>
 						<td>
 							{#each item.receipts as receipt (receipt.id)}
@@ -99,7 +103,7 @@
 			</tbody>
 			<tfoot>
 				<tr>
-					<td colspan={data.property ? 7 : 8}>Summe</td>
+					<td colspan={data.property ? 5 : 6}>Summe</td>
 					<td class="num"><Money cents={data.total} /></td>
 					<td></td>
 				</tr>
@@ -131,6 +135,12 @@
 {/if}
 
 <style>
+	/* The second line of a cell: the period under the description, the circle under the key. */
+	.detail {
+		display: block;
+		color: var(--color-muted);
+		font-size: 0.85rem;
+	}
 	.nowrap {
 		white-space: nowrap;
 	}

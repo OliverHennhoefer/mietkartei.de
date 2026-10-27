@@ -1,6 +1,6 @@
 import { and, desc, eq } from 'drizzle-orm';
-import { addMonths, monthOf, today, type IsoDate } from '../dates';
-import { splitCo2Cost } from '../domain/co2';
+import { monthOf, today, type IsoDate } from '../dates';
+import { co2Deadline, splitCo2Cost } from '../domain/co2';
 import { formatCents } from '../money';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
@@ -38,11 +38,6 @@ export type Co2SplitEntry = Co2SplitRow & {
 	deadline: IsoDate;
 	deadlinePassed: boolean;
 };
-
-/** The settlement deadline of a claim: 12 months after the tenant presented it. */
-export function co2Deadline(claimedOn: IsoDate): IsoDate {
-	return addMonths(claimedOn, 12);
-}
 
 /** The splits of a lease, newest year first, with the derived figures the page shows. */
 export async function listCo2Splits(

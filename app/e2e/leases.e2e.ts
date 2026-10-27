@@ -32,7 +32,30 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	// The unit and the tenant come preselected from the query string.
 	await page.goto(`/vertraege/neu?unitId=${unitId}&tenantId=${tenantId}`);
 	await expect(page.locator('select[name="unitId"]')).toHaveValue(unitId);
-	await expect(page.getByRole('checkbox', { name: tenantName })).toBeChecked();
+	const remove = page.getByRole('button', { name: `${tenantName} entfernen` });
+	await expect(remove).toBeVisible();
+	// The tenant picker: remove the pill, find the tenant again by part of the name and add it with
+	// the keyboard.
+	await remove.click();
+	await expect(remove).toHaveCount(0);
+	const picker = page.getByRole('combobox', { name: 'Mieter', exact: true });
+	await picker.fill(tenantName.split(' ')[1].toLowerCase());
+	await expect(page.getByRole('option', { name: tenantName })).toBeVisible();
+	await picker.press('Enter');
+	await expect(remove).toBeVisible();
+	await expect(page.locator('input[name="tenantIds"]')).toHaveValue(tenantId);
+	await picker.press('Escape');
+	await expect(page.getByRole('listbox', { name: 'Mieter' })).toHaveCount(0);
+	// Help texts sit behind a (?) at the field title.
+	const tip = page.getByRole('tooltip', { name: 'Leer bei unbefristeten Verträgen.' });
+	await expect(tip).toBeHidden();
+	await page
+		.locator('.field', { hasText: 'Vertragsende (optional)' })
+		.getByRole('button', { name: 'Hinweis' })
+		.click();
+	await expect(tip).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(tip).toBeHidden();
 	// The start defaults to the first of next month.
 	await expect(page.locator('input[name="startDate"]')).toHaveValue(/^\d{4}-\d{2}-01$/);
 	await page.getByLabel('Beginn', { exact: true }).fill('2025-01-01');

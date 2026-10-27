@@ -408,24 +408,27 @@
 			Die Abrechnung kann noch nicht freigegeben werden: {view.blocking[0].message}
 		</p>
 	{:else}
-		<ConfirmButton action="?/approve" label={approveLabel} message={approvalMessage} tone="primary">
+		<ConfirmButton
+			action="?/approve"
+			label={approveLabel}
+			message={approvalMessage}
+			tone="primary"
+			card={property.late}
+		>
 			{#if property.late}
-				<div class="late card">
-					<p>
-						Die Abrechnungsfrist ist am {formatDate(property.deadline)} abgelaufen (§ 556 Abs. 3 BGB).
-						Nachzahlungen von Wohnraummietern werden nur gebucht, wenn du die Verspätung nicht zu vertreten
-						hast.
-					</p>
-					<label class="inline">
-						<input type="checkbox" name="lateApprovalJustified" />
-						Verspätung nicht zu vertreten
-					</label>
-					<label>
-						Begründung
-						<textarea name="note" aria-invalid={errors?.note ? 'true' : undefined}></textarea>
-						{#if errors?.note}<span class="error">{errors.note}</span>{/if}
-					</label>
-				</div>
+				<p class="late form-wide">
+					Die Abrechnungsfrist ist am {formatDate(property.deadline)} abgelaufen (§ 556 Abs. 3 BGB). Nachzahlungen
+					von Wohnraummietern werden nur gebucht, wenn du die Verspätung nicht zu vertreten hast.
+				</p>
+				<label class="inline form-wide">
+					<input type="checkbox" name="lateApprovalJustified" />
+					Verspätung nicht zu vertreten
+				</label>
+				<label class="form-wide">
+					Begründung
+					<textarea name="note" aria-invalid={errors?.note ? 'true' : undefined}></textarea>
+					{#if errors?.note}<span class="error">{errors.note}</span>{/if}
+				</label>
 			{/if}
 		</ConfirmButton>
 	{/if}
@@ -503,12 +506,6 @@
 		width: auto;
 	}
 	.late {
-		display: grid;
-		gap: 0.5rem;
-		margin-bottom: 0.75rem;
-		max-width: 36rem;
-	}
-	.late p {
 		margin: 0;
 	}
 </style>

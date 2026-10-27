@@ -3,7 +3,7 @@ import { desc, eq, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { auditLog, co2CostSplits, properties, rentCharges } from './db/schema';
 import type { Database } from './db';
-import { co2Deadline, createCo2Split, deleteCo2Split, listCo2Splits } from './co2';
+import { createCo2Split, deleteCo2Split, listCo2Splits } from './co2';
 import type { Co2SplitInput } from './co2';
 import { QUOTAS } from './quotas';
 import {
@@ -53,13 +53,6 @@ async function chargesOf(lease: string) {
 		.where(eq(rentCharges.leaseId, lease))
 		.orderBy(desc(rentCharges.createdAt));
 }
-
-describe('co2Deadline', () => {
-	it('is twelve months after the claim', () => {
-		expect(co2Deadline('2026-03-15')).toBe('2027-03-15');
-		expect(co2Deadline('2024-02-29')).toBe('2025-02-28');
-	});
-});
 
 describe('createCo2Split', () => {
 	it('stores the split and posts the landlord share as a credit, with an audit entry', async () => {
