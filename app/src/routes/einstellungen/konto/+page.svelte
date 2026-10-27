@@ -3,7 +3,7 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import { RESET_CONFIRMATION } from '#lib/forms/auth.ts';
-	import { PRIVACY_POLICY_URL } from '#lib/legal.ts';
+	import { PRIVACY_POLICY_URL, PROCESSING_AGREEMENT_URL } from '#lib/legal.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -32,10 +32,11 @@
 
 <PageHeader title="Konto" />
 
-{#if PRIVACY_POLICY_URL}
+{#if PRIVACY_POLICY_URL && PROCESSING_AGREEMENT_URL}
 	<p class="muted">
 		Welche Daten mietkartei speichert, bei welchen Dienstleistern und wie lange, steht in der
-		<a href={PRIVACY_POLICY_URL}>Datenschutzerklärung</a>.
+		<a href={PRIVACY_POLICY_URL}>Datenschutzerklärung</a>. Für die Daten deiner Mieter gilt der
+		<a href={PROCESSING_AGREEMENT_URL}>Vertrag zur Auftragsverarbeitung</a>.
 	</p>
 {/if}
 

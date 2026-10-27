@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
 	import { LAUNCH } from '#lib/launch.ts';
-	import { PRIVACY_POLICY_URL } from '#lib/legal.ts';
+	import { PRIVACY_POLICY_URL, PROCESSING_AGREEMENT_URL } from '#lib/legal.ts';
 	import { MIN_PASSWORD_LENGTH } from '#lib/validation.ts';
 	import type { PageProps } from './$types';
 
@@ -109,10 +109,12 @@
 					einmal.
 				</p>
 			{/if}
-			{#if PRIVACY_POLICY_URL}
+			{#if PRIVACY_POLICY_URL && PROCESSING_AGREEMENT_URL}
 				<p class="muted">
 					Wie mietkartei deine Daten und die deiner Mieter verarbeitet, steht in der
-					<a href={PRIVACY_POLICY_URL}>Datenschutzerklärung</a>.
+					<a href={PRIVACY_POLICY_URL}>Datenschutzerklärung</a>. Mit dem Konto gilt der
+					<a href={PROCESSING_AGREEMENT_URL}>Vertrag zur Auftragsverarbeitung</a> für die Daten deiner
+					Mieter.
 				</p>
 			{/if}
 			<div class="form-actions">
