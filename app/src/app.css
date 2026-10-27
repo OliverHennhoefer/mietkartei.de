@@ -72,7 +72,9 @@
 		'Segoe UI',
 		sans-serif;
 	font-synthesis: none;
-	font-size: 14px;
+	/* 14 px at the browser default, but relative, so a larger default font size set in the browser
+	   enlarges the whole app. */
+	font-size: 87.5%;
 	line-height: 1.6;
 	-webkit-font-smoothing: antialiased;
 	color: var(--color-text);

@@ -9,7 +9,7 @@
 	import Sparkline from '#lib/components/Sparkline.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
 	import { formatArea, pluralize } from '#lib/format.ts';
-	import { expenseCategoryLabels } from '#lib/labels.ts';
+	import { expenseCategoryLabels, expenseCategoryShortLabels } from '#lib/labels.ts';
 	import Filters from './Filters.svelte';
 	import { percent, perSqm } from './figures';
 	import type { PageProps } from './$types';
@@ -90,7 +90,9 @@
 			<span class="label">Ausgaben {periodLabel}</span>
 			<Sparkline values={past.map((point) => point.expenses)} />
 			{#if largest}
-				<span class="pill">größter Posten: {expenseCategoryLabels[largest.category]}</span>
+				<span class="pill" title={expenseCategoryLabels[largest.category]}>
+					größter Posten: {expenseCategoryShortLabels[largest.category]}
+				</span>
 			{/if}
 		</li>
 		<li class="card tile">
@@ -268,7 +270,7 @@
 		list-style: none;
 		padding: 0;
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
 		gap: 0.75rem;
 		margin: 0 0 0.75rem;
 	}
@@ -309,6 +311,10 @@
 	}
 	.pill {
 		justify-self: start;
+		max-width: 100%;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
 		margin-top: 0.6rem;
 		padding: 0.15rem 0.55rem;
 		border-radius: 999px;

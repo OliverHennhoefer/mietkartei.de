@@ -45,3 +45,4 @@ Worauf mietkartei setzt: nachvollziehbar gerechnete Umlagen, kein Lock-in (offen
 
 - [Impressum](https://mietkartei.de/impressum/): Anbieter und Kontakt
 - [Datenschutzerklärung](https://mietkartei.de/datenschutz/): Verarbeitung von Daten auf der Website
+- [Auftragsverarbeitung](https://mietkartei.de/auftragsverarbeitung/): Vertrag nach Art. 28 DSGVO für Vermieter in der gehosteten App

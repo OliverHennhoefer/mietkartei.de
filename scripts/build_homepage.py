@@ -21,6 +21,7 @@ for filename in (
     "index.html",
     "impressum/index.html",
     "datenschutz/index.html",
+    "auftragsverarbeitung/index.html",
     "fragen/index.html",
     "preise/index.html",
     "styles.css",
