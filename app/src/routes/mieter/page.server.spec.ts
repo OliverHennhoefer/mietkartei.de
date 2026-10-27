@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
+import { addDays, addMonths, today } from '#lib/dates.ts';
+import { createPayment } from '#lib/server/ledger.ts';
 import { getTenant } from '#lib/server/tenants.ts';
 import {
+	contextA,
 	outcome,
 	routeEvent,
 	seedLease,
@@ -13,6 +16,7 @@ import { actions as tenantActions, load as loadTenant } from './[id]/+page.serve
 import { actions as editActions, load as loadEdit } from './[id]/bearbeiten/+page.server';
 import { actions as newActions, load as loadNew } from './neu/+page.server';
 import { load } from './+page.server';
+import type { PageServerData } from './$types';
 
 let db: Database;
 let tenantId: string;
@@ -65,6 +69,63 @@ describe('mieter', () => {
 			...lindenwegRows,
 			[tenantId, null]
 		]);
+	});
+
+	it('puts the Rückstände and the coming moves above the list, with the figures of each tenant', async () => {
+		const date = today();
+		const { unitId } = await seedUnit(db, 'a');
+		const second = await seedUnit(db, 'a');
+		// The fixture tenant pays nothing since January 2025: in arrears.
+		const owing = await seedLease(db, 'a', unitId, { tenantIds: [tenantId] });
+		const leaving = await seedTenant(db, 'a', { firstName: 'Lea', lastName: 'Lang' });
+		const coming = await seedTenant(db, 'a', { firstName: 'Kai', lastName: 'Kurz' });
+		const moveOut = addMonths(date, 2);
+		const leavingLease = await seedLease(db, 'a', second.unitId, {
+			tenantIds: [leaving],
+			startDate: date,
+			endDate: moveOut,
+			terminatedAt: date,
+			terminatedBy: 'tenant'
+		});
+		const comingLease = await seedLease(db, 'a', second.unitId, {
+			tenantIds: [coming],
+			startDate: addDays(moveOut, 1)
+		});
+		// Lang paid today's rent, so only the fixture tenant owes.
+		await createPayment(db, contextA, {
+			leaseId: leavingLease,
+			date,
+			amount: 80000,
+			source: 'manual'
+		});
+
+		const { data } = (await run(load)) as { data: PageServerData };
+		const byId = new Map(data.tenants.map((row) => [row.id, row]));
+		expect(byId.get(tenantId)).toMatchObject({
+			activeLeases: [{ id: owing }],
+			rent: 80000,
+			since: '2025-01-01',
+			openSince: '2025-01',
+			moveOut: null,
+			moveIn: null
+		});
+		expect(byId.get(tenantId)!.overdue).toBeGreaterThan(0);
+		expect(byId.get(leaving)).toMatchObject({
+			overdue: 0,
+			moveOut: { date: moveOut, terminatedBy: 'tenant', label: expect.any(String) }
+		});
+		expect(byId.get(coming)).toMatchObject({
+			activeLeases: [],
+			rent: 0,
+			since: null,
+			moveIn: { id: comingLease, date: addDays(moveOut, 1) }
+		});
+		expect(data.pending.map((item) => [item.kind, item.tenantId])).toEqual([
+			['arrears', tenantId],
+			['out', leaving],
+			['in', coming]
+		]);
+		expect(data.overview).toMatchObject({ renting: 2, households: 2, rent: 160000 });
 	});
 
 	it('creates a tenant and returns to a safe path with it preselected', async () => {

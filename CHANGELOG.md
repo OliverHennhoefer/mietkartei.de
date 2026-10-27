@@ -18,6 +18,7 @@ Erste öffentliche Version. Sie enthält:
 - Mietkonto mit Soll und Ist je Mietvertrag, Rückständen und Kaution.
 - Bankimport per camt.053 oder CSV mit Zuordnungsvorschlägen und -regeln.
 - Objekte, Einheiten, Mieter und Mietverträge mit Index- und Staffelmiete.
+- Mieterübersicht mit „Steht an“: Rückstände samt letzter Mahnung, Kündigungen und anstehende Einzüge oben; die Liste zeigt je Mieter Warmmiete, Mietkonto, Mietbeginn und Hinweise.
 - Kleine Straßenkarte bei jedem Objekt aus Daten von OpenStreetMap, verortet über die Adresse, und eine interaktive Karte mit allen Objekten zum Verschieben und Zoomen: Objekte mit Leerstand oder Rückstand sind farbig hervorgehoben, ein Klick zeigt Einheiten, Rückstand und die Kaltmiete neben dem Zensus-Durchschnitt der Gemeinde; unter Einstellungen → Darstellung abschaltbar.
 - Helle oder dunkle Farben zur Wahl unter Einstellungen → Darstellung; ohne Wahl folgt mietkartei der Einstellung des Geräts.
 - Zähler und Abrechnungskreise, Dokumente, Aufgaben und Fristen.

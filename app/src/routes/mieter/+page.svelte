@@ -1,9 +1,14 @@
 <script lang="ts">
+	import Badge from '#lib/components/Badge.svelte';
+	import Balance from '#lib/components/Balance.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Icon from '#lib/components/Icon.svelte';
+	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
-	import { formatDate } from '#lib/dates.ts';
-	import { personName } from '#lib/format.ts';
+	import { formatDate, formatMonth } from '#lib/dates.ts';
+	import { reminderLevelLabels } from '#lib/domain/reminders.ts';
+	import { formatNumber, personName, pluralize } from '#lib/format.ts';
+	import { formatCents } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -23,16 +28,27 @@
 				.includes(search.trim().toLocaleLowerCase('de'))
 		)
 	);
+	const overview = $derived(data.overview);
+	const summary = $derived(
+		[
+			`${pluralize(overview.renting, 'Mieter', 'Mieter')} in ${pluralize(overview.households, 'Mietverhältnis', 'Mietverhältnissen')}`,
+			`${formatCents(overview.rent)} Warmmiete im Monat`,
+			overview.tenure === null
+				? null
+				: `im Schnitt ${formatNumber(overview.tenure, 1)} Jahre Mietdauer`
+		]
+			.filter(Boolean)
+			.join(' · ')
+	);
 
 	function address(tenant: {
 		street: string | null;
 		postalCode: string | null;
 		city: string | null;
 	}) {
-		const line = [tenant.street, [tenant.postalCode, tenant.city].filter(Boolean).join(' ')]
+		return [tenant.street, [tenant.postalCode, tenant.city].filter(Boolean).join(' ')]
 			.filter(Boolean)
 			.join(', ');
-		return line || '–';
 	}
 </script>
 
@@ -51,9 +67,50 @@
 		<a href="/einstellungen/datenuebernahme" class="button secondary">Importieren</a>
 	</EmptyState>
 {:else}
+	{#if data.pending.length > 0}
+		<section aria-labelledby="pending-title">
+			<h2 id="pending-title" class="pending-title">Steht an</h2>
+			<ul class="pending">
+				{#each data.pending as item (item.kind + item.tenantId)}
+					<li class="card {item.kind}">
+						<span class="dot" aria-hidden="true"></span>
+						<div>
+							<a href="/mieter/{item.tenantId}"><strong>{item.name}</strong></a>
+							<p>
+								{#if item.kind === 'arrears'}
+									Seit {formatMonth(item.openSince)} offen: <Balance cents={item.overdue} />
+									{#if item.reminder}<span class="muted reminder"
+											>{reminderLevelLabels[item.reminder.level]} vom {formatDate(
+												item.reminder.date
+											)}</span
+										>{/if}
+								{:else if item.kind === 'out'}
+									{#if item.terminatedBy === 'tenant'}Hat gekündigt, zieht am {formatDate(
+											item.date
+										)} aus
+									{:else if item.terminatedBy === 'landlord'}Gekündigt, zieht am {formatDate(
+											item.date
+										)} aus
+									{:else}Mietvertrag endet am {formatDate(item.date)}{/if}
+									<span class="muted">· {item.label}</span>
+								{:else}
+									Zieht am {formatDate(item.date)} ein
+									<span class="muted">· <a href="/vertraege/{item.id}">{item.label}</a></span>
+								{/if}
+							</p>
+						</div>
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
+
 	{#if data.tenants.length === 0}
 		<p class="muted">Alle deine Mieter sind archiviert.</p>
 	{:else}
+		{#if overview.households > 0}
+			<p class="summary muted">{summary}</p>
+		{/if}
 		<div class="list-toolbar">
 			<h2>
 				Deine Mieter <span class="result-count" aria-live="polite">{filteredTenants.length}</span>
@@ -81,8 +138,11 @@
 					<thead>
 						<tr>
 							<th>Name</th>
-							<th>Adresse</th>
-							<th>Aktive Mietverträge</th>
+							<th>Mietet</th>
+							<th class="num">Warmmiete</th>
+							<th class="num">Mietkonto</th>
+							<th>Mieter seit</th>
+							<th>Hinweis</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -92,20 +152,49 @@
 							>
 								<td>
 									<a href="/mieter/{tenant.id}"><strong>{personName(tenant)}</strong></a>
-									{#if tenant.salutation}<span class="muted small">
-											({tenant.salutation})</span
+									{#if tenant.email || tenant.phone}<span class="muted small contact"
+											>{tenant.email ?? tenant.phone}</span
 										>{/if}
 								</td>
-								<td>{address(tenant)}</td>
 								<td>
-									{#if tenant.activeLeases.length === 0}
-										<span class="muted">keine</span>
-									{:else}
+									{#if tenant.activeLeases.length > 0}
 										{#each tenant.activeLeases as lease, index (lease.id)}
 											{#if index > 0},{/if}
 											<a href="/vertraege/{lease.id}">{lease.label}</a>
 										{/each}
+									{:else if tenant.moveIn}
+										<a href="/vertraege/{tenant.moveIn.id}">{tenant.moveIn.label}</a>
+									{:else}
+										<span class="muted">keine</span>
 									{/if}
+								</td>
+								<td class="num">
+									{#if tenant.rent > 0}<Money cents={tenant.rent} />{:else}–{/if}
+								</td>
+								<td class="num">
+									{#if tenant.overdue > 0}<Balance
+											cents={tenant.overdue}
+										/>{:else if tenant.activeLeases.length > 0}<span class="muted"
+											>ausgeglichen</span
+										>{:else}–{/if}
+								</td>
+								<td>{tenant.since ? formatDate(tenant.since) : '–'}</td>
+								<td>
+									<span class="badges">
+										{#if tenant.overdue > 0}
+											<Badge tone="danger"
+												>{tenant.reminder
+													? `Rückstand · ${reminderLevelLabels[tenant.reminder.level]}`
+													: 'Rückstand'}</Badge
+											>
+										{/if}
+										{#if tenant.moveOut}
+											<Badge tone="warning">Auszug {formatDate(tenant.moveOut.date)}</Badge>
+										{/if}
+										{#if tenant.moveIn}
+											<Badge tone="info">Einzug {formatDate(tenant.moveIn.date)}</Badge>
+										{/if}
+									</span>
 								</td>
 							</tr>
 						{/each}
@@ -142,6 +231,56 @@
 		.group-start td {
 			border-top: 0;
 		}
+	}
+	.pending-title {
+		margin-top: 0;
+	}
+	.pending {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr));
+		gap: 0.75rem;
+		margin: 0 0 1.5rem;
+		padding: 0;
+		list-style: none;
+	}
+	.pending li {
+		display: flex;
+		gap: 0.75rem;
+		align-items: flex-start;
+		padding: 1rem 1.15rem;
+	}
+	.pending p {
+		margin: 0.25rem 0 0;
+		font-size: 0.875rem;
+	}
+	/* Red for money owed, green for a tenant coming, grey for one leaving. */
+	.dot {
+		flex: none;
+		width: 0.55rem;
+		height: 0.55rem;
+		margin-top: 0.45rem;
+		border-radius: 50%;
+		background: var(--color-muted);
+	}
+	.arrears .dot {
+		background: var(--color-danger);
+	}
+	.in .dot {
+		background: var(--color-success);
+	}
+	.reminder {
+		display: block;
+	}
+	.summary {
+		margin: 0 0 1.5rem;
+	}
+	.contact {
+		display: block;
+	}
+	.badges {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem;
 	}
 	.archive {
 		margin-top: 2rem;
