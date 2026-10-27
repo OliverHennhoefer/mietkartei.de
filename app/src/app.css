@@ -1462,6 +1462,7 @@ dl.details dd {
 		--color-border: #ddd;
 		--color-surface: #fff;
 		--color-background: #fff;
+		--color-field: #fff;
 		--color-subtle: #fff;
 		--color-hover: #eee;
 		--color-accent: #111;
