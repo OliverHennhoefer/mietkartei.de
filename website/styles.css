@@ -158,9 +158,14 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .promises h3 { margin: 0; font-size: 22px; letter-spacing: -.025em; }
 .promises p { margin-top: 10px; color: var(--muted); font-size: 17px; }
 
-.closing { max-width: 760px; margin: 0 auto; padding: 140px 0; text-align: center; }
-.closing h2 { margin: 0; font-size: clamp(32px, 4vw, 52px); line-height: 1.1; letter-spacing: -.045em; }
-.closing p { margin-top: 18px; color: var(--muted); font-size: 19px; }
+.start { padding: 120px 0 140px; }
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 48px 0 0; padding: 0; list-style: none; }
+.steps li { display: flex; flex-direction: column; padding: 32px; border: 1px solid var(--line); border-radius: 16px; }
+.step-number { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--highlight); color: #000; font-size: 17px; font-weight: 600; }
+.steps h3 { margin: 20px 0 0; font-size: 22px; letter-spacing: -.025em; }
+.steps p { flex: 1; margin-top: 10px; color: var(--muted); font-size: 17px; line-height: 1.6; }
+.step-link { align-self: flex-start; margin-top: 24px; font-size: 17px; font-weight: 500; text-decoration-color: var(--highlight); text-decoration-thickness: 3px; text-underline-offset: 5px; }
+.step-link span { margin-left: 8px; }
 
 @media (prefers-color-scheme: dark) {
   .stage-glow { opacity: .22; }
@@ -188,6 +193,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
   .facts li:nth-child(n + 3) { border-top: 1px solid var(--line); }
   .promises ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .areas ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .steps { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 600px) {
@@ -208,7 +214,8 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
   .areas { padding-top: 96px; }
   .areas ul { grid-template-columns: minmax(0, 1fr); }
   .areas li { padding: 22px 20px; }
-  .closing { padding: 88px 0 96px; }
+  .start { padding: 88px 0 96px; }
+  .steps li { padding: 24px; }
 }
 
 /* Every page but the homepage shares one frame, set by the pricing page: the way back to the
