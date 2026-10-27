@@ -51,12 +51,9 @@
 		stroke-linecap: round;
 	}
 	.area {
-		fill: var(--color-chart-net);
-		opacity: 0.6;
-	}
-	@media (prefers-color-scheme: dark) {
-		.area {
-			opacity: 0.25;
-		}
+		fill: light-dark(
+			color-mix(in srgb, var(--color-chart-net) 60%, transparent),
+			color-mix(in srgb, var(--color-chart-net) 25%, transparent)
+		);
 	}
 </style>

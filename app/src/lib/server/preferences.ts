@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import type { Database } from './db/index.ts';
-import { users } from './db/schema.ts';
+import { users, type Theme } from './db/schema.ts';
 
 // Display preferences of each user; they change only how the app looks to that user.
 
@@ -19,4 +19,8 @@ export async function setShowPropertyMaps(
 	show: boolean
 ): Promise<void> {
 	await db.update(users).set({ showPropertyMaps: show }).where(eq(users.id, userId));
+}
+
+export async function setTheme(db: Database, userId: string, theme: Theme): Promise<void> {
+	await db.update(users).set({ theme }).where(eq(users.id, userId));
 }

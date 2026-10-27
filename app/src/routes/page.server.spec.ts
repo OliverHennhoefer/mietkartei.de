@@ -202,6 +202,7 @@ describe('layout', () => {
 				email: 'a@example.org',
 				name: null,
 				role: 'owner',
+				theme: 'system',
 				billingEnabled: false,
 				demo: false,
 				prelaunch: false,
