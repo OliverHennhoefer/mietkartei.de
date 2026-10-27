@@ -41,8 +41,10 @@ describe('einstellungen/darstellung', () => {
 				?.theme;
 		expect(await theme()).toBe('system');
 
-		await run(actions.default, { form: { theme: 'dark' } });
+		const event = routeEvent(db, { form: { theme: 'dark' } }) as { locals: App.Locals };
+		await outcome(() => actions.default(event as never));
 		expect(await theme()).toBe('dark');
+		expect(event.locals.theme).toBe('dark');
 		expect(await run(load, { theme: 'dark' })).toMatchObject({
 			data: { theme: 'dark' }
 		});

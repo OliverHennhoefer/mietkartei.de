@@ -15,7 +15,11 @@ export const actions: Actions = {
 		const user = requireUser(locals);
 		const form = await request.formData();
 		const theme = form.get('theme');
-		if (themes.includes(theme as Theme)) await setTheme(locals.db, user.id, theme as Theme);
+		if (themes.includes(theme as Theme)) {
+			await setTheme(locals.db, user.id, theme as Theme);
+			// The page rendered after a post without JavaScript reads it in the same request.
+			locals.theme = theme as Theme;
+		}
 		await setShowPropertyMaps(locals.db, user.id, form.get('showPropertyMaps') === 'on');
 		return { saved: true };
 	}
