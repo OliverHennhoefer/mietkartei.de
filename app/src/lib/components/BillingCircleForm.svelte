@@ -69,7 +69,7 @@
 	}
 	.units legend {
 		font-weight: 500;
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 		margin-bottom: 0.25rem;
 	}
 </style>

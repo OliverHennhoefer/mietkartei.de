@@ -64,7 +64,7 @@
 		grid-template-columns: minmax(9rem, 14rem) 1fr minmax(11rem, auto);
 		gap: 0.75rem;
 		align-items: center;
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 	}
 	.track {
 		position: relative;

@@ -220,7 +220,7 @@
 		min-width: 0;
 		margin: 0;
 		overflow: hidden;
-		font-weight: 550;
+		font-weight: 600;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
@@ -229,14 +229,14 @@
 	}
 	.preview-hint {
 		color: var(--color-muted);
-		font-size: 0.8rem;
+		font-size: var(--text-xs);
 	}
 	.preview-problem {
 		margin: 0;
 		padding: 0.5rem 1.25rem;
 		background: var(--color-danger-subtle);
 		color: var(--color-danger);
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 	}
 	.preview-body {
 		flex: 1;

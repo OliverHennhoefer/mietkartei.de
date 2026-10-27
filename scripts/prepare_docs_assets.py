@@ -15,7 +15,7 @@ for filename in (
     "lockup-highlight.svg",
     "lockup-highlight-white.svg",
     "favicon.svg",
-    "fonts/geist/Geist.ttf",
+    "fonts/geist/Geist.woff2",
     "fonts/geist/OFL.txt",
 ):
     destination = DESTINATION / filename

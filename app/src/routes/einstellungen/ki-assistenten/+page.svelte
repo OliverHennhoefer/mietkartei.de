@@ -257,7 +257,7 @@
 	}
 	.created h3 {
 		margin: 1.25rem 0 0.5rem;
-		font-size: 0.95rem;
+		font-size: var(--text-base);
 	}
 	.key {
 		display: flex;
@@ -275,7 +275,7 @@
 		border: 1px solid var(--color-border);
 		border-radius: 6px;
 		background: var(--color-subtle);
-		font-size: 0.8rem;
+		font-size: var(--text-xs);
 	}
 	code {
 		font-size: 0.85em;

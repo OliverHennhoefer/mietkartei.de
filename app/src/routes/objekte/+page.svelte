@@ -147,7 +147,7 @@
 <style>
 	.map-credit {
 		margin: 0.5rem 0 0;
-		font-size: 0.72rem;
+		font-size: var(--text-xs);
 		text-align: right;
 	}
 	.property-list {
@@ -216,18 +216,18 @@
 		min-width: 0;
 	}
 	.property-info strong {
-		font-size: 0.95rem;
+		font-size: var(--text-base);
 		overflow-wrap: anywhere;
 	}
 	.property-address {
 		color: var(--color-muted);
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 		overflow-wrap: anywhere;
 	}
 	.counts {
 		margin-top: 0.4rem;
 		color: var(--color-muted);
-		font-size: 0.78rem;
+		font-size: var(--text-xs);
 	}
 	.property-arrow {
 		color: var(--color-muted);

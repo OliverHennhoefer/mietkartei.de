@@ -404,7 +404,7 @@
 		}
 		.deadlines .date {
 			color: var(--color-muted);
-			font-size: 0.8rem;
+			font-size: var(--text-xs);
 		}
 		.deadlines td:empty {
 			display: none;

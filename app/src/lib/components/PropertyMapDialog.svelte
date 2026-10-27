@@ -213,12 +213,12 @@
 	}
 	.map-head h2 {
 		margin: 0;
-		font-size: 1rem;
+		font-size: var(--text-base);
 		letter-spacing: -0.02em;
 	}
 	.map-head p {
 		margin: 0.15rem 0 0;
-		font-size: 0.8rem;
+		font-size: var(--text-xs);
 	}
 	.map-actions {
 		display: flex;
@@ -283,7 +283,7 @@
 	}
 	.place.selected .label {
 		fill: var(--color-highlight);
-		font-weight: 650;
+		font-weight: 600;
 	}
 	.place:hover .halo,
 	.place:focus-visible .halo {
@@ -294,7 +294,7 @@
 	}
 	.map-source {
 		margin: 0.6rem 0 0;
-		font-size: 0.72rem;
+		font-size: var(--text-xs);
 	}
 	@media (max-width: 40rem) {
 		.map-dialog {
