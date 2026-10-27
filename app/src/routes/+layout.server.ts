@@ -12,6 +12,9 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		demo: DEMO,
 		// The hosted variant before its public launch; the demo and self-hosted instances never are.
 		prelaunch: HOSTED && !DEMO,
+		// Only app.mietkartei.de and its demo link the privacy policy and the processing agreement
+		// on the website; a self-hosted instance, also on Cloudflare, has another operator.
+		hosted: HOSTED,
 		notice: locals.user ? await billingNotice(locals) : undefined
 	};
 };

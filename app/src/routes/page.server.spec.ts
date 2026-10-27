@@ -207,6 +207,7 @@ describe('layout', () => {
 				billingEnabled: false,
 				demo: false,
 				prelaunch: false,
+				hosted: false,
 				notice: undefined
 			}
 		});
