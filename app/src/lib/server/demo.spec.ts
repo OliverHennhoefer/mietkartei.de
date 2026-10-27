@@ -78,7 +78,7 @@ describe('createDemoData', () => {
 			expect.objectContaining({ unitId: nowak.unitId, startDate: addDays(nowak.endDate!, 1) })
 		]);
 		expect(await rows(leases)).toHaveLength(11);
-		expect(await rows(tasks)).toHaveLength(5);
+		expect(await rows(tasks)).toHaveLength(6);
 		expect(await countUnmatched(db, 'a')).toBe(3);
 
 		// Every history year but the last is settled: three properties over seven years, each
@@ -140,7 +140,7 @@ describe('createDemoData', () => {
 
 		await db.run(sql`drop trigger refuse_tasks`);
 		expect(await createDemoData(db, contextA, { storage })).toEqual({ ok: true, leases: 11 });
-		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(5);
+		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(6);
 	});
 
 	it('takes its rows out again when a later step fails, keeping what the account held', async () => {

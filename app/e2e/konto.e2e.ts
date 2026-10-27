@@ -209,7 +209,7 @@ test('fills a fresh account with demo data and resets it to factory settings', a
 	await page.getByRole('button', { name: 'Demodaten anlegen' }).click();
 	await expect(page).toHaveURL(/\/aufgaben$/);
 	await expect(firstRun).toHaveCount(0);
-	const attention = page.getByRole('list', { name: 'Handlungsbedarf' });
+	const attention = page.getByRole('region', { name: 'Überblick' });
 	await expect(attention).toContainText('Rückstände bei');
 	await expect(attention).toContainText('3 offene Bankumsätze zuordnen');
 

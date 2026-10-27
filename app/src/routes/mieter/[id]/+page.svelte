@@ -70,11 +70,11 @@
 
 {#if dossier.leases.length > 0}
 	<div class="stats" aria-label="Auf einen Blick">
-		<div class="stat card">
+		<div class="stat">
 			<span class="value"><Money cents={currentRent} /></span>
 			<span class="label">Warmmiete im Monat</span>
 		</div>
-		<div class="stat card">
+		<div class="stat">
 			<span class="value"
 				><Balance
 					cents={finances.overdue > 0 ? finances.overdue : finances.balance}
@@ -86,14 +86,14 @@
 					noch nicht fällig{:else}Mietkonto ausgeglichen{/if}
 			</span>
 		</div>
-		<div class="stat card">
+		<div class="stat">
 			<span class="value"><Money cents={finances.depositHeld} /></span>
 			<span class="label">
 				Kaution gehalten{#if finances.depositOutstanding > 0}
 					· <Money cents={finances.depositOutstanding} /> noch offen{/if}
 			</span>
 		</div>
-		<div class="stat card">
+		<div class="stat">
 			<span class="value">{tenantSince ? formatDate(tenantSince) : '–'}</span>
 			<span class="label">Mieter seit</span>
 		</div>
