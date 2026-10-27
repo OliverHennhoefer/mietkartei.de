@@ -10,6 +10,7 @@ import {
 	type OpenItem
 } from '../domain/reminders';
 import { defaultInterest, type InterestResult } from '../domain/default-interest';
+import { letterText as editedLetterText, type LetterTextResult } from '../domain/letters';
 import { formatCents } from '../money';
 import { addressLines, landlordAddress } from './accounts';
 import { auditEntry, type AuditContext } from './audit';
@@ -247,6 +248,41 @@ export async function deleteReminder(
 		auditEntry(db, context, 'lease', leaseId, 'delete', `${reminderSummary(reminder)} gelöscht`)
 	]);
 	return true;
+}
+
+/**
+ * Replaces the text of a letter with the paragraphs edited on its sheet. The salutation and the
+ * paragraph that announces the table stay, so the table keeps its place. Undefined when the
+ * letter is not the lease's.
+ */
+export async function updateReminderText(
+	db: Database,
+	context: AuditContext,
+	leaseId: string,
+	reminderId: string,
+	paragraphs: unknown
+): Promise<LetterTextResult | undefined> {
+	const where = and(
+		eq(paymentReminders.accountId, context.accountId),
+		eq(paymentReminders.leaseId, leaseId),
+		eq(paymentReminders.id, reminderId)
+	);
+	const [reminder] = await db.select().from(paymentReminders).where(where);
+	if (!reminder) return undefined;
+	const result = editedLetterText(paragraphs, 2);
+	if (!result.ok || result.text === reminder.letterText) return result;
+	await runBatch(db, [
+		db.update(paymentReminders).set({ letterText: result.text }).where(where),
+		auditEntry(
+			db,
+			context,
+			'lease',
+			leaseId,
+			'update',
+			`Text: ${reminderSummary(reminder)} geändert`
+		)
+	]);
+	return result;
 }
 
 /** A stored letter as a Letter for renderLetter; undefined when it is not the lease's. */

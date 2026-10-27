@@ -97,6 +97,7 @@
 			Schreiben erstellt.
 			<PreviewLink
 				href={reminderPdf(form.reminderId)}
+				text="{reminderPdf(form.reminderId)}/text"
 				title={created ? reminderTitle(created) : 'Schreiben'}>Schreiben ansehen</PreviewLink
 			>
 		</p>
@@ -324,6 +325,7 @@
 							<div class="row-actions">
 								<PreviewLink
 									href={reminderPdf(reminder.id)}
+									text="{reminderPdf(reminder.id)}/text"
 									title={reminderTitle(reminder)}
 									class="button secondary small"><Icon name="file" size={14} /> Ansehen</PreviewLink
 								>

@@ -13,7 +13,8 @@ import {
 	manualChange,
 	proposeIndexChange,
 	removeChange,
-	recipientLines
+	recipientLines,
+	updateIndexLetterText
 } from './rent-adjustments';
 import { QUOTAS } from './quotas';
 import { listRentChanges } from './rents';
@@ -579,6 +580,32 @@ describe('indexLetter', () => {
 			['Kaltmiete', '600,00 €', '630,96 €'],
 			['Gesamtmiete', '800,00 €', '830,96 €']
 		]);
+	});
+
+	it('takes an edited text once there is a letter', async () => {
+		await seedValues();
+		const proposed = await proposeIndexChange(db, contextA, leaseId);
+		const changeId = proposed?.ok ? proposed.id : '';
+		expect(await updateIndexLetterText(db, contextA, leaseId, changeId, ['Text'])).toBeUndefined();
+		await approveChange(db, contextA, leaseId, changeId, {
+			deliveredOn: '2026-10-15',
+			validFrom: null
+		});
+		const { paragraphs } = (await indexLetter(db, 'a', leaseId, changeId))!.letter;
+		const edited = [
+			paragraphs[0],
+			`${paragraphs[1]} Bei Fragen rufen Sie gern an.`,
+			...paragraphs.slice(2)
+		];
+
+		expect(await updateIndexLetterText(db, contextA, leaseId, changeId, edited)).toMatchObject({
+			ok: true
+		});
+		expect((await indexLetter(db, 'a', leaseId, changeId))!.letter.paragraphs).toEqual(edited);
+		expect(await updateIndexLetterText(db, contextA, leaseId, changeId, [''])).toMatchObject({
+			ok: false
+		});
+		expect(await updateIndexLetterText(db, contextB, leaseId, changeId, edited)).toBeUndefined();
 	});
 
 	it('does not leak into another account', async () => {

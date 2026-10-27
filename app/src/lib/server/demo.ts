@@ -59,7 +59,7 @@ import { newLeaseStatements, type LeaseInput } from './leases';
 import { ensureDefaults, listCategories, listKeys } from './operating-costs';
 import { assertQuota, type QuotaKind } from './quotas';
 import { renderLetter } from './pdf';
-import { createReminder } from './reminders';
+import { createReminder, reminderLetter, updateReminderText } from './reminders';
 import { approveStatement, DUE_DAYS } from './statements';
 import type { Storage } from './storage';
 import type { TenantInput } from './tenants';
@@ -1940,6 +1940,26 @@ export async function createDemoData(
 				paymentDeadline: addDays(soFar(letterDate), days)
 			});
 			if (!reminder?.ok) throw new Error(reminder?.message ?? 'Mahnung nicht erstellt');
+			if (level === 2) {
+				// The landlord added a line to the Mahnung after a call, on its sheet in the preview.
+				const { letter } = (await reminderLetter(db, accountId, leaseId('berger'), reminder.id))!;
+				const paragraphs = letter.blocks!.flatMap((block) =>
+					'paragraph' in block ? [block.paragraph] : []
+				);
+				paragraphs.splice(
+					3,
+					0,
+					'Wie am Telefon besprochen, können Sie den Betrag auch in zwei Raten zahlen: die Hälfte bis zur genannten Frist, den Rest bis zum Monatsende.'
+				);
+				const edited = await updateReminderText(
+					db,
+					context,
+					leaseId('berger'),
+					reminder.id,
+					paragraphs
+				);
+				if (!edited?.ok) throw new Error('Text der Mahnung nicht geändert');
+			}
 		}
 
 		// Weber and Albrecht heat with their own gas contract and claimed the landlord's CO₂ share of
