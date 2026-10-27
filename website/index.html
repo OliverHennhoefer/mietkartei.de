@@ -109,20 +109,18 @@
       <main class="home" id="inhalt">
         <section class="hero">
           <!-- latest-guide -->
-          <h1>Vermieten.<br>Mit <span class="marker">Überblick.</span></h1>
-          <p class="hero-lead">Mieten, Bankumsätze und die Nebenkostenabrechnung an einem Ort. Für private Vermieter, die ihre Zahlen verstehen wollen, statt Tabellen zu pflegen.</p>
+          <h1>Die Hausverwaltung <br>für private Vermieter.</h1>
+          <p class="hero-lead"><mark>Ohne Excel-Chaos:</mark> Mietverträge, Mietkonto, Bankumsätze, Nebenkostenabrechnung und Steuer an einem Ort, nachvollziehbar gerechnet. Für eine Wohnung genauso wie für zwanzig.</p>
           <div class="hero-actions">
-            <a class="button button-primary" href="https://app.mietkartei.de/anmelden">30 Tage kostenlos testen<span aria-hidden="true">→</span></a>
-            <a class="button button-ghost" href="https://demo.mietkartei.de/">Demo ansehen<span aria-hidden="true">↗</span></a>
+            <a class="button button-primary" href="https://demo.mietkartei.de/">Demo ansehen<span aria-hidden="true">↗</span></a>
+            <a class="button button-ghost" href="/preise/">Gehostet oder selbst betreiben<span aria-hidden="true">→</span></a>
           </div>
-          <p class="hero-note"><a href="/preise/">8 € im Monat für alle Wohnungen</a> · oder kostenlos <a href="https://docs.mietkartei.de/selbst-hosten/">selbst betreiben</a></p>
         </section>
 
         <section class="stage" aria-label="So sieht mietkartei aus">
           <div class="stage-glow" aria-hidden="true"></div>
-          <div class="stage-grid" aria-hidden="true"></div>
           <div class="stage-app">
-            <figure class="window stage-window">
+            <figure class="window">
               <span class="window-bar" aria-hidden="true"><i></i><i></i><i></i><b>app.mietkartei.de</b></span>
               <img src="assets/screenshots/auswertung.png" alt="Auswertung eines Objekts mit Einnahmen, Ausgaben, Überschuss und Kaltmiete pro m² sowie dem Verlauf über ein Jahr" width="1600" height="1000" decoding="async">
             </figure>
@@ -130,31 +128,31 @@
             <p class="float float-payment" aria-hidden="true"><span>Mieteingang erkannt</span><strong>Anna Schmidt · 990,00 €</strong><small>Vorschlag: gleiche IBAN wie früher</small></p>
           </div>
           <ul class="facts" aria-label="Was mietkartei ausmacht">
-            <li><strong>AGPL-3.0</strong>Offener Quellcode</li>
-            <li><strong>EU</strong>Server in Europa</li>
-            <li><strong>ZIP</strong>Voller Export, jederzeit</li>
-            <li><strong>0</strong>Werbung und Datenhandel</li>
+            <li><strong>Open Source</strong>Der Code ist öffentlich einsehbar.</li>
+            <li><strong>Server in der EU</strong>Oder auf deinem eigenen Rechner.</li>
+            <li><strong>Voller Export</strong>Alle Daten und Belege als ZIP.</li>
+            <li><strong>Ein Preis</strong>8 € im Monat, egal wie viele Wohnungen.</li>
           </ul>
         </section>
 
         <section class="features" aria-labelledby="aufgaben">
-          <p class="kicker">Was mietkartei übernimmt</p>
-          <h2 class="section-title" id="aufgaben">Was sonst ein Wochenende kostet, <span class="nowrap">in Minuten.</span></h2>
+          <p class="kicker">Im Alltag</p>
+          <h2 class="section-title" id="aufgaben">Die Arbeit, die jedes Jahr anfällt.</h2>
 
           <article class="feature">
             <div class="feature-copy">
               <span class="feature-number">01</span>
-              <h3>Rückstände sehen, bevor sie wachsen.</h3>
-              <p>Jeder Mietvertrag hat sein Konto mit Soll und Ist. Wer im Rückstand ist, steht oben, mit Datum der letzten Zahlung und der letzten Mahnung.</p>
+              <h3>Die Nebenkostenabrechnung, mit Rechenweg.</h3>
+              <p>Belege erfassen, Umlageschlüssel wählen, prüfen und freigeben. mietkartei legt tagesgenau um, berücksichtigt Mieterwechsel, Heizkostenverordnung und CO₂-Kostenaufteilung und erstellt für jeden Mieter ein PDF. Jede Zeile zeigt, wie sein Anteil entsteht.</p>
             </div>
-            <figure class="window"><img src="assets/screenshots/mietkonto.png" alt="Mietkonto mit Saldo, Rückständen, letzter Zahlung und Mahnung je Mietvertrag" width="1600" height="1000" decoding="async" loading="lazy"></figure>
+            <figure class="window"><img src="assets/screenshots/abrechnung-mieter.png" alt="Anteil eines Mieters in der Betriebskostenabrechnung mit Umlageschlüssel je Kostenart" width="1600" height="1000" decoding="async" loading="lazy"></figure>
           </article>
 
           <article class="feature">
             <div class="feature-copy">
               <span class="feature-number">02</span>
-              <h3>Kontoauszug laden, die Zuordnung ist schon da.</h3>
-              <p>mietkartei erkennt Mieter an ihrer IBAN und schlägt den passenden Mietvertrag vor. Du bestätigst mit einem Klick.</p>
+              <h3>Kontoauszüge, die sich selbst zuordnen.</h3>
+              <p>Den Auszug aus dem Online-Banking hochladen, als camt oder CSV. mietkartei erkennt Mieter an ihrer IBAN und schlägt den passenden Mietvertrag vor; wiederkehrende Ausgaben bucht eine Regel. Du bestätigst nur noch.</p>
             </div>
             <figure class="window"><img src="assets/screenshots/bankumsaetze.png" alt="Zwei Mieteingänge aus dem Kontoauszug, denen mietkartei anhand der IBAN den passenden Mietvertrag vorschlägt" width="1600" height="1000" decoding="async" loading="lazy"></figure>
           </article>
@@ -162,61 +160,98 @@
           <article class="feature">
             <div class="feature-copy">
               <span class="feature-number">03</span>
-              <h3>Die Nebenkostenabrechnung, mit Rechenweg.</h3>
-              <p>Tagesgenau umgelegt, CO₂-Kosten aufgeteilt, jede Zeile erklärt. Fragt ein Mieter nach, zeigst du ihm jeden Schritt.</p>
+              <h3>Das Mietkonto jedes Vertrags.</h3>
+              <p>Soll und Ist für jeden Monat, mit Kaltmiete, Vorauszahlungen und Nachzahlungen. Fehlt eine Zahlung, schreibt mietkartei die Erinnerung mit Betrag und Frist.</p>
             </div>
-            <figure class="window"><img src="assets/screenshots/abrechnung-mieter.png" alt="Anteil eines Mieters in der Betriebskostenabrechnung mit Umlageschlüssel je Kostenart" width="1600" height="1000" decoding="async" loading="lazy"></figure>
+            <figure class="window"><img src="assets/screenshots/mietkonto.png" alt="Mietkonto mit Saldo, letzter Zahlung und Schreiben je Mietvertrag" width="1600" height="1000" decoding="async" loading="lazy"></figure>
           </article>
 
           <article class="feature">
             <div class="feature-copy">
               <span class="feature-number">04</span>
               <h3>Wissen, was am Ende übrig bleibt.</h3>
-              <p>Brutto-, Netto- und Eigenkapitalrendite je Objekt und der Weg vom Mieteingang bis zum Cashflow, ohne eigene Tabelle.</p>
+              <p>Rendite und Cashflow je Objekt, eine Prognose für die nächsten Jahre und zum Jahresende die Übersicht für die Anlage V.</p>
             </div>
             <figure class="window"><img src="assets/screenshots/rendite.png" alt="Rendite eines Objekts mit Brutto-, Netto- und Eigenkapitalrendite und dem Weg vom Mieteingang zum Cashflow" width="1600" height="1000" decoding="async" loading="lazy"></figure>
           </article>
+        </section>
+
+        <section class="areas" aria-labelledby="umfang">
+          <p class="kicker">Alles drin</p>
+          <h2 class="section-title" id="umfang">Was ein Vermieter braucht, ohne Zusatzmodule.</h2>
+          <ul>
+            <li><span class="area-icon"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M5 21V8l7-5 7 5v13M10 21v-6h4v6"/></svg></span><h3>Objekte und Einheiten</h3><p>Wohnungen, Gewerbe und Stellplätze mit Flächen, Zählern, Versicherungen und Lage.</p></li>
+            <li><span class="area-icon"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M7 3h8l4 4v14H7zM15 3v4h4M10 12h6M10 16h6"/></svg></span><h3>Mieter und Mietverträge</h3><p>Vertragsdaten, Kaution, Mieterwechsel und Kündigungsfristen.</p></li>
+            <li><span class="area-icon"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 17l5-5 4 4 7-7M14 9h6v6"/></svg></span><h3>Index- und Staffelmiete</h3><p>Anpassung nach Verbraucherpreisindex oder Staffel, mit fertigem Schreiben.</p></li>
+            <li><span class="area-icon"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 7h18v12H3zM3 11h18M7 15h3"/></svg></span><h3>Mietkonto</h3><p>Soll und Ist je Mietvertrag, Erinnerung und Mahnung mit Frist und Betrag.</p></li>
+            <li><span class="area-icon"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18M12 3l9 5H3z"/></svg></span><h3>Bank</h3><p>Kontoauszüge als camt oder CSV, Zuordnung per Vorschlag und eigenen Regeln.</p></li>
+            <li><span class="area-icon"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/></svg></span><h3>Nebenkostenabrechnung</h3><p>Tagesgenau nach Betriebskostenverordnung, mit Rechenweg je Mieter als PDF.</p></li>
+            <li><span class="area-icon"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 3a3 3 0 0 0-3 3v8.3a4 4 0 1 0 6 0V6a3 3 0 0 0-3-3ZM12 11v6"/></svg></span><h3>Heizkosten und CO₂</h3><p>Verbrauch nach Heizkostenverordnung, Zwischenablesung und CO₂-Kostenaufteilung.</p></li>
+            <li><span class="area-icon"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 4h16v16H4zM8 9h8M8 13h8M8 17h5"/></svg></span><h3>Steuer</h3><p>Einnahmen und Werbungskosten nach den Zeilen der Anlage V, als PDF und CSV.</p></li>
+            <li><span class="area-icon"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 12h4l3-8 4 16 3-8h4"/></svg></span><h3>Auswertung</h3><p>Einnahmen, Ausgaben, Rendite, Cashflow und Prognose je Objekt und Jahr.</p></li>
+            <li><span class="area-icon"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 7h6l2 2h8v10H4z"/></svg></span><h3>Dokumente und Fristen</h3><p>Belege, Verträge und Schreiben am richtigen Ort, Fristen mit Erinnerung im Kalender.</p></li>
+            <li><span class="area-icon"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM2 21a6 6 0 0 1 12 0M16 11h6M19 8v6"/></svg></span><h3>Zugänge</h3><p>Mitverwalter und Lesezugriff, etwa für Partner oder Steuerberater, mit Protokoll.</p></li>
+            <li><span class="area-icon"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 21V5l8-2 8 2v16M9 21v-4h6v4M8 8h2M14 8h2M8 12h2M14 12h2"/></svg></span><h3>Eigentumswohnung</h3><p>Die Hausgeldabrechnung der WEG übernehmen und an den Mieter weitergeben.</p></li>
+          </ul>
+          <p class="areas-more"><a href="https://docs.mietkartei.de/">Alle Funktionen in der Dokumentation<span aria-hidden="true">↗</span></a></p>
         </section>
 
         <section class="assistant" aria-labelledby="fragen">
           <div class="assistant-inner">
             <div>
               <p class="kicker">Mit KI-Assistent</p>
-              <h2 class="section-title" id="fragen">Frag einfach.</h2>
-              <p class="section-lead">Verbinde mietkartei mit <a href="https://docs.mietkartei.de/anleitungen/ki-assistenten/">Claude oder ChatGPT</a> und stell deine Fragen in ganzen Sätzen. Die Antworten kommen aus deinen eigenen Zahlen.</p>
+              <h2 class="section-title" id="fragen">Fragen in ganzen Sätzen.</h2>
+              <p class="section-lead">Wer möchte, verbindet mietkartei mit <a href="https://docs.mietkartei.de/anleitungen/ki-assistenten/">Claude oder ChatGPT</a>. Die Antworten kommen aus deinen eigenen Zahlen. Ob der Assistent nur lesen oder auch buchen darf, entscheidest du.</p>
             </div>
             <div class="chat" aria-label="Beispiel eines Gesprächs mit Claude">
-              <p class="bubble bubble-question">Wer ist gerade im Rückstand?</p>
+              <p class="bubble bubble-question">Was trägt Anna Schmidt 2025 an Nebenkosten für Grundsteuer und Wasser?</p>
               <div class="bubble bubble-answer">
                 <span class="chat-source">Claude · aus mietkartei</span>
-                <p>Drei Mietverträge sind offen, zusammen <strong class="negative">−5.590,61 €</strong>:</p>
+                <p>Für Wohnung EG links, 62 m², ganzjährig:</p>
                 <ul>
-                  <li><span>Lena Berger, 1. OG</span><span class="negative">−3.630,00 €</span></li>
-                  <li><span>Anna Schmidt, EG links</span><span class="negative">−990,00 €</span></li>
-                  <li><span>Murat Yılmaz, EG rechts</span><span class="negative">−970,61 €</span></li>
+                  <li><span>Grundsteuer, nach Wohnfläche</span><span class="amount-cell">229,02 €</span></li>
+                  <li><span>Wasserversorgung, nach Personen</span><span class="amount-cell">111,56 €</span></li>
+                  <li><span>Entwässerung, nach Personen</span><span class="amount-cell">130,87 €</span></li>
                 </ul>
               </div>
-              <p class="bubble bubble-question">Schreib Frau Berger eine freundliche Erinnerung.</p>
             </div>
           </div>
         </section>
 
         <section class="promises" aria-labelledby="versprechen">
-          <p class="kicker" id="versprechen">Worauf du dich verlassen kannst</p>
+          <p class="kicker">Worauf du dich verlassen kannst</p>
+          <h2 class="section-title" id="versprechen">Deine Daten bleiben deine Daten.</h2>
           <ul>
-            <li><h3>Kein Lock-in</h3><p>Offener Code und voller Export. Deine Daten bleiben lesbar, auch ohne Abo.</p></li>
-            <li><h3>Kein Datengeschäft</h3><p>Keine Werbung, kein Datenverkauf. Das Abo trägt Server und Ausbau.</p></li>
-            <li><h3>Ein Preis, alles drin</h3><p>8 € im Monat, egal wie viele Wohnungen. Keine Zusatzmodule.</p></li>
-            <li><h3>Von Vermietern gebaut</h3><p>Entstanden aus der eigenen Verwaltung von Mietwohnungen.</p></li>
+            <li><h3>Offener Code</h3><p>Jede Rechnung lässt sich im Quellcode nachvollziehen. Er steht unter der AGPL-3.0 öffentlich auf GitHub.</p></li>
+            <li><h3>Kein Lock-in</h3><p>Voller Export als ZIP, auch ohne Abo. Der Umzug auf den eigenen Rechner und zurück ist vorgesehen.</p></li>
+            <li><h3>Kein Datengeschäft</h3><p>Keine Werbung, kein Verkauf von Daten, keine Weitergabe an Portale. Das Abo trägt Server und Weiterentwicklung.</p></li>
+            <li><h3>Server in der EU</h3><p>Die gehostete Version läuft auf Servern in der EU. Selbst betrieben bleibt alles bei dir.</p></li>
           </ul>
         </section>
 
-        <section class="closing" aria-labelledby="abschluss">
-          <h2 id="abschluss">Die nächste Abrechnung <br>wird <span class="marker">entspannt.</span></h2>
-          <div class="hero-actions">
-            <a class="button button-primary" href="https://app.mietkartei.de/anmelden">30 Tage kostenlos testen<span aria-hidden="true">→</span></a>
-            <a class="button button-ghost" href="/preise/">Preise ansehen<span aria-hidden="true">↗</span></a>
-          </div>
+        <section class="start" id="loslegen" aria-labelledby="anfangen">
+          <p class="kicker">Loslegen</p>
+          <h2 class="section-title" id="anfangen">So fängst du an.</h2>
+          <ol class="steps">
+            <li>
+              <span class="step-number">1</span>
+              <h3>Demo ansehen</h3>
+              <p>Ein eigener Beispielbestand mit Objekten, Mietern, Kontoauszügen und fertiger Nebenkostenabrechnung. Ohne Anmeldung, nach 24 Stunden gelöscht.</p>
+              <a class="step-link" href="https://demo.mietkartei.de/">Demo öffnen<span aria-hidden="true">↗</span></a>
+            </li>
+            <li>
+              <span class="step-number">2</span>
+              <h3>Bestand anlegen</h3>
+              <p>Nach der Anmeldung führt dich mietkartei Schritt für Schritt durch Objekt, Einheiten, Mieter und Mietvertrag. Kontoauszüge lädst du direkt aus dem Online-Banking hoch.</p>
+              <a class="step-link" href="https://docs.mietkartei.de/#erste-schritte-in-der-anwendung">Erste Schritte<span aria-hidden="true">↗</span></a>
+            </li>
+            <li>
+              <span class="step-number">3</span>
+              <h3>Weg wählen</h3>
+              <p>Gehostet für 8 € im Monat, die ersten 30 Tage kostenlos und monatlich kündbar. Oder kostenlos auf deinem eigenen Rechner oder NAS.</p>
+              <a class="step-link" href="/preise/">Preise vergleichen<span aria-hidden="true">→</span></a>
+            </li>
+          </ol>
         </section>
       </main>
 
