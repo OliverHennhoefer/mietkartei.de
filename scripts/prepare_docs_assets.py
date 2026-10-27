@@ -12,8 +12,8 @@ DESTINATION.mkdir(parents=True, exist_ok=True)
 for filename in (
     "mark.svg",
     "mark-white.svg",
-    "lockup.svg",
-    "lockup-white.svg",
+    "lockup-highlight.svg",
+    "lockup-highlight-white.svg",
     "favicon.svg",
     "fonts/geist/Geist.ttf",
     "fonts/geist/OFL.txt",

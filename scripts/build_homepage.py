@@ -99,8 +99,25 @@ def fingerprint_screenshots(page: Path) -> None:
     page.write_text(re.sub(r'src="(assets/screenshots/[\w-]+\.png)"', versioned, text), encoding="utf-8")
 
 
+def frame_pages() -> None:
+    """Puts the one header and footer of website/_header.html and _footer.html into every page,
+    so no page drifts from the others, and marks the footer link of the page itself."""
+    header = (ROOT / "website" / "_header.html").read_text(encoding="utf-8")
+    footer = (ROOT / "website" / "_footer.html").read_text(encoding="utf-8")
+    for page in OUTPUT.rglob("*.html"):
+        text = page.read_text(encoding="utf-8")
+        if text.count("      <!-- header -->\n") != 1 or text.count("      <!-- footer -->\n") != 1:
+            raise ValueError(f"{page.relative_to(OUTPUT)}: needs one <!-- header --> and one <!-- footer --> marker")
+        folder = page.relative_to(OUTPUT).parent.as_posix()
+        path = "/" if folder == "." else f"/{folder}/"
+        own = footer.replace(f'<a href="{path}">', f'<a href="{path}" aria-current="page">')
+        text = text.replace("      <!-- header -->\n", header).replace("      <!-- footer -->\n", own)
+        page.write_text(text, encoding="utf-8")
+
+
 add_faq_json_ld(OUTPUT / "fragen" / "index.html")
 fingerprint_screenshots(OUTPUT / "index.html")
 build_guides(ROOT / "website", OUTPUT)
+frame_pages()
 
 print(f"Startseite erzeugt: {OUTPUT}")
