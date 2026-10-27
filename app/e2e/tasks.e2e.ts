@@ -66,12 +66,16 @@ test('creates, completes, reopens, edits and deletes a task', async ({ page }) =
 	]);
 	await page.goto('/aufgaben');
 
+	// The form opens in a dialog from the header and closes once the task is created.
+	await page.getByRole('link', { name: 'Aufgabe anlegen' }).click();
+	await expect(page.getByRole('dialog', { name: 'Aufgabe anlegen' })).toBeVisible();
 	await page.getByLabel('Aufgabe', { exact: true }).fill(taskTitle);
 	await page.getByLabel('Fällig am (optional)').fill('2026-12-15');
 	await page.getByLabel('Gehört zu (optional)').selectOption({ label: taskPropertyName });
 	await page.getByLabel('Notiz (optional)').fill('Alle Wohnungen.');
 	await page.getByRole('button', { name: 'Aufgabe anlegen' }).click();
 	await expect(page.getByRole('status')).toContainText(`„${taskTitle}“ wurde angelegt.`);
+	await expect(page.getByRole('dialog')).toBeHidden();
 
 	const item = openTask(page, taskTitle);
 	await expect(item).toHaveCount(1);
@@ -116,11 +120,14 @@ test('creates, completes, reopens, edits and deletes a task', async ({ page }) =
 test('fills a repeating task from a template and brings it back when done', async ({ page }) => {
 	const title = `Heizung warten ${suffix}`;
 	await page.goto('/aufgaben');
-	await page.getByRole('link', { name: 'Heizung warten lassen' }).click();
+	await page.getByRole('link', { name: 'Aufgabe anlegen' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Aufgabe anlegen' });
+	await dialog.getByRole('link', { name: 'Heizung warten lassen' }).click();
 	await expect(page).toHaveURL(/\?vorlage=heizungswartung/);
-	await expect(page.getByLabel('Art')).toHaveValue('maintenance');
-	await expect(page.getByLabel('Wiederholen')).toHaveValue('12');
-	await expect(page.getByLabel('Notiz (optional)')).toHaveValue(/BetrKV/);
+	// The template fills the form, and the dialog stays open.
+	await expect(dialog.getByLabel('Art')).toHaveValue('maintenance');
+	await expect(dialog.getByLabel('Wiederholen')).toHaveValue('12');
+	await expect(dialog.getByLabel('Notiz (optional)')).toHaveValue(/BetrKV/);
 
 	await page.getByLabel('Aufgabe', { exact: true }).fill(title);
 	await page.getByLabel('Fällig am (optional)').fill(today());
@@ -138,6 +145,7 @@ test('shows validation errors next to the fields', async ({ page }) => {
 	await page.goto('/aufgaben');
 	// Hydration sets the note's textarea to its (empty) value; typing before it would be lost.
 	await page.waitForLoadState('networkidle');
+	await page.getByRole('link', { name: 'Aufgabe anlegen' }).click();
 	await page.getByLabel('Notiz (optional)').fill('Ohne Titel');
 	await page.getByLabel('Aufgabe', { exact: true }).evaluate((input: HTMLInputElement) => {
 		input.removeAttribute('required');
@@ -145,6 +153,7 @@ test('shows validation errors next to the fields', async ({ page }) => {
 	await page.getByRole('button', { name: 'Aufgabe anlegen' }).click();
 	await expect(page.getByText('Bitte fülle dieses Feld aus.')).toBeVisible();
 	await expect(page.getByLabel('Notiz (optional)')).toHaveValue('Ohne Titel');
+	await expect(page.getByRole('dialog', { name: 'Aufgabe anlegen' })).toBeVisible();
 });
 
 test('answers unknown tasks with 404 and refuses a lease of another account', async ({ page }) => {

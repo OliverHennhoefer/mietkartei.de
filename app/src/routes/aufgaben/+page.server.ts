@@ -15,9 +15,9 @@ import { listTenants } from '#lib/server/tenants.ts';
 import { taskTemplates } from '#lib/task-templates.ts';
 import type { Actions, PageServerLoad } from './$types';
 
-// The start page: the first-run checklist until the account has a lease and a bank account, what
-// needs doing outside the deadlines (arrears, unmatched bank transactions, vacant units), the
-// deadlines and the user's own tasks. listBalances syncs the rent charges first, so the arrears are
+// The start page: the first-run checklist until the account has a lease and a bank account, the
+// user's own tasks, what needs doing outside the deadlines (arrears, unmatched bank transactions,
+// vacant units) and the deadlines. listBalances syncs the rent charges first, so the arrears are
 // current when the page opens (the same as /mietkonto does).
 
 export type FirstRun = {
