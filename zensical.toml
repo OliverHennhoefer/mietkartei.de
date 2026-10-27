@@ -2,7 +2,6 @@
 site_name = "mietkartei"
 site_description = "Dokumentation zu mietkartei, der Open-Source-Hausverwaltung für Privatvermieter: Nutzung, Selbsthosten und Mitarbeit."
 site_author = "Oliver Hennhoefer"
-copyright = 'Erstellt mit <a href="https://zensical.org/">Zensical</a>'
 site_url = "https://docs.mietkartei.de/"
 repo_url = "https://github.com/OliverHennhoefer/mietkartei.de"
 repo_name = "mietkartei.de"
@@ -33,7 +32,6 @@ nav = [
 language = "de"
 font = false
 custom_dir = "docs/overrides"
-logo = "assets/brand/lockup.svg"
 favicon = "assets/brand/favicon.svg?v=register"
 features = []
 
@@ -45,16 +43,12 @@ media = "(prefers-color-scheme: light)"
 scheme = "default"
 primary = "white"
 accent = "grey"
-toggle.icon = "lucide/moon"
-toggle.name = "Zur dunklen Darstellung wechseln"
 
 [[project.theme.palette]]
 media = "(prefers-color-scheme: dark)"
 scheme = "slate"
 primary = "black"
 accent = "grey"
-toggle.icon = "lucide/sun"
-toggle.name = "Zur hellen Darstellung wechseln"
 
 [project.markdown_extensions]
 admonition = {}
@@ -83,8 +77,6 @@ Dokumentation = [
 
 [project.extra]
 generator = false
-# The logo leads to the homepage, not to the start of the documentation.
-homepage = "https://mietkartei.de/"
 
 [project.validation]
 invalid_links = true

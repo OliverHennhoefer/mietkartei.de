@@ -1,10 +1,10 @@
 <script lang="ts">
 	import favicon from '../../../assets/brand/favicon.svg';
-	import lockup from '../../../assets/brand/lockup-highlight.svg';
-	import lockupWhite from '../../../assets/brand/lockup-highlight-white.svg';
 	import { untrack, type Component } from 'svelte';
 	import Icon, { type IconName } from '#lib/components/Icon.svelte';
 	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
+	import WebsiteFooter from '#lib/components/WebsiteFooter.svelte';
+	import WebsiteHeader from '#lib/components/WebsiteHeader.svelte';
 	import { settingsSectionOf, settingsSections } from '#lib/settings.ts';
 	import { viewerWritesOn } from '#lib/viewer-paths.ts';
 	import { goto, preloadData } from '$app/navigation';
@@ -289,8 +289,11 @@
 
 <div class="app-shell" class:authenticated={!!data.email}>
 	<a class="skip-link" href="#main-content">Zum Inhalt</a>
-	<!-- Signed out, the pages show only the logo above their form, no header. -->
-	{#if data.email}
+	<!-- Signed out, the pages stand in the website's frame: its header, the way back to the homepage
+	     where the pricing page has it, and its footer. -->
+	{#if !data.email}
+		<WebsiteHeader />
+	{:else}
 		<header class="site-header">
 			<div class="brand-bar">
 				<button
@@ -394,13 +397,9 @@
 			inert={open}
 		>
 			{#if !data.email}
-				<!-- Signed out, / only leads back to /anmelden, so the logo goes to the homepage. -->
-				<a href="https://mietkartei.de" class="auth-brand">
-					<picture>
-						<source media="(prefers-color-scheme: dark)" srcset={lockupWhite} />
-						<img src={lockup} alt="mietkartei" width="489" height="96" />
-					</picture>
-				</a>
+				<a class="back-link" href="https://mietkartei.de"
+					><span aria-hidden="true">←</span> Zur Startseite</a
+				>
 			{/if}
 			{#if notices}
 				<!-- The start page carries the notes; a refused write is named above every page. -->
@@ -433,6 +432,7 @@
 			{@render children()}
 		</main>
 	</div>
+	{#if !data.email}<WebsiteFooter />{/if}
 	{#if settings && SettingsView}
 		<SettingsDialog
 			{sections}
