@@ -1,6 +1,6 @@
 import { and, asc, eq, like, lt } from 'drizzle-orm';
 import { deleteAccount } from './accounts';
-import { createSession, generateToken, hashPassword } from './auth';
+import { createSession } from './auth';
 import type { Database } from './db';
 import { accounts, outbox, users } from './db/schema';
 import { createDemoData } from './demo';
@@ -13,12 +13,18 @@ import type { Storage } from './storage';
 
 export const DEMO_LIFETIME = 24 * 60 * 60 * 1000;
 const DEMO_EMAIL_DOMAIN = '@demo.invalid';
-/** Expired accounts deleted per new demo, so starting one stays fast after a busy day. */
+/** Expired accounts deleted per new demo, so the work stays small after a busy day. */
 const EXPIRED_PER_START = 5;
 
 /** Creates a demo account with the demo data and returns the session for its owner. */
 export async function startDemo(db: Database, options?: { storage?: Storage }) {
-	await deleteExpiredDemoAccounts(db, Date.now(), options);
+	// Clearing out yesterday's demos is not the visitor's business: on Workers it runs after the
+	// response.
+	const cleanup = deleteExpiredDemoAccounts(db, Date.now(), options);
+	if (__DEPLOY_TARGET__ === 'cloudflare') {
+		const { waitUntil } = await import('cloudflare:workers');
+		waitUntil(cleanup);
+	} else await cleanup;
 	const [account] = await db
 		.insert(accounts)
 		.values({
@@ -37,8 +43,8 @@ export async function startDemo(db: Database, options?: { storage?: Storage }) {
 		.values({
 			accountId: account.id,
 			email: `demo-${crypto.randomUUID()}${DEMO_EMAIL_DOMAIN}`,
-			// Nobody knows it: the demo signs in through the session alone.
-			passwordHash: await hashPassword(generateToken()),
+			// No hash at all, so no password matches: the demo signs in through the session alone.
+			passwordHash: '!',
 			name: 'Demo'
 		})
 		.returning({ id: users.id });
