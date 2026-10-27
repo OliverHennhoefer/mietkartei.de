@@ -43,10 +43,10 @@ After changing the originals in `assets/brand/`, run `python scripts/prepare_doc
 | `docs/wrangler.toml` | Cloudflare Worker for the documentation domain |
 | `docs/_headers` | HTTP response headers for Cloudflare |
 | `docs/robots.txt` | Instructions for search engines, pointing to the generated `sitemap.xml` |
-| `docs/overrides/main.html` | Theme override: tab titles as `Page \| mietkartei` and link previews (Open Graph) |
+| `docs/overrides/main.html` | Theme override: tab titles as `Page \| mietkartei`, link previews (Open Graph), and the website's header, way back to the homepage and footer in place of the theme's |
 | `.github/workflows/websites.yml` | Required check and deployment of both websites |
 
-The header combines the larger register symbol with the original Geist wordmark. The combination is 44px high on desktop and 40px on smaller screens. Dark mode inverts the complete black signature to white, and the browser icon uses the small white symbol on black. The [brand assets](../assets/brand/README.md) contain the vector construction, shared exports and the earlier Geist wordmarks with their original font and license. The page uses the same locally hosted Geist font as the homepage and app, with system fonts as a fallback. Search stays disabled for the single placeholder page.
+The header is the website's (`website/_header.html`): the register symbol with the Geist wordmark and the neon block behind "kartei", 52px high on desktop and 44px on smaller screens (`lockup-highlight.svg`, `lockup-highlight-white.svg` in dark mode), and the GitHub icon. Under it stands the way back to the homepage, at the bottom the website's footer; see the page frame in [HOMEPAGE.md](HOMEPAGE.md). The colour scheme follows the system, as on the website, so there is no toggle. The browser icon uses the small white symbol on black. The [brand assets](../assets/brand/README.md) contain the vector construction, shared exports and the earlier Geist wordmarks with their original font and license. The page uses the same locally hosted Geist font as the homepage and app, with system fonts as a fallback. Search stays disabled for the single placeholder page.
 
 Every page needs `title` and `description` in its front matter: they become the tab title, the search engine description and the link preview. Zensical generates `sitemap.xml` from `site_url`, and its `llmstxt` plugin writes `llms.txt` and `llms-full.txt` for AI assistants; add each new page to the `llmstxt` sections in `zensical.toml`.
 

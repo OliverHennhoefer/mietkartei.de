@@ -48,40 +48,179 @@ body[data-md-color-scheme="slate"][data-md-color-primary] {
   outline-offset: 4px;
 }
 
-.md-header__button {
-  border-radius: 8px;
+/* The frame of the website (website/styles.css: .page, .header, .back-link, .footer), in its
+   pixel sizes, so the documentation reads as one more page of it. */
+.mk-header,
+.mk-back,
+.mk-footer,
+.md-main__inner.md-grid {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1320px;
+  margin-inline: auto;
+  padding-inline: 64px;
 }
 
-.md-header {
-  border-bottom: 1px solid var(--mk-border-color);
-  box-shadow: none;
+.mk-header,
+.mk-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
 }
 
-.md-header .md-logo img {
-  height: 2.2rem;
+.mk-header {
+  padding-top: clamp(20px, 4vh, 40px);
+}
+
+.mk-brand {
+  display: inline-flex;
+}
+
+.mk-brand img {
+  display: block;
   width: auto;
+  height: 52px;
 }
 
-@media (max-width: 600px) {
-  .md-header .md-logo img {
-    height: 2rem;
-  }
+.mk-header-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.md-header .md-logo {
+.mk-github {
+  display: inline-flex;
+  padding: 8px;
+  margin-right: -8px;
+  border-radius: 8px;
+  color: var(--md-default-fg-color--light);
+}
+
+.mk-github:hover {
+  color: var(--md-default-fg-color);
+}
+
+.mk-github svg {
   display: block;
 }
 
-.md-header__title {
-  visibility: hidden;
+.mk-back {
+  padding-top: 48px;
+  font-size: 16px;
+  line-height: normal;
 }
 
-.md-header__button[for="__drawer"] {
-  display: none;
+.mk-back-link {
+  display: inline-block;
+  color: var(--md-default-fg-color--light);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
-[data-md-color-scheme="slate"] .md-logo img {
-  filter: invert(1);
+.mk-back-link:hover {
+  color: var(--md-default-fg-color);
+}
+
+/* The page and its navigation start where the pricing page has its title. */
+.md-main__inner.md-grid {
+  margin-top: 24px;
+  padding-inline: 64px;
+}
+
+.md-sidebar--primary {
+  margin-left: -12px;
+}
+
+.mk-footer {
+  /* The inner rule stands as wide as the content, as on the website. */
+  box-sizing: border-box;
+  margin-top: 64px;
+  padding-block: clamp(14px, 2.2vh, 20px) clamp(16px, 2.5vh, 24px);
+  background-image: linear-gradient(var(--mk-border-color), var(--mk-border-color));
+  background-size: calc(100% - 128px) 1px;
+  background-position: top center;
+  background-repeat: no-repeat;
+  color: var(--md-default-fg-color--light);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mk-status,
+.mk-footer-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 24px;
+}
+
+.mk-made-in {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mk-flag {
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--mk-border-color);
+}
+
+.mk-footer a {
+  color: inherit;
+  text-decoration: none;
+  text-underline-offset: 3px;
+}
+
+.mk-footer a:hover {
+  color: var(--md-default-fg-color);
+  text-decoration: underline;
+}
+
+@media (max-width: 1100px) {
+  .mk-header,
+  .mk-back,
+  .mk-footer,
+  .md-main__inner.md-grid {
+    padding-inline: 40px;
+  }
+
+  .mk-footer {
+    background-size: calc(100% - 80px) 1px;
+  }
+}
+
+@media (max-width: 900px) {
+  .mk-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 600px) {
+  .mk-header,
+  .mk-back,
+  .mk-footer,
+  .md-main__inner.md-grid {
+    padding-inline: 24px;
+  }
+
+  .mk-header {
+    padding-top: 28px;
+  }
+
+  .mk-back {
+    padding-top: 32px;
+  }
+
+  .mk-brand img {
+    height: 44px;
+  }
+
+  .mk-footer {
+    background-size: calc(100% - 48px) 1px;
+  }
 }
 
 .md-typeset h1,
@@ -92,15 +231,19 @@ body[data-md-color-scheme="slate"][data-md-color-primary] {
   letter-spacing: -0.025em;
 }
 
+/* The page title in the size of the website's page titles. */
+.md-typeset h1 {
+  margin-bottom: 0.6em;
+  font-size: clamp(32px, 4vw, 48px);
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+}
+
 .md-typeset a {
   text-decoration: underline;
   text-underline-offset: 0.18em;
 }
 
-.md-main__inner {
-  align-items: center;
-  min-height: calc(100svh - 8rem);
-}
 
 .md-content {
   margin-inline: auto;
