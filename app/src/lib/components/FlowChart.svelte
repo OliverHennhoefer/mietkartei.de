@@ -229,9 +229,12 @@
 	.bar.expense {
 		fill: var(--color-chart-expense);
 	}
+	/* On a dark surface the neon turns olive under transparency; a faint tint keeps it yellow. */
 	.net-area {
-		fill: var(--color-chart-net);
-		opacity: 0.28;
+		fill: light-dark(
+			color-mix(in srgb, var(--color-chart-net) 28%, transparent),
+			color-mix(in srgb, var(--color-chart-net) 12%, transparent)
+		);
 	}
 	.net-line {
 		fill: none;
@@ -285,15 +288,9 @@
 	.period.dim .bar {
 		opacity: 0.35;
 	}
-	/* On a dark surface the neon turns olive under transparency; a faint tint keeps it yellow. */
-	@media (prefers-color-scheme: dark) {
-		.net-area {
-			opacity: 0.12;
-		}
-	}
 	@media print {
 		.net-area {
-			opacity: 0.5;
+			fill: color-mix(in srgb, var(--color-chart-net) 50%, transparent);
 		}
 	}
 </style>

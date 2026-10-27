@@ -7,6 +7,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		email: locals.user?.email,
 		name: locals.user?.name,
 		role: locals.user?.role,
+		theme: locals.theme,
 		billingEnabled: billingEnabled(),
 		demo: DEMO,
 		// The hosted variant before its public launch; the demo and self-hosted instances never are.

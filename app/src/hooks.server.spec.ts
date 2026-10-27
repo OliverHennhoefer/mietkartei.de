@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSession } from '#lib/server/auth.ts';
 import type { Database } from '#lib/server/db/index.ts';
-import { accounts } from '#lib/server/db/schema.ts';
+import { accounts, users } from '#lib/server/db/schema.ts';
 import { outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
 import { handle, handleError } from './hooks.server';
 
@@ -161,6 +161,24 @@ describe('handle', () => {
 		const { resolved, locals } = await send('/objekte', { cookies: new Map([['session', token]]) });
 		expect(resolved).toBe(true);
 		expect(locals.user).toMatchObject({ id: 'user-a', accountId: 'a', role: 'owner' });
+	});
+
+	it("renders the user's colour scheme into the page", async () => {
+		await db.update(users).set({ theme: 'dark' }).where(eq(users.id, 'user-a'));
+		const { token } = await createSession(db, 'user-a');
+		const event = routeEvent(db, {
+			url: '/objekte',
+			cookies: new Map([['session', token]]),
+			user: null
+		}) as { locals: App.Locals };
+		type Transform = (input: { html: string }) => string;
+		const resolve = vi.fn(
+			async (_event: unknown, options: { transformPageChunk: Transform }) =>
+				new Response(options.transformPageChunk({ html: '<html data-theme="%theme%">' }))
+		);
+		const response = (await handle({ event, resolve } as never)) as Response;
+		expect(await response.text()).toBe('<html data-theme="dark">');
+		expect(event.locals.theme).toBe('dark');
 	});
 
 	it('deletes an unknown session cookie and treats the request as a visitor', async () => {

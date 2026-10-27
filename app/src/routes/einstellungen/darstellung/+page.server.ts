@@ -1,4 +1,5 @@
-import { setShowPropertyMaps, showsPropertyMaps } from '#lib/server/preferences.ts';
+import { themes, type Theme } from '#lib/server/db/schema.ts';
+import { setShowPropertyMaps, setTheme, showsPropertyMaps } from '#lib/server/preferences.ts';
 import { requireUser } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -6,13 +7,19 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const user = requireUser(locals);
-	return { showPropertyMaps: await showsPropertyMaps(locals.db, user.id) };
+	return { theme: locals.theme, showPropertyMaps: await showsPropertyMaps(locals.db, user.id) };
 };
 
 export const actions: Actions = {
 	default: async ({ request, locals }) => {
 		const user = requireUser(locals);
 		const form = await request.formData();
+		const theme = form.get('theme');
+		if (themes.includes(theme as Theme)) {
+			await setTheme(locals.db, user.id, theme as Theme);
+			// The page rendered after a post without JavaScript reads it in the same request.
+			locals.theme = theme as Theme;
+		}
 		await setShowPropertyMaps(locals.db, user.id, form.get('showPropertyMaps') === 'on');
 		return { saved: true };
 	}
