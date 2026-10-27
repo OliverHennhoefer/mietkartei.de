@@ -131,12 +131,17 @@ jobs:
         run: npm ci
 
       - name: Install Chromium
-        # A stalled apt or browser download once took 13 minutes and cut off the tests after
-        # them; it is retried after three minutes instead.
-        timeout-minutes: 8
+        # A stalled browser download once took 13 minutes and cut off the tests after it; it is
+        # retried after three minutes instead. A slow apt outlives the timeout and keeps its lock,
+        # so the retry waits for it to finish first.
+        timeout-minutes: 10
         run: |
-          timeout 180 npx playwright install --with-deps chromium \
-            || npx playwright install --with-deps chromium
+          timeout 180 npx playwright install --with-deps chromium || {
+            while sudo fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock >/dev/null 2>&1; do
+              sleep 5
+            done
+            npx playwright install --with-deps chromium
+          }
 
       - name: Run end-to-end tests
         run: npm run test:e2e
