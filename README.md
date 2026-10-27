@@ -54,7 +54,9 @@ Objekte und Einheiten · Mieter und Mietverträge mit Kaution · Index- und Staf
 ## Ausprobieren: Demo oder selbst hosten
 
 - **[Demo](https://demo.mietkartei.de):** eigener Beispielbestand mit fertiger Betriebskostenabrechnung, ohne Anmeldung, nach 24 Stunden gelöscht.
-- **[Selbst hosten](https://docs.mietkartei.de/selbst-hosten/):** als Docker-Container auf dem eigenen Rechner oder Server, kostenlos und mit allen Funktionen.
+- **[Selbst hosten](https://docs.mietkartei.de/selbst-hosten/):** mit wenigen Klicks im eigenen Cloudflare-Konto für rund 5 US-Dollar im Monat an Cloudflare, ohne Server und ohne Domain, oder kostenlos als Docker-Container auf dem eigenen Rechner oder Server. Beides mit allen Funktionen.
+
+  [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/OliverHennhoefer/mietkartei.de)
 
 ## Mitmachen
 

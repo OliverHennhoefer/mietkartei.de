@@ -28,5 +28,6 @@ Erste öffentliche Version. Sie enthält:
 - Umzug zwischen Instanzen: Einen Export samt Dokumenten in ein leeres Konto einspielen, etwa von app.mietkartei.de auf den eigenen Server.
 - MCP-Server und REST-API für KI-Assistenten wie Claude und ChatGPT.
 - Betrieb gehostet unter app.mietkartei.de oder selbst als Docker-Container.
+- Selbst betreiben im eigenen Cloudflare-Konto ohne eigene Domain: eingerichtet über „Deploy to Cloudflare“, die erste Registrierung mit einem selbst gewählten Einrichtungscode, Updates per Klick in GitHub.
 
 [Unveröffentlicht]: https://github.com/OliverHennhoefer/mietkartei.de/commits/main

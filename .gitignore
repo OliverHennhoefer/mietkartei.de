@@ -16,3 +16,7 @@ __pycache__/
 CLAUDE.local.md
 /.claude/
 AGENTS.override.md
+
+# Self-hosting on Cloudflare (wrangler.jsonc)
+/.dev.vars
+/.wrangler/

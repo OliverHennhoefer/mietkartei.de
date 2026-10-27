@@ -19,6 +19,20 @@ export const variables = defineEnvVars({
 			'data, and the hosted variant lets nobody. Keep it a secret on the hosted variant.',
 		schema: (value) => value || ''
 	},
+	SETUP_CODE: {
+		description:
+			'A code the first person must enter to register on an instance without REGISTRATION_EMAILS, ' +
+			'so nobody else can take over a fresh instance that is already public, such as one on ' +
+			'workers.dev. Unset, the first person registers without one. A secret.',
+		schema: (value) => value || ''
+	},
+	HOSTED: {
+		description:
+			'"true" only on app.mietkartei.de and its demo: without REGISTRATION_EMAILS nobody may ' +
+			'register, not even into an empty database, and the app announces its launch. Self-hosted ' +
+			'instances, also on Cloudflare, leave it unset.',
+		schema: (value) => value === 'true'
+	},
 	TURNSTILE_SITE_KEY: {
 		description:
 			'Site key of a Cloudflare Turnstile widget. Together with TURNSTILE_SECRET_KEY it puts the ' +
