@@ -405,9 +405,9 @@
 				<!-- The start page carries the notes; a refused write is named above every page. -->
 				<div class="page-notices">
 					{#if data.demo && home}
-						<p class="billing-notice info" role="note">
-							<Icon name="info" size={16} />
-							<span>Demo mit Beispieldaten, wird nach 24 Stunden gelöscht.</span>
+						<p class="billing-notice demo-notice" role="note">
+							<span class="demo-tag">Demo</span>
+							<span>Mit Beispieldaten, wird nach 24 Stunden gelöscht.</span>
 							<a href="https://mietkartei.de">Mehr über mietkartei</a>
 						</p>
 					{/if}
