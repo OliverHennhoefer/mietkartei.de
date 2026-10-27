@@ -12,6 +12,7 @@ import {
 	testDatabase
 } from '#lib/server/testing.ts';
 import { GET as letter } from './brief/[changeId]/+server';
+import { GET as letterText, PUT as saveLetterText } from './brief/[changeId]/text/+server';
 import { actions, load } from './+page.server';
 
 let db: Database;
@@ -160,6 +161,29 @@ describe('miethoehe', () => {
 			letter(routeEvent(db, { params: { id: leaseId, changeId: proposal.id } }))
 		)) as { data: Response };
 		expect(printed.data.headers.get('Content-Type')).toBe('application/pdf');
+
+		// The letter's text, as laid out on the sheet, and edited there.
+		const params = { id: leaseId, changeId: proposal.id };
+		const shown = (await outcome(() => letterText(routeEvent(db, { params })))) as {
+			data: Response;
+		};
+		const { blocks } = (await shown.data.json()) as { blocks: { paragraph?: string }[] };
+		const paragraphs = blocks.flatMap((block) => block.paragraph ?? []);
+		const save = (json: unknown, changeId = proposal.id) =>
+			outcome(() => saveLetterText(routeEvent(db, { params: { ...params, changeId }, json })));
+		expect(await save({ paragraphs: [...paragraphs, 'Mit freundlichem Gruß'] })).toMatchObject({
+			data: { status: 204 }
+		});
+		expect(await save({ paragraphs: [''] })).toMatchObject({ error: 400 });
+		expect(await save({ paragraphs }, 'x')).toMatchObject({ error: 404 });
+		expect(
+			await outcome(() => letterText(routeEvent(db, { params: { ...params, changeId: 'x' } })))
+		).toMatchObject({ error: 404 });
+		const foreignSite = routeEvent(db, { params, json: { paragraphs } }) as { request: Request };
+		foreignSite.request.headers.set('origin', 'https://example.org');
+		expect(await outcome(() => saveLetterText(foreignSite as never))).toMatchObject({
+			error: 403
+		});
 		expect(
 			await outcome(() => letter(routeEvent(db, { params: { id: leaseId, changeId: 'x' } })))
 		).toMatchObject({ error: 404 });

@@ -218,6 +218,8 @@ export type RouteEventOptions = {
 	url?: string;
 	/** Posts these fields as a form; an array posts the field once per value. */
 	form?: Record<string, string | string[] | File>;
+	/** Sends this body as JSON with a PUT, the way the app's fetch calls do. */
+	json?: unknown;
 	/** The cookie jar; the test keeps it to look at what the route set. */
 	cookies?: Map<string, string>;
 	/** What the layouts above the page loaded. */
@@ -246,7 +248,15 @@ export function routeEvent(db: Database, options: RouteEventOptions = {}): never
 		// Browsers send the page's origin with a form post.
 		request: new Request(
 			url,
-			body ? { method: 'POST', body, headers: { origin: url.origin } } : undefined
+			body
+				? { method: 'POST', body, headers: { origin: url.origin } }
+				: options.json !== undefined
+					? {
+							method: 'PUT',
+							body: JSON.stringify(options.json),
+							headers: { origin: url.origin, 'content-type': 'application/json' }
+						}
+					: undefined
 		),
 		cookies: {
 			get: (name: string) => jar.get(name),
