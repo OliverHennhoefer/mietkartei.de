@@ -75,6 +75,23 @@
 					{#if form?.errors?.password}<span class="error">{form.errors.password}</span>{/if}
 				</label>
 			{/if}
+			{#if data.setupCode}
+				<label>
+					Einrichtungscode
+					<input
+						name="setupCode"
+						type="password"
+						autocomplete="off"
+						aria-invalid={form?.wrongSetupCode ? 'true' : undefined}
+						required
+					/>
+					<span class="muted"
+						>Den Code hast du beim Einrichten von mietkartei selbst festgelegt.</span
+					>
+					{#if form?.wrongSetupCode}<span class="error">Der Einrichtungscode stimmt nicht.</span
+						>{/if}
+				</label>
+			{/if}
 			{#if data.turnstileSiteKey}
 				<div class="cf-turnstile" data-sitekey={data.turnstileSiteKey} data-language="de"></div>
 			{/if}

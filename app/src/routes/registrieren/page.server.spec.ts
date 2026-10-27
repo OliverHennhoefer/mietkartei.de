@@ -6,6 +6,8 @@ import { actions, load } from './+page.server';
 
 const env = vi.hoisted(() => ({
 	REGISTRATION_EMAILS: '',
+	SETUP_CODE: '',
+	HOSTED: false,
 	ORIGIN: '',
 	TURNSTILE_SITE_KEY: '',
 	TURNSTILE_SECRET_KEY: '',
@@ -25,6 +27,7 @@ beforeEach(async () => {
 	db = await testDatabase();
 	Object.assign(env, {
 		REGISTRATION_EMAILS: '',
+		SETUP_CODE: '',
 		ORIGIN: '',
 		TURNSTILE_SITE_KEY: '',
 		TURNSTILE_SECRET_KEY: ''
@@ -49,12 +52,12 @@ describe('load', () => {
 
 	it('offers the form on a new instance or with a list of addresses', async () => {
 		expect(await outcome(() => load(routeEvent(db, { user: null })))).toEqual({
-			data: { open: false, restricted: false, turnstileSiteKey: null }
+			data: { open: false, restricted: false, setupCode: false, turnstileSiteKey: null }
 		});
 		env.REGISTRATION_EMAILS = 'neu@example.org';
 		Object.assign(env, { TURNSTILE_SITE_KEY: 'site', TURNSTILE_SECRET_KEY: 'secret' });
 		expect(await outcome(() => load(routeEvent(db, { user: null })))).toEqual({
-			data: { open: true, restricted: true, turnstileSiteKey: 'site' }
+			data: { open: true, restricted: true, setupCode: false, turnstileSiteKey: 'site' }
 		});
 	});
 });
@@ -80,6 +83,33 @@ describe('the first person on a self-hosted instance', () => {
 		const result = await register({ email: 'kaputt', password: 'kurz' });
 		expect(result).toMatchObject({ fail: 400, data: { values: { email: 'kaputt' } } });
 		expect(JSON.stringify(result)).not.toContain('kurz');
+	});
+
+	it('needs the setup code when one is set', async () => {
+		env.SETUP_CODE = 'kanal-tulpe-42';
+		expect(await outcome(() => load(routeEvent(db, { user: null })))).toEqual({
+			data: { open: true, restricted: false, setupCode: true, turnstileSiteKey: null }
+		});
+		const form = { email: 'erste@example.org', password: 'lang-genug-1234' };
+		expect(await register({ ...form, setupCode: 'geraten' })).toEqual({
+			fail: 403,
+			data: { wrongSetupCode: true, values: { email: 'erste@example.org' } }
+		});
+		expect(await register(form)).toMatchObject({ fail: 403, data: { wrongSetupCode: true } });
+		expect(await db.select().from(users)).toEqual([]);
+		expect(await register({ ...form, setupCode: 'kanal-tulpe-42' })).toEqual({ redirect: '/' });
+	});
+
+	it('lets nobody register on the hosted variant', async () => {
+		env.HOSTED = true;
+		try {
+			expect(await register({ email: 'erste@example.org', password: 'lang-genug-1234' })).toEqual({
+				fail: 403,
+				data: { closed: true }
+			});
+		} finally {
+			env.HOSTED = false;
+		}
 	});
 });
 
