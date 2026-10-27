@@ -95,7 +95,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .latest:hover { border-color: var(--foreground); color: var(--foreground); }
 .latest-tag { flex: none; padding: 3px 10px; border-radius: 999px; background: var(--highlight); color: #000; font-size: 13px; font-weight: 600; }
 .latest-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hero h1 { margin: 36px 0 0; font-size: clamp(40px, 5.4vw, 68px); font-weight: 500; line-height: 1.08; letter-spacing: -.045em; }
+.hero h1 { margin: 36px 0 0; font-size: clamp(40px, 5.4vw, 68px); font-weight: 500; line-height: 1.08; letter-spacing: -.045em; text-wrap: balance; }
 .hero-lead { max-width: 660px; margin: 28px auto 0 !important; color: var(--muted); font-size: clamp(19px, 1.6vw, 21px); line-height: 1.6; }
 /* The neon block of the logo marks the one task landlords dread most; black text in both schemes. */
 .hero-lead mark { padding: .02em .2em; background: var(--highlight); color: #000; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
@@ -196,6 +196,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 @media (max-width: 600px) {
   .home { font-size: 17px; }
   .hero { padding-top: 40px; }
+  .hero h1 { font-size: clamp(30px, 8.6vw, 40px); }
   .latest { font-size: 13px; }
   .hero-actions { flex-direction: column; }
   .section-lead { font-size: 18px; }
