@@ -20,6 +20,7 @@ OUTPUT.mkdir(parents=True)
 for filename in (
     "index.html",
     "impressum/index.html",
+    "datenschutz/index.html",
     "fragen/index.html",
     "preise/index.html",
     "styles.css",
