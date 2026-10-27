@@ -35,6 +35,8 @@ env:
 jobs:
   check:
     name: Lint, type check and unit tests
+    # Copies of the repository, such as those of the Deploy to Cloudflare button, run none of this.
+    if: github.repository == 'OliverHennhoefer/mietkartei.de'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # The Codecov upload signs in with a GitHub OIDC token instead of a stored secret.
@@ -106,6 +108,8 @@ jobs:
 
   e2e:
     name: End-to-end tests (${{ matrix.target }})
+    # Copies of the repository, such as those of the Deploy to Cloudflare button, run none of this.
+    if: github.repository == 'OliverHennhoefer/mietkartei.de'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -149,6 +153,8 @@ jobs:
 
   docker:
     name: Docker image
+    # Copies of the repository, such as those of the Deploy to Cloudflare button, run none of this.
+    if: github.repository == 'OliverHennhoefer/mietkartei.de'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:

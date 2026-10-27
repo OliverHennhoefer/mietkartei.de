@@ -1,0 +1,3 @@
+# Secrets of a self-hosted mietkartei on Cloudflare; the "Deploy to Cloudflare" button asks for them.
+# The code the first person enters to register, see SETUP_CODE in app/src/env.ts.
+SETUP_CODE=

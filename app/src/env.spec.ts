@@ -30,8 +30,8 @@ describe('environment variables', () => {
 		});
 	});
 
-	it('turns on billing, the demo and the test routes only with "true"', () => {
-		for (const name of ['BILLING_REQUIRED', 'DEMO', 'E2E'] as const) {
+	it('turns on billing, the demo, the hosted variant and the test routes only with "true"', () => {
+		for (const name of ['BILLING_REQUIRED', 'DEMO', 'E2E', 'HOSTED'] as const) {
 			expect(read(name, 'true')).toEqual({ value: true });
 			expect(read(name, '1')).toEqual({ value: false });
 		}

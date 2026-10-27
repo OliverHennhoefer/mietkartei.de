@@ -33,7 +33,7 @@ Worauf mietkartei setzt: nachvollziehbar gerechnete Umlagen, kein Lock-in (offen
 - [Kontoauszüge importieren](https://docs.mietkartei.de/anleitungen/kontoauszuege-importieren/): Mietzahlungen per camt.053 oder CSV zuordnen
 - [Von Excel umsteigen](https://docs.mietkartei.de/anleitungen/von-excel-umsteigen/): Objekte, Mieter, Mietverträge und Zahlungen per CSV übernehmen
 - [KI-Assistenten anbinden](https://docs.mietkartei.de/anleitungen/ki-assistenten/): MCP-Server unter https://app.mietkartei.de/mcp (OAuth für claude.ai und ChatGPT, sonst API-Schlüssel) und REST-API
-- [Selbst hosten](https://docs.mietkartei.de/selbst-hosten/): mietkartei mit Docker oder aus dem Quellcode betreiben
+- [Selbst hosten](https://docs.mietkartei.de/selbst-hosten/): mietkartei im eigenen Cloudflare-Konto (Workers Paid, rund 5 US-Dollar im Monat, ohne Domain), mit Docker oder aus dem Quellcode betreiben
 - [Umziehen und Daten mitnehmen](https://docs.mietkartei.de/anleitungen/umziehen/): Export herunterladen und in eine andere Instanz einspielen, mit allen Dokumenten und dem Änderungsprotokoll
 - [Quellcode auf GitHub](https://github.com/OliverHennhoefer/mietkartei.de): Code, Fehlerberichte und Funktionswünsche
 
