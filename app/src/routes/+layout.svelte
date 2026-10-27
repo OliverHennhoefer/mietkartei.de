@@ -102,6 +102,12 @@
 		accountButton?.focus();
 	}
 
+	// The server renders the colour scheme into <html>; this keeps it current after saving it in
+	// the settings or signing in as someone else without a full page load.
+	$effect(() => {
+		document.documentElement.dataset.theme = data.theme;
+	});
+
 	$effect(() => {
 		void page.url.pathname;
 		open = false;
@@ -246,8 +252,12 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} type="image/svg+xml" />
-	<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-	<meta name="theme-color" content="#181818" media="(prefers-color-scheme: dark)" />
+	{#if data.theme === 'system'}
+		<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+		<meta name="theme-color" content="#181818" media="(prefers-color-scheme: dark)" />
+	{:else}
+		<meta name="theme-color" content={data.theme === 'dark' ? '#181818' : '#ffffff'} />
+	{/if}
 	<!-- The link preview of every app page; the demo page adds its own title and description. -->
 	<meta property="og:site_name" content="mietkartei" />
 	<meta property="og:locale" content="de_DE" />

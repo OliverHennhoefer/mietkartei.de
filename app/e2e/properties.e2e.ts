@@ -337,3 +337,30 @@ test('shows each property on a map and hides the maps in the settings', async ({
 	await page.getByRole('button', { name: 'Speichern' }).click();
 	await expect(page.getByText('Gespeichert.')).toBeVisible();
 });
+
+test('switches between light and dark colours', async ({ page }) => {
+	const html = page.locator('html');
+	await page.emulateMedia({ colorScheme: 'light' });
+	await page.goto('/einstellungen/darstellung');
+	await expect(page.getByLabel('Wie das Gerät')).toBeChecked();
+	await expect(html).toHaveAttribute('data-theme', 'system');
+
+	await page.getByLabel('Dunkel').check();
+	await page.getByRole('button', { name: 'Speichern' }).click();
+	await expect(html).toHaveAttribute('data-theme', 'dark');
+	await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(30, 30, 30)');
+	await page.goto('/objekte');
+	await expect(html).toHaveAttribute('data-theme', 'dark');
+
+	await page.emulateMedia({ colorScheme: 'dark' });
+	await page.goto('/einstellungen/darstellung');
+	await page.getByLabel('Hell').check();
+	await page.getByRole('button', { name: 'Speichern' }).click();
+	await expect(html).toHaveAttribute('data-theme', 'light');
+	await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+
+	await page.getByLabel('Wie das Gerät').check();
+	await page.getByRole('button', { name: 'Speichern' }).click();
+	await expect(html).toHaveAttribute('data-theme', 'system');
+	await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(30, 30, 30)');
+});

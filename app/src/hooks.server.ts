@@ -83,6 +83,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 	event.locals.db = await getDatabase();
 	event.locals.user = undefined;
+	event.locals.theme = 'system';
 	if (isApiPath(event.url.pathname)) {
 		const response = await resolve(event);
 		// Answers hold personal data like signed-in pages, so they are not cached either.
@@ -98,6 +99,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		const session = await validateSession(event.locals.db, token);
 		if (session) {
 			event.locals.user = session.user;
+			event.locals.theme = session.theme;
 			if (session.expiresAt) setSessionCookie(event, token, session.expiresAt);
 		} else {
 			deleteSessionCookie(event);
@@ -118,7 +120,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 	if (event.locals.user) await enforceBilling(event);
 	// Viewers only read.
 	enforceRole(event);
-	const response = await resolve(event);
+	// Rendered into the page, so the chosen colours show before any script runs; see app.css.
+	const response = await resolve(event, {
+		transformPageChunk: ({ html }) => html.replace('%theme%', event.locals.theme)
+	});
 	applySecurityHeaders(response.headers, {
 		https: event.url.protocol === 'https:',
 		signedIn: Boolean(event.locals.user)

@@ -4,7 +4,7 @@ import { getTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { hashPassword, type SessionUser } from './auth';
 import type { Database } from './db';
 import * as schema from './db/schema';
-import { accounts, properties, rentCharges, tenants, units, users } from './db/schema';
+import { accounts, properties, rentCharges, tenants, units, users, type Theme } from './db/schema';
 import { createSqliteDatabase } from './db/sqlite';
 import type { Storage } from './storage';
 import { createLease, type LeaseInput } from './leases';
@@ -213,6 +213,8 @@ export const managerA: SessionUser = { ...ownerA, id: 'manager-a', role: 'manage
 export type RouteEventOptions = {
 	/** The signed-in user; null for a visitor. Defaults to ownerA. */
 	user?: SessionUser | null;
+	/** The signed-in user's colour scheme, as the hook reads it. Defaults to 'system'. */
+	theme?: Theme;
 	params?: Record<string, string>;
 	/** Path and query, e.g. '/objekte?neu=1'. */
 	url?: string;
@@ -242,7 +244,11 @@ export function routeEvent(db: Database, options: RouteEventOptions = {}): never
 	}
 	const jar = options.cookies ?? new Map<string, string>();
 	return {
-		locals: { db, user: options.user === undefined ? ownerA : (options.user ?? undefined) },
+		locals: {
+			db,
+			theme: options.theme ?? 'system',
+			user: options.user === undefined ? ownerA : (options.user ?? undefined)
+		},
 		params: options.params ?? {},
 		url,
 		// Browsers send the page's origin with a form post.
