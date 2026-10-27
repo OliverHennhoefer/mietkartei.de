@@ -25,7 +25,7 @@
 		padding: 0.2rem 0.6rem;
 		border: 1px solid var(--color-border);
 		border-radius: 999px;
-		font-size: 0.72rem;
+		font-size: var(--text-xs);
 		font-weight: 500;
 		white-space: nowrap;
 		background: var(--color-subtle);

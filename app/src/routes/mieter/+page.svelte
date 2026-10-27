@@ -158,12 +158,16 @@
 								</td>
 								<td>
 									{#if tenant.activeLeases.length > 0}
-										{#each tenant.activeLeases as lease, index (lease.id)}
-											{#if index > 0},{/if}
-											<a href="/vertraege/{lease.id}">{lease.label}</a>
+										{#each tenant.activeLeases as lease (lease.id)}
+											<a class="lease" href="/vertraege/{lease.id}"
+												>{lease.unit}<span class="muted small">{lease.property}</span></a
+											>
 										{/each}
 									{:else if tenant.moveIn}
-										<a href="/vertraege/{tenant.moveIn.id}">{tenant.moveIn.label}</a>
+										<a class="lease" href="/vertraege/{tenant.moveIn.id}"
+											>{tenant.moveIn.unit}<span class="muted small">{tenant.moveIn.property}</span
+											></a
+										>
 									{:else}
 										<span class="muted">keine</span>
 									{/if}
@@ -251,7 +255,7 @@
 	}
 	.pending p {
 		margin: 0.25rem 0 0;
-		font-size: 0.875rem;
+		font-size: var(--text-sm);
 	}
 	/* Red for money owed, green for a tenant coming, grey for one leaving. */
 	.dot {
@@ -274,7 +278,9 @@
 	.summary {
 		margin: 0 0 1.5rem;
 	}
-	.contact {
+	.contact,
+	.lease,
+	.lease span {
 		display: block;
 	}
 	.badges {

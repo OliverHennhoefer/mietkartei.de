@@ -1,6 +1,6 @@
 @font-face {
   font-family: Geist;
-  src: url("../brand/fonts/geist/Geist.ttf") format("truetype");
+  src: url("../brand/fonts/geist/Geist.woff2") format("woff2");
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
@@ -143,7 +143,7 @@ body[data-md-color-scheme="slate"][data-md-color-primary] {
   background-position: top center;
   background-repeat: no-repeat;
   color: var(--md-default-fg-color--light);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.5;
 }
 
@@ -234,7 +234,7 @@ body[data-md-color-scheme="slate"][data-md-color-primary] {
 /* The page title in the size of the website's page titles. */
 .md-typeset h1 {
   margin-bottom: 0.6em;
-  font-size: clamp(32px, 4vw, 48px);
+  font-size: clamp(32px, 4vw, 44px);
   letter-spacing: -0.045em;
   line-height: 1.08;
 }

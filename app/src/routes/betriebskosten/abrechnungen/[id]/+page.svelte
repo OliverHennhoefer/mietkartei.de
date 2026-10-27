@@ -477,7 +477,7 @@
 		grid-template-columns: max-content 1fr;
 		gap: 0.25rem 1rem;
 		margin: 0;
-		font-size: 0.95rem;
+		font-size: var(--text-base);
 	}
 	dl.details dt {
 		color: var(--color-muted);
@@ -493,7 +493,7 @@
 	}
 	.balance {
 		margin: 0;
-		font-size: 1.1rem;
+		font-size: var(--text-lg);
 	}
 	.lease-actions {
 		border-top: 1px solid var(--color-border);

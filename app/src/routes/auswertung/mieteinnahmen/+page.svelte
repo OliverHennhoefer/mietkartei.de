@@ -200,24 +200,24 @@
 		}
 	}
 	.tile .value {
-		font-size: 1.5rem;
+		font-size: var(--text-xl);
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 		letter-spacing: -0.01em;
 	}
 	.value-note {
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 		font-weight: 400;
 		color: var(--color-muted);
 		letter-spacing: 0;
 	}
 	.tile .label {
 		color: var(--color-muted);
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 	}
 	.change {
 		margin-top: 0.6rem;
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 		font-weight: 500;
 	}
 	mark {
@@ -250,7 +250,7 @@
 		justify-content: space-between;
 		gap: 1rem;
 		margin-top: 0.35rem;
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 		color: var(--color-muted);
 	}
 	.negative {

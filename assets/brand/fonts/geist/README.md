@@ -7,4 +7,6 @@ Die unveränderte variable Schriftdatei `Geist.ttf` stammt aus dem [Google-Fonts
 - Lizenz: [SIL Open Font License 1.1](OFL.txt), mit unverändertem Urheberrechtsvermerk
 - Verwendete Einstellung: `wght = 500` (Medium), native Laufweite und Kerning
 
-Die Wortmarken enthalten ausschließlich Konturen der verwendeten Buchstaben. Die Schriftdatei bleibt als Quelle für reproduzierbare Exporte erhalten; sie wird vom Dokumentationsbuild nicht veröffentlicht.
+Die Wortmarken enthalten ausschließlich Konturen der verwendeten Buchstaben. Die Schriftdatei bleibt als Quelle für reproduzierbare Exporte erhalten.
+
+`Geist.woff2` ist dieselbe Schrift, nur ohne Änderung an den Glyphen ins kleinere WOFF2-Format umgewandelt (mit fontTools). App, Website und Dokumentation laden diese Datei, 70 statt 169 KB.

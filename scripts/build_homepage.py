@@ -61,7 +61,7 @@ if not expires or datetime.fromisoformat(expires[1]) < datetime.now(timezone.utc
 # Browsers without SVG favicons (Safari) and crawlers ask for /favicon.ico at the root.
 copyfile(ROOT / "assets" / "brand" / "favicon.ico", OUTPUT / "favicon.ico")
 
-for filename in ("Geist.ttf", "OFL.txt"):
+for filename in ("Geist.woff2", "OFL.txt"):
     destination = OUTPUT / "assets" / "fonts" / "geist" / filename
     destination.parent.mkdir(parents=True, exist_ok=True)
     copyfile(ROOT / "assets" / "brand" / "fonts" / "geist" / filename, destination)

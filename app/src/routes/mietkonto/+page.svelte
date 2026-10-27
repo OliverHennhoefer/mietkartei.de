@@ -198,7 +198,7 @@
 		margin-left: 0.4rem;
 	}
 	.ended :global(.lease-status) {
-		font-size: 0.78rem;
+		font-size: var(--text-xs);
 	}
 	.reminder > span {
 		white-space: nowrap;
