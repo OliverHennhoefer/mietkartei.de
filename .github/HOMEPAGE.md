@@ -21,7 +21,7 @@ Then open [http://127.0.0.1:8002](http://127.0.0.1:8002). Rebuild the output aft
 | `website/_header.html`, `website/_footer.html` | The one header and footer of every page; the build puts them in place of the `<!-- header -->` and `<!-- footer -->` markers and marks the footer link of the page itself |
 | `website/preise/index.html`, `website/fragen/index.html` | Pricing and FAQ pages |
 | `website/impressum/index.html` | Legal notice (Impressum) with provider and contact details |
-| `website/datenschutz/index.html` | Privacy policy (Datenschutzerklärung) for mietkartei.de and docs.mietkartei.de |
+| `website/datenschutz/index.html` | Privacy policy (Datenschutzerklärung) for the websites, the hosted app and the demo; keep it in step when the app stores new personal data or uses a new service |
 | `website/styles.css` | Styles, including light and dark colors |
 | `website/assets/screenshots/` | The homepage screenshots, all 1600 × 1000: whole screens (Auswertung in the hero, Mietkonto) and enlarged details (Rendite, a bank transaction, one tenant's share of the operating cost statement), taken by `npm run screenshots` in `app/`. The numbers in the floating details and the sample chat in `website/index.html` are copied from these screenshots; keep them in step when the demo data changes |
 | `website/ratgeber/*.md` | Guides, one Markdown file per guide; the file name is the URL slug |

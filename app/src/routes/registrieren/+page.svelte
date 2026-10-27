@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
 	import { LAUNCH } from '#lib/launch.ts';
+	import { PRIVACY_POLICY_URL } from '#lib/legal.ts';
 	import { MIN_PASSWORD_LENGTH } from '#lib/validation.ts';
 	import type { PageProps } from './$types';
 
@@ -106,6 +107,12 @@
 				<p class="error" role="alert">
 					Die Prüfung, ob hier ein Mensch registriert, hat nicht geklappt. Bitte versuche es noch
 					einmal.
+				</p>
+			{/if}
+			{#if PRIVACY_POLICY_URL}
+				<p class="muted">
+					Wie mietkartei deine Daten und die deiner Mieter verarbeitet, steht in der
+					<a href={PRIVACY_POLICY_URL}>Datenschutzerklärung</a>.
 				</p>
 			{/if}
 			<div class="form-actions">
