@@ -302,6 +302,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .legal-section h2 { margin: 0 0 10px; font-size: 16px; font-weight: 500; letter-spacing: -.015em; }
 .legal-section h2 a { text-underline-offset: 3px; }
 .legal-section p, .legal-section address { margin: 0; color: var(--muted); font-style: normal; }
+.legal-section p + p { margin-top: 12px; }
 a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 .skip-link { position: absolute; top: 12px; left: 16px; padding: 10px; background: var(--background); transform: translateY(-200%); }
 .skip-link:focus { transform: none; }
