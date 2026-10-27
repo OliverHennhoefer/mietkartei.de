@@ -26,7 +26,7 @@ Gebaut für private Vermieter: zu klein für die großen Verwaltungsprogramme, a
 - **Alles mit Rechenweg:** Jede Umlage zeigt, wie sie entsteht. Widerspricht ein Mieter, zeigst du ihm jeden Schritt.
 - **Kein Lock-in:** Offener Code und vollständiger Export, deine Daten bleiben auch ohne uns nutzbar.
 - **Kein Datengeschäft:** Kein Geld mit deinen Daten oder denen deiner Mieter, keine Werbung, keine Leads. Das Abo der gehosteten Version deckt Server und Weiterentwicklung.
-- **Ein Preis, alles drin:** Selbst betrieben kostenlos, gehostet 8 € im Monat, egal wie viele Wohnungen.
+- **Ein Preis, alles drin:** Selbst betrieben kostenlos, gehostet 5 € im Monat oder 50 € im Jahr, egal wie viele Wohnungen.
 - **Frag einfach Claude:** Über den MCP-Server beantworten Claude oder ChatGPT Fragen wie „Wer ist im Rückstand?“.
 
 ## Funktionen
