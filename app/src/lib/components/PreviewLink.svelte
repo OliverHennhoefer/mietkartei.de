@@ -168,7 +168,8 @@
 			>
 		</div>
 		{#if problem}<p class="preview-problem" role="alert">{problem}</p>{/if}
-		<div class="preview-body" class:sheet={text}>
+		<!-- Not editable while saving: the reload after the save would drop what is typed meanwhile. -->
+		<div class="preview-body" class:sheet={text} inert={saving}>
 			{#if text}
 				{#if letter}<LetterSheet {letter} bind:paragraphs />{/if}
 			{:else if image}
