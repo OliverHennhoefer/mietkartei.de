@@ -100,9 +100,6 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 /* The neon block of the logo marks the one task landlords dread most; black text in both schemes. */
 .hero-lead mark { padding: .02em .2em; background: var(--highlight); color: #000; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .hero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; margin-top: 40px; }
-.hero-note { margin-top: 20px !important; color: var(--muted); font-size: 16px; }
-.hero-note a { text-decoration-color: var(--line); text-underline-offset: 4px; }
-.hero-note a:hover { color: var(--foreground); text-decoration-color: currentColor; }
 
 .stage { position: relative; padding-top: 24px; }
 .stage-glow { position: absolute; left: 50%; top: 18%; width: min(1100px, 90vw); height: 60%; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--highlight) 55%, transparent), transparent); opacity: .35; filter: blur(40px); transform: translateX(-50%); pointer-events: none; }
