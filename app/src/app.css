@@ -188,6 +188,23 @@ textarea {
 .billing-notice.highlight a {
 	text-decoration-color: currentColor;
 }
+/* The demo's note: a neon tag, and the way to the website underlined in neon as on the website. */
+.billing-notice.demo-notice {
+	color: var(--color-text);
+}
+.demo-tag {
+	flex-shrink: 0;
+	padding: 0 0.4rem;
+	border-radius: 4px;
+	background: var(--color-highlight);
+	color: var(--color-highlight-text);
+	font-weight: 600;
+}
+.billing-notice.demo-notice a {
+	text-decoration-color: var(--color-highlight);
+	text-decoration-thickness: 3px;
+	text-underline-offset: 4px;
+}
 
 /* The settings dialog: sections on the left, the open one on the right. */
 .settings-dialog {
