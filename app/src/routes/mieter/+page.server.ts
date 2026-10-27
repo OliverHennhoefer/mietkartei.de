@@ -89,7 +89,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
 		return {
 			...tenant,
-			activeLeases: active.map((lease) => ({ id: lease.id, label: leaseLabel(lease) })),
+			activeLeases: active.map((lease) => ({
+				id: lease.id,
+				label: leaseLabel(lease),
+				unit: lease.unit.name,
+				property: lease.property.name
+			})),
 			rent: active.reduce((sum, lease) => sum + total(lease.currentRent), 0),
 			overdue,
 			openSince,
@@ -107,7 +112,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 						label: leaseLabel(moveOut)
 					}
 				: null,
-			moveIn: moveIn ? { id: moveIn.id, date: moveIn.startDate, label: leaseLabel(moveIn) } : null
+			moveIn: moveIn
+				? {
+						id: moveIn.id,
+						date: moveIn.startDate,
+						label: leaseLabel(moveIn),
+						unit: moveIn.unit.name,
+						property: moveIn.property.name
+					}
+				: null
 		};
 	});
 	// By name, and properties of the same name apart by id, so each group stays together.

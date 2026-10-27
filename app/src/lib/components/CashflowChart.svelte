@@ -148,15 +148,15 @@
 	}
 	.axis {
 		fill: var(--color-muted);
-		font-size: 11px;
+		font-size: var(--text-xs);
 		font-variant-numeric: tabular-nums;
 	}
 	.axis.step {
-		font-size: 12px;
+		font-size: var(--text-xs);
 	}
 	.value {
 		fill: var(--color-text);
-		font-size: 12px;
+		font-size: var(--text-xs);
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 	}

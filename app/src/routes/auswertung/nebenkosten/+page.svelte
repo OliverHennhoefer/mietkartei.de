@@ -208,18 +208,18 @@
 		align-content: start;
 	}
 	.tile .value {
-		font-size: 1.5rem;
+		font-size: var(--text-xl);
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 		letter-spacing: -0.01em;
 	}
 	.tile .label {
 		color: var(--color-muted);
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 	}
 	.tile .note {
 		margin-top: 0.5rem;
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 		color: var(--color-muted);
 	}
 	mark {

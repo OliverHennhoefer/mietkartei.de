@@ -40,7 +40,7 @@
 	}
 	.back {
 		margin: 0 0 1rem;
-		font-size: 0.8rem;
+		font-size: var(--text-xs);
 		color: var(--color-muted);
 	}
 	.back a {
@@ -51,7 +51,7 @@
 	}
 	.lead {
 		margin: 0.65rem 0 0;
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 		max-width: 45rem;
 	}
 	@media (max-width: 40rem) {

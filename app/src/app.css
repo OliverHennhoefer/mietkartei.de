@@ -1,6 +1,6 @@
 @font-face {
 	font-family: Geist;
-	src: url('../../assets/brand/fonts/geist/Geist.ttf') format('truetype');
+	src: url('../../assets/brand/fonts/geist/Geist.woff2') format('woff2');
 	font-style: normal;
 	font-weight: 100 900;
 	font-display: swap;
@@ -73,9 +73,20 @@
 		sans-serif;
 	font-synthesis: none;
 	/* 14 px at the browser default, but relative, so a larger default font size set in the browser
-	   enlarges the whole app. */
+	   enlarges the whole app. The spacing is in rem of this root; the text uses the scale below. */
 	font-size: 87.5%;
-	line-height: 1.6;
+	line-height: 1.5;
+	/* The type scale, the same as on the website and in the documentation: nothing below 13 px,
+	   16 px for body text. Sizes are given in pixels at the browser default. */
+	--px: calc(1rem / 14);
+	--text-xs: calc(13 * var(--px));
+	--text-sm: calc(14 * var(--px));
+	--text-base: calc(16 * var(--px));
+	--text-lg: calc(18 * var(--px));
+	--text-xl: calc(22 * var(--px));
+	--text-2xl: calc(28 * var(--px));
+	--text-3xl: calc(32 * var(--px));
+	--text-display: clamp(calc(32 * var(--px)), 4vw, calc(44 * var(--px)));
 	-webkit-font-smoothing: antialiased;
 	color: var(--color-text);
 	background: var(--color-background);
@@ -86,6 +97,7 @@
 }
 body {
 	margin: 0;
+	font-size: var(--text-base);
 	background: var(--color-background);
 }
 .app-root {
@@ -161,7 +173,7 @@ textarea {
 	min-width: 0;
 	margin: 0;
 	color: var(--color-muted);
-	font-size: 0.8rem;
+	font-size: var(--text-xs);
 }
 .billing-notice span {
 	overflow: hidden;
@@ -171,7 +183,7 @@ textarea {
 .billing-notice a {
 	flex-shrink: 0;
 	color: inherit;
-	font-weight: 550;
+	font-weight: 600;
 }
 .billing-notice .icon {
 	flex-shrink: 0;
@@ -241,7 +253,7 @@ textarea {
 .settings-title {
 	margin: 0 0 0.75rem;
 	padding: 0 0.75rem;
-	font-weight: 550;
+	font-weight: 600;
 }
 .settings-side nav {
 	display: grid;
@@ -255,7 +267,7 @@ textarea {
 	padding: 0.4rem 0.75rem;
 	border-radius: 8px;
 	color: var(--color-muted);
-	font-size: 0.875rem;
+	font-size: var(--text-sm);
 	text-decoration: none;
 }
 .settings-side a:hover {
@@ -265,7 +277,7 @@ textarea {
 .settings-side a[aria-current='page'] {
 	background: var(--color-hover);
 	color: var(--color-text);
-	font-weight: 550;
+	font-weight: 600;
 }
 .settings-content {
 	position: relative;
@@ -368,8 +380,8 @@ button.settings-close {
 	margin: 0 0 0.25rem;
 	padding: 0 0.75rem;
 	color: var(--color-muted);
-	font-size: 0.68rem;
-	font-weight: 550;
+	font-size: var(--text-xs);
+	font-weight: 600;
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
 }
@@ -382,7 +394,7 @@ button.settings-close {
 	border-radius: 12px;
 	color: var(--color-text);
 	text-decoration: none;
-	font-size: 0.92rem;
+	font-size: var(--text-base);
 	transition:
 		background 140ms,
 		box-shadow 140ms,
@@ -419,7 +431,7 @@ button.settings-close {
 	background: var(--color-nav-active);
 	box-shadow: var(--shadow-nav-active);
 	color: var(--color-nav-active-text);
-	font-weight: 550;
+	font-weight: 600;
 }
 .nav-item[aria-current='page'] .nav-icon {
 	background: var(--color-highlight);
@@ -437,7 +449,7 @@ button.settings-close {
 .nav-version {
 	margin: 0;
 	padding: 0 0.75rem;
-	font-size: 0.72rem;
+	font-size: var(--text-xs);
 }
 .nav-version a {
 	color: var(--color-muted);
@@ -479,7 +491,7 @@ button.account-card[aria-expanded='true'] {
 	border-radius: 11px;
 	background: var(--color-accent);
 	color: var(--color-accent-text);
-	font-size: 0.75rem;
+	font-size: var(--text-xs);
 	font-weight: 600;
 	letter-spacing: 0.02em;
 }
@@ -496,12 +508,12 @@ button.account-card[aria-expanded='true'] {
 	text-overflow: ellipsis;
 }
 .account-name {
-	font-size: 0.875rem;
-	font-weight: 550;
+	font-size: var(--text-sm);
+	font-weight: 600;
 }
 .account-email {
 	color: var(--color-muted);
-	font-size: 0.75rem;
+	font-size: var(--text-xs);
 }
 .account-switch {
 	display: grid;
@@ -539,8 +551,8 @@ button.account-card[aria-expanded='true'] {
 	border-radius: 9px;
 	background: transparent;
 	color: var(--color-text);
-	font-size: 0.875rem;
-	font-weight: 450;
+	font-size: var(--text-sm);
+	font-weight: 400;
 	text-decoration: none;
 }
 .account-menu a:hover,
@@ -582,7 +594,7 @@ button.account-card[aria-expanded='true'] {
 	text-align: center;
 }
 .app-shell:not(.authenticated) .narrow > h1 {
-	font-size: clamp(32px, 4vw, 48px);
+	font-size: var(--text-display);
 	font-weight: 500;
 	letter-spacing: -0.045em;
 	line-height: 1.08;
@@ -621,7 +633,7 @@ button.account-card[aria-expanded='true'] {
 .website-footer {
 	border-top: 1px solid var(--color-border);
 	padding-top: clamp(14px, 2.2vh, 20px);
-	font-size: 12px;
+	font-size: var(--text-xs);
 	line-height: 1.5;
 	color: var(--color-muted);
 }
@@ -699,28 +711,28 @@ button.account-card[aria-expanded='true'] {
 h1,
 h2,
 h3 {
-	font-weight: 550;
+	font-weight: 600;
 	letter-spacing: -0.035em;
 	text-wrap: balance;
 }
 h1 {
-	font-size: clamp(1.8rem, 3vw, 2.25rem);
+	font-size: var(--text-3xl);
 	margin: 0;
 	line-height: 1.25;
 }
 h2 {
-	font-size: 1.15rem;
+	font-size: var(--text-lg);
 	margin: 2.5rem 0 1rem;
 }
 h3 {
-	font-size: 1rem;
+	font-size: var(--text-base);
 	margin: 1.75rem 0 0.75rem;
 }
 p {
 	margin-block: 0.75rem;
 }
 strong {
-	font-weight: 550;
+	font-weight: 600;
 }
 a {
 	color: inherit;
@@ -734,12 +746,12 @@ a:hover {
 	color: var(--color-muted);
 }
 .small {
-	font-size: 0.85rem;
+	font-size: var(--text-sm);
 }
 .error {
 	color: var(--color-danger);
 	font-weight: 500;
-	font-size: 0.8rem;
+	font-size: var(--text-xs);
 }
 .card {
 	min-width: 0;
@@ -800,7 +812,7 @@ a:hover {
 	text-decoration: none;
 }
 .stat .value {
-	font-size: 2rem;
+	font-size: var(--text-2xl);
 	line-height: 1.15;
 	font-weight: 500;
 	letter-spacing: -0.045em;
@@ -809,7 +821,7 @@ a:hover {
 }
 .stat .label {
 	color: var(--color-muted);
-	font-size: 0.8rem;
+	font-size: var(--text-xs);
 }
 a.stat:hover .label {
 	color: var(--color-text);
@@ -820,7 +832,7 @@ a.stat:hover .label {
 	margin: 0;
 	padding: 1.4rem 1.75rem 0;
 	color: var(--color-muted);
-	font-size: 0.75rem;
+	font-size: var(--text-xs);
 	text-transform: uppercase;
 	letter-spacing: 0.08em;
 }
@@ -854,20 +866,20 @@ a.stat:hover .label {
 table.table {
 	width: 100%;
 	border-collapse: collapse;
-	font-size: 0.9rem;
+	font-size: var(--text-base);
 }
 .table th,
 .table td {
 	text-align: left;
-	padding: 1rem 1.25rem;
+	padding: 0.9rem 1rem;
 	border-bottom: 1px solid var(--color-border);
 	vertical-align: middle;
 }
 .table thead th {
 	background: var(--color-subtle);
-	font-weight: 450;
+	font-weight: 400;
 	color: var(--color-muted);
-	font-size: 0.78rem;
+	font-size: var(--text-xs);
 	white-space: nowrap;
 }
 .table tbody tr {
@@ -887,7 +899,7 @@ table.table {
 }
 .table tfoot td {
 	background: var(--color-subtle);
-	font-weight: 550;
+	font-weight: 600;
 	border-top: 1px solid var(--color-border);
 	border-bottom: 0;
 }
@@ -933,7 +945,7 @@ table.table {
 	align-items: center;
 	gap: 0.6rem;
 	margin: 0;
-	font-size: 1rem;
+	font-size: var(--text-base);
 	letter-spacing: -0.02em;
 }
 .result-count {
@@ -944,14 +956,14 @@ table.table {
 	border: 1px solid var(--color-border);
 	border-radius: 5px;
 	color: var(--color-muted);
-	font-size: 0.72rem;
+	font-size: var(--text-xs);
 	font-weight: 400;
 }
 .list-search {
 	display: flex;
 	align-items: center;
 	gap: 0.6rem;
-	width: 19rem;
+	width: 21rem;
 	padding: 0 0.8rem;
 	border: 1px solid var(--color-border);
 	border-radius: 8px;
@@ -967,7 +979,7 @@ table.table {
 	padding: 0.5rem 0;
 	border: 0;
 	background: transparent;
-	font-size: 0.8rem;
+	font-size: var(--text-sm);
 	box-shadow: none;
 }
 @media (max-width: 40rem) {
@@ -1007,7 +1019,7 @@ label {
 	display: grid;
 	gap: 0.5rem;
 	font-weight: 500;
-	font-size: 0.85rem;
+	font-size: var(--text-sm);
 }
 label.inline {
 	display: flex;
@@ -1183,7 +1195,7 @@ input::file-selector-button {
 	box-shadow: var(--shadow);
 	color: var(--color-text);
 	font: inherit;
-	font-size: 0.8rem;
+	font-size: var(--text-xs);
 	font-weight: 500;
 	cursor: pointer;
 	transition:
@@ -1215,7 +1227,7 @@ button,
 	border-radius: 8px;
 	background: var(--color-accent);
 	color: var(--color-accent-text);
-	font-size: 0.85rem;
+	font-size: var(--text-sm);
 	font-weight: 500;
 	cursor: pointer;
 	text-decoration: none;
@@ -1295,7 +1307,7 @@ button.small,
 .button.small {
 	min-height: 2rem;
 	padding: 0.3rem 0.65rem;
-	font-size: 0.8rem;
+	font-size: var(--text-xs);
 }
 button.icon-button {
 	min-height: 2.25rem;
@@ -1333,7 +1345,7 @@ button.icon-button:hover {
 	width: 100%;
 }
 .narrow > .muted {
-	font-size: 0.85rem;
+	font-size: var(--text-sm);
 }
 .auth-lead {
 	margin: 0.75rem 0 0;
@@ -1344,7 +1356,7 @@ button.icon-button:hover {
 	display: inline-block;
 	margin-bottom: 24px;
 	color: var(--color-muted);
-	font-size: 13px;
+	font-size: var(--text-xs);
 	line-height: normal;
 	text-decoration-color: currentColor;
 	text-underline-offset: 4px;
@@ -1377,7 +1389,7 @@ nav.toolbar > a {
 	padding: 0.4rem 0.85rem;
 	border-radius: 6px;
 	color: var(--color-muted);
-	font-size: 0.85rem;
+	font-size: var(--text-sm);
 	text-decoration: none;
 }
 nav.toolbar > a:hover {
@@ -1403,7 +1415,7 @@ dl.details {
 	grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
 	gap: 0.75rem 2rem;
 	margin: 0;
-	font-size: 0.9rem;
+	font-size: var(--text-base);
 }
 dl.details dt {
 	color: var(--color-muted);
@@ -1468,7 +1480,7 @@ dl.details dd {
 		padding: 1rem 1.1rem;
 	}
 	.stat .value {
-		font-size: 1.2rem;
+		font-size: var(--text-lg);
 	}
 	.stats-kicker {
 		padding: 1.1rem 1.1rem 0;
@@ -1536,8 +1548,8 @@ dl.details dd {
 		width: 7.5rem;
 		margin-left: -8.25rem;
 		color: var(--color-muted);
-		font-size: 0.78rem;
-		font-weight: 450;
+		font-size: var(--text-xs);
+		font-weight: 400;
 		line-height: 1.6rem;
 		hyphens: auto;
 		overflow-wrap: anywhere;

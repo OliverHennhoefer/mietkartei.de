@@ -449,13 +449,13 @@
 		gap: 0.3rem;
 	}
 	.repeat {
-		font-size: 0.75rem;
+		font-size: var(--text-xs);
 	}
 	.links {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.2rem 1rem;
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 	}
 	.task .note {
 		margin: 0;
@@ -469,7 +469,7 @@
 		border-color: transparent;
 		background: none;
 		color: var(--color-muted);
-		font-size: 0.8rem;
+		font-size: var(--text-xs);
 	}
 	.task :global(.confirm button:hover) {
 		color: var(--color-danger);
@@ -481,12 +481,12 @@
 		text-align: right;
 		white-space: nowrap;
 		line-height: 1.35;
-		font-size: 0.78rem;
+		font-size: var(--text-xs);
 		font-variant-numeric: tabular-nums;
 	}
 	.due .relative {
-		font-size: 0.9rem;
-		font-weight: 550;
+		font-size: var(--text-base);
+		font-weight: 600;
 	}
 	.due.soon .relative {
 		padding: 0 0.35em;
@@ -534,7 +534,7 @@
 		color: var(--color-muted);
 	}
 	.deadline.overdue .due .relative {
-		font-weight: 550;
+		font-weight: 600;
 		color: var(--color-danger);
 	}
 	/* A calendar leaf: the month on the dark strip, neon when it is near, red when overdue. */
@@ -550,7 +550,7 @@
 	}
 	.leaf .month {
 		padding: 0.2rem 0;
-		font-size: 0.66rem;
+		font-size: var(--text-xs);
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
@@ -559,8 +559,8 @@
 	}
 	.leaf .day {
 		padding: 0.3rem 0 0.35rem;
-		font-size: 1.25rem;
-		font-weight: 550;
+		font-size: var(--text-lg);
+		font-weight: 600;
 		letter-spacing: -0.04em;
 		font-variant-numeric: tabular-nums;
 	}
@@ -579,13 +579,13 @@
 		}
 	}
 	.stat.highlight .kicker {
-		font-size: 0.72rem;
+		font-size: var(--text-xs);
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 	}
 	.stat.highlight strong {
-		font-size: 1.05rem;
+		font-size: var(--text-lg);
 		line-height: 1.3;
 	}
 	@media (max-width: 40rem) {

@@ -139,7 +139,7 @@
 	.detail {
 		display: block;
 		color: var(--color-muted);
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 	}
 	.nowrap {
 		white-space: nowrap;

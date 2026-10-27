@@ -125,13 +125,13 @@
 	}
 	.share {
 		fill: var(--color-text);
-		font-size: 22px;
+		font-size: var(--text-2xl);
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 	}
 	.share-label {
 		fill: var(--color-muted);
-		font-size: 11px;
+		font-size: var(--text-xs);
 	}
 	ul {
 		list-style: none;
@@ -144,7 +144,7 @@
 		display: flex;
 		justify-content: space-between;
 		gap: 1rem;
-		font-size: 0.95rem;
+		font-size: var(--text-base);
 	}
 	.amount {
 		font-variant-numeric: tabular-nums;
