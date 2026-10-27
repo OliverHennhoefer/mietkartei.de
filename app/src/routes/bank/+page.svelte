@@ -142,7 +142,7 @@
 				/>{/if}
 			<label class="inline">
 				Konto
-				<select name="konto">
+				<select name="konto" onchange={(event) => event.currentTarget.form?.requestSubmit()}>
 					<option value="" selected={!data.bankAccountId}>alle</option>
 					{#each data.bankAccounts as account (account.id)}
 						<option value={account.id} selected={data.bankAccountId === account.id}>
@@ -151,7 +151,7 @@
 					{/each}
 				</select>
 			</label>
-			<button type="submit" class="secondary small">Anzeigen</button>
+			<noscript><button type="submit" class="secondary small">Anzeigen</button></noscript>
 		</form>
 	{/if}
 	<a href="/bank/import">Kontoauszug importieren</a>

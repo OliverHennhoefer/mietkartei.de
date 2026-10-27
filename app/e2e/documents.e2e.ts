@@ -65,11 +65,9 @@ test('uploads a document, shows it on the lease, downloads, filters and deletes 
 	await page.goto('/dokumente');
 	const filter = page.getByRole('form', { name: 'Filter' });
 	await filter.getByLabel('Mietvertrag').selectOption(lease.leaseId);
-	await filter.getByRole('button', { name: 'Filtern' }).click();
 	await expect(page).toHaveURL(new RegExp(`leaseId=${lease.leaseId}`));
 	await expect(rowOf(page, fileName)).toBeVisible();
 	await filter.getByLabel('Mietvertrag').selectOption(other.leaseId);
-	await filter.getByRole('button', { name: 'Filtern' }).click();
 	await expect(page.getByText('Keine Dokumente für diese Auswahl.')).toBeVisible();
 	await page.getByRole('link', { name: 'Alle Dokumente anzeigen' }).click();
 	await expect(page).toHaveURL(/\/dokumente$/);
