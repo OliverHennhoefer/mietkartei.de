@@ -20,9 +20,6 @@
 </svelte:head>
 
 <div class="narrow">
-	<a class="back-link" href="https://mietkartei.de"
-		><span aria-hidden="true">←</span> Zur Startseite</a
-	>
 	<h1>mietkartei ausprobieren</h1>
 	<p class="auth-lead">
 		Du bekommst einen eigenen Beispielbestand: zwei Häuser, fünf Mietverträge, zwei Jahre
