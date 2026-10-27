@@ -33,27 +33,27 @@
 {/if}
 
 <div class="stats" aria-label="Zusammenfassung">
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={lease.securityDeposit} /></span>
 		<span class="label">Vereinbart</span>
 	</div>
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={data.summary.received} /></span>
 		<span class="label">Erhalten</span>
 	</div>
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={data.summary.interest} /></span>
 		<span class="label">Zinsen</span>
 	</div>
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={data.summary.returned} /></span>
 		<span class="label">Zurückgezahlt</span>
 	</div>
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={data.summary.withheld} /></span>
 		<span class="label">Einbehalten</span>
 	</div>
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={data.summary.outstanding} /></span>
 		<span class="label">Noch offen</span>
 	</div>

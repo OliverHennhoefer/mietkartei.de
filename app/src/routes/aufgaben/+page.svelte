@@ -10,7 +10,7 @@
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import TaskFields from '#lib/components/TaskFields.svelte';
-	import { dayOf, formatDate } from '#lib/dates.ts';
+	import { dayOf, daysBetween, formatDate } from '#lib/dates.ts';
 	import { pluralize } from '#lib/format.ts';
 	import { taskCategoryLabels } from '#lib/labels.ts';
 	import { repeatLabel, taskTemplates } from '#lib/task-templates.ts';
@@ -46,12 +46,29 @@
 	function closed() {
 		if (page.url.search) goto(resolve('/aufgaben'), { replace: true, reset: false });
 	}
-	const overdue = $derived(data.deadlines.filter((deadline) => deadline.overdue).length);
-	const attention = $derived(
-		data.attention.arrearsCount > 0 ||
-			data.attention.unmatched > 0 ||
-			data.attention.vacantCount > 0
-	);
+	const nextDeadline = $derived(data.deadlines[0]);
+
+	const weekdayFormat = new Intl.DateTimeFormat('de-DE', {
+		weekday: 'long',
+		day: 'numeric',
+		month: 'long',
+		year: 'numeric',
+		timeZone: 'UTC'
+	});
+	const monthFormat = new Intl.DateTimeFormat('de-DE', { month: 'short', timeZone: 'UTC' });
+	const utc = (date: string) => new Date(`${date}T00:00:00Z`);
+
+	/** "heute", "morgen", "in 7 Tagen", "in 3 Monaten" or "überfällig seit 2 Tagen". */
+	function relative(date: string): string {
+		const days = daysBetween(data.today, date);
+		if (days < 0) return `überfällig seit ${pluralize(-days, 'Tag', 'Tagen')}`;
+		if (days === 0) return 'heute';
+		if (days === 1) return 'morgen';
+		if (days < 60) return `in ${pluralize(days, 'Tag', 'Tagen')}`;
+		return `in ${pluralize(Math.round(days / 30), 'Monat', 'Monaten')}`;
+	}
+	/** Due within two weeks: marked in neon. */
+	const soon = (date: string) => daysBetween(data.today, date) <= 14;
 
 	// The setup checklist, in the order the data depends on each other; each step leads to the
 	// page that creates what it asks for.
@@ -127,7 +144,39 @@
 	</section>
 {/if}
 
-<h2>Offene Aufgaben</h2>
+<!-- Once the first steps are done: the figures that need attention and the next deadline. -->
+{#if !data.firstRun}
+	<section class="stats overview" aria-label="Überblick">
+		<p class="stats-kicker">{weekdayFormat.format(utc(data.today))}</p>
+		<a class="stat" href="#offene-aufgaben">
+			<span class="value">{data.open.length}</span>
+			<span class="label">{data.open.length === 1 ? 'offene Aufgabe' : 'offene Aufgaben'}</span>
+		</a>
+		<a class="stat" href="/mietkonto?filter=rueckstaende">
+			<span class="value"><Money cents={data.attention.arrearsTotal} /></span>
+			<span class="label"
+				>{data.attention.arrearsCount > 0
+					? `Rückstände bei ${pluralize(data.attention.arrearsCount, 'Mietvertrag', 'Mietverträgen')}`
+					: 'keine Rückstände'}</span
+			>
+		</a>
+		<a class="stat" href="/bank">
+			<span class="value">{data.attention.unmatched}</span>
+			<span class="label"
+				>{data.attention.unmatched === 1 ? 'offener Bankumsatz' : 'offene Bankumsätze'} zuordnen</span
+			>
+		</a>
+		{#if nextDeadline}
+			<a class="stat highlight" href={nextDeadline.href}>
+				<span class="kicker">Nächste Frist · {relative(nextDeadline.date)}</span>
+				<strong>{nextDeadline.title}</strong>
+				<span class="label">{formatDate(nextDeadline.date)}</span>
+			</a>
+		{/if}
+	</section>
+{/if}
+
+<h2 id="offene-aufgaben">Offene Aufgaben</h2>
 {#if created ?? (form && 'created' in form ? form.created : undefined)}
 	<p role="status" class="muted">
 		„{created ?? (form && 'created' in form ? form.created : '')}“ wurde angelegt.
@@ -139,9 +188,10 @@
 {#if data.open.length === 0}
 	<p class="muted">Keine offenen Aufgaben.</p>
 {:else}
-	<ul class="list" aria-label="Offene Aufgaben">
+	<ul class="tasks" aria-label="Offene Aufgaben">
 		{#each data.open as task (task.id)}
-			<li class="card task">
+			{@const late = task.dueDate !== null && task.dueDate < data.today}
+			<li class="task" class:late>
 				<form method="POST" action="?/done" class="check" use:enhance>
 					<input type="hidden" name="id" value={task.id} />
 					<input type="hidden" name="done" value="true" />
@@ -154,23 +204,31 @@
 					</label>
 				</form>
 				<div class="body">
-					<a href="/aufgaben/{task.id}"><strong>{task.title}</strong></a>
-					{#if task.category !== 'other'}<Badge>{taskCategoryLabels[task.category]}</Badge>{/if}
-					<span class="muted">
-						{#if task.repeatMonths}· {repeatLabel(task.repeatMonths)}{/if}
-						{#if task.dueDate}
-							· bis {formatDate(task.dueDate)}
-							{#if task.dueDate < data.today}<Badge tone="danger">überfällig</Badge>{/if}
-						{/if}
-						{#if task.property}
-							· <a href="/objekte/{task.property.id}">{task.property.name}</a>
-						{/if}
-						{#if task.lease}
-							· <a href="/vertraege/{task.lease.id}">{task.lease.label}</a>
-						{/if}
-					</span>
+					<div class="title">
+						<a href="/aufgaben/{task.id}"><strong>{task.title}</strong></a>
+						{#if task.category !== 'other'}<Badge>{taskCategoryLabels[task.category]}</Badge>{/if}
+						{#if task.repeatMonths}<span class="repeat muted"
+								><Icon name="history" size={12} />{repeatLabel(task.repeatMonths)}</span
+							>{/if}
+					</div>
+					{#if task.property || task.lease}
+						<span class="links muted">
+							{#if task.property}<a href="/objekte/{task.property.id}"
+									><Icon name="building" size={13} />{task.property.name}</a
+								>{/if}
+							{#if task.lease}<a href="/vertraege/{task.lease.id}"
+									><Icon name="file" size={13} />{task.lease.label}</a
+								>{/if}
+						</span>
+					{/if}
 					{#if task.note}<p class="muted small note">{task.note}</p>{/if}
 				</div>
+				{#if task.dueDate}
+					<div class="due" class:soon={!late && soon(task.dueDate)}>
+						<span class="relative">{relative(task.dueDate)}</span>
+						<span class="muted">bis {formatDate(task.dueDate)}</span>
+					</div>
+				{/if}
 				<ConfirmButton
 					action="?/delete"
 					label="Löschen"
@@ -219,84 +277,51 @@
 	</details>
 {/if}
 
-{#if attention}
-	<section aria-labelledby="attention">
-		<h2 id="attention">Handlungsbedarf</h2>
-		<ul class="list" aria-label="Handlungsbedarf">
-			{#if data.attention.arrearsCount > 0}
-				<li class="card">
-					<a href="/mietkonto?filter=rueckstaende"
-						>Rückstände bei {pluralize(
-							data.attention.arrearsCount,
-							'Mietvertrag',
-							'Mietverträgen'
-						)}</a
-					>
-					<Money cents={data.attention.arrearsTotal} />
-				</li>
-			{/if}
-			{#if data.attention.unmatched > 0}
-				<li class="card">
-					<a href="/bank"
-						>{pluralize(data.attention.unmatched, 'offener Bankumsatz', 'offene Bankumsätze')} zuordnen</a
-					>
-				</li>
-			{/if}
-			{#each data.attention.vacant as row (row.unitId)}
-				<li class="card">
-					<span>Leerstand: <a href="/objekte/{row.propertyId}">{row.label}</a></span>
-					<a href="/vertraege/neu?unitId={row.unitId}">Mietvertrag anlegen</a>
-				</li>
-			{/each}
-			{#if data.attention.vacantCount > data.attention.vacant.length}
-				<li class="card">
-					<a href="/objekte"
-						>Leerstand: {pluralize(
-							data.attention.vacantCount - data.attention.vacant.length,
-							'weitere Einheit',
-							'weitere Einheiten'
-						)}</a
-					>
-				</li>
-			{/if}
-		</ul>
-	</section>
+{#if data.attention.vacantCount > 0}
+	<h2>Leerstand</h2>
+	<ul class="list" aria-label="Leerstand">
+		{#each data.attention.vacant as row (row.unitId)}
+			<li class="card">
+				<a href="/objekte/{row.propertyId}">{row.label}</a>
+				<a href="/vertraege/neu?unitId={row.unitId}">Mietvertrag anlegen</a>
+			</li>
+		{/each}
+		{#if data.attention.vacantCount > data.attention.vacant.length}
+			<li class="card">
+				<a href="/objekte"
+					>{pluralize(
+						data.attention.vacantCount - data.attention.vacant.length,
+						'weitere Einheit',
+						'weitere Einheiten'
+					)}</a
+				>
+			</li>
+		{/if}
+	</ul>
 {/if}
 
 <h2>Fristen</h2>
 {#if data.deadlines.length === 0}
 	<p class="muted">In den nächsten zwölf Monaten steht keine Frist an.</p>
 {:else}
-	{#if overdue > 0}
-		<p class="muted">
-			{overdue === 1 ? 'Eine Frist ist' : `${overdue} Fristen sind`} überfällig.
-		</p>
-	{/if}
-	<div class="table-wrap">
-		<table class="table deadlines" aria-label="Fristen">
-			<thead>
-				<tr>
-					<th>Datum</th>
-					<th>Frist</th>
-					<th>Betrifft</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each data.deadlines as deadline, index (index)}
-					<tr>
-						<td class="date">
-							<span class="when">
-								{formatDate(deadline.date)}
-								{#if deadline.overdue}<Badge tone="danger">überfällig</Badge>{/if}
-							</span>
-						</td>
-						<td><a href={deadline.href}>{deadline.title}</a></td>
-						<td class="muted">{deadline.detail ?? ''}</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
-	</div>
+	<ul class="deadlines" aria-label="Fristen">
+		{#each data.deadlines as deadline, index (index)}
+			<li class="card deadline" class:overdue={deadline.overdue}>
+				<span class="leaf" class:soon={!deadline.overdue && soon(deadline.date)} aria-hidden="true">
+					<span class="month">{monthFormat.format(utc(deadline.date)).replace('.', '')}</span>
+					<span class="day">{Number(deadline.date.slice(8))}</span>
+				</span>
+				<span class="body">
+					<a href={deadline.href}><strong>{deadline.title}</strong></a>
+					{#if deadline.detail}<span class="muted small">{deadline.detail}</span>{/if}
+				</span>
+				<span class="due">
+					<span class="relative">{relative(deadline.date)}</span>
+					<span class="muted">{formatDate(deadline.date)}</span>
+				</span>
+			</li>
+		{/each}
+	</ul>
 {/if}
 
 <dialog
@@ -375,55 +400,222 @@
 	.ai-hint {
 		margin: 1rem 0 0;
 	}
-	.date {
-		white-space: nowrap;
-		font-variant-numeric: tabular-nums;
-	}
-	.when {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-	/* On phones each deadline becomes a block: date and badge, then title, then what it concerns. */
-	@media (max-width: 40rem) {
-		.deadlines thead {
-			display: none;
-		}
-		.deadlines tbody tr {
-			display: grid;
-			gap: 0.3rem;
-			padding: 0.9rem 1.25rem;
-			border-bottom: 1px solid var(--color-border);
-		}
-		.deadlines tbody tr:last-child {
-			border-bottom: 0;
-		}
-		.deadlines td {
-			padding: 0;
-			border: 0;
-		}
-		.deadlines .date {
-			color: var(--color-muted);
-			font-size: 0.8rem;
-		}
-		.deadlines td:empty {
-			display: none;
-		}
+	/* The open tasks form one block, a late one marked by a red edge. */
+	.tasks {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		overflow: hidden;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius);
+		background: var(--color-surface);
+		box-shadow: var(--shadow);
 	}
 	.task {
+		display: flex;
 		align-items: flex-start;
-		flex-wrap: nowrap;
+		gap: 0.5rem 1.25rem;
+		padding: 1.25rem 1.5rem;
+		border-left: 3px solid transparent;
+	}
+	.task + .task {
+		border-top: 1px solid var(--color-border);
+	}
+	.task.late {
+		border-left-color: var(--color-danger);
 	}
 	.task .body {
 		flex: 1;
 		min-width: 0;
+		display: grid;
+		gap: 0.3rem;
+	}
+	.task a {
+		text-decoration: none;
+	}
+	.task a:hover {
+		text-decoration: underline;
+	}
+	.title {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem 0.6rem;
+	}
+	.repeat,
+	.links a {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+	}
+	.repeat {
+		font-size: 0.75rem;
+	}
+	.links {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.2rem 1rem;
+		font-size: 0.85rem;
 	}
 	.task .note {
-		margin: 0.25rem 0 0;
+		margin: 0;
 		white-space: pre-line;
 	}
 	.check label {
 		padding-top: 0.2rem;
+	}
+	/* Deleting is rare, so the button stays quiet until it is pointed at. */
+	.task :global(.confirm button) {
+		border-color: transparent;
+		background: none;
+		color: var(--color-muted);
+		font-size: 0.8rem;
+	}
+	.task :global(.confirm button:hover) {
+		color: var(--color-danger);
+	}
+	/* When it is due: relative and in neon within two weeks, red once overdue, the date below. */
+	.due {
+		display: grid;
+		justify-items: end;
+		text-align: right;
+		white-space: nowrap;
+		line-height: 1.35;
+		font-size: 0.78rem;
+		font-variant-numeric: tabular-nums;
+	}
+	.due .relative {
+		font-size: 0.9rem;
+		font-weight: 550;
+	}
+	.due.soon .relative {
+		padding: 0 0.35em;
+		background: var(--color-highlight);
+		color: var(--color-highlight-text);
+	}
+	.late .due .relative,
+	.overdue .due .relative {
+		color: var(--color-danger);
+	}
+	.deadlines {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		gap: 0.5rem;
+	}
+	/* The whole card leads to where the deadline is handled. */
+	.deadline {
+		position: relative;
+		display: flex;
+		align-items: center;
+		gap: 1.1rem;
+		padding: 0.85rem 1.25rem;
+	}
+	.deadline:hover {
+		border-color: var(--color-text);
+	}
+	.deadline a {
+		text-decoration: none;
+	}
+	.deadline a::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+	}
+	.deadline .body {
+		flex: 1;
+		min-width: 0;
+		display: grid;
+		gap: 0.1rem;
+	}
+	.deadline .due .relative {
+		font-weight: 400;
+		color: var(--color-muted);
+	}
+	.deadline.overdue .due .relative {
+		font-weight: 550;
+		color: var(--color-danger);
+	}
+	/* A calendar leaf: the month on the dark strip, neon when it is near, red when overdue. */
+	.leaf {
+		flex-shrink: 0;
+		display: grid;
+		width: 3.1rem;
+		overflow: hidden;
+		border: 1px solid var(--color-border);
+		border-radius: 8px;
+		text-align: center;
+		line-height: 1.1;
+	}
+	.leaf .month {
+		padding: 0.2rem 0;
+		font-size: 0.66rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		background: var(--color-accent);
+		color: var(--color-accent-text);
+	}
+	.leaf .day {
+		padding: 0.3rem 0 0.35rem;
+		font-size: 1.25rem;
+		font-weight: 550;
+		letter-spacing: -0.04em;
+		font-variant-numeric: tabular-nums;
+	}
+	.leaf.soon .month {
+		background: var(--color-highlight);
+		color: var(--color-highlight-text);
+	}
+	.overdue .leaf .month {
+		background: var(--color-danger);
+		color: var(--color-background);
+	}
+	/* The next deadline gets more room than the three figures. */
+	@media (min-width: 60rem) {
+		.overview:has(.highlight) {
+			grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.4fr);
+		}
+	}
+	.stat.highlight .kicker {
+		font-size: 0.72rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+	}
+	.stat.highlight strong {
+		font-size: 1.05rem;
+		line-height: 1.3;
+	}
+	@media (max-width: 40rem) {
+		.task {
+			flex-wrap: wrap;
+			padding: 1rem;
+		}
+		.task .body {
+			flex-basis: calc(100% - 2.5rem);
+		}
+		.task .due {
+			justify-items: start;
+			margin-left: 2rem;
+			text-align: left;
+		}
+		.deadline {
+			align-items: flex-start;
+			padding: 0.75rem 1rem;
+		}
+		.deadline {
+			display: grid;
+			grid-template-columns: auto minmax(0, 1fr);
+			column-gap: 1rem;
+		}
+		.deadline .due {
+			grid-column: 2;
+			display: flex;
+			gap: 0.5rem;
+			margin-top: 0.3rem;
+		}
 	}
 	.done {
 		margin-top: 1rem;

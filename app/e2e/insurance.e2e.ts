@@ -32,8 +32,8 @@ test('records a policy, lists its notice deadline and enters its premium as a Be
 	// The notice deadline is 30 September before each renewal on 1 January.
 	await page.goto('/aufgaben');
 	const row = page
-		.getByRole('table', { name: 'Fristen' })
-		.getByRole('row')
+		.getByRole('list', { name: 'Fristen' })
+		.getByRole('listitem')
 		.filter({ hasText: insurer });
 	await expect(row).toContainText('Kündigungsfrist Wohngebäudeversicherung');
 	await expect(row).toContainText('30.09.');

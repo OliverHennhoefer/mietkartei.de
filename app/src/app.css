@@ -769,29 +769,74 @@ a:hover {
 .list > .card a:hover {
 	text-decoration: underline;
 }
+/* An overview panel of key figures: one light surface with a neon glow in the corner and a thin
+   divider between the figures. Each figure carries a divider on its left and the panel clips the
+   one of the first figure in every row, so the dividers stay right however the grid wraps. */
 .stats {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
-	gap: 1rem;
 	margin: 0 0 2rem;
+	overflow: hidden;
+	border: 1px solid var(--color-border);
+	border-radius: 16px;
+	background-color: var(--color-subtle);
+	background-image: radial-gradient(
+		circle at 100% 0%,
+		light-dark(rgb(245 255 0 / 22%), rgb(245 255 0 / 10%)),
+		transparent 45%
+	);
+	box-shadow: var(--shadow);
 }
 .stat {
 	display: flex;
-	flex-direction: column-reverse;
-	justify-content: space-between;
-	align-items: flex-start;
-	gap: 1rem;
+	flex-direction: column;
+	justify-content: flex-end;
+	gap: 0.2rem;
+	min-width: 0;
+	margin-left: -1px;
+	padding: 1.5rem 1.75rem;
+	border-left: 1px solid var(--color-border);
+	color: inherit;
+	text-decoration: none;
 }
 .stat .value {
 	font-size: 2rem;
-	line-height: 1.2;
+	line-height: 1.15;
 	font-weight: 500;
 	letter-spacing: -0.045em;
 	font-variant-numeric: tabular-nums;
+	overflow-wrap: anywhere;
 }
 .stat .label {
 	color: var(--color-muted);
 	font-size: 0.8rem;
+}
+a.stat:hover .label {
+	color: var(--color-text);
+}
+/* An optional line above the figures, such as today's date. */
+.stats-kicker {
+	grid-column: 1 / -1;
+	margin: 0;
+	padding: 1.4rem 1.75rem 0;
+	color: var(--color-muted);
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+}
+/* The one figure that needs attention first sits on the neon block of the logo. */
+.stat.highlight {
+	justify-content: center;
+	margin: 1rem;
+	padding: 1rem 1.15rem;
+	border: 0;
+	border-radius: 12px;
+	background: var(--color-highlight);
+	color: var(--color-highlight-text);
+}
+.stat.highlight .label {
+	color: inherit;
+	opacity: 0.7;
 }
 
 /* Data stays easy to scan, with horizontal scrolling confined to tables. */
@@ -1414,17 +1459,23 @@ dl.details dd {
 	.card {
 		padding: 1.25rem;
 	}
-	/* One column, so long amounts never overflow their card. */
+	/* Two columns with smaller figures where a seven-digit amount still fits, one on narrower
+	   phones: Money and Balance never wrap. */
 	.stats {
-		grid-template-columns: minmax(0, 1fr);
-		gap: 0.75rem;
+		grid-template-columns: repeat(auto-fit, minmax(min(10.5rem, 100%), 1fr));
 	}
 	.stat {
-		padding: 1.15rem;
-		gap: 0.75rem;
+		padding: 1rem 1.1rem;
 	}
 	.stat .value {
-		font-size: 1.5rem;
+		font-size: 1.2rem;
+	}
+	.stats-kicker {
+		padding: 1.1rem 1.1rem 0;
+	}
+	.stat.highlight {
+		grid-column: 1 / -1;
+		margin: 0.5rem 0.75rem 0.75rem;
 	}
 	input,
 	select,
