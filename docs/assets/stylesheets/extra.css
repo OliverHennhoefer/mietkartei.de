@@ -115,6 +115,7 @@ body[data-md-color-scheme="slate"][data-md-color-primary] {
   display: inline-block;
   color: var(--md-default-fg-color--light);
   font-size: 13px;
+  text-decoration: underline;
   text-underline-offset: 4px;
 }
 
