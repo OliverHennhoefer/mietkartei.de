@@ -68,10 +68,11 @@ import type { TenantInput } from './tenants';
 // as it takes, but with eight years of history, so the Auswertung, the tax overview and the tenant
 // dossiers have something to show. A Mehrfamilienhaus in Berlin (three flats and a parking space,
 // central gas heating with heat meters) and two Eigentumswohnungen in a WEG, in Potsdam and in
-// Munich, with their Hausgeld and the Verwalter's Hausgeldabrechnungen. Ten leases: a fixed rent
+// Munich, with their Hausgeld and the Verwalter's Hausgeldabrechnungen. Eleven leases: a fixed rent
 // with a rise to the Mietspiegel, an index rent, a Staffelmiete, one two months in arrears with a
 // Zahlungserinnerung and a Mahnung, and a tenant change in the history of every flat, the former
-// tenants archived with their new address and their deposit settled. The properties carry their
+// tenants archived with their new address and their deposit settled. The next change is under way:
+// the tenant in Potsdam gave notice this month, and the new tenant's lease starts after it. The properties carry their
 // position, so the map shows them without asking the geocoder. Values follow German averages of the years (Kaltmiete per m²,
 // Betriebskosten, gas prices, CO₂ price, interest rates); they are made up, but plausible.
 //
@@ -464,7 +465,8 @@ export async function createDemoData(
 		berger: tenant('Frau', 'Lena', 'Berger', 'lena.berger@example.org', '0151 9876543'),
 		nowak: tenant('Herr', 'Tomasz', 'Nowak', 'tomasz.nowak@example.org'),
 		weber: tenant('Frau', 'Julia', 'Weber', 'julia.weber@example.org'),
-		albrecht: tenant('Herr', 'Jonas', 'Albrecht', 'jonas.albrecht@example.org')
+		albrecht: tenant('Herr', 'Jonas', 'Albrecht', 'jonas.albrecht@example.org'),
+		krueger: tenant('Frau', 'Miriam', 'Krüger', 'miriam.krueger@example.org', '0160 3318274')
 	};
 	const archived: Partial<Record<keyof typeof tenantInputs, IsoDate>> = {
 		kraus: at(-4, '12-01'),
@@ -484,7 +486,10 @@ export async function createDemoData(
 		Object.keys(tenantInputs).map((key, index) => [key, tenantRows[index].id])
 	) as Record<keyof typeof tenantInputs, string>;
 
-	// Leases with their rent history.
+	// Leases with their rent history. Nowak gave notice early this month (by the third working day,
+	// § 573c BGB), so the lease ends with the second month after it; Krüger moves in the day after.
+	const noticeDay = soFar(nthWorkingDay(currentMonth, 2, 'BB'));
+	const moveOutDay = lastOfMonth(addMonthsToMonth(currentMonth, 2));
 	const vpi = (year: number) => Math.round(byYear(VPI_SEPTEMBER, year) * 10) / 10;
 	const indexed = (base: number, from: number, to: number) =>
 		Math.round((base * vpi(to)) / vpi(from));
@@ -757,11 +762,15 @@ export async function createDemoData(
 			state: 'BB',
 			input: lease(unitId('Wohnung 14'), [tenantIds.nowak], {
 				startDate: at(-7, '05-01'),
+				endDate: moveOutDay,
 				baseRent: 66600,
 				operatingCostPrepayment: 15000,
 				heatingCostPrepayment: 10000,
 				securityDeposit: 199800,
-				persons: 2
+				persons: 2,
+				terminatedAt: noticeDay,
+				terminatedBy: 'tenant',
+				notes: 'Gekündigt: Jobwechsel nach Hamburg.'
 			}),
 			changes: [
 				{
@@ -806,6 +815,20 @@ export async function createDemoData(
 				iban: 'DE36120300001044198277',
 				purpose: (month) => `Miete ${month} Rosenheimer Str 104 WE 9 Weber/Albrecht`
 			}
+		},
+		{
+			key: 'krueger',
+			state: 'BB',
+			input: lease(unitId('Wohnung 14'), [tenantIds.krueger], {
+				startDate: addDays(moveOutDay, 1),
+				baseRent: 81500,
+				operatingCostPrepayment: 16000,
+				heatingCostPrepayment: 14000,
+				securityDeposit: 244500,
+				persons: 1,
+				notes: 'Neuvermietung nach Herrn Nowak; Übergabe am Tag nach seinem Auszug.'
+			}),
+			changes: []
 		}
 	];
 	// Only the history years are booked: an older lease starts its ledger there.
@@ -918,7 +941,10 @@ export async function createDemoData(
 			monthOf(entry.input.startDate) > firstBookedMonth
 				? monthOf(entry.input.startDate)
 				: firstBookedMonth;
-		const to = entry.input.endDate ? monthOf(entry.input.endDate) : lastMonth;
+		const to =
+			entry.input.endDate && monthOf(entry.input.endDate) < lastMonth
+				? monthOf(entry.input.endDate)
+				: lastMonth;
 		let months = monthsInRange(from, to).slice(
 			0,
 			entry.unpaidMonths ? -entry.unpaidMonths : undefined
@@ -1005,14 +1031,16 @@ export async function createDemoData(
 	for (const entry of leaseEntries) {
 		deposit(
 			entry.key,
-			entry.input.startDate,
+			soFar(entry.input.startDate),
 			'received',
 			entry.input.securityDeposit,
 			'Überweisung auf das Mietkautionskonto'
 		);
 		let balance = entry.input.securityDeposit;
 		const startYear = Math.max(Number(entry.input.startDate.slice(0, 4)), firstYear);
-		const endYear = entry.input.endDate ? Number(entry.input.endDate.slice(0, 4)) - 1 : Y - 1;
+		const endYear = entry.input.endDate
+			? Math.min(Number(entry.input.endDate.slice(0, 4)) - 1, Y - 1)
+			: Y - 1;
 		for (let year = startYear; year <= endYear; year += 1) {
 			const interest = Math.round((balance * byYear(DEPOSIT_RATE, year)) / 100);
 			if (interest <= 0) continue;
@@ -1723,7 +1751,8 @@ export async function createDemoData(
 		status: 'draft' as const
 	}));
 
-	// Tasks: two repeating, one for the tenant in arrears, one done.
+	// Tasks: two repeating, one for the tenant in arrears, the handover of the flat being re-let, one
+	// done.
 	const taskRows = [
 		{
 			id: crypto.randomUUID(),
@@ -1757,6 +1786,15 @@ export async function createDemoData(
 			propertyId: null,
 			leaseId: leaseId('berger'),
 			note: 'Zwei Monatsmieten offen (§ 543 Abs. 2 Nr. 3 BGB); Mahnung ist verschickt.'
+		},
+		{
+			id: crypto.randomUUID(),
+			accountId,
+			title: 'Wohnungsübergabe Wohnung 14 mit Abnahmeprotokoll',
+			dueDate: moveOutDay,
+			propertyId: null,
+			leaseId: leaseId('nowak'),
+			note: 'Zählerstände ablesen, Schlüssel an Frau Krüger übergeben.'
 		},
 		{
 			id: crypto.randomUUID(),

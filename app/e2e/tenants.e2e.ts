@@ -28,10 +28,12 @@ test('creates a tenant, edits it and finds it in the list', async ({ page }) => 
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Max ${lastName}`);
 	await expect(page.getByText('030 1234567')).toBeVisible();
 
+	// The list shows the contact; the search still finds the tenant by their address.
 	await page.goto('/mieter');
+	await page.getByRole('searchbox', { name: 'Mieter durchsuchen' }).fill('10115 Berlin');
 	const table = page.getByRole('table', { name: 'Mieter' });
 	const row = table.getByRole('row').filter({ hasText: lastName });
-	await expect(row).toContainText('10115 Berlin');
+	await expect(row).toContainText('max@example.org');
 	await expect(row).toContainText('keine');
 });
 

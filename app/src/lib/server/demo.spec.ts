@@ -21,6 +21,7 @@ import {
 	units
 } from './db/schema';
 import { createDemoData, isEmptyAccount } from './demo';
+import { addDays, today } from '../dates';
 import { addressKey } from './geocoding';
 import { listBalances } from './ledger';
 import { QUOTAS } from './quotas';
@@ -38,7 +39,7 @@ describe('createDemoData', () => {
 	it('fills an empty account with properties, leases, history, letters and tasks', async () => {
 		expect(await isEmptyAccount(db, 'a')).toBe(true);
 		const result = await createDemoData(db, contextA, { storage });
-		expect(result).toEqual({ ok: true, leases: 10 });
+		expect(result).toEqual({ ok: true, leases: 11 });
 
 		const rows = async (
 			table: typeof properties | typeof units | typeof tenants | typeof leases | typeof tasks
@@ -56,9 +57,10 @@ describe('createDemoData', () => {
 		}
 		expect(await rows(units)).toHaveLength(6);
 		// Every flat changed tenants in the history; the former tenants are archived with the
-		// address they moved to, their deposits paid back.
+		// address they moved to, their deposits paid back. Nowak has given notice, and Krüger's
+		// lease for the same flat starts the day after his ends.
 		const tenantRows = await db.select().from(tenants).where(eq(tenants.accountId, 'a'));
-		expect(tenantRows).toHaveLength(12);
+		expect(tenantRows).toHaveLength(13);
 		const former = tenantRows.filter((row) => row.archivedAt);
 		expect(former).toHaveLength(6);
 		expect(former.every((row) => row.city)).toBe(true);
@@ -67,8 +69,16 @@ describe('createDemoData', () => {
 			.from(depositTransactions)
 			.where(eq(depositTransactions.accountId, 'a'));
 		expect(deposits.filter((row) => row.kind === 'returned')).toHaveLength(5);
-		expect(await rows(leases)).toHaveLength(10);
-		expect(await rows(tasks)).toHaveLength(4);
+		const leaseRows = await db.select().from(leases).where(eq(leases.accountId, 'a'));
+		const terminated = leaseRows.filter((row) => row.endDate && row.endDate > today());
+		expect(terminated).toHaveLength(1);
+		const [nowak] = terminated;
+		expect(nowak.terminatedBy).toBe('tenant');
+		expect(leaseRows.filter((row) => row.startDate > today())).toEqual([
+			expect.objectContaining({ unitId: nowak.unitId, startDate: addDays(nowak.endDate!, 1) })
+		]);
+		expect(await rows(leases)).toHaveLength(11);
+		expect(await rows(tasks)).toHaveLength(5);
 		expect(await countUnmatched(db, 'a')).toBe(3);
 
 		// Every history year but the last is settled: three properties over seven years, each
@@ -129,8 +139,8 @@ describe('createDemoData', () => {
 		}
 
 		await db.run(sql`drop trigger refuse_tasks`);
-		expect(await createDemoData(db, contextA, { storage })).toEqual({ ok: true, leases: 10 });
-		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(4);
+		expect(await createDemoData(db, contextA, { storage })).toEqual({ ok: true, leases: 11 });
+		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(5);
 	});
 
 	it('takes its rows out again when a later step fails, keeping what the account held', async () => {
@@ -160,7 +170,7 @@ describe('createDemoData', () => {
 		expect(await db.select().from(documents).where(eq(documents.accountId, 'a'))).toEqual([]);
 		expect(storage.files.size).toBe(0);
 		await db.run(sql`drop trigger refuse_documents`);
-		expect(await createDemoData(db, contextA, { storage })).toEqual({ ok: true, leases: 10 });
+		expect(await createDemoData(db, contextA, { storage })).toEqual({ ok: true, leases: 11 });
 	});
 
 	it('creates the demo once when the button is pressed twice at the same time', async () => {
@@ -168,10 +178,10 @@ describe('createDemoData', () => {
 			createDemoData(db, contextA, { storage }),
 			createDemoData(db, contextA, { storage })
 		]);
-		expect(results).toContainEqual({ ok: true, leases: 10 });
+		expect(results).toContainEqual({ ok: true, leases: 11 });
 		expect(results).toContainEqual({ ok: false, reason: 'not-empty' });
 		expect(await db.select().from(properties).where(eq(properties.accountId, 'a'))).toHaveLength(3);
-		expect(await db.select().from(leases).where(eq(leases.accountId, 'a'))).toHaveLength(10);
+		expect(await db.select().from(leases).where(eq(leases.accountId, 'a'))).toHaveLength(11);
 		const audit = await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'));
 		expect(audit.filter((entry) => entry.summary === 'Demodaten angelegt')).toHaveLength(1);
 	});
