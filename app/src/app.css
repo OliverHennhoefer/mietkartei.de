@@ -1457,15 +1457,16 @@ dl.details dd {
 	.card {
 		padding: 1.25rem;
 	}
-	/* Two columns with smaller figures, so long amounts still fit. */
+	/* Two columns with smaller figures where a seven-digit amount still fits, one on narrower
+	   phones: Money and Balance never wrap. */
 	.stats {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(min(10.5rem, 100%), 1fr));
 	}
 	.stat {
 		padding: 1rem 1.1rem;
 	}
 	.stat .value {
-		font-size: 1.35rem;
+		font-size: 1.2rem;
 	}
 	.stats-kicker {
 		padding: 1.1rem 1.1rem 0;
