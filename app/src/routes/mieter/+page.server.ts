@@ -71,7 +71,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 				openSince = balance.openSince;
 			}
 			const [latest] = currentReminders(reminders.get(lease.id) ?? [], balance.openSinceDate);
-			if (latest && (!reminder || latest.level > reminder.level)) {
+			// The latest letter across the leases; on the same day the higher level.
+			if (
+				latest &&
+				(!reminder ||
+					latest.date > reminder.date ||
+					(latest.date === reminder.date && latest.level > reminder.level))
+			) {
 				reminder = { level: latest.level, date: latest.date };
 			}
 		}
