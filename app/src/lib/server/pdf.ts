@@ -390,7 +390,8 @@ function writeFooters(ctx: Context): void {
 	});
 }
 
-function blocksOf(letter: Letter): LetterBlock[] {
+/** The paragraphs and tables in the order they are rendered. */
+export function blocksOf(letter: Letter): LetterBlock[] {
 	if (letter.blocks) return letter.blocks;
 	return [
 		...letter.paragraphs.map((paragraph) => ({ paragraph })),

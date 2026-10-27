@@ -91,6 +91,8 @@ describe('createDemoData', () => {
 			.from(paymentReminders)
 			.where(eq(paymentReminders.accountId, 'a'));
 		expect(reminders.map((row) => row.level).sort()).toEqual([1, 2]);
+		// The Mahnung carries a line the landlord added on its sheet.
+		expect(reminders.find((row) => row.level === 2)?.letterText).toContain('in zwei Raten');
 		expect(
 			await db.select().from(co2CostSplits).where(eq(co2CostSplits.accountId, 'a'))
 		).toHaveLength(1);

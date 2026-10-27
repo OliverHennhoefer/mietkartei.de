@@ -143,6 +143,7 @@
 							{#if change.letterText}
 								<PreviewLink
 									href="/vertraege/{lease.id}/miethoehe/brief/{change.id}"
+									text="/vertraege/{lease.id}/miethoehe/brief/{change.id}/text"
 									title="Mieterhöhung zum {formatDate(change.validFrom)}"
 									class="button secondary small"><Icon name="file" size={14} /> Brief</PreviewLink
 								>

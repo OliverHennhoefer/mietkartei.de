@@ -9,7 +9,8 @@ import {
 	deleteReminder,
 	listRemindersByLease,
 	reminderLetter,
-	reminderState
+	reminderState,
+	updateReminderText
 } from './reminders';
 import { contextA, contextB, seedLease, seedUnit, testDatabase } from './testing';
 
@@ -151,6 +152,36 @@ describe('the letters of a lease', () => {
 			formatCents(130000)
 		]);
 		expect(await reminderLetter(db, 'b', leaseId, result.id)).toBeUndefined();
+	});
+
+	it('take an edited text, keeping the table after the second paragraph', async () => {
+		const result = await createReminder(db, contextA, leaseId, input);
+		if (!result?.ok) throw new Error('setup failed');
+		const before = (await reminderLetter(db, 'a', leaseId, result.id))!.letter.blocks!;
+		const paragraphs = before.flatMap((block) => ('paragraph' in block ? [block.paragraph] : []));
+		const edited = [...paragraphs.slice(0, -1), 'Wie besprochen gern in zwei Raten.', ''];
+
+		expect(await updateReminderText(db, contextA, leaseId, result.id, edited)).toMatchObject({
+			ok: true
+		});
+		const after = (await reminderLetter(db, 'a', leaseId, result.id))!.letter.blocks!;
+		expect(after.map((block) => ('table' in block ? 'table' : block.paragraph))).toEqual([
+			paragraphs[0],
+			paragraphs[1],
+			'table',
+			...paragraphs.slice(2, -1),
+			'Wie besprochen gern in zwei Raten.'
+		]);
+		const [entry] = await db.select().from(auditLog).where(eq(auditLog.action, 'update'));
+		expect(entry.summary).toBe(
+			`Text: Zahlungserinnerung vom 10.03.2025 über ${formatCents(130000)} geändert`
+		);
+
+		// The salutation and the paragraph before the table cannot go; another account cannot write.
+		expect(
+			await updateReminderText(db, contextA, leaseId, result.id, ['', ...paragraphs.slice(1)])
+		).toMatchObject({ ok: false });
+		expect(await updateReminderText(db, contextB, leaseId, result.id, paragraphs)).toBeUndefined();
 	});
 
 	it('are listed by lease and deleted with an audit entry', async () => {

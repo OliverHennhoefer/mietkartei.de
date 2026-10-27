@@ -224,17 +224,33 @@ test('writes a Zahlungserinnerung, suggests a Mahnung next and lists it with the
 	const pdf = await page.request.get(href!);
 	expect(pdf.status()).toBe(200);
 	expect(pdf.headers()['content-type']).toContain('application/pdf');
-	// The app shows it in a frame of its preview dialog.
-	expect(pdf.headers()['x-frame-options']).toBe('SAMEORIGIN');
-	// The headless shell of CI shows no PDF inside a page and would follow the link instead.
-	await page.addInitScript(() =>
-		Object.defineProperty(navigator, 'pdfViewerEnabled', { get: () => true })
-	);
-	await page.reload();
+	// The preview shows the letter as a sheet whose paragraphs are edited where they stand; the
+	// PDF is made from the saved text.
 	await view.click();
 	const preview = page.getByRole('dialog', { name: /^Zahlungserinnerung vom / });
-	await expect(preview.locator('iframe')).toHaveAttribute('src', href!);
+	const sheet = preview.getByRole('article', { name: /^Zahlungserinnerung zum Mietkonto/ });
+	await expect(sheet).toContainText('Miete November 2025');
 	await expect(preview.getByRole('link', { name: 'Herunterladen' })).toHaveAttribute('href', href!);
+	const paragraph = sheet.getByLabel('Absatz 3');
+	await paragraph.click();
+	await page.keyboard.press('ControlOrMeta+End');
+	await page.keyboard.type(' Eine Ratenzahlung ist möglich.');
+	await preview.getByRole('button', { name: 'Speichern' }).click();
+	await expect(preview.getByText('Zum Ändern in den Text klicken')).toBeVisible();
+	await expect(paragraph).toContainText('Eine Ratenzahlung ist möglich.');
+	await preview.getByRole('button', { name: 'Vorschau schließen' }).click();
+	await expect(preview).toBeHidden();
+	const edited = (await pdfText(await (await page.request.get(href!)).body())).replace(/\s+/g, ' ');
+	expect(edited).toContain('Eine Ratenzahlung ist möglich.');
+
+	// A changed text asks before it is thrown away.
+	await view.click();
+	await sheet.getByLabel('Absatz 1').click();
+	await page.keyboard.type('Hallo ');
+	page.once('dialog', (dialog) => dialog.dismiss());
+	await preview.getByRole('button', { name: 'Vorschau schließen' }).click();
+	await expect(preview).toBeVisible();
+	await preview.getByRole('button', { name: 'Verwerfen' }).click();
 	await preview.getByRole('button', { name: 'Vorschau schließen' }).click();
 	await expect(preview).toBeHidden();
 	const text = (await pdfText(await pdf.body())).replace(/\s+/g, ' ');

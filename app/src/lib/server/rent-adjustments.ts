@@ -13,6 +13,7 @@ import {
 	waitingPeriodEnd,
 	type HistoryChange
 } from '../domain/index-rent';
+import { letterText as editedLetterText, type LetterTextResult } from '../domain/letters';
 import { rentOn, total, type RentAmounts } from '../domain/rents';
 import { personName } from '../format';
 import { formatCents } from '../money';
@@ -475,6 +476,38 @@ export function recipientLines(lease: LeaseSummary): string[] {
 	if (street) lines.push(street);
 	lines.push([postalCode, city].filter(Boolean).join(' '));
 	return lines;
+}
+
+/**
+ * Replaces the paragraphs of an index letter with those edited on its sheet. Undefined when the
+ * change is not the lease's or has no letter.
+ */
+export async function updateIndexLetterText(
+	db: Database,
+	context: AuditContext,
+	leaseId: string,
+	changeId: string,
+	paragraphs: unknown
+): Promise<LetterTextResult | undefined> {
+	const change = await getRentChange(db, context.accountId, leaseId, changeId);
+	if (!change?.letterText) return undefined;
+	const result = editedLetterText(paragraphs, 1);
+	if (!result.ok || result.text === change.letterText) return result;
+	await runBatch(db, [
+		db
+			.update(rentChanges)
+			.set({ letterText: result.text })
+			.where(and(eq(rentChanges.accountId, context.accountId), eq(rentChanges.id, changeId))),
+		auditEntry(
+			db,
+			context,
+			'lease',
+			leaseId,
+			'update',
+			`Text des Mieterhöhungsschreibens ab ${formatDate(change.validFrom)} geändert`
+		)
+	]);
+	return result;
 }
 
 /**

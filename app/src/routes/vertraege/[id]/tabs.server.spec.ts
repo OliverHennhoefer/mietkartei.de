@@ -19,6 +19,10 @@ import { actions as co2Actions, load as loadCo2 } from './co2/+page.server';
 import { actions as depositActions, load as loadDeposit } from './kaution/+page.server';
 import { actions as ledgerActions, load as loadLedger } from './mietkonto/+page.server';
 import { GET as reminderPdf } from './mietkonto/schreiben/[reminderId]/+server';
+import {
+	GET as reminderText,
+	PUT as saveReminderText
+} from './mietkonto/schreiben/[reminderId]/text/+server';
 
 // The Mietkonto, Kaution and CO₂ tabs of a lease. The layout answers 404 for another account's
 // lease; the actions run without it, so each must refuse a foreign lease on its own.
@@ -190,6 +194,35 @@ describe('mietkonto reminders', () => {
 		expect(new TextDecoder().decode((await printed.data.arrayBuffer()).slice(0, 5))).toBe('%PDF-');
 		// The letter is only found under its own lease.
 		expect(await pdf(foreignLeaseId, created.data.reminderId)).toMatchObject({ error: 404 });
+
+		// Its text, as laid out on the sheet, and edited there.
+		const params = { id: leaseId, reminderId: created.data.reminderId };
+		const shown = (await outcome(() => reminderText(routeEvent(db, { params })))) as {
+			data: Response;
+		};
+		const { blocks } = (await shown.data.json()) as { blocks: { paragraph?: string }[] };
+		const paragraphs = blocks.flatMap((block) => block.paragraph ?? []);
+		const save = (json: unknown, id = leaseId) =>
+			outcome(() => saveReminderText(routeEvent(db, { params: { ...params, id }, json })));
+		expect(await save({ paragraphs: [...paragraphs, 'In zwei Raten.'] })).toMatchObject({
+			data: { status: 204 }
+		});
+		expect(await save({ paragraphs: ['', ...paragraphs.slice(1)] })).toMatchObject({
+			error: 400
+		});
+		expect(await save({ paragraphs }, foreignLeaseId)).toMatchObject({ error: 404 });
+		expect(
+			await outcome(() =>
+				reminderText(routeEvent(db, { params: { ...params, id: foreignLeaseId } }))
+			)
+		).toMatchObject({ error: 404 });
+		const foreignSite = routeEvent(db, { params, json: { paragraphs } }) as {
+			request: Request;
+		};
+		foreignSite.request.headers.set('origin', 'https://example.org');
+		expect(await outcome(() => saveReminderText(foreignSite as never))).toMatchObject({
+			error: 403
+		});
 		expect(await act(ledgerActions.deleteReminder, { id: created.data.reminderId })).toEqual({
 			data: { deleted: 'reminder' }
 		});
