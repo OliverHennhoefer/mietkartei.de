@@ -4,7 +4,7 @@ import { parseCents } from '../src/lib/money';
 import { nthWorkingDay } from '../src/lib/working-days';
 import { seedLease, seedRows } from './seed';
 
-// The start page is Aufgaben: above the deadlines, "Handlungsbedarf" lists the arrears, the open
+// The start page is Aufgaben: below the own tasks, "Handlungsbedarf" lists the arrears, the open
 // bank transactions and the vacant units. Other tests share the owner's account, so the test reads
 // the list, seeds, and asserts the exact increase. The first seed (a bank account and a lease that
 // starts next month) makes sure the first-run checklist is gone even when this file runs alone.

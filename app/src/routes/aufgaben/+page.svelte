@@ -1,7 +1,12 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
+	import { onMount } from 'svelte';
 	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import Icon from '#lib/components/Icon.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import TaskFields from '#lib/components/TaskFields.svelte';
@@ -15,6 +20,32 @@
 
 	const errors = $derived(form && 'errors' in form ? form.errors : undefined);
 	const values = $derived(form?.values ?? data.template ?? {});
+
+	// The create form opens in a dialog: from the header's link, from a template (?vorlage=, which
+	// keeps it open) and stays open when the server refuses the input. A page loaded with ?neu, a
+	// template or refused input renders it open on the server, so it works without JavaScript too,
+	// and makes it modal once mounted.
+	let dialog = $state<HTMLDialogElement>();
+	let created = $state<string>();
+	const requested = $derived(
+		page.url.searchParams.has('neu') || Boolean(data.template) || Boolean(errors)
+	);
+	onMount(() => {
+		if (!requested || !dialog) return;
+		if (dialog.open) dialog.close();
+		dialog.showModal();
+	});
+
+	function openDialog(event: MouseEvent) {
+		event.preventDefault();
+		created = undefined;
+		dialog?.showModal();
+	}
+
+	/** Drops ?neu and ?vorlage=, so a reload does not open the dialog again. */
+	function closed() {
+		if (page.url.search) goto(resolve('/aufgaben'), { replace: true, reset: false });
+	}
 	const overdue = $derived(data.deadlines.filter((deadline) => deadline.overdue).length);
 	const attention = $derived(
 		data.attention.arrearsCount > 0 ||
@@ -58,8 +89,14 @@
 
 <PageHeader
 	title="Aufgaben"
-	lead="Was ansteht: Rückstände, Bankumsätze, Leerstand, Fristen aus Verträgen und Abrechnungen und was du dir selbst vornimmst."
-/>
+	lead="Was ansteht: was du dir selbst vornimmst, Rückstände, Bankumsätze, Leerstand und Fristen aus Verträgen und Abrechnungen."
+>
+	{#snippet actions()}
+		<a class="button" href="?neu" onclick={openDialog}
+			><Icon name="plus" size={16} />Aufgabe anlegen</a
+		>
+	{/snippet}
+</PageHeader>
 
 {#if data.firstRun}
 	<section class="card first-run" aria-labelledby="first-run">
@@ -93,87 +130,12 @@
 	</section>
 {/if}
 
-{#if attention}
-	<section aria-labelledby="attention">
-		<h2 id="attention">Handlungsbedarf</h2>
-		<ul class="list" aria-label="Handlungsbedarf">
-			{#if data.attention.arrearsCount > 0}
-				<li class="card">
-					<a href="/mietkonto?filter=rueckstaende"
-						>Rückstände bei {pluralize(
-							data.attention.arrearsCount,
-							'Mietvertrag',
-							'Mietverträgen'
-						)}</a
-					>
-					<Money cents={data.attention.arrearsTotal} />
-				</li>
-			{/if}
-			{#if data.attention.unmatched > 0}
-				<li class="card">
-					<a href="/bank"
-						>{pluralize(data.attention.unmatched, 'offener Bankumsatz', 'offene Bankumsätze')} zuordnen</a
-					>
-				</li>
-			{/if}
-			{#each data.attention.vacant as row (row.unitId)}
-				<li class="card">
-					<span>Leerstand: <a href="/objekte/{row.propertyId}">{row.label}</a></span>
-					<a href="/vertraege/neu?unitId={row.unitId}">Mietvertrag anlegen</a>
-				</li>
-			{/each}
-			{#if data.attention.vacantCount > data.attention.vacant.length}
-				<li class="card">
-					<a href="/objekte"
-						>Leerstand: {pluralize(
-							data.attention.vacantCount - data.attention.vacant.length,
-							'weitere Einheit',
-							'weitere Einheiten'
-						)}</a
-					>
-				</li>
-			{/if}
-		</ul>
-	</section>
+<h2>Offene Aufgaben</h2>
+{#if created ?? (form && 'created' in form ? form.created : undefined)}
+	<p role="status" class="muted">
+		„{created ?? (form && 'created' in form ? form.created : '')}“ wurde angelegt.
+	</p>
 {/if}
-
-<h2>Fristen</h2>
-{#if data.deadlines.length === 0}
-	<p class="muted">In den nächsten zwölf Monaten steht keine Frist an.</p>
-{:else}
-	{#if overdue > 0}
-		<p class="muted">
-			{overdue === 1 ? 'Eine Frist ist' : `${overdue} Fristen sind`} überfällig.
-		</p>
-	{/if}
-	<div class="table-wrap">
-		<table class="table deadlines" aria-label="Fristen">
-			<thead>
-				<tr>
-					<th>Datum</th>
-					<th>Frist</th>
-					<th>Betrifft</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each data.deadlines as deadline, index (index)}
-					<tr>
-						<td class="date">
-							<span class="when">
-								{formatDate(deadline.date)}
-								{#if deadline.overdue}<Badge tone="danger">überfällig</Badge>{/if}
-							</span>
-						</td>
-						<td><a href={deadline.href}>{deadline.title}</a></td>
-						<td class="muted">{deadline.detail ?? ''}</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
-	</div>
-{/if}
-
-<h2>Aufgaben</h2>
 {#if form && 'message' in form}
 	<p class="error" role="alert">{form.message}</p>
 {/if}
@@ -260,28 +222,133 @@
 	</details>
 {/if}
 
-<h2 id="anlegen">Aufgabe anlegen</h2>
-<p class="muted templates">
-	Vorlagen für wiederkehrende Pflichten:
-	{#each taskTemplates as template, index (template.key)}
-		{index > 0 ? ' · ' : ''}<a
-			href="?vorlage={template.key}#anlegen"
-			aria-current={data.template?.key === template.key ? 'true' : undefined}>{template.title}</a
-		>
-	{/each}
-</p>
-<form method="POST" action="?/create" class="card" use:enhance>
-	<!-- Keyed, so choosing another template refills fields the browser has not touched yet. -->
-	{#key data.template?.key}
-		<TaskFields {values} {errors} properties={data.properties} leases={data.leases} />
-	{/key}
-	<div class="form-actions">
-		<button type="submit">Aufgabe anlegen</button>
-		{#if form && 'created' in form}
-			<p role="status">„{form.created}“ wurde angelegt.</p>
-		{/if}
+{#if attention}
+	<section aria-labelledby="attention">
+		<h2 id="attention">Handlungsbedarf</h2>
+		<ul class="list" aria-label="Handlungsbedarf">
+			{#if data.attention.arrearsCount > 0}
+				<li class="card">
+					<a href="/mietkonto?filter=rueckstaende"
+						>Rückstände bei {pluralize(
+							data.attention.arrearsCount,
+							'Mietvertrag',
+							'Mietverträgen'
+						)}</a
+					>
+					<Money cents={data.attention.arrearsTotal} />
+				</li>
+			{/if}
+			{#if data.attention.unmatched > 0}
+				<li class="card">
+					<a href="/bank"
+						>{pluralize(data.attention.unmatched, 'offener Bankumsatz', 'offene Bankumsätze')} zuordnen</a
+					>
+				</li>
+			{/if}
+			{#each data.attention.vacant as row (row.unitId)}
+				<li class="card">
+					<span>Leerstand: <a href="/objekte/{row.propertyId}">{row.label}</a></span>
+					<a href="/vertraege/neu?unitId={row.unitId}">Mietvertrag anlegen</a>
+				</li>
+			{/each}
+			{#if data.attention.vacantCount > data.attention.vacant.length}
+				<li class="card">
+					<a href="/objekte"
+						>Leerstand: {pluralize(
+							data.attention.vacantCount - data.attention.vacant.length,
+							'weitere Einheit',
+							'weitere Einheiten'
+						)}</a
+					>
+				</li>
+			{/if}
+		</ul>
+	</section>
+{/if}
+
+<h2>Fristen</h2>
+{#if data.deadlines.length === 0}
+	<p class="muted">In den nächsten zwölf Monaten steht keine Frist an.</p>
+{:else}
+	{#if overdue > 0}
+		<p class="muted">
+			{overdue === 1 ? 'Eine Frist ist' : `${overdue} Fristen sind`} überfällig.
+		</p>
+	{/if}
+	<div class="table-wrap">
+		<table class="table deadlines" aria-label="Fristen">
+			<thead>
+				<tr>
+					<th>Datum</th>
+					<th>Frist</th>
+					<th>Betrifft</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each data.deadlines as deadline, index (index)}
+					<tr>
+						<td class="date">
+							<span class="when">
+								{formatDate(deadline.date)}
+								{#if deadline.overdue}<Badge tone="danger">überfällig</Badge>{/if}
+							</span>
+						</td>
+						<td><a href={deadline.href}>{deadline.title}</a></td>
+						<td class="muted">{deadline.detail ?? ''}</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
 	</div>
-</form>
+{/if}
+
+<dialog
+	bind:this={dialog}
+	class="task-dialog"
+	aria-labelledby="task-dialog-title"
+	open={import.meta.env.SSR && requested ? true : undefined}
+	onclose={closed}
+>
+	<div class="dialog-head">
+		<h2 id="task-dialog-title">Aufgabe anlegen</h2>
+		<form method="dialog">
+			<button type="submit" class="icon-button" aria-label="Schließen" title="Schließen"
+				><Icon name="close" size={20} /></button
+			>
+		</form>
+	</div>
+	<p class="muted templates">
+		Vorlagen für wiederkehrende Pflichten:
+		{#each taskTemplates as template, index (template.key)}
+			{index > 0 ? ' · ' : ''}<a
+				href="?vorlage={template.key}"
+				data-sveltekit-reset="false"
+				data-sveltekit-replacestate
+				aria-current={data.template?.key === template.key ? 'true' : undefined}>{template.title}</a
+			>
+		{/each}
+	</p>
+	<form
+		method="POST"
+		action="?/create"
+		class="form"
+		use:enhance={() =>
+			async ({ result, update }) => {
+				await update();
+				if (result.type !== 'success') return;
+				created = String(result.data?.created ?? '');
+				dialog?.close();
+			}}
+	>
+		<!-- Keyed, so choosing another template refills fields the browser has not touched yet. -->
+		{#key data.template?.key}
+			<TaskFields {values} {errors} properties={data.properties} leases={data.leases} />
+		{/key}
+		<div class="form-actions">
+			<button type="submit">Aufgabe anlegen</button>
+		</div>
+	</form>
+</dialog>
 
 <style>
 	.first-run {
@@ -372,7 +439,38 @@
 	.templates [aria-current] {
 		font-weight: 600;
 	}
-	.form-actions p {
+	.task-dialog {
+		width: min(52rem, calc(100vw - 2rem));
+		max-height: calc(100dvh - 2rem);
+		margin: auto;
+		padding: 1.25rem 1.5rem 1.5rem;
+		border: 1px solid var(--color-border);
+		border-radius: 14px;
+		background: var(--color-background);
+		color: var(--color-text);
+		box-shadow: 0 24px 64px rgb(0 0 0 / 22%);
+	}
+	.task-dialog::backdrop {
+		background: rgb(0 0 0 / 35%);
+	}
+	.dialog-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+	.dialog-head h2 {
 		margin: 0;
+	}
+	@media (max-width: 40rem) {
+		.task-dialog {
+			width: 100vw;
+			max-width: none;
+			height: 100dvh;
+			max-height: none;
+			padding: 1rem;
+			border: 0;
+			border-radius: 0;
+		}
 	}
 </style>
