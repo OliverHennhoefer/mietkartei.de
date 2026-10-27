@@ -162,6 +162,21 @@ export const expenseCategoryLabels: Record<ExpenseCategory, string> = {
 	other: 'Sonstiges'
 };
 
+/** One or two words per category, for tight spots such as the pills on /auswertung. */
+export const expenseCategoryShortLabels: Record<ExpenseCategory, string> = {
+	operating_costs: 'Betriebskosten',
+	association_fee: 'Hausgeld',
+	special_levy: 'Sonderumlage',
+	special_levy_reserve: 'Rücklage',
+	maintenance: 'Instandhaltung',
+	loan_payment: 'Darlehensrate',
+	loan_interest: 'Zinsen',
+	loan_repayment: 'Tilgung',
+	management: 'Verwaltung',
+	modernization: 'Modernisierung',
+	other: 'Sonstiges'
+};
+
 export const insuranceKindLabels: Record<InsuranceKind, string> = {
 	building: 'Wohngebäudeversicherung',
 	liability: 'Haus- und Grundbesitzerhaftpflicht',
