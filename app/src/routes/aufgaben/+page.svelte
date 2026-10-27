@@ -58,7 +58,7 @@
 
 <PageHeader
 	title="Aufgaben"
-	lead="Was ansteht: Rückstände, Bankumsätze, Leerstand, Fristen aus Verträgen und Abrechnungen und was du dir selbst vornimmst."
+	lead="Was ansteht: was du dir selbst vornimmst, Rückstände, Bankumsätze, Leerstand und Fristen aus Verträgen und Abrechnungen."
 />
 
 {#if data.firstRun}
@@ -93,87 +93,7 @@
 	</section>
 {/if}
 
-{#if attention}
-	<section aria-labelledby="attention">
-		<h2 id="attention">Handlungsbedarf</h2>
-		<ul class="list" aria-label="Handlungsbedarf">
-			{#if data.attention.arrearsCount > 0}
-				<li class="card">
-					<a href="/mietkonto?filter=rueckstaende"
-						>Rückstände bei {pluralize(
-							data.attention.arrearsCount,
-							'Mietvertrag',
-							'Mietverträgen'
-						)}</a
-					>
-					<Money cents={data.attention.arrearsTotal} />
-				</li>
-			{/if}
-			{#if data.attention.unmatched > 0}
-				<li class="card">
-					<a href="/bank"
-						>{pluralize(data.attention.unmatched, 'offener Bankumsatz', 'offene Bankumsätze')} zuordnen</a
-					>
-				</li>
-			{/if}
-			{#each data.attention.vacant as row (row.unitId)}
-				<li class="card">
-					<span>Leerstand: <a href="/objekte/{row.propertyId}">{row.label}</a></span>
-					<a href="/vertraege/neu?unitId={row.unitId}">Mietvertrag anlegen</a>
-				</li>
-			{/each}
-			{#if data.attention.vacantCount > data.attention.vacant.length}
-				<li class="card">
-					<a href="/objekte"
-						>Leerstand: {pluralize(
-							data.attention.vacantCount - data.attention.vacant.length,
-							'weitere Einheit',
-							'weitere Einheiten'
-						)}</a
-					>
-				</li>
-			{/if}
-		</ul>
-	</section>
-{/if}
-
-<h2>Fristen</h2>
-{#if data.deadlines.length === 0}
-	<p class="muted">In den nächsten zwölf Monaten steht keine Frist an.</p>
-{:else}
-	{#if overdue > 0}
-		<p class="muted">
-			{overdue === 1 ? 'Eine Frist ist' : `${overdue} Fristen sind`} überfällig.
-		</p>
-	{/if}
-	<div class="table-wrap">
-		<table class="table deadlines" aria-label="Fristen">
-			<thead>
-				<tr>
-					<th>Datum</th>
-					<th>Frist</th>
-					<th>Betrifft</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each data.deadlines as deadline, index (index)}
-					<tr>
-						<td class="date">
-							<span class="when">
-								{formatDate(deadline.date)}
-								{#if deadline.overdue}<Badge tone="danger">überfällig</Badge>{/if}
-							</span>
-						</td>
-						<td><a href={deadline.href}>{deadline.title}</a></td>
-						<td class="muted">{deadline.detail ?? ''}</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
-	</div>
-{/if}
-
-<h2>Aufgaben</h2>
+<h2>Offene Aufgaben</h2>
 {#if form && 'message' in form}
 	<p class="error" role="alert">{form.message}</p>
 {/if}
@@ -258,6 +178,86 @@
 			{/each}
 		</ul>
 	</details>
+{/if}
+
+{#if attention}
+	<section aria-labelledby="attention">
+		<h2 id="attention">Handlungsbedarf</h2>
+		<ul class="list" aria-label="Handlungsbedarf">
+			{#if data.attention.arrearsCount > 0}
+				<li class="card">
+					<a href="/mietkonto?filter=rueckstaende"
+						>Rückstände bei {pluralize(
+							data.attention.arrearsCount,
+							'Mietvertrag',
+							'Mietverträgen'
+						)}</a
+					>
+					<Money cents={data.attention.arrearsTotal} />
+				</li>
+			{/if}
+			{#if data.attention.unmatched > 0}
+				<li class="card">
+					<a href="/bank"
+						>{pluralize(data.attention.unmatched, 'offener Bankumsatz', 'offene Bankumsätze')} zuordnen</a
+					>
+				</li>
+			{/if}
+			{#each data.attention.vacant as row (row.unitId)}
+				<li class="card">
+					<span>Leerstand: <a href="/objekte/{row.propertyId}">{row.label}</a></span>
+					<a href="/vertraege/neu?unitId={row.unitId}">Mietvertrag anlegen</a>
+				</li>
+			{/each}
+			{#if data.attention.vacantCount > data.attention.vacant.length}
+				<li class="card">
+					<a href="/objekte"
+						>Leerstand: {pluralize(
+							data.attention.vacantCount - data.attention.vacant.length,
+							'weitere Einheit',
+							'weitere Einheiten'
+						)}</a
+					>
+				</li>
+			{/if}
+		</ul>
+	</section>
+{/if}
+
+<h2>Fristen</h2>
+{#if data.deadlines.length === 0}
+	<p class="muted">In den nächsten zwölf Monaten steht keine Frist an.</p>
+{:else}
+	{#if overdue > 0}
+		<p class="muted">
+			{overdue === 1 ? 'Eine Frist ist' : `${overdue} Fristen sind`} überfällig.
+		</p>
+	{/if}
+	<div class="table-wrap">
+		<table class="table deadlines" aria-label="Fristen">
+			<thead>
+				<tr>
+					<th>Datum</th>
+					<th>Frist</th>
+					<th>Betrifft</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each data.deadlines as deadline, index (index)}
+					<tr>
+						<td class="date">
+							<span class="when">
+								{formatDate(deadline.date)}
+								{#if deadline.overdue}<Badge tone="danger">überfällig</Badge>{/if}
+							</span>
+						</td>
+						<td><a href={deadline.href}>{deadline.title}</a></td>
+						<td class="muted">{deadline.detail ?? ''}</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	</div>
 {/if}
 
 <h2 id="anlegen">Aufgabe anlegen</h2>
