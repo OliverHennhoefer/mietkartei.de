@@ -20,9 +20,7 @@ const EXPIRED_PER_START = 5;
 export async function startDemo(db: Database, options?: { storage?: Storage }) {
 	// Clearing out yesterday's demos is not the visitor's business: on Workers it runs after the
 	// response.
-	const cleanup = deleteExpiredDemoAccounts(db, Date.now(), options).catch((error: unknown) =>
-		console.error('[demo] Deleting expired demo accounts failed:', error)
-	);
+	const cleanup = deleteExpiredDemoAccounts(db, Date.now(), options);
 	if (__DEPLOY_TARGET__ === 'cloudflare') {
 		const { waitUntil } = await import('cloudflare:workers');
 		waitUntil(cleanup);
