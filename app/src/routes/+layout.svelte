@@ -254,9 +254,9 @@
 	<link rel="icon" href={favicon} type="image/svg+xml" />
 	{#if data.theme === 'system'}
 		<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-		<meta name="theme-color" content="#181818" media="(prefers-color-scheme: dark)" />
+		<meta name="theme-color" content="#242529" media="(prefers-color-scheme: dark)" />
 	{:else}
-		<meta name="theme-color" content={data.theme === 'dark' ? '#181818' : '#ffffff'} />
+		<meta name="theme-color" content={data.theme === 'dark' ? '#242529' : '#ffffff'} />
 	{/if}
 	<!-- The link preview of every app page; the demo page adds its own title and description. -->
 	<meta property="og:site_name" content="mietkartei" />

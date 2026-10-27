@@ -7,37 +7,39 @@
 }
 
 :root {
-	--color-text: light-dark(#202020, #ededed);
-	--color-muted: light-dark(#6b6b6b, #a0a0a0);
-	--color-border: light-dark(#e8e8e8, #303030);
-	--color-surface: light-dark(#fff, #1e1e1e);
-	--color-background: light-dark(#fff, #1e1e1e);
-	--color-sidebar: light-dark(#f7f7f7, #181818);
-	--color-subtle: light-dark(#fafafa, #232323);
-	--color-hover: light-dark(#f0f0f0, #2c2c2c);
+	--color-text: light-dark(#202020, #ececee);
+	--color-muted: light-dark(#6b6b6b, #a2a4aa);
+	--color-border: light-dark(#e8e8e8, #36383d);
+	--color-surface: light-dark(#fff, #242529);
+	--color-background: light-dark(#fff, #1b1c1f);
+	/* Form fields; in the dark scheme they sit a level below the card they are on. */
+	--color-field: light-dark(#fff, #1e1f22);
+	--color-sidebar: light-dark(#f7f7f7, #161719);
+	--color-subtle: light-dark(#fafafa, #2b2c31);
+	--color-hover: light-dark(#f0f0f0, #323439);
 	/* The sidebar: round icon tiles, and the raised pill of the current page. */
-	--color-nav-tile: light-dark(#ebebeb, #262626);
-	--color-nav-active: light-dark(#fff, #ededed);
-	--color-nav-active-text: light-dark(#202020, #181818);
+	--color-nav-tile: light-dark(#ebebeb, #292a2f);
+	--color-nav-active: light-dark(#fff, #ececee);
+	--color-nav-active-text: light-dark(#202020, #1b1c1f);
 	--color-nav-active-muted: light-dark(#6b6b6b, #6b6b6b);
 	--shadow-nav-active: 0 0 0 1px rgb(0 0 0 / 5%), 0 4px 14px rgb(0 0 0 / 7%);
-	--color-accent: light-dark(#202020, #ededed);
-	--color-accent-text: light-dark(#fff, #181818);
+	--color-accent: light-dark(#202020, #ececee);
+	--color-accent-text: light-dark(#fff, #1b1c1f);
 	/* The one colour: a muted brick red, only for errors, debts and destructive actions. */
 	--color-danger: light-dark(#b4332a, #f0857b);
-	--color-danger-subtle: light-dark(#fbf1f0, #2a1d1c);
+	--color-danger-subtle: light-dark(#fbf1f0, #301f1e);
 	--color-danger-border: light-dark(#ecc9c5, #5a2f2b);
 	/* Its counterpart, a muted green, only for what is settled or in the tenant's favour: a
 	   Guthaben, and status labels such as „Freigegeben“. Never on its own, always with a sign,
 	   a word or a check mark. */
 	--color-success: light-dark(#2f7a4b, #7cc49a);
-	--color-success-subtle: light-dark(#f0f7f2, #1c2620);
+	--color-success-subtle: light-dark(#f0f7f2, #1e2a23);
 	--color-success-border: light-dark(#c6e0cf, #2f5640);
 	/* Charts: money in dark, money out mid-grey; told apart by lightness, never by hue alone. */
-	--color-chart-income: light-dark(#202020, #ededed);
+	--color-chart-income: light-dark(#202020, #ececee);
 	--color-chart-expense: light-dark(#8c8c8c, #7a7a7a);
 	/* Categories in a fixed order, darkest first; the net line runs on the neon of the logo. */
-	--color-chart-1: light-dark(#202020, #ededed);
+	--color-chart-1: light-dark(#202020, #ececee);
 	--color-chart-2: light-dark(#6b6b6b, #a8a8a8);
 	--color-chart-3: light-dark(#a3a3a3, #6e6e6e);
 	--color-chart-4: light-dark(#d4d4d4, #454545);
@@ -57,6 +59,7 @@
 	--sidebar-width: 16.5rem;
 	--header-height: 4rem;
 	--shadow: 0 1px 2px rgb(0 0 0 / 3%);
+	--shadow-field: var(--shadow);
 	--color-focus-ring: light-dark(rgb(0 0 0 / 8%), rgb(255 255 255 / 12%));
 	--icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b6b6b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
 	--icon-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b6b6b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5' width='17' height='15.5' rx='2.5'/%3E%3Cpath d='M3.5 10h17M8 3v4M16 3v4'/%3E%3C/svg%3E");
@@ -557,7 +560,7 @@ button.account-card[aria-expanded='true'] {
 	padding: 1.75rem;
 	border: 1px solid var(--color-border);
 	border-radius: 14px;
-	background: var(--color-background);
+	background: var(--color-surface);
 	color: var(--color-text);
 	box-shadow: 0 24px 64px rgb(0 0 0 / 22%);
 }
@@ -856,12 +859,12 @@ textarea {
 	padding: 0.55rem 0.8rem;
 	border: 1px solid var(--color-border);
 	border-radius: 8px;
-	background-color: var(--color-surface);
+	background-color: var(--color-field);
 	width: 100%;
 	color: inherit;
 	font-weight: 400;
 	line-height: 1.45;
-	box-shadow: var(--shadow);
+	box-shadow: var(--shadow-field);
 	transition:
 		border-color 140ms,
 		box-shadow 140ms,
@@ -1396,8 +1399,10 @@ dl.details dd {
 	}
 }
 
-/* The colour scheme: light-dark() above picks the second colour in the dark one. The few values
-   that are not plain colours are switched here. Screen only: a page prints in light colours. */
+/* Dark: anthracite in levels, each a step lighter than the one below it: sidebar, page, cards,
+   nested panels, hover. Fields drop back below the card, so they read as inset. The light-dark()
+   values above carry the colours; what is not a plain colour is switched here. Screen only: a
+   page prints in light colours. */
 @media screen {
 	:root[data-theme='light'] {
 		color-scheme: light;
@@ -1405,20 +1410,22 @@ dl.details dd {
 	:root[data-theme='dark'] {
 		color-scheme: dark;
 		--shadow-nav-active: 0 6px 18px rgb(0 0 0 / 40%);
-		--shadow: none;
+		--shadow: 0 1px 2px rgb(0 0 0 / 35%), 0 4px 12px rgb(0 0 0 / 18%);
+		--shadow-field: none;
 		--icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
 		--icon-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5' width='17' height='15.5' rx='2.5'/%3E%3Cpath d='M3.5 10h17M8 3v4M16 3v4'/%3E%3C/svg%3E");
-		--icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23181818' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+		--icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231b1c1f' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
 	}
 }
 
 @media screen and (prefers-color-scheme: dark) {
 	:root[data-theme='system'] {
 		--shadow-nav-active: 0 6px 18px rgb(0 0 0 / 40%);
-		--shadow: none;
+		--shadow: 0 1px 2px rgb(0 0 0 / 35%), 0 4px 12px rgb(0 0 0 / 18%);
+		--shadow-field: none;
 		--icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
 		--icon-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5' width='17' height='15.5' rx='2.5'/%3E%3Cpath d='M3.5 10h17M8 3v4M16 3v4'/%3E%3C/svg%3E");
-		--icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23181818' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+		--icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231b1c1f' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
 	}
 }
 
@@ -1438,6 +1445,7 @@ dl.details dd {
 		--color-border: #ddd;
 		--color-surface: #fff;
 		--color-background: #fff;
+		--color-field: #fff;
 		--color-subtle: #fff;
 		--color-hover: #eee;
 		--color-accent: #111;

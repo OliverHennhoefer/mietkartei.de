@@ -348,7 +348,7 @@ test('switches between light and dark colours', async ({ page }) => {
 	await page.getByLabel('Dunkel').check();
 	await page.getByRole('button', { name: 'Speichern' }).click();
 	await expect(html).toHaveAttribute('data-theme', 'dark');
-	await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(30, 30, 30)');
+	await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(27, 28, 31)');
 	await page.goto('/objekte');
 	await expect(html).toHaveAttribute('data-theme', 'dark');
 
@@ -362,5 +362,5 @@ test('switches between light and dark colours', async ({ page }) => {
 	await page.getByLabel('Wie das Gerät').check();
 	await page.getByRole('button', { name: 'Speichern' }).click();
 	await expect(html).toHaveAttribute('data-theme', 'system');
-	await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(30, 30, 30)');
+	await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(27, 28, 31)');
 });
