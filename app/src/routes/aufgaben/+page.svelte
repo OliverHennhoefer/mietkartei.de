@@ -87,10 +87,7 @@
 	);
 </script>
 
-<PageHeader
-	title="Aufgaben"
-	lead="Was ansteht: was du dir selbst vornimmst, Rückstände, Bankumsätze, Leerstand und Fristen aus Verträgen und Abrechnungen."
->
+<PageHeader title="Aufgaben">
 	{#snippet actions()}
 		<a class="button" href="?neu" onclick={openDialog}
 			><Icon name="plus" size={16} />Aufgabe anlegen</a
