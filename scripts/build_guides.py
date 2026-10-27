@@ -219,6 +219,20 @@ def build_guides(website: Path, output: Path) -> None:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(text, encoding="utf-8")
 
+    homepage = output / "index.html"
+    text = homepage.read_text(encoding="utf-8")
+    if "<!-- latest-guide -->\n" not in text:
+        raise ValueError("website/index.html: missing <!-- latest-guide --> marker")
+    latest = posts[0]
+    homepage.write_text(
+        text.replace(
+            "<!-- latest-guide -->\n",
+            f'<a class="latest" href="{latest.path}"><span class="latest-tag">Neu</span>'
+            f'<span class="latest-title">{html.escape(latest.title)}</span><span aria-hidden="true">→</span></a>\n',
+        ),
+        encoding="utf-8",
+    )
+
     llms = output / "llms.txt"
     text = llms.read_text(encoding="utf-8")
     if "<!-- guides -->\n" not in text:
