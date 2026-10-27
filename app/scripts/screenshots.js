@@ -80,7 +80,7 @@ try {
 		);
 	}
 
-	// The homepage carousel: every slide has the same 1600 × 1000 pixels. A whole screen is the
+	// The homepage screenshots: every one has the same 1600 × 1000 pixels. A whole screen is the
 	// 1280 × 800 window; a detail is a region of the page around the given elements, enlarged to the
 	// same size. Each slide is taken in its own context, whose scale fits the region into the slide.
 	const slideWidth = 1600;

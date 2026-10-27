@@ -1,6 +1,6 @@
 # Maintaining the public homepage
 
-The static landing page at `https://mietkartei.de/` summarizes the product on a single screen: positioning, the links to the app and the documentation, a slowly cross-fading carousel of five app screenshots with short captions, the three latest news posts and four value points. On desktop it fits into one viewport without scrolling (checked down to 1280×720 and 1024×768); on narrow screens it stacks and scrolls. It consists of HTML and CSS. Geist, the register symbol/wordmark combination and the favicon are taken from the shared brand assets; the page needs no JavaScript.
+The static landing page at `https://mietkartei.de/` is written for private landlords, many of them over 40: large text (body copy 17 to 20px), generous whitespace and one idea per section. It scrolls through a centred hero with a link to the latest guide, the Auswertung in an app window on a soft neon haze with two floating details, four facts, four tasks each with its screenshot, a dark band with a sample chat with Claude, four promises and a closing call to action. The neon block of the logo sweeps in once behind the key word of the hero and the closing line, and the app window straightens up from a tilt while it scrolls into view (a CSS scroll-driven animation; browsers without it show the window flat). With reduced motion, nothing moves. It consists of HTML and CSS. Geist, the register symbol/wordmark combination and the favicon are taken from the shared brand assets; the page needs no JavaScript.
 
 ## Preview
 
@@ -11,7 +11,7 @@ python3 scripts/build_homepage.py
 python3 -m http.server 8002 --bind 127.0.0.1 --directory dist/homepage
 ```
 
-Then open [http://127.0.0.1:8002](http://127.0.0.1:8002). Rebuild the output after changes. Check that the page still fits one screen at 1280×720 and 1024×768, the layout on small screens and the links.
+Then open [http://127.0.0.1:8002](http://127.0.0.1:8002). Rebuild the output after changes. Check the page at 1440, 1024 and 390 pixels wide in light and dark mode, that nothing scrolls sideways, and the links.
 
 ## Files
 
@@ -22,7 +22,7 @@ Then open [http://127.0.0.1:8002](http://127.0.0.1:8002). Rebuild the output aft
 | `website/preise/index.html`, `website/fragen/index.html` | Pricing and FAQ pages |
 | `website/impressum/index.html` | Legal notice (Impressum) with provider and contact details |
 | `website/styles.css` | Styles, including light and dark colors |
-| `website/assets/screenshots/` | The slides of the homepage carousel, all 1600 × 1000: whole screens (Auswertung, Mietkonto) and enlarged details (Rendite, a bank transaction, one tenant's share of the operating cost statement), taken by `npm run screenshots` in `app/`. The carousel is pure CSS, since the page runs no scripts; its order and captions live in `website/index.html`, its timing in `website/styles.css` |
+| `website/assets/screenshots/` | The homepage screenshots, all 1600 × 1000: whole screens (Auswertung in the hero, Mietkonto) and enlarged details (Rendite, a bank transaction, one tenant's share of the operating cost statement), taken by `npm run screenshots` in `app/`. The numbers in the floating details and the sample chat in `website/index.html` are copied from these screenshots; keep them in step when the demo data changes |
 | `website/ratgeber/*.md` | Guides, one Markdown file per guide; the file name is the URL slug |
 | `website/ratgeber/_layout.html` | Page frame for the guide index and the guides |
 | `website/_headers` | HTTP response headers for Cloudflare |
@@ -58,7 +58,7 @@ description: One or two sentences, at most about 160 characters, used for search
 Body text. Supported: paragraphs, `## headings`, `- lists`, `**bold**` and `[links](https://…)`.
 ```
 
-The build renders `/ratgeber/` (all guides, newest first), `/ratgeber/<slug>/` per guide with `BlogPosting` structured data, and `/ratgeber/feed.xml` (RSS). It replaces the `<!-- guides -->` marker in `website/llms.txt` with the guide links and appends the guide pages to `sitemap.xml`, so a new guide needs no other edit. Use the categories `Mietrecht` and `Betriebskosten`; product updates do not belong here. Guides link the law on gesetze-im-internet.de and end with the note that they are general information, not legal advice.
+The build renders `/ratgeber/` (all guides, newest first), `/ratgeber/<slug>/` per guide with `BlogPosting` structured data, and `/ratgeber/feed.xml` (RSS). It replaces the `<!-- guides -->` marker in `website/llms.txt` with the guide links and the `<!-- latest-guide -->` marker of the homepage with a link to the newest guide, and appends the guide pages to `sitemap.xml`, so a new guide needs no other edit. Use the categories `Mietrecht` and `Betriebskosten`; product updates do not belong here. Guides link the law on gesetze-im-internet.de and end with the note that they are general information, not legal advice.
 
 ## Search engines and AI search
 
