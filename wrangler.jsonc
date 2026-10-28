@@ -12,6 +12,8 @@
 	"$schema": "./app/node_modules/wrangler/config-schema.json",
 	"name": "mietkartei",
 	"main": "app/.svelte-kit/cloudflare/_worker.js",
+	// The scheduled jobs, such as the weekly Fristenübersicht, every day at 5:00 UTC.
+	"triggers": { "crons": ["0 5 * * *"] },
 	"compatibility_date": "2026-10-01",
 	"compatibility_flags": ["nodejs_als"],
 	"workers_dev": true,

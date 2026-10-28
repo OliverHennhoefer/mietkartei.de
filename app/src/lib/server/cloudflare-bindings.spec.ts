@@ -155,6 +155,12 @@ describe('wrangler.jsonc', () => {
 		expect(limiter.simple).toEqual({ limit: API_LIMIT, period: API_PERIOD_SECONDS });
 	});
 
+	it('runs the scheduled jobs daily, but not in the demo', () => {
+		const config = wranglerConfig();
+		expect(config.triggers).toEqual({ crons: ['0 5 * * *'] });
+		expect(config.env.demo.triggers).toEqual({ crons: [] });
+	});
+
 	it('migrates D1 from the same folder as the SQLite database', () => {
 		const [db] = wranglerConfig().d1_databases;
 		expect(db.migrations_dir).toBe('drizzle');
@@ -191,6 +197,7 @@ describe('wrangler.jsonc of a self-hosted copy', () => {
 		});
 		expect(selfHosted.compatibility_date).toBe(hosted.compatibility_date);
 		expect(selfHosted.compatibility_flags).toEqual(hosted.compatibility_flags);
+		expect(selfHosted.triggers).toEqual(hosted.triggers);
 		expect(selfHosted.workers_dev).toBe(true);
 		expect(selfHosted.routes).toBeUndefined();
 	});

@@ -7,6 +7,9 @@
 	"compatibility_date": "2026-10-01",
 	"compatibility_flags": ["nodejs_als"],
 	"routes": [{ "pattern": "app.mietkartei.de", "custom_domain": true }],
+	// The scheduled jobs, such as the weekly Fristenübersicht, every day at 5:00 UTC; see
+	// worker.js.
+	"triggers": { "crons": ["0 5 * * *"] },
 	// Registration is closed: only the addresses of the secret REGISTRATION_EMAILS may register.
 	// See src/lib/server/registration.ts and .github/DEPLOYMENT.md.
 	// Mails (password reset, invitations) go out through Resend; the API key is the secret
@@ -73,6 +76,8 @@
 		"demo": {
 			"name": "mietkartei-demo",
 			"routes": [{ "pattern": "demo.mietkartei.de", "custom_domain": true }],
+			// The demo sends no mails, so it has no scheduled jobs.
+			"triggers": { "crons": [] },
 			"vars": {
 				"HOSTED": "true",
 				"DEMO": "true",

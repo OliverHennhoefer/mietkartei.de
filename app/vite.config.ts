@@ -2,10 +2,28 @@ import { coverageConfigDefaults, defineConfig } from 'vitest/config';
 import cloudflare from '@sveltejs/adapter-cloudflare';
 import node from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { readFileSync } from 'node:fs';
+import type { Adapter } from '@sveltejs/kit';
+import { copyFileSync, readFileSync, renameSync } from 'node:fs';
 
 // The version shown at the bottom of the sidebar; set in package.json for each release.
 const { version } = JSON.parse(readFileSync(new URL('package.json', import.meta.url), 'utf8'));
+
+/**
+ * adapter-cloudflare, with worker.js in front of the worker it builds: the adapter's worker only
+ * answers requests, worker.js also runs the cron trigger. The adapter's file moves next to the
+ * server it imports, outside the static assets.
+ */
+function withScheduledJobs(adapter: Adapter): Adapter {
+	return {
+		...adapter,
+		async adapt(builder) {
+			await adapter.adapt(builder);
+			const worker = `${builder.getBuildDirectory('cloudflare')}/_worker.js`;
+			renameSync(worker, `${builder.getBuildDirectory('cloudflare-tmp')}/app-worker.js`);
+			copyFileSync(new URL('worker.js', import.meta.url), worker);
+		}
+	};
+}
 
 // The same code builds for self-hosting (Node, one SQLite file) and for Cloudflare Workers (D1).
 const target = process.env.DEPLOY_TARGET || 'node';
@@ -21,7 +39,7 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: target === 'cloudflare' ? cloudflare() : node(),
+			adapter: target === 'cloudflare' ? withScheduledJobs(cloudflare()) : node(),
 			// The hook checks the origin of form posts instead, with an exception for the OAuth
 			// token endpoint; see #lib/server/csrf.ts.
 			csrf: { trustedOrigins: ['*'] },

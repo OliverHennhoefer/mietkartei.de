@@ -42,7 +42,7 @@ Unter **Einstellungen → Konto → Demodaten anlegen** füllst du ein leeres Ko
 
 ### Was anders ist als bei app.mietkartei.de
 
-- **Keine E-Mails.** Für den Versand von E-Mails braucht mietkartei eine eigene Domain. Ohne Domain bleiben E-Mails ungesendet. Das betrifft das Zurücksetzen eines vergessenen Passworts und Einladungen an Mitverwalter. Bewahre dein Passwort deshalb gut auf, etwa in einem Passwortmanager.
+- **Keine E-Mails.** Für den Versand von E-Mails braucht mietkartei eine eigene Domain. Ohne Domain bleiben E-Mails ungesendet. Das betrifft das Zurücksetzen eines vergessenen Passworts, Einladungen an Mitverwalter und die wöchentliche Fristenübersicht. Bewahre dein Passwort deshalb gut auf, etwa in einem Passwortmanager.
 - **Keine Straßenkarte.** Die Objekte erscheinen auf einer Deutschlandkarte mit einem Punkt je Postleitzahl.
 - **Kein Abo.** Bezahlt wird nur Cloudflare.
 - **Speicherort.** Cloudflare legt Datenbank und Dokumente in einem Rechenzentrum in deiner Nähe an. Eine feste Bindung an die EU wie bei app.mietkartei.de richtet die Einrichtung nicht ein.
