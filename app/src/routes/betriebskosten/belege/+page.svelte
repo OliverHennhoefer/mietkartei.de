@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import DocumentLink from '#lib/components/DocumentLink.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
@@ -6,21 +7,11 @@
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-
-	/** The current filter, for the "Beleg erfassen" link. */
-	const query = $derived(
-		[
-			data.property ? `property=${encodeURIComponent(data.property.id)}` : '',
-			data.year !== null ? `year=${data.year}` : ''
-		]
-			.filter(Boolean)
-			.join('&')
-	);
 </script>
 
 <h2 class="visually-hidden">Belege</h2>
 
-<div class="toolbar between">
+<div class="toolbar">
 	<form method="GET" class="row" aria-label="Filter">
 		<label class="inline">
 			Objekt
@@ -44,14 +35,11 @@
 		</label>
 		<noscript><button type="submit" class="secondary small">Anzeigen</button></noscript>
 	</form>
-	{#if data.properties.length > 0}
-		<a class="button" href="/betriebskosten/belege/neu{query ? `?${query}` : ''}">Beleg erfassen</a>
-	{/if}
 </div>
 
 {#if data.properties.length === 0}
 	<EmptyState title="Noch kein Objekt" text="Belege gehören zu einem Objekt. Lege zuerst eines an.">
-		<a class="button" href="/objekte">Objekt anlegen</a>
+		<CreateButton href="/objekte/neu" label="Objekt anlegen" />
 	</EmptyState>
 {:else if data.items.length === 0}
 	<EmptyState

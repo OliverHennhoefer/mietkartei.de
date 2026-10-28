@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import LeaseStatus from '#lib/components/LeaseStatus.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
@@ -11,7 +12,7 @@
 
 <PageHeader title="Mietverträge" lead="Laufende Verträge zuerst, danach die beendeten.">
 	{#snippet actions()}
-		<a href="/vertraege/neu" class="button">Mietvertrag anlegen</a>
+		<CreateButton href="/vertraege/neu" label="Mietvertrag anlegen" />
 	{/snippet}
 </PageHeader>
 
@@ -21,13 +22,13 @@
 		text="Ein Mietvertrag braucht eine Einheit und einen Mieter. Lege zuerst an, was noch fehlt."
 	>
 		{#if !data.prerequisites.units}
-			<a href="/objekte" class="button secondary">Objekt und Einheit anlegen</a>
+			<CreateButton href="/objekte" label="Objekt und Einheit anlegen" secondary />
 		{/if}
 		{#if !data.prerequisites.tenants}
-			<a href="/mieter/neu?return=/vertraege/neu" class="button secondary">Mieter anlegen</a>
+			<CreateButton href="/mieter/neu?return=/vertraege/neu" label="Mieter anlegen" secondary />
 		{/if}
 		{#if data.prerequisites.units && data.prerequisites.tenants}
-			<a href="/vertraege/neu" class="button">Mietvertrag anlegen</a>
+			<CreateButton href="/vertraege/neu" label="Mietvertrag anlegen" />
 		{/if}
 	</EmptyState>
 {:else}

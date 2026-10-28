@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import Alert from '#lib/components/Alert.svelte';
 	import ArchiveSection from '#lib/components/ArchiveSection.svelte';
 	import DocumentLink from '#lib/components/DocumentLink.svelte';
@@ -48,9 +49,11 @@
 >
 	{#snippet actions()}
 		{#if !data.tenant.archivedAt}
-			<a href="/vertraege/neu?tenantId={data.tenant.id}" class="button secondary"
-				>Mietvertrag anlegen</a
-			>
+			<CreateButton
+				href="/vertraege/neu?tenantId={data.tenant.id}"
+				label="Mietvertrag anlegen"
+				secondary
+			/>
 		{/if}
 		<a href="/mieter/{data.tenant.id}/bearbeiten" class="button">Bearbeiten</a>
 	{/snippet}

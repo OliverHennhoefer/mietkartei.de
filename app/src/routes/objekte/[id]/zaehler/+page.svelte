@@ -234,7 +234,7 @@
 	</section>
 {/if}
 
-<h2>Zähler anlegen</h2>
+<h2 id="zaehler-anlegen">Zähler anlegen</h2>
 <form method="POST" action={actionOn('createMeter')} class="card" use:enhance>
 	<input type="hidden" name="filterUnit" value={data.filterUnit?.id ?? ''} />
 	<label>

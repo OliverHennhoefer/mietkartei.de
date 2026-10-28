@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import { page } from '$app/state';
 	import Alert from '#lib/components/Alert.svelte';
@@ -174,7 +175,7 @@
 		title="Noch keine Bankverbindung"
 		text="Lege zuerst das Konto an, auf dem die Mieten eingehen; danach kannst du Kontoauszüge importieren."
 	>
-		<a href="/bank/konten">Bankverbindung anlegen</a>
+		<CreateButton href="/bank/konten#bankverbindung-anlegen" label="Bankverbindung anlegen" />
 	</EmptyState>
 {:else if data.transactions.length === 0}
 	{#if data.transactionId}
