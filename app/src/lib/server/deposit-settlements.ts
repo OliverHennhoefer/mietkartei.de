@@ -15,7 +15,7 @@ import { runBatch } from './db/batch';
 import { depositSettlements, depositTransactions, payments } from './db/schema';
 import { depositSummary, listDepositMovements } from './deposits';
 import { getLease } from './leases';
-import { listLedger } from './ledger';
+import { listBalances } from './ledger';
 import type { Letter } from './pdf';
 import { assertQuota } from './quotas';
 import { recipientLines } from './rent-adjustments';
@@ -45,14 +45,18 @@ export async function getSettlement(
 	return row;
 }
 
-/** Arrears on the rent ledger on the day; positive = owed. */
+/**
+ * The Mietrückstand on the day: what was due by then and not paid by then. A charge not yet due,
+ * such as the Nachzahlung of a Betriebskostenabrechnung not yet delivered, is not part of it.
+ */
 export async function arrearsOn(
 	db: Database,
 	accountId: string,
 	leaseId: string,
 	date: IsoDate
 ): Promise<number> {
-	return (await listLedger(db, accountId, leaseId, { to: date })).balance;
+	const [balance] = await listBalances(db, accountId, { asOf: date, leaseIds: [leaseId] });
+	return balance?.overdue ?? 0;
 }
 
 /**

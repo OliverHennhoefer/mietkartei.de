@@ -1,8 +1,9 @@
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from './db';
-import { accounts, auditLog, payments } from './db/schema';
+import { accounts, auditLog, payments, rentCharges } from './db/schema';
 import {
+	arrearsOn,
 	createSettlement,
 	deleteSettlement,
 	getSettlement,
@@ -83,6 +84,20 @@ describe('createSettlement', () => {
 		expect(audit.map((entry) => entry.summary)).toContainEqual(
 			expect.stringContaining('Kautionsabrechnung vom 15.02.2026 erstellt')
 		);
+	});
+
+	it('offsets only what was due, not a Nachzahlung before its delivery', async () => {
+		await db.insert(rentCharges).values({
+			accountId: 'a',
+			leaseId,
+			period: '2025-12',
+			dueDate: null,
+			amount: 25000,
+			kind: 'statement_balance'
+		});
+		expect(await arrearsOn(db, 'a', leaseId, '2026-02-15')).toBe(80000);
+		expect(await createSettlement(db, contextA, leaseId, input)).toMatchObject({ ok: true });
+		expect(await getSettlement(db, 'a', leaseId)).toMatchObject({ payout: 71200 });
 	});
 
 	it('refuses before the end, in the future, twice and above the deposit', async () => {
