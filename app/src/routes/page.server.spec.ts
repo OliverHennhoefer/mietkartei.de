@@ -87,23 +87,34 @@ describe('start page', () => {
 		expect(await run(loadTasks)).toMatchObject({ data: { firstRun: null } });
 	});
 
-	it('counts arrears, vacant units and the account’s own data only', async () => {
+	it('reminds of arrears and statements not loaded, lists vacant units, the account’s own only', async () => {
 		const { unitId } = await seedUnit(db, 'a');
 		await seedUnit(db, 'a', { name: 'Leer', propertyName: 'Zweites' });
 		await seedLease(db, 'a', unitId, { startDate: '2026-01-01' });
+		await createBankAccount(db, contextA, {
+			name: 'Mietkonto',
+			iban: 'DE02120300000000202051',
+			bic: null,
+			holder: 'Oliver'
+		});
 		const other = await seedUnit(db, 'b');
 		await seedLease(db, 'b', other.unitId);
-		expect(await run(loadTasks)).toMatchObject({
+		const result = await run(loadTasks);
+		expect(result).toMatchObject({
 			data: {
-				attention: {
-					arrearsTotal: 240000,
-					arrearsCount: 1,
-					unmatched: 0,
-					vacantCount: 1,
-					vacant: [{ label: 'Leer · Zweites' }]
-				}
+				reminders: [
+					{ kind: 'arrears', title: 'Rückstände bei 1\u00a0Mietvertrag', amount: 240000 },
+					{
+						kind: 'bank_import',
+						title: 'Kontoauszug laden: Mietkonto',
+						href: '/bank/import'
+					},
+					{ kind: 'vacancy', title: 'Mietvertrag anlegen: Leer · Zweites' }
+				]
 			}
 		});
+		// No unmatched transactions: no reminder to assign them.
+		expect('data' in result && (result.data as { reminders: unknown[] }).reminders).toHaveLength(3);
 	});
 });
 

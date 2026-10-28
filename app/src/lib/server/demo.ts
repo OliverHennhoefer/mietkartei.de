@@ -1755,9 +1755,43 @@ export async function createDemoData(
 		accountId,
 		bankAccountId: bankAccount.id,
 		importId: null,
-		status: transactions[index].status,
+		status: transactions[index].status as 'matched' | 'unmatched' | 'ignored',
 		...row
 	}));
+
+	// The Rücklagenkonto: the monthly transfer to the Instandhaltungsrücklage for two years, but its
+	// statements were last loaded two months ago, so the task list asks for them.
+	const reserveAccount = {
+		id: crypto.randomUUID(),
+		accountId,
+		name: 'Rücklagenkonto DKB',
+		iban: 'DE02120300000000202051',
+		bic: 'BYLADEM1001',
+		holder: 'Katrin Hoffmann'
+	};
+	const reserveRows = await fingerprintRows(
+		monthsInRange(addMonthsToMonth(lastMonth, -24), addMonthsToMonth(lastMonth, -1)).map(
+			(month): BankRow => ({
+				bookingDate: `${month}-05`,
+				valueDate: `${month}-05`,
+				amount: 25000,
+				counterpartName: 'Katrin Hoffmann',
+				counterpartIban: bankAccount.iban,
+				purpose: `Übertrag Instandhaltungsrücklage ${month}`,
+				externalId: null
+			})
+		)
+	);
+	transactionRows.push(
+		...reserveRows.map((row) => ({
+			id: crypto.randomUUID(),
+			accountId,
+			bankAccountId: reserveAccount.id,
+			importId: null,
+			status: 'ignored' as const,
+			...row
+		}))
+	);
 
 	// Drafts of the Betriebskostenabrechnungen of every history year but the last, approved below.
 	const drafts = historyYears.slice(0, -1).flatMap((year) =>
@@ -1861,6 +1895,11 @@ export async function createDemoData(
 			bankAccount.id,
 			`Bankverbindung „${bankAccount.name}“ (${formatIban(bankAccount.iban)}) angelegt`
 		),
+		audit(
+			'bankAccount',
+			reserveAccount.id,
+			`Bankverbindung „${reserveAccount.name}“ (${formatIban(reserveAccount.iban)}) angelegt`
+		),
 		...costItemRows.map((item) =>
 			audit(
 				'cost_item',
@@ -1877,7 +1916,7 @@ export async function createDemoData(
 	// bank accounts and tasks up to their limits.
 	const adding: [QuotaKind, number][] = [
 		['tenants', tenantRows.length],
-		['bankAccounts', 1],
+		['bankAccounts', 2],
 		['bankTransactions', transactionRows.length],
 		['matchingRules', ruleRows.length],
 		['expenses', expenseRows.length],
@@ -1896,7 +1935,7 @@ export async function createDemoData(
 			...insert(rentChanges, rentChangeRows),
 			...insert(leasePersons, personsRows),
 			...insert(depositTransactions, depositRows),
-			...insert(bankAccounts, [bankAccount]),
+			...insert(bankAccounts, [bankAccount, reserveAccount]),
 			...insert(bankTransactions, transactionRows),
 			...insert(payments, paymentRows),
 			...insert(matchingRules, ruleRows),
@@ -2157,7 +2196,7 @@ export async function createDemoData(
 					tenantRows.map((row) => row.id)
 				)
 			),
-			db.delete(bankAccounts).where(eq(bankAccounts.id, bankAccount.id)),
+			db.delete(bankAccounts).where(inArray(bankAccounts.id, [bankAccount.id, reserveAccount.id])),
 			db.delete(tasks).where(
 				inArray(
 					tasks.id,
