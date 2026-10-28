@@ -269,7 +269,15 @@ test('records the handover at moving in and out and prints the protocol', async 
 	await expect(page.locator('input[name="room2"]')).toHaveValue('Küche');
 	await page.locator('select[name="condition3"]').selectOption('damaged');
 	await page.locator('input[name="roomNote3"]').fill('Badtür gesplittert');
-	// A refusal keeps the form with what was typed.
+	// A refusal keeps the form with what was typed, each row in its place.
+	const firstKey = page.locator('input[name="key1"]');
+	const label = await firstKey.inputValue();
+	const count = await page.locator('input[name="keyCount1"]').inputValue();
+	await firstKey.fill('');
+	await page.getByRole('button', { name: 'Protokoll speichern' }).click();
+	await expect(page.getByText('Bitte gib an, wofür der Schlüssel ist.')).toBeVisible();
+	await expect(page.locator('input[name="keyCount1"]')).toHaveValue(count);
+	await firstKey.fill(label);
 	await page.locator('input[name="date"]').fill('2024-12-31');
 	await page.getByRole('button', { name: 'Protokoll speichern' }).click();
 	await expect(page.getByText('Der Auszug kann nicht vor dem Einzug')).toBeVisible();

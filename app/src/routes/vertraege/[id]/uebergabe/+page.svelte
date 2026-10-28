@@ -18,23 +18,29 @@
 	const errors = $derived<Partial<Record<string, string>>>(form?.errors ?? {});
 	const sent = $derived<Record<string, string> | undefined>(form?.values);
 
+	// The rows sent, up to the last with anything in it, so each keeps its number and its error.
+	function sentRows(max: number, fields: string[]): number[] {
+		const rows = Array.from({ length: max }, (_, index) => index + 1);
+		const last = rows.findLast((row) => fields.some((field) => sent?.[`${field}${row}`])) ?? 0;
+		return rows.slice(0, last);
+	}
+
 	// The rows of the form: as sent back after a refusal, else as prefilled by the server.
 	const startRooms = $derived(
 		sent
-			? Array.from({ length: data.maxRooms }, (_, index) => index + 1)
-					.filter((row) => sent[`room${row}`] || sent[`roomNote${row}`])
-					.map((row) => ({
-						name: sent[`room${row}`] ?? '',
-						condition: sent[`condition${row}`] || 'good',
-						note: sent[`roomNote${row}`] ?? ''
-					}))
+			? sentRows(data.maxRooms, ['room', 'roomNote']).map((row) => ({
+					name: sent[`room${row}`] ?? '',
+					condition: sent[`condition${row}`] || 'good',
+					note: sent[`roomNote${row}`] ?? ''
+				}))
 			: (data.form?.rooms ?? []).map((room) => ({ ...room, note: room.note ?? '' }))
 	);
 	const startKeys = $derived(
 		sent
-			? Array.from({ length: data.maxKeys }, (_, index) => index + 1)
-					.filter((row) => sent[`key${row}`])
-					.map((row) => ({ label: sent[`key${row}`], count: sent[`keyCount${row}`] ?? '' }))
+			? sentRows(data.maxKeys, ['key', 'keyCount']).map((row) => ({
+					label: sent[`key${row}`] ?? '',
+					count: sent[`keyCount${row}`] ?? ''
+				}))
 			: (data.form?.keys ?? []).map((key) => ({ ...key, count: String(key.count) }))
 	);
 	let addedRooms = $state(0);
