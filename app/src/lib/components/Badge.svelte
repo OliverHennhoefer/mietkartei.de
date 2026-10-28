@@ -5,15 +5,26 @@
 	// A small status label: "Entwurf", "Freigegeben", "Rückstand".
 	let {
 		tone = 'neutral',
+		icon = true,
+		title,
 		children
-	}: { tone?: 'neutral' | 'success' | 'warning' | 'danger' | 'info'; children: Snippet } = $props();
+	}: {
+		tone?: 'neutral' | 'success' | 'warning' | 'danger' | 'info';
+		/** False leaves out the tone's icon, for pills that stack behind one that has it. */
+		icon?: boolean;
+		title?: string;
+		children: Snippet;
+	} = $props();
 </script>
 
-<span class="badge {tone}">
-	{#if tone === 'success'}<Icon
+<span class="badge {tone}" {title}>
+	{#if icon && tone === 'success'}<Icon
 			name="check"
 			size={11}
-		/>{:else if tone === 'warning' || tone === 'danger'}<Icon name="alert" size={11} />{/if}
+		/>{:else if icon && (tone === 'warning' || tone === 'danger')}<Icon
+			name="alert"
+			size={11}
+		/>{/if}
 	{@render children()}
 </span>
 

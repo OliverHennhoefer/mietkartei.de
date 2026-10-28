@@ -186,11 +186,15 @@
 								<td>
 									<span class="badges">
 										{#if tenant.overdue > 0}
-											<Badge tone="danger"
-												>{tenant.reminder
-													? `Rückstand · ${reminderLevelLabels[tenant.reminder.level]}`
-													: 'Rückstand'}</Badge
-											>
+											<Badge tone="danger">Rückstand</Badge>
+											{#each tenant.reminders as letter, index (index)}
+												<Badge
+													tone="danger"
+													icon={false}
+													title="{reminderLevelLabels[letter.level]} vom {formatDate(letter.date)}"
+													>{index + 1}. Mahnung</Badge
+												>
+											{/each}
 										{/if}
 										{#if tenant.moveOut}
 											<Badge tone="warning">Auszug {formatDate(tenant.moveOut.date)}</Badge>
