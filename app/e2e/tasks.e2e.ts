@@ -26,8 +26,10 @@ test('shows the deadlines of a lease that ends next month', async ({ page }) => 
 	});
 
 	await page.goto('/aufgaben');
-	await expect(page.getByRole('heading', { level: 1, name: 'Aufgaben' })).toBeVisible();
-	await expect(page).toHaveTitle('Aufgaben | mietkartei');
+	await page.getByRole('link', { name: 'Alle Fristen' }).click();
+	await expect(page).toHaveURL(/\/fristen$/);
+	await expect(page.getByRole('heading', { level: 1, name: 'Fristen' })).toBeVisible();
+	await expect(page).toHaveTitle('Fristen | mietkartei');
 
 	const deadlines = page.getByRole('list', { name: 'Fristen' });
 	const ours = deadlines.getByRole('listitem').filter({ hasText: tenantName });

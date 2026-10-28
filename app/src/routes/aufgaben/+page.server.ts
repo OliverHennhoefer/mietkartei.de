@@ -1,10 +1,11 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { count, eq } from 'drizzle-orm';
-import { addMonths, today } from '#lib/dates.ts';
+import { count, eq, max } from 'drizzle-orm';
+import { addMonths, daysBetween, formatDate, today } from '#lib/dates.ts';
 import { parseTask } from '#lib/forms/tasks.ts';
 import { listBankAccounts } from '#lib/server/bank/accounts.ts';
+import { connectionActive, listConnections } from '#lib/server/bank/sync.ts';
 import { countUnmatched } from '#lib/server/bank/transactions.ts';
-import { costCategories } from '#lib/server/db/schema.ts';
+import { bankTransactions, costCategories } from '#lib/server/db/schema.ts';
 import { listDeadlines } from '#lib/server/deadlines.ts';
 import { leaseLabel, listLeases, listUnitsWithProperty } from '#lib/server/leases.ts';
 import { listBalances } from '#lib/server/ledger.ts';
@@ -18,14 +19,16 @@ import {
 	setDone,
 	updateTask
 } from '#lib/server/tasks.ts';
+import { personName, pluralize } from '#lib/format.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import { taskTemplates } from '#lib/task-templates.ts';
 import type { Actions, PageServerLoad } from './$types';
 
-// The start page: the first-run checklist until the account has a lease and a bank account, the
-// user's own tasks, what needs doing outside the deadlines (arrears, unmatched bank transactions,
-// vacant units) and the deadlines. listBalances syncs the rent charges first, so the arrears are
-// current when the page opens (the same as /mietkonto does).
+// The start page: the first-run checklist until the account has a lease and a bank account, then
+// the next deadlines, and everything that needs doing: the user's own tasks, with reminders that
+// follow from the data (arrears, unmatched bank transactions, statements not loaded, vacant
+// units). listBalances syncs the rent charges first, so the arrears are current when the page opens
+// (the same as /mietkonto does).
 
 export type FirstRun = {
 	properties: boolean;
@@ -41,6 +44,22 @@ export type FirstRun = {
 	/** Where "Einheit anlegen" leads: the first property's page, which has the unit form. */
 	firstPropertyId: string | null;
 };
+
+export type Reminder = {
+	/** Unique within the list: the kind and what it is about. */
+	id: string;
+	kind: 'arrears' | 'bank' | 'bank_import' | 'vacancy';
+	title: string;
+	detail?: string;
+	/** Cents, for the arrears. */
+	amount?: number;
+	href: string;
+};
+
+/** Days after the newest transaction of a bank account until its statements count as not loaded. */
+const STATEMENT_DAYS = 30;
+/** Vacant units listed one by one. */
+const VACANT_LISTED = 5;
 
 const linkErrors = {
 	'unknown-property': 'Dieses Objekt gibt es nicht.',
@@ -66,7 +85,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		balances,
 		unmatched,
 		bankAccounts,
-		[categories]
+		[categories],
+		latestBookings,
+		connections
 	] = await Promise.all([
 		listDeadlines(locals.db, accountId, { to: addMonths(date, 12) }),
 		listTasks(locals.db, accountId),
@@ -80,7 +101,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		locals.db
 			.select({ value: count() })
 			.from(costCategories)
-			.where(eq(costCategories.accountId, accountId))
+			.where(eq(costCategories.accountId, accountId)),
+		locals.db
+			.select({
+				bankAccountId: bankTransactions.bankAccountId,
+				date: max(bankTransactions.bookingDate)
+			})
+			.from(bankTransactions)
+			.where(eq(bankTransactions.accountId, accountId))
+			.groupBy(bankTransactions.bankAccountId),
+		listConnections(locals.db, accountId)
 	]);
 
 	// Rückstand is what is overdue today, not this month's rent before its due day.
@@ -101,20 +131,90 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		categories: categories.value > 0,
 		firstPropertyId: properties[0]?.id ?? null
 	};
+	const settingUp = !firstRun.leases || !firstRun.bankAccounts;
+	// Automatic reminders: what the data says needs doing now. They sit in the task list without a
+	// checkbox and go away once the matter is handled where they link to. While setting up, the
+	// first-run checklist stands in for them.
+	const reminders: Reminder[] = [];
+	if (!settingUp) {
+		if (arrears.length > 0) {
+			reminders.push({
+				id: 'arrears',
+				kind: 'arrears',
+				title: `Rückstände bei ${pluralize(arrears.length, 'Mietvertrag', 'Mietverträgen')}`,
+				detail: arrears
+					.map((balance) => leases.find((lease) => lease.id === balance.leaseId))
+					.map((lease) =>
+						lease ? lease.tenants.map(personName).join(', ') || leaseLabel(lease) : ''
+					)
+					.filter(Boolean)
+					.join(' · '),
+				amount: arrears.reduce((sum, balance) => sum + balance.overdue, 0),
+				href: '/mietkonto?filter=rueckstaende'
+			});
+		}
+		if (unmatched > 0) {
+			reminders.push({
+				id: 'bank',
+				kind: 'bank',
+				title: `${pluralize(unmatched, 'Bankumsatz', 'Bankumsätze')} zuordnen`,
+				detail:
+					'Mietzahlungen und Ausgaben, die noch keinem Mietvertrag oder keiner Kostenart zugeordnet sind',
+				href: '/bank'
+			});
+		}
+		// A bank account whose newest transaction is over a month old: its statements are not loaded.
+		// One the Bankabruf fetches on its own needs nothing, unless its authorization ran out.
+		const now = new Date();
+		for (const bankAccount of bankAccounts) {
+			const connection = connections.find((row) => row.bankAccountId === bankAccount.id);
+			const fetching = connection !== undefined && connectionActive(connection, now);
+			if (fetching) continue;
+			if (connection?.sessionId) {
+				reminders.push({
+					id: `bank_import:${bankAccount.id}`,
+					kind: 'bank_import',
+					title: `Bankabruf erneuern: ${bankAccount.name}`,
+					detail: 'Die Freigabe bei der Bank ist abgelaufen, neue Umsätze kommen nicht mehr an.',
+					href: `/bank/konten/${bankAccount.id}/abruf`
+				});
+				continue;
+			}
+			const latest = latestBookings.find((row) => row.bankAccountId === bankAccount.id)?.date;
+			if (latest && daysBetween(latest, date) <= STATEMENT_DAYS) continue;
+			reminders.push({
+				id: `bank_import:${bankAccount.id}`,
+				kind: 'bank_import',
+				title: `Kontoauszug laden: ${bankAccount.name}`,
+				detail: latest
+					? `Der letzte Umsatz ist vom ${formatDate(latest)}.`
+					: 'Auf diesem Konto sind noch keine Umsätze.',
+				href: '/bank/import'
+			});
+		}
+		// A vacant unit asks for its lease; past five, one row leads to the rest.
+		for (const row of vacant.slice(0, VACANT_LISTED)) {
+			reminders.push({
+				id: `vacancy:${row.unit.id}`,
+				kind: 'vacancy',
+				title: `Mietvertrag anlegen: ${row.unit.name} · ${row.property.name}`,
+				detail: 'Die Einheit steht leer.',
+				href: `/vertraege/neu?unitId=${row.unit.id}`
+			});
+		}
+		if (vacant.length > VACANT_LISTED) {
+			reminders.push({
+				id: 'vacancy',
+				kind: 'vacancy',
+				title: `${pluralize(vacant.length - VACANT_LISTED, 'weitere Einheit', 'weitere Einheiten')} ohne Mietvertrag`,
+				href: '/objekte'
+			});
+		}
+	}
 	return {
 		today: date,
-		firstRun: firstRun.leases && firstRun.bankAccounts ? null : firstRun,
-		attention: {
-			arrearsTotal: arrears.reduce((sum, balance) => sum + balance.overdue, 0),
-			arrearsCount: arrears.length,
-			unmatched,
-			vacantCount: vacant.length,
-			vacant: vacant.slice(0, 5).map((row) => ({
-				unitId: row.unit.id,
-				propertyId: row.property.id,
-				label: `${row.unit.name} · ${row.property.name}`
-			}))
-		},
+		reminders,
+		firstRun: settingUp ? firstRun : null,
 		template: template
 			? {
 					key: template.key,
@@ -125,7 +225,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				}
 			: null,
 		editing,
-		deadlines,
+		// The banner at the top: the deadlines of the next two weeks and those overdue, at least the
+		// next one, at most three. The whole list is on /fristen.
+		upcoming: deadlines
+			.filter(
+				(deadline, index) =>
+					index === 0 || deadline.overdue || daysBetween(date, deadline.date) <= 14
+			)
+			.slice(0, 3),
 		open: tasks.open,
 		done: tasks.done,
 		// Archived properties only for the task in the edit dialog that is linked to one.

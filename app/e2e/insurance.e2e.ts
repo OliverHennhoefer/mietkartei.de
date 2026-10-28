@@ -30,7 +30,7 @@ test('records a policy, lists its notice deadline and enters its premium as a Be
 	await expect(policy).toContainText('Hauptfälligkeit 01.01.');
 
 	// The notice deadline is 30 September before each renewal on 1 January.
-	await page.goto('/aufgaben');
+	await page.goto('/fristen');
 	const row = page
 		.getByRole('list', { name: 'Fristen' })
 		.getByRole('listitem')
