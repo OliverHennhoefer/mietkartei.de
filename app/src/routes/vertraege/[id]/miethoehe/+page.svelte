@@ -22,7 +22,6 @@
 	import { formatArea } from '#lib/format.ts';
 	import { rentOn, total } from '#lib/domain/rents.ts';
 	import { comparisonSourceLabels, rentChangeReasonLabels, rentModelLabels } from '#lib/labels.ts';
-	import { comparisonSources } from '#lib/server/db/schema.ts';
 	import { formatCents, formatCentsPlain, parseCents } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
@@ -536,8 +535,8 @@
 					bind:value={demandSource}
 					aria-invalid={demandErrors?.comparisonSource ? 'true' : undefined}
 				>
-					{#each comparisonSources as source (source)}
-						<option value={source}>{comparisonSourceLabels[source]}</option>
+					{#each Object.entries(comparisonSourceLabels) as [source, label] (source)}
+						<option value={source}>{label}</option>
 					{/each}
 				</select>
 			</Field>
