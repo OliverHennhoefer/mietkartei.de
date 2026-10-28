@@ -17,6 +17,7 @@ Erste öffentliche Version. Sie enthält:
 - Betriebskostenabrechnung nach Betriebskostenverordnung mit tagesgenauer Umlage, Umlageschlüssel je Kostenart, CO₂-Kostenaufteilung und Abrechnung je Mieter als PDF mit Rechenweg.
 - Mietkonto mit Soll und Haben je Mietvertrag, Rückständen und Kaution mit laufendem Bestand.
 - Kautionsabrechnung nach dem Auszug: Zinsen, Einbehalte mit Grund und die Verrechnung mit einem Mietrückstand werden gebucht, die Auszahlung errechnet und das Schreiben an den Mieter erstellt.
+- Übergabeprotokoll für Einzug und Auszug mit Räumen und ihrem Zustand, Schlüsseln und Zählerständen als PDF zum Unterschreiben; beim Auszug steht der Zustand vom Einzug daneben, die Zählerstände kommen auch zu den Zählern.
 - Bankimport per camt.053 oder CSV mit Zuordnungsvorschlägen und -regeln.
 - Objekte, Einheiten, Mieter und Mietverträge mit Index- und Staffelmiete.
 - Mieterhöhung auf die ortsübliche Vergleichsmiete nach § 558 BGB: Sperrfrist und Kappungsgrenze werden geprüft, das Erhöhungsverlangen mit Begründung aus Mietspiegel, Mietdatenbank, Gutachten oder Vergleichswohnungen entsteht als Schreiben, die Fristen für Zustimmung und Klage stehen bei den Fristen; die Zustimmung, auch eine teilweise, wird mit dem Datum eingetragen.

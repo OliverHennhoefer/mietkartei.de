@@ -253,6 +253,32 @@ test('settles the deposit of an ended lease and writes the letter', async ({ pag
 	await expect(movements.getByRole('row')).toHaveCount(2);
 });
 
+test('records the handover at moving in and out and prints the protocol', async ({ page }) => {
+	const { leaseId } = await seedLease(page.request, { lease: { endDate: '2025-12-31' } });
+	await page.goto(`/vertraege/${leaseId}/uebergabe`);
+	await page.getByRole('link', { name: 'Protokoll anlegen' }).first().click();
+	await expect(page.locator('input[name="date"]')).toHaveValue('2025-01-01');
+	await page.locator('select[name="condition2"]').selectOption('worn');
+	await page.locator('input[name="roomNote2"]').fill('Kratzer auf der Arbeitsplatte');
+	await page.getByRole('button', { name: 'Protokoll speichern' }).click();
+	await expect(page.locator('.protocol').first()).toContainText('Übergabe am 01.01.2025: 5 Räume');
+
+	// The move-out starts from the move-in's rooms; the PDF shows both.
+	await page.getByRole('link', { name: 'Protokoll anlegen' }).click();
+	await expect(page.locator('input[name="date"]')).toHaveValue('2025-12-31');
+	await expect(page.locator('input[name="room2"]')).toHaveValue('Küche');
+	await page.locator('select[name="condition3"]').selectOption('damaged');
+	await page.locator('input[name="roomNote3"]').fill('Badtür gesplittert');
+	await page.getByRole('button', { name: 'Protokoll speichern' }).click();
+	await expect(page.locator('.protocol').nth(1)).toContainText('Mängel in Bad');
+	await expect(page.getByRole('link', { name: 'Protokoll ansehen' }).nth(1)).toHaveAttribute(
+		'href',
+		`/vertraege/${leaseId}/uebergabe/auszug`
+	);
+	const printed = await page.request.get(`/vertraege/${leaseId}/uebergabe/auszug`);
+	expect(printed.headers()['content-type']).toBe('application/pdf');
+});
+
 test('shows validation errors and the deposit hint', async ({ page }) => {
 	const { unitId, tenantId } = await seedUnitAndTenant(page);
 	await page.goto(`/vertraege/neu?unitId=${unitId}&tenantId=${tenantId}`);

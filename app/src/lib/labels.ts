@@ -6,6 +6,7 @@ import type {
 	DepositTransactionKind,
 	ExpenseCategory,
 	Fuel,
+	HandoverKind,
 	HeatingCostModel,
 	InsuranceKind,
 	LeaseKind,
@@ -15,6 +16,7 @@ import type {
 	RentChangeReason,
 	RentChargeKind,
 	RentModel,
+	RoomCondition,
 	StatementStatus,
 	SubscriptionStatus,
 	TaskCategory,
@@ -111,6 +113,17 @@ export const depositTransactionKindLabels: Record<DepositTransactionKind, string
 	interest: 'Zinsen',
 	returned: 'Zurückgezahlt',
 	withheld: 'Einbehalten'
+};
+
+export const handoverKindLabels: Record<HandoverKind, string> = {
+	move_in: 'Einzug',
+	move_out: 'Auszug'
+};
+
+export const roomConditionLabels: Record<RoomCondition, string> = {
+	good: 'In Ordnung',
+	worn: 'Gebrauchsspuren',
+	damaged: 'Mängel'
 };
 
 export const rentChargeKindLabels: Record<RentChargeKind, string> = {

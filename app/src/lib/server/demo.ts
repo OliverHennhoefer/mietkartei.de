@@ -26,6 +26,7 @@ import {
 	settlementRows as depositSettlementRows,
 	settlementText
 } from '../domain/deposit-settlement';
+import { defaultKeys, defaultRooms } from '../domain/handover';
 import { effectiveFrom } from '../domain/index-rent';
 import { monthlyAmounts, total, type RentChange } from '../domain/rents';
 import { formatCents } from '../money';
@@ -46,6 +47,7 @@ import {
 	costItemUnitAmounts,
 	depositSettlements,
 	depositTransactions,
+	handoverProtocols,
 	expenses,
 	insurancePolicies,
 	leasePersons,
@@ -1251,6 +1253,56 @@ export async function createDemoData(
 		}
 	}
 
+	// Übergabeprotokolle: each move-in within the history years and each move-out, the damage
+	// the Kautionsabrechnung withheld for marked in its room.
+	const handoverRows: (typeof handoverProtocols.$inferInsert)[] = [];
+	for (const entry of leaseEntries) {
+		const rooms = defaultRooms(unitOf(entry.input.unitId).rooms);
+		const names = entry.input.tenantIds
+			.map((id) => tenantRows.find((row) => row.id === id)!)
+			.map((tenant) => `${tenant.firstName} ${tenant.lastName}`);
+		const handover = {
+			accountId,
+			leaseId: entry.id,
+			attendees: ['Vermieterin', ...names].join(', '),
+			readings: [],
+			notes: null
+		};
+		const { startDate, endDate } = entry.input;
+		if (startDate >= firstBookedMonth && startDate <= date) {
+			handoverRows.push({
+				...handover,
+				kind: 'move_in',
+				date: startDate,
+				rooms: rooms.map((room) =>
+					room.name === 'Wohnzimmer'
+						? { ...room, condition: 'worn', note: 'Leichte Kratzer im Parkett vor dem Fenster' }
+						: room
+				),
+				keys: defaultKeys
+			});
+		}
+		if (entry.moveOut && endDate) {
+			const damage = entry.moveOut.withheld?.[1];
+			const damaged = damage?.includes('Küche')
+				? 'Küche'
+				: damage?.includes('Bad')
+					? 'Bad'
+					: 'Flur';
+			handoverRows.push({
+				...handover,
+				kind: 'move_out',
+				date: endDate,
+				rooms: rooms.map((room) =>
+					damage && room.name === damaged ? { ...room, condition: 'damaged', note: damage } : room
+				),
+				keys: defaultKeys.map((key) =>
+					damage?.includes('Kellerschlüssel') && key.label === 'Keller' ? { ...key, count: 0 } : key
+				)
+			});
+		}
+	}
+
 	// Belege: every history year of every property. The Mehrfamilienhaus gets its bills itself;
 	// the Eigentumswohnungen get theirs from the Hausgeldabrechnung, with the WEG's figures.
 	type CostItemRow = typeof costItems.$inferInsert;
@@ -2061,6 +2113,7 @@ export async function createDemoData(
 			...insert(leasePersons, personsRows),
 			...insert(depositSettlements, settlementRows),
 			...insert(depositTransactions, depositRows),
+			...insert(handoverProtocols, handoverRows),
 			...insert(bankAccounts, [bankAccount]),
 			...insert(bankTransactions, transactionRows),
 			...insert(payments, paymentRows),
