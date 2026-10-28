@@ -84,7 +84,30 @@ describe('the Übergabe tab', () => {
 		expect(opened.data.form.date).toBe('2024-01-01');
 		expect(opened.data.form.rooms).toHaveLength(6);
 		expect(opened.data.form.keys).toHaveLength(4);
-		expect(opened.data.meters).toEqual([{ id: meterId, label: 'Kaltwasser 123', unit: 'm³' }]);
+		expect(opened.data.meters).toEqual([
+			{ id: meterId, label: 'Kaltwasser 123', unit: 'm³', installedAt: null, removedAt: null }
+		]);
+	});
+
+	it('gives every meter with its dates and refuses readings of one not in use', async () => {
+		await db.update(meters).set({ removedAt: '2026-06-15' }).where(eq(meters.id, meterId));
+		expect(await page('?protokoll=auszug')).toMatchObject({
+			data: {
+				form: { date: '2026-06-30' },
+				meters: [{ id: meterId, installedAt: null, removedAt: '2026-06-15' }]
+			}
+		});
+		expect(
+			await act('save', {
+				...moveIn,
+				art: 'auszug',
+				date: '2026-06-30',
+				[`reading-${meterId}`]: '80'
+			})
+		).toMatchObject({
+			fail: 400,
+			data: { message: expect.stringContaining('Am 30.06.2026 sind andere Zähler in Betrieb') }
+		});
 	});
 
 	it('saves both protocols with their readings and prints the move-out against the move-in', async () => {

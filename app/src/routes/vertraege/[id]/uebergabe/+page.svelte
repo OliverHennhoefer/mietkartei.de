@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import Alert from '#lib/components/Alert.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import Field from '#lib/components/Field.svelte';
@@ -43,6 +44,17 @@
 	const rowNumbers = (count: number) => Array.from({ length: count }, (_, index) => index + 1);
 	const value = (name: string, fallback: string | number | undefined) =>
 		sent ? (sent[name] ?? '') : fallback === undefined ? '' : String(fallback);
+
+	// The meters in use on the date as typed; a reading of another would be refused.
+	let typedDate = $state<string>();
+	const shownDate = $derived(typedDate ?? value('date', data.form?.date));
+	const shownMeters = $derived(
+		data.meters.filter(
+			(meter) =>
+				(!meter.installedAt || meter.installedAt <= shownDate) &&
+				(!meter.removedAt || meter.removedAt >= shownDate)
+		)
+	);
 </script>
 
 <!-- The heading and tab bar come from +layout.svelte; this page is the "Übergabe" tab. -->
@@ -63,7 +75,8 @@
 	{@const protocol = data.protocols[kind]}
 	<h2>{protocolTitle(kind)}</h2>
 	{#if data.editing === kind && data.form}
-		<form method="POST" action="?/save" class="card form">
+		<!-- The query stays, so a refusal shows the form again. -->
+		<form method="POST" action="?/save&{page.url.searchParams}" class="card form">
 			<input type="hidden" name="art" value={slugs[kind]} />
 			<Field label="Datum der Übergabe" error={errors.date}>
 				<input
@@ -71,6 +84,7 @@
 					type="date"
 					defaultValue={value('date', data.form.date)}
 					max={data.today}
+					oninput={(event) => (typedDate = event.currentTarget.value)}
 					aria-invalid={errors.date ? 'true' : undefined}
 					required
 				/>
@@ -136,10 +150,10 @@
 				{/if}
 			</fieldset>
 
-			{#if data.meters.length > 0}
+			{#if shownMeters.length > 0}
 				<fieldset class="rows form-wide">
 					<legend>Zählerstände</legend>
-					{#each data.meters as meter (meter.id)}
+					{#each shownMeters as meter (meter.id)}
 						<Field label="{meter.label} ({meter.unit})" error={errors[`reading-${meter.id}`]}>
 							<input
 								name="reading-{meter.id}"

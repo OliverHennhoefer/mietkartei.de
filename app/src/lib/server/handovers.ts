@@ -50,12 +50,12 @@ export async function listHandovers(
 	return Object.fromEntries(rows.map((row) => [row.kind, row]));
 }
 
-/** The meters of the lease's units in place on the day, for the readings of the protocol. */
+/** The meters of the lease's units in place on the day, or all of them without a day. */
 export async function handoverMeters(
 	db: Database,
 	accountId: string,
 	unitIds: string[],
-	date: IsoDate
+	date?: IsoDate
 ) {
 	if (unitIds.length === 0) return [];
 	const rows = await db
@@ -64,8 +64,9 @@ export async function handoverMeters(
 		.where(and(eq(meters.accountId, accountId), inArray(meters.unitId, unitIds)));
 	return rows.filter(
 		(meter) =>
-			(meter.installedAt === null || meter.installedAt <= date) &&
-			(meter.removedAt === null || meter.removedAt >= date)
+			!date ||
+			((meter.installedAt === null || meter.installedAt <= date) &&
+				(meter.removedAt === null || meter.removedAt >= date))
 	);
 }
 
@@ -102,6 +103,14 @@ export async function saveHandover(
 	}
 	const unitIds = [lease.unitId, ...lease.extraUnits.map((unit) => unit.id)];
 	const available = await handoverMeters(db, accountId, unitIds, input.date);
+	// A reading for a meter not in use on the day would be lost: the form showed other meters.
+	const inUse = new Set(available.map((meter) => meter.id));
+	if (Object.keys(input.readings).some((meterId) => !inUse.has(meterId))) {
+		return {
+			ok: false,
+			message: `Am ${formatDate(input.date)} sind andere Zähler in Betrieb. Prüfe die Zählerstände und speichere erneut.`
+		};
+	}
 	const readings = available
 		.filter((meter) => input.readings[meter.id] !== undefined)
 		.map((meter) => ({

@@ -269,6 +269,12 @@ test('records the handover at moving in and out and prints the protocol', async 
 	await expect(page.locator('input[name="room2"]')).toHaveValue('Küche');
 	await page.locator('select[name="condition3"]').selectOption('damaged');
 	await page.locator('input[name="roomNote3"]').fill('Badtür gesplittert');
+	// A refusal keeps the form with what was typed.
+	await page.locator('input[name="date"]').fill('2024-12-31');
+	await page.getByRole('button', { name: 'Protokoll speichern' }).click();
+	await expect(page.getByText('Der Auszug kann nicht vor dem Einzug')).toBeVisible();
+	await expect(page.locator('input[name="roomNote3"]')).toHaveValue('Badtür gesplittert');
+	await page.locator('input[name="date"]').fill('2025-12-31');
 	await page.getByRole('button', { name: 'Protokoll speichern' }).click();
 	await expect(page.locator('.protocol').nth(1)).toContainText('Mängel in Bad');
 	await expect(page.getByRole('link', { name: 'Protokoll ansehen' }).nth(1)).toHaveAttribute(

@@ -30,7 +30,8 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 	const date =
 		(editing && protocols[editing]?.date) ?? (proposed && proposed <= day ? proposed : day);
 	const unitIds = [lease.unitId, ...lease.extraUnits.map((unit) => unit.id)];
-	const meters = editing ? await handoverMeters(locals.db, accountId, unitIds, date) : [];
+	// All meters of the units: the page shows those in use on the date as it is typed.
+	const meters = editing ? await handoverMeters(locals.db, accountId, unitIds) : [];
 	return {
 		protocols,
 		editing,
@@ -45,7 +46,13 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 					)
 				}
 			: null,
-		meters: meters.map((meter) => ({ id: meter.id, label: meterLabel(meter), unit: meter.unit })),
+		meters: meters.map((meter) => ({
+			id: meter.id,
+			label: meterLabel(meter),
+			unit: meter.unit,
+			installedAt: meter.installedAt,
+			removedAt: meter.removedAt
+		})),
 		maxRooms: MAX_ROOMS,
 		maxKeys: MAX_KEYS,
 		today: day
