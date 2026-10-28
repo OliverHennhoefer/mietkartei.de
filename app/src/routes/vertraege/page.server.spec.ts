@@ -219,9 +219,11 @@ describe('vertraege/[id]', () => {
 				form: { validFrom: '2026-01-01', persons: '3' }
 			})
 		).toMatchObject({ error: 404 });
-		expect(await run(leaseActions.deletePersons, { params, form: { rowId: 'x' } })).toMatchObject({
-			error: 404
-		});
+		for (const action of [leaseActions.updatePersons, leaseActions.deletePersons]) {
+			expect(
+				await run(action, { params, form: { rowId: 'x', validFrom: '2026-01-01', persons: '3' } })
+			).toMatchObject({ error: 404 });
+		}
 		expect(
 			await run(leaseActions.end, {
 				params,
@@ -246,7 +248,7 @@ describe('vertraege/[id]', () => {
 		});
 	});
 
-	it('records persons from a date and deletes them, but not the first entry', async () => {
+	it('records persons from a date, edits and deletes them, but not the first entry', async () => {
 		const add = (form: Record<string, string>) =>
 			run(leaseActions.addPersons, { params: { id }, form });
 		expect(await add({ validFrom: '2026-01-01', persons: '3' })).toEqual({
@@ -269,7 +271,23 @@ describe('vertraege/[id]', () => {
 		expect(await run(leaseActions.deletePersons, { params: { id }, form: {} })).toMatchObject({
 			fail: 400
 		});
-		expect(await remove(later.id)).toEqual({ data: { which: 'persons' } });
+		const update = (form: Record<string, string>) =>
+			run(leaseActions.updatePersons, { params: { id }, form });
+		expect(await update({ rowId: first.id, validFrom: '2025-01-01', persons: '2' })).toMatchObject({
+			fail: 400
+		});
+		expect(await update({ rowId: later.id, validFrom: '2025-01-01', persons: '2' })).toMatchObject({
+			fail: 400,
+			data: { which: 'editPersons', errors: { validFrom: expect.any(String) } }
+		});
+		expect(await update({ rowId: later.id, validFrom: '2026-02-01', persons: '2' })).toEqual({
+			redirect: `/vertraege/${id}`
+		});
+		expect((await listLeasePersons(db, 'a', id))[1]).toMatchObject({
+			validFrom: '2026-02-01',
+			persons: 2
+		});
+		expect(await remove(later.id)).toEqual({ redirect: `/vertraege/${id}` });
 	});
 
 	it('ends the lease with the notice period unless an earlier end was agreed', async () => {
