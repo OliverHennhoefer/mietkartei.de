@@ -1,9 +1,10 @@
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { createBankAccount } from '#lib/server/bank/accounts.ts';
 import { assignTransaction } from '#lib/server/bank/transactions.ts';
 import { listCo2Splits } from '#lib/server/co2.ts';
-import { bankTransactions } from '#lib/server/db/schema.ts';
+import { bankTransactions, leases } from '#lib/server/db/schema.ts';
 import { listDepositMovements } from '#lib/server/deposits.ts';
 import { getLease } from '#lib/server/leases.ts';
 import { listLedger } from '#lib/server/ledger.ts';
@@ -16,6 +17,11 @@ import {
 	testDatabase
 } from '#lib/server/testing.ts';
 import { actions as co2Actions, load as loadCo2 } from './co2/+page.server';
+import { GET as settlementPdf } from './kaution/abrechnung/+server';
+import {
+	GET as settlementText,
+	PUT as saveSettlementText
+} from './kaution/abrechnung/text/+server';
 import { actions as depositActions, load as loadDeposit } from './kaution/+page.server';
 import { actions as ledgerActions, load as loadLedger } from './mietkonto/+page.server';
 import { GET as reminderPdf } from './mietkonto/schreiben/[reminderId]/+server';
@@ -431,6 +437,105 @@ describe('kaution', () => {
 					'Diese Bewegung stammt aus einem Umsatz. Hebe die Zuordnung unter Bank auf, dann verschwindet sie hier.'
 			}
 		});
+	});
+
+	it('settles the deposit after the end and deletes the settlement with its bookings', async () => {
+		await act(depositActions.add, { date: '2026-01-02', kind: 'received', amount: '1800,00' });
+		// Still running: no settlement form.
+		expect(await tab(loadDeposit)).toMatchObject({ data: { settlement: null, settleable: false } });
+		await db.update(leases).set({ endDate: '2026-02-28' }).where(eq(leases.id, leaseId));
+		// January and February are owed, 1.600 €.
+		expect(await tab(loadDeposit)).toMatchObject({
+			data: { settleable: true, arrears: 160000, maxDeductions: 8 }
+		});
+
+		const settle = {
+			date: '2026-03-02',
+			interest: '',
+			label1: 'Reparatur der Badtür',
+			amount1: '150,00',
+			offsetArrears: 'on'
+		};
+		expect(await act(depositActions.settle, { ...settle, label1: '' })).toMatchObject({
+			fail: 400,
+			data: { settle: true, errors: { label1: expect.any(String) } }
+		});
+		expect(await act(depositActions.settle, { ...settle, amount1: '' })).toMatchObject({
+			fail: 400,
+			data: { errors: { amount1: expect.any(String) } }
+		});
+		expect(await act(depositActions.settle, { ...settle, date: '2026-02-27' })).toMatchObject({
+			fail: 400,
+			data: { settle: true, message: expect.stringContaining('Vertragsende') }
+		});
+		expect(await act(depositActions.settle, settle, foreignLeaseId)).toMatchObject({
+			error: 404
+		});
+		expect(await act(depositActions.settle, settle)).toEqual({ data: { settled: true } });
+		expect(await tab(loadDeposit)).toMatchObject({
+			data: { settlement: { payout: 5000, remaining: 0 }, settleable: false }
+		});
+
+		// Its bookings are changed only by deleting it.
+		const movements = await listDepositMovements(db, 'a', leaseId);
+		const booked = movements.find((movement) => movement.settlementId)!;
+		expect(await tab(loadDeposit, `?bearbeiten=${booked.id}`)).toMatchObject({
+			data: { editing: null }
+		});
+		const edit = { movementId: booked.id, date: '2026-03-02', kind: 'withheld', amount: '1,00' };
+		expect(await act(depositActions.update, edit)).toMatchObject({
+			fail: 400,
+			data: { message: expect.stringContaining('Kautionsabrechnung') }
+		});
+		expect(await act(depositActions.delete, { movementId: booked.id })).toMatchObject({
+			fail: 400,
+			data: { message: expect.stringContaining('Kautionsabrechnung') }
+		});
+		const offset = (await listLedger(db, 'a', leaseId)).lines.find(
+			(line) => line.label === 'Verrechnet mit der Kaution'
+		)!;
+		expect(await act(ledgerActions.delete, { id: offset.id })).toMatchObject({
+			fail: 400,
+			data: { message: expect.stringContaining('Tab Kaution') }
+		});
+
+		const params = { id: leaseId };
+		const printed = (await outcome(() => settlementPdf(routeEvent(db, { params })))) as {
+			data: Response;
+		};
+		expect(printed.data.headers.get('Content-Type')).toBe('application/pdf');
+		const shown = (await outcome(() => settlementText(routeEvent(db, { params })))) as {
+			data: Response;
+		};
+		const { blocks } = (await shown.data.json()) as { blocks: { paragraph?: string }[] };
+		const paragraphs = blocks.flatMap((block) => block.paragraph ?? []);
+		const save = (json: unknown) =>
+			outcome(() => saveSettlementText(routeEvent(db, { params, json })));
+		expect(await save({ paragraphs: [...paragraphs, 'Alles Gute.'] })).toMatchObject({
+			data: { status: 204 }
+		});
+		expect(await save({ paragraphs: [''] })).toMatchObject({ error: 400 });
+		const foreignSite = routeEvent(db, { params, json: { paragraphs } }) as { request: Request };
+		foreignSite.request.headers.set('origin', 'https://example.org');
+		expect(await outcome(() => saveSettlementText(foreignSite as never))).toMatchObject({
+			error: 403
+		});
+
+		expect(await act(depositActions.deleteSettlement, {})).toEqual({
+			redirect: `/vertraege/${leaseId}/kaution`
+		});
+		expect(await act(depositActions.deleteSettlement, {})).toMatchObject({ fail: 404 });
+		expect(await listDepositMovements(db, 'a', leaseId)).toHaveLength(1);
+		const missing = { params: { id: leaseId } };
+		expect(await outcome(() => settlementPdf(routeEvent(db, missing)))).toMatchObject({
+			error: 404
+		});
+		expect(await outcome(() => settlementText(routeEvent(db, missing)))).toMatchObject({
+			error: 404
+		});
+		expect(
+			await outcome(() => saveSettlementText(routeEvent(db, { ...missing, json: { paragraphs } })))
+		).toMatchObject({ error: 404 });
 	});
 });
 

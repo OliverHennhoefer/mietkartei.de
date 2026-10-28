@@ -107,14 +107,15 @@ export async function addDepositMovement(
 
 /**
  * Changes a movement of the lease with its audit entry; a movement of another lease is missing,
- * one assigned from a bank transaction is changed there.
+ * one assigned from a bank transaction is changed there, one of the Kautionsabrechnung goes with
+ * it.
  */
 export async function updateDepositMovement(
 	db: Database,
 	context: AuditContext,
 	movementId: string,
 	input: DepositMovementInput
-): Promise<'updated' | 'from-bank' | 'missing'> {
+): Promise<'updated' | 'from-bank' | 'from-settlement' | 'missing'> {
 	const ofLease = and(
 		eq(depositTransactions.accountId, context.accountId),
 		eq(depositTransactions.leaseId, input.leaseId),
@@ -123,6 +124,7 @@ export async function updateDepositMovement(
 	const [movement] = await db.select().from(depositTransactions).where(ofLease);
 	if (!movement) return 'missing';
 	if (movement.bankTransactionId) return 'from-bank';
+	if (movement.settlementId) return 'from-settlement';
 	await runBatch(db, [
 		db
 			.update(depositTransactions)
@@ -148,7 +150,7 @@ export async function deleteDepositMovement(
 	context: AuditContext,
 	leaseId: string,
 	movementId: string
-): Promise<'deleted' | 'from-bank' | 'missing'> {
+): Promise<'deleted' | 'from-bank' | 'from-settlement' | 'missing'> {
 	const [movement] = await db
 		.select()
 		.from(depositTransactions)
@@ -161,6 +163,7 @@ export async function deleteDepositMovement(
 		);
 	if (!movement) return 'missing';
 	if (movement.bankTransactionId) return 'from-bank';
+	if (movement.settlementId) return 'from-settlement';
 	await runBatch(db, [
 		db
 			.delete(depositTransactions)
