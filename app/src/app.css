@@ -283,6 +283,11 @@ button.settings-close {
 	.settings-side nav {
 		display: flex;
 		overflow-x: auto;
+		overflow-y: hidden;
+		scrollbar-width: none;
+	}
+	.settings-side nav::-webkit-scrollbar {
+		display: none;
 	}
 	.settings-side a {
 		flex-shrink: 0;
