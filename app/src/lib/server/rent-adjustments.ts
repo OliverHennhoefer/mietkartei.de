@@ -13,6 +13,13 @@ import {
 	waitingPeriodEnd,
 	type HistoryChange
 } from '../domain/index-rent';
+import {
+	comparativeLetterRows,
+	comparativeLetterText,
+	comparativeSituation,
+	demandProblem,
+	type ComparativeDemand
+} from '../domain/comparative-rent';
 import { letterText as editedLetterText, type LetterTextResult } from '../domain/letters';
 import { rentOn, total, type RentAmounts } from '../domain/rents';
 import { personName } from '../format';
@@ -30,8 +37,8 @@ import { laterRows, laterRowsNote, noLaterRows, withLaterRows } from './rent-his
 import { listRentChanges, type RentChangeRow } from './rents';
 import { assertQuota } from './quotas';
 
-// Changes of the rent beyond the initial one: manual changes, Staffel steps and index proposals
-// with their approval and letter. Every write re-syncs the rent charges in its own batch, so the
+// Changes of the rent beyond the initial one: manual changes, Staffel steps, index proposals with
+// their approval and § 558 demands with the tenant's consent, the last two with their letter. Every write re-syncs the rent charges in its own batch, so the
 // ledger follows the history at once, and a refused sync (the quota) leaves the history as it was.
 
 export type AdjustmentResult = { ok: true; id: string } | { ok: false; message: string };
@@ -397,6 +404,145 @@ export async function approveChange(
 	return { ok: true, id: changeId };
 }
 
+// § 558: the demand and the consent
+
+/**
+ * Stores a demand for an increase to the ortsübliche Vergleichsmiete (§ 558 BGB) as a proposed
+ * change with its letter: due from comparativeEffectiveFrom of the day it reaches the tenant, the
+ * prepayments as they are then. It becomes part of the history with the tenant's consent.
+ */
+export async function demandComparativeIncrease(
+	db: Database,
+	context: AuditContext,
+	leaseId: string,
+	demand: ComparativeDemand
+): Promise<AdjustmentResult | undefined> {
+	await assertQuota(db, context.accountId, 'rentChanges');
+	const lease = await getLease(db, context.accountId, leaseId);
+	if (!lease) return undefined;
+	const changes = await listRentChanges(db, context.accountId, leaseId);
+	const comparativeLease = { ...lease, floorArea: lease.unit.floorArea };
+	const situation = comparativeSituation(comparativeLease, changes, demand.deliveredOn);
+	if (situation.refusal) return refuse(situation.refusal);
+	const problem = demandProblem(comparativeLease, situation, demand);
+	if (problem) return refuse(problem.message);
+	const { validFrom } = situation;
+	if (hasApprovedOn(changes, validFrom)) return sameDayRefusal(validFrom);
+	const before = rentOn(changes, validFrom)!;
+	const newRent = {
+		...amountsOf(before),
+		baseRent: demand.baseRent,
+		validFrom,
+		status: 'proposed' as const
+	};
+	const content = {
+		unitName: lease.unit.name,
+		floorArea: lease.unit.floorArea!,
+		tenants: lease.tenants,
+		oldRent: before,
+		newRent,
+		capBase: situation.capBase!,
+		lastChange: situation.lastChange!,
+		deliveredOn: demand.deliveredOn,
+		demand
+	};
+
+	const id = crypto.randomUUID();
+	await runBatch(db, [
+		db.insert(rentChanges).values({
+			id,
+			accountId: context.accountId,
+			leaseId,
+			...newRent,
+			reason: 'comparative',
+			note: null,
+			deliveredOn: demand.deliveredOn,
+			comparativeRent: demand.comparativeRent,
+			comparisonSource: demand.comparisonSource,
+			comparisonDetails: demand.comparisonDetails,
+			cappingPercent: demand.cappingPercent,
+			letterText: comparativeLetterText(content),
+			letterTable: comparativeLetterRows(content),
+			createdBy: context.userId
+		}),
+		auditEntry(
+			db,
+			context,
+			'lease',
+			leaseId,
+			'create',
+			`Mieterhöhung nach § 558 BGB auf ${formatCents(demand.baseRent)} Kaltmiete ab ${formatDate(validFrom)} verlangt (Zugang am ${formatDate(demand.deliveredOn)})`
+		),
+		// A demand is not part of the history yet; the charges are only brought up to date.
+		...(await leaseChargeStatements(db, context.accountId, leaseId))
+	]);
+	return { ok: true, id };
+}
+
+export type ConsentInput = {
+	consentedOn: IsoDate;
+	/** The Kaltmiete the tenant agreed to; a partial consent agrees to less than demanded. */
+	baseRent: number;
+};
+
+/**
+ * Records the tenant's consent to a § 558 demand: the change becomes part of the history from
+ * the day it is due, with the agreed Kaltmiete and the prepayments valid then. Returns undefined
+ * when the lease or the change is not in the account.
+ */
+export async function recordConsent(
+	db: Database,
+	context: AuditContext,
+	leaseId: string,
+	changeId: string,
+	input: ConsentInput
+): Promise<AdjustmentResult | undefined> {
+	const lease = await getLease(db, context.accountId, leaseId);
+	if (!lease) return undefined;
+	const change = await getRentChange(db, context.accountId, leaseId, changeId);
+	if (!change || change.reason !== 'comparative') return undefined;
+	if (change.status !== 'proposed') return refuse('Die Zustimmung ist schon eingetragen.');
+	if (change.deliveredOn && input.consentedOn < change.deliveredOn) {
+		return refuse(
+			`Die Zustimmung kann nicht vor dem Zugang des Verlangens am ${formatDate(change.deliveredOn)} liegen.`
+		);
+	}
+	const { validFrom } = change;
+	const changes = await listRentChanges(db, context.accountId, leaseId);
+	if (hasApprovedOn(changes, validFrom)) return sameDayRefusal(validFrom);
+	const others = changes.filter((other) => other.id !== change.id);
+	const before = rentOn(others, validFrom);
+	if (!before) return refuse('Dem Mietvertrag fehlt die Miete bei Vertragsbeginn.');
+	if (input.baseRent > change.baseRent || input.baseRent <= before.baseRent) {
+		return refuse(
+			`Die vereinbarte Kaltmiete muss über der bisherigen von ${formatCents(before.baseRent)} und höchstens bei den verlangten ${formatCents(change.baseRent)} liegen.`
+		);
+	}
+	const amounts = { ...amountsOf(before), baseRent: input.baseRent };
+	const approved: HistoryChange = { ...change, ...amounts, status: 'approved' };
+	const later = laterRows(db, context.accountId, others, validFrom, amountsOf(before), amounts);
+	await runBatch(db, [
+		db
+			.update(rentChanges)
+			.set({ status: 'approved', ...amounts, consentedOn: input.consentedOn })
+			.where(and(eq(rentChanges.accountId, context.accountId), eq(rentChanges.id, changeId))),
+		...later.statements,
+		auditEntry(
+			db,
+			context,
+			'lease',
+			leaseId,
+			'approve',
+			`Zustimmung zur Mieterhöhung vom ${formatDate(input.consentedOn)}: Kaltmiete ${formatCents(input.baseRent)} ab ${formatDate(validFrom)}` +
+				laterRowsNote(later)
+		),
+		...(await leaseChargeStatements(db, context.accountId, leaseId, {
+			changes: [...withLaterRows(others, later), approved]
+		}))
+	]);
+	return { ok: true, id: changeId };
+}
+
 /**
  * Deletes a change of the lease and re-syncs the charges. A proposal can always go; an approved
  * change only while no later index or Staffel change builds on it, and never the initial one.
@@ -479,10 +625,10 @@ export function recipientLines(lease: LeaseSummary): string[] {
 }
 
 /**
- * Replaces the paragraphs of an index letter with those edited on its sheet. Undefined when the
+ * Replaces the paragraphs of a rent letter with those edited on its sheet. Undefined when the
  * change is not the lease's or has no letter.
  */
-export async function updateIndexLetterText(
+export async function updateRentLetterText(
 	db: Database,
 	context: AuditContext,
 	leaseId: string,
@@ -510,11 +656,16 @@ export async function updateIndexLetterText(
 	return result;
 }
 
+const letterSubjects: Partial<Record<RentChangeRow['reason'], string>> = {
+	indexed: 'Mieterhöhung nach § 557b BGB',
+	comparative: 'Mieterhöhung auf die ortsübliche Vergleichsmiete (§ 558 BGB)'
+};
+
 /**
- * The index letter of an approved change as a Letter for renderLetter; undefined when the change
- * is not the lease's or carries no letter text.
+ * The letter of an index change or a § 558 demand as a Letter for renderLetter; undefined when
+ * the change is not the lease's or carries no letter text.
  */
-export async function indexLetter(
+export async function rentLetter(
 	db: Database,
 	accountId: string,
 	leaseId: string,
@@ -531,7 +682,7 @@ export async function indexLetter(
 		sender: addressLines(landlord),
 		recipient: recipientLines(lease),
 		date: landlord.city ? `${landlord.city}, ${date}` : date,
-		subject: 'Mieterhöhung nach § 557b BGB',
+		subject: letterSubjects[change.reason] ?? 'Mieterhöhung',
 		paragraphs: change.letterText.split('\n\n'),
 		tables: [
 			{

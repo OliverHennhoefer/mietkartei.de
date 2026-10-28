@@ -11,6 +11,7 @@ import {
 	type IsoDate
 } from '../dates';
 import { co2Deadline } from '../domain/co2';
+import { consentDeadline, lastBaseRentChange, lawsuitDeadline } from '../domain/comparative-rent';
 import { depositInstalments } from '../domain/deposit';
 import { nextCancellation } from '../domain/insurance';
 import { leaseEndDeadlines } from '../domain/lease-end';
@@ -45,6 +46,8 @@ export type DeadlineKind =
 	| 'deposit_return'
 	| 'graduated_step'
 	| 'index_proposal'
+	| 'comparative_possible'
+	| 'comparative_consent'
 	| 'co2_reimbursement'
 	| 'meter_reading'
 	| 'insurance_notice'
@@ -151,10 +154,7 @@ export async function listDeadlines(
 		readingRows,
 		policyRows
 	] = await Promise.all([
-		db
-			.select()
-			.from(rentChanges)
-			.where(and(eq(rentChanges.accountId, accountId), eq(rentChanges.status, 'approved'))),
+		db.select().from(rentChanges).where(eq(rentChanges.accountId, accountId)),
 		db
 			.select({
 				leaseId: depositTransactions.leaseId,
@@ -321,9 +321,18 @@ export async function listDeadlines(
 		);
 	}
 
-	// Per lease: end, deposit, Staffel, index, CO₂, meters.
+	// Per lease: end, deposit, Staffel, index, § 558, CO₂, meters.
 	const changesByLease = new Map<string, typeof changeRows>();
+	const demandsByLease = new Map<string, typeof changeRows>();
 	for (const change of changeRows) {
+		if (change.status !== 'approved') {
+			if (change.reason === 'comparative' && change.deliveredOn) {
+				const demands = demandsByLease.get(change.leaseId);
+				if (demands) demands.push(change);
+				else demandsByLease.set(change.leaseId, [change]);
+			}
+			continue;
+		}
 		const list = changesByLease.get(change.leaseId);
 		if (list) list.push(change);
 		else changesByLease.set(change.leaseId, [change]);
@@ -481,6 +490,42 @@ export async function listDeadlines(
 					},
 					false
 				);
+			}
+		}
+
+		// § 558: the earliest day to ask for an increase to the Vergleichsmiete, to know about, and a
+		// demand waiting for the tenant's consent: first the consent period, then the three months
+		// to sue for it (§ 558b Abs. 2 BGB).
+		if (lease.rentModel === 'fixed' && lease.kind === 'residential' && !ended) {
+			const demands = demandsByLease.get(lease.id) ?? [];
+			const lastChange = lastBaseRentChange(history);
+			if (lastChange && demands.length === 0) {
+				const demandFrom = addMonths(lastChange, 12);
+				push(
+					{
+						kind: 'comparative_possible',
+						date: demandFrom,
+						title: 'Mieterhöhung nach § 558 möglich',
+						detail: `Erhöhung bis zur Vergleichsmiete kann ab ${formatDate(demandFrom)} verlangt werden; letzte Änderung der Kaltmiete am ${formatDate(lastChange)} · ${detail}`,
+						href: `/vertraege/${lease.id}/miethoehe`,
+						...base
+					},
+					false
+				);
+			}
+			for (const demand of demands) {
+				const consentBy = consentDeadline(demand.deliveredOn!);
+				const suing = consentBy < today;
+				push({
+					kind: 'comparative_consent',
+					date: suing ? lawsuitDeadline(demand.deliveredOn!) : consentBy,
+					title: suing ? 'Klagefrist Mieterhöhung' : 'Zustimmung zur Mieterhöhung',
+					detail: suing
+						? `Der Mieter hat der Erhöhung auf ${formatCents(demand.baseRent)} bis zum ${formatDate(consentBy)} nicht zugestimmt; trag die Zustimmung ein, klag auf Zustimmung oder lösche das Verlangen · ${detail}`
+						: `Kaltmiete ${formatCents(demand.baseRent)} ab ${formatDate(demand.validFrom)}; trag die Zustimmung ein, sobald sie vorliegt · ${detail}`,
+					href: `/vertraege/${lease.id}/miethoehe`,
+					...base
+				});
 			}
 		}
 

@@ -9,12 +9,14 @@ import { ensureCharges } from './ledger';
 import {
 	addGraduatedStep,
 	approveChange,
-	indexLetter,
+	demandComparativeIncrease,
+	recordConsent,
+	rentLetter,
 	manualChange,
 	proposeIndexChange,
 	removeChange,
 	recipientLines,
-	updateIndexLetterText
+	updateRentLetterText
 } from './rent-adjustments';
 import { QUOTAS } from './quotas';
 import { listRentChanges } from './rents';
@@ -534,19 +536,19 @@ describe('removeChange', () => {
 	});
 });
 
-describe('indexLetter', () => {
+describe('rentLetter', () => {
 	it('builds the letter of an approved change with sender, recipient and table', async () => {
 		await seedValues();
 		const proposed = await proposeIndexChange(db, contextA, leaseId);
 		const changeId = proposed?.ok ? proposed.id : '';
 		// No letter before the approval.
-		expect(await indexLetter(db, 'a', leaseId, changeId)).toBeUndefined();
+		expect(await rentLetter(db, 'a', leaseId, changeId)).toBeUndefined();
 		await approveChange(db, contextA, leaseId, changeId, {
 			deliveredOn: '2026-10-15',
 			validFrom: null
 		});
 
-		const result = await indexLetter(db, 'a', leaseId, changeId);
+		const result = await rentLetter(db, 'a', leaseId, changeId);
 		expect(result?.filename).toBe('Mieterhöhung Mustermann 01.12.2026.pdf');
 		expect(result?.landlord.complete).toBe(false);
 		const letter = result!.letter;
@@ -571,7 +573,7 @@ describe('indexLetter', () => {
 			deliveredOn: '2026-10-15',
 			validFrom: null
 		});
-		const before = (await indexLetter(db, 'a', leaseId, changeId))!.letter;
+		const before = (await rentLetter(db, 'a', leaseId, changeId))!.letter;
 		// The initial rent and the index base are corrected after the letter went out.
 		const lease = await getLease(db, 'a', leaseId);
 		const updated = await updateLease(db, contextA, leaseId, {
@@ -580,7 +582,7 @@ describe('indexLetter', () => {
 			indexBaseValue: 117
 		});
 		expect(updated.ok).toBe(true);
-		const after = (await indexLetter(db, 'a', leaseId, changeId))!.letter;
+		const after = (await rentLetter(db, 'a', leaseId, changeId))!.letter;
 		expect(after.paragraphs).toEqual(before.paragraphs);
 		expect(after.tables?.[0].rows).toEqual([
 			['Verbraucherpreisindex', '118,2 (Januar 2024)', '124,3 (Januar 2026)'],
@@ -593,26 +595,26 @@ describe('indexLetter', () => {
 		await seedValues();
 		const proposed = await proposeIndexChange(db, contextA, leaseId);
 		const changeId = proposed?.ok ? proposed.id : '';
-		expect(await updateIndexLetterText(db, contextA, leaseId, changeId, ['Text'])).toBeUndefined();
+		expect(await updateRentLetterText(db, contextA, leaseId, changeId, ['Text'])).toBeUndefined();
 		await approveChange(db, contextA, leaseId, changeId, {
 			deliveredOn: '2026-10-15',
 			validFrom: null
 		});
-		const { paragraphs } = (await indexLetter(db, 'a', leaseId, changeId))!.letter;
+		const { paragraphs } = (await rentLetter(db, 'a', leaseId, changeId))!.letter;
 		const edited = [
 			paragraphs[0],
 			`${paragraphs[1]} Bei Fragen rufen Sie gern an.`,
 			...paragraphs.slice(2)
 		];
 
-		expect(await updateIndexLetterText(db, contextA, leaseId, changeId, edited)).toMatchObject({
+		expect(await updateRentLetterText(db, contextA, leaseId, changeId, edited)).toMatchObject({
 			ok: true
 		});
-		expect((await indexLetter(db, 'a', leaseId, changeId))!.letter.paragraphs).toEqual(edited);
-		expect(await updateIndexLetterText(db, contextA, leaseId, changeId, [''])).toMatchObject({
+		expect((await rentLetter(db, 'a', leaseId, changeId))!.letter.paragraphs).toEqual(edited);
+		expect(await updateRentLetterText(db, contextA, leaseId, changeId, [''])).toMatchObject({
 			ok: false
 		});
-		expect(await updateIndexLetterText(db, contextB, leaseId, changeId, edited)).toBeUndefined();
+		expect(await updateRentLetterText(db, contextB, leaseId, changeId, edited)).toBeUndefined();
 	});
 
 	it('does not leak into another account', async () => {
@@ -623,9 +625,111 @@ describe('indexLetter', () => {
 			deliveredOn: '2026-10-15',
 			validFrom: null
 		});
-		expect(await indexLetter(db, 'b', foreignLeaseId, changeId)).toBeDefined();
-		expect(await indexLetter(db, 'a', foreignLeaseId, changeId)).toBeUndefined();
-		expect(await indexLetter(db, 'a', leaseId, changeId)).toBeUndefined();
+		expect(await rentLetter(db, 'b', foreignLeaseId, changeId)).toBeDefined();
+		expect(await rentLetter(db, 'a', foreignLeaseId, changeId)).toBeUndefined();
+		expect(await rentLetter(db, 'a', leaseId, changeId)).toBeUndefined();
+	});
+});
+
+describe('a § 558 demand and the consent', () => {
+	let fixedId: string;
+	// A fixed residential lease from 2024-01-01 at 600 € on 64 m²: a demand received on
+	// 10.03.2026 makes the new rent due on 01.06.2026, capped at 720 € (20 % on 600 €).
+	const demand = {
+		deliveredOn: '2026-03-10',
+		baseRent: 72000,
+		comparativeRent: 1150,
+		cappingPercent: 20 as const,
+		comparisonSource: 'rent_index' as const,
+		comparisonDetails: 'Mietspiegel 2026, Feld C2'
+	};
+
+	beforeEach(async () => {
+		const { unitId: flat } = await seedUnit(db, 'a', { name: 'OG' });
+		const tenantId = await seedTenant(db, 'a', { salutation: 'Herr', lastName: 'Beispiel' });
+		const lease = await createLeaseWithoutCharges(
+			db,
+			contextA,
+			leaseInput(flat, { startDate: '2024-01-01', tenantIds: [tenantId] })
+		);
+		if (!lease.ok) throw new Error('setup failed');
+		fixedId = lease.id;
+	});
+
+	it('stores the demand with its letter until the tenant consents, partly here', async () => {
+		const result = await demandComparativeIncrease(db, contextA, fixedId, demand);
+		if (!result?.ok) throw new Error(JSON.stringify(result));
+		let [, demanded] = await listRentChanges(db, 'a', fixedId);
+		expect(demanded).toMatchObject({
+			reason: 'comparative',
+			status: 'proposed',
+			validFrom: '2026-06-01',
+			baseRent: 72000,
+			deliveredOn: '2026-03-10',
+			comparativeRent: 1150,
+			comparisonSource: 'rent_index',
+			cappingPercent: 20,
+			consentedOn: null
+		});
+		const letter = (await rentLetter(db, 'a', fixedId, result.id))!.letter;
+		expect(letter.subject).toBe('Mieterhöhung auf die ortsübliche Vergleichsmiete (§ 558 BGB)');
+		expect(letter.paragraphs).toHaveLength(5);
+		expect(letter.tables?.[0].rows[0]).toEqual(['Kaltmiete', '600,00\u00a0€', '720,00\u00a0€']);
+
+		// One demand at a time.
+		expect(await demandComparativeIncrease(db, contextA, fixedId, demand)).toMatchObject({
+			ok: false,
+			message: expect.stringContaining('schon ein Erhöhungsverlangen')
+		});
+
+		const consent = (input: { consentedOn: string; baseRent: number }) =>
+			recordConsent(db, contextA, fixedId, result.id, input);
+		expect(await consent({ consentedOn: '2026-03-01', baseRent: 70000 })).toMatchObject({
+			ok: false,
+			message: expect.stringContaining('vor dem Zugang')
+		});
+		expect(await consent({ consentedOn: '2026-04-02', baseRent: 73000 })).toMatchObject({
+			ok: false,
+			message: expect.stringContaining('höchstens bei den verlangten 720,00\u00a0€')
+		});
+		expect(await consent({ consentedOn: '2026-04-02', baseRent: 70000 })).toEqual({
+			ok: true,
+			id: result.id
+		});
+		[, demanded] = await listRentChanges(db, 'a', fixedId);
+		expect(demanded).toMatchObject({
+			status: 'approved',
+			baseRent: 70000,
+			operatingCostPrepayment: 15000,
+			consentedOn: '2026-04-02'
+		});
+		expect(await consent({ consentedOn: '2026-04-02', baseRent: 70000 })).toMatchObject({
+			ok: false,
+			message: 'Die Zustimmung ist schon eingetragen.'
+		});
+		expect(await summaries('a')).toEqual(
+			expect.arrayContaining([
+				'create: Mieterhöhung nach § 558 BGB auf 720,00\u00a0€ Kaltmiete ab 01.06.2026 verlangt (Zugang am 10.03.2026)',
+				'approve: Zustimmung zur Mieterhöhung vom 02.04.2026: Kaltmiete 700,00\u00a0€ ab 01.06.2026'
+			])
+		);
+	});
+
+	it('refuses a demand over the cap, on an index lease and of another account', async () => {
+		expect(
+			await demandComparativeIncrease(db, contextA, fixedId, { ...demand, baseRent: 72100 })
+		).toMatchObject({ ok: false, message: expect.stringContaining('Kappungsgrenze von 20 %') });
+		expect(await demandComparativeIncrease(db, contextA, leaseId, demand)).toMatchObject({
+			ok: false,
+			message: expect.stringContaining('Indexmiete')
+		});
+		expect(await demandComparativeIncrease(db, contextB, fixedId, demand)).toBeUndefined();
+		expect(
+			await recordConsent(db, contextA, fixedId, 'missing', {
+				consentedOn: '2026-04-02',
+				baseRent: 70000
+			})
+		).toBeUndefined();
 	});
 });
 

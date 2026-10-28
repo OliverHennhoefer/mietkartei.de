@@ -14,6 +14,13 @@ import {
 } from '../dates';
 import { fingerprintRows, formatIban, type BankRow } from '../domain/bank-matching';
 import { co2KgFromKwh } from '../domain/co2';
+import {
+	cappingBase,
+	comparativeEffectiveFrom,
+	comparativeLetterRows,
+	comparativeLetterText,
+	type ComparativeDemand
+} from '../domain/comparative-rent';
 import { effectiveFrom } from '../domain/index-rent';
 import { monthlyAmounts, total, type RentChange } from '../domain/rents';
 import { formatCents } from '../money';
@@ -238,7 +245,11 @@ type DemoRentChange = {
 	indexMonth?: IsoMonth;
 	indexValue?: number;
 	deliveredOn?: IsoDate;
+	/** A § 558 increase: the Mietspiegel and its field the Vergleichsmiete comes from. */
+	comparison?: DemoComparison;
 };
+
+type DemoComparison = { index: string; field: string };
 
 /** An annuity loan: the monthly rate and its interest, booked from the month after acquisition. */
 type Loan = { principal: number; ratePercent: number; payment: number; lender: string };
@@ -507,6 +518,8 @@ export async function createDemoData(
 		unpaidMonths?: number;
 		/** An ended lease: the deposit paid back that day, less what was withheld and why. */
 		moveOut?: { day: IsoDate; withheld?: [amount: number, note: string] };
+		/** A § 558 demand the tenant has not consented to yet. */
+		demand?: { deliveredOn: IsoDate; baseRent: number; comparison: DemoComparison };
 		/** Who the rent comes from, as the bank shows it; only for leases paying on the bank account. */
 		bank?: { payer: string; iban: string; purpose: (month: IsoMonth) => string };
 	}[] = [
@@ -528,9 +541,9 @@ export async function createDemoData(
 			changes: [
 				{
 					validFrom: at(-6, '03-01'),
-					reason: 'manual',
+					reason: 'comparative',
 					baseRent: 52200,
-					note: 'Mieterhöhung auf die ortsübliche Vergleichsmiete (§ 558 BGB)'
+					comparison: { index: 'Berliner Mietspiegel', field: 'Feld E3' }
 				}
 			],
 			moveOut: {
@@ -556,9 +569,9 @@ export async function createDemoData(
 			changes: [
 				{
 					validFrom: at(-9, '05-01'),
-					reason: 'manual',
+					reason: 'comparative',
 					baseRent: 47100,
-					note: 'Mieterhöhung auf die ortsübliche Vergleichsmiete (§ 558 BGB)'
+					comparison: { index: 'Berliner Mietspiegel', field: 'Feld E3' }
 				}
 			],
 			moveOut: { day: at(-6, '05-18') }
@@ -582,9 +595,9 @@ export async function createDemoData(
 			changes: [
 				{
 					validFrom: at(-10, '04-01'),
-					reason: 'manual',
+					reason: 'comparative',
 					baseRent: 68500,
-					note: 'Mieterhöhung auf die ortsübliche Vergleichsmiete (§ 558 BGB)'
+					comparison: { index: 'Berliner Mietspiegel', field: 'Feld E3' }
 				}
 			],
 			moveOut: {
@@ -610,9 +623,12 @@ export async function createDemoData(
 			changes: [
 				{
 					validFrom: at(-9, '08-01'),
-					reason: 'manual',
+					reason: 'comparative',
 					baseRent: 58500,
-					note: 'Mieterhöhung laut Mietspiegel Potsdam (§ 558 BGB)'
+					comparison: {
+						index: 'Mietspiegel der Landeshauptstadt Potsdam',
+						field: 'Spalte 3, Zeile 5'
+					}
 				}
 			],
 			moveOut: { day: at(-7, '05-27') }
@@ -635,9 +651,9 @@ export async function createDemoData(
 			changes: [
 				{
 					validFrom: at(-8, '03-01'),
-					reason: 'manual',
+					reason: 'comparative',
 					baseRent: 84500,
-					note: 'Mieterhöhung laut Mietspiegel München (§ 558 BGB)'
+					comparison: { index: 'Mietspiegel für München', field: 'Wohnlage gut, Baujahr bis 1949' }
 				}
 			],
 			moveOut: {
@@ -660,9 +676,9 @@ export async function createDemoData(
 			changes: [
 				{
 					validFrom: at(-3, '08-01'),
-					reason: 'manual',
+					reason: 'comparative',
 					baseRent: 76000,
-					note: 'Mieterhöhung auf die ortsübliche Vergleichsmiete laut Berliner Mietspiegel (§ 558 BGB)'
+					comparison: { index: 'Berliner Mietspiegel', field: 'Feld E3' }
 				},
 				{
 					validFrom: at(-2, '07-01'),
@@ -672,6 +688,11 @@ export async function createDemoData(
 				},
 				{ validFrom: at(-1, '07-01'), reason: 'statement', heatingCostPrepayment: 9500 }
 			],
+			demand: {
+				deliveredOn: addDays(date, -20),
+				baseRent: 82500,
+				comparison: { index: 'Berliner Mietspiegel', field: 'Feld E3' }
+			},
 			bank: {
 				payer: 'Anna Schmidt',
 				iban: 'DE80100500001062734591',
@@ -739,9 +760,9 @@ export async function createDemoData(
 			changes: [
 				{
 					validFrom: at(-4, '06-01'),
-					reason: 'manual',
+					reason: 'comparative',
 					baseRent: 92000,
-					note: 'Mieterhöhung auf die ortsübliche Vergleichsmiete (§ 558 BGB)'
+					comparison: { index: 'Berliner Mietspiegel', field: 'Feld E3' }
 				},
 				{
 					validFrom: at(-2, '07-01'),
@@ -776,9 +797,12 @@ export async function createDemoData(
 			changes: [
 				{
 					validFrom: at(-3, '05-01'),
-					reason: 'manual',
+					reason: 'comparative',
 					baseRent: 73500,
-					note: 'Mieterhöhung laut Mietspiegel Potsdam (§ 558 BGB)'
+					comparison: {
+						index: 'Mietspiegel der Landeshauptstadt Potsdam',
+						field: 'Spalte 3, Zeile 5'
+					}
 				},
 				{ validFrom: at(-2, '08-01'), reason: 'statement', heatingCostPrepayment: 15000 },
 				{ validFrom: at(-1, '08-01'), reason: 'statement', operatingCostPrepayment: 16000 }
@@ -861,9 +885,62 @@ export async function createDemoData(
 		}
 		return history;
 	};
-	const rentChangeRows = leaseEntries.flatMap((entry) =>
-		entry.changes.map((change, index) => {
-			const amounts = historyOf(entry)[index + 1];
+	// A § 558 increase: demanded three weeks into the third month before it is due, consented to
+	// three weeks later, the Vergleichsmiete just above the new rent, within the Kappungsgrenze of
+	// 15 % that Berlin, Potsdam and Munich set.
+	const comparativeFields = (
+		entry: (typeof leaseEntries)[number],
+		history: RentChange[],
+		position: number,
+		deliveredOn: IsoDate,
+		comparison: DemoComparison
+	) => {
+		const floorArea = unitOf(entry.input.unitId).floorArea!;
+		const oldRent = history[position - 1];
+		const newRent = history[position];
+		const raised = entry.changes.filter(
+			(change, index) => index < position - 1 && change.reason !== 'statement' && change.baseRent
+		);
+		const comparativeRent = Math.ceil(newRent.baseRent / floorArea / 10) * 10 + 20;
+		const year = deliveredOn.slice(0, 4);
+		const demand: ComparativeDemand = {
+			deliveredOn,
+			baseRent: newRent.baseRent,
+			comparativeRent,
+			cappingPercent: 15,
+			comparisonSource: 'rent_index',
+			comparisonDetails:
+				`${comparison.index} ${year}, ${comparison.field}, Spanne ` +
+				`${formatCents(comparativeRent - 140)} bis ${formatCents(comparativeRent + 160)} je m²`
+		};
+		const content = {
+			unitName: unitOf(entry.input.unitId).name,
+			floorArea,
+			tenants: entry.input.tenantIds.map((id) => tenantRows.find((row) => row.id === id)!),
+			oldRent,
+			newRent,
+			capBase: cappingBase(history.slice(0, position), newRent.validFrom),
+			lastChange: raised.at(-1)?.validFrom ?? entry.input.startDate,
+			deliveredOn,
+			demand
+		};
+		return {
+			deliveredOn,
+			comparativeRent,
+			comparisonSource: demand.comparisonSource,
+			comparisonDetails: demand.comparisonDetails,
+			cappingPercent: demand.cappingPercent,
+			letterText: comparativeLetterText(content),
+			letterTable: comparativeLetterRows(content)
+		};
+	};
+	const rentChangeRows = leaseEntries.flatMap((entry) => {
+		const history = historyOf(entry);
+		const rows = entry.changes.map((change, index) => {
+			const amounts = history[index + 1];
+			const deliveredOn = change.comparison
+				? addDays(addMonths(change.validFrom, -3), 20)
+				: change.deliveredOn;
 			return {
 				id: crypto.randomUUID(),
 				accountId,
@@ -877,11 +954,35 @@ export async function createDemoData(
 				note: change.note ?? null,
 				indexMonth: change.indexMonth ?? null,
 				indexValue: change.indexValue ?? null,
-				deliveredOn: change.deliveredOn ?? null,
+				deliveredOn: deliveredOn ?? null,
+				...(change.comparison && {
+					...comparativeFields(entry, history, index + 1, deliveredOn!, change.comparison),
+					consentedOn: addDays(deliveredOn!, 21)
+				}),
 				createdBy: context.userId
 			};
-		})
-	);
+		});
+		if (!entry.demand) return rows;
+		// The pending demand is not part of what the tenants paid: it ends the history only here.
+		const { deliveredOn, baseRent, comparison } = entry.demand;
+		const last = entry.changes.findLast((change) => change.reason === 'comparative')!;
+		const validFrom = comparativeEffectiveFrom(deliveredOn, last.validFrom);
+		const demanded = { ...history.at(-1)!, validFrom, baseRent, status: 'proposed' as const };
+		const extended = [...history, demanded];
+		return [
+			...rows,
+			{
+				id: crypto.randomUUID(),
+				accountId,
+				leaseId: entry.id,
+				...demanded,
+				reason: 'comparative' as const,
+				note: null,
+				...comparativeFields(entry, extended, extended.length - 1, deliveredOn, comparison),
+				createdBy: context.userId
+			}
+		];
+	});
 	const personsRows = [
 		{
 			id: crypto.randomUUID(),
