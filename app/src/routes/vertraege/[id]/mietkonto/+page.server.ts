@@ -1,4 +1,4 @@
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { firstOfMonth, lastOfMonth, monthOf, today } from '#lib/dates.ts';
 import { defaultPaymentDeadline } from '#lib/domain/reminders.ts';
 import { total } from '#lib/domain/rents.ts';
@@ -9,10 +9,13 @@ import {
 	createPayment,
 	deleteCharge,
 	deletePayment,
+	getEditableLine,
 	lastPayment,
 	listLedger,
 	listLedgerLineDetails,
 	postCharge,
+	updateAdjustment,
+	updatePayment,
 	type LedgerLine
 } from '#lib/server/ledger.ts';
 import { createReminder, deleteReminder, reminderState } from '#lib/server/reminders.ts';
@@ -45,12 +48,17 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 	// details are read after it.
 	const ledger = await listLedger(locals.db, accountId, lease.id, { from });
 	const currentDate = today();
-	const [details, reminders, landlord, latestPayment] = await Promise.all([
+	// ?bearbeiten=<id> opens a manual payment or adjustment in the edit dialog, ?schreiben=<id> a
+	// reminder in its dialog.
+	const editId = url.searchParams.get('bearbeiten');
+	const [details, reminders, landlord, latestPayment, editLine] = await Promise.all([
 		listLedgerLineDetails(locals.db, accountId, lease.id),
 		reminderState(locals.db, accountId, lease.id, currentDate),
 		landlordAddress(locals.db, accountId),
-		lastPayment(locals.db, accountId, lease.id)
+		lastPayment(locals.db, accountId, lease.id),
+		editId ? getEditableLine(locals.db, accountId, lease.id, editId) : undefined
 	]);
+	const reminderId = url.searchParams.get('schreiben');
 
 	const shown = ledger.lines.filter((line) => line.date <= to);
 	const charged = shown.reduce(
@@ -71,6 +79,8 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 	});
 
 	return {
+		editing: editLine ? { id: editId!, ...editLine } : null,
+		reminder: reminders.reminders.find((reminder) => reminder.id === reminderId) ?? null,
 		range,
 		rows,
 		charged,
@@ -136,28 +146,40 @@ export const actions: Actions = {
 		return { booked: 'adjustment' as const };
 	},
 
-	deletePayment: async ({ request, locals, params }) => {
+	update: async ({ request, locals, params }) => {
 		const context = auditContext(locals);
-		const id = idOf(await request.formData());
-		const detail = (await listLedgerLineDetails(locals.db, context.accountId, params.id))[id];
-		if (!detail || detail.kind !== 'payment') {
-			return fail(400, { message: 'Diese Zahlung gibt es nicht mehr.' });
+		const form = await request.formData();
+		const id = idOf(form);
+		const line = await getEditableLine(locals.db, context.accountId, params.id, id);
+		if (!line) return fail(400, { message: 'Diese Buchung gibt es nicht mehr.' });
+		const result = line.kind === 'payment' ? parsePayment(form) : parseAdjustment(form);
+		if (!result.ok) {
+			return fail(400, { form: 'edit' as const, errors: result.errors, values: result.values });
 		}
-		const outcome = await deletePayment(locals.db, context, id);
-		if (outcome === 'from-bank') return fail(400, { message: bankPaymentMessage });
-		if (outcome === 'missing') return fail(400, { message: 'Diese Zahlung gibt es nicht mehr.' });
-		return { deleted: 'payment' as const };
+		const input = { ...result.data, note: result.data.note || null };
+		if (line.kind === 'payment') {
+			const outcome = await updatePayment(locals.db, context, id, input);
+			if (outcome === 'from-bank') return fail(400, { message: bankPaymentMessage });
+			if (outcome === 'missing') return fail(400, { message: 'Diese Zahlung gibt es nicht mehr.' });
+		} else if (!(await updateAdjustment(locals.db, context, id, input))) {
+			return fail(400, { message: chargeMessage });
+		}
+		redirect(303, `/vertraege/${params.id}/mietkonto`);
 	},
 
-	deleteCharge: async ({ request, locals, params }) => {
+	delete: async ({ request, locals, params }) => {
 		const context = auditContext(locals);
 		const id = idOf(await request.formData());
 		const detail = (await listLedgerLineDetails(locals.db, context.accountId, params.id))[id];
-		if (!detail || detail.kind !== 'charge') {
-			return fail(400, { message: 'Diese Buchung gibt es nicht mehr.' });
+		if (!detail) return fail(400, { message: 'Diese Buchung gibt es nicht mehr.' });
+		if (detail.kind === 'payment') {
+			const outcome = await deletePayment(locals.db, context, id);
+			if (outcome === 'from-bank') return fail(400, { message: bankPaymentMessage });
+			if (outcome === 'missing') return fail(400, { message: 'Diese Zahlung gibt es nicht mehr.' });
+		} else if (!(await deleteCharge(locals.db, context, id))) {
+			return fail(400, { message: chargeMessage });
 		}
-		if (!(await deleteCharge(locals.db, context, id))) return fail(400, { message: chargeMessage });
-		return { deleted: 'adjustment' as const };
+		redirect(303, `/vertraege/${params.id}/mietkonto`);
 	},
 
 	reminder: async ({ request, locals, params }) => {
@@ -176,6 +198,6 @@ export const actions: Actions = {
 		if (!(await deleteReminder(locals.db, auditContext(locals), params.id, id))) {
 			return fail(400, { message: 'Dieses Schreiben gibt es nicht mehr.' });
 		}
-		return { deleted: 'reminder' as const };
+		redirect(303, `/vertraege/${params.id}/mietkonto`);
 	}
 };

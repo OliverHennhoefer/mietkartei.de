@@ -2,6 +2,7 @@ import { and, desc, eq, gt, inArray } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import {
 	dayOf,
+	firstOfMonth,
 	formatDate,
 	formatMonth,
 	monthOf,
@@ -469,6 +470,92 @@ export async function deletePayment(
 		auditEntry(db, context, 'lease', payment.leaseId, 'delete', paymentSummary(payment, 'gelöscht'))
 	]);
 	return 'deleted';
+}
+
+/** What the edit dialog of the ledger page changes: a manual payment or an adjustment. */
+export type LedgerEdit = { date: IsoDate; amount: number; note: string | null };
+
+/**
+ * A line of the lease the landlord may change on the ledger page, a manual payment or an
+ * adjustment, with what it holds; undefined for any other line.
+ */
+export async function getEditableLine(
+	db: Database,
+	accountId: string,
+	leaseId: string,
+	id: string
+): Promise<(LedgerEdit & { kind: 'payment' | 'adjustment' }) | undefined> {
+	const [payment] = await db
+		.select()
+		.from(payments)
+		.where(
+			and(eq(payments.accountId, accountId), eq(payments.leaseId, leaseId), eq(payments.id, id))
+		);
+	if (payment) {
+		if (payment.bankTransactionId) return undefined;
+		return { kind: 'payment', date: payment.date, amount: payment.amount, note: payment.note };
+	}
+	const [charge] = await db
+		.select()
+		.from(rentCharges)
+		.where(
+			and(
+				eq(rentCharges.accountId, accountId),
+				eq(rentCharges.leaseId, leaseId),
+				eq(rentCharges.id, id)
+			)
+		);
+	if (!charge || charge.kind !== 'adjustment') return undefined;
+	const date = charge.dueDate ?? firstOfMonth(charge.period);
+	return { kind: 'adjustment', date, amount: charge.amount, note: charge.note };
+}
+
+/** Changes a manual payment; one assigned from a bank transaction is changed there. */
+export async function updatePayment(
+	db: Database,
+	context: AuditContext,
+	paymentId: string,
+	input: LedgerEdit
+): Promise<'updated' | 'from-bank' | 'missing'> {
+	const ofAccount = and(eq(payments.accountId, context.accountId), eq(payments.id, paymentId));
+	const [payment] = await db.select().from(payments).where(ofAccount);
+	if (!payment) return 'missing';
+	if (payment.bankTransactionId) return 'from-bank';
+	await runBatch(db, [
+		db.update(payments).set(input).where(ofAccount),
+		auditEntry(db, context, 'lease', payment.leaseId, 'update', paymentSummary(input, 'geändert'))
+	]);
+	return 'updated';
+}
+
+/** Changes a manual posting (Korrektur); false for any other charge. */
+export async function updateAdjustment(
+	db: Database,
+	context: AuditContext,
+	chargeId: string,
+	input: LedgerEdit
+): Promise<boolean> {
+	const ofAccount = and(eq(rentCharges.accountId, context.accountId), eq(rentCharges.id, chargeId));
+	const [charge] = await db.select().from(rentCharges).where(ofAccount);
+	if (!charge || charge.kind !== 'adjustment') return false;
+	const changed = {
+		period: monthOf(input.date),
+		dueDate: input.date,
+		amount: input.amount,
+		note: input.note
+	};
+	await runBatch(db, [
+		db.update(rentCharges).set(changed).where(ofAccount),
+		auditEntry(
+			db,
+			context,
+			'lease',
+			charge.leaseId,
+			'update',
+			chargeSummary({ ...charge, ...changed }, 'geändert')
+		)
+	]);
+	return true;
 }
 
 export type LedgerLine = {

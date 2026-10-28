@@ -5,12 +5,13 @@
 	import type { Snippet } from 'svelte';
 	import Icon from '#lib/components/Icon.svelte';
 
-	// Editing a row of a list in a dialog over the list: the fields, "Speichern" and "Abbrechen" at
-	// the bottom left and "Löschen" set apart at the bottom right. The list opens it with a query
-	// parameter (?bearbeiten=<id>), so the back button closes it, a link can lead to it and the
-	// server renders it open without JavaScript. Both buttons submit the one form: "Löschen" to
-	// `deleteAction`, after a question and without checking the fields. When an action redirects
-	// back to the list, the dialog closes.
+	// A row of a list in a dialog over the list: its fields, "Speichern" and "Abbrechen" at the
+	// bottom left and "Löschen" set apart at the bottom right. A row that cannot be changed shows
+	// what it holds instead (no `action`), one that cannot be deleted has no "Löschen". The list
+	// opens it with a query parameter (?bearbeiten=<id>), so the back button closes it, a link can
+	// lead to it and the server renders it open without JavaScript. Both buttons submit the one
+	// form: "Löschen" to `deleteAction`, after a question and without checking the fields. When an
+	// action redirects back to the list, the dialog closes.
 	let {
 		title,
 		action,
@@ -20,11 +21,11 @@
 		children
 	}: {
 		title: string;
-		/** The action that saves the fields. */
-		action: string;
-		deleteAction: string;
+		/** The action that saves the fields; without it the dialog only shows the row. */
+		action?: string;
+		deleteAction?: string;
 		/** The question before deleting. */
-		deleteMessage: string;
+		deleteMessage?: string;
 		/** The list without the dialog. */
 		close: string;
 		children: Snippet;
@@ -51,7 +52,7 @@
 
 	const submit: SubmitFunction = ({ submitter, cancel }) => {
 		const deleting = submitter?.getAttribute('formaction') === deleteAction;
-		if (deleting && !confirm(deleteMessage)) {
+		if (deleting && deleteMessage && !confirm(deleteMessage)) {
 			cancel();
 			return;
 		}
@@ -83,21 +84,23 @@
 			onclick={leave}><Icon name="close" size={20} /></button
 		>
 	</div>
-	<form method="POST" {action} class="form" use:enhance={submit}>
+	<form method="POST" action={action ?? deleteAction} class="form" use:enhance={submit}>
 		{@render children()}
 		<div class="form-actions">
-			<button type="submit">Speichern</button>
+			{#if action}<button type="submit">Speichern</button>{/if}
 			<a
 				href={close}
-				class="button secondary"
+				class={['button', action && 'secondary']}
 				onclick={(event) => {
 					event.preventDefault();
 					leave();
-				}}>Abbrechen</a
+				}}>{action ? 'Abbrechen' : 'Schließen'}</a
 			>
-			<button type="submit" class="danger delete" formaction={deleteAction} formnovalidate
-				>Löschen</button
-			>
+			{#if deleteAction}
+				<button type="submit" class="danger delete" formaction={deleteAction} formnovalidate
+					>Löschen</button
+				>
+			{/if}
 		</div>
 	</form>
 </dialog>
@@ -105,5 +108,19 @@
 <style>
 	.delete {
 		margin-left: auto;
+	}
+	/* What a row holds when it cannot be changed: term and value in two columns. */
+	.form :global(dl.details) {
+		grid-column: 1 / -1;
+		display: grid;
+		grid-template-columns: max-content minmax(0, 1fr);
+		gap: 0.5rem 1.5rem;
+		margin: 0;
+	}
+	.form :global(dl.details dt) {
+		color: var(--color-muted);
+	}
+	.form :global(dl.details dd) {
+		margin: 0;
 	}
 </style>
