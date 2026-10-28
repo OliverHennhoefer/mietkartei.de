@@ -978,10 +978,10 @@ function componentsOf(
 				if (!share) {
 					warn(ctx, {
 						code: 'missing_share',
-						blocking: true,
+						blocking: false,
 						unitId: unit.id,
 						href: '/betriebskosten/schluessel',
-						message: `Der Umlageschlüssel „${key.name}“ hat keinen Anteil für die Einheit ${unit.name}; ohne ihn tragen die anderen Einheiten ihre Kosten. Trag einen Anteil ein (auch 0, wenn sie nichts tragen soll), bevor du die Abrechnung freigibst.`
+						message: `Der Umlageschlüssel „${key.name}“ hat keinen Anteil für die Einheit ${unit.name}.`
 					});
 				}
 				return share?.share ?? 0;

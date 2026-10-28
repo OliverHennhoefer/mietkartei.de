@@ -1055,7 +1055,7 @@ describe('computeStatement warnings', () => {
 
 		input.keys[0].shares.pop();
 		expect(computeStatement(input, options).property.warnings).toMatchObject([
-			{ code: 'missing_share', blocking: true, unitId: 'og', href: '/betriebskosten/schluessel' }
+			{ code: 'missing_share', blocking: false, unitId: 'og', href: '/betriebskosten/schluessel' }
 		]);
 	});
 
