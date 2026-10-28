@@ -154,7 +154,6 @@
 			<noscript><button type="submit" class="secondary small">Anzeigen</button></noscript>
 		</form>
 	{/if}
-	<a href="/bank/import">Kontoauszug importieren</a>
 </div>
 
 {#if message}
