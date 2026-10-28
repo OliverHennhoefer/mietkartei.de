@@ -74,6 +74,23 @@
 					{#if form?.errors?.password}<span class="error">{form.errors.password}</span>{/if}
 				</label>
 			{/if}
+			{#if data.setupCode}
+				<label>
+					Einrichtungscode
+					<input
+						name="setupCode"
+						type="password"
+						autocomplete="off"
+						aria-invalid={form?.wrongSetupCode ? 'true' : undefined}
+						required
+					/>
+					<span class="muted"
+						>Den Code hast du beim Einrichten von mietkartei selbst festgelegt.</span
+					>
+					{#if form?.wrongSetupCode}<span class="error">Der Einrichtungscode stimmt nicht.</span
+						>{/if}
+				</label>
+			{/if}
 			{#if data.turnstileSiteKey}
 				<div class="cf-turnstile" data-sitekey={data.turnstileSiteKey} data-language="de"></div>
 			{/if}
@@ -89,6 +106,15 @@
 				<p class="error" role="alert">
 					Die Prüfung, ob hier ein Mensch registriert, hat nicht geklappt. Bitte versuche es noch
 					einmal.
+				</p>
+			{/if}
+			{#if data.hosted}
+				<p class="muted">
+					Wie mietkartei deine Daten und die deiner Mieter verarbeitet, steht in der
+					<a href="https://mietkartei.de/datenschutz/">Datenschutzerklärung</a>. Mit dem Konto gilt
+					der
+					<a href="https://mietkartei.de/auftragsverarbeitung/">Vertrag zur Auftragsverarbeitung</a> für
+					die Daten deiner Mieter.
 				</p>
 			{/if}
 			<div class="form-actions">

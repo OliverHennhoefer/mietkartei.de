@@ -31,6 +31,15 @@
 
 <PageHeader title="Konto" />
 
+{#if data.hosted}
+	<p class="muted">
+		Welche Daten mietkartei speichert, bei welchen Dienstleistern und wie lange, steht in der
+		<a href="https://mietkartei.de/datenschutz/">Datenschutzerklärung</a>. Für die Daten deiner
+		Mieter gilt der
+		<a href="https://mietkartei.de/auftragsverarbeitung/">Vertrag zur Auftragsverarbeitung</a>.
+	</p>
+{/if}
+
 {#if data.canLoadDemo}
 	<section class="card demo" aria-labelledby="demodaten">
 		<h2 id="demodaten">Demodaten</h2>

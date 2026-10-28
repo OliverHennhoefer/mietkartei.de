@@ -52,7 +52,7 @@
 	}
 	.tabs a {
 		padding: 0.75rem 0 1rem;
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 		white-space: nowrap;
 		text-decoration: none;
 		color: var(--color-muted);

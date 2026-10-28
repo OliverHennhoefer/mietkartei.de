@@ -116,6 +116,6 @@
 <style>
 	.hint {
 		font-weight: 400;
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 	}
 </style>

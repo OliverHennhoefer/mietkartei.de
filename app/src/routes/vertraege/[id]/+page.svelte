@@ -6,6 +6,7 @@
 	import Balance from '#lib/components/Balance.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import DeleteSection from '#lib/components/DeleteSection.svelte';
+	import EditDialog from '#lib/components/EditDialog.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import { formatDate, formatMonth, isIsoDate } from '#lib/dates.ts';
@@ -26,6 +27,16 @@
 	const lease = $derived(data.lease);
 	const personsForm = $derived(form?.which === 'persons' && form.errors ? form : undefined);
 	const endForm = $derived(form?.which === 'end' && form.errors ? form : undefined);
+	const editPersonsForm = $derived(form?.which === 'editPersons' && form.errors ? form : undefined);
+	// After a refused save the typed values win; otherwise the dialog shows the row as stored.
+	const editValues = $derived(
+		editPersonsForm?.values ??
+			(data.editing && {
+				validFrom: data.editing.validFrom,
+				persons: String(data.editing.persons),
+				note: data.editing.note ?? ''
+			})
+	);
 	const endValues = $derived(endForm?.values ?? data.endProposal);
 	const parties = Object.entries(terminatedByLabels) as [keyof typeof terminatedByLabels, string][];
 
@@ -151,56 +162,29 @@
 					<th>Ab</th>
 					<th class="num">Personen</th>
 					<th>Notiz</th>
-					<th class="actions"></th>
 				</tr>
 			</thead>
 			<tbody>
 				{#each data.persons as row, index (row.id)}
 					<tr>
-						<td>{formatDate(row.validFrom)}</td>
-						<td class="num">{row.persons}</td>
-						<td>{row.note ?? ''}</td>
-						<td class="actions">
+						<td>
 							{#if index > 0}
-								<ConfirmButton
-									action="?/deletePersons"
-									label="Entfernen"
-									message="Diesen Eintrag wirklich entfernen?"
-									tone="secondary"
+								<a href="?bearbeiten={row.id}" data-sveltekit-reset="false"
+									>{formatDate(row.validFrom)}</a
 								>
-									<input type="hidden" name="rowId" value={row.id} />
-								</ConfirmButton>
+							{:else}
+								{formatDate(row.validFrom)}
 							{/if}
 						</td>
+						<td class="num">{row.persons}</td>
+						<td>{row.note ?? ''}</td>
 					</tr>
 				{/each}
 			</tbody>
 		</table>
 	</div>
 	<form method="POST" action="?/addPersons" class="card form" use:enhance>
-		<Field label="Personen ab Datum" error={personsForm?.errors.validFrom}>
-			<input
-				name="validFrom"
-				type="date"
-				defaultValue={personsForm?.values.validFrom ?? ''}
-				aria-invalid={personsForm?.errors.validFrom ? 'true' : undefined}
-				required
-			/>
-		</Field>
-		<Field label="Personen" error={personsForm?.errors.persons}>
-			<input
-				name="persons"
-				type="number"
-				min="0"
-				max="20"
-				defaultValue={personsForm?.values.persons ?? ''}
-				aria-invalid={personsForm?.errors.persons ? 'true' : undefined}
-				required
-			/>
-		</Field>
-		<Field label="Notiz (optional)" error={personsForm?.errors.note}>
-			<input name="note" defaultValue={personsForm?.values.note ?? ''} />
-		</Field>
+		{@render personsFields(personsForm?.values ?? {}, personsForm?.errors ?? {})}
 		<div class="form-actions">
 			<button type="submit">Personenstand eintragen</button>
 		</div>
@@ -299,6 +283,48 @@
 	check={data.deletion}
 	error={form && 'deleteError' in form ? form.deleteError : undefined}
 />
+
+{#snippet personsFields(values: Record<string, string>, errors: Partial<Record<string, string>>)}
+	<Field label="Personen ab Datum" error={errors.validFrom}>
+		<input
+			name="validFrom"
+			type="date"
+			defaultValue={values.validFrom ?? ''}
+			aria-invalid={errors.validFrom ? 'true' : undefined}
+			required
+		/>
+	</Field>
+	<Field label="Personen" error={errors.persons}>
+		<input
+			name="persons"
+			type="number"
+			min="0"
+			max="20"
+			defaultValue={values.persons ?? ''}
+			aria-invalid={errors.persons ? 'true' : undefined}
+			required
+		/>
+	</Field>
+	<Field label="Notiz (optional)" error={errors.note}>
+		<input name="note" defaultValue={values.note ?? ''} />
+	</Field>
+{/snippet}
+
+{#if data.editing && editValues}
+	{#key data.editing.id}
+		<EditDialog
+			title="Personenstand bearbeiten"
+			action="?/updatePersons"
+			deleteAction="?/deletePersons"
+			deleteMessage="Personenstand ab {formatDate(data.editing.validFrom)} wirklich entfernen?"
+			close="/vertraege/{lease.id}"
+			error={form && 'message' in form ? form.message : undefined}
+		>
+			<input type="hidden" name="rowId" value={data.editing.id} />
+			{@render personsFields(editValues, editPersonsForm?.errors ?? {})}
+		</EditDialog>
+	{/key}
+{/if}
 
 <style>
 	.notes {

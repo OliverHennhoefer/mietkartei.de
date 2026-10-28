@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { addDays, addMonths, today } from '#lib/dates.ts';
 import { createPayment } from '#lib/server/ledger.ts';
+import { createReminder } from '#lib/server/reminders.ts';
 import { getTenant } from '#lib/server/tenants.ts';
 import {
 	contextA,
@@ -126,6 +127,34 @@ describe('mieter', () => {
 			['in', coming]
 		]);
 		expect(data.overview).toMatchObject({ renting: 2, households: 2, rent: 160000 });
+	});
+
+	it('lists every letter about the Rückstand oldest first, the latest in the pending list', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		// The fixture tenant pays nothing since January 2025; the letters are written out of order, the
+		// last two on the same day.
+		const leaseId = await seedLease(db, 'a', unitId, { tenantIds: [tenantId] });
+		for (const [level, date] of [
+			[3, '2025-05-12'],
+			[1, '2025-03-10'],
+			[2, '2025-05-12']
+		] as const) {
+			const result = await createReminder(db, contextA, leaseId, {
+				level,
+				date,
+				paymentDeadline: addDays(date, 14)
+			});
+			expect(result?.ok).toBe(true);
+		}
+
+		const { data } = (await run(load)) as { data: PageServerData };
+		const row = data.tenants.find((tenant) => tenant.id === tenantId)!;
+		expect(row.reminders).toEqual([
+			{ level: 1, date: '2025-03-10' },
+			{ level: 2, date: '2025-05-12' },
+			{ level: 3, date: '2025-05-12' }
+		]);
+		expect(data.pending[0]).toMatchObject({ reminder: { level: 3, date: '2025-05-12' } });
 	});
 
 	it('creates a tenant and returns to a safe path with it preselected', async () => {

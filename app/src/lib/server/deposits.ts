@@ -106,6 +106,39 @@ export async function addDepositMovement(
 }
 
 /**
+ * Changes a movement of the lease with its audit entry; a movement of another lease is missing,
+ * one assigned from a bank transaction is changed there.
+ */
+export async function updateDepositMovement(
+	db: Database,
+	context: AuditContext,
+	movementId: string,
+	input: DepositMovementInput
+): Promise<'updated' | 'from-bank' | 'missing'> {
+	const ofLease = and(
+		eq(depositTransactions.accountId, context.accountId),
+		eq(depositTransactions.leaseId, input.leaseId),
+		eq(depositTransactions.id, movementId)
+	);
+	const [movement] = await db.select().from(depositTransactions).where(ofLease);
+	if (!movement) return 'missing';
+	if (movement.bankTransactionId) return 'from-bank';
+	await runBatch(db, [
+		db
+			.update(depositTransactions)
+			.set({
+				date: input.date,
+				amount: signedDepositAmount(input.kind, input.amount),
+				kind: input.kind,
+				note: input.note ?? null
+			})
+			.where(ofLease),
+		auditEntry(db, context, 'lease', input.leaseId, 'update', movementSummary(input, 'geändert'))
+	]);
+	return 'updated';
+}
+
+/**
  * Deletes a movement of the lease with its audit entry; a movement of another lease is missing.
  * A movement assigned from a bank transaction is undone by the banking feature, which also
  * resets the transaction; deleting it here would leave the transaction marked as matched.

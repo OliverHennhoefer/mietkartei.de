@@ -562,7 +562,7 @@
 	}
 	.fuel legend {
 		font-weight: 500;
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 		padding: 0 0.25rem;
 	}
 	.fuel p {

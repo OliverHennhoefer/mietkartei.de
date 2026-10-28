@@ -166,9 +166,11 @@ test('suggests the lease by the tenant name, assigns and remembers a rule', asyn
 	await page.goto('/bank/konten');
 	await page
 		.getByRole('row', { name: new RegExp(accountName) })
-		.getByRole('button', { name: 'Löschen' })
+		.getByRole('link', { name: accountName })
 		.click();
-	await expect(page.getByRole('alert')).toContainText('hat zugeordnete Umsätze');
+	const opened = page.getByRole('dialog', { name: accountName });
+	await opened.getByRole('button', { name: 'Löschen' }).click();
+	await expect(opened.getByRole('alert')).toContainText('hat zugeordnete Umsätze');
 	await expect(page.getByRole('row', { name: new RegExp(accountName) })).toBeVisible();
 });
 

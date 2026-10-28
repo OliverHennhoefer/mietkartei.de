@@ -30,7 +30,7 @@
 		border: 1px solid var(--color-border);
 		background: var(--color-subtle);
 		margin: 0 0 1.5rem;
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 	}
 	.alert :global(.icon) {
 		margin-top: 0.2rem;

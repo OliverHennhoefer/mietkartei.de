@@ -4,8 +4,8 @@ import { parseCents } from '../src/lib/money';
 import { nthWorkingDay } from '../src/lib/working-days';
 import { seedLease, seedRows } from './seed';
 
-// The start page is Aufgaben: below the own tasks, "Handlungsbedarf" lists the arrears, the open
-// bank transactions and the vacant units. Other tests share the owner's account, so the test reads
+// The start page is Aufgaben: the overview at the top links the arrears and the open bank
+// transactions, and below the own tasks "Leerstand" lists the vacant units. Other tests share the owner's account, so the test reads
 // the list, seeds, and asserts the exact increase. The first seed (a bank account and a lease that
 // starts next month) makes sure the first-run checklist is gone even when this file runs alone.
 
@@ -31,7 +31,7 @@ async function readAttention(page: Page): Promise<Attention> {
 	await page.goto('/');
 	await expect(page).toHaveURL(/\/aufgaben$/);
 	await expect(page.getByRole('heading', { name: 'Erste Schritte' })).toHaveCount(0);
-	const items = page.getByRole('list', { name: 'Handlungsbedarf' }).getByRole('listitem');
+	const items = page.getByRole('region', { name: 'Überblick' }).getByRole('link');
 	const arrearsRow = items.filter({ hasText: 'Rückstände bei' });
 	const hasArrears = (await arrearsRow.count()) > 0;
 	const unmatchedRow = items.filter({ hasText: /offene[rn]? Bankums/ });
@@ -112,18 +112,21 @@ test('starts on Aufgaben with arrears, open bank transactions and vacant units',
 		unmatched: before.unmatched + 1
 	});
 
-	const items = page.getByRole('list', { name: 'Handlungsbedarf' }).getByRole('listitem');
-	await expect(items.filter({ hasText: 'Rückstände bei' }).getByRole('link')).toHaveAttribute(
+	const overview = page.getByRole('region', { name: 'Überblick' }).getByRole('link');
+	await expect(overview.filter({ hasText: 'Rückstände bei' })).toHaveAttribute(
 		'href',
 		'/mietkonto?filter=rueckstaende'
 	);
-	await expect(items.filter({ hasText: /offene[rn]? Bankums/ }).getByRole('link')).toHaveAttribute(
+	await expect(overview.filter({ hasText: /offene[rn]? Bankums/ })).toHaveAttribute(
 		'href',
 		'/bank'
 	);
 
 	// The vacant unit is listed with a link into the lease form, preselected.
-	const vacant = items.filter({ hasText: `Leer-${suffix}` });
+	const vacant = page
+		.getByRole('list', { name: 'Leerstand' })
+		.getByRole('listitem')
+		.filter({ hasText: `Leer-${suffix}` });
 	await expect(vacant).toBeVisible();
 	await vacant.getByRole('link', { name: 'Mietvertrag anlegen' }).click();
 	await expect(page).toHaveURL(/\/vertraege\/neu\?unitId=/);

@@ -29,8 +29,8 @@ test('shows the deadlines of a lease that ends next month', async ({ page }) => 
 	await expect(page.getByRole('heading', { level: 1, name: 'Aufgaben' })).toBeVisible();
 	await expect(page).toHaveTitle('Aufgaben | mietkartei');
 
-	const deadlines = page.getByRole('table', { name: 'Fristen' });
-	const ours = deadlines.getByRole('row').filter({ hasText: tenantName });
+	const deadlines = page.getByRole('list', { name: 'Fristen' });
+	const ours = deadlines.getByRole('listitem').filter({ hasText: tenantName });
 
 	const leaseEnd = ours.filter({ hasText: 'Vertragsende' });
 	await expect(leaseEnd).toHaveCount(1);
@@ -53,7 +53,7 @@ test('shows the deadlines of a lease that ends next month', async ({ page }) => 
 
 	// The statement for 2025 is due by the end of 2026.
 	await expect(
-		deadlines.getByRole('row').filter({ hasText: propertyName }).filter({
+		deadlines.getByRole('listitem').filter({ hasText: propertyName }).filter({
 			hasText: 'Betriebskostenabrechnung 2025'
 		})
 	).toContainText('31.12.2026');
@@ -101,19 +101,28 @@ test('creates, completes, reopens, edits and deletes a task', async ({ page }) =
 	await done.getByRole('button', { name: 'wieder öffnen' }).click();
 	await expect(openTask(page, taskTitle)).toHaveCount(1);
 
-	// Edit on the task's own page.
+	// Edit in the dialog over the list; the URL names the task, so the back button closes it.
 	await openTask(page, taskTitle).getByRole('link', { name: taskTitle }).click();
-	await expect(page).toHaveURL(/\/aufgaben\/[\w-]+$/);
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText(taskTitle);
-	await expect(page.getByLabel('Gehört zu (optional)')).toHaveValue(/^property:/);
-	await page.getByLabel('Aufgabe', { exact: true }).fill(`${taskTitle} (geändert)`);
-	await page.getByRole('button', { name: 'Speichern' }).click();
+	await expect(page).toHaveURL(/\/aufgaben\?bearbeiten=[\w-]+$/);
+	const edit = page.getByRole('dialog', { name: 'Aufgabe bearbeiten' });
+	await expect(edit.getByLabel('Gehört zu (optional)')).toHaveValue(/^property:/);
+	await page.goBack();
+	await expect(edit).toBeHidden();
+	await openTask(page, taskTitle).getByRole('link', { name: taskTitle }).click();
+	await edit.getByLabel('Aufgabe', { exact: true }).fill(`${taskTitle} (geändert)`);
+	await edit.getByRole('button', { name: 'Speichern' }).click();
+	await expect(edit).toBeHidden();
 	await expect(page).toHaveURL(/\/aufgaben$/);
 	await expect(openTask(page, `${taskTitle} (geändert)`)).toHaveCount(1);
 
-	// Delete with confirmation.
+	// The list has no delete button; the dialog has, with confirmation.
+	await expect(openTask(page, taskTitle).getByRole('button', { name: 'Löschen' })).toHaveCount(0);
+	await openTask(page, taskTitle)
+		.getByRole('link', { name: `${taskTitle} (geändert)` })
+		.click();
 	page.once('dialog', (dialog) => dialog.accept());
-	await openTask(page, `${taskTitle} (geändert)`).getByRole('button', { name: 'Löschen' }).click();
+	await edit.getByRole('button', { name: 'Löschen' }).click();
+	await expect(edit).toBeHidden();
 	await expect(openTask(page, taskTitle)).toHaveCount(0);
 });
 
@@ -157,21 +166,14 @@ test('shows validation errors next to the fields', async ({ page }) => {
 });
 
 test('answers unknown tasks with 404 and refuses a lease of another account', async ({ page }) => {
-	const response = await page.goto('/aufgaben/does-not-exist');
-	expect(response?.status()).toBe(404);
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Nicht gefunden');
+	// A link to a task that is gone shows the list without the dialog.
+	await page.goto('/aufgaben?bearbeiten=does-not-exist');
+	await expect(page.getByRole('heading', { level: 1, name: 'Aufgaben' })).toBeVisible();
+	await expect(page.getByRole('dialog')).toHaveCount(0);
 	const origin = new URL(page.url()).origin;
-	// The actions too, the task page's before they read the form.
-	for (const path of ['/aufgaben/does-not-exist?/update', '/aufgaben/does-not-exist?/delete']) {
-		const action = await page.request.post(path, {
-			form: { title: 'Gekapert' },
-			headers: { origin }
-		});
-		expect(action.status(), path).toBe(404);
-	}
-	for (const action of ['done', 'delete']) {
+	for (const action of ['done', 'update', 'delete']) {
 		const refused = await page.request.post(`/aufgaben?/${action}`, {
-			form: { id: 'does-not-exist', done: 'true' },
+			form: { id: 'does-not-exist', done: 'true', title: 'Gekapert' },
 			headers: { origin }
 		});
 		expect(refused.status(), action).toBe(404);

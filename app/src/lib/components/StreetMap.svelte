@@ -266,7 +266,7 @@
 	}
 	.street-map :global(.street-map-popup .leaflet-popup-content) {
 		margin: 0.75rem 0.9rem;
-		font-size: 0.8rem;
+		font-size: var(--text-xs);
 		line-height: 1.4;
 	}
 	.street-map :global(.street-map-popup section + section) {
@@ -295,7 +295,7 @@
 		border-radius: 6px;
 		background: rgb(20 20 20 / 85%);
 		color: #cfcfcf;
-		font-size: 0.72rem;
+		font-size: var(--text-xs);
 		line-height: 1.6;
 	}
 	.street-map :global(.street-map-legend .swatch) {

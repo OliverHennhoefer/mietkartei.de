@@ -133,7 +133,7 @@ describe('auswertung/prognose', () => {
 });
 
 describe('auswertung/ausgaben', () => {
-	it('creates an expense on a unit, lists it in its year and deletes it', async () => {
+	it('creates an expense on a unit, lists it in its year, edits and deletes it', async () => {
 		expect(
 			await run(actions.create, {
 				form: {
@@ -149,9 +149,35 @@ describe('auswertung/ausgaben', () => {
 		expect(await run(loadExpenses)).toMatchObject({
 			data: { year, expenses: [{ id: expense.id, amount: 8990 }] }
 		});
-		expect(await run(actions.delete, { form: { id: expense.id } })).toEqual({
-			data: { deleted: expense.id }
+		expect(
+			await run(loadExpenses, { url: `/auswertung/ausgaben?bearbeiten=${expense.id}` })
+		).toMatchObject({ data: { editing: { id: expense.id, scope: `unit:${unitId}` } } });
+		const edit = {
+			id: expense.id,
+			date: `${year}-02-03`,
+			amount: '99,90',
+			category: 'modernization',
+			scope: `property:${propertyId}`,
+			description: 'Silikonfuge Bad'
+		};
+		expect(await run(actions.update, { form: { ...edit, amount: 'x' } })).toMatchObject({
+			fail: 400,
+			data: { edit: true, errors: { amount: expect.any(String) } }
 		});
+		expect(await run(actions.update, { form: { ...edit, scope: 'unit:fremd' } })).toMatchObject({
+			fail: 400,
+			data: { edit: true, errors: { scope: expect.any(String) } }
+		});
+		expect(await run(actions.update, { form: edit })).toEqual({
+			redirect: `/auswertung/ausgaben?jahr=${year}`
+		});
+		expect(await listExpenses(db, 'a')).toMatchObject([
+			{ amount: 9990, propertyId, unitId: null, description: 'Silikonfuge Bad' }
+		]);
+		expect(await run(actions.delete, { form: { id: expense.id } })).toEqual({
+			redirect: '/auswertung/ausgaben'
+		});
+		expect(await run(actions.update, { form: edit })).toMatchObject({ fail: 404 });
 		expect(await run(actions.delete, { form: { id: expense.id } })).toMatchObject({ fail: 404 });
 	});
 
@@ -179,13 +205,28 @@ describe('auswertung/ausgaben', () => {
 			description: 'Hausmeister'
 		});
 		const [expense] = await listExpenses(db, 'a');
+		expect(
+			await run(loadExpenses, { url: `/auswertung/ausgaben?bearbeiten=${expense.id}` })
+		).toMatchObject({ data: { editing: null } });
 		expect(await run(actions.delete, { form: { id: expense.id } })).toEqual({
 			fail: 400,
 			data: {
 				message: 'Diese Ausgabe stammt aus einem Bankumsatz; hebe die Zuordnung unter Bank auf.'
 			}
 		});
-		expect(await listExpenses(db, 'a')).toHaveLength(1);
+		expect(
+			await run(actions.update, {
+				form: {
+					id: expense.id,
+					date: `${year}-03-05`,
+					amount: '120,50',
+					category: 'operating_costs',
+					scope: `property:${propertyId}`,
+					description: 'Hausmeister März'
+				}
+			})
+		).toMatchObject({ fail: 400, data: { message: expect.stringContaining('Bankumsatz') } });
+		expect(await listExpenses(db, 'a')).toMatchObject([{ description: 'Hausmeister' }]);
 	});
 
 	it('offers every year back to the earliest expense', async () => {

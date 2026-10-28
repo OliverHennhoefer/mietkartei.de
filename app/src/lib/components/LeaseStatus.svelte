@@ -14,7 +14,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 0.45rem;
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 		white-space: nowrap;
 	}
 	.lease-status::before {

@@ -430,7 +430,7 @@ describe('bank/konten', () => {
 		});
 		const created = (await listBankAccounts(db, 'a')).find((row) => row.name === 'Rücklage')!;
 		expect(await run(accountActions.delete, { form: { id: created.id } })).toEqual({
-			data: { deleted: true }
+			redirect: '/bank/konten'
 		});
 		expect(await run(accountActions.delete, { form: { id: created.id } })).toMatchObject({
 			error: 404
@@ -448,7 +448,7 @@ describe('bank/konten', () => {
 });
 
 describe('bank/regeln', () => {
-	it('creates, confirms and deletes a rule', async () => {
+	it('creates, confirms, edits and deletes a rule', async () => {
 		const form = { leaseId, field: 'counterpartName', pattern: 'Müller' };
 		expect(await run(ruleActions.create, { form })).toEqual({ data: { created: true } });
 		expect(
@@ -468,8 +468,23 @@ describe('bank/regeln', () => {
 		expect(await run(ruleActions.confirm, { form: { id: rule.id } })).toEqual({
 			data: { confirmed: true }
 		});
+		expect(await run(loadRules, { url: `/bank/regeln?bearbeiten=${rule.id}` })).toMatchObject({
+			data: { editing: { id: rule.id, pattern: 'Müller' } }
+		});
+		expect(
+			await run(ruleActions.update, { form: { ...form, id: rule.id, leaseId: foreignLeaseId } })
+		).toMatchObject({ fail: 400, data: { edit: true, errors: { leaseId: expect.any(String) } } });
+		expect(
+			await run(ruleActions.update, { form: { ...form, id: rule.id, pattern: 'Meier' } })
+		).toEqual({ redirect: '/bank/regeln' });
+		expect(await run(loadRules)).toMatchObject({
+			data: { rules: [{ id: rule.id, pattern: 'Meier', confirmed: false }] }
+		});
 		expect(await run(ruleActions.delete, { form: { id: rule.id } })).toEqual({
-			data: { deleted: true }
+			redirect: '/bank/regeln'
+		});
+		expect(await run(ruleActions.update, { form: { ...form, id: rule.id } })).toMatchObject({
+			error: 404
 		});
 		expect(await run(ruleActions.confirm, { form: { id: rule.id } })).toMatchObject({ error: 404 });
 		expect(await run(ruleActions.delete, { form: { id: rule.id } })).toMatchObject({ error: 404 });

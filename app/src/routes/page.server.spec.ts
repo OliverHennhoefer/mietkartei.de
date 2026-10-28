@@ -22,6 +22,7 @@ import { load } from './+page.server';
 
 const env = vi.hoisted(() => ({
 	DEMO: false,
+	HOSTED: false,
 	STRIPE_SECRET_KEY: '',
 	STRIPE_PRICE_ID: '',
 	STRIPE_YEARLY_PRICE_ID: '',
@@ -206,6 +207,7 @@ describe('layout', () => {
 				billingEnabled: false,
 				demo: false,
 				prelaunch: false,
+				hosted: false,
 				notice: undefined
 			}
 		});

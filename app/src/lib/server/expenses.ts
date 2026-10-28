@@ -123,6 +123,34 @@ export async function createExpense(
 	return { ok: true, id };
 }
 
+/** Changes a manual expense; one from a bank transaction is changed on the bank page instead. */
+export async function updateExpense(
+	db: Database,
+	context: AuditContext,
+	expenseId: string,
+	input: ExpenseInput
+): Promise<'updated' | 'missing' | 'from-bank' | 'unknown-scope'> {
+	const { accountId } = context;
+	const ofAccount = and(eq(expenses.accountId, accountId), eq(expenses.id, expenseId));
+	const [existing] = await db.select().from(expenses).where(ofAccount);
+	if (!existing) return 'missing';
+	if (existing.bankTransactionId) return 'from-bank';
+	const scope = await resolveScope(db, accountId, input.scope);
+	if (!scope) return 'unknown-scope';
+	const row = {
+		...scope,
+		date: input.date,
+		amount: input.amount,
+		category: input.category,
+		description: input.description
+	};
+	await runBatch(db, [
+		db.update(expenses).set(row).where(ofAccount),
+		auditEntry(db, context, 'expense', expenseId, 'update', `${expenseSummary(row)} geändert`)
+	]);
+	return 'updated';
+}
+
 /** Deletes a manual expense; one from a bank transaction is undone on the bank page instead. */
 export async function deleteExpense(
 	db: Database,

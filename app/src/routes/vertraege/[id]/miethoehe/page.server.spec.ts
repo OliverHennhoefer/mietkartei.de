@@ -116,7 +116,7 @@ describe('miethoehe', () => {
 		expect(await act('delete', { changeId: '' })).toMatchObject({ error: 404 });
 		expect(await act('delete', { changeId: 'unbekannt' })).toMatchObject({ error: 404 });
 		expect(await act('delete', { changeId: added.id })).toEqual({
-			data: { source: 'delete', saved: true }
+			redirect: `/vertraege/${leaseId}/miethoehe`
 		});
 		const [initial] = await listRentChanges(db, 'a', leaseId);
 		expect(await act('delete', { changeId: initial.id })).toMatchObject({

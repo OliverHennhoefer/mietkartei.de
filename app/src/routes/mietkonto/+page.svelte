@@ -35,13 +35,13 @@
 	</EmptyState>
 {:else}
 	<div class="stats">
-		<div class="stat card">
+		<div class="stat">
 			<span class="value"><Balance cents={data.stats.arrearsTotal} /></span>
 			<span class="label">
 				Rückstände · {pluralize(data.stats.arrearsCount, 'Mietvertrag', 'Mietverträge')}
 			</span>
 		</div>
-		<div class="stat card">
+		<div class="stat">
 			<span class="value"><Balance cents={-data.stats.creditTotal} /></span>
 			<span class="label">
 				Guthaben · {pluralize(data.stats.creditCount, 'Mietvertrag', 'Mietverträge')}
@@ -198,7 +198,7 @@
 		margin-left: 0.4rem;
 	}
 	.ended :global(.lease-status) {
-		font-size: 0.78rem;
+		font-size: var(--text-xs);
 	}
 	.reminder > span {
 		white-space: nowrap;

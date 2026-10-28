@@ -59,6 +59,7 @@ import { newLeaseStatements, type LeaseInput } from './leases';
 import { ensureDefaults, listCategories, listKeys } from './operating-costs';
 import { assertQuota, type QuotaKind } from './quotas';
 import { renderLetter } from './pdf';
+import { postCharge } from './ledger';
 import { createReminder, reminderLetter, updateReminderText } from './reminders';
 import { approveStatement, DUE_DAYS } from './statements';
 import type { Storage } from './storage';
@@ -935,6 +936,7 @@ export async function createDemoData(
 	// the arrears tile and the letters below. Nowak and Weber/Albrecht have paid this month too,
 	// assigned on import by their rules; Schmidt and Yılmaz are open on the bank account.
 	const paymentRows: (typeof payments.$inferInsert)[] = [];
+	const reductionMonth = monthOf(at(-2, '02-01'));
 	for (const entry of leaseEntries) {
 		const history = historyOf(entry);
 		const from =
@@ -953,7 +955,9 @@ export async function createDemoData(
 		if (autoAssigned) months = [...months, currentMonth];
 		for (const month of months) {
 			const amounts = monthlyAmounts(history, entry.input, month);
-			const amount = total(amounts);
+			// Nowak kept back the Mietminderung booked below from the February rent.
+			const amount =
+				total(amounts) - (entry.key === 'nowak' && month === reductionMonth ? 8500 : 0);
 			const day = soFar(nthWorkingDay(month, 2, entry.state));
 			const bankTransactionId =
 				onBank(month) && entry.bank
@@ -1752,7 +1756,7 @@ export async function createDemoData(
 	}));
 
 	// Tasks: two repeating, one for the tenant in arrears, the handover of the flat being re-let, one
-	// done.
+	// overdue (so the start page shows how it marks one), one done.
 	const taskRows = [
 		{
 			id: crypto.randomUUID(),
@@ -1795,6 +1799,15 @@ export async function createDemoData(
 			propertyId: null,
 			leaseId: leaseId('nowak'),
 			note: 'Zählerstände ablesen, Schlüssel an Frau Krüger übergeben.'
+		},
+		{
+			id: crypto.randomUUID(),
+			accountId,
+			title: 'Angebote für die Treppenhausreinigung einholen',
+			dueDate: addDays(date, -3),
+			propertyId: lindenId,
+			leaseId: null,
+			note: 'Der Vertrag mit Glanz & Co. läuft zum Jahresende aus.'
 		},
 		{
 			id: crypto.randomUUID(),
@@ -1999,6 +2012,18 @@ export async function createDemoData(
 				if (!edited?.ok) throw new Error('Text der Mahnung nicht geändert');
 			}
 		}
+
+		// Nowak's heating failed for a week two winters ago: the landlord booked the Mietminderung
+		// by hand, a correction to open and change on the Mietkonto tab.
+		const reduction = await postCharge(db, context, {
+			leaseId: leaseId('nowak'),
+			kind: 'adjustment',
+			period: reductionMonth,
+			dueDate: at(-2, '02-01'),
+			amount: -8500,
+			note: 'Mietminderung Heizungsausfall 12.–19. Januar'
+		});
+		if (!reduction) throw new Error('Korrektur nicht gebucht');
 
 		// Weber and Albrecht heat with their own gas contract and claimed the landlord's CO₂ share of
 		// last year (§ 6 CO2KostAufG).

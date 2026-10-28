@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import EditDialog from '#lib/components/EditDialog.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import PreviewLink from '#lib/components/PreviewLink.svelte';
@@ -86,6 +88,13 @@
 		);
 	}
 
+	// ?bearbeiten=<id> opens a change that may be deleted in its dialog.
+	const editing = $derived(
+		data.changes.find(
+			(change) => change.id === page.url.searchParams.get('bearbeiten') && deletable(change)
+		)
+	);
+
 	function deleteMessage(change: (typeof data.changes)[number]): string {
 		return change.status === 'proposed'
 			? `Vorschlag vom ${formatDate(change.validFrom)} löschen?`
@@ -102,7 +111,6 @@
 {/snippet}
 
 <h2>Mietänderungen</h2>
-{@render notice('delete', 'Die Mietänderung wurde gelöscht.')}
 <div class="table-wrap">
 	<table class="table" aria-label="Mietänderungen">
 		<thead>
@@ -122,7 +130,13 @@
 			{#each data.changes as change (change.id)}
 				<tr>
 					<td>
-						{formatDate(change.validFrom)}
+						{#if deletable(change)}
+							<a href="?bearbeiten={change.id}" data-sveltekit-reset="false"
+								>{formatDate(change.validFrom)}</a
+							>
+						{:else}
+							{formatDate(change.validFrom)}
+						{/if}
 						{#if change === current}<Badge tone="info">Aktuell</Badge>{/if}
 						{#if change.status !== 'approved'}<Badge tone="warning">Vorschlag</Badge>{/if}
 					</td>
@@ -147,16 +161,6 @@
 									title="Mieterhöhung zum {formatDate(change.validFrom)}"
 									class="button secondary small"><Icon name="file" size={14} /> Brief</PreviewLink
 								>
-							{/if}
-							{#if deletable(change)}
-								<ConfirmButton
-									action="?/delete"
-									label="Löschen"
-									small
-									message={deleteMessage(change)}
-								>
-									<input type="hidden" name="changeId" value={change.id} />
-								</ConfirmButton>
 							{/if}
 						</div>
 					</td>
@@ -406,6 +410,42 @@
 		<button type="submit">Änderung speichern</button>
 	</div>
 </form>
+
+{#if editing}
+	{#key editing.id}
+		<EditDialog
+			title={editing.status === 'proposed'
+				? `Vorschlag ab ${formatDate(editing.validFrom)}`
+				: `Mietänderung ab ${formatDate(editing.validFrom)}`}
+			deleteAction="?/delete"
+			deleteMessage={deleteMessage(editing)}
+			close="/vertraege/{lease.id}/miethoehe"
+			error={refusalFor('delete')}
+		>
+			<input type="hidden" name="changeId" value={editing.id} />
+			<dl class="details">
+				<dt>Grund</dt>
+				<dd>{rentChangeReasonLabels[editing.reason]}</dd>
+				<dt>Kaltmiete</dt>
+				<dd><Money cents={editing.baseRent} /></dd>
+				<dt>Betriebskosten</dt>
+				<dd><Money cents={editing.operatingCostPrepayment} /></dd>
+				<dt>Heizkosten</dt>
+				<dd><Money cents={editing.heatingCostPrepayment} /></dd>
+				<dt>Gesamtmiete</dt>
+				<dd><Money cents={total(editing)} /></dd>
+				{#if editing.note}
+					<dt>Notiz</dt>
+					<dd>{editing.note}</dd>
+				{/if}
+			</dl>
+			<p class="muted small">
+				Ändern lässt sich eine Mietänderung nicht. Lösche sie und lege sie unten neu an; die
+				Sollstellungen werden neu berechnet.
+			</p>
+		</EditDialog>
+	{/key}
+{/if}
 
 <style>
 	.nowrap {

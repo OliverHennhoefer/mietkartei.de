@@ -75,8 +75,8 @@
 		height: 1rem;
 		border: 1.5px solid currentColor;
 		border-radius: 999px;
-		font-size: 0.68rem;
-		font-weight: 700;
+		font-size: var(--text-xs);
+		font-weight: 600;
 		line-height: 1;
 	}
 	.tip button:hover,
@@ -98,7 +98,7 @@
 		background: var(--color-surface);
 		box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
 		color: var(--color-text);
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 		font-weight: 400;
 		line-height: 1.45;
 		white-space: normal;

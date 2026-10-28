@@ -1,0 +1,44 @@
+// A self-hosted copy of mietkartei on someone's own Cloudflare account, at a workers.dev address
+// and without a domain. The "Deploy to Cloudflare" button in docs/selbst-hosten.md copies this
+// repository, creates the D1 database and the R2 bucket below and fills in their ids here, then
+// runs the build and deploy scripts of package.json. The hosted app.mietkartei.de deploys
+// app/wrangler.jsonc instead.
+//
+// Compared with that one: no custom domain, no subscription, no street map (the property list
+// shows the outline of Germany), and mails stay in the outbox table, since sending them needs a
+// domain of one's own. The first person registers with the secret SETUP_CODE. Workers Paid is
+// needed, because hashing a password takes more CPU time than the Free plan allows.
+{
+	"$schema": "./app/node_modules/wrangler/config-schema.json",
+	"name": "mietkartei",
+	"main": "app/.svelte-kit/cloudflare/_worker.js",
+	"compatibility_date": "2026-10-01",
+	"compatibility_flags": ["nodejs_als"],
+	"workers_dev": true,
+	// Variables set later in the dashboard, such as GENESIS_API_TOKEN, survive every deployment.
+	"keep_vars": true,
+	"vars": {
+		"MAIL_TRANSPORT": "outbox"
+	},
+	"assets": {
+		"binding": "ASSETS",
+		"directory": "app/.svelte-kit/cloudflare"
+	},
+	"ratelimits": [
+		{ "name": "AUTH_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+		{ "name": "API_LIMITER", "namespace_id": "1002", "simple": { "limit": 120, "period": 60 } }
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "mietkartei",
+			"migrations_dir": "app/drizzle"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "DOCUMENTS",
+			"bucket_name": "mietkartei-documents"
+		}
+	]
+}

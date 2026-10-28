@@ -110,17 +110,30 @@ test('shows arrears, books and deletes a payment and a correction', async ({ pag
 	await expect(ledger).toContainText(`Miete ${formatMonth(startMonth)}`);
 	await expect(await balance(page)).toHaveText('Saldo −3.000,00 € Rückstand');
 
-	// Back to the default months; delete the correction, then the payment.
+	// Back to the default months. The date opens a booking in a dialog: change the correction,
+	// then delete it and the payment there.
 	await page.goto(`/vertraege/${leaseId}/mietkonto`);
-	confirmNextDialog(page);
-	await adjustmentRow.getByRole('button', { name: 'Löschen' }).click();
-	await expect(page.getByText('Korrektur gelöscht.')).toBeVisible();
-	await expect(await balance(page)).toHaveText('Saldo −3.200,00 € Rückstand');
-	await expect(adjustmentRow).toHaveCount(0);
+	await adjustmentRow.getByRole('link').first().click();
+	const correction = page.getByRole('dialog', { name: 'Korrektur bearbeiten' });
+	await expect(correction.getByLabel('Vermerk')).toHaveValue(`Mietminderung ${suffix}`);
+	await correction.getByLabel('Betrag in €').fill('-150');
+	await correction.getByRole('button', { name: 'Speichern' }).click();
+	await expect(correction).toBeHidden();
+	await expect(adjustmentRow).toContainText('-150,00 €');
+	await expect(await balance(page)).toHaveText('Saldo −3.050,00 € Rückstand');
 
+	await adjustmentRow.getByRole('link').first().click();
 	confirmNextDialog(page);
-	await paymentRow.getByRole('button', { name: 'Löschen' }).click();
-	await expect(page.getByText('Zahlung gelöscht.')).toBeVisible();
+	await correction.getByRole('button', { name: 'Löschen' }).click();
+	await expect(adjustmentRow).toHaveCount(0);
+	await expect(await balance(page)).toHaveText('Saldo −3.200,00 € Rückstand');
+
+	await paymentRow.getByRole('link').first().click();
+	confirmNextDialog(page);
+	await page
+		.getByRole('dialog', { name: 'Zahlung bearbeiten' })
+		.getByRole('button', { name: 'Löschen' })
+		.click();
 	await expect(await balance(page)).toHaveText('Saldo −4.000,00 € Rückstand');
 	await expect(paymentRow).toHaveCount(0);
 });
@@ -263,11 +276,18 @@ test('writes a Zahlungserinnerung, suggests a Mahnung next and lists it with the
 	await page.goto('/mietkonto?filter=rueckstaende');
 	await expect(row).toContainText(/Erinnerung\s+\d{2}\.\d{2}\. · Frist bis \d{2}\.\d{2}\./);
 	await expect(row.getByRole('link', { name: 'Mahnen' })).toBeVisible();
+	// The tenant list shows the Rückstand and one pill per letter sent about it.
+	await page.goto('/mieter');
+	const pills = page
+		.getByRole('table', { name: 'Mieter' })
+		.locator('tr', { hasText: reminded })
+		.locator('.badge');
+	await expect(pills).toHaveText(['Rückstand', '1. Mahnung']);
 
 	await page.goto(`/vertraege/${leaseId}/mietkonto`);
+	await letters.getByRole('link').first().click();
 	confirmNextDialog(page);
-	await letters.getByRole('button', { name: 'Löschen' }).click();
-	await expect(page.getByText('Schreiben gelöscht.')).toBeVisible();
+	await page.getByRole('dialog').getByRole('button', { name: 'Löschen' }).click();
 	await expect(letters).toHaveCount(0);
 });
 

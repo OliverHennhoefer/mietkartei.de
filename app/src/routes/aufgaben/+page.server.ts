@@ -1,4 +1,4 @@
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { count, eq } from 'drizzle-orm';
 import { addMonths, today } from '#lib/dates.ts';
 import { parseTask } from '#lib/forms/tasks.ts';
@@ -10,7 +10,14 @@ import { leaseLabel, listLeases, listUnitsWithProperty } from '#lib/server/lease
 import { listBalances } from '#lib/server/ledger.ts';
 import { listProperties } from '#lib/server/properties.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
-import { createTask, deleteTask, listTasks, setDone } from '#lib/server/tasks.ts';
+import {
+	createTask,
+	deleteTask,
+	getTask,
+	listTasks,
+	setDone,
+	updateTask
+} from '#lib/server/tasks.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import { taskTemplates } from '#lib/task-templates.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -45,6 +52,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const accountId = requireAccount(locals);
 	// ?vorlage=<key> fills the create form from a template.
 	const template = taskTemplates.find((entry) => entry.key === url.searchParams.get('vorlage'));
+	// ?bearbeiten=<id> opens the task in the edit dialog.
+	const editId = url.searchParams.get('bearbeiten');
+	const editing = editId ? ((await getTask(locals.db, accountId, editId)) ?? null) : null;
 	const date = today();
 	const [
 		deadlines,
@@ -114,11 +124,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					note: template.note
 				}
 			: null,
+		editing,
 		deadlines,
 		open: tasks.open,
 		done: tasks.done,
+		// Archived properties only for the task in the edit dialog that is linked to one.
 		properties: properties
-			.filter((property) => !property.archivedAt)
+			.filter((property) => !property.archivedAt || property.id === editing?.propertyId)
 			.map((property) => ({ id: property.id, name: property.name })),
 		leases: leases.map((lease) => ({
 			id: lease.id,
@@ -147,12 +159,30 @@ export const actions: Actions = {
 		}
 		return { toggled: id };
 	},
+	update: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		const result = parseTask(form);
+		if (!result.ok) {
+			return fail(400, { edit: true, errors: result.errors, values: result.values });
+		}
+		const updated = await updateTask(locals.db, auditContext(locals), id, result.data);
+		if (!updated.ok) {
+			if (updated.reason === 'missing') return fail(404, { message: linkErrors.missing });
+			return fail(400, {
+				edit: true,
+				errors: { link: linkErrors[updated.reason] },
+				values: result.values
+			});
+		}
+		redirect(303, '/aufgaben');
+	},
 	delete: async ({ request, locals }) => {
 		const form = await request.formData();
 		const id = String(form.get('id') ?? '');
 		if (!(await deleteTask(locals.db, auditContext(locals), id))) {
 			return fail(404, { message: 'Diese Aufgabe gibt es nicht.' });
 		}
-		return { deleted: id };
+		redirect(303, '/aufgaben');
 	}
 };

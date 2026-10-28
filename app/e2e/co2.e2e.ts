@@ -64,7 +64,11 @@ test('splits the CO₂ cost of a tenant with an own fuel contract and credits th
 	// Deleting removes the split and its credit.
 	await page.goto(`/vertraege/${leaseId}/co2`);
 	page.once('dialog', (dialog) => dialog.accept());
-	await row.getByRole('button', { name: 'Löschen' }).click();
+	await row.getByRole('link', { name: '2025' }).click();
+	await page
+		.getByRole('dialog', { name: 'CO₂-Kostenaufteilung 2025' })
+		.getByRole('button', { name: 'Löschen' })
+		.click();
 	await expect(page.getByText('Noch keine CO₂-Kostenaufteilung')).toBeVisible();
 	await expect(table).toHaveCount(0);
 	await page.goto(ledger);

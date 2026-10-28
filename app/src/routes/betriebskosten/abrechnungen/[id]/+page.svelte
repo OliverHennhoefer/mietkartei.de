@@ -129,37 +129,37 @@
 {/if}
 
 <div class="stats">
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={property.costsTotal} /></span>
 		<span class="label">Gesamtkosten</span>
 	</div>
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={property.allocableTotal} /></span>
 		<span class="label">Umlagefähig</span>
 	</div>
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={property.nonAllocableTotal} /></span>
 		<span class="label">Nicht umlagefähig</span>
 	</div>
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={property.vacancyShare} /></span>
 		<span class="label">Leerstand (Vermieter)</span>
 	</div>
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={property.landlordCo2Share} /></span>
 		<span class="label">CO₂-Anteil Vermieter</span>
 	</div>
 	{#if property.excludedTotal > 0}
-		<div class="stat card">
+		<div class="stat">
 			<span class="value"><Money cents={property.excludedTotal} /></span>
 			<span class="label">Pauschalen (Vermieter)</span>
 		</div>
 	{/if}
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={property.nachzahlungen} /></span>
 		<span class="label">Nachzahlungen</span>
 	</div>
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={property.guthaben} /></span>
 		<span class="label">Guthaben</span>
 	</div>
@@ -477,7 +477,7 @@
 		grid-template-columns: max-content 1fr;
 		gap: 0.25rem 1rem;
 		margin: 0;
-		font-size: 0.95rem;
+		font-size: var(--text-base);
 	}
 	dl.details dt {
 		color: var(--color-muted);
@@ -493,7 +493,7 @@
 	}
 	.balance {
 		margin: 0;
-		font-size: 1.1rem;
+		font-size: var(--text-lg);
 	}
 	.lease-actions {
 		border-top: 1px solid var(--color-border);

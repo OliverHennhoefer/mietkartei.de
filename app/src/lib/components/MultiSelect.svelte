@@ -182,7 +182,7 @@
 	label {
 		display: inline;
 		font-weight: 500;
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 	}
 	.box {
 		display: flex;
@@ -227,7 +227,7 @@
 		padding: 0.2rem 0.2rem 0.2rem 0.65rem;
 		border-radius: 999px;
 		background: var(--color-hover);
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 		line-height: 1.3;
 		max-width: 100%;
 	}

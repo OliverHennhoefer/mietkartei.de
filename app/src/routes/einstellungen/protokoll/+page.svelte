@@ -18,14 +18,14 @@
 <form method="GET" class="toolbar">
 	<label class="inline">
 		Bereich
-		<select name="entity">
+		<select name="entity" onchange={(event) => event.currentTarget.form?.requestSubmit()}>
 			<option value="" selected={data.entity === ''}>Alle</option>
 			{#each data.entities as entity (entity)}
 				<option value={entity} selected={data.entity === entity}>{entityLabel(entity)}</option>
 			{/each}
 		</select>
 	</label>
-	<button type="submit" class="secondary">Filtern</button>
+	<noscript><button type="submit" class="secondary small">Anzeigen</button></noscript>
 </form>
 
 {#if data.entries.length === 0}

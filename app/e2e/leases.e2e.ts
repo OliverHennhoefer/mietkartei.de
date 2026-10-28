@@ -34,6 +34,8 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	await expect(page.locator('select[name="unitId"]')).toHaveValue(unitId);
 	const remove = page.getByRole('button', { name: `${tenantName} entfernen` });
 	await expect(remove).toBeVisible();
+	// The pill's button works once the page is hydrated; a click before that does nothing.
+	await page.waitForLoadState('networkidle');
 	// The tenant picker: remove the pill, find the tenant again by part of the name and add it with
 	// the keyboard.
 	await remove.click();
@@ -116,7 +118,11 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	// The added persons row goes again; the first row stays.
 	await persons
 		.getByRole('row', { name: /01\.01\.2026/ })
-		.getByRole('button', { name: 'Entfernen' })
+		.getByRole('link', { name: '01.01.2026' })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Personenstand bearbeiten' })
+		.getByRole('button', { name: 'Löschen' })
 		.click();
 	await expect(persons.getByRole('row')).toHaveCount(2);
 	await expect(persons).not.toContainText('Kind geboren');
@@ -182,7 +188,11 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 
 	// The deposit movement booked by mistake goes again: the whole deposit is open.
 	await page.goto(`${leaseUrl}/kaution`);
-	await movements.getByRole('button', { name: 'Löschen' }).click();
+	await movements.getByRole('link').first().click();
+	await page
+		.getByRole('dialog', { name: 'Bewegung bearbeiten' })
+		.getByRole('button', { name: 'Löschen' })
+		.click();
 	await expect(page.getByText('Noch keine Bewegungen.')).toBeVisible();
 	await expect(outstanding).toContainText(/1\.500,00\s€/);
 

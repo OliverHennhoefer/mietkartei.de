@@ -752,6 +752,45 @@ export async function addLeasePersons(
 }
 
 /**
+ * Changes a later row of the persons history; the first one moves with the lease (see
+ * deleteLeasePersons). The same date rules as for a new row apply.
+ */
+export async function updateLeasePersons(
+	db: Database,
+	context: AuditContext,
+	leaseId: string,
+	rowId: string,
+	input: LeasePersonsInput
+): Promise<'updated' | 'initial' | 'missing' | 'duplicate' | 'before-start'> {
+	const { accountId } = context;
+	const existing = await getLease(db, accountId, leaseId);
+	if (!existing) return 'missing';
+	const rows = await listLeasePersons(db, accountId, leaseId);
+	const row = rows.find((candidate) => candidate.id === rowId);
+	if (!row) return 'missing';
+	if (row.validFrom === existing.startDate) return 'initial';
+	if (input.validFrom <= existing.startDate) return 'before-start';
+	if (rows.some((other) => other.id !== rowId && other.validFrom === input.validFrom)) {
+		return 'duplicate';
+	}
+	await runBatch(db, [
+		db
+			.update(leasePersons)
+			.set(input)
+			.where(and(eq(leasePersons.accountId, accountId), eq(leasePersons.id, rowId))),
+		auditEntry(
+			db,
+			context,
+			'lease',
+			leaseId,
+			'update',
+			`Personenstand ab ${formatDate(input.validFrom)} geändert: ${input.persons} ${input.persons === 1 ? 'Person' : 'Personen'}`
+		)
+	]);
+	return 'updated';
+}
+
+/**
  * Deletes a row of the persons history. The first row belongs to the lease itself (it carries
  * the initial value and moves with the start date), so it stays.
  */

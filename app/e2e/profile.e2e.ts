@@ -50,7 +50,6 @@ test('saves the landlord sender block, which the letters print', async ({ page }
 		.getByRole('link', { name: 'Protokoll' })
 		.click();
 	await page.getByLabel('Bereich').selectOption({ label: 'Konto' });
-	await page.getByRole('button', { name: 'Filtern' }).click();
 	await expect(page).toHaveURL(/\/einstellungen\/protokoll\?entity=account$/);
 	await expect(
 		page
