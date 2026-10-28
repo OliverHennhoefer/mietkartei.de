@@ -67,6 +67,16 @@
 		else goto(close, { replace: true, reset: false });
 	}
 
+	/** Whether a redirect names the list, maybe with less of its query. */
+	function leadsToList(location: string) {
+		const target = new URL(location, page.url.href);
+		const list = new URL(close, page.url.href);
+		return (
+			target.pathname === list.pathname &&
+			[...target.searchParams].every(([name, value]) => list.searchParams.get(name) === value)
+		);
+	}
+
 	const submit: SubmitFunction = ({ submitter, cancel }) => {
 		const deleting = submitter?.getAttribute('formaction') === deleteTarget;
 		if (deleting && deleteMessage && !confirm(deleteMessage)) {
@@ -74,8 +84,14 @@
 			return;
 		}
 		return async ({ result, update }) => {
-			// The list loads again for the page it is on, without the row, before the dialog goes.
 			if (result.type === 'redirect') {
+				// A redirect elsewhere than the list, such as the year an expense moved to, is followed.
+				if (!leadsToList(result.location)) {
+					// eslint-disable-next-line svelte/no-navigation-without-resolve -- the action's redirect
+					await goto(result.location, { replace: true });
+					return;
+				}
+				// The list loads again for the page it is on, without the row, before the dialog goes.
 				await invalidateAll();
 				leave();
 			} else await update();

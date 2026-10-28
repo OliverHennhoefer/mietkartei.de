@@ -362,8 +362,8 @@
 	{#key data.editing.id}
 		<EditDialog
 			title="Zählerstand bearbeiten"
-			action={actionOn('updateReading', data.expanded.id)}
-			deleteAction={actionOn('deleteReading', data.expanded.id)}
+			action="?/updateReading"
+			deleteAction="?/deleteReading"
 			deleteMessage="Zählerstand vom {formatDate(data.editing.readAt)} wirklich löschen?"
 			close={withUnit(data.expanded.id)}
 		>

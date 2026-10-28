@@ -26,15 +26,15 @@
 				note: data.editing.note ?? ''
 			})
 	);
-	// Until money has come in, interest, a return or a withholding cannot happen yet.
-	const kinds = $derived(
+	// Until money has come in, interest, a return or a withholding cannot happen yet; a movement
+	// being edited keeps its own kind.
+	const kindsFor = (current?: string) =>
 		(
 			Object.entries(depositTransactionKindLabels) as [
 				keyof typeof depositTransactionKindLabels,
 				string
 			][]
-		).filter(([kind]) => kind === 'received' || data.summary.received > 0)
-	);
+		).filter(([kind]) => kind === 'received' || kind === current || data.summary.received > 0);
 </script>
 
 <!-- The heading and tab bar come from +layout.svelte; this page is the "Kaution" tab. -->
@@ -135,13 +135,17 @@
 
 <h2>Bewegung buchen</h2>
 <form method="POST" action="?/add" class="card form" use:enhance>
-	{@render movementFields(values, errors)}
+	{@render movementFields(values, errors, kindsFor())}
 	<div class="form-actions">
 		<button type="submit">Bewegung buchen</button>
 	</div>
 </form>
 
-{#snippet movementFields(values: Record<string, string>, errors: Partial<Record<string, string>>)}
+{#snippet movementFields(
+	values: Record<string, string>,
+	errors: Partial<Record<string, string>>,
+	kinds: ReturnType<typeof kindsFor>
+)}
 	<Field label="Datum" error={errors.date}>
 		<input
 			name="date"
@@ -190,7 +194,7 @@
 			error={form?.message}
 		>
 			<input type="hidden" name="movementId" value={data.editing.id} />
-			{@render movementFields(editValues, editRefused?.errors ?? {})}
+			{@render movementFields(editValues, editRefused?.errors ?? {}, kindsFor(data.editing.kind))}
 		</EditDialog>
 	{/key}
 {/if}
