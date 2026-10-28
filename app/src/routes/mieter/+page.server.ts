@@ -76,7 +76,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}
 		// The letters about the current Rückstand across the leases, oldest first; on the same day the
 		// lower level first. The page stacks one pill per letter, the pending list names the latest.
-		letters.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.level - b.level));
+		letters.sort((a, b) => a.date.localeCompare(b.date) || a.level - b.level);
 		const reminder = letters.at(-1) ?? null;
 		const moveOut = active
 			.filter((lease) => lease.endDate)

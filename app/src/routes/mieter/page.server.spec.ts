@@ -131,11 +131,13 @@ describe('mieter', () => {
 
 	it('lists every letter about the Rückstand oldest first, the latest in the pending list', async () => {
 		const { unitId } = await seedUnit(db, 'a');
-		// The fixture tenant pays nothing since January 2025; the Mahnung is written first.
+		// The fixture tenant pays nothing since January 2025; the letters are written out of order, the
+		// last two on the same day.
 		const leaseId = await seedLease(db, 'a', unitId, { tenantIds: [tenantId] });
 		for (const [level, date] of [
-			[2, '2025-05-12'],
-			[1, '2025-03-10']
+			[3, '2025-05-12'],
+			[1, '2025-03-10'],
+			[2, '2025-05-12']
 		] as const) {
 			const result = await createReminder(db, contextA, leaseId, {
 				level,
@@ -149,9 +151,10 @@ describe('mieter', () => {
 		const row = data.tenants.find((tenant) => tenant.id === tenantId)!;
 		expect(row.reminders).toEqual([
 			{ level: 1, date: '2025-03-10' },
-			{ level: 2, date: '2025-05-12' }
+			{ level: 2, date: '2025-05-12' },
+			{ level: 3, date: '2025-05-12' }
 		]);
-		expect(data.pending[0]).toMatchObject({ reminder: { level: 2, date: '2025-05-12' } });
+		expect(data.pending[0]).toMatchObject({ reminder: { level: 3, date: '2025-05-12' } });
 	});
 
 	it('creates a tenant and returns to a safe path with it preselected', async () => {
