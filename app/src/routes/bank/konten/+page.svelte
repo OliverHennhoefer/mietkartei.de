@@ -6,8 +6,10 @@
 	import EditDialog from '#lib/components/EditDialog.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Field from '#lib/components/Field.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { formatIban } from '#lib/domain/bank-matching.ts';
+	import { byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -20,6 +22,14 @@
 	const opened = $derived(
 		data.bankAccounts.find((account) => account.id === page.url.searchParams.get('bearbeiten'))
 	);
+
+	const sort = new TableSort<PageProps['data']['bankAccounts'][number]>({
+		name: byText((account) => account.name),
+		iban: byText((account) => account.iban),
+		bic: byText((account) => account.bic),
+		holder: byText((account) => account.holder),
+		transactions: byNumber((account) => account.transactionCount)
+	});
 
 	const dateTime = new Intl.DateTimeFormat('de-DE', {
 		dateStyle: 'medium',
@@ -68,16 +78,16 @@
 			<table class="table" aria-label="Bankverbindungen">
 				<thead>
 					<tr>
-						<th>Bezeichnung</th>
-						<th>IBAN</th>
-						<th>BIC</th>
-						<th>Kontoinhaber</th>
-						<th class="num">Umsätze</th>
+						<SortHeader {sort} key="name">Bezeichnung</SortHeader>
+						<SortHeader {sort} key="iban">IBAN</SortHeader>
+						<SortHeader {sort} key="bic">BIC</SortHeader>
+						<SortHeader {sort} key="holder">Kontoinhaber</SortHeader>
+						<SortHeader {sort} key="transactions" class="num">Umsätze</SortHeader>
 						{#if data.sync}<th>Bankabruf</th>{/if}
 					</tr>
 				</thead>
 				<tbody>
-					{#each data.bankAccounts as account (account.id)}
+					{#each sort.rows(data.bankAccounts) as account (account.id)}
 						<tr>
 							<td>
 								<a href="?bearbeiten={account.id}" data-sveltekit-reset="false">{account.name}</a>

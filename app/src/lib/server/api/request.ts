@@ -2,7 +2,7 @@ import { isHttpError } from '@sveltejs/kit';
 import { authenticateApiKey, type ApiCaller } from '../api-keys';
 import { apiReadOnly } from '../billing';
 import type { Database } from '../db';
-import { isForeignKeyError } from '../db/errors';
+import { isConflictError } from '../db/errors';
 import { getApiLimiter } from '../rate-limit';
 import { InputError, parseInput } from './input';
 import { ApiError, permits, toJson, type Operation } from './operations';
@@ -79,11 +79,11 @@ export async function runOperation(
 	} catch (error) {
 		// Thrown by the functions the pages share, e.g. a quota that is reached.
 		if (isHttpError(error)) throw new ApiError(error.status, 'refused', error.body.message);
-		if (isForeignKeyError(error)) {
+		if (isConflictError(error)) {
 			throw new ApiError(
 				409,
 				'conflict',
-				'A record this change refers to was changed or deleted in the meantime. Load it again and retry.'
+				'The same record was created, changed or deleted elsewhere in the meantime. Load it again and retry.'
 			);
 		}
 		throw error;

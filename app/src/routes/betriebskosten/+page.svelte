@@ -4,8 +4,10 @@
 	import Badge from '#lib/components/Badge.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { statementStatusLabels } from '#lib/labels.ts';
+	import { byDate, byNumber, bySeverity, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	// The "Abrechnungen" tab of /betriebskosten: the statements per property and the form for a
@@ -15,6 +17,19 @@
 	const errors = $derived(form?.errors);
 	const values = $derived(form?.values);
 	const withCostItems = $derived(data.properties.filter((property) => property.hasCostItems));
+	// One order for the statements of all properties.
+	const sort = new TableSort<PageProps['data']['groups'][number]['statements'][number]>({
+		period: byDate((statement) => statement.periodStart),
+		version: byNumber((statement) => statement.version),
+		status: bySeverity((statement) =>
+			statement.superseded ? 0 : statement.status === 'approved' ? 1 : 2
+		),
+		costs: byNumber((statement) => statement.costsTotal),
+		allocable: byNumber((statement) => statement.allocableTotal),
+		leases: byNumber((statement) => statement.leaseCount),
+		nachzahlungen: byNumber((statement) => statement.nachzahlungen),
+		guthaben: byNumber((statement) => statement.guthaben)
+	});
 </script>
 
 <h2 class="visually-hidden">Abrechnungen</h2>
@@ -29,19 +44,19 @@
 		<table class="table" aria-label="Abrechnungen {group.property.name}">
 			<thead>
 				<tr>
-					<th>Zeitraum</th>
-					<th>Version</th>
-					<th>Status</th>
-					<th class="num">Gesamtkosten</th>
-					<th class="num">Umlagefähig</th>
-					<th class="num">Mietverträge</th>
-					<th class="num">Nachzahlungen</th>
-					<th class="num">Guthaben</th>
+					<SortHeader {sort} key="period">Zeitraum</SortHeader>
+					<SortHeader {sort} key="version">Version</SortHeader>
+					<SortHeader {sort} key="status">Status</SortHeader>
+					<SortHeader {sort} key="costs" class="num">Gesamtkosten</SortHeader>
+					<SortHeader {sort} key="allocable" class="num">Umlagefähig</SortHeader>
+					<SortHeader {sort} key="leases" class="num">Mietverträge</SortHeader>
+					<SortHeader {sort} key="nachzahlungen" class="num">Nachzahlungen</SortHeader>
+					<SortHeader {sort} key="guthaben" class="num">Guthaben</SortHeader>
 					<th class="actions"></th>
 				</tr>
 			</thead>
 			<tbody>
-				{#each group.statements as statement (statement.id)}
+				{#each sort.rows(group.statements) as statement (statement.id)}
 					<tr>
 						<td>
 							{statement.periodLabel}

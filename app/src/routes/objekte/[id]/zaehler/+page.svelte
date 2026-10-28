@@ -3,11 +3,13 @@
 	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import EditDialog from '#lib/components/EditDialog.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate, today } from '#lib/dates.ts';
 	import { defaultMeterUnit } from '#lib/domain/operating-costs.ts';
 	import { formatNumber } from '#lib/format.ts';
 	import { meterKindLabels } from '#lib/labels.ts';
 	import type { MeterKind } from '#lib/server/db/schema.ts';
+	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -45,6 +47,21 @@
 	});
 
 	const base = $derived(`/objekte/${data.property.id}/zaehler`);
+	// One order for the meters of all groups.
+	const meterSort = new TableSort<(typeof data.meters)[number]>({
+		kind: byText((meter) => meterKindLabels[meter.kind]),
+		serial: byText((meter) => meter.serialNumber),
+		unit: byText((meter) => meter.unit),
+		location: byText((meter) => meter.location),
+		installed: byDate((meter) => meter.installedAt),
+		removed: byDate((meter) => meter.removedAt),
+		lastReading: byDate((meter) => meter.lastReading?.readAt)
+	});
+	const readingSort = new TableSort<(typeof data.readings)[number]>({
+		date: byDate((reading) => reading.readAt),
+		value: byNumber((reading) => reading.value),
+		note: byText((reading) => reading.note)
+	});
 	/** The tab's URL with the unit filter kept and, optionally, a meter expanded. */
 	const withUnit = (meterId?: string) => {
 		const parts = [];
@@ -100,18 +117,18 @@
 		<table class="table" aria-label="Zähler {group.label}">
 			<thead>
 				<tr>
-					<th>Art</th>
-					<th>Zählernummer</th>
-					<th>Einheit</th>
-					<th>Standort</th>
-					<th>Eingebaut</th>
-					<th>Ausgebaut</th>
-					<th>Letzter Stand</th>
+					<SortHeader sort={meterSort} key="kind">Art</SortHeader>
+					<SortHeader sort={meterSort} key="serial">Zählernummer</SortHeader>
+					<SortHeader sort={meterSort} key="unit">Einheit</SortHeader>
+					<SortHeader sort={meterSort} key="location">Standort</SortHeader>
+					<SortHeader sort={meterSort} key="installed">Eingebaut</SortHeader>
+					<SortHeader sort={meterSort} key="removed">Ausgebaut</SortHeader>
+					<SortHeader sort={meterSort} key="lastReading">Letzter Stand</SortHeader>
 					<th class="actions">Aktionen</th>
 				</tr>
 			</thead>
 			<tbody>
-				{#each group.meters as meter (meter.id)}
+				{#each meterSort.rows(group.meters) as meter (meter.id)}
 					<tr>
 						<td>{meterKindLabels[meter.kind]}</td>
 						<td>{meter.serialNumber ?? '–'}</td>
@@ -160,14 +177,16 @@
 				>
 					<thead>
 						<tr>
-							<th>Datum</th>
-							<th class="num">Stand ({meter.unit})</th>
+							<SortHeader sort={readingSort} key="date">Datum</SortHeader>
+							<SortHeader sort={readingSort} key="value" class="num"
+								>Stand ({meter.unit})</SortHeader
+							>
 							<th></th>
-							<th>Notiz</th>
+							<SortHeader sort={readingSort} key="note">Notiz</SortHeader>
 						</tr>
 					</thead>
 					<tbody>
-						{#each data.readings as reading (reading.id)}
+						{#each readingSort.rows(data.readings) as reading (reading.id)}
 							<tr>
 								<td>
 									<a
