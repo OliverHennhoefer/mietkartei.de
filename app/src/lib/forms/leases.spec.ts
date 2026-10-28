@@ -349,14 +349,26 @@ describe('parseOpeningBalance', () => {
 	it('accepts a signed amount and nothing at all', () => {
 		expect(parseOpeningBalance(formDataOf({ openingBalance: '-120,00' }))).toEqual({
 			ok: true,
-			data: { openingBalance: -12000 }
+			data: { openingBalance: -12000, openingBalanceSide: null }
 		});
 		expect(parseOpeningBalance(formDataOf({}))).toEqual({
 			ok: true,
-			data: { openingBalance: null }
+			data: { openingBalance: null, openingBalanceSide: null }
 		});
 		const bad = parseOpeningBalance(formDataOf({ openingBalance: 'viel' }));
 		expect(bad.ok).toBe(false);
+	});
+
+	it('takes a Guthaben from the lease form as a side and an amount without a sign', () => {
+		expect(
+			parseOpeningBalance(formDataOf({ openingBalance: '120,00', openingBalanceSide: 'credit' }))
+		).toMatchObject({ ok: true, data: { openingBalance: -12000 } });
+		expect(
+			parseOpeningBalance(formDataOf({ openingBalance: '120,00', openingBalanceSide: 'arrears' }))
+		).toMatchObject({ ok: true, data: { openingBalance: 12000 } });
+		expect(
+			parseOpeningBalance(formDataOf({ openingBalance: '-120', openingBalanceSide: 'credit' })).ok
+		).toBe(false);
 	});
 });
 

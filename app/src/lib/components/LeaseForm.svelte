@@ -278,7 +278,7 @@
 		<Field
 			label="Anfangssaldo (optional)"
 			error={errors.openingBalance}
-			hint="Der Stand des Mietkontos am Tag „Mietkonto führen ab“, als Forderung: einen Rückstand positiv, ein Guthaben negativ."
+			hint="Der Stand des Mietkontos am Tag „Mietkonto führen ab“, ohne Vorzeichen."
 		>
 			<input
 				name="openingBalance"
@@ -287,6 +287,16 @@
 				placeholder="0,00"
 				aria-invalid={invalid('openingBalance')}
 			/>
+		</Field>
+		<Field label="Anfangssaldo ist" error={errors.openingBalanceSide}>
+			<select name="openingBalanceSide">
+				<option value="arrears" selected={values.openingBalanceSide !== 'credit'}
+					>Rückstand (Soll)</option
+				>
+				<option value="credit" selected={values.openingBalanceSide === 'credit'}
+					>Guthaben (Haben)</option
+				>
+			</select>
 		</Field>
 	{/if}
 

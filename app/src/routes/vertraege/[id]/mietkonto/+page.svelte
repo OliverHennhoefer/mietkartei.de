@@ -28,8 +28,16 @@
 		(failed?.form === 'edit' ? failed.values : undefined) ??
 			(data.editing && {
 				date: data.editing.date,
-				amount: formatCentsPlain(data.editing.amount),
-				note: data.editing.note ?? ''
+				amount: formatCentsPlain(Math.abs(data.editing.amount)),
+				note: data.editing.note ?? '',
+				side:
+					data.editing.kind === 'payment'
+						? data.editing.amount < 0
+							? 'refund'
+							: 'received'
+						: data.editing.amount < 0
+							? 'credit'
+							: 'claim'
 			})
 	);
 	const base = $derived(`/vertraege/${data.lease.id}/mietkonto`);
@@ -71,8 +79,10 @@
 		if (!last || !paymentForm) return;
 		const amount = paymentForm.elements.namedItem('amount');
 		const note = paymentForm.elements.namedItem('note');
-		if (amount instanceof HTMLInputElement) amount.value = formatCentsPlain(last.amount);
+		const side = paymentForm.elements.namedItem('side');
+		if (amount instanceof HTMLInputElement) amount.value = formatCentsPlain(Math.abs(last.amount));
 		if (note instanceof HTMLInputElement) note.value = last.note ?? '';
+		if (side instanceof HTMLSelectElement) side.value = last.amount < 0 ? 'refund' : 'received';
 	}
 </script>
 
@@ -131,8 +141,10 @@
 					<th>Buchung</th>
 					<th class="num">Soll</th>
 					<th class="num">Haben</th>
-					<th class="num">Saldo</th>
-					<th class="actions"></th>
+					<th class="num">
+						Saldo
+						<span class="legend">+ Guthaben · − Rückstand</span>
+					</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -150,42 +162,38 @@
 						<td>
 							{row.label}
 							{#if row.fromBank}
-								<Badge tone="info">Umsatz</Badge>
+								<!-- Changed or undone at the bank transaction, so the badge leads there. -->
+								<a
+									class="from-bank"
+									href={row.bankTransactionId
+										? `/bank?umsatz=${row.bankTransactionId}`
+										: '/bank?status=matched'}
+									title="Aus einem Umsatz, dort lässt sich die Zuordnung aufheben"
+									><Badge tone="info">Umsatz</Badge></a
+								>
 							{/if}
 						</td>
+						<!-- A credit stands in Haben and a refund in Soll, so neither column needs a sign. -->
 						<td class="num"
-							>{#if row.kind === 'charge'}<Money cents={row.amount} />{/if}</td
+							>{#if row.credit === 0}<Money cents={row.debit} />{/if}</td
 						>
 						<td class="num"
-							>{#if row.kind === 'payment'}<Money cents={row.amount} />{/if}</td
+							>{#if row.credit > 0}<Money cents={row.credit} />{/if}</td
 						>
 						<td class="num"><Balance cents={row.balance} tone={false} /></td>
-						<td class="actions">
-							{#if row.fromBank}
-								<span class="muted small">
-									Zuordnung beim <a
-										href={row.bankTransactionId
-											? `/bank?umsatz=${row.bankTransactionId}`
-											: '/bank?status=matched'}>Umsatz</a
-									> aufheben
-								</span>
-							{/if}
-						</td>
 					</tr>
 				{/each}
 			</tbody>
 			<tfoot>
 				<tr>
 					<td colspan="2">Summe {formatMonth(data.range.from)} bis {formatMonth(data.range.to)}</td>
-					<td class="num"><Money cents={data.charged} /></td>
-					<td class="num"><Money cents={data.paid} /></td>
-					<td class="num"><Balance cents={data.windowBalance} tone={false} /></td>
-					<td></td>
+					<td class="num"><Money cents={data.debit} /></td>
+					<td class="num"><Money cents={data.credit} /></td>
+					<td class="num"><Balance cents={data.windowBalance} tone={false} label /></td>
 				</tr>
 			</tfoot>
 		</table>
 	</div>
-	<p class="muted small">Saldo aus Sicht des Mieters: + = Guthaben, − = Rückstand.</p>
 {/if}
 
 <h2 id="zahlungserinnerung">Zahlungserinnerung und Mahnung</h2>
@@ -371,10 +379,13 @@
 			required
 		/>
 	</Field>
+	<Field label="Art" error={paymentErrors?.side}>
+		{@render paymentSide(paymentValues?.side)}
+	</Field>
 	<Field
 		label="Betrag in €"
 		error={paymentErrors?.amount}
-		hint="Vorbelegt mit dem offenen Saldo, sonst der Gesamtmiete. Negativ für eine Rückzahlung an den Mieter."
+		hint="Vorbelegt mit dem offenen Saldo, sonst der Gesamtmiete."
 	>
 		<input
 			name="amount"
@@ -401,7 +412,7 @@
 <p class="muted">
 	Für Korrekturen und den Anfangssaldo. Führst du das Mietkonto erst ab einem späteren Datum
 	(„Mietkonto führen ab“), buchst du den Stand an diesem Tag hier mit dem Vermerk „Anfangssaldo“:
-	einen Rückstand positiv, ein Guthaben negativ.
+	einen Rückstand als Forderung, ein Guthaben als Gutschrift.
 </p>
 <form
 	method="POST"
@@ -419,16 +430,15 @@
 			required
 		/>
 	</Field>
-	<Field
-		label="Betrag in €"
-		error={adjustmentErrors?.amount}
-		hint="Positiv = Forderung an den Mieter, negativ = Gutschrift."
-	>
+	<Field label="Art" error={adjustmentErrors?.side}>
+		{@render adjustmentSide(adjustmentValues?.side)}
+	</Field>
+	<Field label="Betrag in €" error={adjustmentErrors?.amount}>
 		<input
 			name="amount"
 			inputmode="decimal"
 			defaultValue={adjustmentValues?.amount ?? ''}
-			placeholder="z. B. -50,00"
+			placeholder="z. B. 50,00"
 			aria-invalid={adjustmentErrors?.amount ? 'true' : undefined}
 			required
 		/>
@@ -470,13 +480,14 @@
 					required
 				/>
 			</Field>
-			<Field
-				label="Betrag in €"
-				error={editErrors?.amount}
-				hint={payment
-					? 'Negativ für eine Rückzahlung an den Mieter.'
-					: 'Positiv = Forderung an den Mieter, negativ = Gutschrift.'}
-			>
+			<Field label="Art" error={editErrors?.side}>
+				{#if payment}
+					{@render paymentSide(editValues.side)}
+				{:else}
+					{@render adjustmentSide(editValues.side)}
+				{/if}
+			</Field>
+			<Field label="Betrag in €" error={editErrors?.amount}>
 				<input
 					name="amount"
 					inputmode="decimal"
@@ -527,7 +538,29 @@
 	{/key}
 {/if}
 
+{#snippet paymentSide(value: string | undefined)}
+	<select name="side" required>
+		<option value="received" selected={value !== 'refund'}>Zahlung erhalten (Haben)</option>
+		<option value="refund" selected={value === 'refund'}>Rückzahlung (Soll)</option>
+	</select>
+{/snippet}
+
+{#snippet adjustmentSide(value: string | undefined)}
+	<select name="side" required>
+		<option value="claim" selected={value !== 'credit'}>Forderung (Soll)</option>
+		<option value="credit" selected={value === 'credit'}>Gutschrift (Haben)</option>
+	</select>
+{/snippet}
+
 <style>
+	.legend {
+		display: block;
+		font-weight: 400;
+		font-size: var(--text-xs);
+	}
+	.from-bank {
+		text-decoration: none;
+	}
 	.last-payment {
 		display: flex;
 		flex-wrap: wrap;

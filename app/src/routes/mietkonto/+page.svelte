@@ -34,20 +34,15 @@
 		<a class="button" href="/vertraege">Zu den Mietverträgen</a>
 	</EmptyState>
 {:else}
-	<div class="stats">
-		<div class="stat">
-			<span class="value"><Balance cents={data.stats.arrearsTotal} /></span>
-			<span class="label">
-				Rückstände · {pluralize(data.stats.arrearsCount, 'Mietvertrag', 'Mietverträge')}
-			</span>
-		</div>
-		<div class="stat">
-			<span class="value"><Balance cents={-data.stats.creditTotal} /></span>
-			<span class="label">
-				Guthaben · {pluralize(data.stats.creditCount, 'Mietvertrag', 'Mietverträge')}
-			</span>
-		</div>
-	</div>
+	<!-- The one sum the table does not show; Guthaben stay in the table, they are rarely large. -->
+	<p class="total">
+		{#if data.stats.arrearsCount > 0}
+			Rückstände gesamt: <strong><Balance cents={data.stats.arrearsTotal} /></strong>
+			bei {pluralize(data.stats.arrearsCount, 'Mietvertrag', 'Mietverträgen')}
+		{:else}
+			Kein Mietvertrag ist im Rückstand.
+		{/if}
+	</p>
 
 	{#if form && 'message' in form}
 		<Alert tone="danger"><p>{form.message}</p></Alert>
@@ -191,6 +186,9 @@
 {/if}
 
 <style>
+	.total {
+		margin: 0 0 1rem;
+	}
 	.due {
 		display: block;
 	}

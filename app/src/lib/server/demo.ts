@@ -981,6 +981,29 @@ export async function createDemoData(
 			});
 		}
 	}
+	// Schmidt transferred the June rent of two years ago twice; the landlord paid the second
+	// transfer back: a Rückzahlung, which the Mietkonto shows in Soll.
+	{
+		const entry = leaseEntries.find((candidate) => candidate.key === 'schmidt')!;
+		const month = monthOf(at(-2, '06-01'));
+		const amount = total(monthlyAmounts(historyOf(entry), entry.input, month));
+		const twice = addDays(nthWorkingDay(month, 2, entry.state), 6);
+		for (const [day, signed, note] of [
+			[twice, amount, 'Miete Juni doppelt überwiesen'],
+			[addDays(twice, 8), -amount, 'Rückzahlung der doppelten Überweisung']
+		] as const) {
+			paymentRows.push({
+				id: crypto.randomUUID(),
+				accountId,
+				leaseId: entry.id,
+				date: day,
+				amount: signed,
+				source: 'manual',
+				bankTransactionId: null,
+				note
+			});
+		}
+	}
 	for (const key of ['schmidt', 'yilmaz'] as const) {
 		const entry = leaseEntries.find((candidate) => candidate.key === key)!;
 		const { payer, iban, purpose } = entry.bank!;

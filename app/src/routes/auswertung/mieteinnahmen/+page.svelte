@@ -126,6 +126,7 @@
 							<th class="number">Kaltmiete</th>
 							<th class="number">Soll</th>
 							<th class="number">Eingegangen</th>
+							<th class="number">Differenz</th>
 							<th class="number">Quote</th>
 						</tr>
 					</thead>
@@ -136,6 +137,8 @@
 								<td class="number"><Money cents={point.baseRent} /></td>
 								<td class="number"><Money cents={point.charged} /></td>
 								<td class="number"><Money cents={point.received} /></td>
+								<!-- Eingegangen − Soll: below zero is what is missing, above zero paid in advance or back pay. -->
+								<td class="number"><Money cents={point.received - point.charged} signed /></td>
 								<td class="number"
 									>{percent(point.charged > 0 ? point.received / point.charged : null)}</td
 								>
