@@ -185,6 +185,15 @@ export const actions: Actions = {
 				values
 			});
 		}
+		if (typeof outcome === 'object') {
+			return refuse({
+				which: 'end',
+				errors: {
+					endDate: `Bis zu diesem Ende wäre die Einheit doppelt vermietet: ein anderer Vertrag beginnt am ${formatDate(outcome.overlap)}. Wähle ein Ende davor.`
+				},
+				values
+			});
+		}
 		return { which: 'end' as const };
 	},
 

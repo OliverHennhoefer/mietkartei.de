@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { listDeadlines, type Deadline } from './deadlines';
+import { billingPeriods, listDeadlines, type Deadline } from './deadlines';
 import type { Database } from './db';
 import {
 	co2CostSplits,
@@ -180,6 +180,78 @@ describe('statement deadline (§ 556 Abs. 3 BGB)', () => {
 		);
 		expect((await list('statement')).map(brief)).toEqual([
 			['2026-12-31', 'Betriebskostenabrechnung 2025', false]
+		]);
+	});
+});
+
+describe('billing periods of the statement deadline', () => {
+	const lease = (start: string, end = '9999-12-31') => ({ start, end });
+
+	it('counts calendar years without a statement', () => {
+		expect(billingPeriods([], [lease('2024-03-15')], '2026-10-20')).toEqual([
+			{ start: '2024-01-01', end: '2024-12-31' },
+			{ start: '2025-01-01', end: '2025-12-31' }
+		]);
+	});
+
+	it('follows the statements and continues their rhythm after the last one', () => {
+		const statements = [
+			{ periodStart: '2024-01-01', periodEnd: '2024-12-31' },
+			{ periodStart: '2025-07-01', periodEnd: '2026-06-30' }
+		];
+		// Before the first July to June statement, the gap from January to June is a period of its
+		// own; after it, the next period runs from July 2026 to June 2027 and has not ended yet.
+		expect(billingPeriods(statements, [lease('2024-01-01')], '2026-10-20')).toEqual([
+			{ start: '2024-01-01', end: '2024-12-31' },
+			{ start: '2025-01-01', end: '2025-06-30' },
+			{ start: '2025-07-01', end: '2026-06-30' }
+		]);
+		expect(billingPeriods(statements, [lease('2024-01-01')], '2027-06-30')).toContainEqual({
+			start: '2026-07-01',
+			end: '2027-06-30'
+		});
+	});
+
+	it('keeps the rhythm of a statement from before the leases', () => {
+		const statements = [{ periodStart: '2024-07-01', periodEnd: '2025-06-30' }];
+		expect(billingPeriods(statements, [lease('2025-07-01')], '2026-10-20')).toEqual([
+			{ start: '2025-07-01', end: '2026-06-30' }
+		]);
+	});
+
+	it('skips periods no lease overlaps', () => {
+		expect(
+			billingPeriods([], [lease('2022-01-01', '2022-12-31'), lease('2024-06-01')], '2025-01-10')
+		).toEqual([
+			{ start: '2022-01-01', end: '2022-12-31' },
+			{ start: '2024-01-01', end: '2024-12-31' }
+		]);
+	});
+});
+
+describe('statement deadline of a period other than the calendar year', () => {
+	it('runs twelve months from the end of the period', async () => {
+		const { leaseId, propertyId } = await lease(
+			'a',
+			{ startDate: '2025-07-01' },
+			{ name: 'EG', propertyName: 'Haus' }
+		);
+		const [statement] = await db
+			.insert(operatingCostStatements)
+			.values({
+				accountId: 'a',
+				propertyId,
+				periodStart: '2025-07-01',
+				periodEnd: '2026-06-30',
+				status: 'approved'
+			})
+			.returning({ id: operatingCostStatements.id });
+		await db
+			.insert(statementResults)
+			.values({ accountId: 'a', statementId: statement.id, leaseId, balance: 0, result: '{}' });
+		// § 556 Abs. 3 BGB: the end of June 2026 plus twelve months, not the end of 2026.
+		expect((await list('statement')).map(brief)).toEqual([
+			['2027-06-30', 'Betriebskostenabrechnung 01.07.2025 – 30.06.2026 zustellen', false]
 		]);
 	});
 });

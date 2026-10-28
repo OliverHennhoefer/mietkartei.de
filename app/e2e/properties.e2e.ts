@@ -344,6 +344,8 @@ test('switches between light and dark colours', async ({ page }) => {
 	await page.goto('/einstellungen/darstellung');
 	await expect(page.getByLabel('Wie das Gerät')).toBeChecked();
 	await expect(html).toHaveAttribute('data-theme', 'system');
+	// Hydration resets the radios to the saved choice; a click before that is undone.
+	await page.waitForLoadState('networkidle');
 
 	await page.getByLabel('Dunkel').check();
 	await page.getByRole('button', { name: 'Speichern' }).click();
@@ -354,6 +356,7 @@ test('switches between light and dark colours', async ({ page }) => {
 
 	await page.emulateMedia({ colorScheme: 'dark' });
 	await page.goto('/einstellungen/darstellung');
+	await page.waitForLoadState('networkidle');
 	await page.getByLabel('Hell').check();
 	await page.getByRole('button', { name: 'Speichern' }).click();
 	await expect(html).toHaveAttribute('data-theme', 'light');
