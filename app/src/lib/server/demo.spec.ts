@@ -7,10 +7,12 @@ import {
 	associationStatements,
 	auditLog,
 	co2CostSplits,
+	contractors,
 	costItems,
 	depositSettlements,
 	depositTransactions,
 	documents,
+	expenses,
 	handoverProtocols,
 	leaseUnits,
 	leases,
@@ -122,7 +124,22 @@ describe('createDemoData', () => {
 			)
 		);
 		expect(overlapping).toEqual([]);
-		expect(await rows(tasks)).toHaveLength(6);
+		expect(await rows(tasks)).toHaveLength(14);
+		// Five Handwerker; six Reparaturen done and paid for, two still open.
+		expect(await db.select().from(contractors).where(eq(contractors.accountId, 'a'))).toHaveLength(
+			5
+		);
+		const repairs = (await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).filter(
+			(row) => row.category === 'repair'
+		);
+		expect(repairs.filter((row) => row.done)).toHaveLength(6);
+		expect(repairs.filter((row) => !row.done)).toHaveLength(2);
+		const paid = (await db.select().from(expenses).where(eq(expenses.accountId, 'a'))).filter(
+			(row) => row.taskId
+		);
+		expect(paid).toHaveLength(7);
+		expect(paid.every((row) => repairs.some((task) => task.id === row.taskId))).toBe(true);
+		expect(paid.every((row) => row.category === 'maintenance')).toBe(true);
 		expect(await countUnmatched(db, 'a')).toBe(3);
 
 		// Every history year but the last is settled: three properties over seven years, each
@@ -198,7 +215,7 @@ describe('createDemoData', () => {
 
 		await db.run(sql`drop trigger refuse_tasks`);
 		expect(await createDemoData(db, contextA, { storage })).toEqual({ ok: true, leases: 11 });
-		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(6);
+		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(14);
 	});
 
 	it('takes its rows out again when a later step fails, keeping what the account held', async () => {

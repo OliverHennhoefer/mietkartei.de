@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
+import { today } from '#lib/dates.ts';
+import { createContractor } from '#lib/server/contractors.ts';
+import { expenses } from '#lib/server/db/schema.ts';
 import { createTask as storeTask, getTask, listTasks } from '#lib/server/tasks.ts';
 import {
+	contextA,
 	contextB,
 	outcome,
 	routeEvent,
@@ -143,5 +147,59 @@ describe('aufgaben', () => {
 			expect(await run(handler, { form: { id, title: 'x' } })).toMatchObject({ fail: 404 });
 		}
 		expect(await getTask(db, 'b', id)).toMatchObject({ title: 'Fremd' });
+	});
+
+	it('names a Handwerker and links the expenses that paid for a Reparatur', async () => {
+		const contractorId = await createContractor(db, contextA, {
+			name: 'Elektro Lindner',
+			trade: 'Elektro',
+			phone: null,
+			email: null,
+			note: null
+		});
+		expect(
+			await run(actions.create, { form: { title: 'Fremd', contractorId: 'unbekannt' } })
+		).toMatchObject({
+			fail: 400,
+			data: { errors: { contractorId: 'Diesen Handwerker gibt es nicht.' } }
+		});
+		const form = {
+			title: 'Hofbeleuchtung defekt',
+			category: 'repair',
+			link: `property:${propertyId}`,
+			contractorId
+		};
+		const id = await createTask(form);
+		const [expense] = await db
+			.insert(expenses)
+			.values({
+				accountId: 'a',
+				propertyId,
+				date: today(),
+				amount: 18900,
+				category: 'maintenance',
+				description: 'Bewegungsmelder getauscht'
+			})
+			.returning({ id: expenses.id });
+
+		expect(await run(load, { url: `/aufgaben?bearbeiten=${id}` })).toMatchObject({
+			data: {
+				contractors: [{ id: contractorId, name: 'Elektro Lindner (Elektro)' }],
+				editing: { id, contractor: { name: 'Elektro Lindner' } },
+				editingExpenses: { linked: [], candidates: [{ id: expense.id }] }
+			}
+		});
+		expect(
+			await run(actions.update, {
+				form: { ...form, id, expenses: '1', expenseId: 'unbekannt' }
+			})
+		).toMatchObject({ fail: 400, data: { edit: true, message: expect.any(String) } });
+		expect(
+			await run(actions.update, { form: { ...form, id, expenses: '1', expenseId: expense.id } })
+		).toEqual({ redirect: '/aufgaben' });
+		expect((await getTask(db, 'a', id))?.costs).toEqual({ total: 18900, count: 1 });
+		expect(await run(load)).toMatchObject({
+			data: { open: [{ id, costs: { total: 18900 } }], editingExpenses: null }
+		});
 	});
 });

@@ -18,6 +18,7 @@ import {
 	calendarFeeds,
 	co2CostSplits,
 	costCategories,
+	contractors,
 	costItems,
 	costItemUnitAmounts,
 	depositSettlements,
@@ -117,7 +118,10 @@ function landlordDataDeletes(db: Database, accountId: string) {
 		.from(leases)
 		.where(eq(leases.accountId, accountId));
 	const scoped = [
+		// Before the tasks they paid for.
+		expenses,
 		tasks,
+		contractors,
 		insurancePolicies,
 		associationStatements,
 		taxYears,
@@ -136,7 +140,6 @@ function landlordDataDeletes(db: Database, accountId: string) {
 		matchingRules,
 		paymentReminders,
 		payments,
-		expenses,
 		depositTransactions,
 		depositSettlements,
 		handoverProtocols,

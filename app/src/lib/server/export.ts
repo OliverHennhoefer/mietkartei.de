@@ -54,6 +54,8 @@ export const exportTables: AccountTable[] = [
 	schema.payments,
 	schema.depositTransactions,
 	schema.paymentReminders,
+	schema.contractors,
+	schema.tasks,
 	schema.expenses,
 	schema.matchingRules,
 	schema.allocationKeys,
@@ -70,7 +72,6 @@ export const exportTables: AccountTable[] = [
 	schema.statementResults,
 	schema.co2CostSplits,
 	schema.documents,
-	schema.tasks,
 	schema.associationStatements,
 	schema.taxYears
 ];

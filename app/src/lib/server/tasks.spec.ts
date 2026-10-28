@@ -2,7 +2,8 @@ import { isHttpError } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from './db';
-import { auditLog, tasks } from './db/schema';
+import { createContractor, deleteContractor } from './contractors';
+import { auditLog, expenses, tasks } from './db/schema';
 import { createLease } from './leases';
 import { QUOTAS } from './quotas';
 import {
@@ -12,6 +13,7 @@ import {
 	listTasks,
 	nextDueDate,
 	setDone,
+	taskExpenses,
 	updateTask,
 	type TaskInput
 } from './tasks';
@@ -355,5 +357,116 @@ describe('setDone on a repeating task', () => {
 			QUOTAS.tasks.max = original;
 		}
 		expect((await getTask(db, 'a', created.id))?.done).toBe(false);
+	});
+});
+
+describe('Reparaturen', () => {
+	const bill = (
+		accountId: string,
+		date: string,
+		amount: number,
+		overrides: Partial<typeof expenses.$inferInsert> = {}
+	) =>
+		db
+			.insert(expenses)
+			.values({
+				accountId,
+				date,
+				amount,
+				category: 'maintenance',
+				description: `Rechnung ${amount}`,
+				...overrides
+			})
+			.returning({ id: expenses.id })
+			.then(([row]) => row.id);
+
+	it('names the Handwerker, refusing one of another account, and keeps him on the next occurrence', async () => {
+		const plumber = await createContractor(db, contextA, {
+			name: 'Sanitär Wendt',
+			trade: 'Sanitär',
+			phone: '030 1',
+			email: null,
+			note: null
+		});
+		const foreign = await createContractor(db, contextB, {
+			name: 'Fremd',
+			trade: null,
+			phone: null,
+			email: null,
+			note: null
+		});
+		expect(await createTask(db, contextA, input({ contractorId: foreign }))).toEqual({
+			ok: false,
+			reason: 'unknown-contractor'
+		});
+		const created = await createTask(
+			db,
+			contextA,
+			input({
+				category: 'repair',
+				contractorId: plumber,
+				dueDate: '2026-03-01',
+				repeatMonths: 12
+			})
+		);
+		if (!created.ok) throw new Error(created.reason);
+		expect((await getTask(db, 'a', created.id))?.contractor).toEqual({
+			id: plumber,
+			name: 'Sanitär Wendt',
+			phone: '030 1'
+		});
+		await setDone(db, contextA, created.id, true, '2026-03-02');
+		const { open } = await listTasks(db, 'a');
+		expect(open[0].contractorId).toBe(plumber);
+
+		// Deleting the Handwerker clears the name on both tasks.
+		expect(await deleteContractor(db, contextA, plumber)).toBe(true);
+		expect((await listTasks(db, 'a')).open[0].contractor).toBeNull();
+	});
+
+	it('links exactly the chosen expenses and sums them; deleting the task keeps them', async () => {
+		const { propertyId } = await seedUnit(db, 'a', { propertyName: 'Haus' });
+		const { propertyId: other } = await seedUnit(db, 'a', { propertyName: 'Anderes Haus' });
+		const created = await createTask(db, contextA, input({ category: 'repair', propertyId }));
+		if (!created.ok) throw new Error(created.reason);
+		const second = await createTask(db, contextA, input({ title: 'Zweite' }));
+		if (!second.ok) throw new Error(second.reason);
+		const first = await bill('a', '2026-02-10', 12000, { propertyId });
+		const late = await bill('a', '2026-03-01', 3000, { propertyId });
+		await bill('a', '2026-03-01', 5000, { propertyId: other });
+		await bill('a', '2026-03-01', 7000, { propertyId, category: 'modernization' });
+		await bill('a', '2022-03-01', 9000, { propertyId });
+		const taken = await bill('a', '2026-03-01', 1000, { propertyId, taskId: second.id });
+		const foreign = await bill('b', '2026-03-01', 1000);
+
+		const task = (await getTask(db, 'a', created.id))!;
+		const same = input({ category: 'repair', propertyId });
+		const choice = await taskExpenses(db, 'a', task, '2026-10-01');
+		expect(choice.linked).toEqual([]);
+		// Instandhaltung of the property in the last three years, not linked elsewhere.
+		expect(choice.candidates.map((row) => row.id)).toEqual([late, first]);
+		expect(choice.candidates[0]).toMatchObject({ scopeLabel: 'Haus', fromBank: false });
+
+		for (const refused of [[foreign], [taken], ['unbekannt']]) {
+			expect(await updateTask(db, contextA, created.id, same, refused)).toEqual({
+				ok: false,
+				reason: 'unknown-expense'
+			});
+		}
+		expect(await updateTask(db, contextA, created.id, same, [first, late])).toEqual({
+			ok: true
+		});
+		expect((await getTask(db, 'a', created.id))?.costs).toEqual({ total: 15000, count: 2 });
+		// Without the expenses, the links stay; with one, only that one is linked.
+		await updateTask(db, contextA, created.id, { ...same, title: 'Neu' });
+		expect((await getTask(db, 'a', created.id))?.costs.count).toBe(2);
+		await updateTask(db, contextA, created.id, same, [late]);
+		expect((await taskExpenses(db, 'a', task, '2026-10-01')).linked.map((row) => row.id)).toEqual([
+			late
+		]);
+
+		expect(await deleteTask(db, contextA, created.id)).toBe(true);
+		const [kept] = await db.select().from(expenses).where(eq(expenses.id, late));
+		expect(kept.taskId).toBeNull();
 	});
 });

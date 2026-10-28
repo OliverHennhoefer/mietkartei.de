@@ -1,9 +1,10 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { count, eq, max } from 'drizzle-orm';
 import { addMonths, daysBetween, formatDate, today } from '#lib/dates.ts';
-import { parseTask } from '#lib/forms/tasks.ts';
+import { parseTask, type TaskFormErrors } from '#lib/forms/tasks.ts';
 import { listBankAccounts } from '#lib/server/bank/accounts.ts';
 import { connectionActive, listConnections } from '#lib/server/bank/sync.ts';
+import { listContractors } from '#lib/server/contractors.ts';
 import { countUnmatched } from '#lib/server/bank/transactions.ts';
 import { bankTransactions, costCategories } from '#lib/server/db/schema.ts';
 import { listDeadlines } from '#lib/server/deadlines.ts';
@@ -17,7 +18,9 @@ import {
 	getTask,
 	listTasks,
 	setDone,
-	updateTask
+	taskExpenses,
+	updateTask,
+	type TaskError
 } from '#lib/server/tasks.ts';
 import { personName, pluralize } from '#lib/format.ts';
 import { listTenants } from '#lib/server/tenants.ts';
@@ -64,8 +67,18 @@ const VACANT_LISTED = 5;
 const linkErrors = {
 	'unknown-property': 'Dieses Objekt gibt es nicht.',
 	'unknown-lease': 'Diesen Mietvertrag gibt es nicht.',
+	'unknown-contractor': 'Diesen Handwerker gibt es nicht.',
+	'unknown-expense':
+		'Eine der Ausgaben gibt es nicht mehr, oder sie gehört inzwischen zu einer anderen Aufgabe.',
 	missing: 'Diese Aufgabe gibt es nicht.'
 };
+
+/** The field a refusal of the server module belongs to. */
+function refusal(reason: TaskError): TaskFormErrors {
+	return reason === 'unknown-contractor'
+		? { contractorId: linkErrors[reason] }
+		: { link: linkErrors[reason] };
+}
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const accountId = requireAccount(locals);
@@ -87,7 +100,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		bankAccounts,
 		[categories],
 		latestBookings,
-		connections
+		connections,
+		contractors,
+		editingExpenses
 	] = await Promise.all([
 		listDeadlines(locals.db, accountId, { to: addMonths(date, 12) }),
 		listTasks(locals.db, accountId),
@@ -110,7 +125,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.from(bankTransactions)
 			.where(eq(bankTransactions.accountId, accountId))
 			.groupBy(bankTransactions.bankAccountId),
-		listConnections(locals.db, accountId)
+		listConnections(locals.db, accountId),
+		listContractors(locals.db, accountId),
+		editing ? taskExpenses(locals.db, accountId, editing, date) : null
 	]);
 
 	// Rückstand is what is overdue today, not this month's rent before its due day.
@@ -233,6 +250,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					index === 0 || deadline.overdue || daysBetween(date, deadline.date) <= 14
 			)
 			.slice(0, 3),
+		editingExpenses,
 		open: tasks.open,
 		done: tasks.done,
 		// Archived properties only for the task in the edit dialog that is linked to one.
@@ -243,6 +261,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			id: lease.id,
 			label: leaseLabel(lease),
 			active: lease.active
+		})),
+		contractors: contractors.map((contractor) => ({
+			id: contractor.id,
+			name: contractor.trade ? `${contractor.name} (${contractor.trade})` : contractor.name
 		}))
 	};
 };
@@ -253,7 +275,7 @@ export const actions: Actions = {
 		if (!result.ok) return fail(400, { errors: result.errors, values: result.values });
 		const created = await createTask(locals.db, auditContext(locals), result.data);
 		if (!created.ok) {
-			return fail(400, { errors: { link: linkErrors[created.reason] }, values: result.values });
+			return fail(400, { errors: refusal(created.reason), values: result.values });
 		}
 		return { created: result.data.title };
 	},
@@ -273,12 +295,23 @@ export const actions: Actions = {
 		if (!result.ok) {
 			return fail(400, { edit: true, errors: result.errors, values: result.values });
 		}
-		const updated = await updateTask(locals.db, auditContext(locals), id, result.data);
+		// The edit dialog lists the expenses that can be linked; the checked ones are linked.
+		const expenseIds = form.has('expenses')
+			? form.getAll('expenseId').map((value) => String(value))
+			: undefined;
+		const updated = await updateTask(locals.db, auditContext(locals), id, result.data, expenseIds);
 		if (!updated.ok) {
 			if (updated.reason === 'missing') return fail(404, { message: linkErrors.missing });
+			if (updated.reason === 'unknown-expense') {
+				return fail(400, {
+					edit: true,
+					message: linkErrors[updated.reason],
+					values: result.values
+				});
+			}
 			return fail(400, {
 				edit: true,
-				errors: { link: linkErrors[updated.reason] },
+				errors: refusal(updated.reason),
 				values: result.values
 			});
 		}

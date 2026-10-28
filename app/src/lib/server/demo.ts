@@ -43,6 +43,7 @@ import {
 	auditLog,
 	bankAccounts,
 	bankTransactions,
+	contractors,
 	costItems,
 	costItemUnitAmounts,
 	depositSettlements,
@@ -1317,9 +1318,10 @@ export async function createDemoData(
 		propertyId: string | null,
 		unit: string | null = null,
 		bankTransactionId: string | null = null
-	) =>
+	) => {
+		const id = crypto.randomUUID();
 		expenseRows.push({
-			id: crypto.randomUUID(),
+			id,
 			accountId,
 			propertyId,
 			unitId: unit ? unitId(unit) : null,
@@ -1329,6 +1331,8 @@ export async function createDemoData(
 			description,
 			bankTransactionId
 		});
+		return id;
+	};
 	const costItem = (row: Omit<CostItemRow, 'id' | 'accountId'>) => {
 		const id = crypto.randomUUID();
 		costItemRows.push({ id, accountId, ...row });
@@ -1896,8 +1900,9 @@ export async function createDemoData(
 		}
 	}
 
-	// Repairs, modernisation and the costs of managing the portfolio.
-	expense(
+	// Repairs, modernisation and the costs of managing the portfolio. The repairs are paid for
+	// the Reparaturen among the tasks below.
+	const painting = expense(
 		at(-4, '09-22'),
 		485000,
 		'maintenance',
@@ -1905,7 +1910,7 @@ export async function createDemoData(
 		lindenId,
 		'Wohnung EG rechts'
 	);
-	expense(
+	const circulationPump = expense(
 		at(-3, '02-14'),
 		124000,
 		'maintenance',
@@ -1943,10 +1948,38 @@ export async function createDemoData(
 		rosenheimId,
 		'Wohnung 9'
 	);
-	expense(at(-1, '06-18'), 318000, 'maintenance', 'Wasserschaden Bad', lindenId, 'Wohnung 1. OG');
-	expense(at(0, '04-09'), 89000, 'maintenance', 'Dachrinne und Fallrohr erneuert', lindenId);
-	expense(at(-2, '11-12'), 34000, 'maintenance', 'Badarmatur getauscht', parkId, 'Wohnung 14');
-	expense(
+	const waterDamage = expense(
+		at(-1, '06-18'),
+		318000,
+		'maintenance',
+		'Wasserschaden Bad',
+		lindenId,
+		'Wohnung 1. OG'
+	);
+	const waterDamageDrying = expense(
+		at(-1, '07-02'),
+		76000,
+		'maintenance',
+		'Bautrocknung nach Wasserschaden',
+		lindenId,
+		'Wohnung 1. OG'
+	);
+	const gutter = expense(
+		at(-1, '04-09'),
+		89000,
+		'maintenance',
+		'Dachrinne und Fallrohr erneuert',
+		lindenId
+	);
+	const tap = expense(
+		at(-2, '11-12'),
+		34000,
+		'maintenance',
+		'Badarmatur getauscht',
+		parkId,
+		'Wohnung 14'
+	);
+	const heatExchanger = expense(
 		at(-1, '09-03'),
 		61000,
 		'maintenance',
@@ -2030,6 +2063,100 @@ export async function createDemoData(
 
 	// Tasks: two repeating, one for the tenant in arrears, the handover of the flat being re-let, one
 	// overdue (so the start page shows how it marks one), one done.
+	// Handwerker, and the Reparaturen they did with the expenses that paid for them.
+	const contractor = (name: string, trade: string, phone: string, email: string | null) => ({
+		id: crypto.randomUUID(),
+		accountId,
+		name,
+		trade,
+		phone,
+		email,
+		note: null
+	});
+	const plumber = contractor(
+		'Sanitär Wendt GmbH',
+		'Sanitär',
+		'030 4471 2290',
+		'info@sanitaer-wendt.de'
+	);
+	const heating = contractor(
+		'Heizungsbau Aydin',
+		'Heizung',
+		'0331 280 9915',
+		'service@heizung-aydin.de'
+	);
+	const electrician = contractor('Elektro Lindner', 'Elektro', '030 9182 4410', null);
+	const painter = contractor(
+		'Malerbetrieb Brandt',
+		'Maler',
+		'030 6123 7780',
+		'brandt@maler-brandt.de'
+	);
+	const roofer = contractor('Dachdeckerei Seifert', 'Dach', '030 3349 0021', null);
+	const contractorRows = [plumber, heating, electrician, painter, roofer];
+	const expenseDay = (expenseId: string) => expenseRows.find((row) => row.id === expenseId)!.date;
+	/** A Reparatur done a few days before its bill, with the bill linked to it. */
+	const repair = (
+		title: string,
+		by: { id: string },
+		propertyId: string,
+		bills: string[],
+		note: string | null = null
+	) => {
+		const id = crypto.randomUUID();
+		const billed = soFar(expenseDay(bills[0]));
+		for (const bill of bills) expenseRows.find((row) => row.id === bill)!.taskId = id;
+		return {
+			id,
+			accountId,
+			title,
+			category: 'repair' as const,
+			dueDate: addDays(billed, -10),
+			done: true,
+			doneAt: new Date(`${addDays(billed, -3)}T15:00:00Z`),
+			propertyId,
+			leaseId: null,
+			contractorId: by.id,
+			note
+		};
+	};
+	const repairRows = [
+		repair('Malerarbeiten und Boden nach Auszug EG rechts', painter, lindenId, [painting]),
+		repair('Heizung ohne Wärme: Umwälzpumpe tauschen', heating, lindenId, [circulationPump]),
+		repair(
+			'Wasserschaden im Bad 1. OG beheben',
+			plumber,
+			lindenId,
+			[waterDamage, waterDamageDrying],
+			'Undichte Leitung hinter der Vorwand; Bautrocknung drei Wochen. Schaden der Gebäudeversicherung gemeldet.'
+		),
+		repair('Dachrinne und Fallrohr Hofseite erneuern', roofer, lindenId, [gutter]),
+		repair('Tropfende Badarmatur Wohnung 14', plumber, parkId, [tap]),
+		repair('Gastherme Wohnung 9 heizt nicht', heating, rosenheimId, [heatExchanger]),
+		{
+			id: crypto.randomUUID(),
+			accountId,
+			title: 'Außenbeleuchtung im Hof defekt',
+			category: 'repair' as const,
+			dueDate: addDays(date, 10),
+			propertyId: lindenId,
+			leaseId: null,
+			contractorId: electrician.id,
+			note: 'Bewegungsmelder am Hofeingang schaltet nicht mehr; Herr Lindner kommt nächste Woche.'
+		},
+		{
+			id: crypto.randomUUID(),
+			accountId,
+			title: 'Kellerfenster schließt nicht',
+			category: 'repair' as const,
+			dueDate: addDays(date, -2),
+			propertyId: parkId,
+			leaseId: null,
+			contractorId: null,
+			note: 'Hinweis von der Hausverwaltung der WEG; Angebot einholen.'
+		}
+	];
+
 	const taskRows = [
 		{
 			id: crypto.randomUUID(),
@@ -2053,6 +2180,7 @@ export async function createDemoData(
 			repeatAnchor: addDays(date, 21),
 			propertyId: rosenheimId,
 			leaseId: null,
+			contractorId: heating.id,
 			note: 'Termin mit Frau Weber abstimmen.'
 		},
 		{
@@ -2092,7 +2220,8 @@ export async function createDemoData(
 			propertyId: parkId,
 			leaseId: null,
 			note: null
-		}
+		},
+		...repairRows
 	];
 
 	// The audit lines the features' own functions write.
@@ -2136,7 +2265,8 @@ export async function createDemoData(
 		['bankTransactions', transactionRows.length],
 		['matchingRules', ruleRows.length],
 		['expenses', expenseRows.length],
-		['tasks', taskRows.length]
+		['tasks', taskRows.length],
+		['contractors', contractorRows.length]
 	];
 	for (const [kind, rows] of adding) await assertQuota(db, accountId, kind, rows);
 
@@ -2164,8 +2294,10 @@ export async function createDemoData(
 			...insert(meterReadings, readingRows),
 			...insert(associationStatements, associationRows),
 			...insert(operatingCostStatements, draftRows),
-			...insert(expenses, expenseRows),
+			...insert(contractors, contractorRows),
+			// Before the expenses that paid for them.
 			...insert(tasks, taskRows),
+			...insert(expenses, expenseRows),
 			...insert(taxYears, taxYearRows),
 			...insert(auditLog, auditRows),
 			// The last line is also the guard against a second run at the same time (a double
@@ -2421,6 +2553,7 @@ export async function createDemoData(
 					taskRows.map((row) => row.id)
 				)
 			),
+			db.delete(contractors).where(eq(contractors.accountId, accountId)),
 			db.delete(properties).where(inArray(properties.id, propertyIds))
 		]);
 		throw error;
