@@ -5,6 +5,7 @@
 	import Balance from '#lib/components/Balance.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import Sections from './Sections.svelte';
 	import Sparkline from '#lib/components/Sparkline.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
@@ -12,12 +13,20 @@
 	import { expenseCategoryLabels, expenseCategoryShortLabels } from '#lib/labels.ts';
 	import Filters from './Filters.svelte';
 	import { percent, perSqm } from './figures';
+	import { byDate, byNumber, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
 	const all = $derived(data.period === 'all');
 	const periodLabel = $derived(all ? 'seit Beginn' : String(data.period));
+	const seriesSort = new TableSort<PageProps['data']['series'][number]>({
+		period: byDate((point) => point.key),
+		charged: byNumber((point) => point.charged),
+		received: byNumber((point) => point.received),
+		expenses: byNumber((point) => point.expenses),
+		net: byNumber((point) => point.net)
+	});
 
 	const points = $derived(
 		data.series.map((point) => ({
@@ -159,15 +168,15 @@
 					<table class="table">
 						<thead>
 							<tr>
-								<th>{all ? 'Jahr' : 'Monat'}</th>
-								<th class="number">Soll</th>
-								<th class="number">Einnahmen</th>
-								<th class="number">Ausgaben</th>
-								<th class="number">Überschuss</th>
+								<SortHeader sort={seriesSort} key="period">{all ? 'Jahr' : 'Monat'}</SortHeader>
+								<SortHeader sort={seriesSort} key="charged" class="num">Soll</SortHeader>
+								<SortHeader sort={seriesSort} key="received" class="num">Einnahmen</SortHeader>
+								<SortHeader sort={seriesSort} key="expenses" class="num">Ausgaben</SortHeader>
+								<SortHeader sort={seriesSort} key="net" class="num">Überschuss</SortHeader>
 							</tr>
 						</thead>
 						<tbody>
-							{#each data.series as point (point.key)}
+							{#each seriesSort.rows(data.series) as point (point.key)}
 								<tr>
 									<td>{all ? point.key : formatMonth(point.key)}</td>
 									<td class="number"><Money cents={point.charged} /></td>

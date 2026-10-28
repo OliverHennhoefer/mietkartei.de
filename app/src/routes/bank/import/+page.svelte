@@ -5,10 +5,12 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { GENERIC_PRESET_ID } from '#lib/domain/bank-matching.ts';
 	import { mappingFieldNames } from '#lib/forms/bank.ts';
 	import { pluralize } from '#lib/format.ts';
+	import { byDate, byNumber, bySeverity, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -36,6 +38,16 @@
 		rule: { label: 'Regel', tone: 'info' },
 		invalid: { label: 'Ungültig', tone: 'danger' }
 	} as const;
+	type PreviewRow = NonNullable<typeof preview>['rows'][number];
+	const statusWeights = { invalid: 3, rule: 2, new: 1, duplicate: 0 } as const;
+	const sort = new TableSort<PreviewRow>({
+		index: byText((row) => String(row.index + 1)),
+		date: byDate((row) => row.row?.bookingDate),
+		counterpart: byText((row) => row.row?.counterpartName),
+		purpose: byText((row) => row.row?.purpose),
+		amount: byNumber((row) => row.row?.amount),
+		status: bySeverity((row) => statusWeights[row.status])
+	});
 </script>
 
 <!-- The heading and the tab bar come from +layout.svelte; this page is the "Import" tab. -->
@@ -124,16 +136,16 @@
 				<table class="table" aria-label="Vorschau">
 					<thead>
 						<tr>
-							<th class="num">Nr.</th>
-							<th>Buchungstag</th>
-							<th>Gegenseite</th>
-							<th>Verwendungszweck</th>
-							<th class="num">Betrag</th>
-							<th>Status</th>
+							<SortHeader {sort} key="index" class="num">Nr.</SortHeader>
+							<SortHeader {sort} key="date">Buchungstag</SortHeader>
+							<SortHeader {sort} key="counterpart">Gegenseite</SortHeader>
+							<SortHeader {sort} key="purpose">Verwendungszweck</SortHeader>
+							<SortHeader {sort} key="amount" class="num">Betrag</SortHeader>
+							<SortHeader {sort} key="status">Status</SortHeader>
 						</tr>
 					</thead>
 					<tbody>
-						{#each preview.rows as row (row.index)}
+						{#each sort.rows(preview.rows) as row (row.index)}
 							<tr>
 								<td class="num">{row.index + 1}</td>
 								{#if row.row}

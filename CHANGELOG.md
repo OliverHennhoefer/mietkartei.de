@@ -18,11 +18,13 @@ Erste öffentliche Version. Sie enthält:
 - Mietkonto mit Soll und Haben je Mietvertrag, Rückständen und Kaution mit laufendem Bestand.
 - Bankimport per camt.053 oder CSV mit Zuordnungsvorschlägen und -regeln.
 - Objekte, Einheiten, Mieter und Mietverträge mit Index- und Staffelmiete.
+- Mieterhöhung auf die ortsübliche Vergleichsmiete nach § 558 BGB: Sperrfrist und Kappungsgrenze werden geprüft, das Erhöhungsverlangen mit Begründung aus Mietspiegel, Mietdatenbank, Gutachten oder Vergleichswohnungen entsteht als Schreiben, die Fristen für Zustimmung und Klage stehen bei den Fristen; die Zustimmung, auch eine teilweise, wird mit dem Datum eingetragen.
 - Mieterübersicht mit „Steht an“: Rückstände samt letzter Mahnung, Kündigungen und anstehende Einzüge oben; die Liste zeigt je Mieter Warmmiete, Mietkonto, Mietbeginn und Hinweise.
 - Kleine Straßenkarte bei jedem Objekt aus Daten von OpenStreetMap, verortet über die Adresse, und eine interaktive Karte mit allen Objekten zum Verschieben und Zoomen: Objekte mit Leerstand oder Rückstand sind farbig hervorgehoben, ein Klick zeigt Einheiten, Rückstand und die Kaltmiete neben dem Zensus-Durchschnitt der Gemeinde; unter Einstellungen → Darstellung abschaltbar.
 - Helle oder dunkle Farben zur Wahl unter Einstellungen → Darstellung; ohne Wahl folgt mietkartei der Einstellung des Geräts.
 - Zähler und Abrechnungskreise, Dokumente, Aufgaben und Fristen.
 - Startseite Aufgaben mit allem, was zu tun ist: eigene Aufgaben und Erinnerungen an Rückstände, nicht zugeordnete Bankumsätze, länger nicht geladene Kontoauszüge und Leerstand; darüber die nächsten Fristen, alle Fristen auf einer eigenen Seite.
+- Alle Tabellen lassen sich mit einem Klick auf die Spaltenüberschrift sortieren: Text von A bis Z, Beträge und Daten vom größten und neuesten an, Hinweise und Status vom dringendsten an; ein zweiter Klick dreht die Reihenfolge um, ein dritter stellt die gewohnte wieder her.
 - Auswertung mit Überblick, Mieteinnahmen, Ausgaben, Objektvergleich, Rendite und Cashflow nach Zins und Tilgung Nebenkosten-Vergleich mit dem Betriebskostenspiegel des Mieterbunds sowie Prognose der nächsten zwölf Monate mit möglichen Mieterhöhungen und erwarteten Nachzahlungen.
 - Zugänge für Mitverwalter und mit Lesezugriff.
 - Datenübernahme per CSV, vollständiger Export und Änderungsprotokoll.

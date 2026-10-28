@@ -3,8 +3,10 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDateTime } from '#lib/dates.ts';
 	import { userRoleLabels } from '#lib/labels.ts';
+	import { byDate, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -13,6 +15,16 @@
 	const refused = $derived(form && 'refused' in form ? form.refused : undefined);
 	/** memberRoles of the schema, which a page may not import. */
 	const memberRoles = ['manager', 'viewer'] as const;
+	const userSort = new TableSort<PageProps['data']['users'][number]>({
+		name: byText((user) => user.name),
+		email: byText((user) => user.email),
+		role: byText((user) => userRoleLabels[user.role])
+	});
+	const invitationSort = new TableSort<PageProps['data']['invitations'][number]>({
+		email: byText((invitation) => invitation.email),
+		role: byText((invitation) => userRoleLabels[invitation.role]),
+		expires: byDate((invitation) => invitation.expiresAt)
+	});
 </script>
 
 <PageHeader title="Zugänge" />
@@ -34,14 +46,14 @@
 	<table class="table" aria-label="Zugänge">
 		<thead>
 			<tr>
-				<th>Name</th>
-				<th>E-Mail-Adresse</th>
-				<th>Rolle</th>
+				<SortHeader sort={userSort} key="name">Name</SortHeader>
+				<SortHeader sort={userSort} key="email">E-Mail-Adresse</SortHeader>
+				<SortHeader sort={userSort} key="role">Rolle</SortHeader>
 				<th class="actions"></th>
 			</tr>
 		</thead>
 		<tbody>
-			{#each data.users as user (user.id)}
+			{#each userSort.rows(data.users) as user (user.id)}
 				<tr>
 					<td>
 						{user.name ?? '–'}
@@ -92,14 +104,14 @@
 		<table class="table" aria-label="Einladungen">
 			<thead>
 				<tr>
-					<th>E-Mail-Adresse</th>
-					<th>Rolle</th>
-					<th>Status</th>
+					<SortHeader sort={invitationSort} key="email">E-Mail-Adresse</SortHeader>
+					<SortHeader sort={invitationSort} key="role">Rolle</SortHeader>
+					<SortHeader sort={invitationSort} key="expires">Status</SortHeader>
 					<th class="actions"></th>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.invitations as invitation (invitation.id)}
+				{#each invitationSort.rows(data.invitations) as invitation (invitation.id)}
 					<tr>
 						<td>{invitation.email}</td>
 						<td>{userRoleLabels[invitation.role]}</td>

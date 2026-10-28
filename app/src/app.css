@@ -1560,6 +1560,27 @@ dl.details dd {
 		clip: rect(0 0 0 0);
 		white-space: nowrap;
 	}
+	/* A sortable table keeps its sortable headings as one quiet line above the cards. */
+	.table thead:has(.sort-header) {
+		position: static;
+		display: block;
+		width: auto;
+		height: auto;
+		overflow: visible;
+		clip: auto;
+		white-space: normal;
+	}
+	.table thead:has(.sort-header) tr {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem 1rem;
+		padding: 0.6rem 1.1rem;
+		border-bottom: 1px solid var(--color-border);
+		background: var(--color-subtle);
+	}
+	.table thead th:not(:has(.sort-header)) {
+		display: none;
+	}
 	.table tbody tr {
 		padding: 0.9rem 1.1rem;
 		border-bottom: 1px solid var(--color-border);

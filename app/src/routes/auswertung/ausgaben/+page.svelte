@@ -5,10 +5,12 @@
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import Sections from '../Sections.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { expenseCategoryLabels } from '#lib/labels.ts';
 	import { formatCents, formatCentsPlain } from '#lib/money.ts';
+	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -39,6 +41,13 @@
 				: {}
 	);
 	const total = $derived(data.expenses.reduce((sum, expense) => sum + expense.amount, 0));
+	const sort = new TableSort<PageProps['data']['expenses'][number]>({
+		date: byDate((expense) => expense.date),
+		description: byText((expense) => expense.description),
+		category: byText((expense) => expenseCategoryLabels[expense.category]),
+		scope: byText((expense) => expense.scopeLabel),
+		amount: byNumber((expense) => expense.amount)
+	});
 
 	let createForm = $state<HTMLFormElement>();
 
@@ -101,16 +110,16 @@
 		<table class="table" aria-label="Ausgaben {data.year}">
 			<thead>
 				<tr>
-					<th>Datum</th>
-					<th>Beschreibung</th>
-					<th>Kategorie</th>
-					<th>Betrifft</th>
-					<th class="number">Betrag</th>
+					<SortHeader {sort} key="date">Datum</SortHeader>
+					<SortHeader {sort} key="description">Beschreibung</SortHeader>
+					<SortHeader {sort} key="category">Kategorie</SortHeader>
+					<SortHeader {sort} key="scope">Betrifft</SortHeader>
+					<SortHeader {sort} key="amount" class="num">Betrag</SortHeader>
 					<th><span class="visually-hidden">Aktion</span></th>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.expenses as expense (expense.id)}
+				{#each sort.rows(data.expenses) as expense (expense.id)}
 					<tr>
 						<td class="date">{formatDate(expense.date)}</td>
 						<td>

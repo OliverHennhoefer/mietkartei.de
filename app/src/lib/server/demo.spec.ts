@@ -16,6 +16,7 @@ import {
 	paymentReminders,
 	payments,
 	properties,
+	rentChanges,
 	tasks,
 	taxYears,
 	tenants,
@@ -23,6 +24,7 @@ import {
 } from './db/schema';
 import { createDemoData, isEmptyAccount } from './demo';
 import { addDays, today } from '../dates';
+import { listDeadlines } from './deadlines';
 import { addressKey } from './geocoding';
 import { termsOverlap } from './leases';
 import { listBalances } from './ledger';
@@ -119,6 +121,20 @@ describe('createDemoData', () => {
 		expect(reminders.map((row) => row.level).sort()).toEqual([1, 2]);
 		// The Mahnung carries a line the landlord added on its sheet.
 		expect(reminders.find((row) => row.level === 2)?.letterText).toContain('in zwei Raten');
+		// Eight § 558 increases with their letters and consent, and Schmidt's demand still open.
+		const comparative = (
+			await db.select().from(rentChanges).where(eq(rentChanges.accountId, 'a'))
+		).filter((row) => row.reason === 'comparative');
+		expect(comparative).toHaveLength(9);
+		expect(comparative.every((row) => row.letterText?.includes('§ 558 BGB'))).toBe(true);
+		const pending = comparative.filter((row) => row.status === 'proposed');
+		expect(pending).toEqual([
+			expect.objectContaining({ baseRent: 82500, consentedOn: null, cappingPercent: 15 })
+		]);
+		expect(comparative.filter((row) => row.consentedOn)).toHaveLength(8);
+		expect((await listDeadlines(db, 'a')).map((deadline) => deadline.kind)).toContain(
+			'comparative_consent'
+		);
 		expect(
 			await db.select().from(co2CostSplits).where(eq(co2CostSplits.accountId, 'a'))
 		).toHaveLength(1);
