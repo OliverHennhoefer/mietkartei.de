@@ -252,6 +252,20 @@ describe('write operations', () => {
 		}
 	});
 
+	it('answer a write that lost a race against another user as a conflict', async () => {
+		const create = operationByName.get('create_task')!;
+		const racing = {
+			...create,
+			run: async () => {
+				throw new Error('Failed query', { cause: new Error('UNIQUE constraint failed') });
+			}
+		};
+		await expect(runOperation(db, writer, racing, { title: 'x' })).rejects.toMatchObject({
+			status: 409,
+			code: 'conflict'
+		});
+	});
+
 	it('book a payment on the rent account, audited under the key’s user', async () => {
 		const payment = (await write('record_payment', {
 			id: ids.leaseId,
