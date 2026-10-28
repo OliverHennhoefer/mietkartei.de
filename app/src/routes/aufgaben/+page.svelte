@@ -190,7 +190,7 @@
 		{#if nextDeadline}
 			<a class="stat highlight" href={nextDeadline.href}>
 				<span class="kicker">Nächste Frist · {relative(nextDeadline.date)}</span>
-				<strong>{nextDeadline.title}</strong>
+				<strong title={nextDeadline.title}>{nextDeadline.title}</strong>
 				<span class="label">{formatDate(nextDeadline.date)}</span>
 			</a>
 		{/if}
@@ -607,6 +607,14 @@
 	.stat.highlight strong {
 		font-size: var(--text-lg);
 		line-height: 1.3;
+	}
+	/* Beside the figures on one line, so a long title does not make the whole panel taller. */
+	@media (min-width: 40.01rem) {
+		.stat.highlight strong {
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+		}
 	}
 	@media (max-width: 40rem) {
 		.task {
