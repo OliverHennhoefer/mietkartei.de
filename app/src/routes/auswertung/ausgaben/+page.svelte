@@ -1,22 +1,42 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Badge from '#lib/components/Badge.svelte';
-	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import EditDialog from '#lib/components/EditDialog.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import Sections from '../Sections.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { expenseCategoryLabels } from '#lib/labels.ts';
+	import { formatCents, formatCentsPlain } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
+	// A refused edit belongs to the edit dialog, everything else to the form below the table.
+	const editRefused = $derived(form && 'edit' in form);
 	const errors = $derived(
-		form && 'errors' in form ? (form.errors as Record<string, string>) : undefined
+		form && 'errors' in form && !editRefused ? (form.errors as Record<string, string>) : undefined
 	);
 	const values = $derived<Record<string, string>>(
-		form && 'values' in form ? (form.values as Record<string, string>) : {}
+		form && 'values' in form && !editRefused ? (form.values as Record<string, string>) : {}
+	);
+	const editErrors = $derived(
+		form && 'errors' in form && editRefused ? (form.errors as Record<string, string>) : undefined
+	);
+	// After a refused save the typed values win; otherwise the dialog shows the expense as stored.
+	const editValues = $derived<Record<string, string>>(
+		form && 'values' in form && editRefused
+			? (form.values as Record<string, string>)
+			: data.editing
+				? {
+						date: data.editing.date,
+						description: data.editing.description,
+						amount: formatCentsPlain(data.editing.amount),
+						category: data.editing.category,
+						scope: data.editing.scope
+					}
+				: {}
 	);
 	const total = $derived(data.expenses.reduce((sum, expense) => sum + expense.amount, 0));
 
@@ -93,23 +113,21 @@
 				{#each data.expenses as expense (expense.id)}
 					<tr>
 						<td class="date">{formatDate(expense.date)}</td>
-						<td>{expense.description}</td>
+						<td>
+							{#if expense.bankTransactionId}
+								{expense.description}
+							{:else}
+								<a href="?jahr={data.year}&bearbeiten={expense.id}" data-sveltekit-reset="false"
+									>{expense.description}</a
+								>
+							{/if}
+						</td>
 						<td>{expenseCategoryLabels[expense.category]}</td>
 						<td class="muted">{expense.scopeLabel}</td>
 						<td class="number"><Money cents={expense.amount} /></td>
 						<td class="action">
 							{#if expense.bankTransactionId}
 								<a href="/bank?umsatz={expense.bankTransactionId}"><Badge>aus Bank</Badge></a>
-							{:else}
-								<ConfirmButton
-									action="?/delete"
-									label="Löschen"
-									tone="secondary"
-									small
-									message="Ausgabe „{expense.description}“ wirklich löschen?"
-								>
-									<input type="hidden" name="id" value={expense.id} />
-								</ConfirmButton>
 							{/if}
 						</td>
 					</tr>
@@ -121,12 +139,34 @@
 
 <h2>Ausgabe erfassen</h2>
 <form method="POST" action="?/create" class="card" bind:this={createForm} use:enhance>
+	{@render expenseFields(values, errors, true)}
+	<datalist id="expense-descriptions">
+		{#each data.suggestions as suggestion (suggestion.description)}
+			<option value={suggestion.description}></option>
+		{/each}
+	</datalist>
+	<div class="form-actions">
+		<button type="submit">Ausgabe erfassen</button>
+		{#if form && 'created' in form}
+			<p role="status">
+				Die Ausgabe wurde erfasst.{#if form.year !== data.year}
+					<a href="?jahr={form.year}">Ausgaben {form.year} anzeigen</a>{/if}
+			</p>
+		{/if}
+	</div>
+</form>
+
+{#snippet expenseFields(
+	values: Record<string, string>,
+	errors: Record<string, string> | undefined,
+	create: boolean
+)}
 	<div class="fields">
 		<Field label="Datum" error={errors?.date}>
 			<input
 				type="date"
 				name="date"
-				defaultValue={values.date ?? data.today}
+				defaultValue={values.date ?? (create ? data.today : '')}
 				aria-invalid={errors?.date ? 'true' : undefined}
 				required
 			/>
@@ -139,7 +179,7 @@
 				defaultValue={values.description ?? ''}
 				list={data.suggestions.length ? 'expense-descriptions' : undefined}
 				autocomplete="off"
-				onchange={descriptionPicked}
+				onchange={create ? descriptionPicked : undefined}
 				aria-invalid={errors?.description ? 'true' : undefined}
 				required
 			/>
@@ -177,21 +217,24 @@
 			</select>
 		</Field>
 	</div>
-	<datalist id="expense-descriptions">
-		{#each data.suggestions as suggestion (suggestion.description)}
-			<option value={suggestion.description}></option>
-		{/each}
-	</datalist>
-	<div class="form-actions">
-		<button type="submit">Ausgabe erfassen</button>
-		{#if form && 'created' in form}
-			<p role="status">
-				Die Ausgabe wurde erfasst.{#if form.year !== data.year}
-					<a href="?jahr={form.year}">Ausgaben {form.year} anzeigen</a>{/if}
-			</p>
-		{/if}
-	</div>
-</form>
+{/snippet}
+
+{#if data.editing}
+	{#key data.editing.id}
+		<EditDialog
+			title="Ausgabe bearbeiten"
+			action="?/update"
+			deleteAction="?/delete"
+			deleteMessage="Ausgabe „{data.editing.description}“ über {formatCents(
+				data.editing.amount
+			)} wirklich löschen?"
+			close="/auswertung/ausgaben?jahr={data.year}"
+		>
+			<input type="hidden" name="id" value={data.editing.id} />
+			{@render expenseFields(editValues, editErrors, false)}
+		</EditDialog>
+	{/key}
+{/if}
 
 <style>
 	.fields {
