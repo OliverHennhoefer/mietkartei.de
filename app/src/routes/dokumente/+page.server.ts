@@ -27,5 +27,5 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 export const actions: Actions = {
 	upload: ({ locals, request }) => uploadDocument(locals, request),
-	delete: ({ locals, request }) => removeDocument(locals, request)
+	delete: ({ locals, request }) => removeDocument(locals, request, '/dokumente')
 };
