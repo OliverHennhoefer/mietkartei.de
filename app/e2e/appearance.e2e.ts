@@ -71,7 +71,7 @@ test('gives focus back to the menu button when the settings close on a phone', a
 	await page.waitForLoadState('networkidle');
 	const toggle = page.locator('.nav-toggle');
 	await toggle.click();
-	await page.getByRole('button', { name: 'Konto' }).click();
+	await page.getByRole('button', { name: 'Konto', exact: true }).click();
 	await page.getByRole('link', { name: 'Einstellungen' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Einstellungen' });
 	await expect(dialog).toBeVisible();
@@ -85,7 +85,7 @@ test('opens the settings as a dialog over the page and closes it again', async (
 	await expect(page).toHaveTitle('Mieter | mietkartei');
 	// The menu button works only once the page is hydrated.
 	await page.waitForLoadState('networkidle');
-	const account = page.getByRole('button', { name: 'Konto' });
+	const account = page.getByRole('button', { name: 'Konto', exact: true });
 	await account.click();
 	// The menu opens above the account card but follows it for the keyboard.
 	await page.keyboard.press('Tab');
