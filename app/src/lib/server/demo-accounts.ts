@@ -1,6 +1,8 @@
 import { and, asc, eq, like, lt } from 'drizzle-orm';
 import { deleteAccount } from './accounts';
 import { createSession } from './auth';
+import { today } from '../dates';
+import { weekStart } from './deadline-mails';
 import type { Database } from './db';
 import { accounts, outbox, users } from './db/schema';
 import { createDemoData } from './demo';
@@ -45,7 +47,10 @@ export async function startDemo(db: Database, options?: { storage?: Storage }) {
 			email: `demo-${crypto.randomUUID()}${DEMO_EMAIL_DOMAIN}`,
 			// No hash at all, so no password matches: the demo signs in through the session alone.
 			passwordHash: '!',
-			name: 'Demo'
+			name: 'Demo',
+			// The weekly Fristenübersicht is on, as a landlord would have it; the demo sends none.
+			deadlineMailOrigin: 'https://demo.mietkartei.de',
+			deadlineMailSentOn: weekStart(today())
 		})
 		.returning({ id: users.id });
 	await createDemoData(db, { accountId: account.id, userId: user.id }, options);

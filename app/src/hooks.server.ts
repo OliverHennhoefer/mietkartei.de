@@ -18,6 +18,8 @@ const publicPaths = new Set([
 	'/passwort-vergessen',
 	// Stripe's deliveries carry a signature instead of a session.
 	'/api/webhooks/stripe',
+	// Posted by server.js or worker.js with a token of the process instead of a session.
+	'/api/jobs',
 	'/health',
 	'/robots.txt',
 	// Checks the request before anything else and sends visitors to sign in with a way back.

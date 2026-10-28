@@ -1,5 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { weekday } from '../dates';
 import { validateSession } from './auth';
 import type { Database } from './db';
 import { accounts, outbox, properties, users } from './db/schema';
@@ -33,6 +34,10 @@ describe('startDemo', () => {
 		// The letters of the demo have a sender.
 		const [account] = await db.select().from(accounts).where(eq(accounts.id, accountId));
 		expect(account).toMatchObject({ landlordName: 'Katrin Hoffmann', city: 'Berlin' });
+		// The weekly Fristenübersicht is on and went out this Monday.
+		const [user] = await db.select().from(users).where(eq(users.id, session!.user.id));
+		expect(user.deadlineMailOrigin).toBe('https://demo.mietkartei.de');
+		expect(weekday(user.deadlineMailSentOn!)).toBe(1);
 	});
 
 	it('deletes expired demo accounts first', async () => {

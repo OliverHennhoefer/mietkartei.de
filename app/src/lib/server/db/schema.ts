@@ -1438,6 +1438,13 @@ export const users = sqliteTable(
 		showPropertyMaps: bool('show_property_maps', true),
 		/** Light or dark colours, or whatever the device is set to. */
 		theme: text('theme', { enum: themes }).notNull().default('system'),
+		/**
+		 * The weekly Fristenübersicht by mail: the address of the app its links lead to, taken when
+		 * the user turned it on; null while it is off.
+		 */
+		deadlineMailOrigin: text('deadline_mail_origin'),
+		/** The day the last Fristenübersicht went out (or was due without anything in it). */
+		deadlineMailSentOn: text('deadline_mail_sent_on'),
 		createdAt: createdAt()
 	},
 	(table) => [
