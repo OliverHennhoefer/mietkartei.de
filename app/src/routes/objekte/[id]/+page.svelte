@@ -13,10 +13,6 @@
 </script>
 
 <!-- The heading, address and tab bar come from +layout.svelte; this page is the "Einheiten" tab. -->
-<div class="toolbar">
-	<a class="button secondary" href="/objekte/{data.property.id}/bearbeiten">Bearbeiten</a>
-</div>
-
 <h2 class="visually-hidden">Einheiten</h2>
 {#if data.units.length === 0}
 	<p>Dieses Objekt hat noch keine Einheiten.</p>
@@ -53,7 +49,7 @@
 	</ul>
 {/if}
 
-<h2>Einheit anlegen</h2>
+<h2 id="einheit-anlegen">Einheit anlegen</h2>
 <form method="POST" action="?/createUnit" class="card" use:enhance>
 	<PortfolioUnitFields {values} {errors} />
 	<div class="form-actions">

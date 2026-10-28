@@ -20,23 +20,26 @@
 	<title>{title} | mietkartei</title>
 </svelte:head>
 
+<!-- The actions sit at the right of the title, on a phone too, so a page's main action is always
+     in the same place. -->
 <div class="page-header">
-	<div>
-		{#if back}<p class="back"><a href={back.href}>← {back.label}</a></p>{/if}
-		<h1>{title}</h1>
-		{#if lead}<p class="muted lead">{lead}</p>{/if}
-	</div>
+	{#if back}<p class="back"><a href={back.href}>← {back.label}</a></p>{/if}
+	<h1>{title}</h1>
 	{#if actions}<div class="page-actions">{@render actions()}</div>{/if}
+	{#if lead}<p class="muted lead">{lead}</p>{/if}
 </div>
 
 <style>
 	.page-header {
-		display: flex;
-		flex-wrap: wrap;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: center;
-		justify-content: space-between;
-		gap: 0.75rem 1.5rem;
+		column-gap: 1.5rem;
 		margin-bottom: 2.25rem;
+	}
+	.back,
+	.lead {
+		grid-column: 1 / -1;
 	}
 	.back {
 		margin: 0 0 1rem;
@@ -65,6 +68,25 @@
 	.page-actions {
 		display: flex;
 		flex-wrap: wrap;
+		justify-content: flex-end;
 		gap: 0.5rem;
+	}
+	@media (max-width: 40rem) {
+		.page-header {
+			column-gap: 0.75rem;
+		}
+		/* Only the "+" of a create button, as a square. */
+		.page-actions :global(.create) {
+			width: 2.75rem;
+			padding-inline: 0;
+		}
+		.page-actions :global(.create-label) {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip-path: inset(50%);
+			white-space: nowrap;
+		}
 	}
 </style>

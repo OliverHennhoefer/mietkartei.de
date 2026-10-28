@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import { enhance } from '$app/forms';
 	import Badge from '#lib/components/Badge.svelte';
 	import EditDialog from '#lib/components/EditDialog.svelte';
@@ -96,10 +97,10 @@
 	</div>
 {/if}
 
-<h2>Regel anlegen</h2>
+<h2 id="regel-anlegen">Regel anlegen</h2>
 {#if data.leases.length === 0}
 	<EmptyState title="Noch kein Mietvertrag" text="Eine Regel ordnet einem Mietvertrag zu.">
-		<a href="/vertraege/neu">Mietvertrag anlegen</a>
+		<CreateButton href="/vertraege/neu" label="Mietvertrag anlegen" />
 	</EmptyState>
 {:else}
 	<form method="POST" action="?/create" class="card" use:enhance>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import Badge from '#lib/components/Badge.svelte';
 	import Balance from '#lib/components/Balance.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
@@ -60,7 +61,7 @@
 
 <PageHeader title="Mieter" lead="Alle Personen und Firmen, die bei dir mieten oder gemietet haben.">
 	{#snippet actions()}
-		<a href="/mieter/neu" class="button">Mieter anlegen</a>
+		<CreateButton href="/mieter/neu" label="Mieter anlegen" />
 	{/snippet}
 </PageHeader>
 
@@ -69,7 +70,7 @@
 		title="Du hast noch keine Mieter angelegt."
 		text="Lege den ersten Mieter an oder importiere deine Mieter aus einer CSV-Datei."
 	>
-		<a href="/mieter/neu" class="button">Mieter anlegen</a>
+		<CreateButton href="/mieter/neu" label="Mieter anlegen" />
 		<a href="/einstellungen/datenuebernahme" class="button secondary">Importieren</a>
 	</EmptyState>
 {:else}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import { enhance } from '$app/forms';
 	import Badge from '#lib/components/Badge.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
@@ -30,10 +31,6 @@
 		guthaben: byNumber((statement) => statement.guthaben)
 	});
 </script>
-
-<div class="toolbar">
-	<a class="button" href="#neue-abrechnung">Neue Abrechnung</a>
-</div>
 
 <h2 class="visually-hidden">Abrechnungen</h2>
 {#if data.groups.length === 0}
@@ -100,7 +97,7 @@
 		title="Noch keine Belege"
 		text="Eine Abrechnung braucht Belege eines Objekts. Erfasse zuerst die Kosten des Jahres."
 	>
-		<a class="button" href="/betriebskosten/belege/neu">Beleg erfassen</a>
+		<CreateButton href="/betriebskosten/belege/neu" label="Beleg erfassen" />
 	</EmptyState>
 {:else}
 	<form method="POST" action="?/create" class="card" use:enhance>
