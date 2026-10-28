@@ -1,0 +1,65 @@
+name: Update law texts
+
+# Rebuilds the wording of the statutes the app applies (app/src/lib/server/law-data.ts) from
+# gesetze-im-internet.de and opens a pull request when it changed. A changed section may change a
+# rule the app computes, so the pull request asks to check the code that cites it. A pull request
+# opened with the workflow token starts no workflows, so the checks are started by hand
+# (workflow_dispatch) on its branch.
+
+"on":
+  schedule:
+    - cron: "41 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: law
+
+jobs:
+  update:
+    name: Update law texts
+    if: github.repository == 'OliverHennhoefer/mietkartei.de'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      BRANCH: data/law
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Build the law texts
+        working-directory: app
+        run: python -I scripts/law.py
+
+      - name: Open a pull request when a text changed
+        run: |
+          if git diff --quiet -- app/src/lib/server/law-data.ts; then
+            echo "The law texts are up to date."
+            exit 0
+          fi
+          if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[]')" ]; then
+            echo "A pull request for $BRANCH is already open; close it to get a fresh one."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git commit -m "Update the law texts from gesetze-im-internet.de" -- app/src/lib/server/law-data.ts
+          git push --force origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH" \
+            --title "Update the law texts from gesetze-im-internet.de" \
+            --body "Rebuilt by the workflow \"Update law texts\" with \`app/scripts/law.py\`. For every section whose wording changed, check the code that cites it (search for the section, e.g. \"§ 556 Abs. 3 BGB\") and whether a rule the app computes has to change with it."
+          gh workflow run app.yml --ref "$BRANCH"
+          gh workflow run websites.yml --ref "$BRANCH"
