@@ -291,10 +291,10 @@
 		<Field label="Anfangssaldo ist" error={errors.openingBalanceSide}>
 			<select name="openingBalanceSide">
 				<option value="arrears" selected={values.openingBalanceSide !== 'credit'}
-					>Rückstand des Mieters (Soll)</option
+					>Rückstand (Soll)</option
 				>
 				<option value="credit" selected={values.openingBalanceSide === 'credit'}
-					>Guthaben des Mieters (Haben)</option
+					>Guthaben (Haben)</option
 				>
 			</select>
 		</Field>

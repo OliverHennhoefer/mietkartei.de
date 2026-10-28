@@ -540,15 +540,15 @@
 
 {#snippet paymentSide(value: string | undefined)}
 	<select name="side" required>
-		<option value="received" selected={value !== 'refund'}>Zahlung des Mieters (Haben)</option>
-		<option value="refund" selected={value === 'refund'}>Rückzahlung an den Mieter (Soll)</option>
+		<option value="received" selected={value !== 'refund'}>Zahlung erhalten (Haben)</option>
+		<option value="refund" selected={value === 'refund'}>Rückzahlung (Soll)</option>
 	</select>
 {/snippet}
 
 {#snippet adjustmentSide(value: string | undefined)}
 	<select name="side" required>
-		<option value="claim" selected={value !== 'credit'}>Forderung an den Mieter (Soll)</option>
-		<option value="credit" selected={value === 'credit'}>Gutschrift für den Mieter (Haben)</option>
+		<option value="claim" selected={value !== 'credit'}>Forderung (Soll)</option>
+		<option value="credit" selected={value === 'credit'}>Gutschrift (Haben)</option>
 	</select>
 {/snippet}
 
