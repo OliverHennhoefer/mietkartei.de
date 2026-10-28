@@ -1,12 +1,15 @@
+import { cappingPercents, type ComparativeDemand } from '../domain/comparative-rent';
+import { comparisonSources } from '../server/db/schema';
 import type {
 	ApprovalInput,
+	ConsentInput,
 	GraduatedStepInput,
 	ManualChangeInput
 } from '../server/rent-adjustments';
 import { FormParser, type ParseResult } from './fields';
 
-// Parsers of the rent feature: the manual change, a Staffel step and the approval of an index
-// proposal. Whether the lease allows the change is checked by the server module.
+// Parsers of the rent feature: the manual change, a Staffel step, the approval of an index
+// proposal, and a § 558 demand with the tenant's consent. Whether the lease allows the change is checked by the server module.
 
 export type ManualChangeOptions = {
 	/**
@@ -70,4 +73,31 @@ export function parseApproval(
 		parser.fail('validFrom', 'Die neue Miete kann erst nach der Zustellung gelten.');
 	}
 	return parser.result(() => ({ deliveredOn: deliveredOn!, validFrom }));
+}
+
+/** A § 558 demand: whether it keeps the rules of § 558 is checked by the server module. */
+export function parseComparativeDemand(form: FormData): ParseResult<ComparativeDemand> {
+	const parser = new FormParser<ComparativeDemand>(form);
+	const deliveredOn = parser.date('deliveredOn');
+	const baseRent = parser.money('baseRent', { min: 1 });
+	const comparativeRent = parser.money('comparativeRent', { min: 1, max: 1000_00 });
+	const capping = parser.oneOf('cappingPercent', cappingPercents.map(String) as ['20', '15']);
+	const comparisonSource = parser.oneOf('comparisonSource', comparisonSources);
+	const comparisonDetails = parser.text('comparisonDetails', { max: 2000 });
+	return parser.result(() => ({
+		deliveredOn: deliveredOn!,
+		baseRent: baseRent!,
+		comparativeRent: comparativeRent!,
+		cappingPercent: Number(capping) as ComparativeDemand['cappingPercent'],
+		comparisonSource: comparisonSource!,
+		comparisonDetails
+	}));
+}
+
+/** The tenant's consent: the day and the agreed Kaltmiete. */
+export function parseConsent(form: FormData): ParseResult<ConsentInput> {
+	const parser = new FormParser<ConsentInput>(form);
+	const consentedOn = parser.date('consentedOn');
+	const baseRent = parser.money('baseRent', { min: 1 });
+	return parser.result(() => ({ consentedOn: consentedOn!, baseRent: baseRent! }));
 }
