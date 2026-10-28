@@ -318,6 +318,7 @@
 			deleteAction="?/deletePersons"
 			deleteMessage="Personenstand ab {formatDate(data.editing.validFrom)} wirklich entfernen?"
 			close="/vertraege/{lease.id}"
+			error={form && 'message' in form ? form.message : undefined}
 		>
 			<input type="hidden" name="rowId" value={data.editing.id} />
 			{@render personsFields(editValues, editPersonsForm?.errors ?? {})}

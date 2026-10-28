@@ -229,6 +229,7 @@
 				data.editing.amount
 			)} wirklich löschen?"
 			close="/auswertung/ausgaben?jahr={data.year}"
+			error={form && 'message' in form ? form.message : undefined}
 		>
 			<input type="hidden" name="id" value={data.editing.id} />
 			{@render expenseFields(editValues, editErrors, false)}

@@ -187,6 +187,7 @@
 				Math.abs(data.editing.amount)
 			)} vom {formatDate(data.editing.date)} löschen?"
 			close="/vertraege/{data.lease.id}/kaution"
+			error={form?.message}
 		>
 			<input type="hidden" name="movementId" value={data.editing.id} />
 			{@render movementFields(editValues, editRefused?.errors ?? {})}

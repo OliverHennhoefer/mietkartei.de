@@ -1,4 +1,4 @@
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { addMonthsToMonth, firstOfMonth, monthOf, today } from '#lib/dates.ts';
 import { effectiveFrom, indexSituation, nextGraduatedStepAllowed } from '#lib/domain/index-rent.ts';
 import { rentOn } from '#lib/domain/rents.ts';
@@ -160,6 +160,6 @@ export const actions: Actions = {
 		const outcome = await removeChange(locals.db, auditContext(locals), lease.id, changeId);
 		if (!outcome) error(404, 'Diese Mietänderung gibt es nicht.');
 		if (!outcome.ok) return fail(400, { source: 'delete', refusal: outcome.message });
-		return { source: 'delete', saved: true };
+		redirect(303, `/vertraege/${params.id}/miethoehe`);
 	}
 };

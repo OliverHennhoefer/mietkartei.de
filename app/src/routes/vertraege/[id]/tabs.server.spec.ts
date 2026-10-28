@@ -430,7 +430,12 @@ describe('co2', () => {
 		expect(await act(co2Actions.delete, { splitId: row.id }, foreignLeaseId)).toMatchObject({
 			error: 404
 		});
-		expect(await act(co2Actions.delete, { splitId: row.id })).toEqual({ data: { deleted: true } });
+		expect(await tab(loadCo2, `?bearbeiten=${row.id}`)).toMatchObject({
+			data: { editing: { id: row.id } }
+		});
+		expect(await act(co2Actions.delete, { splitId: row.id })).toEqual({
+			redirect: `/vertraege/${leaseId}/co2`
+		});
 	});
 
 	it('refuses a lease of another account', async () => {

@@ -18,6 +18,7 @@
 		deleteAction,
 		deleteMessage,
 		close,
+		error,
 		children
 	}: {
 		title: string;
@@ -28,6 +29,8 @@
 		deleteMessage?: string;
 		/** The list without the dialog. */
 		close: string;
+		/** Why the server refused to save or delete, shown in the dialog, above the buttons. */
+		error?: string;
 		children: Snippet;
 	} = $props();
 
@@ -86,6 +89,7 @@
 	</div>
 	<form method="POST" action={action ?? deleteAction} class="form" use:enhance={submit}>
 		{@render children()}
+		{#if error}<p class="error form-wide" role="alert">{error}</p>{/if}
 		<div class="form-actions">
 			{#if action}<button type="submit">Speichern</button>{/if}
 			<a

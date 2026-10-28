@@ -457,6 +457,7 @@
 				data.editing.date
 			)} über {formatCents(data.editing.amount)} löschen?"
 			close={withRange()}
+			error={form && 'message' in form ? form.message : undefined}
 		>
 			<input type="hidden" name="id" value={data.editing.id} />
 			<Field label="Datum" error={editErrors?.date}>
@@ -504,6 +505,7 @@
 				data.reminder
 			)} löschen? Das Schreiben verschwindet nur hier, nicht beim Mieter."
 			close={withRange()}
+			error={form && 'message' in form ? form.message : undefined}
 		>
 			<input type="hidden" name="id" value={data.reminder.id} />
 			<dl class="details">

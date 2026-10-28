@@ -389,6 +389,7 @@
 			deleteAction="?/delete"
 			deleteMessage="Aufgabe „{data.editing.title}“ wirklich löschen?"
 			close="/aufgaben"
+			error={form && 'message' in form ? form.message : undefined}
 		>
 			<input type="hidden" name="id" value={data.editing.id} />
 			<TaskFields
