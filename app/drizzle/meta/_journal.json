@@ -337,6 +337,13 @@
       "when": 1793220029872,
       "tag": "0047_rent_comparison",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1793221626997,
+      "tag": "0048_deposit_settlements",
+      "breakpoints": true
     }
   ]
 }

@@ -59,7 +59,7 @@
 	</table>
 </div>
 
-<h2>Kostenart anlegen</h2>
+<h2 id="kostenart-anlegen">Kostenart anlegen</h2>
 <CostCategoryForm
 	action="?/create"
 	submitLabel="Kostenart anlegen"

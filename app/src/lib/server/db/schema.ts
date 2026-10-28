@@ -409,6 +409,36 @@ export const rentChanges = sqliteTable(
 	]
 );
 
+/**
+ * Kautionsabrechnung: the settlement of the deposit after the lease ended, one per lease, with its
+ * letter. Its bookings (interest, Einbehalte, the offset against arrears and the payout) are
+ * deposit movements and a payment that point to it and go with it.
+ */
+export const depositSettlements = sqliteTable(
+	'deposit_settlements',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		/** The date of the letter and of its bookings. */
+		date: text('date').notNull(),
+		/** Paid back to the tenant; 0 when the deductions take the whole deposit. */
+		payout: integer('payout').notNull(),
+		/** Arrears left on the rent ledger after the offset. */
+		remaining: integer('remaining').notNull(),
+		/** Rows of the letter's table: item and amount. */
+		items: text('items', { mode: 'json' }).notNull().$type<string[][]>(),
+		letterText: text('letter_text').notNull(),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('deposit_settlements_account_id_idx').on(table.accountId),
+		uniqueIndex('deposit_settlements_lease_unique').on(table.leaseId)
+	]
+);
+
 export const depositTransactionKinds = ['received', 'interest', 'returned', 'withheld'] as const;
 export type DepositTransactionKind = (typeof depositTransactionKinds)[number];
 
@@ -433,6 +463,13 @@ export const depositTransactions = sqliteTable(
 		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id, {
 			// Checked at the end of the statement, so deleting the whole account still works; a bank
 			// account with assigned transactions is refused by the banking module before that.
+			onDelete: 'no action'
+		}),
+		/**
+		 * Set when the movement is a booking of the Kautionsabrechnung. No delete action, as SQLite
+		 * adds the column with a bare REFERENCES: deleting the settlement deletes its bookings first.
+		 */
+		settlementId: text('settlement_id').references(() => depositSettlements.id, {
 			onDelete: 'no action'
 		}),
 		createdAt: createdAt()
@@ -551,7 +588,8 @@ export const rentCharges = sqliteTable(
 	]
 );
 
-export const paymentSources = ['manual', 'bank'] as const;
+/** deposit: the offset of arrears against the deposit in the Kautionsabrechnung. */
+export const paymentSources = ['manual', 'bank', 'deposit'] as const;
 export type PaymentSource = (typeof paymentSources)[number];
 
 /**
@@ -574,6 +612,10 @@ export const payments = sqliteTable(
 		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id, {
 			// Checked at the end of the statement, so deleting the whole account still works; a bank
 			// account with assigned transactions is refused by the banking module before that.
+			onDelete: 'no action'
+		}),
+		/** The Kautionsabrechnung of an offset (source deposit); no delete action, as above. */
+		settlementId: text('settlement_id').references(() => depositSettlements.id, {
 			onDelete: 'no action'
 		}),
 		createdAt: createdAt()

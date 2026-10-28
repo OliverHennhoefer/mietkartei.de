@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -137,9 +138,7 @@
 
 <PageHeader title="Aufgaben">
 	{#snippet actions()}
-		<a class="button" href="?neu" onclick={openDialog}
-			><Icon name="plus" size={16} />Aufgabe anlegen</a
-		>
+		<CreateButton href="?neu" label="Aufgabe anlegen" onclick={openDialog} />
 	{/snippet}
 </PageHeader>
 

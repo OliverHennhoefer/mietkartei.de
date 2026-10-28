@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import Icon from '#lib/components/Icon.svelte';
@@ -32,7 +33,7 @@
 
 <PageHeader title="Objekte" {lead}>
 	{#snippet actions()}
-		<a class="button" href="/objekte/neu"><Icon name="plus" size={16} />Objekt anlegen</a>
+		<CreateButton href="/objekte/neu" label="Objekt anlegen" />
 	{/snippet}
 </PageHeader>
 
@@ -41,7 +42,7 @@
 		title="Du hast noch keine Objekte angelegt."
 		text="Lege zuerst ein Objekt an und dann seine Einheiten; Mietverträge kommen danach."
 	>
-		<a class="button" href="/objekte/neu">Erstes Objekt anlegen</a>
+		<CreateButton href="/objekte/neu" label="Erstes Objekt anlegen" />
 		<a class="button secondary" href="/einstellungen/datenuebernahme"
 			>Daten aus einer anderen Software importieren</a
 		>

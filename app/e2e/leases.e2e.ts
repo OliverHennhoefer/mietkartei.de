@@ -204,6 +204,55 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	await expect(row).toContainText(/800,00\s€/);
 });
 
+test('settles the deposit of an ended lease and writes the letter', async ({ page }) => {
+	// 800 € a month through 2025 with one month unpaid at the end and paid since, the deposit of
+	// 1.800 € paid in.
+	const { leaseId } = await seedLease(page.request, {
+		lease: { endDate: '2025-12-31', terminatedAt: '2025-09-15', terminatedBy: 'tenant' }
+	});
+	await seedRows(page.request, 'payments', [
+		{ leaseId, date: '2025-12-01', amount: 880000, note: 'Mieten 2025' },
+		{ leaseId, date: '2026-01-15', amount: 80000, note: 'Dezember' }
+	]);
+	await seedRows(page.request, 'deposit_transactions', [
+		{ leaseId, date: '2025-01-02', kind: 'received', amount: 180000 }
+	]);
+	await page.goto(`/vertraege/${leaseId}/kaution`);
+
+	// Interest of 12 €, a repair withheld and the arrears of 800 € offset leave 712 €.
+	await page.getByLabel('Zinsen bis heute (optional)').fill('12,00');
+	await page.getByLabel('Grund').fill('Reparatur der Badtür');
+	await page.locator('input[name="amount1"]').fill('300,00');
+	// Settled today, nothing is owed; on the day of the end, the 800 € were.
+	await expect(page.getByLabel(/Mietrückstand von/)).toHaveCount(0);
+	await expect(page.locator('.preview')).toContainText(/Auszahlung\s1\.512,00\s€/);
+	await page.getByLabel('Datum der Abrechnung').fill('2025-12-31');
+	await page.getByLabel('Datum der Abrechnung').dispatchEvent('change');
+	await expect(
+		page.getByLabel('Mietrückstand von 800,00 € mit der Kaution verrechnen')
+	).toBeChecked();
+	await expect(page.locator('.preview')).toContainText(/Auszahlung\s712,00\s€/);
+	await page.getByRole('button', { name: 'Weiterer Einbehalt' }).click();
+	await expect(page.locator('input[name="label2"]')).toBeVisible();
+	await page.getByRole('button', { name: 'Kaution abrechnen' }).click();
+
+	await expect(page.getByText(/Abgerechnet am .*712,00\s€/)).toBeVisible();
+	const movements = page.getByRole('table', { name: 'Kautionsbewegungen' });
+	await expect(movements.getByText('Abrechnung')).toHaveCount(4);
+	await expect(movements).toContainText('Einbehalt: Reparatur der Badtür');
+	await page.getByRole('link', { name: 'Schreiben ansehen' }).click();
+	const letter = page.getByRole('dialog', { name: /Kautionsabrechnung vom/ });
+	await expect(letter).toContainText('Ihr Mietverhältnis');
+	await expect(letter).toContainText('Verrechnet mit dem Mietrückstand');
+	await letter.getByRole('button', { name: 'Vorschau schließen' }).click();
+
+	// Deleting the settlement takes its bookings with it; the form is back.
+	page.once('dialog', (dialog) => void dialog.accept());
+	await page.getByRole('button', { name: 'Abrechnung löschen' }).click();
+	await expect(page.getByRole('button', { name: 'Kaution abrechnen' })).toBeVisible();
+	await expect(movements.getByRole('row')).toHaveCount(2);
+});
+
 test('shows validation errors and the deposit hint', async ({ page }) => {
 	const { unitId, tenantId } = await seedUnitAndTenant(page);
 	await page.goto(`/vertraege/neu?unitId=${unitId}&tenantId=${tenantId}`);
