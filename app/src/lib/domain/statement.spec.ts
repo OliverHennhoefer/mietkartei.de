@@ -620,20 +620,21 @@ describe('computeStatement warnings', () => {
 		};
 	}
 
-	it('warns about a missing floor area and gives that unit no area share', () => {
+	it('blocks approval while a floor area is missing, since the other units would carry its share', () => {
 		const input = small();
 		input.units[1].floorArea = null;
 		const result = computeStatement(input, options);
 		expect(result.property.warnings).toEqual([
 			{
 				code: 'missing_area',
-				blocking: false,
+				blocking: true,
 				unitId: 'og',
 				href: '/objekte/p/einheiten/og/bearbeiten',
-				message: 'Für die Einheit OG fehlt die Wohnfläche; sie erhält keinen Anteil nach Fläche.'
+				message:
+					'Für die Einheit OG fehlt die Wohnfläche; ohne sie bekämen die anderen Einheiten ihren Anteil nach Fläche. Trag die Fläche ein, bevor du die Abrechnung freigibst.'
 			}
 		]);
-		// EG carries the whole 1.000 €, OG nothing.
+		// Unblocked, EG would carry the whole 1.000 €, OG nothing.
 		expect(result.leases.find((l) => l.leaseId === 'l-eg')?.costsTotal).toBe(100000);
 		expect(result.leases.find((l) => l.leaseId === 'l-og')?.costsTotal).toBe(0);
 	});
@@ -1054,7 +1055,7 @@ describe('computeStatement warnings', () => {
 
 		input.keys[0].shares.pop();
 		expect(computeStatement(input, options).property.warnings).toMatchObject([
-			{ code: 'missing_share', unitId: 'og', href: '/betriebskosten/schluessel' }
+			{ code: 'missing_share', blocking: false, unitId: 'og', href: '/betriebskosten/schluessel' }
 		]);
 	});
 
@@ -1194,7 +1195,7 @@ describe('computeStatement warnings', () => {
 			unallocated: 100000
 		});
 		expect(result.property.unallocatedTotal).toBe(100000);
-		expect(result.property.warnings.filter((w) => w.blocking)).toEqual([
+		expect(result.property.warnings.filter((w) => w.code === 'no_weight')).toEqual([
 			{
 				code: 'no_weight',
 				blocking: true,
@@ -1217,6 +1218,8 @@ describe('computeStatement warnings', () => {
 		expect(heating.leases.map((l) => l.costsTotal)).toEqual([42000, 28000]);
 		expect(heating.property.unallocatedTotal).toBe(30000);
 		expect(heating.property.warnings.filter((w) => w.blocking).map((w) => w.code)).toEqual([
+			'missing_area',
+			'missing_area',
 			'no_weight'
 		]);
 	});

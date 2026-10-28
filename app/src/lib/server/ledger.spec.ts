@@ -188,7 +188,10 @@ describe('ensureCharges', () => {
 		const late = await createLeaseWithoutCharges(
 			db,
 			contextA,
-			leaseInput(unitId, { startDate: '2015-04-01', ledgerStart: '2025-03-01' })
+			leaseInput((await seedUnit(db, 'a', { name: 'OG' })).unitId, {
+				startDate: '2015-04-01',
+				ledgerStart: '2025-03-01'
+			})
 		);
 		if (!late.ok) throw new Error('setup failed');
 		expect(await ensureCharges(db, 'a', [late.id], '2025-04')).toEqual({
@@ -430,7 +433,7 @@ describe('listLedger', () => {
 		const ended = await createLeaseWithoutCharges(
 			db,
 			contextA,
-			leaseInput(unitId, { endDate: '2025-03-31' })
+			leaseInput((await seedUnit(db, 'a', { name: 'OG' })).unitId, { endDate: '2025-03-31' })
 		);
 		if (!ended.ok) throw new Error('setup failed');
 		endedLeaseId = ended.id;
@@ -573,13 +576,13 @@ describe('listBalances', () => {
 		const unpaid = await createLeaseWithoutCharges(
 			db,
 			contextA,
-			leaseInput(unitId, { endDate: '2025-02-28' })
+			leaseInput((await seedUnit(db, 'a', { name: 'OG' })).unitId, { endDate: '2025-02-28' })
 		);
 		// Lease 3: one month, overpaid.
 		const overpaid = await createLeaseWithoutCharges(
 			db,
 			contextA,
-			leaseInput(unitId, { endDate: '2025-01-31' })
+			leaseInput((await seedUnit(db, 'a', { name: 'OG' })).unitId, { endDate: '2025-01-31' })
 		);
 		if (!unpaid.ok || !overpaid.ok) throw new Error('setup failed');
 		await createPayment(db, contextA, {

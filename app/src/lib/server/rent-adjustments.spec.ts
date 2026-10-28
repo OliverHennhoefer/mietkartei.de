@@ -381,7 +381,10 @@ describe('addGraduatedStep', () => {
 		const lease = await createLeaseWithoutCharges(
 			db,
 			contextA,
-			leaseInput(unitId, { startDate: '2025-01-01', rentModel: 'graduated' })
+			leaseInput((await seedUnit(db, 'a', { name: 'OG' })).unitId, {
+				startDate: '2025-01-01',
+				rentModel: 'graduated'
+			})
 		);
 		if (!lease.ok) throw new Error('setup failed');
 		graduatedId = lease.id;
@@ -420,7 +423,11 @@ describe('addGraduatedStep', () => {
 		const lease = await createLeaseWithoutCharges(
 			db,
 			contextA,
-			leaseInput(unitId, { startDate: '2025-01-01', rentModel: 'graduated', kind: 'commercial' })
+			leaseInput((await seedUnit(db, 'a', { name: 'OG' })).unitId, {
+				startDate: '2025-01-01',
+				rentModel: 'graduated',
+				kind: 'commercial'
+			})
 		);
 		if (!lease.ok) throw new Error('setup failed');
 		expect(
@@ -638,7 +645,10 @@ describe('later rows follow a change of a field', () => {
 		const lease = await createLeaseWithoutCharges(
 			db,
 			contextA,
-			leaseInput(unitId, { startDate: '2025-01-01', rentModel: 'graduated' })
+			leaseInput((await seedUnit(db, 'a', { name: 'OG' })).unitId, {
+				startDate: '2025-01-01',
+				rentModel: 'graduated'
+			})
 		);
 		if (!lease.ok) throw new Error('setup failed');
 		graduatedId = lease.id;

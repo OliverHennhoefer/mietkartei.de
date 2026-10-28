@@ -406,7 +406,7 @@ describe('planImport: leases', () => {
 			'Objekt;Einheit;Mieter;Beginn;Ende;Kaltmiete;Nebenkosten;Heizkosten;Kaution;Personen;Mietkonto ab;Anfangssaldo;Art',
 			'Villa;Haus;"Mustermann, Erika; Max Mustermann";01.03.2024;;1.200,00;200,00;100,00;3600;2;01.01.2026;-50,00;',
 			'Haus;Stellplatz 1;Beispiel;2025-02-01;;45;;;;;;;',
-			'Haus;Stellplatz 1;erika@example.org;01.01.2026;;45;;;;;;;Gewerbe',
+			'Haus;Laden;erika@example.org;01.01.2026;;45;;;;;;;Gewerbe',
 			'Haus;Keller;Beispiel;01.01.2025;;100;;;;;;;',
 			'Schloss;EG;Beispiel;01.01.2025;;100;;;;;;;',
 			'Haus;EG links;Mustermann;01.01.2025;;100;;;;;;;',
@@ -417,9 +417,22 @@ describe('planImport: leases', () => {
 			'Haus;EG links;Beispiel;01.06.2025;;abc;;;;;;;',
 			'Haus;EG links;Beispiel;01.06.2025;;100;;;;;;x;',
 			'Haus;EG links;Beispiel;01.06.2025;;100;;;;;01.01.2025;;',
-			'Haus;EG links;Beispiel;01.06.2025;;100;;;;;;100.000.000,01;'
+			'Haus;EG links;Beispiel;01.06.2025;;100;;;;;;100.000.000,01;',
+			'Haus;Stellplatz 1;Beispiel;01.03.2025;;45;;;;;;;',
+			'Haus;EG links;Beispiel;01.06.2025;;100;;;;;;;'
 		].join('\n');
-		const result = plan('leases', csv, leaseContext);
+		// Without the Stellplatz as extra unit and without a lease of the Villa, so that the rows
+		// above have their units to themselves.
+		const result = plan('leases', csv, {
+			...leaseContext,
+			units: [
+				...leaseContext.units,
+				{ id: 'u4', propertyId: 'p1', name: 'Laden', kind: 'commercial' }
+			],
+			leases: leaseContext.leases
+				.filter((lease) => lease.id !== 'l3')
+				.map((lease) => ({ ...lease, extraUnitIds: [] }))
+		});
 		if (result.kind !== 'leases') throw new Error(result.kind);
 
 		expect(result.leases.map((lease) => lease.row)).toEqual([2, 3, 4]);
@@ -469,7 +482,16 @@ describe('planImport: leases', () => {
 			[12, 'Kaltmiete: Bitte gib einen Betrag an, z. B. 650,00.'],
 			[13, 'Anfangssaldo: Bitte gib einen Betrag an, z. B. 650,00.'],
 			[14, 'Mietkonto ab: Das Mietkonto kann nicht vor dem Vertragsbeginn beginnen.'],
-			[15, 'Anfangssaldo: Der Betrag ist zu hoch.']
+			[15, 'Anfangssaldo: Der Betrag ist zu hoch.'],
+			// Two leases of one unit at once, within the file and with a lease of the account.
+			[
+				16,
+				'Für „Stellplatz 1“ in „Haus“ ab 01.03.2025 gibt es in diesem Zeitraum schon einen Mietvertrag (ab 01.02.2025); eine Einheit kann nur einen Vertrag zur selben Zeit haben.'
+			],
+			[
+				17,
+				'Für „EG links“ in „Haus“ ab 01.06.2025 gibt es in diesem Zeitraum schon einen Mietvertrag (ab 01.01.2025); eine Einheit kann nur einen Vertrag zur selben Zeit haben.'
+			]
 		]);
 	});
 
@@ -1013,7 +1035,8 @@ describe('planImport: rows that name too little', () => {
 					lastName: 'Zwilling',
 					email: 'same@example.org'
 				}
-			]
+			],
+			leases: []
 		};
 		const csv = [
 			'Objekt;Einheit;Mieter;Beginn;Kaltmiete',
@@ -1064,7 +1087,7 @@ describe('plannedCount', () => {
 				plan(
 					'leases',
 					'Objekt;Einheit;Mieter;Beginn;Kaltmiete\nVilla;Haus;Beispiel;01.01.2026;100',
-					leaseContext
+					{ ...leaseContext, leases: [] }
 				)
 			)
 		).toBe(1);

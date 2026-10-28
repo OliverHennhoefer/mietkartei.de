@@ -33,7 +33,7 @@ describe('properties', () => {
 		const sold = await seedUnit(db, 'a', { propertyName: 'Verkauft' });
 		const parking = await seedUnit(db, 'a', { name: 'Stellplatz', propertyName: 'Hof' });
 		const main = await seedLease(db, 'a', sold.unitId, { endDate: '2025-06-30' });
-		await seedLease(db, 'a', parking.unitId, { startDate: '2025-08-01' });
+		await seedLease(db, 'a', parking.unitId, { startDate: '2025-08-01', endDate: '2025-08-31' });
 
 		// On 2025-06-30 the lease still runs; from July on the property is free.
 		const running = await propertyArchiving(db, 'a', sold.propertyId, '2025-06-30');
@@ -78,7 +78,9 @@ describe('properties', () => {
 
 		expect(await restoreProperty(db, contextA, sold.propertyId)).toBe(true);
 		expect(await listProperties(db, 'a')).toHaveLength(2);
-		expect((await createLease(db, contextA, leaseInput(sold.unitId))).ok).toBe(true);
+		expect(
+			(await createLease(db, contextA, leaseInput(sold.unitId, { startDate: '2025-07-01' }))).ok
+		).toBe(true);
 		expect(await integrityProblems(db)).toEqual([]);
 	});
 

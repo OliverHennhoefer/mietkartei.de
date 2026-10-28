@@ -332,6 +332,46 @@ describe('vertraege/[id]', () => {
 		expect(await overview(id)).toMatchObject({ data: { deadlines: expect.anything() } });
 	});
 
+	it('refuses a second lease of the unit at the same time, on create, edit and end', async () => {
+		const overlap = expect.stringContaining('schon an einen anderen Vertrag vermietet');
+		// The lease from 2025 runs open-ended; a new one from 2026 would share the unit.
+		expect(await run(newActions.create, { form: lease() })).toMatchObject({
+			fail: 400,
+			data: { errors: { startDate: overlap } }
+		});
+		await run(leaseActions.end, {
+			params: { id },
+			form: {
+				terminatedAt: '2026-03-02',
+				terminatedBy: 'tenant',
+				endDate: '2026-05-31',
+				earlyEndAgreed: 'on'
+			}
+		});
+		const next = idOf(
+			await run(newActions.create, { form: { ...lease(), startDate: '2026-06-01' } })
+		);
+		expect(
+			await run(leaseActions.end, {
+				params: { id },
+				form: { terminatedAt: '2026-03-02', terminatedBy: 'tenant', endDate: '2026-06-30' }
+			})
+		).toMatchObject({
+			fail: 400,
+			data: { which: 'end', errors: { endDate: expect.stringContaining('01.06.2026') } }
+		});
+		const parent = { lease: await getLease(db, 'a', next) };
+		const loaded = (await run(loadEdit, { params: { id: next }, parent })) as {
+			data: { defaults: Record<string, string> };
+		};
+		expect(
+			await run(editActions.update, {
+				params: { id: next },
+				form: { ...loaded.data.defaults, tenantIds: [tenantId], startDate: '2026-05-01' }
+			})
+		).toMatchObject({ fail: 400, data: { errors: { startDate: overlap } } });
+	});
+
 	it('names § 580a BGB for the notice period of a commercial lease', async () => {
 		const shop = await seedUnit(db, 'a', { name: 'Laden' });
 		const commercial = await seedLease(db, 'a', shop.unitId, {
@@ -350,7 +390,9 @@ describe('vertraege/[id]', () => {
 	});
 
 	it('deletes a lease without bookings and keeps one with a payment', async () => {
-		const paid = await seedLease(db, 'a', unitId, { startDate: '2025-01-01' });
+		const paid = await seedLease(db, 'a', (await seedUnit(db, 'a', { name: 'OG' })).unitId, {
+			startDate: '2025-01-01'
+		});
 		await createPayment(db, contextA, {
 			leaseId: paid,
 			date: '2026-01-05',
