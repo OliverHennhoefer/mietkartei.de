@@ -1383,6 +1383,7 @@ button.icon-button:hover {
 	margin: 2rem 0 1.5rem;
 	padding: 0;
 	border: 0;
+	background: none;
 	box-shadow: none;
 }
 .narrow .form-actions > button {
