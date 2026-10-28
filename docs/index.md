@@ -21,6 +21,8 @@ mietkartei ist die Hausverwaltung von Vermietern für Vermieter: Mieten, Bankums
 
 Nach der Anmeldung führt dich die Startseite Aufgaben durch die ersten Schritte: Objekt und Einheiten anlegen, Mieter erfassen, Mietvertrag mit Miete und Kaution anlegen, Bankverbindung hinzufügen und Kostenarten prüfen. Hast du deine Daten schon in einer Tabelle, übernimmt die Datenübernahme sie per CSV.
 
+Danach steht auf Aufgaben alles, was zu tun ist: deine eigenen Aufgaben und Erinnerungen, die mietkartei aus deinen Daten ableitet, etwa Rückstände, nicht zugeordnete Bankumsätze, Kontoauszüge, die länger nicht geladen wurden, und leere Einheiten. Darüber steht die nächste Frist, alle Fristen der nächsten zwölf Monate findest du unter Fristen.
+
 ## Anleitungen
 
 - [Nebenkostenabrechnung erstellen](anleitungen/nebenkostenabrechnung.md): von den Belegen bis zum PDF für jeden Mieter.

@@ -58,6 +58,7 @@
 			label: 'Alltag',
 			sections: [
 				{ href: '/aufgaben', label: 'Aufgaben', icon: 'check' },
+				{ href: '/fristen', label: 'Fristen', icon: 'calendar' },
 				{ href: '/auswertung', label: 'Auswertung', icon: 'trend' }
 			]
 		},
