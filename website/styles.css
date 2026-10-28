@@ -156,6 +156,16 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .bubble-answer ul { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
 .bubble-answer li { display: flex; justify-content: space-between; gap: 24px; padding-top: 8px; border-top: 1px solid var(--line); }
 .chat-source { color: var(--muted); font-size: var(--text-xs); }
+/* The handoff: one click copies a task for the assistant, for the hosted plan or for self-hosting. */
+.handoff { display: grid; gap: 14px; margin-top: 40px; }
+.handoff-label { color: var(--foreground); font-size: var(--text-lg); font-weight: 500; text-wrap: balance; }
+.handoff-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.copy { padding: 12px 18px; border: 1px solid var(--highlight); border-radius: 10px; background: var(--highlight); color: #000; font: inherit; font-size: var(--text-base); font-weight: 600; cursor: pointer; }
+.copy-ghost { border-color: var(--line); background: none; color: var(--foreground); }
+.copy:focus-visible { outline: 2px solid var(--foreground); outline-offset: 2px; }
+.handoff-hint, .handoff-details summary { color: var(--muted); font-size: var(--text-sm); }
+.handoff-details summary { cursor: pointer; }
+.handoff-details p { margin-top: 10px !important; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #232428; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--text-sm); line-height: 1.6; overflow-wrap: anywhere; }
 .amount-cell { white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 500; }
 
 .promises { padding: 120px 0 0; }

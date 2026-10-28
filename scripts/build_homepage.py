@@ -32,6 +32,7 @@ for filename in (
     "_headers",
     "_redirects",
     "assets/social.png",
+    "assets/copy.js",
 ):
     destination = OUTPUT / filename
     destination.parent.mkdir(parents=True, exist_ok=True)
