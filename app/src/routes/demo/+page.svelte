@@ -84,12 +84,16 @@
 				{#if starting}<span class="spinner" aria-hidden="true"></span>Demo wird angelegt …{:else}Demo
 					starten{/if}
 			</button>
-			<a href="https://mietkartei.de/fragen/" class="small">Fragen?</a>
 		</div>
 	</form>
+	<p class="questions small"><a href="https://mietkartei.de/fragen/">Fragen?</a></p>
 </div>
 
 <style>
+	.questions {
+		margin: 0;
+		text-align: center;
+	}
 	.starting {
 		display: grid;
 		gap: 1.25rem;
