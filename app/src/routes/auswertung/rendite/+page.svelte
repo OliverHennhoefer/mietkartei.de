@@ -4,10 +4,12 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import Sections from '../Sections.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { formatCentsPlain } from '#lib/money.ts';
 	import { percent } from '../figures';
+	import { byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -44,6 +46,13 @@
 	const failedFor = $derived(form && 'values' in form ? form.values?.propertyId : undefined);
 	const savedFor = $derived(form && 'saved' in form ? form.saved : undefined);
 	const amount = (cents: number | null) => (cents === null ? '' : formatCentsPlain(cents));
+	const sort = new TableSort<PageProps['data']['properties'][number]>({
+		name: byText((row) => row.name),
+		gross: byNumber((row) => row.gross),
+		net: byNumber((row) => row.net),
+		equity: byNumber((row) => row.equity),
+		cashflow: byNumber((row) => row.cashflow)
+	});
 </script>
 
 <PageHeader
@@ -181,15 +190,15 @@
 			<table class="table">
 				<thead>
 					<tr>
-						<th>Objekt</th>
-						<th class="number">Brutto</th>
-						<th class="number">Netto</th>
-						<th class="number">Eigenkapital­rendite</th>
-						<th class="number">Cashflow im Monat</th>
+						<SortHeader {sort} key="name">Objekt</SortHeader>
+						<SortHeader {sort} key="gross" class="num">Brutto</SortHeader>
+						<SortHeader {sort} key="net" class="num">Netto</SortHeader>
+						<SortHeader {sort} key="equity" class="num">Eigenkapital­rendite</SortHeader>
+						<SortHeader {sort} key="cashflow" class="num">Cashflow im Monat</SortHeader>
 					</tr>
 				</thead>
 				<tbody>
-					{#each data.properties as row (row.id)}
+					{#each sort.rows(data.properties) as row (row.id)}
 						<tr>
 							<td><a href="?objekt={row.id}">{row.name}</a></td>
 							<td class="number">{percent(row.gross)}</td>

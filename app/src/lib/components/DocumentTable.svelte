@@ -4,6 +4,7 @@
 	import EditDialog from './EditDialog.svelte';
 	import Icon from './Icon.svelte';
 	import PreviewLink from './PreviewLink.svelte';
+	import SortHeader from './SortHeader.svelte';
 	import { formatDateTime } from '../dates';
 	import {
 		canInline,
@@ -15,6 +16,7 @@
 		type DocumentLinkOptions,
 		type LinkKind
 	} from '../domain/documents';
+	import { byDate, byNumber, byText, TableSort } from '../table-sort.svelte';
 
 	// The list of documents on /dokumente and on a lease's Dokumente tab: name, type, size,
 	// upload time, the links as text, view and download. The name opens the document's dialog
@@ -50,6 +52,17 @@
 		const search = query.toString();
 		return `${page.url.pathname}${search ? `?${search}` : ''}`;
 	}
+	const sort = new TableSort<Row>({
+		name: byText((document) => document.name),
+		type: byText((document) => documentTypeLabel(document.mimeType)),
+		size: byNumber((document) => document.size),
+		created: byDate((document) => document.createdAt),
+		links: byText((document) =>
+			describeDocumentLinks(document, options, omit)
+				.map((link) => link.label)
+				.join(' ')
+		)
+	});
 	const opened = $derived(
 		documents.find((document) => document.id === page.url.searchParams.get('bearbeiten'))
 	);
@@ -59,16 +72,16 @@
 	<table class="table" aria-label="Dokumente">
 		<thead>
 			<tr>
-				<th>Name</th>
-				<th>Art</th>
-				<th class="num">Größe</th>
-				<th>Hochgeladen</th>
-				<th>Verknüpft mit</th>
+				<SortHeader {sort} key="name">Name</SortHeader>
+				<SortHeader {sort} key="type">Art</SortHeader>
+				<SortHeader {sort} key="size" class="num">Größe</SortHeader>
+				<SortHeader {sort} key="created">Hochgeladen</SortHeader>
+				<SortHeader {sort} key="links">Verknüpft mit</SortHeader>
 				<th class="actions"></th>
 			</tr>
 		</thead>
 		<tbody>
-			{#each documents as document (document.id)}
+			{#each sort.rows(documents) as document (document.id)}
 				{@const links = describeDocumentLinks(document, options, omit)}
 				<tr>
 					<td>

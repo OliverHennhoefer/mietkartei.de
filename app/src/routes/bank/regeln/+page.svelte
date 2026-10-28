@@ -4,7 +4,9 @@
 	import EditDialog from '#lib/components/EditDialog.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Field from '#lib/components/Field.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { matchingFieldIds, matchingFieldLabels } from '#lib/domain/bank-matching.ts';
+	import { bySeverity, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -23,6 +25,12 @@
 			})
 	);
 	const leaseLabels = $derived(new Map(data.leases.map((lease) => [lease.id, lease.label])));
+	const sort = new TableSort<PageProps['data']['rules'][number]>({
+		lease: byText((rule) => leaseLabels.get(rule.leaseId) ?? 'Unbekannter Mietvertrag'),
+		field: byText((rule) => matchingFieldLabels[rule.field]),
+		pattern: byText((rule) => rule.pattern),
+		status: bySeverity((rule) => (rule.confirmed ? 0 : 1))
+	});
 </script>
 
 <!-- The heading and the tab bar come from +layout.svelte; this page is the "Regeln" tab. -->
@@ -49,15 +57,15 @@
 		<table class="table" aria-label="Zuordnungsregeln">
 			<thead>
 				<tr>
-					<th>Mietvertrag</th>
-					<th>Feld</th>
-					<th>Enthält</th>
-					<th>Status</th>
+					<SortHeader {sort} key="lease">Mietvertrag</SortHeader>
+					<SortHeader {sort} key="field">Feld</SortHeader>
+					<SortHeader {sort} key="pattern">Enthält</SortHeader>
+					<SortHeader {sort} key="status">Status</SortHeader>
 					<th class="actions"><span class="visually-hidden">Aktionen</span></th>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.rules as rule (rule.id)}
+				{#each sort.rows(data.rules) as rule (rule.id)}
 					<tr>
 						<td>
 							<a href="?bearbeiten={rule.id}" data-sveltekit-reset="false"

@@ -182,7 +182,7 @@ test('answers unknown pages under /einstellungen/datenuebernahme with 404', asyn
 test('runs in the settings dialog over the page it was opened from', async ({ page }) => {
 	await page.goto('/mieter');
 	await page.waitForLoadState('networkidle');
-	await page.getByRole('button', { name: 'Konto' }).click();
+	await page.getByRole('button', { name: 'Konto', exact: true }).click();
 	await page.getByRole('link', { name: 'Einstellungen' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Einstellungen' });
 	await dialog.getByRole('link', { name: 'Datenübernahme' }).click();

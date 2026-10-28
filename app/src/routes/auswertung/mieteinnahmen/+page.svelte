@@ -5,9 +5,11 @@
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import Sections from '../Sections.svelte';
 	import RentChart from '#lib/components/RentChart.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import Sparkline from '#lib/components/Sparkline.svelte';
 	import Filters from '../Filters.svelte';
 	import { percent, perSqm } from '../figures';
+	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -25,6 +27,21 @@
 		}))
 	);
 	const thisYear = $derived(series.find((point) => point.key === currentYear));
+	const yearSort = new TableSort<(typeof points)[number]>({
+		year: byDate((point) => point.key),
+		baseRent: byNumber((point) => point.baseRent),
+		charged: byNumber((point) => point.charged),
+		received: byNumber((point) => point.received),
+		difference: byNumber((point) => point.received - point.charged),
+		rate: byNumber((point) => (point.charged > 0 ? point.received / point.charged : null))
+	});
+	type PropertyRow = PageProps['data']['propertySeries'][number];
+	const thisYearOf = (row: PropertyRow) => row.series.find((point) => point.key === currentYear);
+	const propertySort = new TableSort<PropertyRow>({
+		name: byText((row) => row.name),
+		received: byNumber((row) => thisYearOf(row)?.received ?? 0),
+		baseRent: byNumber((row) => thisYearOf(row)?.baseRent ?? 0)
+	});
 
 	/** The Kaltmiete per m² of this year against the first year with rent per m². */
 	const rent = $derived.by(() => {
@@ -122,16 +139,16 @@
 				<table class="table">
 					<thead>
 						<tr>
-							<th>Jahr</th>
-							<th class="number">Kaltmiete</th>
-							<th class="number">Soll</th>
-							<th class="number">Eingegangen</th>
-							<th class="number">Differenz</th>
-							<th class="number">Quote</th>
+							<SortHeader sort={yearSort} key="year">Jahr</SortHeader>
+							<SortHeader sort={yearSort} key="baseRent" class="num">Kaltmiete</SortHeader>
+							<SortHeader sort={yearSort} key="charged" class="num">Soll</SortHeader>
+							<SortHeader sort={yearSort} key="received" class="num">Eingegangen</SortHeader>
+							<SortHeader sort={yearSort} key="difference" class="num">Differenz</SortHeader>
+							<SortHeader sort={yearSort} key="rate" class="num">Quote</SortHeader>
 						</tr>
 					</thead>
 					<tbody>
-						{#each points as point (point.key)}
+						{#each yearSort.rows(points) as point (point.key)}
 							<tr>
 								<td>{point.label}</td>
 								<td class="number"><Money cents={point.baseRent} /></td>
@@ -157,14 +174,18 @@
 				<table class="table">
 					<thead>
 						<tr>
-							<th>Objekt</th>
+							<SortHeader sort={propertySort} key="name">Objekt</SortHeader>
 							<th class="trend">Eingegangen seit {series[0].key}</th>
-							<th class="number">{currentYear} bis heute</th>
-							<th class="number">Kaltmiete {currentYear}</th>
+							<SortHeader sort={propertySort} key="received" class="num"
+								>{currentYear} bis heute</SortHeader
+							>
+							<SortHeader sort={propertySort} key="baseRent" class="num"
+								>Kaltmiete {currentYear}</SortHeader
+							>
 						</tr>
 					</thead>
 					<tbody>
-						{#each data.propertySeries as row (row.id)}
+						{#each propertySort.rows(data.propertySeries) as row (row.id)}
 							{@const own = row.series.filter(
 								(point) => point.key >= series[0].key && point.key <= currentYear
 							)}

@@ -10,11 +10,13 @@
 	import Icon from '#lib/components/Icon.svelte';
 	import PreviewLink from '#lib/components/PreviewLink.svelte';
 	import Money from '#lib/components/Money.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate, formatMonth, isIsoDate } from '#lib/dates.ts';
 	import { effectiveFrom, formatIndexValue, formatPercent } from '#lib/domain/index-rent.ts';
 	import { rentOn, total } from '#lib/domain/rents.ts';
 	import { rentChangeReasonLabels, rentModelLabels } from '#lib/labels.ts';
 	import { formatCents, formatCentsPlain, parseCents } from '#lib/money.ts';
+	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	// The "Miethöhe" tab under /vertraege/[id]: the heading and tab bar come from the layout.
@@ -27,6 +29,16 @@
 	const restricted = $derived(lease.kind === 'residential' && lease.rentModel !== 'fixed');
 	/** Opened from a statement's "Vorauszahlung anpassen" (§ 560 Abs. 4 BGB). */
 	const fromStatement = $derived(data.prepayment !== null || data.heatingPrepayment !== null);
+	const sort = new TableSort<PageProps['data']['changes'][number]>({
+		validFrom: byDate((change) => change.validFrom),
+		baseRent: byNumber((change) => change.baseRent),
+		operating: byNumber((change) => change.operatingCostPrepayment),
+		heating: byNumber((change) => change.heatingCostPrepayment),
+		total: byNumber((change) => total(change)),
+		reason: byText((change) => rentChangeReasonLabels[change.reason]),
+		index: byNumber((change) => (change.indexMonth ? change.indexValue : null)),
+		note: byText((change) => change.note)
+	});
 
 	// Every action answers with its source, so each form shows only its own errors and values.
 	type FieldErrors = Partial<Record<string, string>>;
@@ -115,19 +127,19 @@
 	<table class="table" aria-label="Mietänderungen">
 		<thead>
 			<tr>
-				<th>Gültig ab</th>
-				<th class="num">Kaltmiete</th>
-				<th class="num">Betriebskosten</th>
-				<th class="num">Heizkosten</th>
-				<th class="num">Gesamtmiete</th>
-				<th>Grund</th>
-				<th>Index</th>
-				<th>Notiz</th>
+				<SortHeader {sort} key="validFrom">Gültig ab</SortHeader>
+				<SortHeader {sort} key="baseRent" class="num">Kaltmiete</SortHeader>
+				<SortHeader {sort} key="operating" class="num">Betriebskosten</SortHeader>
+				<SortHeader {sort} key="heating" class="num">Heizkosten</SortHeader>
+				<SortHeader {sort} key="total" class="num">Gesamtmiete</SortHeader>
+				<SortHeader {sort} key="reason">Grund</SortHeader>
+				<SortHeader {sort} key="index">Index</SortHeader>
+				<SortHeader {sort} key="note">Notiz</SortHeader>
 				<th class="actions"></th>
 			</tr>
 		</thead>
 		<tbody>
-			{#each data.changes as change (change.id)}
+			{#each sort.rows(data.changes) as change (change.id)}
 				<tr>
 					<td>
 						{#if deletable(change)}
