@@ -469,4 +469,33 @@ describe('Reparaturen', () => {
 		const [kept] = await db.select().from(expenses).where(eq(expenses.id, late));
 		expect(kept.taskId).toBeNull();
 	});
+
+	it('links more expenses than a statement may bind at once', async () => {
+		const created = await createTask(db, contextA, input({ category: 'repair' }));
+		if (!created.ok) throw new Error(created.reason);
+		const ids = await Promise.all(
+			Array.from({ length: 120 }, (_, index) => bill('a', '2026-03-01', 100 + index))
+		);
+		expect(await updateTask(db, contextA, created.id, input({ category: 'repair' }), ids)).toEqual({
+			ok: true
+		});
+		expect((await getTask(db, 'a', created.id))?.costs.count).toBe(120);
+	});
+
+	it('gives the bills of the open next occurrence back to the task when it is reopened', async () => {
+		const created = await createTask(
+			db,
+			contextA,
+			input({ category: 'repair', dueDate: '2026-03-01', repeatMonths: 12 })
+		);
+		if (!created.ok) throw new Error(created.reason);
+		await setDone(db, contextA, created.id, true, '2026-03-02');
+		const followUpId = (await getTask(db, 'a', created.id))!.followUpId!;
+		const paid = await bill('a', '2026-03-05', 4000, { taskId: followUpId });
+
+		expect(await setDone(db, contextA, created.id, false)).toBe(true);
+		expect(await getTask(db, 'a', followUpId)).toBeUndefined();
+		const [row] = await db.select().from(expenses).where(eq(expenses.id, paid));
+		expect(row.taskId).toBe(created.id);
+	});
 });

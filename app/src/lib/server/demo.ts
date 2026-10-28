@@ -2553,7 +2553,12 @@ export async function createDemoData(
 					taskRows.map((row) => row.id)
 				)
 			),
-			db.delete(contractors).where(eq(contractors.accountId, accountId)),
+			db.delete(contractors).where(
+				inArray(
+					contractors.id,
+					contractorRows.map((row) => row.id)
+				)
+			),
 			db.delete(properties).where(inArray(properties.id, propertyIds))
 		]);
 		throw error;

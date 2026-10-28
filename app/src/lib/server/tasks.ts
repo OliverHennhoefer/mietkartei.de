@@ -3,6 +3,7 @@ import {
 	asc,
 	desc,
 	eq,
+	exists,
 	gte,
 	inArray,
 	isNotNull,
@@ -17,7 +18,7 @@ import { addMonths, formatDate, today as todayInBerlin, type IsoDate } from '../
 import { scopeLabels } from './expenses';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
-import { runBatch } from './db/batch';
+import { chunkIds, runBatch } from './db/batch';
 import {
 	contractors,
 	expenses,
@@ -262,36 +263,23 @@ export async function taskExpenses(
  */
 async function expenseLinks(db: Database, accountId: string, taskId: string, expenseIds: string[]) {
 	const ids = [...new Set(expenseIds)];
-	if (ids.length > 0) {
-		const rows = await db
-			.select({ id: expenses.id })
-			.from(expenses)
-			.where(
-				and(
-					eq(expenses.accountId, accountId),
-					inArray(expenses.id, ids),
-					or(isNull(expenses.taskId), eq(expenses.taskId, taskId))
-				)
-			);
-		if (rows.length !== ids.length) return undefined;
+	// In groups, as D1 binds at most 100 parameters to a statement.
+	const groups = chunkIds(ids);
+	const free = (group: string[]) =>
+		and(
+			eq(expenses.accountId, accountId),
+			inArray(expenses.id, group),
+			or(isNull(expenses.taskId), eq(expenses.taskId, taskId))
+		);
+	let found = 0;
+	for (const group of groups) {
+		found += (await db.select({ id: expenses.id }).from(expenses).where(free(group))).length;
 	}
+	if (found !== ids.length) return undefined;
 	const ofTask = and(eq(expenses.accountId, accountId), eq(expenses.taskId, taskId));
 	return [
 		db.update(expenses).set({ taskId: null }).where(ofTask),
-		...(ids.length > 0
-			? [
-					db
-						.update(expenses)
-						.set({ taskId })
-						.where(
-							and(
-								eq(expenses.accountId, accountId),
-								inArray(expenses.id, ids),
-								or(isNull(expenses.taskId), eq(expenses.taskId, taskId))
-							)
-						)
-				]
-			: [])
+		...groups.map((group) => db.update(expenses).set({ taskId }).where(free(group)))
 	];
 }
 
@@ -450,6 +438,22 @@ export async function setDone(
 		...(removeFollowUp
 			? [
 					// Still open when the batch runs: a copy done in the meantime keeps its history.
+					// The bills linked to the copy go back to the task.
+					db
+						.update(expenses)
+						.set({ taskId })
+						.where(
+							and(
+								eq(expenses.accountId, accountId),
+								eq(expenses.taskId, followUp.id),
+								exists(
+									db
+										.select({ one: sql`1` })
+										.from(tasks)
+										.where(and(eq(tasks.id, followUp.id), eq(tasks.done, false)))
+								)
+							)
+						),
 					db
 						.delete(tasks)
 						.where(
