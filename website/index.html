@@ -203,21 +203,17 @@
               <h2 class="section-title" id="fragen">Fragen in ganzen Sätzen.</h2>
               <p class="section-lead">Wer möchte, verbindet mietkartei mit <a href="https://docs.mietkartei.de/anleitungen/ki-assistenten/">Claude oder ChatGPT</a>. Die Antworten kommen aus deinen eigenen Zahlen. Ob der Assistent nur lesen oder auch buchen darf, entscheidest du.</p>
               <div class="handoff">
-                <p class="handoff-label">Oder gib deinem Assistenten diesen Auftrag:</p>
-                <div class="handoff-tabs" role="radiogroup" aria-label="Weg">
-                  <input type="radio" name="handoff" id="handoff-hosted" checked><label for="handoff-hosted">Abo</label>
-                  <input type="radio" name="handoff" id="handoff-selfhost"><label for="handoff-selfhost">Selbst betreiben</label>
+                <p class="handoff-label">Oder überlass das Einrichten deinem Assistenten:</p>
+                <div class="handoff-actions">
+                  <button type="button" class="copy" data-copy="prompt-hosted">Auftrag fürs Abo kopieren</button>
+                  <button type="button" class="copy copy-ghost" data-copy="prompt-selfhost">Auftrag zum Selbstbetreiben kopieren</button>
                 </div>
-                <div class="handoff-prompt" id="prompt-hosted">
-                  <p>Lies https://mietkartei.de/llms.txt und hilf mir, mietkartei über https://app.mietkartei.de/mcp mit dir zu verbinden. Zeig mir danach, welche Mieten offen sind.</p>
-                  <button type="button" class="copy" data-copy="prompt-hosted">Kopieren</button>
-                </div>
-                <div class="handoff-prompt" id="prompt-selfhost">
-                  <p>Richte mietkartei nach https://docs.mietkartei.de/selbst-hosten/ auf diesem Rechner ein. Verbinde dich danach mit dem MCP-Server meiner Instanz unter /mcp.</p>
-                  <button type="button" class="copy" data-copy="prompt-selfhost">Kopieren</button>
-                </div>
-                <p class="handoff-hint handoff-hint-hosted">Für Claude, ChatGPT und andere Assistenten.</p>
-                <p class="handoff-hint handoff-hint-selfhost">Für Claude Code, Codex und andere Assistenten, die Befehle ausführen.</p>
+                <p class="handoff-hint">In Claude oder ChatGPT einfügen, fertig. Zum Selbstbetreiben in Claude Code oder Codex.</p>
+                <details class="handoff-details">
+                  <summary>Was steht im Auftrag?</summary>
+                  <p id="prompt-hosted">Lies https://mietkartei.de/llms.txt und hilf mir, mietkartei über https://app.mietkartei.de/mcp mit dir zu verbinden. Zeig mir danach, welche Mieten offen sind.</p>
+                  <p id="prompt-selfhost">Richte mietkartei nach https://docs.mietkartei.de/selbst-hosten/ auf diesem Rechner ein. Verbinde dich danach mit dem MCP-Server meiner Instanz unter /mcp.</p>
+                </details>
               </div>
             </div>
             <div class="chat" aria-label="Beispiel eines Gesprächs mit Claude">
