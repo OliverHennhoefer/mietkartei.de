@@ -187,14 +187,18 @@
 									<span class="badges">
 										{#if tenant.overdue > 0}
 											<Badge tone="danger">Rückstand</Badge>
-											{#each tenant.reminders as letter, index (index)}
+											{#if tenant.reminders.length > 0}
 												<Badge
 													tone="danger"
 													icon={false}
-													title="{reminderLevelLabels[letter.level]} vom {formatDate(letter.date)}"
-													>{index + 1}. Mahnung</Badge
+													title={tenant.reminders
+														.map(
+															(letter) =>
+																`${reminderLevelLabels[letter.level]} vom ${formatDate(letter.date)}`
+														)
+														.join('\n')}>{tenant.reminders.length}. Mahnung</Badge
 												>
-											{/each}
+											{/if}
 										{/if}
 										{#if tenant.moveOut}
 											<Badge tone="warning">Auszug {formatDate(tenant.moveOut.date)}</Badge>
