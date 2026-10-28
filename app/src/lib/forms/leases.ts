@@ -132,16 +132,27 @@ export function parseLeaseEdit(form: FormData, current: LeaseInput): ParseResult
 	return parseLease(merged);
 }
 
-/** The opening balance of the ledger (Anfangssaldo), a signed amount; empty means none. */
+export const openingBalanceSides = ['arrears', 'credit'] as const;
+
+/**
+ * The opening balance of the ledger (Anfangssaldo); empty means none. The lease form names its
+ * side, a Rückstand or a Guthaben of the tenant, with an amount without a sign; without a side
+ * (the import of a spreadsheet) the amount carries the sign: negative for a Guthaben.
+ */
 export function parseOpeningBalance(
 	form: FormData
-): ParseResult<{ openingBalance: number | null }> {
-	const parser = new FormParser<{ openingBalance: number | null }>(form);
-	const openingBalance = parser.money('openingBalance', {
+): ParseResult<{ openingBalance: number | null; openingBalanceSide: string | null }> {
+	const parser = new FormParser<{
+		openingBalance: number | null;
+		openingBalanceSide: string | null;
+	}>(form);
+	const side = parser.oneOf('openingBalanceSide', openingBalanceSides, { required: false });
+	const amount = parser.money('openingBalance', {
 		required: false,
-		min: -100_000_000_00
+		min: side ? 0 : -100_000_000_00
 	});
-	return parser.result(() => ({ openingBalance }));
+	const openingBalance = amount !== null && side === 'credit' ? -amount : amount;
+	return parser.result(() => ({ openingBalance, openingBalanceSide: side }));
 }
 
 /** "Personen ab Datum" on the lease overview. */

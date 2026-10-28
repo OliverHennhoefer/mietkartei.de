@@ -62,14 +62,15 @@ describe('mietkonto', () => {
 			data: {
 				range: { from: '2025-04', to: '2026-03' },
 				rows: [{}, {}, {}],
-				charged: 240000,
+				debit: 240000,
+				credit: 0,
 				balance: 240000,
 				paymentDefault: 240000
 			}
 		});
 		// Only January; the balance still counts February and March.
 		expect(await tab(loadLedger, '?from=2026-01&to=2026-01')).toMatchObject({
-			data: { rows: [{}], charged: 80000, windowBalance: 80000, balance: 240000 }
+			data: { rows: [{}], debit: 80000, windowBalance: 80000, balance: 240000 }
 		});
 	});
 
@@ -118,6 +119,17 @@ describe('mietkonto', () => {
 			redirect: `/vertraege/${leaseId}/mietkonto`
 		});
 		expect((await listLedger(db, 'a', leaseId)).paid).toBe(0);
+
+		// A refund is booked with its side and a positive amount; it stands in Soll.
+		expect(
+			await act(ledgerActions.payment, { date: '2026-03-04', side: 'refund', amount: '50,00' })
+		).toEqual({ data: { booked: 'payment' } });
+		const refund = (
+			(await tab(loadLedger)) as {
+				data: { rows: { kind: string; amount: number; debit: number; credit: number }[] };
+			}
+		).data.rows.find((row) => row.kind === 'payment');
+		expect(refund).toMatchObject({ amount: -5000, debit: 5000, credit: 0 });
 	});
 
 	it('links a payment from the bank to its transaction and keeps it', async () => {
@@ -168,26 +180,36 @@ describe('mietkonto', () => {
 		expect(
 			await act(ledgerActions.adjustment, {
 				date: '2026-02-01',
-				amount: '-50,00',
+				side: 'credit',
+				amount: '50,00',
 				note: 'Minderung'
 			})
 		).toEqual({ data: { booked: 'adjustment' } });
+		// Without a side, or with a sign, the correction is refused: the side says the direction.
+		expect(
+			await act(ledgerActions.adjustment, { date: '2026-02-01', amount: '-50,00', note: 'x' })
+		).toMatchObject({ fail: 400, data: { errors: { side: expect.any(String) } } });
 		expect(await act(ledgerActions.adjustment, { date: 'x' })).toMatchObject({
 			fail: 400,
 			data: { form: 'adjustment' }
 		});
 		const rows = (
 			(await tab(loadLedger)) as {
-				data: { rows: { id: string; deletable: boolean; amount: number }[] };
+				data: {
+					rows: { id: string; deletable: boolean; amount: number; debit: number; credit: number }[];
+				};
 			}
 		).data.rows;
 		const correction = rows.find((row) => row.amount === -5000)!;
 		expect(correction.deletable).toBe(true);
+		// A credit stands in Haben, without a sign.
+		expect(correction).toMatchObject({ debit: 0, credit: 5000 });
 		expect(
 			await act(ledgerActions.update, {
 				id: correction.id,
 				date: '2026-03-01',
-				amount: '-60,00',
+				side: 'credit',
+				amount: '60,00',
 				note: ''
 			})
 		).toMatchObject({ fail: 400, data: { form: 'edit', errors: { note: expect.any(String) } } });
@@ -195,7 +217,8 @@ describe('mietkonto', () => {
 			await act(ledgerActions.update, {
 				id: correction.id,
 				date: '2026-03-01',
-				amount: '-60,00',
+				side: 'credit',
+				amount: '60,00',
 				note: 'Minderung März'
 			})
 		).toEqual({ redirect: `/vertraege/${leaseId}/mietkonto` });
@@ -213,7 +236,11 @@ describe('mietkonto', () => {
 			await act(ledgerActions.payment, { date: '2026-03-02', amount: '800,00' }, id)
 		).toMatchObject({ error: 404 });
 		expect(
-			await act(ledgerActions.adjustment, { date: '2026-03-02', amount: '10,00', note: 'x' }, id)
+			await act(
+				ledgerActions.adjustment,
+				{ date: '2026-03-02', side: 'claim', amount: '10,00', note: 'x' },
+				id
+			)
 		).toMatchObject({ error: 404 });
 		const [foreignLine] = (await listLedger(db, 'b', id)).lines;
 		for (const handler of [ledgerActions.update, ledgerActions.delete]) {

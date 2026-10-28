@@ -149,7 +149,7 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	await expect(movements.getByRole('row')).toHaveCount(2);
 	await expect(movements).toContainText('Erhalten');
 	await expect(movements).toContainText('erste Rate');
-	await expect(movements).toContainText(/\+600,00\s€/);
+	await expect(movements).toContainText(/600,00\s€/);
 	const outstanding = page
 		.getByLabel('Zusammenfassung')
 		.locator('.stat', { hasText: 'Noch offen' });

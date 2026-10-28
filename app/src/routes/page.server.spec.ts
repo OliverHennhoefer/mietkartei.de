@@ -127,7 +127,7 @@ describe('mietkonto', () => {
 			data: {
 				leaseCount: 3,
 				rows: [{ leaseId: owing }, { leaseId: paid, balance: -20000 }, { leaseId: upcoming }],
-				stats: { arrearsCount: 1, creditTotal: 20000, creditCount: 1 }
+				stats: { arrearsCount: 1 }
 			}
 		});
 		expect(await run(loadBalances, { url: '/mietkonto?filter=rueckstaende' })).toMatchObject({

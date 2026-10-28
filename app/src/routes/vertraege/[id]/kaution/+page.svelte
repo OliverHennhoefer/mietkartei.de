@@ -35,6 +35,12 @@
 				string
 			][]
 		).filter(([kind]) => kind === 'received' || kind === current || data.summary.received > 0);
+
+	/** The movements, oldest first, each with the Bestand after it. */
+	const movements = $derived.by(() => {
+		let held = 0;
+		return data.movements.map((movement) => ({ ...movement, held: (held += movement.amount) }));
+	});
 </script>
 
 <!-- The heading and tab bar come from +layout.svelte; this page is the "Kaution" tab. -->
@@ -44,30 +50,20 @@
 	<Alert tone="danger"><p>{form.message}</p></Alert>
 {/if}
 
+<!-- Three figures in one row: what was agreed, what the landlord holds for the tenant today and
+     what the tenant still has to pay in. The movements below show how the Bestand came about. -->
 <div class="stats" aria-label="Zusammenfassung">
 	<div class="stat">
 		<span class="value"><Money cents={lease.securityDeposit} /></span>
 		<span class="label">Vereinbart</span>
 	</div>
 	<div class="stat">
-		<span class="value"><Money cents={data.summary.received} /></span>
-		<span class="label">Erhalten</span>
-	</div>
-	<div class="stat">
-		<span class="value"><Money cents={data.summary.interest} /></span>
-		<span class="label">Zinsen</span>
-	</div>
-	<div class="stat">
-		<span class="value"><Money cents={data.summary.returned} /></span>
-		<span class="label">Zurückgezahlt</span>
-	</div>
-	<div class="stat">
-		<span class="value"><Money cents={data.summary.withheld} /></span>
-		<span class="label">Einbehalten</span>
+		<span class="value"><Money cents={data.summary.held} /></span>
+		<span class="label">Bestand heute</span>
 	</div>
 	<div class="stat">
 		<span class="value"><Money cents={data.summary.outstanding} /></span>
-		<span class="label">Noch offen</span>
+		<span class="label">Noch offen vom Mieter</span>
 	</div>
 </div>
 
@@ -96,13 +92,14 @@
 				<tr>
 					<th>Datum</th>
 					<th>Art</th>
-					<th class="num">Betrag</th>
+					<th class="num">Eingang</th>
+					<th class="num">Ausgang</th>
+					<th class="num">Bestand</th>
 					<th>Notiz</th>
-					<th class="actions"></th>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.movements as movement (movement.id)}
+				{#each movements as movement (movement.id)}
 					<tr>
 						<td>
 							{#if movement.bankTransactionId}
@@ -114,21 +111,39 @@
 							{/if}
 						</td>
 						<td>{depositTransactionKindLabels[movement.kind]}</td>
-						<td class="num"><Money cents={movement.amount} signed /></td>
+						<td class="num"
+							>{#if movement.amount >= 0}<Money cents={movement.amount} />{/if}</td
+						>
+						<td class="num"
+							>{#if movement.amount < 0}<Money cents={-movement.amount} />{/if}</td
+						>
+						<td class="num"><Money cents={movement.held} /></td>
 						<td>
 							{movement.note ?? ''}
-							{#if movement.bankTransactionId}<Badge tone="info">aus Umsatz</Badge>{/if}
-						</td>
-						<td class="actions">
 							{#if movement.bankTransactionId}
-								<span class="muted small">
-									Zuordnung beim <a href="/bank?umsatz={movement.bankTransactionId}">Umsatz</a> aufheben
-								</span>
+								<!-- Changed or undone at the bank transaction, so the badge leads there. -->
+								<a
+									class="from-bank"
+									href="/bank?umsatz={movement.bankTransactionId}"
+									title="Aus einem Umsatz, dort lässt sich die Zuordnung aufheben"
+									><Badge tone="info">Umsatz</Badge></a
+								>
 							{/if}
 						</td>
 					</tr>
 				{/each}
 			</tbody>
+			{#if movements.length > 1}
+				<tfoot>
+					<tr>
+						<td colspan="2">Summe</td>
+						<td class="num"><Money cents={data.summary.received + data.summary.interest} /></td>
+						<td class="num"><Money cents={data.summary.returned + data.summary.withheld} /></td>
+						<td class="num"><Money cents={data.summary.held} /></td>
+						<td></td>
+					</tr>
+				</tfoot>
+			{/if}
 		</table>
 	</div>
 {/if}
@@ -200,6 +215,9 @@
 {/if}
 
 <style>
+	.from-bank {
+		text-decoration: none;
+	}
 	.instalments {
 		margin: 0 0 1rem;
 		padding-left: 1.25rem;

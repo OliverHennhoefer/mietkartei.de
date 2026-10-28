@@ -34,7 +34,16 @@ export type LedgerRow = LedgerLine & {
 	fromBank: boolean;
 	/** The bank transaction of such a payment, for the link to it on /bank. */
 	bankTransactionId: string | null;
+	/** The column of the line, both without a sign: a charge or a refund is Soll, a payment or a credit Haben. */
+	debit: number;
+	credit: number;
 };
+
+/** Soll and Haben of a ledger line: a negative charge is a credit, a negative payment a refund. */
+function sides(line: LedgerLine): { debit: number; credit: number } {
+	const owed = line.kind === 'charge' ? line.amount : -line.amount;
+	return owed >= 0 ? { debit: owed, credit: 0 } : { debit: 0, credit: -owed };
+}
 
 export const load: PageServerLoad = async ({ locals, parent, url }) => {
 	const accountId = requireAccount(locals);
@@ -61,11 +70,6 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 	const reminderId = url.searchParams.get('schreiben');
 
 	const shown = ledger.lines.filter((line) => line.date <= to);
-	const charged = shown.reduce(
-		(sum, line) => (line.kind === 'charge' ? sum + line.amount : sum),
-		0
-	);
-	const paid = shown.reduce((sum, line) => (line.kind === 'payment' ? sum + line.amount : sum), 0);
 	const carried = ledger.balance - ledger.charged + ledger.paid;
 	const rows: LedgerRow[] = shown.map((line) => {
 		const detail = details[line.id];
@@ -75,18 +79,20 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 			(detail?.kind === 'charge' && detail.chargeKind === 'adjustment');
 		const bankTransactionId =
 			detail?.kind === 'payment' && fromBank ? detail.bankTransactionId : null;
-		return { ...line, deletable, fromBank, bankTransactionId };
+		return { ...line, deletable, fromBank, bankTransactionId, ...sides(line) };
 	});
+	const debit = rows.reduce((sum, row) => sum + row.debit, 0);
+	const credit = rows.reduce((sum, row) => sum + row.credit, 0);
 
 	return {
 		editing: editLine ? { id: editId!, ...editLine } : null,
 		reminder: reminders.reminders.find((reminder) => reminder.id === reminderId) ?? null,
 		range,
 		rows,
-		charged,
-		paid,
+		debit,
+		credit,
 		/** The balance at the end of the months shown. */
-		windowBalance: carried + charged - paid,
+		windowBalance: carried + debit - credit,
 		/** The lease's balance over everything booked. */
 		balance: ledger.balance,
 		today: currentDate,

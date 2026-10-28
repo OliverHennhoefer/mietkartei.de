@@ -128,8 +128,8 @@ describe('vertraege/neu', () => {
 			startDate: '2026-01-01',
 			ledgerStart: '2026-03-01'
 		});
-		// Only March is charged; the rent is due on the third working day.
-		expect((await listLedger(db, 'a', id)).lines.map((line) => line.date)).toEqual(['2026-03-04']);
+		// Only March is charged; the rent stands on the first of the month (due on the third working day).
+		expect((await listLedger(db, 'a', id)).lines.map((line) => line.date)).toEqual(['2026-03-01']);
 	});
 
 	it('keeps the start of a lease that begins this month and books an opening balance', async () => {

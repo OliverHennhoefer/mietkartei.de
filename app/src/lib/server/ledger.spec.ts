@@ -442,17 +442,18 @@ describe('listLedger', () => {
 		await pay('2025-03-20', -10000);
 	});
 
-	it('interleaves charges and payments with a running balance, charges first on a day', async () => {
-		// January's rent is due on Monday 06.01. (Neujahr), after the payment of 03.01.
+	it('interleaves charges and payments with a running balance, rent on the first of its month', async () => {
+		// January's rent is due on Monday 06.01. (Neujahr) but stands on 01.01., before the payment
+		// of 03.01., so the payment ahead of the due day shows no Guthaben.
 		const ledger = await listLedger(db, 'a', endedLeaseId);
 		expect(
 			ledger.lines.map((line) => [line.date, line.kind, line.label, line.amount, line.balance])
 		).toEqual([
-			['2025-01-03', 'payment', 'Zahlung', 80000, -80000],
-			['2025-01-06', 'charge', 'Miete Januar 2025', 80000, 0],
-			['2025-02-05', 'charge', 'Miete Februar 2025', 80000, 80000],
+			['2025-01-01', 'charge', 'Miete Januar 2025', 80000, 80000],
+			['2025-01-03', 'payment', 'Zahlung', 80000, 0],
+			['2025-02-01', 'charge', 'Miete Februar 2025', 80000, 80000],
 			['2025-02-10', 'payment', 'Zahlung', 50000, 30000],
-			['2025-03-05', 'charge', 'Miete März 2025', 80000, 110000],
+			['2025-03-01', 'charge', 'Miete März 2025', 80000, 110000],
 			['2025-03-05', 'payment', 'Nachzahlung', 100000, 10000],
 			// A refund to the tenant raises the balance again.
 			['2025-03-20', 'payment', 'Rückzahlung', -10000, 20000]
@@ -491,7 +492,7 @@ describe('listLedger', () => {
 			to: '2025-02-28'
 		});
 		expect(ledger.lines.map((line) => [line.date, line.kind, line.balance])).toEqual([
-			['2025-02-05', 'charge', 80000],
+			['2025-02-01', 'charge', 80000],
 			['2025-02-10', 'payment', 30000]
 		]);
 		expect(ledger).toMatchObject({ charged: 80000, paid: 50000, balance: 30000 });
@@ -502,6 +503,21 @@ describe('listLedger', () => {
 		const ledger = await listLedger(db, 'a', endedLeaseId, { from: '2025-05-01' });
 		expect(ledger.lines.map((line) => [line.label, line.amount, line.balance])).toEqual([
 			['Korrektur März 2025: Mietminderung Heizung', -5000, 15000]
+		]);
+	});
+
+	it('puts the first rent of a lease starting mid-month on its start day', async () => {
+		const { unitId: other } = await seedUnit(db, 'a', { name: 'OG' });
+		const lease = await createLeaseWithoutCharges(
+			db,
+			contextA,
+			leaseInput(other, { startDate: '2025-01-15', endDate: '2025-02-28' })
+		);
+		if (!lease.ok) throw new Error('setup failed');
+		const ledger = await listLedger(db, 'a', lease.id);
+		expect(ledger.lines.map((line) => [line.date, line.label])).toEqual([
+			['2025-01-15', 'Miete Januar 2025'],
+			['2025-02-01', 'Miete Februar 2025']
 		]);
 	});
 
@@ -662,9 +678,10 @@ describe('listBalances', () => {
 		const ledger = await listLedger(db, 'a', lease.id, { to: '2025-12-31' });
 		expect(ledger).toMatchObject({ charged: 960000, paid: 930000, balance: 30000 });
 		expect(ledger.lines).toHaveLength(24);
-		// December: the rent (due 03.12.) brings the balance to 800 €, the Teilzahlung to 300 €.
+		// December: the rent (on 01.12., due 03.12.) brings the balance to 800 €, the Teilzahlung
+		// to 300 €.
 		expect(ledger.lines.slice(-2).map((line) => [line.date, line.label, line.balance])).toEqual([
-			['2025-12-03', 'Miete Dezember 2025', 80000],
+			['2025-12-01', 'Miete Dezember 2025', 80000],
 			['2025-12-10', 'Teilzahlung', 30000]
 		]);
 	});

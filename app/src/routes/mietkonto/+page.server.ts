@@ -79,7 +79,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	});
 
 	const arrears = rows.filter((row) => row.overdue > 0);
-	const credits = rows.filter((row) => row.balance < 0);
 	return {
 		leaseCount: rows.length,
 		rows: onlyArrears ? arrears : rows,
@@ -87,9 +86,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		today: today(),
 		stats: {
 			arrearsTotal: arrears.reduce((sum, row) => sum + row.overdue, 0),
-			arrearsCount: arrears.length,
-			creditTotal: credits.reduce((sum, row) => sum - row.balance, 0),
-			creditCount: credits.length
+			arrearsCount: arrears.length
 		}
 	};
 };

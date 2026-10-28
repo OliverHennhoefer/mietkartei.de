@@ -559,7 +559,11 @@ export async function updateAdjustment(
 }
 
 export type LedgerLine = {
-	/** Due date of a charge (the day it was posted while it is not due), date of a payment. */
+	/**
+	 * A month's rent on the first of its month (the start of the charges in the first month), like
+	 * a Sollstellung in bookkeeping; other charges on their due date (the day they were posted while
+	 * they are not due); a payment on its date. Reminders and arrears go by the due date.
+	 */
 	date: IsoDate;
 	kind: 'charge' | 'payment';
 	id: string;
@@ -614,7 +618,7 @@ export async function listLedger(
 	options: { from?: IsoDate; to?: IsoDate } = {}
 ): Promise<Ledger> {
 	await ensureCharges(db, accountId, [leaseId]);
-	const [chargeRows, paymentRows] = await Promise.all([
+	const [chargeRows, paymentRows, [term]] = await Promise.all([
 		db
 			.select()
 			.from(rentCharges)
@@ -622,11 +626,23 @@ export async function listLedger(
 		db
 			.select()
 			.from(payments)
-			.where(and(eq(payments.accountId, accountId), eq(payments.leaseId, leaseId)))
+			.where(and(eq(payments.accountId, accountId), eq(payments.leaseId, leaseId))),
+		db
+			.select({ startDate: leases.startDate, ledgerStart: leases.ledgerStart })
+			.from(leases)
+			.where(and(eq(leases.accountId, accountId), eq(leases.id, leaseId)))
 	]);
+	const chargesStart =
+		term?.ledgerStart && term.ledgerStart > term.startDate ? term.ledgerStart : term?.startDate;
+	/** The day a charge stands on the ledger; see LedgerLine.date. */
+	const chargeDate = (row: (typeof chargeRows)[number]): IsoDate => {
+		if (row.kind !== 'rent') return row.dueDate ?? dayOf(row.createdAt);
+		const first = firstOfMonth(row.period);
+		return chargesStart && chargesStart > first ? chargesStart : first;
+	};
 	const entries: LedgerEntry[] = [
 		...chargeRows.map((row) => ({
-			date: row.dueDate ?? dayOf(row.createdAt),
+			date: chargeDate(row),
 			kind: 'charge' as const,
 			id: row.id,
 			label: chargeLabel(row),
