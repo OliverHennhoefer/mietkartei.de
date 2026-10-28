@@ -89,11 +89,11 @@ export const actions: Actions = {
 			const errors: Partial<Record<string, string>> =
 				outcome.reason === 'start-after-changes'
 					? {
-							startDate: `Am ${formatDate(outcome.date ?? result.data.startDate)} beginnt schon eine spätere Mietänderung oder ein Eintrag im Personenstand. Der Beginn muss davor liegen; lösche oder verschiebe die späteren Einträge zuerst.`
+							startDate: `Am ${formatDate(outcome.date)} beginnt schon eine spätere Mietänderung oder ein Eintrag im Personenstand. Der Beginn muss davor liegen; lösche oder verschiebe die späteren Einträge zuerst.`
 						}
 					: outcome.reason === 'overlap'
 						? {
-								startDate: `Die Einheit ist in diesem Zeitraum schon an einen anderen Vertrag vermietet (ab ${formatDate(outcome.date ?? result.data.startDate)}). Zwei Verträge einer Einheit zur selben Zeit würden sich ihre Betriebskosten teilen; beende den anderen Vertrag vorher oder ändere die Daten.`
+								startDate: `Die Einheit ist in diesem Zeitraum schon an einen anderen Vertrag vermietet (ab ${formatDate(outcome.date)}). Zwei Verträge einer Einheit zur selben Zeit würden sich ihre Betriebskosten teilen; beende den anderen Vertrag vorher oder ändere die Daten.`
 							}
 						: outcome.reason === 'settled-property'
 							? {

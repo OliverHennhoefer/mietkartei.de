@@ -230,6 +230,11 @@ export type LeaseError =
 	| 'settled-property'
 	| 'overlap';
 
+/** A refused lease; an overlap names the start of the other lease. */
+export type LeaseRefusal =
+	| { ok: false; reason: Exclude<LeaseError, 'overlap' | 'start-after-changes'> }
+	| { ok: false; reason: 'overlap' | 'start-after-changes'; date: IsoDate };
+
 /** Whether two terms share a day; an open end runs on indefinitely. */
 export function termsOverlap(
 	a: { startDate: IsoDate; endDate: IsoDate | null },
@@ -279,7 +284,7 @@ async function checkReferences(
 	accountId: string,
 	input: LeaseInput,
 	kept: { unitIds: string[]; tenantIds: string[] } = { unitIds: [], tenantIds: [] }
-): Promise<LeaseError | undefined> {
+): Promise<Exclude<LeaseError, 'overlap' | 'start-after-changes'> | undefined> {
 	// The form does not cap the number of ids, so they go in groups (D1 binds at most 100).
 	const unitIds = [...new Set([input.unitId, ...input.extraUnitIds])];
 	let ownUnits = 0;
@@ -459,7 +464,7 @@ export async function createLease(
 	context: AuditContext,
 	input: LeaseInput,
 	openingBalance: number | null = null
-): Promise<{ ok: true; id: string } | { ok: false; reason: LeaseError; date?: IsoDate }> {
+): Promise<{ ok: true; id: string } | LeaseRefusal> {
 	await assertQuota(db, context.accountId, 'leases');
 	const reason = await checkReferences(db, context.accountId, input);
 	if (reason) return { ok: false, reason };
@@ -538,7 +543,7 @@ export async function updateLease(
 	context: AuditContext,
 	leaseId: string,
 	input: LeaseInput
-): Promise<{ ok: true } | { ok: false; reason: LeaseError; date?: string }> {
+): Promise<{ ok: true } | LeaseRefusal> {
 	const { accountId } = context;
 	const existing = await getLease(db, accountId, leaseId);
 	if (!existing) return { ok: false, reason: 'missing' };

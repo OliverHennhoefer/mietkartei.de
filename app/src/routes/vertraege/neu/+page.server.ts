@@ -77,7 +77,7 @@ export const actions: Actions = {
 					? { unitId: 'Diese Einheit gibt es nicht.' }
 					: result.reason === 'overlap'
 						? {
-								startDate: `Die Einheit ist in diesem Zeitraum schon an einen anderen Vertrag vermietet (ab ${formatDate(result.date ?? input.startDate)}). Zwei Verträge einer Einheit zur selben Zeit würden sich ihre Betriebskosten teilen; beende den anderen Vertrag vorher oder ändere die Daten.`
+								startDate: `Die Einheit ist in diesem Zeitraum schon an einen anderen Vertrag vermietet (ab ${formatDate(result.date)}). Zwei Verträge einer Einheit zur selben Zeit würden sich ihre Betriebskosten teilen; beende den anderen Vertrag vorher oder ändere die Daten.`
 							}
 						: result.reason === 'archived'
 							? {
