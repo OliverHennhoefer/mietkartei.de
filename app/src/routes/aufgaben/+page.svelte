@@ -215,7 +215,7 @@
 	<p class="muted">Keine offenen Aufgaben.</p>
 {:else}
 	<ul class="tasks" aria-label="Offene Aufgaben">
-		{#each data.reminders as reminder (reminder.kind + reminder.href + reminder.title)}
+		{#each data.reminders as reminder (reminder.id)}
 			<li class="task reminder">
 				<span class="mark" aria-hidden="true"
 					><Icon name={reminderIcons[reminder.kind]} size={12} /></span

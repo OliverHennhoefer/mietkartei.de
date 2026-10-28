@@ -46,6 +46,8 @@ export type FirstRun = {
 };
 
 export type Reminder = {
+	/** Unique within the list: the kind and what it is about. */
+	id: string;
 	kind: 'arrears' | 'bank' | 'bank_import' | 'vacancy';
 	title: string;
 	detail?: string;
@@ -137,6 +139,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!settingUp) {
 		if (arrears.length > 0) {
 			reminders.push({
+				id: 'arrears',
 				kind: 'arrears',
 				title: `Rückstände bei ${pluralize(arrears.length, 'Mietvertrag', 'Mietverträgen')}`,
 				detail: arrears
@@ -152,6 +155,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}
 		if (unmatched > 0) {
 			reminders.push({
+				id: 'bank',
 				kind: 'bank',
 				title: `${pluralize(unmatched, 'Bankumsatz', 'Bankumsätze')} zuordnen`,
 				detail:
@@ -168,16 +172,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			if (fetching) continue;
 			if (connection?.sessionId) {
 				reminders.push({
+					id: `bank_import:${bankAccount.id}`,
 					kind: 'bank_import',
 					title: `Bankabruf erneuern: ${bankAccount.name}`,
 					detail: 'Die Freigabe bei der Bank ist abgelaufen, neue Umsätze kommen nicht mehr an.',
-					href: '/bank/abruf'
+					href: `/bank/konten/${bankAccount.id}/abruf`
 				});
 				continue;
 			}
 			const latest = latestBookings.find((row) => row.bankAccountId === bankAccount.id)?.date;
 			if (latest && daysBetween(latest, date) <= STATEMENT_DAYS) continue;
 			reminders.push({
+				id: `bank_import:${bankAccount.id}`,
 				kind: 'bank_import',
 				title: `Kontoauszug laden: ${bankAccount.name}`,
 				detail: latest
@@ -189,6 +195,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		// A vacant unit asks for its lease; past five, one row leads to the rest.
 		for (const row of vacant.slice(0, VACANT_LISTED)) {
 			reminders.push({
+				id: `vacancy:${row.unit.id}`,
 				kind: 'vacancy',
 				title: `Mietvertrag anlegen: ${row.unit.name} · ${row.property.name}`,
 				detail: 'Die Einheit steht leer.',
@@ -197,6 +204,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}
 		if (vacant.length > VACANT_LISTED) {
 			reminders.push({
+				id: 'vacancy',
 				kind: 'vacancy',
 				title: `${pluralize(vacant.length - VACANT_LISTED, 'weitere Einheit', 'weitere Einheiten')} ohne Mietvertrag`,
 				href: '/objekte'
