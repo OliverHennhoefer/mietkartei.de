@@ -31,6 +31,7 @@ import {
 	rentChanges,
 	statementResults
 } from './db/schema';
+import { cite, type Citation } from './law';
 import { leaseLabel, listLeases, type LeaseSummary } from './leases';
 
 // Fristen: deadlines that follow from the data, computed on every request and never stored. Each
@@ -52,6 +53,25 @@ export type DeadlineKind =
 	| 'meter_reading'
 	| 'insurance_notice'
 	| 'insurance_end';
+
+/**
+ * The law each kind of deadline follows from; none where no statute sets it (the lease end, the
+ * deposit return, insurance). The final meter reading has none either: § 9b HeizkostenV covers
+ * heating and hot water meters only, the row also stands for cold water and electricity.
+ */
+export const deadlineLegalBasis: Record<DeadlineKind, Citation[]> = {
+	statement: [cite('bgb-556', 'Abs. 3 Satz 2 und 3')],
+	objection: [cite('bgb-556', 'Abs. 3 Satz 5 und 6')],
+	lease_end: [],
+	deposit_instalment: [cite('bgb-551', 'Abs. 2')],
+	deposit_return: [],
+	graduated_step: [cite('bgb-557a')],
+	index_proposal: [cite('bgb-557b', 'Abs. 2 und 3')],
+	co2_reimbursement: [cite('co2kostaufg-6', 'Abs. 2')],
+	meter_reading: [],
+	insurance_notice: [],
+	insurance_end: []
+};
 
 export type Deadline = {
 	kind: DeadlineKind;

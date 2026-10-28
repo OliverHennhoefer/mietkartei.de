@@ -19,3 +19,6 @@ bun.lockb
 
 # Generated Gemeinde table (scripts/municipalities.py)
 /src/lib/server/municipalities-data.ts
+
+# Generated law texts (scripts/law.py)
+/src/lib/server/law-data.ts

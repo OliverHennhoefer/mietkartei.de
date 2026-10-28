@@ -8,9 +8,10 @@ import type { ApiCaller } from '../api-keys';
 import type { AuditContext } from '../audit';
 import type { Database } from '../db';
 import { taskCategories, type ApiKeyScope, type TaskCategory } from '../db/schema';
-import { listDeadlines } from '../deadlines';
+import { deadlineLegalBasis, listDeadlines } from '../deadlines';
 import { depositSummary, listDepositMovements } from '../deposits';
 import { listExpenses } from '../expenses';
+import { findLawSection, listLawSections } from '../law';
 import { getLease, leaseLabel, listLeases, type LeaseSummary } from '../leases';
 import { createPayment, listBalances, listLedger } from '../ledger';
 import {
@@ -409,7 +410,7 @@ export const operations: Operation[] = [
 	{
 		name: 'list_deadlines',
 		description:
-			'Lists the deadlines that follow from the data, by date: statements due, rent increases possible, deposit instalments, lease ends, meter readings. Overdue ones are always included.',
+			'Lists the deadlines that follow from the data, by date: statements due, rent increases possible, deposit instalments, lease ends, meter readings. Overdue ones are always included. legalBasis names the sections a deadline follows from; get_law_section has their wording.',
 		method: 'GET',
 		path: '/deadlines',
 		scope: 'read',
@@ -424,7 +425,11 @@ export const operations: Operation[] = [
 				to: input.to as string | undefined
 			});
 			// The links point into the app; outside of it they mean nothing.
-			return deadlines.map((deadline) => ({ ...deadline, href: undefined }));
+			return deadlines.map((deadline) => ({
+				...deadline,
+				href: undefined,
+				legalBasis: deadlineLegalBasis[deadline.kind]
+			}));
 		}
 	},
 	{
@@ -487,6 +492,33 @@ export const operations: Operation[] = [
 		async run({ db, caller }) {
 			await ensureDefaults(db, caller.user.accountId);
 			return listKeys(db, caller.user.accountId);
+		}
+	},
+	{
+		name: 'list_law_sections',
+		description:
+			'Lists the statutes the app applies (BGB Mietrecht, BetrKV, HeizkostenV, CO2KostAufG, EStG) with their version and the sections it has, without their text. Use get_law_section for the wording.',
+		method: 'GET',
+		path: '/law',
+		scope: 'read',
+		readOnly: true,
+		input: schema(),
+		run: async () => listLawSections()
+	},
+	{
+		name: 'get_law_section',
+		description:
+			'Returns the current wording of one section of German law the app applies, from gesetze-im-internet.de, with its title, the law’s version and a link. id is the section’s id from list_law_sections or legalBasis (e.g. "bgb-556") or a citation as the app writes it (e.g. "§ 9a Abs. 2 HeizKV"). Quote this instead of the law from memory; it is the wording, not legal advice.',
+		method: 'GET',
+		path: '/law/{id}',
+		scope: 'read',
+		readOnly: true,
+		input: schema(
+			{ id: { type: 'string', description: 'E.g. "bgb-556" or "§ 556 Abs. 3 BGB".' } },
+			['id']
+		),
+		async run(_context, input) {
+			return findLawSection(String(input.id)) ?? notFound('Law section');
 		}
 	},
 	{
