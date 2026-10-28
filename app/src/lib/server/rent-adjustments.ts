@@ -18,6 +18,7 @@ import {
 	comparativeLetterText,
 	comparativeSituation,
 	demandProblem,
+	type CappingPercent,
 	type ComparativeDemand
 } from '../domain/comparative-rent';
 import { letterText as editedLetterText, type LetterTextResult } from '../domain/letters';
@@ -486,6 +487,37 @@ export type ConsentInput = {
 };
 
 /**
+ * Checks a stored demand, with the Kaltmiete agreed to, against the history as it is now: a
+ * correction made while it was pending may have moved the waiting period or the Kappungsgrenze.
+ * The reason as a sentence, undefined while the demand still holds.
+ */
+function staleDemand(
+	lease: NonNullable<Awaited<ReturnType<typeof getLease>>>,
+	others: readonly HistoryChange[],
+	change: RentChangeRow,
+	agreed: number
+): string | undefined {
+	const { deliveredOn, comparativeRent, cappingPercent, comparisonSource } = change;
+	if (!deliveredOn || comparativeRent === null || !cappingPercent || !comparisonSource) {
+		return undefined;
+	}
+	const comparativeLease = { ...lease, floorArea: lease.unit.floorArea };
+	const situation = comparativeSituation(comparativeLease, others, deliveredOn);
+	if (situation.refusal) return situation.refusal;
+	if (situation.validFrom !== change.validFrom) {
+		return `Die Erhöhung wäre erst ab dem ${formatDate(situation.validFrom)} fällig.`;
+	}
+	return demandProblem(comparativeLease, situation, {
+		deliveredOn,
+		baseRent: agreed,
+		comparativeRent,
+		cappingPercent: cappingPercent as CappingPercent,
+		comparisonSource,
+		comparisonDetails: change.comparisonDetails ?? ''
+	})?.message;
+}
+
+/**
  * Records the tenant's consent to a § 558 demand: the change becomes part of the history from
  * the day it is due, with the agreed Kaltmiete and the prepayments valid then. Returns undefined
  * when the lease or the change is not in the account.
@@ -516,6 +548,12 @@ export async function recordConsent(
 	if (input.baseRent > change.baseRent || input.baseRent <= before.baseRent) {
 		return refuse(
 			`Die vereinbarte Kaltmiete muss über der bisherigen von ${formatCents(before.baseRent)} und höchstens bei den verlangten ${formatCents(change.baseRent)} liegen.`
+		);
+	}
+	const stale = staleDemand(lease, others, change, input.baseRent);
+	if (stale) {
+		return refuse(
+			`Das Verlangen passt nicht mehr zur Miethistorie: ${stale} Lösche es und stelle es neu.`
 		);
 	}
 	const amounts = { ...amountsOf(before), baseRent: input.baseRent };

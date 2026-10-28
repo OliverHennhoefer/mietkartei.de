@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { addMonthsToMonth, firstOfMonth, monthOf, today } from '../dates';
 import { effectiveFrom } from '../domain/index-rent';
 import type { Database } from './db';
-import { auditLog, consumerPriceIndex, rentCharges } from './db/schema';
+import { auditLog, consumerPriceIndex, rentChanges, rentCharges } from './db/schema';
 import { getLease, leaseInputOf, updateLease, type LeaseSummary } from './leases';
 import { ensureCharges } from './ledger';
 import {
@@ -713,6 +713,44 @@ describe('a § 558 demand and the consent', () => {
 				'approve: Zustimmung zur Mieterhöhung vom 02.04.2026: Kaltmiete 700,00\u00a0€ ab 01.06.2026'
 			])
 		);
+	});
+
+	it('refuses the consent when a correction of the history broke the demand', async () => {
+		const result = await demandComparativeIncrease(db, contextA, fixedId, demand);
+		if (!result?.ok) throw new Error(JSON.stringify(result));
+		// The initial rent was 500 €, not 600 €: 20 % allow 600 € now, not the 720 € demanded.
+		const lease = await getLease(db, 'a', fixedId);
+		await updateLease(db, contextA, fixedId, { ...leaseInputOf(lease!), baseRent: 50000 });
+		const consent = (baseRent: number) =>
+			recordConsent(db, contextA, fixedId, result.id, { consentedOn: '2026-04-02', baseRent });
+		expect(await consent(72000)).toMatchObject({
+			ok: false,
+			message: expect.stringMatching(/^Das Verlangen passt nicht mehr.*Kappungsgrenze.*neu\.$/)
+		});
+		// Within the new cap the tenant may still agree.
+		expect(await consent(60000)).toMatchObject({ ok: true });
+	});
+
+	it('refuses the consent when the waiting period moved', async () => {
+		const result = await demandComparativeIncrease(db, contextA, fixedId, demand);
+		if (!result?.ok) throw new Error(JSON.stringify(result));
+		// A raise on 01.04.2025 booked later pushes the due date to 01.07.2026.
+		await db.insert(rentChanges).values({
+			accountId: 'a',
+			leaseId: fixedId,
+			validFrom: '2025-04-01',
+			baseRent: 62000,
+			operatingCostPrepayment: 15000,
+			heatingCostPrepayment: 5000,
+			reason: 'manual',
+			status: 'approved'
+		});
+		expect(
+			await recordConsent(db, contextA, fixedId, result.id, {
+				consentedOn: '2026-04-02',
+				baseRent: 70000
+			})
+		).toMatchObject({ ok: false, message: expect.stringContaining('erst ab dem 01.07.2026') });
 	});
 
 	it('refuses a demand over the cap, on an index lease and of another account', async () => {

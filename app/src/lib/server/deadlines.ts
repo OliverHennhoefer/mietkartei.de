@@ -67,6 +67,8 @@ export const deadlineLegalBasis: Record<DeadlineKind, Citation[]> = {
 	deposit_return: [],
 	graduated_step: [cite('bgb-557a')],
 	index_proposal: [cite('bgb-557b', 'Abs. 2 und 3')],
+	comparative_possible: [cite('bgb-558', 'Abs. 1')],
+	comparative_consent: [cite('bgb-558b', 'Abs. 1 und 2')],
 	co2_reimbursement: [cite('co2kostaufg-6', 'Abs. 2')],
 	meter_reading: [],
 	insurance_notice: [],
