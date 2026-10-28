@@ -51,7 +51,7 @@
 	</table>
 </div>
 
-<h2>Umlageschlüssel anlegen</h2>
+<h2 id="umlageschluessel-anlegen">Umlageschlüssel anlegen</h2>
 <AllocationKeyForm
 	action="?/create"
 	submitLabel="Umlageschlüssel anlegen"

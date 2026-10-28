@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
@@ -73,7 +74,7 @@
 		title="Noch keine Bankverbindung"
 		text="Lege zuerst das Konto an, dessen Umsätze du importieren möchtest."
 	>
-		<a href="/bank/konten">Bankverbindung anlegen</a>
+		<CreateButton href="/bank/konten#bankverbindung-anlegen" label="Bankverbindung anlegen" />
 	</EmptyState>
 {:else if preview}
 	<!-- Step 2: the preview. The file travels back in the hidden field; the mapping with it. -->

@@ -60,7 +60,7 @@
 	</ul>
 {/if}
 
-<h2>Versicherung anlegen</h2>
+<h2 id="versicherung-anlegen">Versicherung anlegen</h2>
 <InsurancePolicyForm
 	action="?/create"
 	submitLabel="Versicherung anlegen"

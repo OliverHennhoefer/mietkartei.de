@@ -35,7 +35,7 @@
 	</ul>
 {/if}
 
-<h2>Abrechnungskreis anlegen</h2>
+<h2 id="abrechnungskreis-anlegen">Abrechnungskreis anlegen</h2>
 <BillingCircleForm
 	action="?/create"
 	submitLabel="Abrechnungskreis anlegen"

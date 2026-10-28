@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import CostItemForm from '#lib/components/CostItemForm.svelte';
@@ -26,7 +27,7 @@
 
 {#if data.properties.length === 0}
 	<EmptyState title="Noch kein Objekt" text="Belege gehören zu einem Objekt. Lege zuerst eines an.">
-		<a class="button" href="/objekte">Objekt anlegen</a>
+		<CreateButton href="/objekte/neu" label="Objekt anlegen" />
 	</EmptyState>
 {:else}
 	<p class="muted">

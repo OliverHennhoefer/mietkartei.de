@@ -139,7 +139,7 @@
 		</div>
 	{/if}
 
-	<h2>Bankverbindung anlegen</h2>
+	<h2 id="bankverbindung-anlegen">Bankverbindung anlegen</h2>
 	<form method="POST" action="?/create" class="card" use:enhance>
 		<Field label="Bezeichnung" error={errors?.name}>
 			<input
