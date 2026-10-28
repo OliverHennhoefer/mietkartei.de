@@ -43,6 +43,7 @@
 
 	/** The page with its query, and the dialog of a document or none. */
 	function withDocument(id?: string) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- built and read once, for a link
 		const query = new URLSearchParams(page.url.search);
 		if (id) query.set('bearbeiten', id);
 		else query.delete('bearbeiten');

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance, type SubmitFunction } from '$app/forms';
-	import { afterNavigate, goto } from '$app/navigation';
+	import { afterNavigate, goto, invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
 
 	import type { Snippet } from 'svelte';
 	import Icon from '#lib/components/Icon.svelte';
@@ -34,6 +35,18 @@
 		children: Snippet;
 	} = $props();
 
+	// The actions keep the page's query, so a refusal without JavaScript shows the dialog again.
+	const query = $derived(
+		[...new URLSearchParams(page.url.search)]
+			.filter(([name]) => !name.startsWith('/'))
+			.map(([name, value]) => `${encodeURIComponent(name)}=${encodeURIComponent(value)}&`)
+			.join('')
+	);
+	const withQuery = (target?: string) =>
+		target?.startsWith('?/') ? `?${query}${target.slice(1)}` : target;
+	const saveTarget = $derived(withQuery(action));
+	const deleteTarget = $derived(withQuery(deleteAction));
+
 	const id = $props.id();
 	let dialog = $state<HTMLDialogElement>();
 	// Opened from the list in this tab: closing goes back, so the back button does not reopen it.
@@ -50,18 +63,22 @@
 
 	function leave() {
 		if (fromList) history.back();
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- the list page's own path
 		else goto(close, { replace: true, reset: false });
 	}
 
 	const submit: SubmitFunction = ({ submitter, cancel }) => {
-		const deleting = submitter?.getAttribute('formaction') === deleteAction;
+		const deleting = submitter?.getAttribute('formaction') === deleteTarget;
 		if (deleting && deleteMessage && !confirm(deleteMessage)) {
 			cancel();
 			return;
 		}
 		return async ({ result, update }) => {
-			if (result.type === 'redirect') leave();
-			else await update();
+			// The list loads again for the page it is on, without the row, before the dialog goes.
+			if (result.type === 'redirect') {
+				await invalidateAll();
+				leave();
+			} else await update();
 		};
 	};
 </script>
@@ -87,7 +104,7 @@
 			onclick={leave}><Icon name="close" size={20} /></button
 		>
 	</div>
-	<form method="POST" action={action ?? deleteAction} class="form" use:enhance={submit}>
+	<form method="POST" action={saveTarget ?? deleteTarget} class="form" use:enhance={submit}>
 		{@render children()}
 		{#if error}<p class="error form-wide" role="alert">{error}</p>{/if}
 		<div class="form-actions">
@@ -101,7 +118,7 @@
 				}}>{action ? 'Abbrechen' : 'Schließen'}</a
 			>
 			{#if deleteAction}
-				<button type="submit" class="danger delete" formaction={deleteAction} formnovalidate
+				<button type="submit" class="danger delete" formaction={deleteTarget} formnovalidate
 					>Löschen</button
 				>
 			{/if}

@@ -35,6 +35,7 @@
 	const base = $derived(`/vertraege/${data.lease.id}/mietkonto`);
 	/** The page with the shown months kept and another parameter, for the dialogs' links. */
 	const withRange = (name?: string, value?: string) => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- built and read once, for a link
 		const query = new URLSearchParams({ from: data.range.from, to: data.range.to });
 		if (name && value) query.set(name, value);
 		return `${base}?${query}`;

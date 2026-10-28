@@ -144,7 +144,7 @@ test('no detail page violates the Content-Security-Policy', async ({ page }) => 
 		// The standard categories and keys are seeded on the first visit of the list.
 		`/betriebskosten/belege/${costItemId}`,
 		`/betriebskosten/abrechnungen/${statementId}`,
-		`/aufgaben/${taskId}`,
+		`/aufgaben?bearbeiten=${taskId}`,
 		`/einladung/${invitation.token}`,
 		`/passwort-zuruecksetzen/${reset.token}`,
 		`/e-mail-bestaetigen/${emailChange.token}`,
