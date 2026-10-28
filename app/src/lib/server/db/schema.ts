@@ -338,9 +338,19 @@ export const rentChangeReasons = [
 	'manual',
 	'graduated',
 	'indexed',
-	'statement'
+	'statement',
+	'comparative'
 ] as const;
 export type RentChangeReason = (typeof rentChangeReasons)[number];
+
+/** § 558a Abs. 2 BGB: how an increase to the ortsübliche Vergleichsmiete is justified. */
+export const comparisonSources = [
+	'rent_index',
+	'rent_database',
+	'expert_opinion',
+	'comparable_flats'
+] as const;
+export type ComparisonSource = (typeof comparisonSources)[number];
 
 export const rentChangeStatuses = ['approved', 'proposed'] as const;
 
@@ -375,6 +385,17 @@ export const rentChanges = sqliteTable(
 		letterText: text('letter_text'),
 		letterTable: text('letter_table', { mode: 'json' }).$type<string[][]>(),
 		deliveredOn: text('delivered_on'),
+		/**
+		 * For a § 558 increase (reason 'comparative'): the ortsübliche Vergleichsmiete in cents per
+		 * m², how it is justified, the Kappungsgrenze in percent and the day the tenant consented.
+		 * Until the consent the change is proposed; deliveredOn is the day the demand reached the
+		 * tenant, and validFrom the day the new rent is due (§ 558b Abs. 1 BGB).
+		 */
+		comparativeRent: integer('comparative_rent'),
+		comparisonSource: text('comparison_source', { enum: comparisonSources }),
+		comparisonDetails: text('comparison_details'),
+		cappingPercent: integer('capping_percent'),
+		consentedOn: text('consented_on'),
 		createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
 		createdAt: createdAt()
 	},

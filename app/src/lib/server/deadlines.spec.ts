@@ -256,6 +256,41 @@ describe('statement deadline of a period other than the calendar year', () => {
 	});
 });
 
+describe('Mieterhöhung nach § 558', () => {
+	it('names the earliest demand, then the consent period and the period to sue', async () => {
+		const { leaseId } = await lease('a', { startDate: '2026-01-01' }, { name: 'EG' });
+		// Informational: a year after the last change, here the lease start.
+		expect((await list('comparative_possible')).map(brief)).toEqual([
+			['2027-01-01', 'Mieterhöhung nach § 558 möglich', false]
+		]);
+		// An index lease has its own row.
+		await lease('a', { startDate: '2026-01-01', rentModel: 'indexed' });
+		expect(await list('comparative_possible')).toHaveLength(1);
+
+		const values = {
+			accountId: 'a',
+			leaseId,
+			validFrom: '2026-12-01',
+			baseRent: 65000,
+			reason: 'comparative' as const,
+			status: 'proposed' as const
+		};
+		await db.insert(rentChanges).values({ ...values, deliveredOn: '2026-09-15' });
+		expect(await list('comparative_possible')).toEqual([]);
+		// Received 15.09.2026: consent by 30.11.2026.
+		expect((await list('comparative_consent')).map(brief)).toEqual([
+			['2026-11-30', 'Zustimmung zur Mieterhöhung', false]
+		]);
+
+		// Received 10.07.2026: the consent period ended on 30.09.2026, suing runs to 31.12.2026.
+		await db.delete(rentChanges).where(eq(rentChanges.reason, 'comparative'));
+		await db.insert(rentChanges).values({ ...values, deliveredOn: '2026-07-10' });
+		const [row] = await list('comparative_consent');
+		expect(brief(row)).toEqual(['2026-12-31', 'Klagefrist Mieterhöhung', false]);
+		expect(row.detail).toContain('bis zum 30.09.2026 nicht zugestimmt');
+	});
+});
+
 describe('Einwendungsfrist', () => {
 	it('runs to the end of the twelfth month after delivery and disappears once passed', async () => {
 		const { leaseId, propertyId } = await lease('a', {}, { name: 'EG', propertyName: 'Haus' });

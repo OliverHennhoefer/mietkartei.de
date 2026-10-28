@@ -2,6 +2,7 @@ import type {
 	AllocationKeyKind,
 	BankTransactionStatus,
 	BuildingUse,
+	ComparisonSource,
 	DepositTransactionKind,
 	ExpenseCategory,
 	Fuel,
@@ -94,7 +95,15 @@ export const rentChangeReasonLabels: Record<RentChangeReason, string> = {
 	manual: 'Änderung',
 	graduated: 'Staffel',
 	indexed: 'Indexanpassung',
-	statement: 'Anpassung nach Abrechnung'
+	statement: 'Anpassung nach Abrechnung',
+	comparative: 'Vergleichsmiete (§ 558)'
+};
+
+export const comparisonSourceLabels: Record<ComparisonSource, string> = {
+	rent_index: 'Mietspiegel',
+	rent_database: 'Mietdatenbank',
+	expert_opinion: 'Gutachten',
+	comparable_flats: 'Drei Vergleichswohnungen'
 };
 
 export const depositTransactionKindLabels: Record<DepositTransactionKind, string> = {
