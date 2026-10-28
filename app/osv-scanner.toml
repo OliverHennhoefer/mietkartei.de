@@ -1,0 +1,5 @@
+# Advisories that do not apply to this app. Each entry needs a reason; drop it once a fix ships.
+
+[[IgnoredVulns]]
+id = "GHSA-gcqx-w48m-w2h4"
+reason = "deepmerge <=4.3.1 has no fixed release. It is only pulled in by @sveltejs/vite-plugin-svelte (dev dependency, latest version still uses it) to merge our own Svelte config at build time; no untrusted input reaches it and it is not in the deployed bundle."
