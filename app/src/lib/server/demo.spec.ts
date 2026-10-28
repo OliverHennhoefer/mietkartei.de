@@ -10,6 +10,7 @@ import {
 	costItems,
 	depositTransactions,
 	documents,
+	leaseUnits,
 	leases,
 	operatingCostStatements,
 	paymentReminders,
@@ -23,6 +24,7 @@ import {
 import { createDemoData, isEmptyAccount } from './demo';
 import { addDays, today } from '../dates';
 import { addressKey } from './geocoding';
+import { termsOverlap } from './leases';
 import { listBalances } from './ledger';
 import { QUOTAS } from './quotas';
 import { contextA, contextB, memoryStorage, seedUnit, testDatabase } from './testing';
@@ -78,6 +80,20 @@ describe('createDemoData', () => {
 			expect.objectContaining({ unitId: nowak.unitId, startDate: addDays(nowak.endDate!, 1) })
 		]);
 		expect(await rows(leases)).toHaveLength(11);
+		// One lease per unit at a time, extra units included, as createLease demands.
+		const extra = await db.select().from(leaseUnits).where(eq(leaseUnits.accountId, 'a'));
+		const holders = leaseRows.flatMap((lease) => [
+			{ unitId: lease.unitId, lease },
+			...extra
+				.filter((row) => row.leaseId === lease.id)
+				.map((row) => ({ unitId: row.unitId, lease }))
+		]);
+		const overlapping = holders.filter((a) =>
+			holders.some(
+				(b) => a.unitId === b.unitId && a.lease.id !== b.lease.id && termsOverlap(a.lease, b.lease)
+			)
+		);
+		expect(overlapping).toEqual([]);
 		expect(await rows(tasks)).toHaveLength(6);
 		expect(await countUnmatched(db, 'a')).toBe(3);
 

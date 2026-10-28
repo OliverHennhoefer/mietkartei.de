@@ -823,10 +823,10 @@ function areaComponent(
 		if (unit.floorArea === null && unit.kind !== 'parking') {
 			warn(ctx, {
 				code: 'missing_area',
-				blocking: false,
+				blocking: true,
 				unitId: unit.id,
 				href: `/objekte/${ctx.input.property.id}/einheiten/${unit.id}/bearbeiten`,
-				message: `Für die Einheit ${unit.name} fehlt die Wohnfläche; sie erhält keinen Anteil nach Fläche.`
+				message: `Für die Einheit ${unit.name} fehlt die Wohnfläche; ohne sie bekämen die anderen Einheiten ihren Anteil nach Fläche. Trag die Fläche ein, bevor du die Abrechnung freigibst.`
 			});
 		}
 		return unit.floorArea ?? 0;
@@ -978,10 +978,10 @@ function componentsOf(
 				if (!share) {
 					warn(ctx, {
 						code: 'missing_share',
-						blocking: false,
+						blocking: true,
 						unitId: unit.id,
 						href: '/betriebskosten/schluessel',
-						message: `Der Umlageschlüssel „${key.name}“ hat keinen Anteil für die Einheit ${unit.name}.`
+						message: `Der Umlageschlüssel „${key.name}“ hat keinen Anteil für die Einheit ${unit.name}; ohne ihn tragen die anderen Einheiten ihre Kosten. Trag einen Anteil ein (auch 0, wenn sie nichts tragen soll), bevor du die Abrechnung freigibst.`
 					});
 				}
 				return share?.share ?? 0;

@@ -14,7 +14,7 @@ import { co2Deadline } from '../domain/co2';
 import { depositInstalments } from '../domain/deposit';
 import { nextCancellation } from '../domain/insurance';
 import { leaseEndDeadlines } from '../domain/lease-end';
-import { objectionDeadline, statementDeadline } from '../domain/statement';
+import { objectionDeadline, periodLabel, statementDeadline } from '../domain/statement';
 import { insuranceKindLabels } from '../labels';
 import { personName } from '../format';
 import { formatCents } from '../money';
@@ -79,8 +79,50 @@ function leaseDetail(lease: LeaseSummary): string {
 	return names ? `${names} · ${leaseLabel(lease)}` : leaseLabel(lease);
 }
 
-function yearOf(date: IsoDate): number {
-	return Number(date.slice(0, 4));
+type Period = { start: IsoDate; end: IsoDate };
+
+/**
+ * The ended billing periods of a property that overlap one of its leases, from the first lease
+ * on: the periods of its statements as they are, calendar years before the first statement (the
+ * last one cut short where that statement starts), and after a statement twelve months each in
+ * its rhythm until the next statement or today.
+ */
+export function billingPeriods(
+	statements: { periodStart: IsoDate; periodEnd: IsoDate }[],
+	leases: Period[],
+	today: IsoDate
+): Period[] {
+	if (leases.length === 0) return [];
+	const known = [
+		...new Map(
+			statements.map((row) => [
+				`${row.periodStart}:${row.periodEnd}`,
+				{ start: row.periodStart, end: row.periodEnd }
+			])
+		).values()
+	].sort((a, b) => a.start.localeCompare(b.start));
+	const periods: Period[] = [];
+	let cursor = leases.reduce((min, lease) => (lease.start < min ? lease.start : min), '9999-12-31');
+	let previous: Period | undefined;
+	while (cursor <= today) {
+		const next = known.find((period) => period.end >= cursor);
+		let period: Period;
+		if (next && next.start <= cursor) {
+			period = next;
+		} else {
+			period = previous
+				? { start: cursor, end: addDays(addMonths(cursor, 12), -1) }
+				: { start: `${cursor.slice(0, 4)}-01-01`, end: `${cursor.slice(0, 4)}-12-31` };
+			if (next && period.end >= next.start) period.end = addDays(next.start, -1);
+		}
+		if (period.end > today) break;
+		if (leases.some((lease) => lease.start <= period.end && lease.end >= period.start)) {
+			periods.push(period);
+		}
+		previous = period;
+		cursor = addDays(period.end, 1);
+	}
+	return periods;
 }
 
 /**
@@ -181,48 +223,45 @@ export async function listDeadlines(
 		deadlines.push({ ...deadline, overdue: deadline.date < today });
 	};
 
-	// Betriebskostenabrechnung (§ 556 Abs. 3 BGB): per property and ended calendar year with a
-	// residential lease, until an approved statement covers the end of that year; then per residential
-	// lease of that statement until its delivery is recorded, since the deadline is about the statement
-	// reaching the tenant. Years before a lease's ledger start are not the app's business.
-	const yearsByProperty = new Map<string, Set<number>>();
+	// Betriebskostenabrechnung (§ 556 Abs. 3 BGB): per property and ended billing period with a
+	// residential lease, until an approved statement for that period exists; then per residential
+	// lease of that statement until its delivery is recorded, since the deadline is about the
+	// statement reaching the tenant. The periods are those of the property's statements; before the
+	// first one they are calendar years, after the last one they continue its rhythm (a July to June
+	// period is followed by the next July to June). Periods before a lease's ledger start are not the
+	// app's business.
+	const leasesByProperty = new Map<string, { start: IsoDate; end: IsoDate }[]>();
 	for (const lease of allLeases) {
 		if (lease.kind !== 'residential') continue;
 		// A lease with Pauschale or Inklusivmiete for both cost groups gets no statement.
 		if (lease.operatingCostModel !== 'prepayment' && lease.heatingCostModel !== 'prepayment') {
 			continue;
 		}
-		const bookkeepingStart =
+		const start =
 			lease.ledgerStart && lease.ledgerStart > lease.startDate
 				? lease.ledgerStart
 				: lease.startDate;
-		const lastYear = Math.min(
-			yearOf(lease.endDate ?? today),
-			yearOf(today) - (today.endsWith('-12-31') ? 0 : 1)
-		);
-		for (let year = yearOf(bookkeepingStart); year <= lastYear; year += 1) {
-			let years = yearsByProperty.get(lease.property.id);
-			if (!years) yearsByProperty.set(lease.property.id, (years = new Set()));
-			years.add(year);
-		}
+		let ranges = leasesByProperty.get(lease.property.id);
+		if (!ranges) leasesByProperty.set(lease.property.id, (ranges = []));
+		ranges.push({ start, end: lease.endDate ?? '9999-12-31' });
 	}
-	for (const [propertyId, years] of yearsByProperty) {
+	for (const [propertyId, ranges] of leasesByProperty) {
 		const property = allLeases.find((lease) => lease.property.id === propertyId)?.property;
-		for (const year of years) {
-			const periodEnd = `${year}-12-31`;
-			const deadline = statementDeadline(periodEnd);
-			const approved = statementRows.filter(
+		const statements = statementRows.filter((row) => row.propertyId === propertyId);
+		for (const period of billingPeriods(statements, ranges, today)) {
+			const deadline = statementDeadline(period.end);
+			const label = periodLabel(period.start, period.end);
+			const approved = statements.filter(
 				(row) =>
-					row.propertyId === propertyId &&
 					row.status === 'approved' &&
-					row.periodStart <= periodEnd &&
-					row.periodEnd >= periodEnd
+					row.periodStart === period.start &&
+					row.periodEnd === period.end
 			);
 			if (approved.length === 0) {
 				push({
 					kind: 'statement',
 					date: deadline,
-					title: `Betriebskostenabrechnung ${year}`,
+					title: `Betriebskostenabrechnung ${label}`,
 					detail: `${property?.name ?? 'Objekt'}: die Abrechnung muss den Mietern bis zum ${formatDate(deadline)} zugehen.`,
 					href: '/betriebskosten',
 					propertyId
@@ -247,7 +286,7 @@ export async function listDeadlines(
 				push({
 					kind: 'statement',
 					date: deadline,
-					title: `Betriebskostenabrechnung ${year} zustellen`,
+					title: `Betriebskostenabrechnung ${label} zustellen`,
 					detail: `${leaseDetail(lease)}: die Abrechnung muss bis zum ${formatDate(deadline)} zugehen; trag die Zustellung ein.`,
 					href: `/betriebskosten/abrechnungen/${statementId}`,
 					leaseId,
@@ -268,7 +307,7 @@ export async function listDeadlines(
 			{
 				kind: 'objection',
 				date: objectionDeadline(result.deliveredOn),
-				title: `Einwendungsfrist Betriebskostenabrechnung ${yearOf(statement.periodEnd)}`,
+				title: `Einwendungsfrist Betriebskostenabrechnung ${periodLabel(statement.periodStart, statement.periodEnd)}`,
 				detail: `${leaseDetail(lease)} · zugestellt am ${formatDate(result.deliveredOn)}`,
 				href: `/betriebskosten/abrechnungen/${statement.id}`,
 				leaseId: lease.id,

@@ -350,7 +350,9 @@ describe('vertraege/[id]', () => {
 	});
 
 	it('deletes a lease without bookings and keeps one with a payment', async () => {
-		const paid = await seedLease(db, 'a', unitId, { startDate: '2025-01-01' });
+		const paid = await seedLease(db, 'a', (await seedUnit(db, 'a', { name: 'OG' })).unitId, {
+			startDate: '2025-01-01'
+		});
 		await createPayment(db, contextA, {
 			leaseId: paid,
 			date: '2026-01-05',

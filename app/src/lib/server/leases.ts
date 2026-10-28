@@ -227,7 +227,47 @@ export type LeaseError =
 	| 'archived'
 	| 'missing'
 	| 'start-after-changes'
-	| 'settled-property';
+	| 'settled-property'
+	| 'overlap';
+
+/** Whether two terms share a day; an open end runs on indefinitely. */
+export function termsOverlap(
+	a: { startDate: IsoDate; endDate: IsoDate | null },
+	b: { startDate: IsoDate; endDate: IsoDate | null }
+): boolean {
+	return a.startDate <= (b.endDate ?? '9999-12-31') && b.startDate <= (a.endDate ?? '9999-12-31');
+}
+
+/**
+ * The start of another lease that holds one of the units (as main or extra unit) on a day of the
+ * term: two leases of one unit at once would split its operating costs between them.
+ */
+async function overlappingLease(
+	db: Database,
+	accountId: string,
+	term: { unitIds: string[]; startDate: IsoDate; endDate: IsoDate | null },
+	exceptLeaseId?: string
+): Promise<IsoDate | undefined> {
+	const unitIds = [...new Set(term.unitIds)];
+	const starts: IsoDate[] = [];
+	for (const ids of chunkIds(unitIds)) {
+		const [main, extra] = await Promise.all([
+			db
+				.select({ id: leases.id, startDate: leases.startDate, endDate: leases.endDate })
+				.from(leases)
+				.where(and(eq(leases.accountId, accountId), inArray(leases.unitId, ids))),
+			db
+				.select({ id: leases.id, startDate: leases.startDate, endDate: leases.endDate })
+				.from(leaseUnits)
+				.innerJoin(leases, eq(leases.id, leaseUnits.leaseId))
+				.where(and(eq(leaseUnits.accountId, accountId), inArray(leaseUnits.unitId, ids)))
+		]);
+		for (const lease of [...main, ...extra]) {
+			if (lease.id !== exceptLeaseId && termsOverlap(lease, term)) starts.push(lease.startDate);
+		}
+	}
+	return starts.sort()[0];
+}
 
 /**
  * Whether the units and tenants exist in the account and none is archived (a unit counts as
@@ -419,10 +459,16 @@ export async function createLease(
 	context: AuditContext,
 	input: LeaseInput,
 	openingBalance: number | null = null
-): Promise<{ ok: true; id: string } | { ok: false; reason: LeaseError }> {
+): Promise<{ ok: true; id: string } | { ok: false; reason: LeaseError; date?: IsoDate }> {
 	await assertQuota(db, context.accountId, 'leases');
 	const reason = await checkReferences(db, context.accountId, input);
 	if (reason) return { ok: false, reason };
+	const overlap = await overlappingLease(db, context.accountId, {
+		unitIds: [input.unitId, ...input.extraUnitIds],
+		startDate: input.startDate,
+		endDate: input.endDate
+	});
+	if (overlap) return { ok: false, reason: 'overlap', date: overlap };
 	const id = crypto.randomUUID();
 	const ledgerStart = input.ledgerStart ?? input.startDate;
 	const charges = await chargeSyncStatements(
@@ -504,6 +550,17 @@ export async function updateLease(
 	if (await leavesSettledProperty(db, accountId, leaseId, input)) {
 		return { ok: false, reason: 'settled-property' };
 	}
+	const overlap = await overlappingLease(
+		db,
+		accountId,
+		{
+			unitIds: [input.unitId, ...input.extraUnitIds],
+			startDate: input.startDate,
+			endDate: input.endDate
+		},
+		leaseId
+	);
+	if (overlap) return { ok: false, reason: 'overlap', date: overlap };
 
 	const [changes, personsRows] = await Promise.all([
 		db
@@ -672,10 +729,21 @@ export async function endLease(
 	context: AuditContext,
 	leaseId: string,
 	input: LeaseEndInput
-): Promise<'ended' | 'missing' | 'before-start'> {
+): Promise<'ended' | 'missing' | 'before-start' | { overlap: IsoDate }> {
 	const existing = await getLease(db, context.accountId, leaseId);
 	if (!existing) return 'missing';
 	if (input.endDate < existing.startDate) return 'before-start';
+	const overlap = await overlappingLease(
+		db,
+		context.accountId,
+		{
+			unitIds: [existing.unitId, ...existing.extraUnits.map((unit) => unit.id)],
+			startDate: existing.startDate,
+			endDate: input.endDate
+		},
+		leaseId
+	);
+	if (overlap) return { overlap };
 	await runBatch(db, [
 		db
 			.update(leases)
