@@ -430,7 +430,7 @@ describe('bank/konten', () => {
 		});
 		const created = (await listBankAccounts(db, 'a')).find((row) => row.name === 'Rücklage')!;
 		expect(await run(accountActions.delete, { form: { id: created.id } })).toEqual({
-			data: { deleted: true }
+			redirect: '/bank/konten'
 		});
 		expect(await run(accountActions.delete, { form: { id: created.id } })).toMatchObject({
 			error: 404
