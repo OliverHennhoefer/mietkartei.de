@@ -8,10 +8,12 @@
 	import Money from '#lib/components/Money.svelte';
 	import PreviewLink from '#lib/components/PreviewLink.svelte';
 	import Icon from '#lib/components/Icon.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
 	import { formatRate } from '#lib/domain/default-interest.ts';
 	import { reminderLevelLabels } from '#lib/domain/reminders.ts';
 	import { formatCents, formatCentsPlain } from '#lib/money.ts';
+	import { byDate, byNumber, bySeverity, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -60,6 +62,26 @@
 			: undefined
 	);
 	const latest = $derived(data.reminders.current[0]);
+	const rowSort = new TableSort<PageProps['data']['rows'][number]>({
+		date: byDate((row) => row.date),
+		label: byText((row) => row.label),
+		debit: byNumber((row) => (row.credit === 0 ? row.debit : null)),
+		credit: byNumber((row) => (row.credit > 0 ? row.credit : null)),
+		balance: byNumber((row) => row.balance)
+	});
+	type Reminders = PageProps['data']['reminders'];
+	const itemSort = new TableSort<Reminders['items'][number]>({
+		due: byDate((item) => item.dueDate),
+		label: byText((item) => item.label),
+		amount: byNumber((item) => item.amount),
+		open: byNumber((item) => item.open)
+	});
+	const reminderSort = new TableSort<Reminders['reminders'][number]>({
+		date: byDate((reminder) => reminder.date),
+		level: bySeverity((reminder) => reminder.level),
+		amount: byNumber((reminder) => reminder.amount),
+		deadline: byDate((reminder) => reminder.paymentDeadline)
+	});
 	const interestBasis = $derived.by(() => {
 		const rate = data.reminders.baseRates.latest;
 		const basis = 'Fünf Prozentpunkte über dem Basiszinssatz (§ 288 Abs. 1 BGB)';
@@ -137,18 +159,18 @@
 		<table class="table" aria-label="Buchungen">
 			<thead>
 				<tr>
-					<th>Datum</th>
-					<th>Buchung</th>
-					<th class="num">Soll</th>
-					<th class="num">Haben</th>
-					<th class="num">
+					<SortHeader sort={rowSort} key="date">Datum</SortHeader>
+					<SortHeader sort={rowSort} key="label">Buchung</SortHeader>
+					<SortHeader sort={rowSort} key="debit" class="num">Soll</SortHeader>
+					<SortHeader sort={rowSort} key="credit" class="num">Haben</SortHeader>
+					<SortHeader sort={rowSort} key="balance" class="num">
 						Saldo
-						<span class="legend">+ Guthaben · − Rückstand</span>
-					</th>
+						{#snippet after()}<span class="legend">+ Guthaben · − Rückstand</span>{/snippet}
+					</SortHeader>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.rows as row (row.id)}
+				{#each rowSort.rows(data.rows) as row (row.id)}
 					<tr>
 						<td>
 							{#if row.deletable}
@@ -230,14 +252,14 @@
 		<table class="table" aria-label="Offene Posten">
 			<thead>
 				<tr>
-					<th>Fällig am</th>
-					<th>Buchung</th>
-					<th class="num">Betrag</th>
-					<th class="num">Offen</th>
+					<SortHeader sort={itemSort} key="due">Fällig am</SortHeader>
+					<SortHeader sort={itemSort} key="label">Buchung</SortHeader>
+					<SortHeader sort={itemSort} key="amount" class="num">Betrag</SortHeader>
+					<SortHeader sort={itemSort} key="open" class="num">Offen</SortHeader>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.reminders.items as item, index (index)}
+				{#each itemSort.rows(data.reminders.items) as item, index (index)}
 					<tr>
 						<td>{formatDate(item.dueDate)}</td>
 						<td>{item.label}</td>
@@ -314,15 +336,15 @@
 		<table class="table" aria-label="Erstellte Schreiben">
 			<thead>
 				<tr>
-					<th>Datum</th>
-					<th>Schreiben</th>
-					<th class="num">Betrag</th>
-					<th>Zahlungsfrist</th>
+					<SortHeader sort={reminderSort} key="date">Datum</SortHeader>
+					<SortHeader sort={reminderSort} key="level">Schreiben</SortHeader>
+					<SortHeader sort={reminderSort} key="amount" class="num">Betrag</SortHeader>
+					<SortHeader sort={reminderSort} key="deadline">Zahlungsfrist</SortHeader>
 					<th class="actions"></th>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.reminders.reminders as reminder (reminder.id)}
+				{#each reminderSort.rows(data.reminders.reminders) as reminder (reminder.id)}
 					<tr>
 						<td>
 							<a href={withRange('schreiben', reminder.id)} data-sveltekit-reset="false"

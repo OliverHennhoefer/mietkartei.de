@@ -3,9 +3,11 @@
 	import FlowChart from '#lib/components/FlowChart.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import Sections from '../Sections.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
 	import { cappingLimit } from '#lib/domain/forecast.ts';
+	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -31,6 +33,27 @@
 	} as const;
 	const first = $derived(data.months[0]?.month);
 	const last = $derived(data.months.at(-1)?.month);
+	const monthSort = new TableSort<PageProps['data']['months'][number]>({
+		month: byDate((month) => month.month),
+		rent: byNumber((month) => month.rent),
+		increases: byNumber((month) => month.increases),
+		costs: byNumber((month) => month.costs),
+		cashflow: byNumber((month) => month.rent + month.increases - month.costs)
+	});
+	const increaseSort = new TableSort<PageProps['data']['increases'][number]>({
+		lease: byText((row) => row.label),
+		kind: byText((row) => kinds[row.kind]),
+		from: byDate((row) => row.from),
+		baseRent: byNumber((row) => row.currentBaseRent),
+		increase: byNumber((row) => row.increase)
+	});
+	const settlementSort = new TableSort<PageProps['data']['settlements'][number]>({
+		lease: byText((row) => row.label),
+		lastBalance: byNumber((row) => row.lastBalance),
+		balance: byNumber((row) => row.balance),
+		prepayment: byNumber((row) => row.currentPrepayment),
+		suggested: byNumber((row) => row.suggestedPrepayment)
+	});
 </script>
 
 <PageHeader
@@ -108,15 +131,15 @@
 				<table class="table">
 					<thead>
 						<tr>
-							<th>Monat</th>
-							<th class="number">Miete</th>
-							<th class="number">Indexerhöhungen</th>
-							<th class="number">Kosten</th>
-							<th class="number">Cashflow</th>
+							<SortHeader sort={monthSort} key="month">Monat</SortHeader>
+							<SortHeader sort={monthSort} key="rent" class="num">Miete</SortHeader>
+							<SortHeader sort={monthSort} key="increases" class="num">Indexerhöhungen</SortHeader>
+							<SortHeader sort={monthSort} key="costs" class="num">Kosten</SortHeader>
+							<SortHeader sort={monthSort} key="cashflow" class="num">Cashflow</SortHeader>
 						</tr>
 					</thead>
 					<tbody>
-						{#each data.months as month (month.month)}
+						{#each monthSort.rows(data.months) as month (month.month)}
 							<tr>
 								<td>{formatMonth(month.month)}</td>
 								<td class="number"><Money cents={month.rent} /></td>
@@ -147,15 +170,16 @@
 				<table class="table">
 					<thead>
 						<tr>
-							<th>Mietvertrag</th>
-							<th>Art</th>
-							<th>frühestens ab</th>
-							<th class="number">Kaltmiete jetzt</th>
-							<th class="number">mehr im Monat</th>
+							<SortHeader sort={increaseSort} key="lease">Mietvertrag</SortHeader>
+							<SortHeader sort={increaseSort} key="kind">Art</SortHeader>
+							<SortHeader sort={increaseSort} key="from">frühestens ab</SortHeader>
+							<SortHeader sort={increaseSort} key="baseRent" class="num">Kaltmiete jetzt</SortHeader
+							>
+							<SortHeader sort={increaseSort} key="increase" class="num">mehr im Monat</SortHeader>
 						</tr>
 					</thead>
 					<tbody>
-						{#each data.increases as row (row.leaseId)}
+						{#each increaseSort.rows(data.increases) as row (row.leaseId)}
 							<tr>
 								<td><a href="/vertraege/{row.leaseId}/miethoehe">{row.label}</a></td>
 								<td>{kinds[row.kind]}</td>
@@ -189,15 +213,21 @@
 				<table class="table">
 					<thead>
 						<tr>
-							<th>Mietvertrag</th>
-							<th class="number">letzte Abrechnung</th>
-							<th class="number">erwartet</th>
-							<th class="number">Vorauszahlung jetzt</th>
-							<th class="number">deckend wären</th>
+							<SortHeader sort={settlementSort} key="lease">Mietvertrag</SortHeader>
+							<SortHeader sort={settlementSort} key="lastBalance" class="num"
+								>letzte Abrechnung</SortHeader
+							>
+							<SortHeader sort={settlementSort} key="balance" class="num">erwartet</SortHeader>
+							<SortHeader sort={settlementSort} key="prepayment" class="num"
+								>Vorauszahlung jetzt</SortHeader
+							>
+							<SortHeader sort={settlementSort} key="suggested" class="num"
+								>deckend wären</SortHeader
+							>
 						</tr>
 					</thead>
 					<tbody>
-						{#each data.settlements as row (row.leaseId)}
+						{#each settlementSort.rows(data.settlements) as row (row.leaseId)}
 							<tr>
 								<td><a href="/vertraege/{row.leaseId}/miethoehe">{row.label}</a></td>
 								<td class="number">

@@ -5,6 +5,7 @@
 	import Icon from '#lib/components/Icon.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PreviewLink from '#lib/components/PreviewLink.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { FORM_YEAR, type TaxLine } from '#lib/domain/tax.ts';
 	import { formatNumber } from '#lib/format.ts';
 	import type { FieldErrors } from '#lib/forms/fields.ts';
@@ -12,6 +13,7 @@
 	import type { DepreciationInput } from '#lib/server/tax.ts';
 	import { formatCentsPlain } from '#lib/money.ts';
 	import { unitKindLabels } from '#lib/units.ts';
+	import { byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -35,6 +37,14 @@
 	/** The line's own label repeats when one entry carries the whole line. */
 	const showEntries = (line: TaxLine) =>
 		line.entries.length > 1 || line.entries[0]?.label !== line.label;
+	const leaseSort = new TableSort<(typeof tax.leases)[number]>({
+		lease: byText((lease) => lease.label),
+		charged: byNumber((lease) => lease.charged),
+		received: byNumber((lease) => lease.received),
+		baseRent: byNumber((lease) => lease.baseRent),
+		prepayments: byNumber((lease) => lease.prepayments),
+		other: byNumber((lease) => lease.settlements + lease.other)
+	});
 </script>
 
 <!-- The heading and tab bar come from the layout; this page is the "Steuer" tab. -->
@@ -153,16 +163,18 @@
 			<table class="table">
 				<thead>
 					<tr>
-						<th>Mietvertrag</th>
-						<th class="number">Soll</th>
-						<th class="number">Eingang</th>
-						<th class="number">Kaltmiete</th>
-						<th class="number">Umlagen</th>
-						<th class="number">Abrechnung und Sonstiges</th>
+						<SortHeader sort={leaseSort} key="lease">Mietvertrag</SortHeader>
+						<SortHeader sort={leaseSort} key="charged" class="num">Soll</SortHeader>
+						<SortHeader sort={leaseSort} key="received" class="num">Eingang</SortHeader>
+						<SortHeader sort={leaseSort} key="baseRent" class="num">Kaltmiete</SortHeader>
+						<SortHeader sort={leaseSort} key="prepayments" class="num">Umlagen</SortHeader>
+						<SortHeader sort={leaseSort} key="other" class="num"
+							>Abrechnung und Sonstiges</SortHeader
+						>
 					</tr>
 				</thead>
 				<tbody>
-					{#each tax.leases as lease (lease.leaseId)}
+					{#each leaseSort.rows(tax.leases) as lease (lease.leaseId)}
 						<tr>
 							<td>
 								<a href="/vertraege/{lease.leaseId}/mietkonto">{lease.label}</a>

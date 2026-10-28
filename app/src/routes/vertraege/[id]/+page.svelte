@@ -9,6 +9,7 @@
 	import EditDialog from '#lib/components/EditDialog.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate, formatMonth, isIsoDate } from '#lib/dates.ts';
 	import { formatIndexValue } from '#lib/domain/index-rent.ts';
 	import { proposedEndDate } from '#lib/domain/lease-end.ts';
@@ -20,6 +21,7 @@
 		rentModelLabels,
 		terminatedByLabels
 	} from '#lib/labels.ts';
+	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -38,6 +40,11 @@
 			})
 	);
 	const endValues = $derived(endForm?.values ?? data.endProposal);
+	const personSort = new TableSort<PageProps['data']['persons'][number]>({
+		from: byDate((row) => row.validFrom),
+		persons: byNumber((row) => row.persons),
+		note: byText((row) => row.note)
+	});
 	const parties = Object.entries(terminatedByLabels) as [keyof typeof terminatedByLabels, string][];
 
 	// "Vertrag beenden": the end date follows the receipt date and the party (§ 573c / § 580a
@@ -159,16 +166,17 @@
 		<table class="table" aria-label="Personenstand">
 			<thead>
 				<tr>
-					<th>Ab</th>
-					<th class="num">Personen</th>
-					<th>Notiz</th>
+					<SortHeader sort={personSort} key="from">Ab</SortHeader>
+					<SortHeader sort={personSort} key="persons" class="num">Personen</SortHeader>
+					<SortHeader sort={personSort} key="note">Notiz</SortHeader>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.persons as row, index (row.id)}
+				{#each personSort.rows(data.persons) as row (row.id)}
 					<tr>
 						<td>
-							{#if index > 0}
+							<!-- Only later rows open in the dialog: the first one belongs to the lease. -->
+							{#if row.id !== data.persons[0].id}
 								<a href="?bearbeiten={row.id}" data-sveltekit-reset="false"
 									>{formatDate(row.validFrom)}</a
 								>

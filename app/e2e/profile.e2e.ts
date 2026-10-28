@@ -14,7 +14,7 @@ test('saves the landlord sender block, which the letters print', async ({ page }
 	await page.goto('/objekte');
 	// The menu button works only once the page is hydrated, which the map images can delay.
 	await page.waitForLoadState('networkidle');
-	await page.getByRole('button', { name: 'Konto' }).click();
+	await page.getByRole('button', { name: 'Konto', exact: true }).click();
 	await page.getByRole('link', { name: 'Einstellungen' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Einstellungen' });
 	await expect(dialog.getByRole('heading', { level: 1, name: 'Profil' })).toBeVisible();
@@ -117,7 +117,9 @@ test('changes the name, the password and the address, which sign out the other b
 	await expect(page.getByText('Dein Profil wurde gespeichert.')).toBeVisible();
 	await page.reload();
 	// The account button shows the new initials.
-	await expect(page.getByRole('button', { name: 'Konto' }).locator('.avatar')).toHaveText('PP');
+	await expect(
+		page.getByRole('button', { name: 'Konto', exact: true }).locator('.avatar')
+	).toHaveText('PP');
 
 	// A new address needs the current password.
 	await profile.getByLabel('E-Mail-Adresse', { exact: true }).fill(`neu-${user.email}`);

@@ -5,9 +5,11 @@
 	import EditDialog from '#lib/components/EditDialog.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { depositTransactionKindLabels } from '#lib/labels.ts';
 	import { formatCents, formatCentsPlain } from '#lib/money.ts';
+	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -40,6 +42,14 @@
 	const movements = $derived.by(() => {
 		let held = 0;
 		return data.movements.map((movement) => ({ ...movement, held: (held += movement.amount) }));
+	});
+	const sort = new TableSort<(typeof movements)[number]>({
+		date: byDate((movement) => movement.date),
+		kind: byText((movement) => depositTransactionKindLabels[movement.kind]),
+		received: byNumber((movement) => (movement.amount >= 0 ? movement.amount : null)),
+		paid: byNumber((movement) => (movement.amount < 0 ? -movement.amount : null)),
+		held: byNumber((movement) => movement.held),
+		note: byText((movement) => movement.note)
 	});
 </script>
 
@@ -90,16 +100,16 @@
 		<table class="table" aria-label="Kautionsbewegungen">
 			<thead>
 				<tr>
-					<th>Datum</th>
-					<th>Art</th>
-					<th class="num">Eingang</th>
-					<th class="num">Ausgang</th>
-					<th class="num">Bestand</th>
-					<th>Notiz</th>
+					<SortHeader {sort} key="date">Datum</SortHeader>
+					<SortHeader {sort} key="kind">Art</SortHeader>
+					<SortHeader {sort} key="received" class="num">Eingang</SortHeader>
+					<SortHeader {sort} key="paid" class="num">Ausgang</SortHeader>
+					<SortHeader {sort} key="held" class="num">Bestand</SortHeader>
+					<SortHeader {sort} key="note">Notiz</SortHeader>
 				</tr>
 			</thead>
 			<tbody>
-				{#each movements as movement (movement.id)}
+				{#each sort.rows(movements) as movement (movement.id)}
 					<tr>
 						<td>
 							{#if movement.bankTransactionId}
