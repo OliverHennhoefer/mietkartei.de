@@ -330,9 +330,24 @@ describe('kaution', () => {
 		).toMatchObject({ error: 404 });
 	});
 
-	it('deletes a movement once', async () => {
+	it('edits a movement and deletes it once', async () => {
 		await act(depositActions.add, { date: '2026-01-02', kind: 'received', amount: '100,00' });
 		const [movement] = await listDepositMovements(db, 'a', leaseId);
+		expect(await tab(loadDeposit, `?bearbeiten=${movement.id}`)).toMatchObject({
+			data: { editing: { id: movement.id, amount: 10000 } }
+		});
+		const edit = { movementId: movement.id, date: '2026-01-03', kind: 'returned', amount: '40,00' };
+		expect(await act(depositActions.update, { ...edit, amount: '0' })).toMatchObject({
+			fail: 400,
+			data: { edit: true }
+		});
+		expect(await act(depositActions.update, edit, foreignLeaseId)).toMatchObject({ fail: 404 });
+		expect(await act(depositActions.update, edit)).toEqual({
+			redirect: `/vertraege/${leaseId}/kaution`
+		});
+		expect(await listDepositMovements(db, 'a', leaseId)).toMatchObject([
+			{ date: '2026-01-03', kind: 'returned', amount: -4000 }
+		]);
 		expect(await act(depositActions.delete, {})).toMatchObject({ fail: 400 });
 		expect(
 			await act(depositActions.delete, { movementId: movement.id }, foreignLeaseId)
@@ -340,7 +355,7 @@ describe('kaution', () => {
 			fail: 404
 		});
 		expect(await act(depositActions.delete, { movementId: movement.id })).toEqual({
-			data: { deleted: true }
+			redirect: `/vertraege/${leaseId}/kaution`
 		});
 		expect(await act(depositActions.delete, { movementId: movement.id })).toMatchObject({
 			fail: 404
@@ -370,6 +385,9 @@ describe('kaution', () => {
 			parts: [{ leaseId, amount: 180000 }]
 		});
 		const [movement] = await listDepositMovements(db, 'a', leaseId);
+		expect(await tab(loadDeposit, `?bearbeiten=${movement.id}`)).toMatchObject({
+			data: { editing: null }
+		});
 		expect(await act(depositActions.delete, { movementId: movement.id })).toEqual({
 			fail: 400,
 			data: {
