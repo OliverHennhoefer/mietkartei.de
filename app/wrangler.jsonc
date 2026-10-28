@@ -14,15 +14,16 @@
 	// The Verbraucherpreisindex comes from Destatis with the API token of the secret
 	// GENESIS_API_TOKEN, see src/lib/server/consumer-price-index.ts and .github/DEPLOYMENT.md.
 	// The subscription is on once the secrets STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are set
-	// as well; STRIPE_PRICE_ID is the monthly price in Stripe test mode. STRIPE_YEARLY_PRICE_ID
-	// adds the yearly plan once it is set. See .github/DEPLOYMENT.md.
+	// as well; STRIPE_PRICE_ID and STRIPE_YEARLY_PRICE_ID are the monthly (5 €) and yearly (50 €)
+	// prices in Stripe test mode. See .github/DEPLOYMENT.md.
 	// HOSTED marks app.mietkartei.de and its demo, unlike a self-hosted copy on Cloudflare, which
 	// deploys ../wrangler.jsonc; see docs/selbst-hosten.md.
 	"vars": {
 		"HOSTED": "true",
 		"MAIL_TRANSPORT": "resend",
 		"MAIL_FROM": "noreply@mietkartei.de",
-		"STRIPE_PRICE_ID": "price_1UTPZ8HkVR9ErMZWMjxrzJPD"
+		"STRIPE_PRICE_ID": "price_1UTPZ8HkVR9ErMZWMjxrzJPD",
+		"STRIPE_YEARLY_PRICE_ID": "price_1UUXTHHkVR9ErMZW5jBwYL8y"
 	},
 	"assets": {
 		"binding": "ASSETS",
