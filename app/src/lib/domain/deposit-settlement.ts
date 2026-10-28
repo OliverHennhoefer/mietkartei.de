@@ -18,6 +18,8 @@ export type SettlementInput = {
 	deductions: Deduction[];
 	/** Whether arrears on the rent ledger are taken from the deposit. */
 	offsetArrears: boolean;
+	/** The arrears the form showed for the date; the offset is refused when they have changed. */
+	shownArrears?: number;
 };
 
 /** The deposit's movements so far, as positive totals (see depositSummary). */

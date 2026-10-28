@@ -36,10 +36,13 @@ export function parseSettlement(form: FormData): ParseResult<SettlementFields> {
 		else if (label && amount) deductions.push({ label, amount });
 	}
 	const offsetArrears = parser.flag('offsetArrears');
+	// A hidden field in cents; a malformed one counts as not shown.
+	const shown = Number(parser.raw('shownArrears') || Number.NaN);
 	return parser.result(() => ({
 		date: date!,
 		interest: interest ?? 0,
 		deductions,
-		offsetArrears
+		offsetArrears,
+		...(Number.isSafeInteger(shown) ? { shownArrears: shown } : {})
 	}));
 }

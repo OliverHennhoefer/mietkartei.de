@@ -448,6 +448,13 @@ describe('kaution', () => {
 		expect(await tab(loadDeposit)).toMatchObject({
 			data: { settleable: true, arrears: 160000, maxDeductions: 8 }
 		});
+		// ?datum= gives the arrears on that day; one before the end or malformed is ignored.
+		expect(await tab(loadDeposit, '?datum=2026-02-15')).toMatchObject({
+			data: { settleDate: '2026-03-02' }
+		});
+		expect(await tab(loadDeposit, '?datum=2026-03-01')).toMatchObject({
+			data: { settleDate: '2026-03-01', arrears: 160000 }
+		});
 
 		const settle = {
 			date: '2026-03-02',
@@ -468,10 +475,21 @@ describe('kaution', () => {
 			fail: 400,
 			data: { settle: true, message: expect.stringContaining('Vertragsende') }
 		});
+		expect(await act(depositActions.settle, { ...settle, shownArrears: '80000' })).toMatchObject({
+			fail: 400,
+			data: {
+				settle: true,
+				message: expect.stringContaining('1.600,00'),
+				values: { label1: 'Reparatur der Badtür' },
+				arrears: 160000
+			}
+		});
 		expect(await act(depositActions.settle, settle, foreignLeaseId)).toMatchObject({
 			error: 404
 		});
-		expect(await act(depositActions.settle, settle)).toEqual({ data: { settled: true } });
+		expect(await act(depositActions.settle, { ...settle, shownArrears: '160000' })).toEqual({
+			data: { settled: true }
+		});
 		expect(await tab(loadDeposit)).toMatchObject({
 			data: { settlement: { payout: 5000, remaining: 0 }, settleable: false }
 		});

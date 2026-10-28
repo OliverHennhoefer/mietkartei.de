@@ -26,7 +26,8 @@ import { recipientLines } from './rent-adjustments';
 
 export type SettlementRow = typeof depositSettlements.$inferSelect;
 
-export type SettlementResult = { ok: true; id: string } | { ok: false; message: string };
+export type SettlementResult =
+	{ ok: true; id: string } | { ok: false; message: string; arrears?: number };
 
 const refuse = (message: string) => ({ ok: false as const, message });
 
@@ -55,8 +56,9 @@ export async function arrearsOn(
 }
 
 /**
- * Settles the deposit of an ended lease. Refused before the end, for a date in the future, a
- * second time or when the Einbehalte exceed the deposit. Undefined when the lease is not in the
+ * Settles the deposit of an ended lease. Refused before the end, for a date in the future or
+ * before the last deposit movement, a second time, when the Einbehalte exceed the deposit or when
+ * the arrears to offset differ from those the form showed. Undefined when the lease is not in the
  * account.
  */
 export async function createSettlement(
@@ -85,6 +87,22 @@ export async function createSettlement(
 		arrearsOn(db, accountId, leaseId, input.date),
 		landlordAddress(db, accountId)
 	]);
+	// The balance is the one on the date: a movement after it would be settled before it happened.
+	const last = movements.at(-1);
+	if (last && last.date > input.date) {
+		return refuse(
+			`Die Abrechnung kann nicht vor der letzten Kautionsbewegung am ${formatDate(last.date)} liegen.`
+		);
+	}
+	const owed = Math.max(0, arrears);
+	if (input.offsetArrears && input.shownArrears !== undefined && input.shownArrears !== owed) {
+		return {
+			...refuse(
+				`Am ${formatDate(input.date)} beträgt der Mietrückstand ${formatCents(owed)}. Prüfe die Auszahlung und rechne erneut ab.`
+			),
+			arrears: owed
+		};
+	}
 	const result = settlementFigures(
 		depositSummary(movements, lease.securityDeposit),
 		input,

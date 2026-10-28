@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
 	import EditDialog from '#lib/components/EditDialog.svelte';
@@ -13,6 +15,7 @@
 	import { depositTransactionKindLabels } from '#lib/labels.ts';
 	import { formatCents, formatCentsPlain, parseCents } from '#lib/money.ts';
 	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
+	import { untrack } from 'svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -27,9 +30,19 @@
 		(!editRefused && !settleRefused && form?.values) || { date: data.today, kind: 'received' }
 	);
 	const settleErrors = $derived<Partial<Record<string, string>>>(settleRefused?.errors ?? {});
-	const settleValues = $derived<Record<string, string>>(
-		settleRefused?.values ?? { date: data.today, offsetArrears: data.arrears > 0 ? 'on' : '' }
-	);
+	// The arrears on the settlement date: those a refusal found, else those loaded for ?datum.
+	const arrears = $derived(settleRefused?.arrears ?? data.arrears);
+	// One object without a refusal, so nothing typed is reset when another date loads.
+	const unsent: Record<string, string> = { offsetArrears: 'on' };
+	const settleValues = $derived<Record<string, string>>(settleRefused?.values ?? unsent);
+	// Another date loads the arrears on it, for the preview and the checkbox.
+	function changeDate(event: Event) {
+		const date = (event.currentTarget as HTMLInputElement).value;
+		if (!date) return;
+		const path = resolve('/vertraege/[id]/kaution', { id: lease.id });
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- the resolved path with a query
+		goto(`${path}?datum=${date}`, { replace: true, reset: false });
+	}
 
 	// The Einbehalte of the settlement form: as many rows as were sent back, at least one.
 	const sentRows = $derived(
@@ -43,10 +56,11 @@
 	let interestInput = $state('');
 	let amountInputs = $state<string[]>([]);
 	let offsetArrears = $state(true);
+	// Set again by a refusal only, not when another date loads new data.
 	$effect.pre(() => {
 		interestInput = settleValues.interest ?? '';
 		amountInputs = Array.from(
-			{ length: data.maxDeductions },
+			{ length: untrack(() => data.maxDeductions) },
 			(_, index) => settleValues[`amount${index + 1}`] ?? ''
 		);
 		offsetArrears = settleValues.offsetArrears === 'on';
@@ -55,7 +69,7 @@
 	const preview = $derived.by(() => {
 		const available = data.summary.held + cents(interestInput);
 		const deducted = amountInputs.slice(0, rows).reduce((sum, input) => sum + cents(input), 0);
-		const offset = offsetArrears ? Math.min(data.arrears, Math.max(0, available - deducted)) : 0;
+		const offset = offsetArrears ? Math.min(arrears, Math.max(0, available - deducted)) : 0;
 		return { available, deducted, offset, payout: available - deducted - offset };
 	});
 	const settlementPdf = $derived(`/vertraege/${data.lease.id}/kaution/abrechnung`);
@@ -244,8 +258,9 @@
 			<input
 				name="date"
 				type="date"
-				defaultValue={settleValues.date ?? ''}
+				defaultValue={settleValues.date ?? data.settleDate}
 				max={data.today}
+				onchange={changeDate}
 				aria-invalid={settleErrors.date ? 'true' : undefined}
 				required
 			/>
@@ -292,10 +307,11 @@
 				>
 			{/if}
 		</fieldset>
-		{#if data.arrears > 0}
+		<input type="hidden" name="shownArrears" value={arrears} />
+		{#if arrears > 0}
 			<label class="inline form-wide">
 				<input type="checkbox" name="offsetArrears" bind:checked={offsetArrears} />
-				Mietrückstand von {formatCents(data.arrears)} mit der Kaution verrechnen
+				Mietrückstand von {formatCents(arrears)} mit der Kaution verrechnen
 			</label>
 		{/if}
 		<p class="preview form-wide" aria-live="polite">

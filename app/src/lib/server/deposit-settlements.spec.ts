@@ -86,8 +86,9 @@ describe('createSettlement', () => {
 	});
 
 	it('refuses before the end, in the future, twice and above the deposit', async () => {
-		const refusal = (overrides: Partial<typeof input>) =>
-			createSettlement(db, contextA, leaseId, { ...input, ...overrides });
+		let date = input.date;
+		const refusal = (overrides: Partial<typeof input> & { shownArrears?: number }) =>
+			createSettlement(db, contextA, leaseId, { ...input, date, ...overrides });
 		expect(await refusal({ date: '2025-12-30' })).toMatchObject({
 			ok: false,
 			message: expect.stringContaining('ab dem Vertragsende am 31.12.2025')
@@ -95,6 +96,21 @@ describe('createSettlement', () => {
 		expect(await refusal({ date: '2099-01-01' })).toMatchObject({
 			message: 'Die Abrechnung kann nicht in der Zukunft liegen.'
 		});
+		await addDepositMovement(db, contextA, {
+			leaseId,
+			date: '2026-02-20',
+			kind: 'interest',
+			amount: 500
+		});
+		expect(await refusal({})).toMatchObject({
+			message: 'Die Abrechnung kann nicht vor der letzten Kautionsbewegung am 20.02.2026 liegen.'
+		});
+		expect(await refusal({ date: '2026-02-20', shownArrears: 0 })).toEqual({
+			ok: false,
+			message: expect.stringContaining('Am 20.02.2026 beträgt der Mietrückstand 800,00'),
+			arrears: 80000
+		});
+		date = '2026-02-20';
 		expect(await refusal({ deductions: [{ label: 'Schaden', amount: 200000 }] })).toMatchObject({
 			message: expect.stringContaining('übersteigen die Kaution')
 		});

@@ -1,5 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { today } from '#lib/dates.ts';
+import { isIsoDate, today } from '#lib/dates.ts';
 import { depositInstalments } from '#lib/domain/deposit.ts';
 import { MAX_DEDUCTIONS } from '#lib/domain/deposit-settlement.ts';
 import { parseDepositMovement, parseSettlement } from '#lib/forms/deposits.ts';
@@ -21,7 +21,7 @@ import type { Actions, PageServerLoad } from './$types';
 
 // The "Kaution" tab: the agreed deposit, its movements and what is still open, and once the lease
 // has ended the Kautionsabrechnung. The lease comes from the layout.
-// ?bearbeiten=<id> opens a movement in the edit dialog.
+// ?bearbeiten=<id> opens a movement in the edit dialog, ?datum=<date> sets the settlement date.
 export const load: PageServerLoad = async ({ locals, parent, url }) => {
 	const accountId = requireAccount(locals);
 	const { lease } = await parent();
@@ -43,10 +43,14 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 			!movement.bankTransactionId &&
 			!movement.settlementId
 	);
-	// The settlement form, once the lease has ended: the arrears it may offset are today's.
+	// The settlement form, once the lease has ended: the arrears it may offset are those on the
+	// chosen date, today unless one between the end and today is asked for.
 	const settleable = !settlement && lease.endDate !== null && lease.endDate <= day;
+	const asked = url.searchParams.get('datum') ?? '';
+	const settleDate =
+		settleable && isIsoDate(asked) && asked >= lease.endDate! && asked <= day ? asked : day;
 	const arrears = settleable
-		? Math.max(0, await arrearsOn(locals.db, accountId, lease.id, day))
+		? Math.max(0, await arrearsOn(locals.db, accountId, lease.id, settleDate))
 		: 0;
 	return {
 		movements,
@@ -56,6 +60,7 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 		settlement: settlement ?? null,
 		settleable,
 		arrears,
+		settleDate,
 		maxDeductions: MAX_DEDUCTIONS,
 		today: day
 	};
@@ -104,13 +109,24 @@ export const actions: Actions = {
 	},
 
 	settle: async ({ request, locals, params }) => {
-		const result = parseSettlement(await request.formData());
+		const form = await request.formData();
+		const result = parseSettlement(form);
 		if (!result.ok) {
 			return fail(400, { settle: true, errors: result.errors, values: result.values });
 		}
 		const created = await createSettlement(locals.db, auditContext(locals), params.id, result.data);
 		if (!created) error(404, 'Diesen Mietvertrag gibt es nicht.');
-		if (!created.ok) return fail(400, { settle: true, message: created.message });
+		if (!created.ok) {
+			return fail(400, {
+				settle: true,
+				message: created.message,
+				// The form as sent, so a refusal keeps what was typed.
+				values: Object.fromEntries(
+					[...form].filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+				),
+				arrears: created.arrears
+			});
+		}
 		return { settled: true };
 	},
 
