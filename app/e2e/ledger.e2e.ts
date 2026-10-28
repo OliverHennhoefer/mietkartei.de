@@ -286,7 +286,7 @@ test('writes a Zahlungserinnerung, suggests a Mahnung next and lists it with the
 	await page.goto('/mietkonto?filter=rueckstaende');
 	await expect(row).toContainText(/Erinnerung\s+\d{2}\.\d{2}\. · Frist bis \d{2}\.\d{2}\./);
 	await expect(row.getByRole('link', { name: 'Mahnen' })).toBeVisible();
-	// The tenant list shows the Rückstand and one pill per letter sent about it.
+	// The tenant list shows the Rückstand and the number of letters sent about it.
 	await page.goto('/mieter');
 	const pills = page
 		.getByRole('table', { name: 'Mieter' })
