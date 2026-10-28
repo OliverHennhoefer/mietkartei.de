@@ -6,9 +6,11 @@
 	import Icon from '#lib/components/Icon.svelte';
 	import LeaseStatus from '#lib/components/LeaseStatus.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
 	import { formatCents } from '#lib/money.ts';
 	import { pluralize } from '#lib/format.ts';
+	import { byDate, byNumber, bySeverity, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -19,6 +21,20 @@
 	// Short enough that the letter and its deadline fit on one line: „Mahnung 14.09. · Frist abgelaufen“.
 	const levelLabels = { 1: 'Erinnerung', 2: 'Mahnung', 3: 'Letzte Mahnung' };
 	const dayMonth = (date: string) => formatDate(date).slice(0, 6);
+	const sort = new TableSort<PageProps['data']['rows'][number]>({
+		lease: byText((row) => row.label),
+		tenants: byText((row) => row.tenants),
+		balance: byNumber((row) => row.balance),
+		openSince: byDate((row) => row.openSince),
+		lastPayment: byDate((row) => row.lastPaymentDate),
+		reminder: bySeverity((row) =>
+			row.reminder
+				? 10 * row.reminder.level + (row.reminder.paymentDeadline < data.today ? 5 : 0)
+				: row.overdue > 0
+					? 1
+					: 0
+		)
+	});
 </script>
 
 <PageHeader
@@ -69,17 +85,17 @@
 			<table class="table" aria-label="Salden">
 				<thead>
 					<tr>
-						<th>Mietvertrag</th>
-						<th>Mieter</th>
-						<th class="num">Saldo</th>
-						<th>Offen seit</th>
-						<th>Letzte Zahlung</th>
-						<th>Erinnert</th>
+						<SortHeader {sort} key="lease">Mietvertrag</SortHeader>
+						<SortHeader {sort} key="tenants">Mieter</SortHeader>
+						<SortHeader {sort} key="balance" class="num">Saldo</SortHeader>
+						<SortHeader {sort} key="openSince">Offen seit</SortHeader>
+						<SortHeader {sort} key="lastPayment">Letzte Zahlung</SortHeader>
+						<SortHeader {sort} key="reminder">Erinnert</SortHeader>
 						<th class="actions"></th>
 					</tr>
 				</thead>
 				<tbody>
-					{#each data.rows as row (row.leaseId)}
+					{#each sort.rows(data.rows) as row (row.leaseId)}
 						<tr>
 							<td>
 								<a href="/vertraege/{row.leaseId}/mietkonto">{row.label}</a>

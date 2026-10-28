@@ -2,15 +2,23 @@
 	import Badge from '#lib/components/Badge.svelte';
 	import LeaseStatus from '#lib/components/LeaseStatus.svelte';
 	import DeleteSection from '#lib/components/DeleteSection.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { formatArea, formatNumber, personName } from '#lib/format.ts';
 	import { unitKindLabels } from '#lib/units.ts';
+	import { byDate, bySeverity, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
 	const vacant = $derived(!data.leases.some((lease) => lease.active));
 	const base = $derived(`/objekte/${data.property.id}/einheiten/${data.unit.id}`);
+	const sort = new TableSort<PageProps['data']['leases'][number]>({
+		tenants: byText((lease) => lease.tenants.map(personName).join(', ')),
+		period: byDate((lease) => lease.startDate),
+		role: byText((lease) => (lease.main ? 'Haupteinheit' : 'Mitvermietet')),
+		status: bySeverity((lease) => (lease.active ? 2 : lease.upcoming ? 1 : 0))
+	});
 </script>
 
 <!-- The heading, address and tab bar come from +layout.svelte; this page lives under "Einheiten". -->
@@ -55,14 +63,14 @@
 		<table class="table" aria-label="Mietverträge">
 			<thead>
 				<tr>
-					<th>Mieter</th>
-					<th>Zeitraum</th>
-					<th>Rolle</th>
-					<th>Status</th>
+					<SortHeader {sort} key="tenants">Mieter</SortHeader>
+					<SortHeader {sort} key="period">Zeitraum</SortHeader>
+					<SortHeader {sort} key="role">Rolle</SortHeader>
+					<SortHeader {sort} key="status">Status</SortHeader>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.leases as lease (lease.id)}
+				{#each sort.rows(data.leases) as lease (lease.id)}
 					<tr>
 						<td>
 							<a href="/vertraege/{lease.id}">

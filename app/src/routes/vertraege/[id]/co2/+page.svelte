@@ -6,12 +6,14 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { behgHint, co2KgFromKwh, residentialTiers } from '#lib/domain/co2.ts';
 	import { formatArea, formatNumber, parseDecimal } from '#lib/format.ts';
 	import { fuelLabels } from '#lib/labels.ts';
 	import { formatCents } from '#lib/money.ts';
 	import type { Fuel } from '#lib/server/db/schema.ts';
+	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	// The CO₂ tab: the heading and tab bar come from the lease layout. The tenant bought the fuel
@@ -67,6 +69,18 @@
 		const index = residentialTiers.findIndex(([, percent]) => percent === landlordPercent);
 		return index < 0 ? '–' : `Stufe ${index + 1}`;
 	}
+
+	const sort = new TableSort<PageProps['data']['splits'][number]>({
+		year: byNumber((split) => split.year),
+		fuel: byText((split) => fuelLabels[split.fuel]),
+		co2: byNumber((split) => split.co2Kg),
+		perSqm: byNumber((split) => split.kgPerSquareMetre),
+		tier: byNumber((split) => split.landlordPercent),
+		percent: byNumber((split) => split.landlordPercent),
+		amount: byNumber((split) => split.amount),
+		claimed: byDate((split) => split.claimedOn),
+		deadline: byDate((split) => split.deadline)
+	});
 </script>
 
 <h2 class="visually-hidden">CO₂-Kostenaufteilung</h2>
@@ -199,19 +213,19 @@
 		<table class="table" aria-label="CO₂-Kostenaufteilungen">
 			<thead>
 				<tr>
-					<th>Jahr</th>
-					<th>Brennstoff</th>
-					<th class="num">CO₂</th>
-					<th class="num">je m²</th>
-					<th>Stufe</th>
-					<th class="num">Vermieteranteil</th>
-					<th class="num">Gutschrift</th>
-					<th>Geltend gemacht</th>
-					<th>Frist</th>
+					<SortHeader {sort} key="year">Jahr</SortHeader>
+					<SortHeader {sort} key="fuel">Brennstoff</SortHeader>
+					<SortHeader {sort} key="co2" class="num">CO₂</SortHeader>
+					<SortHeader {sort} key="perSqm" class="num">je m²</SortHeader>
+					<SortHeader {sort} key="tier">Stufe</SortHeader>
+					<SortHeader {sort} key="percent" class="num">Vermieteranteil</SortHeader>
+					<SortHeader {sort} key="amount" class="num">Gutschrift</SortHeader>
+					<SortHeader {sort} key="claimed">Geltend gemacht</SortHeader>
+					<SortHeader {sort} key="deadline">Frist</SortHeader>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.splits as split (split.id)}
+				{#each sort.rows(data.splits) as split (split.id)}
 					<tr>
 						<td>
 							<a href="?bearbeiten={split.id}" data-sveltekit-reset="false">{split.year}</a>

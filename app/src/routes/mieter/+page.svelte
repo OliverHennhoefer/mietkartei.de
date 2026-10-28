@@ -5,10 +5,12 @@
 	import Icon from '#lib/components/Icon.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
 	import { reminderLevelLabels } from '#lib/domain/reminders.ts';
 	import { formatNumber, personName, pluralize } from '#lib/format.ts';
 	import { formatCents } from '#lib/money.ts';
+	import { byDate, byNumber, bySeverity, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -28,6 +30,24 @@
 				.includes(search.trim().toLocaleLowerCase('de'))
 		)
 	);
+	type Tenant = PageProps['data']['tenants'][number];
+	const sort = new TableSort<Tenant>({
+		name: byText(personName),
+		lease: byText((tenant) => {
+			const lease = tenant.activeLeases[0] ?? tenant.moveIn;
+			return lease && `${lease.property} ${lease.unit}`;
+		}),
+		rent: byNumber((tenant) => tenant.rent || null),
+		balance: byNumber((tenant) => (tenant.activeLeases.length > 0 ? tenant.overdue : null)),
+		since: byDate((tenant) => tenant.since),
+		hints: bySeverity(
+			(tenant) =>
+				(tenant.overdue > 0 ? 100 + 10 * tenant.reminders.length : 0) +
+				(tenant.moveOut ? 2 : 0) +
+				(tenant.moveIn ? 1 : 0)
+		)
+	});
+	const sortedTenants = $derived(sort.rows(filteredTenants));
 	const overview = $derived(data.overview);
 	const summary = $derived(
 		[
@@ -137,18 +157,20 @@
 				<table class="table" aria-label="Mieter">
 					<thead>
 						<tr>
-							<th>Name</th>
-							<th>Mietet</th>
-							<th class="num">Warmmiete</th>
-							<th class="num">Mietkonto</th>
-							<th>Mieter seit</th>
-							<th>Hinweis</th>
+							<SortHeader {sort} key="name">Name</SortHeader>
+							<SortHeader {sort} key="lease">Mietet</SortHeader>
+							<SortHeader {sort} key="rent" class="num">Warmmiete</SortHeader>
+							<SortHeader {sort} key="balance" class="num">Mietkonto</SortHeader>
+							<SortHeader {sort} key="since">Mieter seit</SortHeader>
+							<SortHeader {sort} key="hints">Hinweis</SortHeader>
 						</tr>
 					</thead>
 					<tbody>
-						{#each filteredTenants as tenant, row (tenant.id)}
+						{#each sortedTenants as tenant, row (tenant.id)}
 							<tr
-								class:group-start={row > 0 && tenant.groupId !== filteredTenants[row - 1].groupId}
+								class:group-start={!sort.active &&
+									row > 0 &&
+									tenant.groupId !== sortedTenants[row - 1].groupId}
 							>
 								<td>
 									<a href="/mieter/{tenant.id}"><strong>{personName(tenant)}</strong></a>

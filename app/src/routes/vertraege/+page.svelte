@@ -3,10 +3,21 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate } from '#lib/dates.ts';
+	import { byDate, byNumber, bySeverity, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
+
+	const statusWeights = { active: 2, upcoming: 1, ended: 0 };
+	const sort = new TableSort<PageProps['data']['leases'][number]>({
+		label: byText((lease) => lease.label),
+		tenants: byText((lease) => lease.tenants),
+		period: byDate((lease) => lease.startDate),
+		total: byNumber((lease) => lease.total),
+		status: bySeverity((lease) => statusWeights[lease.status])
+	});
 </script>
 
 <PageHeader title="Mietverträge" lead="Laufende Verträge zuerst, danach die beendeten.">
@@ -35,15 +46,15 @@
 		<table class="table" aria-label="Mietverträge">
 			<thead>
 				<tr>
-					<th>Einheit · Objekt</th>
-					<th>Mieter</th>
-					<th>Laufzeit</th>
-					<th class="num">Gesamtmiete</th>
-					<th>Status</th>
+					<SortHeader {sort} key="label">Einheit · Objekt</SortHeader>
+					<SortHeader {sort} key="tenants">Mieter</SortHeader>
+					<SortHeader {sort} key="period">Laufzeit</SortHeader>
+					<SortHeader {sort} key="total" class="num">Gesamtmiete</SortHeader>
+					<SortHeader {sort} key="status">Status</SortHeader>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.leases as lease (lease.id)}
+				{#each sort.rows(data.leases) as lease (lease.id)}
 					<tr>
 						<td>
 							<a href="/vertraege/{lease.id}"><strong>{lease.label}</strong></a>
