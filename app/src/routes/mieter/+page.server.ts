@@ -62,7 +62,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		const active = own.filter((lease) => lease.active);
 		let overdue = 0;
 		let openSince: IsoMonth | null = null;
-		let reminder: { level: ReminderLevel; date: IsoDate } | null = null;
+		const letters: { level: ReminderLevel; date: IsoDate }[] = [];
 		for (const lease of own) {
 			const balance = balanceByLease.get(lease.id);
 			if (!balance?.overdue) continue;
@@ -70,17 +70,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 			if (balance.openSince && (!openSince || balance.openSince < openSince)) {
 				openSince = balance.openSince;
 			}
-			const [latest] = currentReminders(reminders.get(lease.id) ?? [], balance.openSinceDate);
-			// The latest letter across the leases; on the same day the higher level.
-			if (
-				latest &&
-				(!reminder ||
-					latest.date > reminder.date ||
-					(latest.date === reminder.date && latest.level > reminder.level))
-			) {
-				reminder = { level: latest.level, date: latest.date };
+			for (const sent of currentReminders(reminders.get(lease.id) ?? [], balance.openSinceDate)) {
+				letters.push({ level: sent.level, date: sent.date });
 			}
 		}
+		// The letters about the current Rückstand across the leases, oldest first; on the same day the
+		// lower level first. The page stacks one pill per letter, the pending list names the latest.
+		letters.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.level - b.level));
+		const reminder = letters.at(-1) ?? null;
 		const moveOut = active
 			.filter((lease) => lease.endDate)
 			.sort((a, b) => a.endDate!.localeCompare(b.endDate!))[0];
@@ -99,6 +96,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			overdue,
 			openSince,
 			reminder,
+			reminders: letters,
 			/** The start of the earliest lease that has begun. */
 			since:
 				own
