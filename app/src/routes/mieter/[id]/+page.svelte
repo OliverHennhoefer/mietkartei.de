@@ -123,7 +123,7 @@
 	<ul class="plain" aria-label="Offene Aufgaben">
 		{#each dossier.openTasks as task (task.id)}
 			<li>
-				<a href="/aufgaben/{task.id}">{task.title}</a>
+				<a href="/aufgaben?bearbeiten={task.id}">{task.title}</a>
 				{#if task.dueDate}<span class="muted"> · bis {formatDate(task.dueDate)}</span>{/if}
 			</li>
 		{/each}

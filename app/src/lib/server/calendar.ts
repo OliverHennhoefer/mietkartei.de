@@ -126,7 +126,7 @@ export async function calendarEntries(
 			date: task.dueDate,
 			summary: task.title,
 			description: task.note ?? undefined,
-			url: `${origin}/aufgaben/${task.id}`
+			url: `${origin}/aufgaben?bearbeiten=${task.id}`
 		});
 	}
 	return entries;

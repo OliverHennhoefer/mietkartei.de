@@ -11,7 +11,8 @@ import {
 	getMeter,
 	listMeters,
 	listReadings,
-	removeMeter
+	removeMeter,
+	updateReading
 } from '#lib/server/operating-costs.ts';
 import { listUnits } from '#lib/server/properties.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
@@ -54,7 +55,10 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 	const expandedId = url.searchParams.get('meter');
 	const expanded = meters.find((meter) => meter.id === expandedId) ?? null;
 	const readings = expanded ? await listReadings(locals.db, accountId, expanded.id) : [];
+	// ?bearbeiten=<id> opens a reading of the expanded meter in the edit dialog.
+	const editing = readings.find((reading) => reading.id === url.searchParams.get('bearbeiten'));
 	return {
+		editing: editing ?? null,
 		meters: filterUnit ? meters.filter((meter) => meter.unitId === filterUnit.id) : meters,
 		units,
 		filterUnit,
@@ -141,6 +145,41 @@ export const actions: Actions = {
 		const meter = await meterOf(locals, params.id, idOf(form, 'meterId'));
 		await deleteMeter(locals.db, auditContext(locals), meter.id);
 		redirect(303, back(params.id, form));
+	},
+	updateReading: async ({ request, locals, params }) => {
+		const form = await request.formData();
+		const meter = await meterOf(locals, params.id, idOf(form, 'meterId'));
+		const readingId = idOf(form, 'readingId');
+		if (!readingId) error(404, 'Diesen Zählerstand gibt es nicht.');
+		const result = parseReading(form);
+		if (!result.ok) {
+			return fail(400, {
+				form: 'editReading' as const,
+				meterId: meter.id,
+				errors: result.errors,
+				values: result.values
+			});
+		}
+		const updated = await updateReading(
+			locals.db,
+			auditContext(locals),
+			meter.id,
+			readingId,
+			result.data
+		);
+		if (!updated.ok) {
+			if (updated.reason === 'missing') error(404, 'Diesen Zählerstand gibt es nicht.');
+			const errors: FieldErrors<ReadingInput> = {
+				readAt: 'Für dieses Datum gibt es schon einen Zählerstand.'
+			};
+			return fail(400, {
+				form: 'editReading' as const,
+				meterId: meter.id,
+				errors,
+				values: formValues(form)
+			});
+		}
+		redirect(303, back(params.id, form, meter.id));
 	},
 	deleteReading: async ({ request, locals, params }) => {
 		const form = await request.formData();
