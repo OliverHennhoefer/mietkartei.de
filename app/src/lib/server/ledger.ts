@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, ne } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import {
 	dayOf,
@@ -456,13 +456,14 @@ export async function deletePayment(
 	db: Database,
 	context: AuditContext,
 	paymentId: string
-): Promise<'deleted' | 'from-bank' | 'missing'> {
+): Promise<'deleted' | 'from-bank' | 'from-settlement' | 'missing'> {
 	const [payment] = await db
 		.select()
 		.from(payments)
 		.where(and(eq(payments.accountId, context.accountId), eq(payments.id, paymentId)));
 	if (!payment) return 'missing';
 	if (payment.bankTransactionId) return 'from-bank';
+	if (payment.settlementId) return 'from-settlement';
 	await runBatch(db, [
 		db
 			.delete(payments)
@@ -492,7 +493,7 @@ export async function getEditableLine(
 			and(eq(payments.accountId, accountId), eq(payments.leaseId, leaseId), eq(payments.id, id))
 		);
 	if (payment) {
-		if (payment.bankTransactionId) return undefined;
+		if (payment.bankTransactionId || payment.settlementId) return undefined;
 		return { kind: 'payment', date: payment.date, amount: payment.amount, note: payment.note };
 	}
 	const [charge] = await db
@@ -516,11 +517,12 @@ export async function updatePayment(
 	context: AuditContext,
 	paymentId: string,
 	input: LedgerEdit
-): Promise<'updated' | 'from-bank' | 'missing'> {
+): Promise<'updated' | 'from-bank' | 'from-settlement' | 'missing'> {
 	const ofAccount = and(eq(payments.accountId, context.accountId), eq(payments.id, paymentId));
 	const [payment] = await db.select().from(payments).where(ofAccount);
 	if (!payment) return 'missing';
 	if (payment.bankTransactionId) return 'from-bank';
+	if (payment.settlementId) return 'from-settlement';
 	await runBatch(db, [
 		db.update(payments).set(input).where(ofAccount),
 		auditEntry(db, context, 'lease', payment.leaseId, 'update', paymentSummary(input, 'geändert'))
@@ -867,7 +869,12 @@ export async function lastPayment(
 		})
 		.from(payments)
 		.where(
-			and(eq(payments.accountId, accountId), eq(payments.leaseId, leaseId), gt(payments.amount, 0))
+			and(
+				eq(payments.accountId, accountId),
+				eq(payments.leaseId, leaseId),
+				gt(payments.amount, 0),
+				ne(payments.source, 'deposit')
+			)
 		)
 		.orderBy(desc(payments.date), desc(payments.createdAt))
 		.limit(1);

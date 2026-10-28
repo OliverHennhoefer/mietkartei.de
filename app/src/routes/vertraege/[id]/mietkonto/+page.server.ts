@@ -177,6 +177,12 @@ export const actions: Actions = {
 		if (detail.kind === 'payment') {
 			const outcome = await deletePayment(locals.db, context, id);
 			if (outcome === 'from-bank') return fail(400, { message: bankPaymentMessage });
+			if (outcome === 'from-settlement') {
+				return fail(400, {
+					message:
+						'Diese Verrechnung gehört zur Kautionsabrechnung. Lösche die Abrechnung im Tab Kaution.'
+				});
+			}
 			if (outcome === 'missing') return fail(400, { message: 'Diese Zahlung gibt es nicht mehr.' });
 		} else if (!(await deleteCharge(locals.db, context, id))) {
 			return fail(400, { message: chargeMessage });

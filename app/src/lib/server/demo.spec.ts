@@ -8,6 +8,7 @@ import {
 	auditLog,
 	co2CostSplits,
 	costItems,
+	depositSettlements,
 	depositTransactions,
 	documents,
 	leaseUnits,
@@ -73,6 +74,19 @@ describe('createDemoData', () => {
 			.from(depositTransactions)
 			.where(eq(depositTransactions.accountId, 'a'));
 		expect(deposits.filter((row) => row.kind === 'returned')).toHaveLength(5);
+		// Each former tenant's deposit settled with a letter; its bookings bring the deposit to zero.
+		const settlements = await db
+			.select()
+			.from(depositSettlements)
+			.where(eq(depositSettlements.accountId, 'a'));
+		expect(settlements).toHaveLength(5);
+		expect(settlements.every((row) => row.letterText.includes('Mietsicherheit'))).toBe(true);
+		for (const settlement of settlements) {
+			const held = deposits
+				.filter((row) => row.leaseId === settlement.leaseId)
+				.reduce((sum, row) => sum + row.amount, 0);
+			expect(held).toBe(0);
+		}
 		const leaseRows = await db.select().from(leases).where(eq(leases.accountId, 'a'));
 		const terminated = leaseRows.filter((row) => row.endDate && row.endDate > today());
 		expect(terminated).toHaveLength(1);

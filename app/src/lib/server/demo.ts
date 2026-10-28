@@ -21,6 +21,11 @@ import {
 	comparativeLetterText,
 	type ComparativeDemand
 } from '../domain/comparative-rent';
+import {
+	settlementFigures,
+	settlementRows as depositSettlementRows,
+	settlementText
+} from '../domain/deposit-settlement';
 import { effectiveFrom } from '../domain/index-rent';
 import { monthlyAmounts, total, type RentChange } from '../domain/rents';
 import { formatCents } from '../money';
@@ -39,6 +44,7 @@ import {
 	bankTransactions,
 	costItems,
 	costItemUnitAmounts,
+	depositSettlements,
 	depositTransactions,
 	expenses,
 	insurancePolicies,
@@ -516,7 +522,7 @@ export async function createDemoData(
 		changes: DemoRentChange[];
 		/** Months left unpaid at the end: the arrears. */
 		unpaidMonths?: number;
-		/** An ended lease: the deposit paid back that day, less what was withheld and why. */
+		/** An ended lease: the deposit settled that day, less what was withheld and why. */
 		moveOut?: { day: IsoDate; withheld?: [amount: number, note: string] };
 		/** A § 558 demand the tenant has not consented to yet. */
 		demand?: { deliveredOn: IsoDate; baseRent: number; comparison: DemoComparison };
@@ -548,7 +554,7 @@ export async function createDemoData(
 			],
 			moveOut: {
 				day: at(-4, '10-20'),
-				withheld: [38000, 'Einbehalt: Reparatur Badtür und Herd laut Abnahmeprotokoll']
+				withheld: [38000, 'Reparatur Badtür und Herd laut Abnahmeprotokoll']
 			}
 		},
 		{
@@ -602,7 +608,7 @@ export async function createDemoData(
 			],
 			moveOut: {
 				day: at(-7, '02-20'),
-				withheld: [25000, 'Einbehalt: Schönheitsreparaturen Küche laut Abnahmeprotokoll']
+				withheld: [25000, 'Schönheitsreparaturen Küche laut Abnahmeprotokoll']
 			}
 		},
 		{
@@ -658,7 +664,7 @@ export async function createDemoData(
 			],
 			moveOut: {
 				day: at(-6, '12-14'),
-				withheld: [42000, 'Einbehalt: Bohrlöcher im Bad und fehlender Kellerschlüssel']
+				withheld: [42000, 'Bohrlöcher im Bad und fehlender Kellerschlüssel']
 			}
 		},
 
@@ -1137,14 +1143,16 @@ export async function createDemoData(
 	].map((row) => ({ id: crypto.randomUUID(), accountId, ...row }));
 
 	// Deposits: received at the start, interest on the Mietkautionskonto at every year end, and
-	// paid back to the former tenants after moving out, less the cost of repairs they owed.
+	// settled with the former tenants after moving out, less the cost of repairs they owed.
 	const depositRows: (typeof depositTransactions.$inferInsert)[] = [];
+	const settlementRows: (typeof depositSettlements.$inferInsert)[] = [];
 	const deposit = (
 		leaseKey: string,
 		day: IsoDate,
 		kind: 'received' | 'interest' | 'returned' | 'withheld',
 		amount: number,
-		note: string
+		note: string,
+		settlementId: string | null = null
 	) =>
 		depositRows.push({
 			id: crypto.randomUUID(),
@@ -1154,7 +1162,8 @@ export async function createDemoData(
 			kind,
 			amount: signedDepositAmount(kind, amount),
 			note,
-			bankTransactionId: null
+			bankTransactionId: null,
+			settlementId
 		});
 	for (const entry of leaseEntries) {
 		deposit(
@@ -1176,14 +1185,68 @@ export async function createDemoData(
 			deposit(entry.key, `${year}-12-31`, 'interest', interest, `Zinsen Mietkautionskonto ${year}`);
 		}
 		if (entry.moveOut) {
+			// The Kautionsabrechnung after moving out: interest of the last months, the repairs
+			// withheld, the rest paid back.
 			const { day, withheld } = entry.moveOut;
-			if (withheld) deposit(entry.key, day, 'withheld', withheld[0], withheld[1]);
+			const endDate = entry.input.endDate!;
+			const months = Number(endDate.slice(5, 7));
+			const endYear = Number(endDate.slice(0, 4));
+			const interest = Math.round((balance * byYear(DEPOSIT_RATE, endYear) * months) / 100 / 12);
+			const settled = settlementFigures(
+				{
+					received: entry.input.securityDeposit,
+					interest: balance - entry.input.securityDeposit,
+					returned: 0,
+					withheld: 0,
+					held: balance
+				},
+				{
+					date: day,
+					interest,
+					deductions: withheld ? [{ label: withheld[1], amount: withheld[0] }] : [],
+					offsetArrears: false
+				},
+				0
+			);
+			if (!settled.ok) throw new Error(settled.message);
+			const { figures } = settled;
+			const settlementId = crypto.randomUUID();
+			settlementRows.push({
+				id: settlementId,
+				accountId,
+				leaseId: leaseId(entry.key),
+				date: day,
+				payout: figures.payout,
+				remaining: 0,
+				items: depositSettlementRows(figures),
+				letterText: settlementText({
+					tenants: entry.input.tenantIds.map((id) => tenantRows.find((row) => row.id === id)!),
+					unitName: unitOf(entry.input.unitId).name,
+					endDate,
+					figures,
+					iban: null
+				})
+			});
+			if (interest > 0) {
+				deposit(
+					entry.key,
+					day,
+					'interest',
+					interest,
+					'Zinsen bis zur Kautionsabrechnung',
+					settlementId
+				);
+			}
+			if (withheld) {
+				deposit(entry.key, day, 'withheld', withheld[0], `Einbehalt: ${withheld[1]}`, settlementId);
+			}
 			deposit(
 				entry.key,
 				day,
 				'returned',
-				balance - (withheld?.[0] ?? 0),
-				'Rückzahlung nach Auszug'
+				figures.payout,
+				'Auszahlung laut Kautionsabrechnung',
+				settlementId
 			);
 		}
 	}
@@ -1996,6 +2059,7 @@ export async function createDemoData(
 			...newLeaseStatements(db, context, leaseEntries),
 			...insert(rentChanges, rentChangeRows),
 			...insert(leasePersons, personsRows),
+			...insert(depositSettlements, settlementRows),
 			...insert(depositTransactions, depositRows),
 			...insert(bankAccounts, [bankAccount]),
 			...insert(bankTransactions, transactionRows),

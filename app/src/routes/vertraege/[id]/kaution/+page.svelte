@@ -1,24 +1,78 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
 	import EditDialog from '#lib/components/EditDialog.svelte';
 	import Field from '#lib/components/Field.svelte';
+	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import Icon from '#lib/components/Icon.svelte';
 	import Money from '#lib/components/Money.svelte';
+	import PreviewLink from '#lib/components/PreviewLink.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { depositTransactionKindLabels } from '#lib/labels.ts';
-	import { formatCents, formatCentsPlain } from '#lib/money.ts';
+	import { formatCents, formatCentsPlain, parseCents } from '#lib/money.ts';
 	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
+	import { untrack } from 'svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
 	const lease = $derived(data.lease);
-	// A refused edit belongs to the edit dialog, everything else to the form below the table.
+	// A refused edit belongs to the edit dialog, a refused settlement to its form, everything else
+	// to the form below the table.
 	const editRefused = $derived(form && 'edit' in form ? form : undefined);
-	const errors = $derived((!editRefused && form?.errors) || {});
-	const values = $derived((!editRefused && form?.values) || { date: data.today, kind: 'received' });
+	const settleRefused = $derived(form && 'settle' in form ? form : undefined);
+	const errors = $derived((!editRefused && !settleRefused && form?.errors) || {});
+	const values = $derived(
+		(!editRefused && !settleRefused && form?.values) || { date: data.today, kind: 'received' }
+	);
+	const settleErrors = $derived<Partial<Record<string, string>>>(settleRefused?.errors ?? {});
+	// The arrears on the settlement date: those a refusal found, else those loaded for ?datum.
+	const arrears = $derived(settleRefused?.arrears ?? data.arrears);
+	// One object without a refusal, so nothing typed is reset when another date loads.
+	const unsent: Record<string, string> = { offsetArrears: 'on' };
+	const settleValues = $derived<Record<string, string>>(settleRefused?.values ?? unsent);
+	// Another date loads the arrears on it, for the preview and the checkbox.
+	function changeDate(event: Event) {
+		const date = (event.currentTarget as HTMLInputElement).value;
+		if (!date) return;
+		const path = resolve('/vertraege/[id]/kaution', { id: lease.id });
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- the resolved path with a query
+		goto(`${path}?datum=${date}`, { replace: true, reset: false });
+	}
+
+	// The Einbehalte of the settlement form: as many rows as were sent back, at least one.
+	const sentRows = $derived(
+		Array.from({ length: data.maxDeductions }, (_, index) => index + 1).filter(
+			(row) => settleValues[`label${row}`] || settleValues[`amount${row}`]
+		).length
+	);
+	let addedRows = $state(0);
+	const rows = $derived(Math.min(data.maxDeductions, Math.max(1, sentRows) + addedRows));
+	// The preview of the payout, from the fields as typed.
+	let interestInput = $state('');
+	let amountInputs = $state<string[]>([]);
+	let offsetArrears = $state(true);
+	// Set again by a refusal only, not when another date loads new data.
+	$effect.pre(() => {
+		interestInput = settleValues.interest ?? '';
+		amountInputs = Array.from(
+			{ length: untrack(() => data.maxDeductions) },
+			(_, index) => settleValues[`amount${index + 1}`] ?? ''
+		);
+		offsetArrears = settleValues.offsetArrears === 'on';
+	});
+	const cents = (input: string) => (input.trim() ? (parseCents(input) ?? 0) : 0);
+	const preview = $derived.by(() => {
+		const available = data.summary.held + cents(interestInput);
+		const deducted = amountInputs.slice(0, rows).reduce((sum, input) => sum + cents(input), 0);
+		const offset = offsetArrears ? Math.min(arrears, Math.max(0, available - deducted)) : 0;
+		return { available, deducted, offset, payout: available - deducted - offset };
+	});
+	const settlementPdf = $derived(`/vertraege/${data.lease.id}/kaution/abrechnung`);
 	const editValues = $derived(
 		editRefused?.values ??
 			(data.editing && {
@@ -112,7 +166,7 @@
 				{#each sort.rows(movements) as movement (movement.id)}
 					<tr>
 						<td>
-							{#if movement.bankTransactionId}
+							{#if movement.bankTransactionId || movement.settlementId}
 								{formatDate(movement.date)}
 							{:else}
 								<a href="?bearbeiten={movement.id}" data-sveltekit-reset="false"
@@ -139,6 +193,9 @@
 									><Badge tone="info">Umsatz</Badge></a
 								>
 							{/if}
+							{#if movement.settlementId}
+								<Badge tone="neutral">Abrechnung</Badge>
+							{/if}
 						</td>
 					</tr>
 				{/each}
@@ -156,6 +213,117 @@
 			{/if}
 		</table>
 	</div>
+{/if}
+
+{#if data.settlement}
+	<h2>Kautionsabrechnung</h2>
+	<div class="card settlement">
+		<p>
+			Abgerechnet am {formatDate(data.settlement.date)}: Auszahlung an den Mieter
+			<strong><Money cents={data.settlement.payout} /></strong>{#if data.settlement.remaining > 0},
+				danach bleibt ein Mietrückstand von <Money cents={data.settlement.remaining} />{/if}.
+		</p>
+		<div class="actions">
+			<PreviewLink
+				href={settlementPdf}
+				text="{settlementPdf}/text"
+				title="Kautionsabrechnung vom {formatDate(data.settlement.date)}"
+				class="button secondary"><Icon name="file" size={14} /> Schreiben ansehen</PreviewLink
+			>
+			<ConfirmButton
+				action="?/deleteSettlement"
+				label="Abrechnung löschen"
+				message="Kautionsabrechnung vom {formatDate(
+					data.settlement.date
+				)} löschen? Ihre Buchungen auf der Kaution und dem Mietkonto werden mit gelöscht."
+			/>
+		</div>
+	</div>
+{:else if data.settleable}
+	<h2>Kautionsabrechnung</h2>
+	<p class="muted small">
+		Nach dem Auszug rechnest du über die Kaution ab: Zinsen kommen hinzu, Einbehalte für Schäden
+		oder eine noch ausstehende Betriebskostenabrechnung gehen mit ihrem Grund ab, ein Mietrückstand
+		lässt sich verrechnen. Den Rest zahlst du zurück. Üblich sind dafür bis zu sechs Monate nach dem
+		Vertragsende.
+	</p>
+	{#if form?.settled}
+		<Alert tone="success"><p>Die Kaution ist abgerechnet.</p></Alert>
+	{/if}
+	{#if settleRefused?.message}
+		<Alert tone="danger"><p>{settleRefused.message}</p></Alert>
+	{/if}
+	<form method="POST" action="?/settle" class="card form" use:enhance>
+		<Field label="Datum der Abrechnung" error={settleErrors.date}>
+			<input
+				name="date"
+				type="date"
+				defaultValue={settleValues.date ?? data.settleDate}
+				max={data.today}
+				onchange={changeDate}
+				aria-invalid={settleErrors.date ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		<Field
+			label="Zinsen bis heute (optional)"
+			error={settleErrors.interest}
+			hint="Zinsen, die noch nicht als Bewegung gebucht sind (§ 551 Abs. 3 BGB)."
+		>
+			<input
+				name="interest"
+				bind:value={interestInput}
+				inputmode="decimal"
+				placeholder="0,00"
+				aria-invalid={settleErrors.interest ? 'true' : undefined}
+			/>
+		</Field>
+		<fieldset class="deductions form-wide">
+			<legend>Einbehalte</legend>
+			{#each Array.from({ length: rows }, (_, index) => index + 1) as row (row)}
+				<div class="deduction">
+					<Field label="Grund" error={settleErrors[`label${row}`]}>
+						<input
+							name="label{row}"
+							defaultValue={settleValues[`label${row}`] ?? ''}
+							placeholder="z. B. Reparatur der Badtür laut Übergabeprotokoll"
+							aria-invalid={settleErrors[`label${row}`] ? 'true' : undefined}
+						/>
+					</Field>
+					<Field label="Betrag" error={settleErrors[`amount${row}`]}>
+						<input
+							name="amount{row}"
+							bind:value={amountInputs[row - 1]}
+							inputmode="decimal"
+							placeholder="0,00"
+							aria-invalid={settleErrors[`amount${row}`] ? 'true' : undefined}
+						/>
+					</Field>
+				</div>
+			{/each}
+			{#if rows < data.maxDeductions}
+				<button type="button" class="secondary small" onclick={() => (addedRows += 1)}
+					>Weiterer Einbehalt</button
+				>
+			{/if}
+		</fieldset>
+		<input type="hidden" name="shownArrears" value={arrears} />
+		{#if arrears > 0}
+			<label class="inline form-wide">
+				<input type="checkbox" name="offsetArrears" bind:checked={offsetArrears} />
+				Mietrückstand von {formatCents(arrears)} mit der Kaution verrechnen
+			</label>
+		{/if}
+		<p class="preview form-wide" aria-live="polite">
+			Kaution <Money cents={preview.available} />
+			{#if preview.deducted > 0}− Einbehalte <Money cents={preview.deducted} />{/if}
+			{#if preview.offset > 0}− Rückstand <Money cents={preview.offset} />{/if}
+			= Auszahlung <strong><Money cents={preview.payout} /></strong>
+		</p>
+		<div class="form-actions">
+			<button type="submit">Kaution abrechnen</button>
+		</div>
+	</form>
 {/if}
 
 <h2>Bewegung buchen</h2>
@@ -227,6 +395,34 @@
 <style>
 	.from-bank {
 		text-decoration: none;
+	}
+	.settlement .actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		align-items: center;
+	}
+	.deductions {
+		border: 0;
+		margin: 0;
+		padding: 0;
+	}
+	.deductions legend {
+		padding: 0;
+		font-weight: 600;
+	}
+	.deduction {
+		display: grid;
+		grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+		gap: 0.75rem;
+	}
+	@media (max-width: 40rem) {
+		.deduction {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+	.preview {
+		margin: 0.5rem 0 0;
 	}
 	.instalments {
 		margin: 0 0 1rem;
