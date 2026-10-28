@@ -212,6 +212,13 @@ describe('billing periods of the statement deadline', () => {
 		});
 	});
 
+	it('keeps the rhythm of a statement from before the leases', () => {
+		const statements = [{ periodStart: '2024-07-01', periodEnd: '2025-06-30' }];
+		expect(billingPeriods(statements, [lease('2025-07-01')], '2026-10-20')).toEqual([
+			{ start: '2025-07-01', end: '2026-06-30' }
+		]);
+	});
+
 	it('skips periods no lease overlaps', () => {
 		expect(
 			billingPeriods([], [lease('2022-01-01', '2022-12-31'), lease('2024-06-01')], '2025-01-10')

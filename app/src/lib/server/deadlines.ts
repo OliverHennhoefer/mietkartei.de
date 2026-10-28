@@ -102,7 +102,11 @@ export function billingPeriods(
 		).values()
 	].sort((a, b) => a.start.localeCompare(b.start));
 	const periods: Period[] = [];
-	let cursor = leases.reduce((min, lease) => (lease.start < min ? lease.start : min), '9999-12-31');
+	// From the first statement on, even one before every lease, so that its rhythm carries over.
+	let cursor = leases.reduce(
+		(min, lease) => (lease.start < min ? lease.start : min),
+		known[0]?.start ?? '9999-12-31'
+	);
 	let previous: Period | undefined;
 	while (cursor <= today) {
 		const next = known.find((period) => period.end >= cursor);
