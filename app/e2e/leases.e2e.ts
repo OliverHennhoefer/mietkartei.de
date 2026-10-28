@@ -34,6 +34,8 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	await expect(page.locator('select[name="unitId"]')).toHaveValue(unitId);
 	const remove = page.getByRole('button', { name: `${tenantName} entfernen` });
 	await expect(remove).toBeVisible();
+	// The pill's button works once the page is hydrated; a click before that does nothing.
+	await page.waitForLoadState('networkidle');
 	// The tenant picker: remove the pill, find the tenant again by part of the name and add it with
 	// the keyboard.
 	await remove.click();
