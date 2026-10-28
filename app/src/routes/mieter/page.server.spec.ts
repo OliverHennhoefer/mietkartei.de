@@ -53,12 +53,22 @@ describe('mieter', () => {
 		const bernd = await seedTenant(db, 'a', { firstName: 'Bernd', lastName: 'Adler' });
 		const carla = await seedTenant(db, 'a', { firstName: 'Carla', lastName: 'Berg' });
 		const dora = await seedTenant(db, 'a', { firstName: 'Dora', lastName: 'Christ' });
-		await seedLease(db, 'a', lindenweg.unitId, { tenantIds: [bernd] });
-		await seedLease(db, 'a', otherLindenweg.unitId, { tenantIds: [dora] });
-		await seedLease(db, 'a', ahornstrasse.unitId, { tenantIds: [anna] });
+		// Each lease begins today and its first rent is paid, so nobody needs attention.
+		const paidLease = async (unitId: string, tenant: string) => {
+			const leaseId = await seedLease(db, 'a', unitId, { tenantIds: [tenant], startDate: today() });
+			await createPayment(db, contextA, {
+				leaseId,
+				date: today(),
+				amount: 80000,
+				source: 'manual'
+			});
+		};
+		await paidLease(lindenweg.unitId, bernd);
+		await paidLease(otherLindenweg.unitId, dora);
+		await paidLease(ahornstrasse.unitId, anna);
 		// Renting in two properties, Carla goes with the first by name.
-		await seedLease(db, 'a', zedernweg.unitId, { tenantIds: [carla] });
-		await seedLease(db, 'a', birkenallee.unitId, { tenantIds: [carla] });
+		await paidLease(zedernweg.unitId, carla);
+		await paidLease(birkenallee.unitId, carla);
 		const lindenwegRows = [
 			[bernd, lindenweg.propertyId],
 			[dora, otherLindenweg.propertyId]
@@ -72,7 +82,7 @@ describe('mieter', () => {
 		]);
 	});
 
-	it('puts the Rückstände and the coming moves above the list, with the figures of each tenant', async () => {
+	it('puts the Rückstände and then the coming moves first, with the figures of each tenant', async () => {
 		const date = today();
 		const { unitId } = await seedUnit(db, 'a');
 		const second = await seedUnit(db, 'a');
@@ -100,6 +110,20 @@ describe('mieter', () => {
 			source: 'manual'
 		});
 
+		// Abel rents in a property that sorts first by name and pays, so nothing is due for her.
+		const calm = await seedTenant(db, 'a', { firstName: 'Ada', lastName: 'Abel' });
+		const third = await seedUnit(db, 'a', { propertyName: 'Ahornweg' });
+		const calmLease = await seedLease(db, 'a', third.unitId, {
+			tenantIds: [calm],
+			startDate: date
+		});
+		await createPayment(db, contextA, {
+			leaseId: calmLease,
+			date,
+			amount: 80000,
+			source: 'manual'
+		});
+
 		const { data } = (await run(load)) as { data: PageServerData };
 		const byId = new Map(data.tenants.map((row) => [row.id, row]));
 		expect(byId.get(tenantId)).toMatchObject({
@@ -121,15 +145,15 @@ describe('mieter', () => {
 			since: null,
 			moveIn: { id: comingLease, date: addDays(moveOut, 1) }
 		});
-		expect(data.pending.map((item) => [item.kind, item.tenantId])).toEqual([
-			['arrears', tenantId],
-			['out', leaving],
-			['in', coming]
+		expect(data.tenants.map((row) => [row.id, row.groupId])).toEqual([
+			[tenantId, 'attention'],
+			[leaving, 'attention'],
+			[coming, 'attention'],
+			[calm, third.propertyId]
 		]);
-		expect(data.overview).toMatchObject({ renting: 2, households: 2, rent: 160000 });
 	});
 
-	it('lists every letter about the Rückstand oldest first, the latest in the pending list', async () => {
+	it('lists every letter about the Rückstand oldest first, the latest as the reminder', async () => {
 		const { unitId } = await seedUnit(db, 'a');
 		// The fixture tenant pays nothing since January 2025; the letters are written out of order, the
 		// last two on the same day.
@@ -154,7 +178,7 @@ describe('mieter', () => {
 			{ level: 2, date: '2025-05-12' },
 			{ level: 3, date: '2025-05-12' }
 		]);
-		expect(data.pending[0]).toMatchObject({ reminder: { level: 3, date: '2025-05-12' } });
+		expect(row.reminder).toEqual({ level: 3, date: '2025-05-12' });
 	});
 
 	it('creates a tenant and returns to a safe path with it preselected', async () => {
