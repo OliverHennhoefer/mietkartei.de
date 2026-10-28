@@ -102,6 +102,11 @@ describe('zaehler', () => {
 		expect(
 			(await listReadings(db, 'a', meterId)).find((row) => row.id === readingId)
 		).toMatchObject({ readAt: '2025-01-02', value: 120.5 });
+		expect(await act('updateReading', { ...edit, value: '-1' })).toMatchObject({
+			fail: 400,
+			data: { form: 'editReading' }
+		});
+		expect(await act('updateReading', { ...edit, readingId: '' })).toMatchObject({ error: 404 });
 		expect(await act('updateReading', { ...edit, readingId: 'fremd' })).toMatchObject({
 			error: 404
 		});

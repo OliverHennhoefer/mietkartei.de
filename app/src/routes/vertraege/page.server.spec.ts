@@ -280,6 +280,22 @@ describe('vertraege/[id]', () => {
 			fail: 400,
 			data: { which: 'editPersons', errors: { validFrom: expect.any(String) } }
 		});
+		expect(await update({ rowId: later.id, validFrom: '2024-12-01', persons: '2' })).toMatchObject({
+			fail: 400,
+			data: { which: 'editPersons', errors: { validFrom: expect.any(String) } }
+		});
+		expect(await update({ rowId: later.id, persons: '99' })).toMatchObject({
+			fail: 400,
+			data: { which: 'editPersons' }
+		});
+		expect(
+			await update({ rowId: 'gibt-es-nicht', validFrom: '2026-02-01', persons: '2' })
+		).toMatchObject({ error: 404 });
+		await add({ validFrom: '2026-06-01', persons: '4' });
+		expect(await update({ rowId: later.id, validFrom: '2026-06-01', persons: '2' })).toMatchObject({
+			fail: 400,
+			data: { which: 'editPersons', errors: { validFrom: expect.any(String) } }
+		});
 		expect(await update({ rowId: later.id, validFrom: '2026-02-01', persons: '2' })).toEqual({
 			redirect: `/vertraege/${id}`
 		});

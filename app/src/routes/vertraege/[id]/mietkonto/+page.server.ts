@@ -157,13 +157,9 @@ export const actions: Actions = {
 			return fail(400, { form: 'edit' as const, errors: result.errors, values: result.values });
 		}
 		const input = { ...result.data, note: result.data.note || null };
-		if (line.kind === 'payment') {
-			const outcome = await updatePayment(locals.db, context, id, input);
-			if (outcome === 'from-bank') return fail(400, { message: bankPaymentMessage });
-			if (outcome === 'missing') return fail(400, { message: 'Diese Zahlung gibt es nicht mehr.' });
-		} else if (!(await updateAdjustment(locals.db, context, id, input))) {
-			return fail(400, { message: chargeMessage });
-		}
+		// The line is one that can be changed: a manual payment or a correction.
+		if (line.kind === 'payment') await updatePayment(locals.db, context, id, input);
+		else await updateAdjustment(locals.db, context, id, input);
 		redirect(303, `/vertraege/${params.id}/mietkonto`);
 	},
 

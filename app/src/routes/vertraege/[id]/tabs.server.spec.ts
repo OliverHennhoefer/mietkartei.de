@@ -388,6 +388,15 @@ describe('kaution', () => {
 		expect(await tab(loadDeposit, `?bearbeiten=${movement.id}`)).toMatchObject({
 			data: { editing: null }
 		});
+		expect(
+			await act(depositActions.update, {
+				movementId: movement.id,
+				date: '2026-01-02',
+				kind: 'received',
+				amount: '1700,00'
+			})
+		).toMatchObject({ fail: 400, data: { message: expect.stringContaining('Umsatz') } });
+		expect(await act(depositActions.update, {})).toMatchObject({ fail: 400 });
 		expect(await act(depositActions.delete, { movementId: movement.id })).toEqual({
 			fail: 400,
 			data: {

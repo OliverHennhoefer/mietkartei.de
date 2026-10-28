@@ -160,6 +160,10 @@ describe('auswertung/ausgaben', () => {
 			scope: `property:${propertyId}`,
 			description: 'Silikonfuge Bad'
 		};
+		expect(await run(actions.update, { form: { ...edit, amount: 'x' } })).toMatchObject({
+			fail: 400,
+			data: { edit: true, errors: { amount: expect.any(String) } }
+		});
 		expect(await run(actions.update, { form: { ...edit, scope: 'unit:fremd' } })).toMatchObject({
 			fail: 400,
 			data: { edit: true, errors: { scope: expect.any(String) } }
@@ -210,7 +214,19 @@ describe('auswertung/ausgaben', () => {
 				message: 'Diese Ausgabe stammt aus einem Bankumsatz; hebe die Zuordnung unter Bank auf.'
 			}
 		});
-		expect(await listExpenses(db, 'a')).toHaveLength(1);
+		expect(
+			await run(actions.update, {
+				form: {
+					id: expense.id,
+					date: `${year}-03-05`,
+					amount: '120,50',
+					category: 'operating_costs',
+					scope: `property:${propertyId}`,
+					description: 'Hausmeister März'
+				}
+			})
+		).toMatchObject({ fail: 400, data: { message: expect.stringContaining('Bankumsatz') } });
+		expect(await listExpenses(db, 'a')).toMatchObject([{ description: 'Hausmeister' }]);
 	});
 
 	it('offers every year back to the earliest expense', async () => {
