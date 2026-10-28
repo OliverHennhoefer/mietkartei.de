@@ -50,6 +50,7 @@ export const exportTables: AccountTable[] = [
 	schema.bankImports,
 	schema.bankTransactions,
 	schema.depositSettlements,
+	schema.handoverProtocols,
 	schema.payments,
 	schema.depositTransactions,
 	schema.paymentReminders,

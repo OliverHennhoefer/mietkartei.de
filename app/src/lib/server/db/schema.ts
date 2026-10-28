@@ -409,6 +409,43 @@ export const rentChanges = sqliteTable(
 	]
 );
 
+export const handoverKinds = ['move_in', 'move_out'] as const;
+export type HandoverKind = (typeof handoverKinds)[number];
+export const roomConditions = ['good', 'worn', 'damaged'] as const;
+export type RoomCondition = (typeof roomConditions)[number];
+
+export type HandoverRoom = { name: string; condition: RoomCondition; note: string | null };
+export type HandoverKey = { label: string; count: number };
+export type HandoverReading = { meterId: string; label: string; value: number; unit: string };
+
+/**
+ * Übergabeprotokoll: the state of the flat when the tenant moves in or out, one of each per
+ * lease. The readings are also stored as Zählerstände on its date.
+ */
+export const handoverProtocols = sqliteTable(
+	'handover_protocols',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		kind: text('kind', { enum: handoverKinds }).notNull(),
+		date: text('date').notNull(),
+		/** Who was there, as typed. */
+		attendees: text('attendees'),
+		rooms: text('rooms', { mode: 'json' }).notNull().$type<HandoverRoom[]>(),
+		keys: text('keys', { mode: 'json' }).notNull().$type<HandoverKey[]>(),
+		readings: text('readings', { mode: 'json' }).notNull().$type<HandoverReading[]>(),
+		notes: text('notes'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('handover_protocols_account_id_idx').on(table.accountId),
+		uniqueIndex('handover_protocols_lease_kind_unique').on(table.leaseId, table.kind)
+	]
+);
+
 /**
  * Kautionsabrechnung: the settlement of the deposit after the lease ended, one per lease, with its
  * letter. Its bookings (interest, Einbehalte, the offset against arrears and the payout) are

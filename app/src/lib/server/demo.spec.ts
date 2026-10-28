@@ -11,6 +11,7 @@ import {
 	depositSettlements,
 	depositTransactions,
 	documents,
+	handoverProtocols,
 	leaseUnits,
 	leases,
 	operatingCostStatements,
@@ -80,6 +81,17 @@ describe('createDemoData', () => {
 			.from(depositSettlements)
 			.where(eq(depositSettlements.accountId, 'a'));
 		expect(settlements).toHaveLength(5);
+		// An Übergabeprotokoll for each move-out, the withheld damage marked in its room.
+		const handovers = await db
+			.select()
+			.from(handoverProtocols)
+			.where(eq(handoverProtocols.accountId, 'a'));
+		const moveOuts = handovers.filter((row) => row.kind === 'move_out');
+		expect(moveOuts).toHaveLength(5);
+		expect(
+			moveOuts.flatMap((row) => row.rooms).filter((room) => room.condition === 'damaged')
+		).toHaveLength(3);
+		expect(handovers.filter((row) => row.kind === 'move_in').length).toBeGreaterThan(3);
 		expect(settlements.every((row) => row.letterText.includes('Mietsicherheit'))).toBe(true);
 		for (const settlement of settlements) {
 			const held = deposits
