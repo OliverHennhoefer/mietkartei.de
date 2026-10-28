@@ -1,13 +1,15 @@
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { today } from '#lib/dates.ts';
 import { parseExpense } from '#lib/forms/expenses.ts';
 import {
 	createExpense,
 	deleteExpense,
+	expenseScopeValue,
 	expenseSuggestions,
 	firstExpenseYear,
 	listExpenses,
-	scopeOptions
+	scopeOptions,
+	updateExpense
 } from '#lib/server/expenses.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -36,8 +38,24 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	for (let candidate = Math.max(currentYear, year); candidate >= oldest; candidate--) {
 		years.push(candidate);
 	}
-	return { year, years, today: date, expenses, scopes, suggestions };
+	// ?bearbeiten=<id> opens an expense of the year in the edit dialog; one from a bank
+	// transaction is changed under Bank.
+	const editing = expenses.find(
+		(expense) => expense.id === url.searchParams.get('bearbeiten') && !expense.bankTransactionId
+	);
+	return {
+		year,
+		years,
+		today: date,
+		expenses,
+		editing: editing ? { ...editing, scope: expenseScopeValue(editing) } : null,
+		scopes,
+		suggestions
+	};
 };
+
+const missing = 'Diese Ausgabe gibt es nicht.';
+const fromBank = 'Diese Ausgabe stammt aus einem Bankumsatz; hebe die Zuordnung unter Bank auf.';
 
 export const actions: Actions = {
 	create: async ({ request, locals }) => {
@@ -52,15 +70,28 @@ export const actions: Actions = {
 		}
 		return { created: created.id, year: Number(result.data.date.slice(0, 4)) };
 	},
+	update: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		const result = parseExpense(form);
+		if (!result.ok) return fail(400, { edit: true, errors: result.errors, values: result.values });
+		const outcome = await updateExpense(locals.db, auditContext(locals), id, result.data);
+		if (outcome === 'missing') return fail(404, { message: missing });
+		if (outcome === 'from-bank') return fail(400, { message: fromBank });
+		if (outcome === 'unknown-scope') {
+			return fail(400, {
+				edit: true,
+				errors: { scope: 'Diese Zuordnung gibt es nicht.' },
+				values: result.values
+			});
+		}
+		redirect(303, `/auswertung/ausgaben?jahr=${result.data.date.slice(0, 4)}`);
+	},
 	delete: async ({ request, locals }) => {
 		const id = String((await request.formData()).get('id') ?? '');
 		const outcome = await deleteExpense(locals.db, auditContext(locals), id);
-		if (outcome === 'missing') return fail(404, { message: 'Diese Ausgabe gibt es nicht.' });
-		if (outcome === 'from-bank') {
-			return fail(400, {
-				message: 'Diese Ausgabe stammt aus einem Bankumsatz; hebe die Zuordnung unter Bank auf.'
-			});
-		}
-		return { deleted: id };
+		if (outcome === 'missing') return fail(404, { message: missing });
+		if (outcome === 'from-bank') return fail(400, { message: fromBank });
+		redirect(303, '/auswertung/ausgaben');
 	}
 };

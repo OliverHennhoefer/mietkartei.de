@@ -121,7 +121,7 @@ describe('calendarEntries', () => {
 				date: '2026-11-15',
 				summary: 'Heizung warten',
 				description: 'Firma Wärme',
-				url: `https://app.example/aufgaben/${dated.id}`
+				url: `https://app.example/aufgaben?bearbeiten=${dated.id}`
 			}
 		]);
 		// The same data gives the same UIDs, so calendar apps update instead of duplicating.

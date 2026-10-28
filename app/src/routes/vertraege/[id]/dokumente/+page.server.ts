@@ -28,5 +28,6 @@ export const actions: Actions = {
 		if (!lease) error(404, 'Diesen Mietvertrag gibt es nicht.');
 		return uploadDocument(locals, request, { leaseId: lease.id, propertyId: lease.property.id });
 	},
-	delete: ({ locals, request }) => removeDocument(locals, request)
+	delete: ({ locals, request, params }) =>
+		removeDocument(locals, request, `/vertraege/${params.id}/dokumente`)
 };

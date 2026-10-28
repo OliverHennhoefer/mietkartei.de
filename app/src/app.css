@@ -220,6 +220,44 @@ textarea {
 	text-underline-offset: 4px;
 }
 
+/* A dialog over a list to create or edit one of its rows (EditDialog, "Aufgabe anlegen"); the
+   whole screen on a phone. */
+.edit-dialog {
+	width: min(52rem, calc(100vw - 2rem));
+	max-height: calc(100dvh - 2rem);
+	margin: auto;
+	padding: 1.25rem 1.5rem 1.5rem;
+	border: 1px solid var(--color-border);
+	border-radius: 14px;
+	background: var(--color-background);
+	color: var(--color-text);
+	box-shadow: 0 24px 64px rgb(0 0 0 / 22%);
+}
+.edit-dialog::backdrop {
+	background: rgb(0 0 0 / 35%);
+}
+.dialog-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	margin-bottom: 1rem;
+}
+.dialog-head h2 {
+	margin: 0;
+}
+@media (max-width: 40rem) {
+	.edit-dialog {
+		width: 100vw;
+		max-width: none;
+		height: 100dvh;
+		max-height: none;
+		padding: 1rem;
+		border: 0;
+		border-radius: 0;
+	}
+}
+
 /* The settings dialog: sections on the left, the open one on the right. */
 .settings-dialog {
 	position: fixed;

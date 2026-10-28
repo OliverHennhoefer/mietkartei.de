@@ -3,7 +3,7 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
 	import Balance from '#lib/components/Balance.svelte';
-	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import EditDialog from '#lib/components/EditDialog.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PreviewLink from '#lib/components/PreviewLink.svelte';
@@ -22,14 +22,27 @@
 	const paymentValues = $derived(failed?.form === 'payment' ? failed.values : undefined);
 	const adjustmentErrors = $derived(failed?.form === 'adjustment' ? failed.errors : undefined);
 	const adjustmentValues = $derived(failed?.form === 'adjustment' ? failed.values : undefined);
+	const editErrors = $derived(failed?.form === 'edit' ? failed.errors : undefined);
+	// After a refused save the typed values win; otherwise the dialog shows the line as stored.
+	const editValues = $derived(
+		(failed?.form === 'edit' ? failed.values : undefined) ??
+			(data.editing && {
+				date: data.editing.date,
+				amount: formatCentsPlain(data.editing.amount),
+				note: data.editing.note ?? ''
+			})
+	);
+	const base = $derived(`/vertraege/${data.lease.id}/mietkonto`);
+	/** The page with the shown months kept and another parameter, for the dialogs' links. */
+	const withRange = (name?: string, value?: string) => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- built and read once, for a link
+		const query = new URLSearchParams({ from: data.range.from, to: data.range.to });
+		if (name && value) query.set(name, value);
+		return `${base}?${query}`;
+	};
 	const reminderErrors = $derived(failed?.form === 'reminder' ? failed.errors : undefined);
 	const reminderValues = $derived(failed?.form === 'reminder' ? failed.values : undefined);
 
-	const deletedMessages = {
-		payment: 'Zahlung gelöscht.',
-		adjustment: 'Korrektur gelöscht.',
-		reminder: 'Schreiben gelöscht.'
-	};
 	const reminderPdf = (id: string) => `/vertraege/${data.lease.id}/mietkonto/schreiben/${id}`;
 	const reminderTitle = (reminder: (typeof data.reminders.reminders)[number]) =>
 		`${reminderLevelLabels[reminder.level]} vom ${formatDate(reminder.date)}`;
@@ -87,10 +100,6 @@
 	<Alert tone="success">
 		<p>{form.booked === 'payment' ? 'Zahlung gebucht.' : 'Korrektur gebucht.'}</p>
 	</Alert>
-{:else if form?.deleted}
-	<Alert tone="success">
-		<p>{deletedMessages[form.deleted]}</p>
-	</Alert>
 {:else if form?.reminderId}
 	<Alert tone="success">
 		<p>
@@ -129,7 +138,15 @@
 			<tbody>
 				{#each data.rows as row (row.id)}
 					<tr>
-						<td>{formatDate(row.date)}</td>
+						<td>
+							{#if row.deletable}
+								<a href={withRange('bearbeiten', row.id)} data-sveltekit-reset="false"
+									>{formatDate(row.date)}</a
+								>
+							{:else}
+								{formatDate(row.date)}
+							{/if}
+						</td>
 						<td>
 							{row.label}
 							{#if row.fromBank}
@@ -152,24 +169,6 @@
 											: '/bank?status=matched'}>Umsatz</a
 									> aufheben
 								</span>
-							{:else if row.deletable && row.kind === 'payment'}
-								<ConfirmButton
-									action="?/deletePayment"
-									label="Löschen"
-									message="Zahlung vom {formatDate(row.date)} über {formatCents(
-										row.amount
-									)} löschen?"
-								>
-									<input type="hidden" name="id" value={row.id} />
-								</ConfirmButton>
-							{:else if row.deletable}
-								<ConfirmButton
-									action="?/deleteCharge"
-									label="Löschen"
-									message="Buchung „{row.label}“ über {formatCents(row.amount)} löschen?"
-								>
-									<input type="hidden" name="id" value={row.id} />
-								</ConfirmButton>
 							{/if}
 						</td>
 					</tr>
@@ -317,7 +316,11 @@
 			<tbody>
 				{#each data.reminders.reminders as reminder (reminder.id)}
 					<tr>
-						<td>{formatDate(reminder.date)}</td>
+						<td>
+							<a href={withRange('schreiben', reminder.id)} data-sveltekit-reset="false"
+								>{formatDate(reminder.date)}</a
+							>
+						</td>
 						<td>{reminderLevelLabels[reminder.level]}</td>
 						<td class="num"><Money cents={reminder.amount} /></td>
 						<td>{formatDate(reminder.paymentDeadline)}</td>
@@ -329,16 +332,6 @@
 									title={reminderTitle(reminder)}
 									class="button secondary small"><Icon name="file" size={14} /> Ansehen</PreviewLink
 								>
-								<ConfirmButton
-									action="?/deleteReminder"
-									label="Löschen"
-									small
-									message="{reminderTitle(
-										reminder
-									)} löschen? Das Schreiben verschwindet nur hier, nicht beim Mieter."
-								>
-									<input type="hidden" name="id" value={reminder.id} />
-								</ConfirmButton>
 							</div>
 						</td>
 					</tr>
@@ -453,6 +446,86 @@
 		<button type="submit">Korrektur buchen</button>
 	</div>
 </form>
+
+{#if data.editing && editValues}
+	{@const payment = data.editing.kind === 'payment'}
+	{#key data.editing.id}
+		<EditDialog
+			title={payment ? 'Zahlung bearbeiten' : 'Korrektur bearbeiten'}
+			action="?/update"
+			deleteAction="?/delete"
+			deleteMessage="{payment ? 'Zahlung' : 'Korrektur'} vom {formatDate(
+				data.editing.date
+			)} über {formatCents(data.editing.amount)} löschen?"
+			close={withRange()}
+			error={form && 'message' in form ? form.message : undefined}
+		>
+			<input type="hidden" name="id" value={data.editing.id} />
+			<Field label="Datum" error={editErrors?.date}>
+				<input
+					type="date"
+					name="date"
+					defaultValue={editValues.date}
+					aria-invalid={editErrors?.date ? 'true' : undefined}
+					required
+				/>
+			</Field>
+			<Field
+				label="Betrag in €"
+				error={editErrors?.amount}
+				hint={payment
+					? 'Negativ für eine Rückzahlung an den Mieter.'
+					: 'Positiv = Forderung an den Mieter, negativ = Gutschrift.'}
+			>
+				<input
+					name="amount"
+					inputmode="decimal"
+					defaultValue={editValues.amount}
+					aria-invalid={editErrors?.amount ? 'true' : undefined}
+					required
+				/>
+			</Field>
+			<Field label={payment ? 'Vermerk (optional)' : 'Vermerk'} error={editErrors?.note}>
+				<input
+					name="note"
+					defaultValue={editValues.note}
+					aria-invalid={editErrors?.note ? 'true' : undefined}
+					required={!payment}
+				/>
+			</Field>
+		</EditDialog>
+	{/key}
+{/if}
+
+{#if data.reminder}
+	{#key data.reminder.id}
+		<EditDialog
+			title={reminderTitle(data.reminder)}
+			deleteAction="?/deleteReminder"
+			deleteMessage="{reminderTitle(
+				data.reminder
+			)} löschen? Das Schreiben verschwindet nur hier, nicht beim Mieter."
+			close={withRange()}
+			error={form && 'message' in form ? form.message : undefined}
+		>
+			<input type="hidden" name="id" value={data.reminder.id} />
+			<dl class="details">
+				<dt>Betrag</dt>
+				<dd><Money cents={data.reminder.amount} /></dd>
+				<dt>Zahlungsfrist</dt>
+				<dd>{formatDate(data.reminder.paymentDeadline)}</dd>
+				<dt>Schreiben</dt>
+				<dd>
+					<PreviewLink
+						href={reminderPdf(data.reminder.id)}
+						text="{reminderPdf(data.reminder.id)}/text"
+						title={reminderTitle(data.reminder)}>Ansehen</PreviewLink
+					>
+				</dd>
+			</dl>
+		</EditDialog>
+	{/key}
+{/if}
 
 <style>
 	.last-payment {

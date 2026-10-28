@@ -110,7 +110,7 @@ describe('dokumente', () => {
 		const [document] = await documents();
 		expect(await run(actions.delete, { form: {} })).toMatchObject({ error: 400 });
 		expect(await run(actions.delete, { form: { documentId: document.id } })).toEqual({
-			data: { deleted: true }
+			redirect: '/dokumente'
 		});
 		expect(await run(actions.delete, { form: { documentId: document.id } })).toMatchObject({
 			error: 404
@@ -151,7 +151,7 @@ describe('vertraege/[id]/dokumente', () => {
 		const [document] = await documents();
 		expect(
 			await run(leaseActions.delete, { params: { id: leaseId }, form: { documentId: document.id } })
-		).toEqual({ data: { deleted: true } });
+		).toEqual({ redirect: `/vertraege/${leaseId}/dokumente` });
 	});
 
 	it('answers 404 for a lease of another account', async () => {

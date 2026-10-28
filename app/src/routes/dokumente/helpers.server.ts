@@ -1,4 +1,4 @@
-import { error, fail, type ActionFailure } from '@sveltejs/kit';
+import { error, fail, redirect, type ActionFailure } from '@sveltejs/kit';
 import { asc, eq } from 'drizzle-orm';
 import type { DocumentLinkIds, DocumentLinkOptions } from '#lib/domain/documents.ts';
 import { personName } from '#lib/format.ts';
@@ -126,15 +126,17 @@ export async function uploadDocument(
 }
 
 /** The delete action behind a ConfirmButton with a hidden `documentId`. */
+/** Deletes the document named by the form, then goes `back` to the list it was opened from. */
 export async function removeDocument(
 	locals: App.Locals,
-	request: Request
-): Promise<{ deleted: true }> {
+	request: Request,
+	back: string
+): Promise<never> {
 	const context = auditContext(locals);
 	const documentId = parseDocumentId(await request.formData());
 	if (!documentId) error(400, 'Bitte gib an, welches Dokument gelöscht werden soll.');
 	if (!(await deleteDocument(locals.db, context, documentId))) {
 		error(404, 'Dieses Dokument gibt es nicht.');
 	}
-	return { deleted: true };
+	redirect(303, back);
 }

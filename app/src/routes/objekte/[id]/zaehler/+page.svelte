@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import EditDialog from '#lib/components/EditDialog.svelte';
 	import { formatDate, today } from '#lib/dates.ts';
 	import { defaultMeterUnit } from '#lib/domain/operating-costs.ts';
 	import { formatNumber } from '#lib/format.ts';
@@ -17,6 +18,17 @@
 	const meterForm = $derived(form?.form === 'meter' ? form : undefined);
 	const readingForm = $derived(form?.form === 'reading' ? form : undefined);
 	const removalForm = $derived(form?.form === 'removal' ? form : undefined);
+	const editForm = $derived(form?.form === 'editReading' ? form : undefined);
+	// After a refused save the typed values win; otherwise the dialog shows the reading as stored.
+	const editValues = $derived(
+		editForm?.values ??
+			(data.editing && {
+				readAt: data.editing.readAt,
+				value: String(data.editing.value).replace('.', ','),
+				note: data.editing.note ?? '',
+				estimated: data.editing.estimated ? 'on' : ''
+			})
+	);
 
 	// Building meters first, then one group per unit, in the order the server sorted them.
 	const groups = $derived.by(() => {
@@ -152,30 +164,22 @@
 							<th class="num">Stand ({meter.unit})</th>
 							<th></th>
 							<th>Notiz</th>
-							<th class="actions"></th>
 						</tr>
 					</thead>
 					<tbody>
 						{#each data.readings as reading (reading.id)}
 							<tr>
-								<td>{formatDate(reading.readAt)}</td>
+								<td>
+									<a
+										href="{withUnit(meter.id)}&bearbeiten={reading.id}"
+										data-sveltekit-reset="false">{formatDate(reading.readAt)}</a
+									>
+								</td>
 								<td class="num">{formatNumber(reading.value)}</td>
 								<td
 									>{#if reading.estimated}<Badge tone="warning">geschätzt</Badge>{/if}</td
 								>
 								<td>{reading.note ?? ''}</td>
-								<td class="actions">
-									<ConfirmButton
-										action={actionOn('deleteReading', meter.id)}
-										small
-										label="Löschen"
-										message="Zählerstand vom {formatDate(reading.readAt)} wirklich löschen?"
-									>
-										<input type="hidden" name="meterId" value={meter.id} />
-										<input type="hidden" name="readingId" value={reading.id} />
-										<input type="hidden" name="filterUnit" value={data.filterUnit?.id ?? ''} />
-									</ConfirmButton>
-								</td>
 							</tr>
 						{/each}
 					</tbody>
@@ -187,41 +191,11 @@
 		<form method="POST" action={actionOn('createReading', meter.id)} class="form" use:enhance>
 			<input type="hidden" name="meterId" value={meter.id} />
 			<input type="hidden" name="filterUnit" value={data.filterUnit?.id ?? ''} />
-			<label>
-				Abgelesen am
-				<input
-					type="date"
-					name="readAt"
-					defaultValue={readingForm?.values.readAt ?? today()}
-					aria-invalid={readingForm?.errors.readAt ? 'true' : undefined}
-					required
-				/>
-				{#if readingForm?.errors.readAt}<span class="error">{readingForm.errors.readAt}</span>{/if}
-			</label>
-			<label>
-				Stand in {meter.unit}
-				<input
-					name="value"
-					inputmode="decimal"
-					defaultValue={readingForm?.values.value ?? ''}
-					aria-invalid={readingForm?.errors.value ? 'true' : undefined}
-					required
-				/>
-				{#if readingForm?.errors.value}<span class="error">{readingForm.errors.value}</span>{/if}
-			</label>
-			<label>
-				Notiz (optional)
-				<input
-					name="note"
-					defaultValue={readingForm?.values.note ?? ''}
-					aria-invalid={readingForm?.errors.note ? 'true' : undefined}
-				/>
-				{#if readingForm?.errors.note}<span class="error">{readingForm.errors.note}</span>{/if}
-			</label>
-			<label class="inline">
-				<input type="checkbox" name="estimated" checked={readingForm?.values.estimated === 'on'} />
-				geschätzt (§ 9a HeizKV)
-			</label>
+			{@render readingFields(
+				meter.unit,
+				readingForm?.values ?? { readAt: today() },
+				readingForm?.errors
+			)}
 			<div class="form-actions">
 				<button type="submit">Zählerstand erfassen</button>
 			</div>
@@ -341,6 +315,65 @@
 		<button type="submit">Zähler anlegen</button>
 	</div>
 </form>
+
+{#snippet readingFields(
+	unit: string,
+	values: Record<string, string>,
+	errors: Partial<Record<string, string>> | undefined
+)}
+	<label>
+		Abgelesen am
+		<input
+			type="date"
+			name="readAt"
+			defaultValue={values.readAt ?? ''}
+			aria-invalid={errors?.readAt ? 'true' : undefined}
+			required
+		/>
+		{#if errors?.readAt}<span class="error">{errors.readAt}</span>{/if}
+	</label>
+	<label>
+		Stand in {unit}
+		<input
+			name="value"
+			inputmode="decimal"
+			defaultValue={values.value ?? ''}
+			aria-invalid={errors?.value ? 'true' : undefined}
+			required
+		/>
+		{#if errors?.value}<span class="error">{errors.value}</span>{/if}
+	</label>
+	<label>
+		Notiz (optional)
+		<input
+			name="note"
+			defaultValue={values.note ?? ''}
+			aria-invalid={errors?.note ? 'true' : undefined}
+		/>
+		{#if errors?.note}<span class="error">{errors.note}</span>{/if}
+	</label>
+	<label class="inline">
+		<input type="checkbox" name="estimated" checked={values.estimated === 'on'} />
+		geschätzt (§ 9a HeizKV)
+	</label>
+{/snippet}
+
+{#if data.editing && data.expanded && editValues}
+	{#key data.editing.id}
+		<EditDialog
+			title="Zählerstand bearbeiten"
+			action="?/updateReading"
+			deleteAction="?/deleteReading"
+			deleteMessage="Zählerstand vom {formatDate(data.editing.readAt)} wirklich löschen?"
+			close={withUnit(data.expanded.id)}
+		>
+			<input type="hidden" name="meterId" value={data.expanded.id} />
+			<input type="hidden" name="readingId" value={data.editing.id} />
+			<input type="hidden" name="filterUnit" value={data.filterUnit?.id ?? ''} />
+			{@render readingFields(data.expanded.unit, editValues, editForm?.errors)}
+		</EditDialog>
+	{/key}
+{/if}
 
 <style>
 	.no-margin {

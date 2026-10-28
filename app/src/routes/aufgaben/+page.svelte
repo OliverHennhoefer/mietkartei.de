@@ -5,21 +5,42 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import Badge from '#lib/components/Badge.svelte';
-	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import EditDialog from '#lib/components/EditDialog.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import TaskFields from '#lib/components/TaskFields.svelte';
 	import { dayOf, daysBetween, formatDate } from '#lib/dates.ts';
 	import { pluralize } from '#lib/format.ts';
+	import { linkValue } from '#lib/forms/tasks.ts';
 	import { taskCategoryLabels } from '#lib/labels.ts';
 	import { repeatLabel, taskTemplates } from '#lib/task-templates.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
-	const errors = $derived(form && 'errors' in form ? form.errors : undefined);
-	const values = $derived(form?.values ?? data.template ?? {});
+	// A refused edit belongs to the edit dialog, everything else to the create dialog.
+	const editRefused = $derived(form && 'edit' in form ? form : undefined);
+	const errors = $derived(form && 'errors' in form && !editRefused ? form.errors : undefined);
+	const values = $derived((!editRefused && form?.values) || data.template || {});
+	// After a refused save the typed values win; otherwise the dialog shows the task as stored.
+	const editValues = $derived.by(() => {
+		const task = data.editing;
+		if (editRefused?.values) return editRefused.values;
+		if (!task) return {};
+		return {
+			title: task.title,
+			category: task.category,
+			dueDate: task.dueDate ?? '',
+			repeatMonths: task.repeatMonths ? String(task.repeatMonths) : '',
+			link: task.propertyId
+				? linkValue('property', task.propertyId)
+				: task.leaseId
+					? linkValue('lease', task.leaseId)
+					: '',
+			note: task.note ?? ''
+		};
+	});
 
 	// The create form opens in a dialog: from the header's link, from a template (?vorlage=, which
 	// keeps it open) and stays open when the server refuses the input. A page loaded with ?neu, a
@@ -205,7 +226,9 @@
 				</form>
 				<div class="body">
 					<div class="title">
-						<a href="/aufgaben/{task.id}"><strong>{task.title}</strong></a>
+						<a href="?bearbeiten={task.id}" data-sveltekit-reset="false"
+							><strong>{task.title}</strong></a
+						>
 						{#if task.category !== 'other'}<Badge>{taskCategoryLabels[task.category]}</Badge>{/if}
 						{#if task.repeatMonths}<span class="repeat muted"
 								><Icon name="history" size={12} />{repeatLabel(task.repeatMonths)}</span
@@ -229,13 +252,6 @@
 						<span class="muted">bis {formatDate(task.dueDate)}</span>
 					</div>
 				{/if}
-				<ConfirmButton
-					action="?/delete"
-					label="Löschen"
-					message="Aufgabe „{task.title}“ wirklich löschen?"
-				>
-					<input type="hidden" name="id" value={task.id} />
-				</ConfirmButton>
 			</li>
 		{/each}
 	</ul>
@@ -252,7 +268,7 @@
 			{#each data.done as task (task.id)}
 				<li class="card task">
 					<div class="body">
-						<s>{task.title}</s>
+						<a href="?bearbeiten={task.id}" data-sveltekit-reset="false"><s>{task.title}</s></a>
 						<span class="muted">
 							{#if task.doneAt}· erledigt am {formatDate(dayOf(task.doneAt))}{/if}
 							{#if task.property}· {task.property.name}{/if}
@@ -264,13 +280,6 @@
 						<input type="hidden" name="done" value="false" />
 						<button type="submit" class="secondary small">wieder öffnen</button>
 					</form>
-					<ConfirmButton
-						action="?/delete"
-						label="Löschen"
-						message="Aufgabe „{task.title}“ wirklich löschen?"
-					>
-						<input type="hidden" name="id" value={task.id} />
-					</ConfirmButton>
 				</li>
 			{/each}
 		</ul>
@@ -326,7 +335,7 @@
 
 <dialog
 	bind:this={dialog}
-	class="task-dialog"
+	class="edit-dialog"
 	aria-labelledby="task-dialog-title"
 	open={import.meta.env.SSR && requested ? true : undefined}
 	onclose={closed}
@@ -371,6 +380,27 @@
 		</div>
 	</form>
 </dialog>
+
+{#if data.editing}
+	{#key data.editing.id}
+		<EditDialog
+			title="Aufgabe bearbeiten"
+			action="?/update"
+			deleteAction="?/delete"
+			deleteMessage="Aufgabe „{data.editing.title}“ wirklich löschen?"
+			close="/aufgaben"
+			error={form && 'message' in form ? form.message : undefined}
+		>
+			<input type="hidden" name="id" value={data.editing.id} />
+			<TaskFields
+				values={editValues}
+				errors={editRefused?.errors}
+				properties={data.properties}
+				leases={data.leases}
+			/>
+		</EditDialog>
+	{/key}
+{/if}
 
 <style>
 	.first-run {
@@ -463,16 +493,6 @@
 	}
 	.check label {
 		padding-top: 0.2rem;
-	}
-	/* Deleting is rare, so the button stays quiet until it is pointed at. */
-	.task :global(.confirm button) {
-		border-color: transparent;
-		background: none;
-		color: var(--color-muted);
-		font-size: var(--text-xs);
-	}
-	.task :global(.confirm button:hover) {
-		color: var(--color-danger);
 	}
 	/* When it is due: relative and in neon within two weeks, red once overdue, the date below. */
 	.due {
@@ -627,39 +647,5 @@
 	}
 	.templates [aria-current] {
 		font-weight: 600;
-	}
-	.task-dialog {
-		width: min(52rem, calc(100vw - 2rem));
-		max-height: calc(100dvh - 2rem);
-		margin: auto;
-		padding: 1.25rem 1.5rem 1.5rem;
-		border: 1px solid var(--color-border);
-		border-radius: 14px;
-		background: var(--color-background);
-		color: var(--color-text);
-		box-shadow: 0 24px 64px rgb(0 0 0 / 22%);
-	}
-	.task-dialog::backdrop {
-		background: rgb(0 0 0 / 35%);
-	}
-	.dialog-head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 1rem;
-	}
-	.dialog-head h2 {
-		margin: 0;
-	}
-	@media (max-width: 40rem) {
-		.task-dialog {
-			width: 100vw;
-			max-width: none;
-			height: 100dvh;
-			max-height: none;
-			padding: 1rem;
-			border: 0;
-			border-radius: 0;
-		}
 	}
 </style>

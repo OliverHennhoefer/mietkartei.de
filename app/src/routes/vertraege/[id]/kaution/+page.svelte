@@ -2,27 +2,39 @@
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
-	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import EditDialog from '#lib/components/EditDialog.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { depositTransactionKindLabels } from '#lib/labels.ts';
+	import { formatCents, formatCentsPlain } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
 	const lease = $derived(data.lease);
-	const errors = $derived(form?.errors ?? {});
-	const values = $derived(form?.values ?? { date: data.today, kind: 'received' });
-	// Until money has come in, interest, a return or a withholding cannot happen yet.
-	const kinds = $derived(
+	// A refused edit belongs to the edit dialog, everything else to the form below the table.
+	const editRefused = $derived(form && 'edit' in form ? form : undefined);
+	const errors = $derived((!editRefused && form?.errors) || {});
+	const values = $derived((!editRefused && form?.values) || { date: data.today, kind: 'received' });
+	const editValues = $derived(
+		editRefused?.values ??
+			(data.editing && {
+				date: data.editing.date,
+				kind: data.editing.kind,
+				amount: formatCentsPlain(Math.abs(data.editing.amount)),
+				note: data.editing.note ?? ''
+			})
+	);
+	// Until money has come in, interest, a return or a withholding cannot happen yet; a movement
+	// being edited keeps its own kind.
+	const kindsFor = (current?: string) =>
 		(
 			Object.entries(depositTransactionKindLabels) as [
 				keyof typeof depositTransactionKindLabels,
 				string
 			][]
-		).filter(([kind]) => kind === 'received' || data.summary.received > 0)
-	);
+		).filter(([kind]) => kind === 'received' || kind === current || data.summary.received > 0);
 </script>
 
 <!-- The heading and tab bar come from +layout.svelte; this page is the "Kaution" tab. -->
@@ -92,7 +104,15 @@
 			<tbody>
 				{#each data.movements as movement (movement.id)}
 					<tr>
-						<td>{formatDate(movement.date)}</td>
+						<td>
+							{#if movement.bankTransactionId}
+								{formatDate(movement.date)}
+							{:else}
+								<a href="?bearbeiten={movement.id}" data-sveltekit-reset="false"
+									>{formatDate(movement.date)}</a
+								>
+							{/if}
+						</td>
 						<td>{depositTransactionKindLabels[movement.kind]}</td>
 						<td class="num"><Money cents={movement.amount} signed /></td>
 						<td>
@@ -104,15 +124,6 @@
 								<span class="muted small">
 									Zuordnung beim <a href="/bank?umsatz={movement.bankTransactionId}">Umsatz</a> aufheben
 								</span>
-							{:else}
-								<ConfirmButton
-									action="?/delete"
-									label="Löschen"
-									message="Diese Bewegung wirklich löschen?"
-									tone="secondary"
-								>
-									<input type="hidden" name="movementId" value={movement.id} />
-								</ConfirmButton>
 							{/if}
 						</td>
 					</tr>
@@ -124,6 +135,17 @@
 
 <h2>Bewegung buchen</h2>
 <form method="POST" action="?/add" class="card form" use:enhance>
+	{@render movementFields(values, errors, kindsFor())}
+	<div class="form-actions">
+		<button type="submit">Bewegung buchen</button>
+	</div>
+</form>
+
+{#snippet movementFields(
+	values: Record<string, string>,
+	errors: Partial<Record<string, string>>,
+	kinds: ReturnType<typeof kindsFor>
+)}
 	<Field label="Datum" error={errors.date}>
 		<input
 			name="date"
@@ -157,10 +179,25 @@
 	<Field label="Notiz (optional)" error={errors.note}>
 		<input name="note" defaultValue={values.note ?? ''} />
 	</Field>
-	<div class="form-actions">
-		<button type="submit">Bewegung buchen</button>
-	</div>
-</form>
+{/snippet}
+
+{#if data.editing && editValues}
+	{#key data.editing.id}
+		<EditDialog
+			title="Bewegung bearbeiten"
+			action="?/update"
+			deleteAction="?/delete"
+			deleteMessage="{depositTransactionKindLabels[data.editing.kind]} über {formatCents(
+				Math.abs(data.editing.amount)
+			)} vom {formatDate(data.editing.date)} löschen?"
+			close="/vertraege/{data.lease.id}/kaution"
+			error={form?.message}
+		>
+			<input type="hidden" name="movementId" value={data.editing.id} />
+			{@render movementFields(editValues, editRefused?.errors ?? {}, kindsFor(data.editing.kind))}
+		</EditDialog>
+	{/key}
+{/if}
 
 <style>
 	.instalments {
