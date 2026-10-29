@@ -11,6 +11,7 @@ import { auditLog, leaseTenants, properties } from './db/schema';
 import { storeDocument } from './documents';
 import {
 	EXPORT_PAGE_ROWS,
+	MISSING_DOCUMENTS_FILE,
 	accountTables,
 	documentPath,
 	exportJson,
@@ -238,9 +239,16 @@ describe('exportZip', () => {
 
 		const files = unzipSync(await readZip(await exportZip(db, contextA, { storage })));
 		expect(Object.keys(files).sort()).toEqual(
-			['export.json', 'documents/', `documents/${stored.id}-Mietvertrag.pdf`].sort()
+			[
+				'export.json',
+				'documents/',
+				`documents/${stored.id}-Mietvertrag.pdf`,
+				MISSING_DOCUMENTS_FILE
+			].sort()
 		);
 		expect(strFromU8(files[`documents/${stored.id}-Mietvertrag.pdf`])).toBe('%PDF-1.4 test');
+		// The lost file is named in the archive, so the gap shows now and not when it is needed.
+		expect(strFromU8(files[MISSING_DOCUMENTS_FILE])).toContain(`Weg.pdf (${lost.id})`);
 
 		const data = JSON.parse(strFromU8(files['export.json'])) as ExportData;
 		expect(data.accountId).toBe('a');
@@ -254,7 +262,14 @@ describe('exportZip', () => {
 		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'export'));
 		expect(
 			audit.map((entry) => [entry.accountId, entry.userId, entry.entity, entry.summary])
-		).toEqual([['a', 'user-a', 'account', 'Alle Daten als ZIP-Datei exportiert']]);
+		).toEqual([
+			[
+				'a',
+				'user-a',
+				'account',
+				'Alle Daten als ZIP-Datei exportiert (1 Dokument ohne Datei im Speicher)'
+			]
+		]);
 		// Logged once the archive was complete, so the entry is not part of the exported log.
 		expect(data.tables.audit_log.some((row) => row.action === 'export')).toBe(false);
 	});

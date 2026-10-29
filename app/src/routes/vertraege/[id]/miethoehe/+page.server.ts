@@ -7,6 +7,7 @@ import {
 	parseApproval,
 	parseComparativeDemand,
 	parseConsent,
+	parseDelivery,
 	parseGraduatedStep,
 	parseManualChange
 } from '#lib/forms/rent.ts';
@@ -16,6 +17,7 @@ import { getLease, type LeaseSummary } from '#lib/server/leases.ts';
 import {
 	addGraduatedStep,
 	approveChange,
+	correctDelivery,
 	demandComparativeIncrease,
 	manualChange,
 	proposeIndexChange,
@@ -164,6 +166,32 @@ export const actions: Actions = {
 			return fail(400, { source: 'approve', refusal: outcome.message, values: stringValues(form) });
 		}
 		return { source: 'approve', saved: true };
+	},
+
+	delivery: async ({ request, locals, params }) => {
+		const lease = await requireLease(locals, params.id);
+		const form = await request.formData();
+		const changeId = changeIdOf(form);
+		const result = parseDelivery(form);
+		if (!result.ok) {
+			return fail(400, { source: 'delivery', errors: result.errors, values: result.values });
+		}
+		const outcome = await correctDelivery(
+			locals.db,
+			auditContext(locals),
+			lease.id,
+			changeId,
+			result.data.deliveredOn
+		);
+		if (!outcome) error(404, 'Diese Mietänderung gibt es nicht.');
+		if (!outcome.ok) {
+			return fail(400, {
+				source: 'delivery',
+				refusal: outcome.message,
+				values: stringValues(form)
+			});
+		}
+		redirect(303, `/vertraege/${params.id}/miethoehe`);
 	},
 
 	demand: async ({ request, locals, params }) => {

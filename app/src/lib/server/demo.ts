@@ -517,6 +517,8 @@ export async function createDemoData(
 	const yilmazBase = 69000;
 	const yilmazFirst = indexed(yilmazBase, Y - 4, Y - 3);
 	const yilmazSecond = indexed(yilmazFirst, Y - 3, Y - 1);
+	const yilmazPlanned = at(-1, '10-30');
+	const yilmazDelivery = at(-1, '11-03');
 	const staffel = (step: number) => 92900 + 2300 * step;
 	const plans: {
 		key: string;
@@ -738,9 +740,11 @@ export async function createDemoData(
 					operatingCostPrepayment: 13000,
 					heatingCostPrepayment: 9000
 				},
+				// Sent at the end of October, the letter arrived on 3 November: the delivery date was
+				// corrected afterwards, so the new rent is due from January, not December.
 				{
-					validFrom: effectiveFrom(at(-1, '10-14')),
-					deliveredOn: at(-1, '10-14'),
+					validFrom: effectiveFrom(yilmazDelivery),
+					deliveredOn: yilmazDelivery,
 					reason: 'indexed',
 					baseRent: yilmazSecond,
 					indexMonth: `${Y - 1}-09`,
@@ -2405,7 +2409,26 @@ export async function createDemoData(
 		),
 		...taskRows.map((task) =>
 			audit('task', task.id, `Aufgabe „${task.title}“ (bis ${formatDate(task.dueDate)}) angelegt`)
-		)
+		),
+		{
+			...audit(
+				'lease',
+				leaseId('yilmaz'),
+				`Zugang der Indexanpassung am ${formatDate(yilmazDelivery)} eingetragen; die Kaltmiete von ${formatCents(yilmazSecond)} gilt ab ${formatDate(effectiveFrom(yilmazDelivery))} statt ab ${formatDate(effectiveFrom(yilmazPlanned))}`
+			),
+			action: 'update',
+			at: new Date(`${addDays(yilmazDelivery, 1)}T08:30:00Z`)
+		},
+		// Jonas Albrecht took over the place of Julia Weber's sister in the lease (Nachtrag).
+		{
+			...audit(
+				'lease',
+				leaseId('weber'),
+				'Mietvertrag geändert: Mieter hinzugefügt: Jonas Albrecht, Mieter entfernt: Lena Weber'
+			),
+			action: 'update',
+			at: new Date(`${at(-3, '04-01')}T09:00:00Z`)
+		}
 	];
 
 	// Without a property the account has no units, leases or cost items, but it may hold tenants,

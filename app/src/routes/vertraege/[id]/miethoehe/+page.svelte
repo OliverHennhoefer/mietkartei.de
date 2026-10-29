@@ -145,6 +145,13 @@
 		)
 	);
 
+	// An approved index change keeps its letter's delivery date open to correction: the letter is
+	// made at the approval, so the day it really reached the tenant may be known only later.
+	const correctable = (change: (typeof data.changes)[number]) =>
+		change.status === 'approved' && change.reason === 'indexed';
+	const deliveryErrors = $derived(errorsFor('delivery'));
+	const deliveryValues = $derived(valuesFor('delivery'));
+
 	function deleteMessage(change: (typeof data.changes)[number]): string {
 		return change.status === 'proposed'
 			? `Vorschlag vom ${formatDate(change.validFrom)} löschen?`
@@ -304,7 +311,11 @@
 			>
 				<input type="hidden" name="changeId" value={pending.id} />
 				<div class="row approval">
-					<Field label="Schreiben zugestellt am" error={approveErrors?.deliveredOn}>
+					<Field
+						label="Zugang beim Mieter am"
+						error={approveErrors?.deliveredOn}
+						hint="Voraussichtlich; kommt das Schreiben an einem anderen Tag an, korrigierst du den Zugang danach in der Mietänderung."
+					>
 						<input
 							type="date"
 							name="deliveredOn"
@@ -658,10 +669,11 @@
 			title={editing.status === 'proposed'
 				? `Vorschlag ab ${formatDate(editing.validFrom)}`
 				: `Mietänderung ab ${formatDate(editing.validFrom)}`}
+			action={correctable(editing) ? '?/delivery' : undefined}
 			deleteAction="?/delete"
 			deleteMessage={deleteMessage(editing)}
 			close="/vertraege/{lease.id}/miethoehe"
-			error={refusalFor('delete')}
+			error={refusalFor('delete') ?? refusalFor('delivery')}
 		>
 			<input type="hidden" name="changeId" value={editing.id} />
 			<dl class="details">
@@ -680,10 +692,31 @@
 					<dd>{editing.note}</dd>
 				{/if}
 			</dl>
-			<p class="muted small">
-				Ändern lässt sich eine Mietänderung nicht. Lösche sie und lege sie unten neu an; die
-				Sollstellungen werden neu berechnet.
-			</p>
+			{#if correctable(editing)}
+				<Field
+					label="Zugang beim Mieter am"
+					error={deliveryErrors?.deliveredOn}
+					hint={lease.kind === 'residential'
+						? 'Die neue Miete gilt ab dem Beginn des übernächsten Monats (§ 557b Abs. 3 BGB). Ändert sich dieser Tag, wird der Brief neu erstellt und die Sollstellungen werden neu berechnet.'
+						: undefined}
+				>
+					<input
+						type="date"
+						name="deliveredOn"
+						defaultValue={deliveryValues?.deliveredOn ?? editing.deliveredOn ?? ''}
+						aria-invalid={deliveryErrors?.deliveredOn ? 'true' : undefined}
+						required
+					/>
+				</Field>
+				<p class="muted small">
+					Die Beträge ändern sich nicht. Für andere Beträge lösche die Änderung und lege sie neu an.
+				</p>
+			{:else}
+				<p class="muted small">
+					Ändern lässt sich eine Mietänderung nicht. Lösche sie und lege sie unten neu an; die
+					Sollstellungen werden neu berechnet.
+				</p>
+			{/if}
 		</EditDialog>
 	{/key}
 {/if}

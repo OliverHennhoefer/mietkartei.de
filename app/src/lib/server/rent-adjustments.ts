@@ -405,6 +405,113 @@ export async function approveChange(
 	return { ok: true, id: changeId };
 }
 
+/**
+ * Corrects the delivery date of an approved index change, for a letter that reached the tenant
+ * on another day than entered at the approval. On a residential lease the effective date follows
+ * (§ 557b Abs. 3 BGB): the change moves there with the amount the tenant was told, the letter is
+ * written again for the new date and the charges are re-synced. Refused while a later index or
+ * Staffel change builds on it, as for deleting it. Undefined when the change is not the lease's.
+ */
+export async function correctDelivery(
+	db: Database,
+	context: AuditContext,
+	leaseId: string,
+	changeId: string,
+	deliveredOn: IsoDate
+): Promise<AdjustmentResult | undefined> {
+	const lease = await getLease(db, context.accountId, leaseId);
+	if (!lease) return undefined;
+	const change = await getRentChange(db, context.accountId, leaseId, changeId);
+	if (!change) return undefined;
+	if (change.status !== 'approved' || change.reason !== 'indexed') {
+		return refuse('Den Zugang korrigierst du nur bei einer freigegebenen Indexanpassung.');
+	}
+	const validFrom = lease.kind === 'residential' ? effectiveFrom(deliveredOn) : change.validFrom;
+	if (validFrom <= deliveredOn) {
+		return refuse('Die neue Miete kann erst nach der Zustellung gelten.');
+	}
+	const changes = await listRentChanges(db, context.accountId, leaseId);
+	const others = changes.filter((other) => other.id !== change.id);
+	const earlier = validFrom < change.validFrom ? validFrom : change.validFrom;
+	const builtOn = others.some(
+		(other) =>
+			other.status === 'approved' &&
+			other.validFrom >= earlier &&
+			(other.reason === 'indexed' || other.reason === 'graduated')
+	);
+	if (builtOn) {
+		return refuse(
+			'Der Zugang lässt sich nicht mehr korrigieren, weil eine spätere Index- oder Staffeländerung auf dieser Änderung aufbaut.'
+		);
+	}
+	const delivery = `Zugang der Indexanpassung am ${formatDate(deliveredOn)} eingetragen`;
+	const where = and(eq(rentChanges.accountId, context.accountId), eq(rentChanges.id, changeId));
+	if (validFrom === change.validFrom) {
+		await runBatch(db, [
+			db.update(rentChanges).set({ deliveredOn }).where(where),
+			auditEntry(db, context, 'lease', leaseId, 'update', delivery)
+		]);
+		return { ok: true, id: changeId };
+	}
+
+	if (hasApprovedOn(others, validFrom)) return sameDayRefusal(validFrom);
+	const waitingUntil = waitingPeriodEnd(others.filter((other) => other.validFrom < validFrom));
+	if (lease.kind === 'residential' && waitingUntil && validFrom < waitingUntil) {
+		return refuse(
+			`Die Miete muss mindestens ein Jahr unverändert bleiben (§ 557b Abs. 2 BGB); die neue Miete kann frühestens am ${formatDate(waitingUntil)} gelten.`
+		);
+	}
+	// First the history without the change, as when it is deleted; then the change on its new
+	// date, as when it is approved. The update statements run in that order in one batch.
+	const previous = rentOn(others, change.validFrom);
+	if (!previous) return refuse('Dem Mietvertrag fehlt die Miete bei Vertragsbeginn.');
+	const removed = laterRows(
+		db,
+		context.accountId,
+		others,
+		change.validFrom,
+		amountsOf(change),
+		amountsOf(previous)
+	);
+	const without = withLaterRows(others, removed);
+	const before = rentOn(without, validFrom)!;
+	const amounts = { ...amountsOf(before), baseRent: change.baseRent };
+	const moved: HistoryChange = { ...change, ...amounts, validFrom };
+	const later = laterRows(db, context.accountId, without, validFrom, amountsOf(before), amounts);
+	const figures = letterFigures([...without, moved], lease, moved);
+	if (!figures) {
+		return refuse('Für dieses Schreiben fehlen der Bezugsindex oder die bisherige Miete.');
+	}
+
+	await runBatch(db, [
+		db
+			.update(rentChanges)
+			.set({
+				validFrom,
+				...amounts,
+				deliveredOn,
+				letterText: indexLetterText({ unitName: lease.unit.name, tenants: lease.tenants, figures }),
+				letterTable: indexLetterRows(figures)
+			})
+			.where(where),
+		...removed.statements,
+		...later.statements,
+		auditEntry(
+			db,
+			context,
+			'lease',
+			leaseId,
+			'update',
+			`${delivery}; die Kaltmiete von ${formatCents(change.baseRent)} gilt ab ${formatDate(validFrom)} statt ab ${formatDate(change.validFrom)}` +
+				laterRowsNote(later)
+		),
+		...(await leaseChargeStatements(db, context.accountId, leaseId, {
+			changes: [...withLaterRows(without, later), moved]
+		}))
+	]);
+	return { ok: true, id: changeId };
+}
+
 // § 558: the demand and the consent
 
 /**

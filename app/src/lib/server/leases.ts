@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { formatDate, monthOf, today, type IsoDate } from '../dates';
 import { rentOn, type RentChange as RentHistoryEntry } from '../domain/rents';
+import { personName } from '../format';
 import { terminatedByLabels } from '../labels';
 import { formatCents } from '../money';
 import type { GermanState } from '../working-days';
@@ -605,6 +606,7 @@ export async function updateLease(
 	]);
 	const extraUnitIds = [...new Set(input.extraUnitIds)].filter((unitId) => unitId !== input.unitId);
 	const tenantIds = [...new Set(input.tenantIds)];
+	const tenantChange = await tenantChangeOf(db, accountId, existing.tenants, tenantIds);
 	await runBatch(db, [
 		db
 			.update(leases)
@@ -639,15 +641,63 @@ export async function updateLease(
 					eq(leasePersons.validFrom, existing.startDate)
 				)
 			),
-		auditEntry(db, context, 'lease', leaseId, 'update', updateSummary(existing, input, later)),
+		auditEntry(
+			db,
+			context,
+			'lease',
+			leaseId,
+			'update',
+			updateSummary(existing, input, later, tenantChange)
+		),
 		...charges.statements
 	]);
 	return { ok: true };
 }
 
-/** "Mietvertrag geändert", naming the initial amounts, deposit and persons when they changed. */
-function updateSummary(existing: Lease, input: LeaseInput, later: LaterRows): string {
+type TenantChange = { added: string[]; removed: string[] };
+
+/**
+ * The names of the tenants an edit adds to and removes from the lease. The lease keeps only its
+ * current tenants, so the log entry is where a change of tenants stays on record with its date.
+ */
+async function tenantChangeOf(
+	db: Database,
+	accountId: string,
+	current: readonly Tenant[],
+	tenantIds: readonly string[]
+): Promise<TenantChange> {
+	const addedIds = tenantIds.filter((id) => !current.some((tenant) => tenant.id === id));
+	const added: string[] = [];
+	for (const ids of chunkIds(addedIds)) {
+		const rows = await db
+			.select({ firstName: tenants.firstName, lastName: tenants.lastName })
+			.from(tenants)
+			.where(and(eq(tenants.accountId, accountId), inArray(tenants.id, ids)));
+		added.push(...rows.map(personName));
+	}
+	return {
+		added: added.sort(),
+		removed: current.filter((tenant) => !tenantIds.includes(tenant.id)).map(personName)
+	};
+}
+
+/**
+ * "Mietvertrag geändert", naming the initial amounts, deposit, persons and the tenants who joined
+ * or left when they changed.
+ */
+function updateSummary(
+	existing: Lease,
+	input: LeaseInput,
+	later: LaterRows,
+	tenantChange: TenantChange
+): string {
 	const changed: string[] = [];
+	if (tenantChange.added.length > 0) {
+		changed.push(`Mieter hinzugefügt: ${tenantChange.added.join(', ')}`);
+	}
+	if (tenantChange.removed.length > 0) {
+		changed.push(`Mieter entfernt: ${tenantChange.removed.join(', ')}`);
+	}
 	if (existing.startDate !== input.startDate) {
 		changed.push(`Beginn ${formatDate(input.startDate)}`);
 	}
