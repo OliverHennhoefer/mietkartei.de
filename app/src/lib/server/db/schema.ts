@@ -14,7 +14,8 @@ import { germanStates, type GermanState } from '../../working-days';
 
 // Every record belongs to an account. The hosted variant serves many accounts from one database;
 // a self-hosted instance simply has a single account. Amounts are integer euro cents, dates are
-// ISO strings (YYYY-MM-DD).
+// ISO strings (YYYY-MM-DD). Every foreign key column leads an index. Schema changes must keep the
+// existing data, see .github/MIGRATIONS.md.
 
 const id = () =>
 	text('id')
@@ -405,7 +406,8 @@ export const rentChanges = sqliteTable(
 		// "The rent on a day" must be one row, so two approved changes never share a date.
 		uniqueIndex('rent_changes_approved_unique')
 			.on(table.leaseId, table.validFrom)
-			.where(sql`${table.status} = 'approved'`)
+			.where(sql`${table.status} = 'approved'`),
+		index('rent_changes_created_by_idx').on(table.createdBy)
 	]
 );
 
@@ -516,7 +518,8 @@ export const depositTransactions = sqliteTable(
 		index('deposit_transactions_lease_id_idx').on(table.leaseId),
 		uniqueIndex('deposit_transactions_bank_transaction_unique')
 			.on(table.bankTransactionId)
-			.where(sql`${table.bankTransactionId} is not null`)
+			.where(sql`${table.bankTransactionId} is not null`),
+		index('deposit_transactions_settlement_id_idx').on(table.settlementId)
 	]
 );
 
@@ -660,7 +663,8 @@ export const payments = sqliteTable(
 	(table) => [
 		index('payments_account_id_idx').on(table.accountId),
 		index('payments_lease_id_date_idx').on(table.leaseId, table.date),
-		index('payments_bank_transaction_id_idx').on(table.bankTransactionId)
+		index('payments_bank_transaction_id_idx').on(table.bankTransactionId),
+		index('payments_settlement_id_idx').on(table.settlementId)
 	]
 );
 
@@ -769,7 +773,11 @@ export const bankImports = sqliteTable(
 		importedBy: text('imported_by').references(() => users.id, { onDelete: 'set null' }),
 		createdAt: createdAt()
 	},
-	(table) => [index('bank_imports_account_id_idx').on(table.accountId)]
+	(table) => [
+		index('bank_imports_account_id_idx').on(table.accountId),
+		index('bank_imports_bank_account_id_idx').on(table.bankAccountId),
+		index('bank_imports_imported_by_idx').on(table.importedBy)
+	]
 );
 
 export const bankTransactionStatuses = ['unmatched', 'matched', 'ignored'] as const;
@@ -808,7 +816,8 @@ export const bankTransactions = sqliteTable(
 		index('bank_transactions_account_id_idx').on(table.accountId),
 		index('bank_transactions_status_idx').on(table.accountId, table.status),
 		// The same statement line is never imported twice.
-		uniqueIndex('bank_transactions_fingerprint_unique').on(table.bankAccountId, table.fingerprint)
+		uniqueIndex('bank_transactions_fingerprint_unique').on(table.bankAccountId, table.fingerprint),
+		index('bank_transactions_import_id_idx').on(table.importId)
 	]
 );
 
@@ -830,7 +839,10 @@ export const matchingRules = sqliteTable(
 		confirmed: bool('confirmed', false),
 		createdAt: createdAt()
 	},
-	(table) => [index('matching_rules_account_id_idx').on(table.accountId)]
+	(table) => [
+		index('matching_rules_account_id_idx').on(table.accountId),
+		index('matching_rules_lease_id_idx').on(table.leaseId)
+	]
 );
 
 // Expenses (Ausgaben)
@@ -899,7 +911,9 @@ export const expenses = sqliteTable(
 		index('expenses_service_provider_id_idx').on(table.serviceProviderId),
 		uniqueIndex('expenses_bank_transaction_unique')
 			.on(table.bankTransactionId)
-			.where(sql`${table.bankTransactionId} is not null`)
+			.where(sql`${table.bankTransactionId} is not null`),
+		index('expenses_property_id_idx').on(table.propertyId),
+		index('expenses_unit_id_idx').on(table.unitId)
 	]
 );
 
@@ -931,7 +945,9 @@ export const costCategories = sqliteTable(
 	(table) => [
 		index('cost_categories_account_id_idx').on(table.accountId),
 		// Seeding the standard categories is idempotent.
-		uniqueIndex('cost_categories_name_unique').on(table.accountId, table.name)
+		uniqueIndex('cost_categories_name_unique').on(table.accountId, table.name),
+		index('cost_categories_allocation_key_id_idx').on(table.allocationKeyId),
+		index('cost_categories_billing_circle_id_idx').on(table.billingCircleId)
 	]
 );
 
@@ -972,7 +988,8 @@ export const allocationKeys = sqliteTable(
 	},
 	(table) => [
 		index('allocation_keys_account_id_idx').on(table.accountId),
-		uniqueIndex('allocation_keys_name_unique').on(table.accountId, table.name)
+		uniqueIndex('allocation_keys_name_unique').on(table.accountId, table.name),
+		index('allocation_keys_property_id_idx').on(table.propertyId)
 	]
 );
 
@@ -989,7 +1006,11 @@ export const allocationKeyShares = sqliteTable(
 			.references(() => units.id, { onDelete: 'cascade' }),
 		share: real('share').notNull()
 	},
-	(table) => [primaryKey({ columns: [table.keyId, table.unitId] })]
+	(table) => [
+		primaryKey({ columns: [table.keyId, table.unitId] }),
+		index('allocation_key_shares_account_id_idx').on(table.accountId),
+		index('allocation_key_shares_unit_id_idx').on(table.unitId)
+	]
 );
 
 /** Abrechnungskreis: the subset of a property's units that shares a cost. */
@@ -1004,7 +1025,10 @@ export const billingCircles = sqliteTable(
 		name: text('name').notNull(),
 		createdAt: createdAt()
 	},
-	(table) => [index('billing_circles_property_id_idx').on(table.propertyId)]
+	(table) => [
+		index('billing_circles_property_id_idx').on(table.propertyId),
+		index('billing_circles_account_id_idx').on(table.accountId)
+	]
 );
 
 export const billingCircleUnits = sqliteTable(
@@ -1018,7 +1042,11 @@ export const billingCircleUnits = sqliteTable(
 			.notNull()
 			.references(() => units.id, { onDelete: 'cascade' })
 	},
-	(table) => [primaryKey({ columns: [table.circleId, table.unitId] })]
+	(table) => [
+		primaryKey({ columns: [table.circleId, table.unitId] }),
+		index('billing_circle_units_account_id_idx').on(table.accountId),
+		index('billing_circle_units_unit_id_idx').on(table.unitId)
+	]
 );
 
 export const fuels = ['gas', 'oil', 'lpg', 'district_heating', 'other'] as const;
@@ -1075,7 +1103,11 @@ export const costItems = sqliteTable(
 	},
 	(table) => [
 		index('cost_items_account_id_idx').on(table.accountId),
-		index('cost_items_property_id_period_idx').on(table.propertyId, table.periodStart)
+		index('cost_items_property_id_period_idx').on(table.propertyId, table.periodStart),
+		index('cost_items_category_id_idx').on(table.categoryId),
+		index('cost_items_allocation_key_id_idx').on(table.allocationKeyId),
+		index('cost_items_billing_circle_id_idx').on(table.billingCircleId),
+		index('cost_items_insurance_policy_id_idx').on(table.insurancePolicyId)
 	]
 );
 
@@ -1101,7 +1133,9 @@ export const costItemUnitAmounts = sqliteTable(
 	},
 	(table) => [
 		index('cost_item_unit_amounts_cost_item_id_idx').on(table.costItemId),
-		index('cost_item_unit_amounts_account_id_idx').on(table.accountId)
+		index('cost_item_unit_amounts_account_id_idx').on(table.accountId),
+		index('cost_item_unit_amounts_unit_id_idx').on(table.unitId),
+		index('cost_item_unit_amounts_lease_id_idx').on(table.leaseId)
 	]
 );
 
@@ -1129,7 +1163,8 @@ export const meters = sqliteTable(
 	},
 	(table) => [
 		index('meters_account_id_idx').on(table.accountId),
-		index('meters_property_id_idx').on(table.propertyId)
+		index('meters_property_id_idx').on(table.propertyId),
+		index('meters_unit_id_idx').on(table.unitId)
 	]
 );
 
@@ -1193,7 +1228,8 @@ export const operatingCostStatements = sqliteTable(
 			table.periodStart,
 			table.periodEnd,
 			table.version
-		)
+		),
+		index('operating_cost_statements_approved_by_idx').on(table.approvedBy)
 	]
 );
 
@@ -1222,7 +1258,8 @@ export const statementResults = sqliteTable(
 	},
 	(table) => [
 		index('statement_results_account_id_idx').on(table.accountId),
-		uniqueIndex('statement_results_unique').on(table.statementId, table.leaseId)
+		uniqueIndex('statement_results_unique').on(table.statementId, table.leaseId),
+		index('statement_results_lease_id_idx').on(table.leaseId)
 	]
 );
 
@@ -1256,7 +1293,8 @@ export const co2CostSplits = sqliteTable(
 	},
 	(table) => [
 		index('co2_cost_splits_account_id_idx').on(table.accountId),
-		uniqueIndex('co2_cost_splits_unique').on(table.leaseId, table.year)
+		uniqueIndex('co2_cost_splits_unique').on(table.leaseId, table.year),
+		index('co2_cost_splits_created_by_idx').on(table.createdBy)
 	]
 );
 
@@ -1283,7 +1321,11 @@ export const documents = sqliteTable(
 	(table) => [
 		index('documents_account_id_idx').on(table.accountId),
 		index('documents_lease_id_idx').on(table.leaseId),
-		index('documents_property_id_idx').on(table.propertyId)
+		index('documents_property_id_idx').on(table.propertyId),
+		index('documents_unit_id_idx').on(table.unitId),
+		index('documents_tenant_id_idx').on(table.tenantId),
+		index('documents_cost_item_id_idx').on(table.costItemId),
+		index('documents_uploaded_by_idx').on(table.uploadedBy)
 	]
 );
 
@@ -1452,7 +1494,12 @@ export const tasks = sqliteTable(
 		note: text('note'),
 		createdAt: createdAt()
 	},
-	(table) => [index('tasks_account_id_idx').on(table.accountId)]
+	(table) => [
+		index('tasks_account_id_idx').on(table.accountId),
+		index('tasks_property_id_idx').on(table.propertyId),
+		index('tasks_lease_id_idx').on(table.leaseId),
+		index('tasks_service_provider_id_idx').on(table.serviceProviderId)
+	]
 );
 
 export const themes = ['system', 'light', 'dark'] as const;
@@ -1506,16 +1553,20 @@ export const users = sqliteTable(
  * The secret link of a user's calendar subscription (iCal) with the account's deadlines and tasks.
  * Only the hash of the link token is stored; a new link replaces the old one.
  */
-export const calendarFeeds = sqliteTable('calendar_feeds', {
-	id: id(),
-	accountId: accountId(),
-	userId: text('user_id')
-		.notNull()
-		.unique()
-		.references(() => users.id, { onDelete: 'cascade' }),
-	tokenHash: text('token_hash').notNull().unique(),
-	createdAt: createdAt()
-});
+export const calendarFeeds = sqliteTable(
+	'calendar_feeds',
+	{
+		id: id(),
+		accountId: accountId(),
+		userId: text('user_id')
+			.notNull()
+			.unique()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		tokenHash: text('token_hash').notNull().unique(),
+		createdAt: createdAt()
+	},
+	(table) => [index('calendar_feeds_account_id_idx').on(table.accountId)]
+);
 
 /** A signed-in browser. The id is the SHA-256 hash of the cookie token, never the token itself. */
 export const sessions = sqliteTable(
@@ -1584,7 +1635,8 @@ export const apiKeys = sqliteTable(
 		index('api_keys_account_id_idx').on(table.accountId),
 		index('api_keys_user_id_idx').on(table.userId),
 		uniqueIndex('api_keys_access_hash_unique').on(table.accessHash),
-		uniqueIndex('api_keys_refresh_hash_unique').on(table.refreshHash)
+		uniqueIndex('api_keys_refresh_hash_unique').on(table.refreshHash),
+		index('api_keys_client_id_idx').on(table.clientId)
 	]
 );
 
@@ -1608,7 +1660,10 @@ export const oauthCodes = sqliteTable(
 		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
 		createdAt: createdAt()
 	},
-	(table) => [index('oauth_codes_user_id_idx').on(table.userId)]
+	(table) => [
+		index('oauth_codes_user_id_idx').on(table.userId),
+		index('oauth_codes_client_id_idx').on(table.clientId)
+	]
 );
 
 /**
@@ -1630,7 +1685,10 @@ export const invitations = sqliteTable(
 		revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),
 		createdAt: createdAt()
 	},
-	(table) => [index('invitations_account_id_idx').on(table.accountId)]
+	(table) => [
+		index('invitations_account_id_idx').on(table.accountId),
+		index('invitations_invited_by_idx').on(table.invitedBy)
+	]
 );
 
 /** A password reset link. The id is the SHA-256 hash of the token; valid for one hour. */
@@ -1736,5 +1794,8 @@ export const auditLog = sqliteTable(
 		action: text('action').notNull(),
 		summary: text('summary').notNull()
 	},
-	(table) => [index('audit_log_account_id_at_idx').on(table.accountId, table.at)]
+	(table) => [
+		index('audit_log_account_id_at_idx').on(table.accountId, table.at),
+		index('audit_log_user_id_idx').on(table.userId)
+	]
 );
