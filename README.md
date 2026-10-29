@@ -7,7 +7,7 @@
 Mietverwaltung, Bankabgleich und Betriebskostenabrechnung (Nebenkostenabrechnung) für private Vermieter an einem Ort. Open Source, nachvollziehbar gerechnet, ohne Einarbeitung und direkt mit Claude oder ChatGPT nutzbar.
 
 [![Tests](https://img.shields.io/github/actions/workflow/status/OliverHennhoefer/mietkartei.de/app.yml?branch=main&label=Tests)](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/app.yml)
-[![Dokumentation](https://img.shields.io/github/actions/workflow/status/OliverHennhoefer/mietkartei.de/websites.yml?branch=main&label=Doku)](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/websites.yml)
+[![Cloudflare Workers](https://img.shields.io/website?url=https%3A%2F%2Fapp.mietkartei.de%2Fhealth&label=Cloudflare%20Workers&logo=cloudflare&logoColor=white&up_message=online&down_message=offline)](https://app.mietkartei.de)
 [![Testabdeckung](https://codecov.io/gh/OliverHennhoefer/mietkartei.de/graph/badge.svg)](https://codecov.io/gh/OliverHennhoefer/mietkartei.de)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/OliverHennhoefer/mietkartei.de?label=OpenSSF%20Scorecard)](https://scorecard.dev/viewer/?uri=github.com/OliverHennhoefer/mietkartei.de)
 [![Lizenz: AGPL-3.0](https://img.shields.io/badge/Lizenz-AGPL--3.0-111111)](LICENSE)
