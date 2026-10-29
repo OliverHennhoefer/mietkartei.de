@@ -50,7 +50,7 @@ docker --context mietkartei compose -f app/compose.yml up -d
 
 [compose.yml](../app/compose.yml) is read on the laptop and the container runs on the server. Without `MIETKARTEI_BIND` the port is bound to `127.0.0.1` on the server and is not reachable at all. The app is then available at `http://100.x.y.z:3000` from every device in the tailnet. To pin a version, set `MIETKARTEI_TAG` to a release such as `0.1` (receives patch releases) or `0.1.0`, or to a commit tag such as `sha-c3fd874`; to roll back, set it to an older tag and run `up -d` again.
 
-Migrations run when the container starts. While mietkartei is in development, a migration may drop or reshape existing data, so take a [backup](#backups) before every update. Settings such as `ORIGIN` or `MAIL_TRANSPORT` (all listed in [app/README.md](../app/README.md)) belong in an `environment:` entry in the compose file, and secrets such as `MAIL_API_KEY` in a file on the server with mode `600` passed as `env_file`; never in the repository.
+Migrations run when the container starts. Before it applies new ones, the app writes a snapshot of the database to `/data/backups/` and keeps the last three, see [MIGRATIONS.md](MIGRATIONS.md#backups-and-restore); take a [backup](#backups) off the server before every update all the same. Settings such as `ORIGIN` or `MAIL_TRANSPORT` (all listed in [app/README.md](../app/README.md)) belong in an `environment:` entry in the compose file, and secrets such as `MAIL_API_KEY` in a file on the server with mode `600` passed as `env_file`; never in the repository.
 
 ## Backups
 

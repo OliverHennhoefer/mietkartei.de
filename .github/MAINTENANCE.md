@@ -23,6 +23,7 @@ GitHub uses the issue and pull request templates from the default branch `main`.
 | `HOMEPAGE.md` | Preview, build and deployment of the homepage |
 | `DOCUMENTATION.md` | Preview, build and deployment of the documentation |
 | `DEPLOYMENT.md` | Cloudflare access, domains and hosting migration |
+| `MIGRATIONS.md` | Data-preserving database migrations, backups and restore |
 | `dependabot.yml` | Weekly dependency update proposals |
 | `release.yml` | Categories for automatically generated release notes |
 | `RELEASE_TEMPLATE.md` | Template for a release description, used manually |
