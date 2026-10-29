@@ -1109,9 +1109,9 @@ function planLeases(rows: DataRow[], context: ImportContext): ImportPlan {
 }
 
 /**
- * The lease a payment belongs to: the leases of the unit (as main or extra unit) running on the
- * date, else all leases of the unit; narrowed by the tenant's last name when given. Two leases
- * left is an error that asks for the last name.
+ * The lease a payment belongs to: the leases of the unit (as main or extra unit), narrowed by the
+ * tenant's last name when given, then to those running on the date if any do. Two leases left is
+ * an error that asks for the last name.
  */
 function findLeaseForPayment(
 	context: ImportContext,
@@ -1125,22 +1125,24 @@ function findLeaseForPayment(
 		(lease) => lease.unitId === unit.id || lease.extraUnitIds.includes(unit.id)
 	);
 	if (candidates.length === 0) return { reason: `Für ${where} gibt es keinen Mietvertrag.` };
-	const running = candidates.filter(
+	const lastName = norm(tenantLastName.split(',')[0]);
+	const tenantById = new Map(context.tenants.map((tenant) => [tenant.id, tenant]));
+	// The name narrows before the date does: a former tenant paying arrears after the next
+	// tenancy started still finds their own, ended lease.
+	const named = lastName
+		? candidates.filter((lease) =>
+				lease.tenantIds.some((id) => norm(tenantById.get(id)?.lastName ?? '') === lastName)
+			)
+		: candidates;
+	if (named.length === 0) {
+		return {
+			reason: `Für ${where} gibt es keinen Mietvertrag mit einem Mieter „${tenantLastName}“.`
+		};
+	}
+	const running = named.filter(
 		(lease) => lease.startDate <= date && (lease.endDate === null || lease.endDate >= date)
 	);
-	let pool = running.length > 0 ? running : candidates;
-	const lastName = norm(tenantLastName.split(',')[0]);
-	if (lastName) {
-		const tenantById = new Map(context.tenants.map((tenant) => [tenant.id, tenant]));
-		pool = pool.filter((lease) =>
-			lease.tenantIds.some((id) => norm(tenantById.get(id)?.lastName ?? '') === lastName)
-		);
-		if (pool.length === 0) {
-			return {
-				reason: `Für ${where} gibt es keinen Mietvertrag mit einem Mieter „${tenantLastName}“.`
-			};
-		}
-	}
+	const pool = running.length > 0 ? running : named;
 	if (pool.length > 1) {
 		return {
 			reason: `Zu ${where} passen am ${formatDate(date)} mehrere Mietverträge; gib den Nachnamen des Mieters an.`

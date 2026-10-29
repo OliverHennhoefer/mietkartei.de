@@ -653,6 +653,23 @@ describe('planImport: payments', () => {
 		]);
 	});
 
+	it('finds the ended lease of a former tenant named in the row after the next one started', () => {
+		const context: ImportContext = {
+			...leaseContext,
+			leases: [{ ...leaseContext.leases[0], tenantIds: ['t3'] }, leaseContext.leases[1]],
+			payments: []
+		};
+		const csv = [
+			'Datum;Objekt;Einheit;Mieter;Betrag;Verwendungszweck',
+			'15.03.2025;Haus;EG links;Beispiel;120,00;Nachzahlung Betriebskosten 2024',
+			'15.03.2025;Haus;EG links;;850,00;Miete März'
+		].join('\n');
+		const result = plan('payments', csv, context);
+		if (result.kind !== 'payments') throw new Error(result.kind);
+		expect(result.payments.map((payment) => payment.leaseId)).toEqual(['l1', 'l2']);
+		expect(reasons(result)).toEqual([]);
+	});
+
 	it('asks for the last name when two leases of the unit overlap on the date', () => {
 		const context: ImportContext = {
 			...leaseContext,
