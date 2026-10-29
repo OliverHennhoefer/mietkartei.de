@@ -63,9 +63,9 @@
 <div class="narrow">
 	<h1>mietkartei ausprobieren</h1>
 	<p class="auth-lead">
-		Du bekommst einen eigenen Beispielbestand: zwei Häuser, fünf Mietverträge, zwei Jahre
-		Mietzahlungen, offene Bankumsätze und die Belege für eine Betriebskostenabrechnung. Ändere,
-		lösche und rechne nach Belieben; nach 24 Stunden wird alles gelöscht.
+		Du bekommst einen eigenen Beispielbestand: ein Mehrfamilienhaus und zwei Eigentumswohnungen, elf
+		Mietverträge, acht Jahre Mietzahlungen, offene Bankumsätze und die Betriebskostenabrechnungen
+		der Vorjahre. Ändere, lösche und rechne nach Belieben. Nach 24 Stunden wird alles gelöscht.
 	</p>
 	<form method="POST" class="card" use:enhance={start} aria-busy={starting}>
 		{#if starting}
