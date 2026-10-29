@@ -9,6 +9,7 @@ from pathlib import Path
 from shutil import copyfile, rmtree
 
 from build_guides import build_guides, json_ld
+from build_reference_cases import build_reference_cases
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +34,7 @@ for filename in (
     "_redirects",
     "assets/social.png",
     "assets/copy.js",
+    "assets/rechenbeispiele.js",
 ):
     destination = OUTPUT / filename
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -121,6 +123,7 @@ def frame_pages() -> None:
 add_faq_json_ld(OUTPUT / "fragen" / "index.html")
 fingerprint_screenshots(OUTPUT / "index.html")
 build_guides(ROOT / "website", OUTPUT)
+build_reference_cases(ROOT / "website", OUTPUT)
 frame_pages()
 
 print(f"Startseite erzeugt: {OUTPUT}")

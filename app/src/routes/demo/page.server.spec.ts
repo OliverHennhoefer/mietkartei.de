@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { validateSession } from '#lib/server/auth.ts';
 import { DEMO_STARTS_PER_HOUR } from '#lib/server/demo-accounts.ts';
@@ -36,11 +37,26 @@ describe('load', () => {
 	it('sends a visitor with a demo running into it', async () => {
 		expect(await outcome(() => load(routeEvent(db)))).toEqual({ redirect: '/' });
 		expect(await outcome(() => load(routeEvent(db, { user: null })))).toEqual({
-			data: { turnstileSiteKey: null }
+			data: { turnstileSiteKey: null, example: null }
 		});
 		Object.assign(env, { TURNSTILE_SITE_KEY: 'site', TURNSTILE_SECRET_KEY: 'secret' });
 		expect(await outcome(() => load(routeEvent(db, { user: null })))).toEqual({
-			data: { turnstileSiteKey: 'site' }
+			data: { turnstileSiteKey: 'site', example: null }
+		});
+	});
+
+	it('offers a Rechenbeispiel of the website, also to a visitor with a demo running', async () => {
+		const example = {
+			data: {
+				turnstileSiteKey: null,
+				example: { slug: 'mieterwechsel', title: 'Mieterwechsel mitten im Monat', year: 2025 }
+			}
+		};
+		const url = '/demo?beispiel=mieterwechsel';
+		expect(await outcome(() => load(routeEvent(db, { user: null, url })))).toEqual(example);
+		expect(await outcome(() => load(routeEvent(db, { url })))).toEqual(example);
+		expect(await outcome(() => load(routeEvent(db, { url: '/demo?beispiel=x' })))).toEqual({
+			redirect: '/'
 		});
 	});
 });
@@ -55,6 +71,24 @@ describe('starting the demo', () => {
 		const [token] = [...cookies.values()];
 		const session = await validateSession(db, token);
 		expect(session?.user.email).toMatch(/@demo\.invalid$/);
+	});
+
+	it('opens a Rechenbeispiel on its statement', async () => {
+		const cookies = new Map<string, string>();
+		const result = await outcome(() =>
+			actions.default(
+				routeEvent(db, { user: null, form: {}, cookies, url: '/demo?beispiel=heizkosten-co2' })
+			)
+		);
+		expect(result).toEqual({
+			redirect: expect.stringMatching(/^\/betriebskosten\/abrechnungen\/[\w-]+$/)
+		});
+		const session = await validateSession(db, [...cookies.values()][0]);
+		const [account] = await db
+			.select()
+			.from(accounts)
+			.where(eq(accounts.id, session!.user.accountId));
+		expect(account.landlordName).toBe('Eva Beispiel');
 	});
 
 	it('refuses on any other instance', async () => {

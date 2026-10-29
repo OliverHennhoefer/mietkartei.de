@@ -14,13 +14,22 @@
 
 	// What the server does while the visitor waits, in its order. It reports no progress of its
 	// own, so the steps advance on a timer and the last one stays open until the demo is there.
-	const steps = [
-		'Häuser und Wohnungen anlegen',
-		'Mietverträge und Mietzahlungen buchen',
-		'Bankumsätze einlesen',
-		'Betriebskostenabrechnungen erstellen',
-		'Briefe und Belege ablegen'
-	];
+	const steps = $derived(
+		data.example
+			? [
+					'Haus und Wohnungen anlegen',
+					'Mietverträge und Vorauszahlungen buchen',
+					'Belege und Zählerstände erfassen',
+					'Betriebskostenabrechnung erstellen'
+				]
+			: [
+					'Häuser und Wohnungen anlegen',
+					'Mietverträge und Mietzahlungen buchen',
+					'Bankumsätze einlesen',
+					'Betriebskostenabrechnungen erstellen',
+					'Briefe und Belege ablegen'
+				]
+	);
 	const STEP_MS = 650;
 
 	let starting = $state(false);
@@ -61,12 +70,23 @@
 </svelte:head>
 
 <div class="narrow">
-	<h1>mietkartei ausprobieren</h1>
-	<p class="auth-lead">
-		Du bekommst einen eigenen Beispielbestand: ein Mehrfamilienhaus und zwei Eigentumswohnungen, elf
-		Mietverträge, acht Jahre Mietzahlungen, offene Bankumsätze und die Betriebskostenabrechnungen
-		der Vorjahre. Ändere, lösche und rechne nach Belieben. Nach 24 Stunden wird alles gelöscht.
-	</p>
+	{#if data.example}
+		<h1>Rechenbeispiel in der Demo</h1>
+		<p class="auth-lead">
+			Du bekommst das Rechenbeispiel „{data.example.title}“ als eigenen Bestand: das Haus, die
+			Mietverträge, die Belege von {data.example.year} und den Entwurf der Betriebskostenabrechnung, die
+			genau die Beträge der Webseite ergibt. Ändere einen Beleg und sieh, wie sich die Anteile verschieben.
+			Nach 24 Stunden wird alles gelöscht.
+		</p>
+	{:else}
+		<h1>mietkartei ausprobieren</h1>
+		<p class="auth-lead">
+			Du bekommst einen eigenen Beispielbestand: ein Mehrfamilienhaus und zwei Eigentumswohnungen,
+			elf Mietverträge, acht Jahre Mietzahlungen, offene Bankumsätze und die
+			Betriebskostenabrechnungen der Vorjahre. Ändere, lösche und rechne nach Belieben. Nach 24
+			Stunden wird alles gelöscht.
+		</p>
+	{/if}
 	<form method="POST" class="card" use:enhance={start} aria-busy={starting}>
 		{#if starting}
 			<div class="starting" role="status">
@@ -113,7 +133,15 @@
 			</button>
 		</div>
 	</form>
-	<p class="questions small"><a href="https://mietkartei.de/fragen/">Fragen?</a></p>
+	<p class="questions small">
+		{#if data.example}
+			<a href="https://mietkartei.de/rechenbeispiele/{data.example.slug}/"
+				>Zurück zum Rechenbeispiel</a
+			>
+			·
+		{/if}
+		<a href="https://mietkartei.de/fragen/">Fragen?</a>
+	</p>
 </div>
 
 <style>

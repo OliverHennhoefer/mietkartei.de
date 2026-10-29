@@ -27,6 +27,7 @@ Worauf mietkartei setzt: nachvollziehbar gerechnete Umlagen, kein Lock-in (offen
 - [Häufige Fragen](https://mietkartei.de/fragen/): Zielgruppe, Kosten, Nebenkostenabrechnung, KI-Assistenten, Bankimport, Datenübernahme, Datenhaltung und Selbsthosten
 - [Demo](https://demo.mietkartei.de/): eigener Beispielbestand ohne Anmeldung, wird nach 24 Stunden gelöscht
 - [Ratgeber](https://mietkartei.de/ratgeber/): Mietrecht, Heiz- und Betriebskosten für private Vermieter, auch als [RSS-Feed](https://mietkartei.de/ratgeber/feed.xml)
+- [Rechenbeispiele](https://mietkartei.de/rechenbeispiele/): Betriebskostenabrechnung Schritt für Schritt (Mieterwechsel mitten im Monat, Heizkosten mit CO₂-Aufteilung), unabhängig nachgerechnet und als automatischer Test auf den Cent geprüft
 - [Dokumentation](https://docs.mietkartei.de/): Anleitungen zu mietkartei, als ein Textdokument unter [llms-full.txt](https://docs.mietkartei.de/llms-full.txt)
 - [Nebenkostenabrechnung erstellen](https://docs.mietkartei.de/anleitungen/nebenkostenabrechnung/): Schritt für Schritt von den Belegen bis zum PDF je Mieter
 - [Umlageschlüssel](https://docs.mietkartei.de/anleitungen/umlageschluessel/): welcher Schlüssel für welche Kostenart passt
