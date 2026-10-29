@@ -109,6 +109,13 @@ The registration form shows a Turnstile check once both keys are configured; wit
 3. Store the secret key as a Worker secret: run `npx wrangler secret put TURNSTILE_SECRET_KEY` in `app/` and paste the key, or add it under **Workers & Pages → mietkartei-app → Settings → Variables and Secrets** as type **Secret**.
 4. After the next deploy, open `https://app.mietkartei.de/registrieren` in a private window and check that the widget appears.
 
+The demo's **Demo starten** button takes the same check, with its own widget and keys, because every demo writes some 3,000 rows to the demo's D1 database. Without the keys only the limits apply: 10 starts per minute and client address, and at most 50 new demos per hour across all visitors (`DEMO_STARTS_PER_HOUR` in `app/src/lib/server/demo-accounts.ts`).
+
+1. Add a second Turnstile widget `mietkartei-demo` with the hostname `demo.mietkartei.de` and the mode **Managed**.
+2. Enter its site key as `TURNSTILE_SITE_KEY` under `env.demo.vars` in `app/wrangler.jsonc`.
+3. Store its secret key for the demo Worker: run `npx wrangler secret put TURNSTILE_SECRET_KEY --env demo` in `app/`, or add it under **Workers & Pages → mietkartei-demo → Settings → Variables and Secrets** as type **Secret**.
+4. After the next deploy, open `https://demo.mietkartei.de/demo` in a private window and check that the widget appears and the demo starts.
+
 ### Mails (Resend)
 
 The app sends password reset links, invitations and the confirmation of a new email address through [Resend](https://resend.com). `MAIL_TRANSPORT=resend` and the sender `MAIL_FROM=noreply@mietkartei.de` are plain `vars` in `app/wrangler.jsonc`; the API key is a Worker secret. The Worker refuses `MAIL_TRANSPORT=console`, which would write the links into its logs. Until the key is set, inviting someone or changing an email address fails with an error page, and reset links are not sent: the reset form answers as always, because its answer must not tell which addresses have an account, and the Worker log names the failure.

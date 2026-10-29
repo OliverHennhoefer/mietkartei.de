@@ -3,6 +3,8 @@
 	import { page } from '$app/state';
 	import Icon from '#lib/components/Icon.svelte';
 
+	let { data, form } = $props();
+
 	// The one page of the demo meant for search engines and link previews.
 	const title = 'Demo ausprobieren | mietkartei';
 	const description =
@@ -39,6 +41,8 @@
 		return async ({ result, update }) => {
 			if (result.type !== 'redirect') starting = false;
 			await update();
+			// A token is valid for one check only, so a refused attempt needs a new one.
+			if (result.type !== 'redirect') window.turnstile?.reset();
 		};
 	};
 </script>
@@ -51,6 +55,9 @@
 	<meta property="og:url" content={url} />
 	<meta property="og:title" content={title} />
 	<meta property="og:description" content={description} />
+	{#if data.turnstileSiteKey}
+		<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+	{/if}
 </svelte:head>
 
 <div class="narrow">
@@ -78,6 +85,26 @@
 			</div>
 		{:else}
 			<p>Ohne Anmeldung, ohne E-Mail-Adresse. Gib in der Demo bitte keine echten Daten ein.</p>
+		{/if}
+		{#if data.turnstileSiteKey}
+			<!-- Kept while the demo starts, only hidden: the widget's script renders into it once. -->
+			<div
+				class="cf-turnstile"
+				hidden={starting}
+				data-sitekey={data.turnstileSiteKey}
+				data-language="de"
+			></div>
+		{/if}
+		{#if form?.botCheckFailed && !starting}
+			<p class="error" role="alert">
+				Die Prüfung, ob hier ein Mensch die Demo startet, hat nicht geklappt. Bitte versuche es noch
+				einmal.
+			</p>
+		{/if}
+		{#if form?.busy && !starting}
+			<p class="error" role="alert">
+				Gerade wurden sehr viele Demos gestartet. Bitte versuche es in einer Stunde noch einmal.
+			</p>
 		{/if}
 		<div class="form-actions">
 			<button type="submit" disabled={starting}>

@@ -36,7 +36,8 @@ export const variables = defineEnvVars({
 	TURNSTILE_SITE_KEY: {
 		description:
 			'Site key of a Cloudflare Turnstile widget. Together with TURNSTILE_SECRET_KEY it puts the ' +
-			'bot check on the registration form; unset, the form has none. The hosted variant sets both.',
+			"bot check on the registration form and the demo's start; unset, they have none. The " +
+			'hosted variant sets both.',
 		schema: (value) => value || ''
 	},
 	TURNSTILE_SECRET_KEY: {

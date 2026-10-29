@@ -49,7 +49,7 @@ export default defineConfig({
 				mode: 'auto',
 				directives: {
 					'default-src': ['self'],
-					// Cloudflare Turnstile, the bot check of the registration form, loads its script
+					// Cloudflare Turnstile, the bot check of registration and the demo, loads its script
 					// from there and shows its challenge in a frame from there. The app's own PDFs
 					// show in a frame of the preview dialog.
 					'script-src': ['self', 'https://challenges.cloudflare.com'],

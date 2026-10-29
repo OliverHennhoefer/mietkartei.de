@@ -1,6 +1,7 @@
-import { and, asc, eq, like, lt } from 'drizzle-orm';
+import { and, asc, count, eq, gte, like, lt } from 'drizzle-orm';
 import { deleteAccount } from './accounts';
 import { createSession } from './auth';
+import { runBatch } from './db/batch';
 import { today } from '../dates';
 import { weekStart } from './deadline-mails';
 import type { Database } from './db';
@@ -17,19 +18,26 @@ export const DEMO_LIFETIME = 24 * 60 * 60 * 1000;
 const DEMO_EMAIL_DOMAIN = '@demo.invalid';
 /** Expired accounts deleted per new demo, so the work stays small after a busy day. */
 const EXPIRED_PER_START = 5;
+/**
+ * New demos per hour across all visitors. Each one writes some 3,000 rows (16,000 row writes with
+ * the indexes) and 2.4 MB, so a script with many addresses could otherwise run up the bill and
+ * fill the database; real visitors stay far below it.
+ */
+export const DEMO_STARTS_PER_HOUR = 50;
+const HOUR = 60 * 60 * 1000;
 
-/** Creates a demo account with the demo data and returns the session for its owner. */
+/**
+ * Creates a demo account with the demo data and returns the session for its owner, or null when
+ * the demos of the last hour reached DEMO_STARTS_PER_HOUR.
+ */
 export async function startDemo(db: Database, options?: { storage?: Storage }) {
-	// Clearing out yesterday's demos is not the visitor's business: on Workers it runs after the
-	// response.
-	const cleanup = deleteExpiredDemoAccounts(db, Date.now(), options);
-	if (__DEPLOY_TARGET__ === 'cloudflare') {
-		const { waitUntil } = await import('cloudflare:workers');
-		waitUntil(cleanup);
-	} else await cleanup;
-	const [account] = await db
-		.insert(accounts)
-		.values({
+	// The account and its owner come first, in one batch, and the count after them: parallel
+	// starts each see their own account and those before it, so no more than the limit get through.
+	const accountId = crypto.randomUUID();
+	const userId = crypto.randomUUID();
+	await runBatch(db, [
+		db.insert(accounts).values({
+			id: accountId,
 			name: 'Demo',
 			// The sender of the demo's letters and statements.
 			landlordName: 'Katrin Hoffmann',
@@ -38,12 +46,10 @@ export async function startDemo(db: Database, options?: { storage?: Storage }) {
 			city: 'Berlin',
 			iban: 'DE63100500006600099110',
 			bankName: 'Berliner Sparkasse'
-		})
-		.returning({ id: accounts.id });
-	const [user] = await db
-		.insert(users)
-		.values({
-			accountId: account.id,
+		}),
+		db.insert(users).values({
+			id: userId,
+			accountId,
 			email: `demo-${crypto.randomUUID()}${DEMO_EMAIL_DOMAIN}`,
 			// No hash at all, so no password matches: the demo signs in through the session alone.
 			passwordHash: '!',
@@ -52,9 +58,36 @@ export async function startDemo(db: Database, options?: { storage?: Storage }) {
 			deadlineMailOrigin: 'https://demo.mietkartei.de',
 			deadlineMailSentOn: weekStart(today())
 		})
-		.returning({ id: users.id });
-	await createDemoData(db, { accountId: account.id, userId: user.id }, options);
-	return createSession(db, user.id);
+	]);
+	if ((await countDemoStarts(db, Date.now() - HOUR)) > DEMO_STARTS_PER_HOUR) {
+		await deleteAccount(db, accountId, options);
+		return null;
+	}
+	// Clearing out yesterday's demos is not the visitor's business: on Workers it runs after the
+	// response.
+	const cleanup = deleteExpiredDemoAccounts(db, Date.now(), options);
+	if (__DEPLOY_TARGET__ === 'cloudflare') {
+		const { waitUntil } = await import('cloudflare:workers');
+		waitUntil(cleanup);
+	} else await cleanup;
+	await createDemoData(db, { accountId, userId }, options);
+	return createSession(db, userId);
+}
+
+/** The demo accounts created since the time. */
+async function countDemoStarts(db: Database, since: number): Promise<number> {
+	const [row] = await db
+		.select({ count: count() })
+		.from(accounts)
+		.innerJoin(users, eq(users.accountId, accounts.id))
+		.where(
+			and(
+				eq(users.role, 'owner'),
+				like(users.email, `demo-%${DEMO_EMAIL_DOMAIN}`),
+				gte(accounts.createdAt, new Date(since))
+			)
+		);
+	return row.count;
 }
 
 /**
