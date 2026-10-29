@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { createBankAccount } from '#lib/server/bank/accounts.ts';
 import { assignExpense } from '#lib/server/bank/transactions.ts';
+import { createServiceProvider } from '#lib/server/service-providers.ts';
 import { bankTransactions } from '#lib/server/db/schema.ts';
 import { listExpenses } from '#lib/server/expenses.ts';
 import {
@@ -179,6 +180,45 @@ describe('auswertung/ausgaben', () => {
 		});
 		expect(await run(actions.update, { form: edit })).toMatchObject({ fail: 404 });
 		expect(await run(actions.delete, { form: { id: expense.id } })).toMatchObject({ fail: 404 });
+	});
+
+	it('names the Dienstleister or leaves it unknown and sums the year by Dienstleister', async () => {
+		const caretaker = await createServiceProvider(db, contextA, {
+			name: 'Hausmeisterservice Krüger',
+			service: 'Hausmeisterdienst',
+			phone: null,
+			email: null,
+			note: null
+		});
+		const expense = (amount: string, serviceProviderId: string) =>
+			run(actions.create, {
+				form: {
+					date: `${year}-02-01`,
+					amount,
+					category: 'operating_costs',
+					scope: '',
+					description: 'Hausmeisterdienst',
+					serviceProviderId
+				}
+			});
+		expect(await expense('10,00', 'fremd')).toMatchObject({
+			fail: 400,
+			data: { errors: { serviceProviderId: 'Diesen Dienstleister gibt es nicht.' } }
+		});
+		await expense('600,00', caretaker);
+		await expense('120,00', caretaker);
+		await expense('900,00', '');
+		expect(await run(loadExpenses)).toMatchObject({
+			data: {
+				serviceProviders: [
+					{ id: caretaker, name: 'Hausmeisterservice Krüger (Hausmeisterdienst)' }
+				],
+				byServiceProvider: [
+					{ id: caretaker, name: 'Hausmeisterservice Krüger', count: 2, total: 72000 },
+					{ id: null, name: 'Unbekannt', count: 1, total: 90000 }
+				]
+			}
+		});
 	});
 
 	it('keeps an expense booked from a bank transaction, which is undone under Bank', async () => {

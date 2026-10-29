@@ -275,6 +275,7 @@ export const auditEntityLabels: Record<string, string> = {
 	statement: 'Betriebskostenabrechnung',
 	document: 'Dokument',
 	task: 'Aufgabe',
+	serviceProvider: 'Dienstleister',
 	expense: 'Ausgabe',
 	import: 'Datenübernahme'
 };

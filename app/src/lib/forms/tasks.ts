@@ -36,11 +36,11 @@ export function parseTask(form: FormData): TaskParseResult {
 		parser.fail('dueDate', 'Eine wiederkehrende Aufgabe braucht ein Fälligkeitsdatum.');
 	}
 	const note = parser.optionalText('note', 2000);
-	const contractor = parser.raw('contractorId');
-	if (contractor && !/^[\w-]{1,64}$/.test(contractor)) {
-		parser.fail('contractorId', 'Bitte wähle einen gültigen Eintrag aus.');
+	const serviceProvider = parser.raw('serviceProviderId');
+	if (serviceProvider && !/^[\w-]{1,64}$/.test(serviceProvider)) {
+		parser.fail('serviceProviderId', 'Bitte wähle einen gültigen Eintrag aus.');
 	}
-	const contractorId = contractor || null;
+	const serviceProviderId = serviceProvider || null;
 
 	const link = parser.raw('link');
 	let propertyId: string | null = null;
@@ -55,7 +55,7 @@ export function parseTask(form: FormData): TaskParseResult {
 	if (parser.hasErrors) return { ok: false, errors: parser.errors, values: parser.values };
 	return {
 		ok: true,
-		data: { title, category, dueDate, repeatMonths, propertyId, leaseId, contractorId, note },
+		data: { title, category, dueDate, repeatMonths, propertyId, leaseId, serviceProviderId, note },
 		values: parser.values
 	};
 }

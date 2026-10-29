@@ -18,7 +18,7 @@ import {
 	calendarFeeds,
 	co2CostSplits,
 	costCategories,
-	contractors,
+	serviceProviders,
 	costItems,
 	costItemUnitAmounts,
 	depositSettlements,
@@ -121,7 +121,7 @@ function landlordDataDeletes(db: Database, accountId: string) {
 		// Before the tasks they paid for.
 		expenses,
 		tasks,
-		contractors,
+		serviceProviders,
 		insurancePolicies,
 		associationStatements,
 		taxYears,

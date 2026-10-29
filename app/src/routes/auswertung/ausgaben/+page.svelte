@@ -8,6 +8,7 @@
 	import SortHeader from '#lib/components/SortHeader.svelte';
 	import Sections from '../Sections.svelte';
 	import { formatDate } from '#lib/dates.ts';
+	import { formatNumber } from '#lib/format.ts';
 	import { expenseCategoryLabels } from '#lib/labels.ts';
 	import { formatCents, formatCentsPlain } from '#lib/money.ts';
 	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
@@ -36,7 +37,8 @@
 						description: data.editing.description,
 						amount: formatCentsPlain(data.editing.amount),
 						category: data.editing.category,
-						scope: data.editing.scope
+						scope: data.editing.scope,
+						serviceProviderId: data.editing.serviceProviderId ?? ''
 					}
 				: {}
 	);
@@ -46,28 +48,42 @@
 		description: byText((expense) => expense.description),
 		category: byText((expense) => expenseCategoryLabels[expense.category]),
 		scope: byText((expense) => expense.scopeLabel),
+		serviceProvider: byText((expense) => expense.serviceProviderName ?? ''),
 		amount: byNumber((expense) => expense.amount)
 	});
+
+	/** The share of the year's sum in whole percent, "< 1 %" for a small one. */
+	function share(amount: number): string {
+		if (total <= 0) return '–';
+		const percent = (amount / total) * 100;
+		return percent > 0 && percent < 0.5 ? '< 1 %' : `${formatNumber(percent, 0)} %`;
+	}
 
 	let createForm = $state<HTMLFormElement>();
 
 	/**
-	 * A description used before brings its category and scope along, as long as no category is
-	 * chosen yet: the same payee is usually booked the same way.
+	 * A description used before brings its category, scope and Dienstleister along, as long as no
+	 * category is chosen yet: the same payee is usually booked the same way.
 	 */
 	function descriptionPicked(event: Event & { currentTarget: HTMLInputElement }) {
 		const suggestion = data.suggestions.find(
 			(candidate) => candidate.description === event.currentTarget.value
 		);
 		const category = createForm?.elements.namedItem('category');
-		const scope = createForm?.elements.namedItem('scope');
 		if (!suggestion || !(category instanceof HTMLSelectElement) || category.value) return;
 		category.value = suggestion.category;
+		pick('scope', suggestion.scope);
+		pick('serviceProviderId', suggestion.serviceProviderId);
+	}
+
+	/** Selects the value in the create form's select of that name, when it offers it. */
+	function pick(name: string, value: string) {
+		const select = createForm?.elements.namedItem(name);
 		if (
-			scope instanceof HTMLSelectElement &&
-			[...scope.options].some((option) => option.value === suggestion.scope)
+			select instanceof HTMLSelectElement &&
+			[...select.options].some((option) => option.value === value)
 		) {
-			scope.value = suggestion.scope;
+			select.value = value;
 		}
 	}
 </script>
@@ -114,6 +130,7 @@
 					<SortHeader {sort} key="description">Beschreibung</SortHeader>
 					<SortHeader {sort} key="category">Kategorie</SortHeader>
 					<SortHeader {sort} key="scope">Betrifft</SortHeader>
+					<SortHeader {sort} key="serviceProvider">Dienstleister</SortHeader>
 					<SortHeader {sort} key="amount" class="num">Betrag</SortHeader>
 					<th><span class="visually-hidden">Aktion</span></th>
 				</tr>
@@ -133,12 +150,47 @@
 						</td>
 						<td>{expenseCategoryLabels[expense.category]}</td>
 						<td class="muted">{expense.scopeLabel}</td>
+						<td class:muted={!expense.serviceProviderName}>
+							{expense.serviceProviderName ?? 'Unbekannt'}
+						</td>
 						<td class="number"><Money cents={expense.amount} /></td>
 						<td class="action">
 							{#if expense.bankTransactionId}
 								<a href="/bank?umsatz={expense.bankTransactionId}"><Badge>aus Bank</Badge></a>
 							{/if}
 						</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	</div>
+{/if}
+
+{#if data.expenses.length > 0}
+	<h2>Nach Dienstleister</h2>
+	<div class="table-wrap">
+		<table class="table" aria-label="Ausgaben {data.year} nach Dienstleister">
+			<thead>
+				<tr>
+					<th>Dienstleister</th>
+					<th class="num">Ausgaben</th>
+					<th class="num">Summe</th>
+					<th class="num">Anteil</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each data.byServiceProvider as group (group.id)}
+					<tr>
+						<td>
+							{#if group.id}
+								<a href="/dienstleister?bearbeiten={group.id}">{group.name}</a>
+							{:else}
+								<span class="muted">{group.name}</span>
+							{/if}
+						</td>
+						<td class="number">{group.count}</td>
+						<td class="number"><Money cents={group.total} /></td>
+						<td class="number">{share(group.total)}</td>
 					</tr>
 				{/each}
 			</tbody>
@@ -222,6 +274,25 @@
 							</option>
 						{/each}
 					</optgroup>
+				{/each}
+			</select>
+		</Field>
+		<Field
+			label="Dienstleister"
+			error={errors?.serviceProviderId}
+			hint={data.serviceProviders.length === 0
+				? 'Angelegt werden Dienstleister unter Bestand → Dienstleister.'
+				: undefined}
+		>
+			<select
+				name="serviceProviderId"
+				aria-invalid={errors?.serviceProviderId ? 'true' : undefined}
+			>
+				<option value="" selected={!values.serviceProviderId}>Unbekannt</option>
+				{#each data.serviceProviders as provider (provider.id)}
+					<option value={provider.id} selected={values.serviceProviderId === provider.id}>
+						{provider.name}
+					</option>
 				{/each}
 			</select>
 		</Field>

@@ -39,7 +39,7 @@
 				: task.leaseId
 					? linkValue('lease', task.leaseId)
 					: '',
-			contractorId: task.contractorId ?? '',
+			serviceProviderId: task.serviceProviderId ?? '',
 			note: task.note ?? ''
 		};
 	});
@@ -139,7 +139,6 @@
 
 <PageHeader title="Aufgaben">
 	{#snippet actions()}
-		<a class="button secondary" href="/aufgaben/handwerker">Handwerker</a>
 		<CreateButton href="?neu" label="Aufgabe anlegen" onclick={openDialog} />
 	{/snippet}
 </PageHeader>
@@ -260,12 +259,13 @@
 								><Icon name="history" size={12} />{repeatLabel(task.repeatMonths)}</span
 							>{/if}
 					</div>
-					{#if task.contractor || task.costs.count > 0}
+					{#if task.serviceProvider || task.costs.count > 0}
 						<span class="links muted">
-							{#if task.contractor}<a href="/aufgaben/handwerker"
-									><Icon name="user" size={13} />{task.contractor.name}</a
-								>{#if task.contractor.phone}<a href="tel:{task.contractor.phone}"
-										>{task.contractor.phone}</a
+							{#if task.serviceProvider}<a
+									href="/dienstleister?bearbeiten={task.serviceProvider.id}"
+									><Icon name="user" size={13} />{task.serviceProvider.name}</a
+								>{#if task.serviceProvider.phone}<a href="tel:{task.serviceProvider.phone}"
+										>{task.serviceProvider.phone}</a
 									>{/if}{/if}
 							{#if task.costs.count > 0}<span>Kosten <Money cents={task.costs.total} /></span>{/if}
 						</span>
@@ -309,7 +309,7 @@
 							{#if task.doneAt}· erledigt am {formatDate(dayOf(task.doneAt))}{/if}
 							{#if task.property}· {task.property.name}{/if}
 							{#if task.lease}· {task.lease.label}{/if}
-							{#if task.contractor}· {task.contractor.name}{/if}
+							{#if task.serviceProvider}· {task.serviceProvider.name}{/if}
 							{#if task.costs.count > 0}· Kosten <Money cents={task.costs.total} />{/if}
 						</span>
 					</div>
@@ -369,7 +369,7 @@
 				{errors}
 				properties={data.properties}
 				leases={data.leases}
-				contractors={data.contractors}
+				serviceProviders={data.serviceProviders}
 			/>
 		{/key}
 		<div class="form-actions">
@@ -394,7 +394,7 @@
 				errors={editRefused?.errors}
 				properties={data.properties}
 				leases={data.leases}
-				contractors={data.contractors}
+				serviceProviders={data.serviceProviders}
 			/>
 			{#if data.editingExpenses}
 				{@const costs = [...data.editingExpenses.linked, ...data.editingExpenses.candidates]}

@@ -31,7 +31,7 @@ describe('parseTask', () => {
 				repeatMonths: 12,
 				propertyId: 'property-1',
 				leaseId: null,
-				contractorId: null,
+				serviceProviderId: null,
 				note: 'Alle Wohnungen.'
 			},
 			values: {
@@ -40,7 +40,7 @@ describe('parseTask', () => {
 				dueDate: '2026-11-30',
 				repeatMonths: '12',
 				link: 'property:property-1',
-				contractorId: '',
+				serviceProviderId: '',
 				note: 'Alle Wohnungen.'
 			}
 		});
@@ -57,7 +57,7 @@ describe('parseTask', () => {
 			repeatMonths: null,
 			propertyId: null,
 			leaseId: 'lease-1',
-			contractorId: null,
+			serviceProviderId: null,
 			note: null
 		});
 	});
@@ -84,8 +84,8 @@ describe('parseTask', () => {
 		expect(errorsOf({ title: 'Aufgabe', link: 'property:' })).toEqual({
 			link: 'Bitte wähle einen gültigen Eintrag aus.'
 		});
-		expect(errorsOf({ title: 'Aufgabe', contractorId: 'kein id' })).toEqual({
-			contractorId: 'Bitte wähle einen gültigen Eintrag aus.'
+		expect(errorsOf({ title: 'Aufgabe', serviceProviderId: 'kein id' })).toEqual({
+			serviceProviderId: 'Bitte wähle einen gültigen Eintrag aus.'
 		});
 	});
 

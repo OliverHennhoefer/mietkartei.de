@@ -43,7 +43,7 @@ import {
 	auditLog,
 	bankAccounts,
 	bankTransactions,
-	contractors,
+	serviceProviders,
 	costItems,
 	costItemUnitAmounts,
 	depositSettlements,
@@ -1333,6 +1333,70 @@ export async function createDemoData(
 		});
 		return id;
 	};
+	// Dienstleister: the trades of the Reparaturen, the Hausmeisterdienst and the Schornsteinfeger of
+	// the Mehrfamilienhaus. Many expenses name the one who was paid; the rest stay "unbekannt".
+	const serviceProvider = (name: string, service: string, phone: string, email: string | null) => ({
+		id: crypto.randomUUID(),
+		accountId,
+		name,
+		service,
+		phone,
+		email,
+		note: null
+	});
+	const plumber = serviceProvider(
+		'Sanitär Wendt GmbH',
+		'Sanitär',
+		'030 4471 2290',
+		'info@sanitaer-wendt.de'
+	);
+	const heating = serviceProvider(
+		'Heizungsbau Aydin',
+		'Heizung',
+		'0331 280 9915',
+		'service@heizung-aydin.de'
+	);
+	const electrician = serviceProvider('Elektro Lindner', 'Elektro', '030 9182 4410', null);
+	const painter = serviceProvider(
+		'Malerbetrieb Brandt',
+		'Maler',
+		'030 6123 7780',
+		'brandt@maler-brandt.de'
+	);
+	const roofer = serviceProvider('Dachdeckerei Seifert', 'Dach', '030 3349 0021', null);
+	const caretaker = serviceProvider(
+		'Hausmeisterservice Krüger',
+		'Hausmeisterdienst',
+		'030 6950 3318',
+		'kontakt@hausmeister-krueger.de'
+	);
+	const chimneySweep = serviceProvider(
+		'Bezirksschornsteinfeger Lehmann',
+		'Schornsteinfeger',
+		'030 2214 8806',
+		null
+	);
+	const serviceProviderRows = [
+		plumber,
+		heating,
+		electrician,
+		painter,
+		roofer,
+		caretaker,
+		chimneySweep
+	];
+	/** The Dienstleister of the Mehrfamilienhaus's yearly bills, by supplier. */
+	const providerOfSupplier = new Map([
+		[caretaker.name, caretaker.id],
+		[chimneySweep.name, chimneySweep.id]
+	]);
+	/** Names the Dienstleister on the expense. */
+	const paidTo = (expenseId: string, provider: { id: string }) => {
+		const row = expenseRows.find((candidate) => candidate.id === expenseId)!;
+		row.serviceProviderId = provider.id;
+		return row;
+	};
+
 	const costItem = (row: Omit<CostItemRow, 'id' | 'accountId'>) => {
 		const id = crypto.randomUUID();
 		costItemRows.push({ id, accountId, ...row });
@@ -1452,7 +1516,15 @@ export async function createDemoData(
 				amount,
 				key ? { allocationKeyId: keyId(key) } : {}
 			);
-			expense(`${year}-12-10`, amount, 'operating_costs', `${description} ${year}`, lindenId);
+			const id = expense(
+				`${year}-12-10`,
+				amount,
+				'operating_costs',
+				`${description} ${year}`,
+				lindenId
+			);
+			const provider = providerOfSupplier.get(supplier);
+			if (provider) paidTo(id, { id: provider });
 		}
 		// The gas bill: CO₂ on the invoice since the CO2KostAufG (2023), split before allocating.
 		const kwh = byYear(GAS_KWH, year);
@@ -1823,13 +1895,16 @@ export async function createDemoData(
 			`Schornsteinfeger Gastherme ${year}`,
 			rosenheimId
 		);
-		expense(
-			`${year}-10-05`,
-			Math.round(16500 * byYear(COST_INDEX, year)),
-			'maintenance',
-			`Wartung Gastherme ${year}`,
-			rosenheimId,
-			'Wohnung 9'
+		paidTo(
+			expense(
+				`${year}-10-05`,
+				Math.round(16500 * byYear(COST_INDEX, year)),
+				'maintenance',
+				`Wartung Gastherme ${year}`,
+				rosenheimId,
+				'Wohnung 9'
+			),
+			heating
 		);
 	}
 	expense(at(-2, '09-01'), 380000, 'special_levy', 'Sonderumlage Fassadensanierung', rosenheimId);
@@ -1900,6 +1975,36 @@ export async function createDemoData(
 		}
 	}
 
+	// This year's bills of the Hausmeisterdienst (each quarter) and the Schornsteinfeger so far; the
+	// Belege for the Betriebskostenabrechnung follow once the year is over.
+	const thisYearIndex = byYear(COST_INDEX, Y - 1);
+	for (const [index, day] of ['03-31', '06-30', '09-30', '12-31'].entries()) {
+		const quarterEnd = at(0, day);
+		if (quarterEnd >= date) break;
+		paidTo(
+			expense(
+				quarterEnd,
+				Math.round((72000 * thisYearIndex) / 4),
+				'operating_costs',
+				`Hausmeisterdienst ${index + 1}. Quartal ${Y}`,
+				lindenId
+			),
+			caretaker
+		);
+	}
+	if (at(0, '03-18') < date) {
+		paidTo(
+			expense(
+				at(0, '03-18'),
+				Math.round(9800 * thisYearIndex),
+				'operating_costs',
+				`Abgasmessung und Feuerstättenschau ${Y}`,
+				lindenId
+			),
+			chimneySweep
+		);
+	}
+
 	// Repairs, modernisation and the costs of managing the portfolio. The repairs are paid for
 	// the Reparaturen among the tasks below.
 	const painting = expense(
@@ -1940,13 +2045,16 @@ export async function createDemoData(
 		parkId,
 		'Wohnung 14'
 	);
-	expense(
-		at(-6, '11-15'),
-		268000,
-		'maintenance',
-		'Malerarbeiten und Kleinreparaturen vor Neuvermietung',
-		rosenheimId,
-		'Wohnung 9'
+	paidTo(
+		expense(
+			at(-6, '11-15'),
+			268000,
+			'maintenance',
+			'Malerarbeiten und Kleinreparaturen vor Neuvermietung',
+			rosenheimId,
+			'Wohnung 9'
+		),
+		painter
 	);
 	const waterDamage = expense(
 		at(-1, '06-18'),
@@ -2063,37 +2171,7 @@ export async function createDemoData(
 
 	// Tasks: two repeating, one for the tenant in arrears, the handover of the flat being re-let, one
 	// overdue (so the start page shows how it marks one), one done.
-	// Handwerker, and the Reparaturen they did with the expenses that paid for them.
-	const contractor = (name: string, trade: string, phone: string, email: string | null) => ({
-		id: crypto.randomUUID(),
-		accountId,
-		name,
-		trade,
-		phone,
-		email,
-		note: null
-	});
-	const plumber = contractor(
-		'Sanitär Wendt GmbH',
-		'Sanitär',
-		'030 4471 2290',
-		'info@sanitaer-wendt.de'
-	);
-	const heating = contractor(
-		'Heizungsbau Aydin',
-		'Heizung',
-		'0331 280 9915',
-		'service@heizung-aydin.de'
-	);
-	const electrician = contractor('Elektro Lindner', 'Elektro', '030 9182 4410', null);
-	const painter = contractor(
-		'Malerbetrieb Brandt',
-		'Maler',
-		'030 6123 7780',
-		'brandt@maler-brandt.de'
-	);
-	const roofer = contractor('Dachdeckerei Seifert', 'Dach', '030 3349 0021', null);
-	const contractorRows = [plumber, heating, electrician, painter, roofer];
+	// The Reparaturen the Dienstleister did, with the expenses that paid for them.
 	const expenseDay = (expenseId: string) => expenseRows.find((row) => row.id === expenseId)!.date;
 	/** A Reparatur done a few days before its bill, with the bill linked to it. */
 	const repair = (
@@ -2105,7 +2183,7 @@ export async function createDemoData(
 	) => {
 		const id = crypto.randomUUID();
 		const billed = soFar(expenseDay(bills[0]));
-		for (const bill of bills) expenseRows.find((row) => row.id === bill)!.taskId = id;
+		for (const bill of bills) paidTo(bill, by).taskId = id;
 		return {
 			id,
 			accountId,
@@ -2116,7 +2194,7 @@ export async function createDemoData(
 			doneAt: new Date(`${addDays(billed, -3)}T15:00:00Z`),
 			propertyId,
 			leaseId: null,
-			contractorId: by.id,
+			serviceProviderId: by.id,
 			note
 		};
 	};
@@ -2141,7 +2219,7 @@ export async function createDemoData(
 			dueDate: addDays(date, 10),
 			propertyId: lindenId,
 			leaseId: null,
-			contractorId: electrician.id,
+			serviceProviderId: electrician.id,
 			note: 'Bewegungsmelder am Hofeingang schaltet nicht mehr; Herr Lindner kommt nächste Woche.'
 		},
 		{
@@ -2152,7 +2230,7 @@ export async function createDemoData(
 			dueDate: addDays(date, -2),
 			propertyId: parkId,
 			leaseId: null,
-			contractorId: null,
+			serviceProviderId: null,
 			note: 'Hinweis von der Hausverwaltung der WEG; Angebot einholen.'
 		}
 	];
@@ -2180,8 +2258,34 @@ export async function createDemoData(
 			repeatAnchor: addDays(date, 21),
 			propertyId: rosenheimId,
 			leaseId: null,
-			contractorId: heating.id,
+			serviceProviderId: heating.id,
 			note: 'Termin mit Frau Weber abstimmen.'
+		},
+		{
+			id: crypto.randomUUID(),
+			accountId,
+			title: 'Feuerstättenschau und Abgasmessung',
+			category: 'inspection' as const,
+			dueDate: addMonths(date, 4),
+			repeatMonths: 12,
+			repeatAnchor: addMonths(date, 4),
+			propertyId: lindenId,
+			leaseId: null,
+			serviceProviderId: chimneySweep.id,
+			note: 'Termin eine Woche vorher per Aushang im Treppenhaus ankündigen.'
+		},
+		{
+			id: crypto.randomUUID(),
+			accountId,
+			title: 'Winterdienst und Streugut vorbereiten',
+			category: 'maintenance' as const,
+			dueDate: addDays(date, 14),
+			repeatMonths: 12,
+			repeatAnchor: addDays(date, 14),
+			propertyId: lindenId,
+			leaseId: null,
+			serviceProviderId: caretaker.id,
+			note: 'Räumplan für Gehweg und Hof mit dem Hausmeisterdienst abstimmen.'
 		},
 		{
 			id: crypto.randomUUID(),
@@ -2266,7 +2370,7 @@ export async function createDemoData(
 		['matchingRules', ruleRows.length],
 		['expenses', expenseRows.length],
 		['tasks', taskRows.length],
-		['contractors', contractorRows.length]
+		['serviceProviders', serviceProviderRows.length]
 	];
 	for (const [kind, rows] of adding) await assertQuota(db, accountId, kind, rows);
 
@@ -2294,7 +2398,7 @@ export async function createDemoData(
 			...insert(meterReadings, readingRows),
 			...insert(associationStatements, associationRows),
 			...insert(operatingCostStatements, draftRows),
-			...insert(contractors, contractorRows),
+			...insert(serviceProviders, serviceProviderRows),
 			// Before the expenses that paid for them.
 			...insert(tasks, taskRows),
 			...insert(expenses, expenseRows),
@@ -2553,10 +2657,10 @@ export async function createDemoData(
 					taskRows.map((row) => row.id)
 				)
 			),
-			db.delete(contractors).where(
+			db.delete(serviceProviders).where(
 				inArray(
-					contractors.id,
-					contractorRows.map((row) => row.id)
+					serviceProviders.id,
+					serviceProviderRows.map((row) => row.id)
 				)
 			),
 			db.delete(properties).where(inArray(properties.id, propertyIds))
