@@ -9,7 +9,6 @@
 	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
 	import { formatCents } from '#lib/money.ts';
-	import { pluralize } from '#lib/format.ts';
 	import { byDate, byNumber, bySeverity, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
@@ -50,16 +49,6 @@
 		<a class="button" href="/vertraege">Zu den Mietverträgen</a>
 	</EmptyState>
 {:else}
-	<!-- The one sum the table does not show; Guthaben stay in the table, they are rarely large. -->
-	<p class="total">
-		{#if data.stats.arrearsCount > 0}
-			Rückstände gesamt: <strong><Balance cents={data.stats.arrearsTotal} /></strong>
-			bei {pluralize(data.stats.arrearsCount, 'Mietvertrag', 'Mietverträgen')}
-		{:else}
-			Kein Mietvertrag ist im Rückstand.
-		{/if}
-	</p>
-
 	{#if form && 'message' in form}
 		<Alert tone="danger"><p>{form.message}</p></Alert>
 	{:else if form?.received}
@@ -202,9 +191,6 @@
 {/if}
 
 <style>
-	.total {
-		margin: 0 0 1rem;
-	}
 	.due {
 		display: block;
 	}
