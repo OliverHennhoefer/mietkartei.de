@@ -84,7 +84,10 @@
 				"MAIL_TRANSPORT": "outbox",
 				"MAIL_FROM": "noreply@mietkartei.de",
 				// No subscription in the demo.
-				"STRIPE_PRICE_ID": ""
+				"STRIPE_PRICE_ID": "",
+				// The bot check on "Demo starten"; the secret TURNSTILE_SECRET_KEY of the demo Worker
+				// belongs to it. See .github/DEPLOYMENT.md.
+				"TURNSTILE_SITE_KEY": "0x4AAAAAAFqyQueuE_NcsZE5"
 			},
 			"ratelimits": [
 				{ "name": "AUTH_LIMITER", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }
