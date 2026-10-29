@@ -409,7 +409,7 @@
 					{#if data.demo && home}
 						<p class="billing-notice demo-notice" role="note">
 							<span class="demo-tag">Demo</span>
-							<span>Mit Beispieldaten, wird nach 24 Stunden gelöscht.</span>
+							<span>Mit Beispieldaten. Nach 24 Stunden wird alles gelöscht.</span>
 							<a href="https://mietkartei.de">Mehr über mietkartei</a>
 						</p>
 					{/if}
