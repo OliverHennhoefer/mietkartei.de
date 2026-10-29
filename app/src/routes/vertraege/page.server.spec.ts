@@ -313,6 +313,19 @@ describe('vertraege/[id]', () => {
 		})) as { data: { editingParty: { leftOn: string } } };
 		expect(dialog.data.editingParty.leftOn).toBe('2025-06-30');
 
+		// Nor can the lease end before the new tenant joins.
+		expect(
+			await run(leaseActions.end, {
+				params: { id },
+				form: {
+					terminatedAt: '2025-03-01',
+					terminatedBy: 'tenant',
+					endDate: '2025-06-30',
+					earlyEndAgreed: 'on'
+				}
+			})
+		).toMatchObject({ fail: 400, data: { which: 'end', errors: { endDate: expect.any(String) } } });
+
 		// The lease form cannot take the joining tenant off again: nobody would be left.
 		const edit = (await run(loadEdit, { params: { id }, parent: { lease } })) as {
 			data: { defaults: Record<string, string> };

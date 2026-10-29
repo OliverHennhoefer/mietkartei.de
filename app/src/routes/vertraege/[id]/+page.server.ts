@@ -281,6 +281,16 @@ export const actions: Actions = {
 				values
 			});
 		}
+		if (outcome === 'party-dates') {
+			return refuse({
+				which: 'end',
+				errors: {
+					endDate:
+						'Ein Mieter tritt erst nach diesem Ende in den Vertrag ein. Nimm seinen Eintritt unter „Vertragsparteien“ zurück oder wähle ein späteres Ende.'
+				},
+				values
+			});
+		}
 		if (typeof outcome === 'object') {
 			return refuse({
 				which: 'end',

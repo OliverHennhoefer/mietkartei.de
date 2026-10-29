@@ -944,6 +944,24 @@ describe('the parties to a lease over time', () => {
 		expect(summaries).toContain('Clara Neu ab 01.04.2025 in den Mietvertrag eingetreten');
 	});
 
+	it('ends the lease with a tenant leaving later as a party to the end, not before one joins', async () => {
+		const { leaseId, anna, clara } = await couple();
+		await updateLeaseParty(db, contextA, leaseId, anna, { joinedOn: null, leftOn: '2025-06-30' });
+		await addLeaseParty(db, contextA, leaseId, clara, '2025-09-01');
+		const end = (endDate: string) =>
+			endLease(db, contextA, leaseId, {
+				terminatedAt: '2025-01-02',
+				terminatedBy: 'tenant',
+				endDate,
+				earlyEndAgreed: true
+			});
+		expect(await end('2025-08-31')).toBe('party-dates');
+		await db.delete(leaseTenants).where(eq(leaseTenants.tenantId, clara));
+		expect(await end('2025-03-31')).toBe('ended');
+		const lease = (await getLease(db, 'a', leaseId))!;
+		expect(lease.parties.find((party) => party.tenant.id === anna)?.leftOn).toBeNull();
+	});
+
 	it('refuses dates outside the term, a lease without a party and a second entry', async () => {
 		const { unitId, leaseId, anna, ben, clara } = await couple();
 		const party = (input: { joinedOn: string | null; leftOn: string | null }, tenantId = anna) =>

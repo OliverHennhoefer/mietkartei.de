@@ -827,10 +827,21 @@ export async function endLease(
 	context: AuditContext,
 	leaseId: string,
 	input: LeaseEndInput
-): Promise<'ended' | 'missing' | 'before-start' | { overlap: IsoDate }> {
+): Promise<'ended' | 'missing' | 'before-start' | 'party-dates' | { overlap: IsoDate }> {
 	const existing = await getLease(db, context.accountId, leaseId);
 	if (!existing) return 'missing';
 	if (input.endDate < existing.startDate) return 'before-start';
+	// A tenant leaving on or after the new end stays a party to it; one joining only after it
+	// would never be one, so the end is refused until that is undone.
+	const leavingLater = existing.parties.filter(
+		(party) => party.leftOn && party.leftOn >= input.endDate
+	);
+	const parties = existing.parties.map((party) =>
+		leavingLater.includes(party) ? { ...party, leftOn: null } : party
+	);
+	if (partiesProblem({ startDate: existing.startDate, endDate: input.endDate }, parties)) {
+		return 'party-dates';
+	}
 	const overlap = await overlappingLease(
 		db,
 		context.accountId,
@@ -851,6 +862,12 @@ export async function endLease(
 				endDate: input.endDate
 			})
 			.where(and(eq(leases.accountId, context.accountId), eq(leases.id, leaseId))),
+		...chunkIds(leavingLater.map((party) => party.tenant.id)).map((ids) =>
+			db
+				.update(leaseTenants)
+				.set({ leftOn: null })
+				.where(and(eq(leaseTenants.leaseId, leaseId), inArray(leaseTenants.tenantId, ids)))
+		),
 		auditEntry(
 			db,
 			context,
