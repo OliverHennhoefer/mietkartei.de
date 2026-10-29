@@ -1,0 +1,32 @@
+name: Update
+
+# Only for a self-hosted copy on Cloudflare, made with the Deploy to Cloudflare button (see
+# docs/selbst-hosten.md): brings the copy to the state of main of OliverHennhoefer/mietkartei.de
+# with scripts/selfhost-update.mjs, as upstream has it, and pushes; Cloudflare then builds and
+# deploys the copy. Runs by hand only, since an update may still change data while the app is in
+# development. Copies keep this file as it was when they were made, so the work belongs in the
+# script.
+
+"on":
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    name: Update from mietkartei.de
+    if: github.repository != 'OliverHennhoefer/mietkartei.de'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Take over the state of mietkartei.de
+        run: |
+          git fetch --depth 1 https://github.com/OliverHennhoefer/mietkartei.de.git main
+          git show FETCH_HEAD:scripts/selfhost-update.mjs > "$RUNNER_TEMP/selfhost-update.mjs"
+          node "$RUNNER_TEMP/selfhost-update.mjs"

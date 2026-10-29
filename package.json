@@ -1,0 +1,23 @@
+{
+	"name": "mietkartei-selfhost",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"description": "Build and deployment of a self-hosted mietkartei on Cloudflare (wrangler.jsonc); the app itself is in app/.",
+	"scripts": {
+		"build": "npm ci --prefix app && npm run build:cloudflare --prefix app",
+		"deploy": "app/node_modules/.bin/wrangler d1 migrations apply DB --remote && app/node_modules/.bin/wrangler deploy"
+	},
+	"cloudflare": {
+		"bindings": {
+			"SETUP_CODE": {
+				"description": "Ein Code, den nur du kennst, zum Beispiel drei zufällige Wörter. Du gibst ihn einmal beim Registrieren ein, damit niemand sonst dein mietkartei übernehmen kann."
+			},
+			"DB": {
+				"description": "Die Datenbank mit allen Einträgen. Der vorgeschlagene Name passt."
+			},
+			"DOCUMENTS": {
+				"description": "Der Speicher für hochgeladene Dokumente. Der vorgeschlagene Name passt."
+			}
+		}
+	}
+}

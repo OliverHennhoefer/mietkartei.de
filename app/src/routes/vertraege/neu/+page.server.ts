@@ -1,5 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { addMonthsToMonth, firstOfMonth, monthOf, today } from '#lib/dates.ts';
+import { addMonthsToMonth, firstOfMonth, formatDate, monthOf, today } from '#lib/dates.ts';
 import { depositWarning, parseLease, parseOpeningBalance } from '#lib/forms/leases.ts';
 import { parseCents } from '#lib/money.ts';
 import { createLease, listUnitsWithProperty } from '#lib/server/leases.ts';
@@ -75,12 +75,16 @@ export const actions: Actions = {
 			const errors =
 				result.reason === 'unknown-unit'
 					? { unitId: 'Diese Einheit gibt es nicht.' }
-					: result.reason === 'archived'
+					: result.reason === 'overlap'
 						? {
-								tenantIds:
-									'Das Objekt oder einer der Mieter ist archiviert. Hol es zuerst aus dem Archiv.'
+								startDate: `Die Einheit ist in diesem Zeitraum schon an einen anderen Vertrag vermietet (ab ${formatDate(result.date)}). Zwei Verträge einer Einheit zur selben Zeit würden sich ihre Betriebskosten teilen; beende den anderen Vertrag vorher oder ändere die Daten.`
 							}
-						: { tenantIds: 'Einen der Mieter gibt es nicht.' };
+						: result.reason === 'archived'
+							? {
+									tenantIds:
+										'Das Objekt oder einer der Mieter ist archiviert. Hol es zuerst aus dem Archiv.'
+								}
+							: { tenantIds: 'Einen der Mieter gibt es nicht.' };
 			return fail(400, { errors, values, depositWarning: warningFor(values) });
 		}
 

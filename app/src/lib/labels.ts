@@ -2,9 +2,11 @@ import type {
 	AllocationKeyKind,
 	BankTransactionStatus,
 	BuildingUse,
+	ComparisonSource,
 	DepositTransactionKind,
 	ExpenseCategory,
 	Fuel,
+	HandoverKind,
 	HeatingCostModel,
 	InsuranceKind,
 	LeaseKind,
@@ -14,6 +16,7 @@ import type {
 	RentChangeReason,
 	RentChargeKind,
 	RentModel,
+	RoomCondition,
 	StatementStatus,
 	SubscriptionStatus,
 	TaskCategory,
@@ -94,7 +97,15 @@ export const rentChangeReasonLabels: Record<RentChangeReason, string> = {
 	manual: 'Änderung',
 	graduated: 'Staffel',
 	indexed: 'Indexanpassung',
-	statement: 'Anpassung nach Abrechnung'
+	statement: 'Anpassung nach Abrechnung',
+	comparative: 'Vergleichsmiete (§ 558)'
+};
+
+export const comparisonSourceLabels: Record<ComparisonSource, string> = {
+	rent_index: 'Mietspiegel',
+	rent_database: 'Mietdatenbank',
+	expert_opinion: 'Gutachten',
+	comparable_flats: 'Drei Vergleichswohnungen'
 };
 
 export const depositTransactionKindLabels: Record<DepositTransactionKind, string> = {
@@ -102,6 +113,17 @@ export const depositTransactionKindLabels: Record<DepositTransactionKind, string
 	interest: 'Zinsen',
 	returned: 'Zurückgezahlt',
 	withheld: 'Einbehalten'
+};
+
+export const handoverKindLabels: Record<HandoverKind, string> = {
+	move_in: 'Einzug',
+	move_out: 'Auszug'
+};
+
+export const roomConditionLabels: Record<RoomCondition, string> = {
+	good: 'In Ordnung',
+	worn: 'Gebrauchsspuren',
+	damaged: 'Mängel'
 };
 
 export const rentChargeKindLabels: Record<RentChargeKind, string> = {
@@ -162,6 +184,21 @@ export const expenseCategoryLabels: Record<ExpenseCategory, string> = {
 	other: 'Sonstiges'
 };
 
+/** One or two words per category, for tight spots such as the pills on /auswertung. */
+export const expenseCategoryShortLabels: Record<ExpenseCategory, string> = {
+	operating_costs: 'Betriebskosten',
+	association_fee: 'Hausgeld',
+	special_levy: 'Sonderumlage',
+	special_levy_reserve: 'Rücklage',
+	maintenance: 'Instandhaltung',
+	loan_payment: 'Darlehensrate',
+	loan_interest: 'Zinsen',
+	loan_repayment: 'Tilgung',
+	management: 'Verwaltung',
+	modernization: 'Modernisierung',
+	other: 'Sonstiges'
+};
+
 export const insuranceKindLabels: Record<InsuranceKind, string> = {
 	building: 'Wohngebäudeversicherung',
 	liability: 'Haus- und Grundbesitzerhaftpflicht',
@@ -173,6 +210,7 @@ export const insuranceKindLabels: Record<InsuranceKind, string> = {
 };
 
 export const taskCategoryLabels: Record<TaskCategory, string> = {
+	repair: 'Reparatur',
 	maintenance: 'Wartung',
 	inspection: 'Prüfung',
 	insurance: 'Versicherung',
@@ -237,6 +275,7 @@ export const auditEntityLabels: Record<string, string> = {
 	statement: 'Betriebskostenabrechnung',
 	document: 'Dokument',
 	task: 'Aufgabe',
+	serviceProvider: 'Dienstleister',
 	expense: 'Ausgabe',
 	import: 'Datenübernahme'
 };

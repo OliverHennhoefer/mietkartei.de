@@ -11,12 +11,14 @@
 		values,
 		errors,
 		properties,
-		leases
+		leases,
+		serviceProviders
 	}: {
 		values: Record<string, string>;
 		errors?: TaskFormErrors;
 		properties: { id: string; name: string }[];
 		leases: { id: string; label: string; active: boolean }[];
+		serviceProviders: { id: string; name: string }[];
 	} = $props();
 
 	// From the label table: a component must not import the server schema.
@@ -93,6 +95,20 @@
 				{/each}
 			</optgroup>
 		{/if}
+	</select>
+</Field>
+<Field
+	label="Dienstleister"
+	hint="Angelegt werden Dienstleister unter Bestand → Dienstleister."
+	error={errors?.serviceProviderId}
+>
+	<select name="serviceProviderId" aria-invalid={errors?.serviceProviderId ? 'true' : undefined}>
+		<option value="" selected={!values.serviceProviderId}>Unbekannt</option>
+		{#each serviceProviders as serviceProvider (serviceProvider.id)}
+			<option value={serviceProvider.id} selected={values.serviceProviderId === serviceProvider.id}>
+				{serviceProvider.name}
+			</option>
+		{/each}
 	</select>
 </Field>
 <Field label="Notiz (optional)" error={errors?.note}>

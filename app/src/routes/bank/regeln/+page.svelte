@@ -1,17 +1,37 @@
 <script lang="ts">
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import { enhance } from '$app/forms';
 	import Badge from '#lib/components/Badge.svelte';
-	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import EditDialog from '#lib/components/EditDialog.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Field from '#lib/components/Field.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { matchingFieldIds, matchingFieldLabels } from '#lib/domain/bank-matching.ts';
+	import { bySeverity, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
-	const errors = $derived(form && 'errors' in form ? form.errors : undefined);
-	const values = $derived(form && 'values' in form ? form.values : undefined);
+	// A refused edit belongs to the edit dialog, everything else to the create form.
+	const editRefused = $derived(form && 'edit' in form ? form : undefined);
+	const errors = $derived(form && 'errors' in form && !editRefused ? form.errors : undefined);
+	const values = $derived(form && 'values' in form && !editRefused ? form.values : undefined);
+	const editValues = $derived(
+		editRefused?.values ??
+			(data.editing && {
+				leaseId: data.editing.leaseId,
+				field: data.editing.field,
+				pattern: data.editing.pattern,
+				confirmed: data.editing.confirmed ? 'on' : ''
+			})
+	);
 	const leaseLabels = $derived(new Map(data.leases.map((lease) => [lease.id, lease.label])));
+	const sort = new TableSort<PageProps['data']['rules'][number]>({
+		lease: byText((rule) => leaseLabels.get(rule.leaseId) ?? 'Unbekannter Mietvertrag'),
+		field: byText((rule) => matchingFieldLabels[rule.field]),
+		pattern: byText((rule) => rule.pattern),
+		status: bySeverity((rule) => (rule.confirmed ? 0 : 1))
+	});
 </script>
 
 <!-- The heading and the tab bar come from +layout.svelte; this page is the "Regeln" tab. -->
@@ -38,17 +58,21 @@
 		<table class="table" aria-label="Zuordnungsregeln">
 			<thead>
 				<tr>
-					<th>Mietvertrag</th>
-					<th>Feld</th>
-					<th>Enthält</th>
-					<th>Status</th>
+					<SortHeader {sort} key="lease">Mietvertrag</SortHeader>
+					<SortHeader {sort} key="field">Feld</SortHeader>
+					<SortHeader {sort} key="pattern">Enthält</SortHeader>
+					<SortHeader {sort} key="status">Status</SortHeader>
 					<th class="actions"><span class="visually-hidden">Aktionen</span></th>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.rules as rule (rule.id)}
+				{#each sort.rows(data.rules) as rule (rule.id)}
 					<tr>
-						<td>{leaseLabels.get(rule.leaseId) ?? 'Unbekannter Mietvertrag'}</td>
+						<td>
+							<a href="?bearbeiten={rule.id}" data-sveltekit-reset="false"
+								>{leaseLabels.get(rule.leaseId) ?? 'Unbekannter Mietvertrag'}</a
+							>
+						</td>
 						<td>{matchingFieldLabels[rule.field]}</td>
 						<td>{rule.pattern}</td>
 						<td>
@@ -65,14 +89,6 @@
 									<button type="submit" class="secondary small">Bestätigen</button>
 								</form>
 							{/if}
-							<ConfirmButton
-								action="?/delete"
-								small
-								label="Löschen"
-								message="Regel „{matchingFieldLabels[rule.field]} enthält {rule.pattern}“ löschen?"
-							>
-								<input type="hidden" name="id" value={rule.id} />
-							</ConfirmButton>
 						</td>
 					</tr>
 				{/each}
@@ -81,42 +97,14 @@
 	</div>
 {/if}
 
-<h2>Regel anlegen</h2>
+<h2 id="regel-anlegen">Regel anlegen</h2>
 {#if data.leases.length === 0}
 	<EmptyState title="Noch kein Mietvertrag" text="Eine Regel ordnet einem Mietvertrag zu.">
-		<a href="/vertraege/neu">Mietvertrag anlegen</a>
+		<CreateButton href="/vertraege/neu" label="Mietvertrag anlegen" />
 	</EmptyState>
 {:else}
 	<form method="POST" action="?/create" class="card" use:enhance>
-		<Field label="Mietvertrag" error={errors?.leaseId}>
-			<select name="leaseId" aria-invalid={errors?.leaseId ? 'true' : undefined} required>
-				{#each data.leases as lease (lease.id)}
-					<option value={lease.id} selected={values?.leaseId === lease.id}>{lease.label}</option>
-				{/each}
-			</select>
-		</Field>
-		<Field label="Feld" error={errors?.field}>
-			<select name="field" aria-invalid={errors?.field ? 'true' : undefined} required>
-				{#each matchingFieldIds as field (field)}
-					<option value={field} selected={(values?.field ?? 'counterpartIban') === field}>
-						{matchingFieldLabels[field]}
-					</option>
-				{/each}
-			</select>
-		</Field>
-		<Field label="Enthält" error={errors?.pattern} hint="Groß- und Kleinschreibung ist egal.">
-			<input
-				name="pattern"
-				defaultValue={values?.pattern ?? ''}
-				placeholder="z. B. DE12 5001 0517 5407 3249 31 oder Müller"
-				aria-invalid={errors?.pattern ? 'true' : undefined}
-				required
-			/>
-		</Field>
-		<label class="inline form-wide">
-			<input type="checkbox" name="confirmed" checked={values ? values.confirmed === 'on' : true} />
-			Bestätigt: beim Import automatisch zuordnen
-		</label>
+		{@render ruleFields(values, errors)}
 		<div class="form-actions form-wide">
 			<button type="submit">Regel anlegen</button>
 		</div>
@@ -124,6 +112,57 @@
 			<p class="form-actions form-wide" role="status">Die Regel wurde angelegt.</p>
 		{/if}
 	</form>
+{/if}
+
+{#snippet ruleFields(
+	values: Record<string, string> | undefined,
+	errors: Partial<Record<string, string>> | undefined
+)}
+	<Field label="Mietvertrag" error={errors?.leaseId}>
+		<select name="leaseId" aria-invalid={errors?.leaseId ? 'true' : undefined} required>
+			{#each data.leases as lease (lease.id)}
+				<option value={lease.id} selected={values?.leaseId === lease.id}>{lease.label}</option>
+			{/each}
+		</select>
+	</Field>
+	<Field label="Feld" error={errors?.field}>
+		<select name="field" aria-invalid={errors?.field ? 'true' : undefined} required>
+			{#each matchingFieldIds as field (field)}
+				<option value={field} selected={(values?.field ?? 'counterpartIban') === field}>
+					{matchingFieldLabels[field]}
+				</option>
+			{/each}
+		</select>
+	</Field>
+	<Field label="Enthält" error={errors?.pattern} hint="Groß- und Kleinschreibung ist egal.">
+		<input
+			name="pattern"
+			defaultValue={values?.pattern ?? ''}
+			placeholder="z. B. DE12 5001 0517 5407 3249 31 oder Müller"
+			aria-invalid={errors?.pattern ? 'true' : undefined}
+			required
+		/>
+	</Field>
+	<label class="inline form-wide">
+		<input type="checkbox" name="confirmed" checked={values ? values.confirmed === 'on' : true} />
+		Bestätigt: beim Import automatisch zuordnen
+	</label>
+{/snippet}
+
+{#if data.editing && editValues}
+	{#key data.editing.id}
+		<EditDialog
+			title="Regel bearbeiten"
+			action="?/update"
+			deleteAction="?/delete"
+			deleteMessage="Regel „{matchingFieldLabels[data.editing.field]} enthält {data.editing
+				.pattern}“ löschen?"
+			close="/bank/regeln"
+		>
+			<input type="hidden" name="id" value={data.editing.id} />
+			{@render ruleFields(editValues, editRefused?.errors)}
+		</EditDialog>
+	{/key}
 {/if}
 
 <style>

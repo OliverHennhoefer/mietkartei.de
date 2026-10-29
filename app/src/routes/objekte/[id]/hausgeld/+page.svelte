@@ -88,7 +88,7 @@
 	</ul>
 {/if}
 
-<h2>Hausgeldabrechnung erfassen</h2>
+<h2 id="hausgeldabrechnung-erfassen">Hausgeldabrechnung erfassen</h2>
 <AssociationStatementForm
 	action="?/create"
 	submitLabel="Hausgeldabrechnung erfassen"

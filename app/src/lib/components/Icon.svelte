@@ -33,7 +33,8 @@
 		| 'gauge'
 		| 'chevron-right'
 		| 'chevrons'
-		| 'map';
+		| 'map'
+		| 'wrench';
 </script>
 
 <script lang="ts">
@@ -65,6 +66,8 @@
 		'chevron-right': 'm9 6 6 6-6 6',
 		chevrons: 'm7 15 5 5 5-5M7 9l5-5 5 5',
 		map: 'M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Zm0 0v14m6-12v14',
+		wrench:
+			'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94Z',
 		alert: 'm12 3 10 18H2ZM12 9v4m0 4h.01',
 		info: 'M12 11v6m0-10h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
 		coins:

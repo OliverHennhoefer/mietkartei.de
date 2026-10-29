@@ -65,18 +65,20 @@ test('uploads a document, shows it on the lease, downloads, filters and deletes 
 	await page.goto('/dokumente');
 	const filter = page.getByRole('form', { name: 'Filter' });
 	await filter.getByLabel('Mietvertrag').selectOption(lease.leaseId);
-	await filter.getByRole('button', { name: 'Filtern' }).click();
 	await expect(page).toHaveURL(new RegExp(`leaseId=${lease.leaseId}`));
 	await expect(rowOf(page, fileName)).toBeVisible();
 	await filter.getByLabel('Mietvertrag').selectOption(other.leaseId);
-	await filter.getByRole('button', { name: 'Filtern' }).click();
 	await expect(page.getByText('Keine Dokumente für diese Auswahl.')).toBeVisible();
 	await page.getByRole('link', { name: 'Alle Dokumente anzeigen' }).click();
 	await expect(page).toHaveURL(/\/dokumente$/);
 
-	// Deleting asks first, then removes the row and the file.
+	// Deleting is in the dialog the name opens; it asks first, then removes the row and the file.
+	await rowOf(page, fileName).getByRole('link', { name: fileName, exact: true }).click();
 	page.once('dialog', (dialog) => dialog.accept());
-	await rowOf(page, fileName).getByRole('button', { name: 'Löschen' }).click();
+	await page
+		.getByRole('dialog', { name: fileName })
+		.getByRole('button', { name: 'Löschen' })
+		.click();
 	await expect(rowOf(page, fileName)).toHaveCount(0);
 	expect((await page.request.get(href!)).status()).toBe(404);
 });
@@ -123,8 +125,9 @@ test('uploads a PDF on the lease tab with a typed name and shows it inline', asy
 	await page.goto(`/dokumente?leaseId=${lease.leaseId}`);
 	await expect(rowOf(page, name)).toBeVisible();
 
+	await rowOf(page, name).getByRole('link', { name, exact: true }).click();
 	page.once('dialog', (dialog) => dialog.accept());
-	await rowOf(page, name).getByRole('button', { name: 'Löschen' }).click();
+	await page.getByRole('dialog', { name }).getByRole('button', { name: 'Löschen' }).click();
 	await expect(rowOf(page, name)).toHaveCount(0);
 });
 

@@ -5,19 +5,28 @@
 	import Balance from '#lib/components/Balance.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import Sections from './Sections.svelte';
 	import Sparkline from '#lib/components/Sparkline.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
 	import { formatArea, pluralize } from '#lib/format.ts';
-	import { expenseCategoryLabels } from '#lib/labels.ts';
+	import { expenseCategoryLabels, expenseCategoryShortLabels } from '#lib/labels.ts';
 	import Filters from './Filters.svelte';
 	import { percent, perSqm } from './figures';
+	import { byDate, byNumber, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
 	const all = $derived(data.period === 'all');
 	const periodLabel = $derived(all ? 'seit Beginn' : String(data.period));
+	const seriesSort = new TableSort<PageProps['data']['series'][number]>({
+		period: byDate((point) => point.key),
+		charged: byNumber((point) => point.charged),
+		received: byNumber((point) => point.received),
+		expenses: byNumber((point) => point.expenses),
+		net: byNumber((point) => point.net)
+	});
 
 	const points = $derived(
 		data.series.map((point) => ({
@@ -90,7 +99,9 @@
 			<span class="label">Ausgaben {periodLabel}</span>
 			<Sparkline values={past.map((point) => point.expenses)} />
 			{#if largest}
-				<span class="pill">größter Posten: {expenseCategoryLabels[largest.category]}</span>
+				<span class="pill" title={expenseCategoryLabels[largest.category]}>
+					größter Posten: {expenseCategoryShortLabels[largest.category]}
+				</span>
 			{/if}
 		</li>
 		<li class="card tile">
@@ -157,15 +168,15 @@
 					<table class="table">
 						<thead>
 							<tr>
-								<th>{all ? 'Jahr' : 'Monat'}</th>
-								<th class="number">Soll</th>
-								<th class="number">Einnahmen</th>
-								<th class="number">Ausgaben</th>
-								<th class="number">Überschuss</th>
+								<SortHeader sort={seriesSort} key="period">{all ? 'Jahr' : 'Monat'}</SortHeader>
+								<SortHeader sort={seriesSort} key="charged" class="num">Soll</SortHeader>
+								<SortHeader sort={seriesSort} key="received" class="num">Einnahmen</SortHeader>
+								<SortHeader sort={seriesSort} key="expenses" class="num">Ausgaben</SortHeader>
+								<SortHeader sort={seriesSort} key="net" class="num">Überschuss</SortHeader>
 							</tr>
 						</thead>
 						<tbody>
-							{#each data.series as point (point.key)}
+							{#each seriesSort.rows(data.series) as point (point.key)}
 								<tr>
 									<td>{all ? point.key : formatMonth(point.key)}</td>
 									<td class="number"><Money cents={point.charged} /></td>
@@ -268,7 +279,7 @@
 		list-style: none;
 		padding: 0;
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
 		gap: 0.75rem;
 		margin: 0 0 0.75rem;
 	}
@@ -284,17 +295,17 @@
 		color: inherit;
 	}
 	.tile .value {
-		font-size: 1.5rem;
+		font-size: var(--text-xl);
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 		letter-spacing: -0.01em;
 	}
 	.tiles.small .value {
-		font-size: 1.15rem;
+		font-size: var(--text-lg);
 	}
 	.tile .label {
 		color: var(--color-muted);
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 	}
 	.tile a:hover .value {
 		text-decoration: underline;
@@ -309,11 +320,15 @@
 	}
 	.pill {
 		justify-self: start;
+		max-width: 100%;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
 		margin-top: 0.6rem;
 		padding: 0.15rem 0.55rem;
 		border-radius: 999px;
 		background: var(--color-hover);
-		font-size: 0.8rem;
+		font-size: var(--text-xs);
 		font-weight: 500;
 	}
 	.negative {
@@ -337,7 +352,7 @@
 	}
 	h3 {
 		margin-top: 0;
-		font-size: 1rem;
+		font-size: var(--text-base);
 	}
 	.top {
 		margin: 0;

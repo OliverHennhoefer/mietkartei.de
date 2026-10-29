@@ -24,7 +24,7 @@ import {
 	type LeaseKind,
 	type OperatingCostModel
 } from './db/schema';
-import { newChargeLeases, newLeaseStatements, type LeaseInput } from './leases';
+import { newChargeLeases, newLeaseStatements, termsOverlap, type LeaseInput } from './leases';
 import { chargeSyncStatements, type PaymentInput } from './ledger';
 import { assertQuota } from './quotas';
 import type { TenantInput } from './tenants';
@@ -562,7 +562,7 @@ export async function loadImportContext(
 					.from(leases)
 					.where(eq(leases.accountId, accountId))
 			: [],
-		wantsPayments
+		wantsLeases
 			? db
 					.select({ leaseId: leaseUnits.leaseId, unitId: leaseUnits.unitId })
 					.from(leaseUnits)
@@ -1092,6 +1092,17 @@ function planLeases(rows: DataRow[], context: ImportContext): ImportPlan {
 			continue;
 		}
 		seen.add(key);
+		// Two leases of one unit at once would split its operating costs between them.
+		const holds = (lease: { unitId: string; extraUnitIds: string[] }) =>
+			lease.unitId === unit.id || lease.extraUnitIds.includes(unit.id);
+		const overlap = [
+			...context.leases.filter(holds),
+			...newLeases.map((lease) => lease.input).filter(holds)
+		].find((lease) => termsOverlap(lease, parsed.data));
+		if (overlap) {
+			result.reason = `Für ${label} gibt es in diesem Zeitraum schon einen Mietvertrag (ab ${formatDate(overlap.startDate)}); eine Einheit kann nur einen Vertrag zur selben Zeit haben.`;
+			continue;
+		}
 		newLeases.push({ row, values, input: parsed.data, openingBalance });
 	}
 	return { kind: 'leases', rows: results, leases: newLeases };

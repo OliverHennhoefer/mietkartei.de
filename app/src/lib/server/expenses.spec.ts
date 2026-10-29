@@ -25,9 +25,11 @@ import {
 	deleteExpense,
 	expenseSuggestions,
 	listExpenses,
-	scopeOptions
+	scopeOptions,
+	updateExpense
 } from './expenses';
 import { deleteProperty, deleteUnit } from './deletion';
+import { createServiceProvider, deleteServiceProvider } from './service-providers';
 import { contextA, contextB, seedLease, seedUnit, testDatabase } from './testing';
 
 let db: Database;
@@ -214,10 +216,91 @@ describe('expenses', () => {
 			description: 'Heizungswartung'
 		});
 		expect(await expenseSuggestions(db, 'a')).toEqual([
-			{ description: 'Heizungswartung', category: 'maintenance', scope: `property:${propertyId}` },
-			{ description: 'Steuerberatung', category: 'management', scope: '' }
+			{
+				description: 'Heizungswartung',
+				category: 'maintenance',
+				scope: `property:${propertyId}`,
+				serviceProviderId: ''
+			},
+			{ description: 'Steuerberatung', category: 'management', scope: '', serviceProviderId: '' }
 		]);
 		expect(await expenseSuggestions(db, 'b')).toEqual([]);
+	});
+});
+
+describe('expenses by Dienstleister', () => {
+	it('names the Dienstleister or leaves it unknown, refuses one of another account and forgets a deleted one', async () => {
+		const caretaker = await createServiceProvider(db, contextA, {
+			name: 'Hausmeisterservice Krüger',
+			service: 'Hausmeisterdienst',
+			phone: null,
+			email: null,
+			note: null
+		});
+		const foreign = await createServiceProvider(db, contextB, {
+			name: 'Fremd',
+			service: null,
+			phone: null,
+			email: null,
+			note: null
+		});
+		const input = {
+			date: '2026-04-01',
+			amount: 72000,
+			category: 'operating_costs' as const,
+			scope: { kind: 'property' as const, id: propertyId },
+			description: 'Hausmeisterdienst'
+		};
+		expect(await createExpense(db, contextA, { ...input, serviceProviderId: foreign })).toEqual({
+			ok: false,
+			reason: 'unknown-service-provider'
+		});
+		const named = await createExpense(db, contextA, { ...input, serviceProviderId: caretaker });
+		const unknown = await createExpense(db, contextA, { ...input, description: 'Bar bezahlt' });
+		if (!named.ok || !unknown.ok) throw new Error('not created');
+		const byId = async () =>
+			new Map((await listExpenses(db, 'a')).map((row) => [row.id, row.serviceProviderName]));
+		expect(await byId()).toEqual(
+			new Map([
+				[named.id, 'Hausmeisterservice Krüger'],
+				[unknown.id, null]
+			])
+		);
+		// A change without the field (the API) keeps the Dienstleister.
+		expect(await updateExpense(db, contextA, named.id, { ...input, amount: 75000 })).toBe(
+			'updated'
+		);
+		expect((await byId()).get(named.id)).toBe('Hausmeisterservice Krüger');
+		expect(
+			await updateExpense(db, contextA, named.id, { ...input, serviceProviderId: foreign })
+		).toBe('unknown-service-provider');
+		// Deleting the Dienstleister keeps the expense, now unknown.
+		expect(await deleteServiceProvider(db, contextA, caretaker)).toBe(true);
+		expect(await byId()).toEqual(
+			new Map([
+				[named.id, null],
+				[unknown.id, null]
+			])
+		);
+	});
+
+	it('reads the Dienstleister from the form, empty for unknown', () => {
+		const form = (serviceProviderId: string) => {
+			const data = new FormData();
+			data.set('category', 'other');
+			data.set('description', 'x');
+			data.set('serviceProviderId', serviceProviderId);
+			return data;
+		};
+		expect(parseExpenseAssignment(form(''))).toMatchObject({
+			ok: true,
+			data: { serviceProviderId: null }
+		});
+		expect(parseExpenseAssignment(form('abc-1'))).toMatchObject({
+			ok: true,
+			data: { serviceProviderId: 'abc-1' }
+		});
+		expect(parseExpenseAssignment(form('a b'))).toMatchObject({ ok: false });
 	});
 });
 
@@ -291,16 +374,25 @@ describe('bank transactions as expenses', () => {
 			description: 'Erste Rechnung'
 		});
 		const second = await seedTransaction('a', -7000, { counterpartIban: iban });
+		const heating = await createServiceProvider(db, contextA, {
+			name: 'Heizung Aydin',
+			service: 'Heizung',
+			phone: null,
+			email: null,
+			note: null
+		});
 		await assignExpense(db, contextA, second, {
 			category: 'maintenance',
 			scope: { kind: 'unit', id: unitId },
-			description: 'Heizungswartung'
+			description: 'Heizungswartung',
+			serviceProviderId: heating
 		});
 		const presets = await expenseByCounterpart(db, 'a');
 		const latest = {
 			category: 'maintenance',
 			scope: `unit:${unitId}`,
-			description: 'Heizungswartung'
+			description: 'Heizungswartung',
+			serviceProviderId: heating
 		};
 		// The IBAN wins over the name; without an IBAN the name decides, whatever its case.
 		expect(expensePreset({ counterpartIban: iban, counterpartName: 'Jemand' }, presets)).toEqual(

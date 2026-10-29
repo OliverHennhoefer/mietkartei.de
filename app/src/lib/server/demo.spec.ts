@@ -7,14 +7,20 @@ import {
 	associationStatements,
 	auditLog,
 	co2CostSplits,
+	serviceProviders,
 	costItems,
+	depositSettlements,
 	depositTransactions,
 	documents,
+	expenses,
+	handoverProtocols,
+	leaseUnits,
 	leases,
 	operatingCostStatements,
 	paymentReminders,
 	payments,
 	properties,
+	rentChanges,
 	tasks,
 	taxYears,
 	tenants,
@@ -22,7 +28,9 @@ import {
 } from './db/schema';
 import { createDemoData, isEmptyAccount } from './demo';
 import { addDays, today } from '../dates';
+import { listDeadlines } from './deadlines';
 import { addressKey } from './geocoding';
+import { termsOverlap } from './leases';
 import { listBalances } from './ledger';
 import { QUOTAS } from './quotas';
 import { contextA, contextB, memoryStorage, seedUnit, testDatabase } from './testing';
@@ -69,6 +77,30 @@ describe('createDemoData', () => {
 			.from(depositTransactions)
 			.where(eq(depositTransactions.accountId, 'a'));
 		expect(deposits.filter((row) => row.kind === 'returned')).toHaveLength(5);
+		// Each former tenant's deposit settled with a letter; its bookings bring the deposit to zero.
+		const settlements = await db
+			.select()
+			.from(depositSettlements)
+			.where(eq(depositSettlements.accountId, 'a'));
+		expect(settlements).toHaveLength(5);
+		// An Übergabeprotokoll for each move-out, the withheld damage marked in its room.
+		const handovers = await db
+			.select()
+			.from(handoverProtocols)
+			.where(eq(handoverProtocols.accountId, 'a'));
+		const moveOuts = handovers.filter((row) => row.kind === 'move_out');
+		expect(moveOuts).toHaveLength(5);
+		expect(
+			moveOuts.flatMap((row) => row.rooms).filter((room) => room.condition === 'damaged')
+		).toHaveLength(3);
+		expect(handovers.filter((row) => row.kind === 'move_in').length).toBeGreaterThan(3);
+		expect(settlements.every((row) => row.letterText.includes('Mietsicherheit'))).toBe(true);
+		for (const settlement of settlements) {
+			const held = deposits
+				.filter((row) => row.leaseId === settlement.leaseId)
+				.reduce((sum, row) => sum + row.amount, 0);
+			expect(held).toBe(0);
+		}
 		const leaseRows = await db.select().from(leases).where(eq(leases.accountId, 'a'));
 		const terminated = leaseRows.filter((row) => row.endDate && row.endDate > today());
 		expect(terminated).toHaveLength(1);
@@ -78,7 +110,57 @@ describe('createDemoData', () => {
 			expect.objectContaining({ unitId: nowak.unitId, startDate: addDays(nowak.endDate!, 1) })
 		]);
 		expect(await rows(leases)).toHaveLength(11);
-		expect(await rows(tasks)).toHaveLength(5);
+		// One lease per unit at a time, extra units included, as createLease demands.
+		const extra = await db.select().from(leaseUnits).where(eq(leaseUnits.accountId, 'a'));
+		const holders = leaseRows.flatMap((lease) => [
+			{ unitId: lease.unitId, lease },
+			...extra
+				.filter((row) => row.leaseId === lease.id)
+				.map((row) => ({ unitId: row.unitId, lease }))
+		]);
+		const overlapping = holders.filter((a) =>
+			holders.some(
+				(b) => a.unitId === b.unitId && a.lease.id !== b.lease.id && termsOverlap(a.lease, b.lease)
+			)
+		);
+		expect(overlapping).toEqual([]);
+		expect(await rows(tasks)).toHaveLength(16);
+		// Nine Dienstleister, among them the Hausmeisterdienst and the Schornsteinfeger; six
+		// Reparaturen done and paid for, two still open.
+		const providers = await db
+			.select()
+			.from(serviceProviders)
+			.where(eq(serviceProviders.accountId, 'a'));
+		expect(providers.map((row) => row.service)).toEqual(
+			expect.arrayContaining(['Hausmeisterdienst', 'Schornsteinfeger'])
+		);
+		expect(providers).toHaveLength(9);
+		const repairs = (await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).filter(
+			(row) => row.category === 'repair'
+		);
+		expect(repairs.filter((row) => row.done)).toHaveLength(6);
+		expect(repairs.filter((row) => !row.done)).toHaveLength(2);
+		const paid = (await db.select().from(expenses).where(eq(expenses.accountId, 'a'))).filter(
+			(row) => row.taskId
+		);
+		expect(paid).toHaveLength(7);
+		expect(paid.every((row) => repairs.some((task) => task.id === row.taskId))).toBe(true);
+		expect(paid.every((row) => row.category === 'maintenance')).toBe(true);
+		// A Reparatur's bills name its Dienstleister; the expenses of every history year name some,
+		// and leave others unknown.
+		expect(
+			paid.every(
+				(row) =>
+					row.serviceProviderId ===
+					repairs.find((task) => task.id === row.taskId)!.serviceProviderId
+			)
+		).toBe(true);
+		const allExpenses = await db.select().from(expenses).where(eq(expenses.accountId, 'a'));
+		const caretakerId = providers.find((row) => row.service === 'Hausmeisterdienst')!.id;
+		expect(
+			allExpenses.filter((row) => row.serviceProviderId === caretakerId).length
+		).toBeGreaterThanOrEqual(7);
+		expect(allExpenses.some((row) => row.serviceProviderId === null)).toBe(true);
 		expect(await countUnmatched(db, 'a')).toBe(3);
 
 		// Every history year but the last is settled: three properties over seven years, each
@@ -103,6 +185,20 @@ describe('createDemoData', () => {
 		expect(reminders.map((row) => row.level).sort()).toEqual([1, 2]);
 		// The Mahnung carries a line the landlord added on its sheet.
 		expect(reminders.find((row) => row.level === 2)?.letterText).toContain('in zwei Raten');
+		// Eight § 558 increases with their letters and consent, and Schmidt's demand still open.
+		const comparative = (
+			await db.select().from(rentChanges).where(eq(rentChanges.accountId, 'a'))
+		).filter((row) => row.reason === 'comparative');
+		expect(comparative).toHaveLength(9);
+		expect(comparative.every((row) => row.letterText?.includes('§ 558 BGB'))).toBe(true);
+		const pending = comparative.filter((row) => row.status === 'proposed');
+		expect(pending).toEqual([
+			expect.objectContaining({ baseRent: 82500, consentedOn: null, cappingPercent: 15 })
+		]);
+		expect(comparative.filter((row) => row.consentedOn)).toHaveLength(8);
+		expect((await listDeadlines(db, 'a')).map((deadline) => deadline.kind)).toContain(
+			'comparative_consent'
+		);
 		expect(
 			await db.select().from(co2CostSplits).where(eq(co2CostSplits.accountId, 'a'))
 		).toHaveLength(1);
@@ -140,7 +236,7 @@ describe('createDemoData', () => {
 
 		await db.run(sql`drop trigger refuse_tasks`);
 		expect(await createDemoData(db, contextA, { storage })).toEqual({ ok: true, leases: 11 });
-		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(5);
+		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(16);
 	});
 
 	it('takes its rows out again when a later step fails, keeping what the account held', async () => {

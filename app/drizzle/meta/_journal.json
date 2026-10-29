@@ -330,6 +330,48 @@
       "when": 1793104016892,
       "tag": "0046_theme",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1793220029872,
+      "tag": "0047_rent_comparison",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1793221626997,
+      "tag": "0048_deposit_settlements",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "6",
+      "when": 1793223251175,
+      "tag": "0049_handover_protocols",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1793224340180,
+      "tag": "0050_deadline_mails",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "6",
+      "when": 1793225391927,
+      "tag": "0051_repairs",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "6",
+      "when": 1793256148618,
+      "tag": "0052_service_providers",
+      "breakpoints": true
     }
   ]
 }

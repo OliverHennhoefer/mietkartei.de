@@ -60,7 +60,7 @@
 	</ul>
 {/if}
 
-<h2>Versicherung anlegen</h2>
+<h2 id="versicherung-anlegen">Versicherung anlegen</h2>
 <InsurancePolicyForm
 	action="?/create"
 	submitLabel="Versicherung anlegen"
@@ -76,6 +76,6 @@
 	.years {
 		margin: 0;
 		padding-left: 1.25rem;
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 	}
 </style>

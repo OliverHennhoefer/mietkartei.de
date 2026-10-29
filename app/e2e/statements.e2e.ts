@@ -194,7 +194,8 @@ test('creates, approves, prints and corrects a statement', async ({ page }) => {
 		has: page.getByRole('cell', { name: new RegExp(`^${amount}\\s€$`) })
 	});
 	const reversal = postings.filter({ hasText: 'Storno durch Korrektur' });
-	await expect(reversal.filter(soll('-600,00'))).toHaveCount(1);
+	// The reversal is a credit, so it stands in Haben (the fourth cell) without a sign.
+	await expect(reversal.getByRole('cell').nth(3)).toHaveText('600,00 €');
 	const own = postings.filter({ hasNotText: 'Storno' });
 	await expect(own).toHaveCount(2);
 	await expect(own.filter(soll('600,00'))).toHaveCount(1);

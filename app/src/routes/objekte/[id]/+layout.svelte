@@ -2,9 +2,11 @@
 	// The frame of every page under /objekte/[id]: heading, address, tab bar. The property comes
 	// from +layout.server.ts; child pages read it from the layout data (data.property) and render
 	// only h2 sections, no PageHeader; a first h2 that only repeats the tab name is .visually-hidden,
-	// as the current tab already shows it. Pages put their primary action buttons in a
-	// <div class="toolbar"> below the tabs, not in the PageHeader actions snippet, because every
-	// tab has actions of its own.
+	// as the current tab already shows it. The create action of each tab sits at the right of the
+	// heading, next to "Bearbeiten"; it is set here, by the current path, and leads to the tab's form
+	// further down.
+	import { page } from '$app/state';
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { formatNumber } from '#lib/format.ts';
 	import PageHeader from '#lib/components/PageHeader.svelte';
@@ -29,6 +31,26 @@
 		{ href: `/objekte/${data.property.id}/lage`, label: 'Lage' }
 	]);
 
+	const create = $derived.by(() => {
+		const base = `/objekte/${data.property.id}`;
+		const creates: Record<string, { href: string; label: string }> = {
+			[base]: { href: '#einheit-anlegen', label: 'Einheit anlegen' },
+			[`${base}/zaehler`]: { href: '#zaehler-anlegen', label: 'Zähler anlegen' },
+			[`${base}/abrechnungskreise`]: {
+				href: '#abrechnungskreis-anlegen',
+				label: 'Abrechnungskreis anlegen'
+			},
+			[`${base}/versicherungen`]: { href: '#versicherung-anlegen', label: 'Versicherung anlegen' },
+			[`${base}/hausgeld`]: {
+				href: '#hausgeldabrechnung-erfassen',
+				label: 'Hausgeldabrechnung erfassen'
+			}
+		};
+		return creates[page.url.pathname];
+	});
+	// "Bearbeiten" edits the property, so it shows on the tabs, not on a unit or a form below them.
+	const onTab = $derived(tabs.some((tab) => tab.href === page.url.pathname));
+
 	/** For an Eigentumswohnung: the WEG, its MEA and its Verwalter. */
 	const condominium = $derived.by(() => {
 		const property = data.property;
@@ -51,7 +73,14 @@
 		? ` · archiviert am ${formatDate(data.property.archivedAt)}`
 		: ''}"
 	back={{ href: '/objekte', label: 'Alle Objekte' }}
-/>
+>
+	{#snippet actions()}
+		{#if onTab}
+			<a class="button secondary" href="/objekte/{data.property.id}/bearbeiten">Bearbeiten</a>
+		{/if}
+		{#if create}<CreateButton {...create} />{/if}
+	{/snippet}
+</PageHeader>
 
 <Tabs {tabs} />
 

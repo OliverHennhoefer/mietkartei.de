@@ -37,11 +37,11 @@
 	.empty p {
 		margin: 0 0 0.5rem;
 		max-width: 30rem;
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 	}
 	.empty-title {
-		font-weight: 550;
-		font-size: 1.05rem;
+		font-weight: 600;
+		font-size: var(--text-lg);
 	}
 	.empty-actions {
 		display: flex;

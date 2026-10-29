@@ -4,8 +4,8 @@ import { parseCents } from '../src/lib/money';
 import { nthWorkingDay } from '../src/lib/working-days';
 import { seedLease, seedRows } from './seed';
 
-// The start page is Aufgaben: below the own tasks, "Handlungsbedarf" lists the arrears, the open
-// bank transactions and the vacant units. Other tests share the owner's account, so the test reads
+// The start page is Aufgaben: reminders in the task list link the arrears, the open bank
+// transactions and the vacant units. Other tests share the owner's account, so the test reads
 // the list, seeds, and asserts the exact increase. The first seed (a bank account and a lease that
 // starts next month) makes sure the first-run checklist is gone even when this file runs alone.
 
@@ -31,10 +31,10 @@ async function readAttention(page: Page): Promise<Attention> {
 	await page.goto('/');
 	await expect(page).toHaveURL(/\/aufgaben$/);
 	await expect(page.getByRole('heading', { name: 'Erste Schritte' })).toHaveCount(0);
-	const items = page.getByRole('list', { name: 'Handlungsbedarf' }).getByRole('listitem');
+	const items = page.getByRole('list', { name: 'Offene Aufgaben' }).getByRole('listitem');
 	const arrearsRow = items.filter({ hasText: 'Rückstände bei' });
 	const hasArrears = (await arrearsRow.count()) > 0;
-	const unmatchedRow = items.filter({ hasText: /offene[rn]? Bankums/ });
+	const unmatchedRow = items.filter({ hasText: /Bankums(atz|ätze) zuordnen/ });
 	return {
 		arrears: hasArrears
 			? (parseCents(await arrearsRow.locator('.money').innerText()) ?? Number.NaN)
@@ -45,7 +45,7 @@ async function readAttention(page: Page): Promise<Attention> {
 		),
 		unmatched: whole(
 			(await unmatchedRow.count()) > 0 ? await unmatchedRow.innerText() : undefined,
-			/([\d.]+)\soffene/
+			/([\d.]+)\sBankums/
 		)
 	};
 }
@@ -112,20 +112,22 @@ test('starts on Aufgaben with arrears, open bank transactions and vacant units',
 		unmatched: before.unmatched + 1
 	});
 
-	const items = page.getByRole('list', { name: 'Handlungsbedarf' }).getByRole('listitem');
-	await expect(items.filter({ hasText: 'Rückstände bei' }).getByRole('link')).toHaveAttribute(
+	const reminders = page.getByRole('list', { name: 'Offene Aufgaben' }).getByRole('link');
+	await expect(reminders.filter({ hasText: 'Rückstände bei' })).toHaveAttribute(
 		'href',
 		'/mietkonto?filter=rueckstaende'
 	);
-	await expect(items.filter({ hasText: /offene[rn]? Bankums/ }).getByRole('link')).toHaveAttribute(
+	await expect(reminders.filter({ hasText: /Bankums(atz|ätze) zuordnen/ })).toHaveAttribute(
 		'href',
 		'/bank'
 	);
 
-	// The vacant unit is listed with a link into the lease form, preselected.
-	const vacant = items.filter({ hasText: `Leer-${suffix}` });
+	// The vacant unit is a reminder that leads into the lease form, preselected.
+	const vacant = page
+		.getByRole('list', { name: 'Offene Aufgaben' })
+		.getByRole('link', { name: new RegExp(`Mietvertrag anlegen: Leer-${suffix}`) });
 	await expect(vacant).toBeVisible();
-	await vacant.getByRole('link', { name: 'Mietvertrag anlegen' }).click();
+	await vacant.click();
 	await expect(page).toHaveURL(/\/vertraege\/neu\?unitId=/);
 	const unit = page.getByRole('combobox', { name: 'Einheit', exact: true });
 	await expect(unit.locator('option:checked')).toHaveText(new RegExp(`Leer-${suffix}`));

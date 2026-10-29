@@ -32,7 +32,7 @@ test('the first visitor registers and becomes the owner', async ({ page, request
 	}
 
 	await expect(page).toHaveURL(/\/aufgaben$/);
-	await expect(page.getByRole('button', { name: 'Konto' })).toContainText(owner.email);
+	await expect(page.getByRole('button', { name: 'Konto', exact: true })).toContainText(owner.email);
 
 	// The empty account gets the first steps, each linked to its form.
 	const steps = page.getByRole('region', { name: 'Erste Schritte' });

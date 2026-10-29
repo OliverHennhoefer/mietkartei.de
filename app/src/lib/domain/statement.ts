@@ -823,10 +823,10 @@ function areaComponent(
 		if (unit.floorArea === null && unit.kind !== 'parking') {
 			warn(ctx, {
 				code: 'missing_area',
-				blocking: false,
+				blocking: true,
 				unitId: unit.id,
 				href: `/objekte/${ctx.input.property.id}/einheiten/${unit.id}/bearbeiten`,
-				message: `Für die Einheit ${unit.name} fehlt die Wohnfläche; sie erhält keinen Anteil nach Fläche.`
+				message: `Für die Einheit ${unit.name} fehlt die Wohnfläche; ohne sie bekämen die anderen Einheiten ihren Anteil nach Fläche. Trag die Fläche ein, bevor du die Abrechnung freigibst.`
 			});
 		}
 		return unit.floorArea ?? 0;

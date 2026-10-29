@@ -14,6 +14,19 @@ import {
 } from '../dates';
 import { fingerprintRows, formatIban, type BankRow } from '../domain/bank-matching';
 import { co2KgFromKwh } from '../domain/co2';
+import {
+	cappingBase,
+	comparativeEffectiveFrom,
+	comparativeLetterRows,
+	comparativeLetterText,
+	type ComparativeDemand
+} from '../domain/comparative-rent';
+import {
+	settlementFigures,
+	settlementRows as depositSettlementRows,
+	settlementText
+} from '../domain/deposit-settlement';
+import { defaultKeys, defaultRooms } from '../domain/handover';
 import { effectiveFrom } from '../domain/index-rent';
 import { monthlyAmounts, total, type RentChange } from '../domain/rents';
 import { formatCents } from '../money';
@@ -30,9 +43,12 @@ import {
 	auditLog,
 	bankAccounts,
 	bankTransactions,
+	serviceProviders,
 	costItems,
 	costItemUnitAmounts,
+	depositSettlements,
 	depositTransactions,
+	handoverProtocols,
 	expenses,
 	insurancePolicies,
 	leasePersons,
@@ -59,6 +75,7 @@ import { newLeaseStatements, type LeaseInput } from './leases';
 import { ensureDefaults, listCategories, listKeys } from './operating-costs';
 import { assertQuota, type QuotaKind } from './quotas';
 import { renderLetter } from './pdf';
+import { postCharge } from './ledger';
 import { createReminder, reminderLetter, updateReminderText } from './reminders';
 import { approveStatement, DUE_DAYS } from './statements';
 import type { Storage } from './storage';
@@ -237,7 +254,11 @@ type DemoRentChange = {
 	indexMonth?: IsoMonth;
 	indexValue?: number;
 	deliveredOn?: IsoDate;
+	/** A § 558 increase: the Mietspiegel and its field the Vergleichsmiete comes from. */
+	comparison?: DemoComparison;
 };
+
+type DemoComparison = { index: string; field: string };
 
 /** An annuity loan: the monthly rate and its interest, booked from the month after acquisition. */
 type Loan = { principal: number; ratePercent: number; payment: number; lender: string };
@@ -324,7 +345,7 @@ export async function createDemoData(
 			// 640.000 € plus Grunderwerbsteuer, Notar, Grundbuch and Makler.
 			acquisitionCost: 736_000_00,
 			// The principal of the loans booked below.
-			loanAmount: 520_000_00,
+			loanAmount: 400_000_00,
 			buildingShare: 70,
 			// Built 1906: 2.5 % (§ 7 Abs. 4 Nr. 2 b EStG).
 			depreciationRate: 2.5,
@@ -346,7 +367,7 @@ export async function createDemoData(
 			state: 'BB' as const,
 			acquisitionDate: acquisition[parkId],
 			acquisitionCost: 274_400_00,
-			loanAmount: 200_000_00,
+			loanAmount: 150_000_00,
 			buildingShare: 80,
 			depreciationRate: 2,
 			notes: 'WEG mit 14 Einheiten, Baujahr 1996, Aufzug, Zentralheizung.',
@@ -367,7 +388,7 @@ export async function createDemoData(
 			state: 'BY' as const,
 			acquisitionDate: acquisition[rosenheimId],
 			acquisitionCost: 471_300_00,
-			loanAmount: 380_000_00,
+			loanAmount: 300_000_00,
 			buildingShare: 45,
 			depreciationRate: 2,
 			notes: 'WEG mit 21 Einheiten, Baujahr 1972, Gasetagenheizung je Wohnung.',
@@ -430,7 +451,7 @@ export async function createDemoData(
 
 	// Tenants. Those who moved out are archived, with the address they moved to.
 	const tenantInputs = {
-		schmidt: tenant('Frau', 'Anna', 'Schmidt', 'anna.schmidt@example.org', '0170 2345678'),
+		schmidt: tenant('Herr', 'Armin', 'Schmidt', 'armin.schmidt@example.org', '0170 2345678'),
 		kraus: tenant('Frau', 'Helga', 'Kraus', null, '030 6912345', [
 			'Wilhelmsaue 41',
 			'10713',
@@ -504,8 +525,10 @@ export async function createDemoData(
 		changes: DemoRentChange[];
 		/** Months left unpaid at the end: the arrears. */
 		unpaidMonths?: number;
-		/** An ended lease: the deposit paid back that day, less what was withheld and why. */
+		/** An ended lease: the deposit settled that day, less what was withheld and why. */
 		moveOut?: { day: IsoDate; withheld?: [amount: number, note: string] };
+		/** A § 558 demand the tenant has not consented to yet. */
+		demand?: { deliveredOn: IsoDate; baseRent: number; comparison: DemoComparison };
 		/** Who the rent comes from, as the bank shows it; only for leases paying on the bank account. */
 		bank?: { payer: string; iban: string; purpose: (month: IsoMonth) => string };
 	}[] = [
@@ -527,14 +550,14 @@ export async function createDemoData(
 			changes: [
 				{
 					validFrom: at(-6, '03-01'),
-					reason: 'manual',
+					reason: 'comparative',
 					baseRent: 52200,
-					note: 'Mieterhöhung auf die ortsübliche Vergleichsmiete (§ 558 BGB)'
+					comparison: { index: 'Berliner Mietspiegel', field: 'Feld E3' }
 				}
 			],
 			moveOut: {
 				day: at(-4, '10-20'),
-				withheld: [38000, 'Einbehalt: Reparatur Badtür und Herd laut Abnahmeprotokoll']
+				withheld: [38000, 'Reparatur Badtür und Herd laut Abnahmeprotokoll']
 			}
 		},
 		{
@@ -555,9 +578,9 @@ export async function createDemoData(
 			changes: [
 				{
 					validFrom: at(-9, '05-01'),
-					reason: 'manual',
+					reason: 'comparative',
 					baseRent: 47100,
-					note: 'Mieterhöhung auf die ortsübliche Vergleichsmiete (§ 558 BGB)'
+					comparison: { index: 'Berliner Mietspiegel', field: 'Feld E3' }
 				}
 			],
 			moveOut: { day: at(-6, '05-18') }
@@ -581,14 +604,14 @@ export async function createDemoData(
 			changes: [
 				{
 					validFrom: at(-10, '04-01'),
-					reason: 'manual',
+					reason: 'comparative',
 					baseRent: 68500,
-					note: 'Mieterhöhung auf die ortsübliche Vergleichsmiete (§ 558 BGB)'
+					comparison: { index: 'Berliner Mietspiegel', field: 'Feld E3' }
 				}
 			],
 			moveOut: {
 				day: at(-7, '02-20'),
-				withheld: [25000, 'Einbehalt: Schönheitsreparaturen Küche laut Abnahmeprotokoll']
+				withheld: [25000, 'Schönheitsreparaturen Küche laut Abnahmeprotokoll']
 			}
 		},
 		{
@@ -609,9 +632,12 @@ export async function createDemoData(
 			changes: [
 				{
 					validFrom: at(-9, '08-01'),
-					reason: 'manual',
+					reason: 'comparative',
 					baseRent: 58500,
-					note: 'Mieterhöhung laut Mietspiegel Potsdam (§ 558 BGB)'
+					comparison: {
+						index: 'Mietspiegel der Landeshauptstadt Potsdam',
+						field: 'Spalte 3, Zeile 5'
+					}
 				}
 			],
 			moveOut: { day: at(-7, '05-27') }
@@ -634,14 +660,14 @@ export async function createDemoData(
 			changes: [
 				{
 					validFrom: at(-8, '03-01'),
-					reason: 'manual',
+					reason: 'comparative',
 					baseRent: 84500,
-					note: 'Mieterhöhung laut Mietspiegel München (§ 558 BGB)'
+					comparison: { index: 'Mietspiegel für München', field: 'Wohnlage gut, Baujahr bis 1949' }
 				}
 			],
 			moveOut: {
 				day: at(-6, '12-14'),
-				withheld: [42000, 'Einbehalt: Bohrlöcher im Bad und fehlender Kellerschlüssel']
+				withheld: [42000, 'Bohrlöcher im Bad und fehlender Kellerschlüssel']
 			}
 		},
 
@@ -659,9 +685,9 @@ export async function createDemoData(
 			changes: [
 				{
 					validFrom: at(-3, '08-01'),
-					reason: 'manual',
+					reason: 'comparative',
 					baseRent: 76000,
-					note: 'Mieterhöhung auf die ortsübliche Vergleichsmiete laut Berliner Mietspiegel (§ 558 BGB)'
+					comparison: { index: 'Berliner Mietspiegel', field: 'Feld E3' }
 				},
 				{
 					validFrom: at(-2, '07-01'),
@@ -671,8 +697,13 @@ export async function createDemoData(
 				},
 				{ validFrom: at(-1, '07-01'), reason: 'statement', heatingCostPrepayment: 9500 }
 			],
+			demand: {
+				deliveredOn: addDays(date, -20),
+				baseRent: 82500,
+				comparison: { index: 'Berliner Mietspiegel', field: 'Feld E3' }
+			},
 			bank: {
-				payer: 'Anna Schmidt',
+				payer: 'Armin Schmidt',
 				iban: 'DE80100500001062734591',
 				purpose: (month) => `Miete ${month} Lindenstr. 12 EG links`
 			}
@@ -738,9 +769,9 @@ export async function createDemoData(
 			changes: [
 				{
 					validFrom: at(-4, '06-01'),
-					reason: 'manual',
+					reason: 'comparative',
 					baseRent: 92000,
-					note: 'Mieterhöhung auf die ortsübliche Vergleichsmiete (§ 558 BGB)'
+					comparison: { index: 'Berliner Mietspiegel', field: 'Feld E3' }
 				},
 				{
 					validFrom: at(-2, '07-01'),
@@ -775,9 +806,12 @@ export async function createDemoData(
 			changes: [
 				{
 					validFrom: at(-3, '05-01'),
-					reason: 'manual',
+					reason: 'comparative',
 					baseRent: 73500,
-					note: 'Mieterhöhung laut Mietspiegel Potsdam (§ 558 BGB)'
+					comparison: {
+						index: 'Mietspiegel der Landeshauptstadt Potsdam',
+						field: 'Spalte 3, Zeile 5'
+					}
 				},
 				{ validFrom: at(-2, '08-01'), reason: 'statement', heatingCostPrepayment: 15000 },
 				{ validFrom: at(-1, '08-01'), reason: 'statement', operatingCostPrepayment: 16000 }
@@ -860,9 +894,62 @@ export async function createDemoData(
 		}
 		return history;
 	};
-	const rentChangeRows = leaseEntries.flatMap((entry) =>
-		entry.changes.map((change, index) => {
-			const amounts = historyOf(entry)[index + 1];
+	// A § 558 increase: demanded three weeks into the third month before it is due, consented to
+	// three weeks later, the Vergleichsmiete just above the new rent, within the Kappungsgrenze of
+	// 15 % that Berlin, Potsdam and Munich set.
+	const comparativeFields = (
+		entry: (typeof leaseEntries)[number],
+		history: RentChange[],
+		position: number,
+		deliveredOn: IsoDate,
+		comparison: DemoComparison
+	) => {
+		const floorArea = unitOf(entry.input.unitId).floorArea!;
+		const oldRent = history[position - 1];
+		const newRent = history[position];
+		const raised = entry.changes.filter(
+			(change, index) => index < position - 1 && change.reason !== 'statement' && change.baseRent
+		);
+		const comparativeRent = Math.ceil(newRent.baseRent / floorArea / 10) * 10 + 20;
+		const year = deliveredOn.slice(0, 4);
+		const demand: ComparativeDemand = {
+			deliveredOn,
+			baseRent: newRent.baseRent,
+			comparativeRent,
+			cappingPercent: 15,
+			comparisonSource: 'rent_index',
+			comparisonDetails:
+				`${comparison.index} ${year}, ${comparison.field}, Spanne ` +
+				`${formatCents(comparativeRent - 140)} bis ${formatCents(comparativeRent + 160)} je m²`
+		};
+		const content = {
+			unitName: unitOf(entry.input.unitId).name,
+			floorArea,
+			tenants: entry.input.tenantIds.map((id) => tenantRows.find((row) => row.id === id)!),
+			oldRent,
+			newRent,
+			capBase: cappingBase(history.slice(0, position), newRent.validFrom),
+			lastChange: raised.at(-1)?.validFrom ?? entry.input.startDate,
+			deliveredOn,
+			demand
+		};
+		return {
+			deliveredOn,
+			comparativeRent,
+			comparisonSource: demand.comparisonSource,
+			comparisonDetails: demand.comparisonDetails,
+			cappingPercent: demand.cappingPercent,
+			letterText: comparativeLetterText(content),
+			letterTable: comparativeLetterRows(content)
+		};
+	};
+	const rentChangeRows = leaseEntries.flatMap((entry) => {
+		const history = historyOf(entry);
+		const rows = entry.changes.map((change, index) => {
+			const amounts = history[index + 1];
+			const deliveredOn = change.comparison
+				? addDays(addMonths(change.validFrom, -3), 20)
+				: change.deliveredOn;
 			return {
 				id: crypto.randomUUID(),
 				accountId,
@@ -876,11 +963,35 @@ export async function createDemoData(
 				note: change.note ?? null,
 				indexMonth: change.indexMonth ?? null,
 				indexValue: change.indexValue ?? null,
-				deliveredOn: change.deliveredOn ?? null,
+				deliveredOn: deliveredOn ?? null,
+				...(change.comparison && {
+					...comparativeFields(entry, history, index + 1, deliveredOn!, change.comparison),
+					consentedOn: addDays(deliveredOn!, 21)
+				}),
 				createdBy: context.userId
 			};
-		})
-	);
+		});
+		if (!entry.demand) return rows;
+		// The pending demand is not part of what the tenants paid: it ends the history only here.
+		const { deliveredOn, baseRent, comparison } = entry.demand;
+		const last = entry.changes.findLast((change) => change.reason === 'comparative')!;
+		const validFrom = comparativeEffectiveFrom(deliveredOn, last.validFrom);
+		const demanded = { ...history.at(-1)!, validFrom, baseRent, status: 'proposed' as const };
+		const extended = [...history, demanded];
+		return [
+			...rows,
+			{
+				id: crypto.randomUUID(),
+				accountId,
+				leaseId: entry.id,
+				...demanded,
+				reason: 'comparative' as const,
+				note: null,
+				...comparativeFields(entry, extended, extended.length - 1, deliveredOn, comparison),
+				createdBy: context.userId
+			}
+		];
+	});
 	const personsRows = [
 		{
 			id: crypto.randomUUID(),
@@ -935,6 +1046,7 @@ export async function createDemoData(
 	// the arrears tile and the letters below. Nowak and Weber/Albrecht have paid this month too,
 	// assigned on import by their rules; Schmidt and Yılmaz are open on the bank account.
 	const paymentRows: (typeof payments.$inferInsert)[] = [];
+	const reductionMonth = monthOf(at(-2, '02-01'));
 	for (const entry of leaseEntries) {
 		const history = historyOf(entry);
 		const from =
@@ -953,7 +1065,9 @@ export async function createDemoData(
 		if (autoAssigned) months = [...months, currentMonth];
 		for (const month of months) {
 			const amounts = monthlyAmounts(history, entry.input, month);
-			const amount = total(amounts);
+			// Nowak kept back the Mietminderung booked below from the February rent.
+			const amount =
+				total(amounts) - (entry.key === 'nowak' && month === reductionMonth ? 8500 : 0);
 			const day = soFar(nthWorkingDay(month, 2, entry.state));
 			const bankTransactionId =
 				onBank(month) && entry.bank
@@ -974,6 +1088,29 @@ export async function createDemoData(
 				source: bankTransactionId ? 'bank' : 'manual',
 				bankTransactionId,
 				note: `Miete ${month}`
+			});
+		}
+	}
+	// Schmidt transferred the June rent of two years ago twice; the landlord paid the second
+	// transfer back: a Rückzahlung, which the Mietkonto shows in Soll.
+	{
+		const entry = leaseEntries.find((candidate) => candidate.key === 'schmidt')!;
+		const month = monthOf(at(-2, '06-01'));
+		const amount = total(monthlyAmounts(historyOf(entry), entry.input, month));
+		const twice = addDays(nthWorkingDay(month, 2, entry.state), 6);
+		for (const [day, signed, note] of [
+			[twice, amount, 'Miete Juni doppelt überwiesen'],
+			[addDays(twice, 8), -amount, 'Rückzahlung der doppelten Überweisung']
+		] as const) {
+			paymentRows.push({
+				id: crypto.randomUUID(),
+				accountId,
+				leaseId: entry.id,
+				date: day,
+				amount: signed,
+				source: 'manual',
+				bankTransactionId: null,
+				note
 			});
 		}
 	}
@@ -1009,14 +1146,16 @@ export async function createDemoData(
 	].map((row) => ({ id: crypto.randomUUID(), accountId, ...row }));
 
 	// Deposits: received at the start, interest on the Mietkautionskonto at every year end, and
-	// paid back to the former tenants after moving out, less the cost of repairs they owed.
+	// settled with the former tenants after moving out, less the cost of repairs they owed.
 	const depositRows: (typeof depositTransactions.$inferInsert)[] = [];
+	const settlementRows: (typeof depositSettlements.$inferInsert)[] = [];
 	const deposit = (
 		leaseKey: string,
 		day: IsoDate,
 		kind: 'received' | 'interest' | 'returned' | 'withheld',
 		amount: number,
-		note: string
+		note: string,
+		settlementId: string | null = null
 	) =>
 		depositRows.push({
 			id: crypto.randomUUID(),
@@ -1026,7 +1165,8 @@ export async function createDemoData(
 			kind,
 			amount: signedDepositAmount(kind, amount),
 			note,
-			bankTransactionId: null
+			bankTransactionId: null,
+			settlementId
 		});
 	for (const entry of leaseEntries) {
 		deposit(
@@ -1048,15 +1188,119 @@ export async function createDemoData(
 			deposit(entry.key, `${year}-12-31`, 'interest', interest, `Zinsen Mietkautionskonto ${year}`);
 		}
 		if (entry.moveOut) {
+			// The Kautionsabrechnung after moving out: interest of the last months, the repairs
+			// withheld, the rest paid back.
 			const { day, withheld } = entry.moveOut;
-			if (withheld) deposit(entry.key, day, 'withheld', withheld[0], withheld[1]);
+			const endDate = entry.input.endDate!;
+			const months = Number(endDate.slice(5, 7));
+			const endYear = Number(endDate.slice(0, 4));
+			const interest = Math.round((balance * byYear(DEPOSIT_RATE, endYear) * months) / 100 / 12);
+			const settled = settlementFigures(
+				{
+					received: entry.input.securityDeposit,
+					interest: balance - entry.input.securityDeposit,
+					returned: 0,
+					withheld: 0,
+					held: balance
+				},
+				{
+					date: day,
+					interest,
+					deductions: withheld ? [{ label: withheld[1], amount: withheld[0] }] : [],
+					offsetArrears: false
+				},
+				0
+			);
+			if (!settled.ok) throw new Error(settled.message);
+			const { figures } = settled;
+			const settlementId = crypto.randomUUID();
+			settlementRows.push({
+				id: settlementId,
+				accountId,
+				leaseId: leaseId(entry.key),
+				date: day,
+				payout: figures.payout,
+				remaining: 0,
+				items: depositSettlementRows(figures),
+				letterText: settlementText({
+					tenants: entry.input.tenantIds.map((id) => tenantRows.find((row) => row.id === id)!),
+					unitName: unitOf(entry.input.unitId).name,
+					endDate,
+					figures,
+					iban: null
+				})
+			});
+			if (interest > 0) {
+				deposit(
+					entry.key,
+					day,
+					'interest',
+					interest,
+					'Zinsen bis zur Kautionsabrechnung',
+					settlementId
+				);
+			}
+			if (withheld) {
+				deposit(entry.key, day, 'withheld', withheld[0], `Einbehalt: ${withheld[1]}`, settlementId);
+			}
 			deposit(
 				entry.key,
 				day,
 				'returned',
-				balance - (withheld?.[0] ?? 0),
-				'Rückzahlung nach Auszug'
+				figures.payout,
+				'Auszahlung laut Kautionsabrechnung',
+				settlementId
 			);
+		}
+	}
+
+	// Übergabeprotokolle: each move-in within the history years and each move-out, the damage
+	// the Kautionsabrechnung withheld for marked in its room.
+	const handoverRows: (typeof handoverProtocols.$inferInsert)[] = [];
+	for (const entry of leaseEntries) {
+		const rooms = defaultRooms(unitOf(entry.input.unitId).rooms);
+		const names = entry.input.tenantIds
+			.map((id) => tenantRows.find((row) => row.id === id)!)
+			.map((tenant) => `${tenant.firstName} ${tenant.lastName}`);
+		const handover = {
+			accountId,
+			leaseId: entry.id,
+			attendees: ['Vermieterin', ...names].join(', '),
+			readings: [],
+			notes: null
+		};
+		const { startDate, endDate } = entry.input;
+		if (startDate >= firstBookedMonth && startDate <= date) {
+			handoverRows.push({
+				...handover,
+				kind: 'move_in',
+				date: startDate,
+				rooms: rooms.map((room) =>
+					room.name === 'Wohnzimmer'
+						? { ...room, condition: 'worn', note: 'Leichte Kratzer im Parkett vor dem Fenster' }
+						: room
+				),
+				keys: defaultKeys
+			});
+		}
+		if (entry.moveOut && endDate) {
+			const damage = entry.moveOut.withheld?.[1];
+			const damaged = damage?.includes('Küche')
+				? 'Küche'
+				: damage?.includes('Bad')
+					? 'Bad'
+					: 'Flur';
+			handoverRows.push({
+				...handover,
+				kind: 'move_out',
+				date: endDate,
+				rooms: rooms.map((room) =>
+					damage && room.name === damaged ? { ...room, condition: 'damaged', note: damage } : room
+				),
+				keys: defaultKeys.map((key) =>
+					damage?.includes('Kellerschlüssel') && key.label === 'Keller' ? { ...key, count: 0 } : key
+				)
+			});
 		}
 	}
 
@@ -1074,9 +1318,10 @@ export async function createDemoData(
 		propertyId: string | null,
 		unit: string | null = null,
 		bankTransactionId: string | null = null
-	) =>
+	) => {
+		const id = crypto.randomUUID();
 		expenseRows.push({
-			id: crypto.randomUUID(),
+			id,
 			accountId,
 			propertyId,
 			unitId: unit ? unitId(unit) : null,
@@ -1086,6 +1331,85 @@ export async function createDemoData(
 			description,
 			bankTransactionId
 		});
+		return id;
+	};
+	// Dienstleister: the trades of the Reparaturen, the Hausmeisterdienst and the Schornsteinfeger of
+	// the Mehrfamilienhaus. Many expenses name the one who was paid; the rest stay "unbekannt".
+	const serviceProvider = (name: string, service: string, phone: string, email: string | null) => ({
+		id: crypto.randomUUID(),
+		accountId,
+		name,
+		service,
+		phone,
+		email,
+		note: null
+	});
+	const plumber = serviceProvider(
+		'Sanitär Wendt GmbH',
+		'Sanitär',
+		'030 4471 2290',
+		'info@sanitaer-wendt.de'
+	);
+	const heating = serviceProvider(
+		'Heizungsbau Aydin',
+		'Heizung',
+		'0331 280 9915',
+		'service@heizung-aydin.de'
+	);
+	const electrician = serviceProvider('Elektro Lindner', 'Elektro', '030 9182 4410', null);
+	const painter = serviceProvider(
+		'Malerbetrieb Brandt',
+		'Maler',
+		'030 6123 7780',
+		'brandt@maler-brandt.de'
+	);
+	const roofer = serviceProvider('Dachdeckerei Seifert', 'Dach', '030 3349 0021', null);
+	const caretaker = serviceProvider(
+		'Hausmeisterservice Krüger',
+		'Hausmeisterdienst',
+		'030 6950 3318',
+		'kontakt@hausmeister-krueger.de'
+	);
+	const chimneySweep = serviceProvider(
+		'Bezirksschornsteinfeger Lehmann',
+		'Schornsteinfeger',
+		'030 2214 8806',
+		null
+	);
+	const cleaner = serviceProvider(
+		'Glanz & Co. Gebäudeservice',
+		'Gebäudereinigung',
+		'030 6187 2240',
+		'auftrag@glanz-gebaeudeservice.de'
+	);
+	const gardener = serviceProvider(
+		'Grünwerk Kreuzberg',
+		'Garten- und Landschaftsbau',
+		'030 6912 5573',
+		'hallo@gruenwerk-kreuzberg.de'
+	);
+	const serviceProviderRows = [
+		plumber,
+		heating,
+		electrician,
+		painter,
+		roofer,
+		caretaker,
+		chimneySweep,
+		cleaner,
+		gardener
+	];
+	/** The Dienstleister of the Mehrfamilienhaus's yearly bills, by supplier. */
+	const providerOfSupplier = new Map(
+		[caretaker, chimneySweep, cleaner, gardener].map((provider) => [provider.name, provider.id])
+	);
+	/** Names the Dienstleister on the expense. */
+	const paidTo = (expenseId: string, provider: { id: string }) => {
+		const row = expenseRows.find((candidate) => candidate.id === expenseId)!;
+		row.serviceProviderId = provider.id;
+		return row;
+	};
+
 	const costItem = (row: Omit<CostItemRow, 'id' | 'accountId'>) => {
 		const id = crypto.randomUUID();
 		costItemRows.push({ id, accountId, ...row });
@@ -1205,7 +1529,15 @@ export async function createDemoData(
 				amount,
 				key ? { allocationKeyId: keyId(key) } : {}
 			);
-			expense(`${year}-12-10`, amount, 'operating_costs', `${description} ${year}`, lindenId);
+			const id = expense(
+				`${year}-12-10`,
+				amount,
+				'operating_costs',
+				`${description} ${year}`,
+				lindenId
+			);
+			const provider = providerOfSupplier.get(supplier);
+			if (provider) paidTo(id, { id: provider });
 		}
 		// The gas bill: CO₂ on the invoice since the CO2KostAufG (2023), split before allocating.
 		const kwh = byYear(GAS_KWH, year);
@@ -1576,13 +1908,16 @@ export async function createDemoData(
 			`Schornsteinfeger Gastherme ${year}`,
 			rosenheimId
 		);
-		expense(
-			`${year}-10-05`,
-			Math.round(16500 * byYear(COST_INDEX, year)),
-			'maintenance',
-			`Wartung Gastherme ${year}`,
-			rosenheimId,
-			'Wohnung 9'
+		paidTo(
+			expense(
+				`${year}-10-05`,
+				Math.round(16500 * byYear(COST_INDEX, year)),
+				'maintenance',
+				`Wartung Gastherme ${year}`,
+				rosenheimId,
+				'Wohnung 9'
+			),
+			heating
 		);
 	}
 	expense(at(-2, '09-01'), 380000, 'special_levy', 'Sonderumlage Fassadensanierung', rosenheimId);
@@ -1599,15 +1934,15 @@ export async function createDemoData(
 	const loans: [string, Loan, string | null][] = [
 		[
 			lindenId,
-			{ principal: 520_000_00, ratePercent: 1.65, payment: 1_798_33, lender: 'Berliner Sparkasse' },
+			{ principal: 400_000_00, ratePercent: 1.65, payment: 1_383_33, lender: 'Berliner Sparkasse' },
 			null
 		],
 		[
 			parkId,
 			{
-				principal: 200_000_00,
+				principal: 150_000_00,
 				ratePercent: 1.35,
-				payment: 725_00,
+				payment: 543_75,
 				lender: 'Mittelbrandenburgische Sparkasse'
 			},
 			'DE08160500003502219846'
@@ -1615,9 +1950,9 @@ export async function createDemoData(
 		[
 			rosenheimId,
 			{
-				principal: 380_000_00,
+				principal: 300_000_00,
 				ratePercent: 1.05,
-				payment: 965_83,
+				payment: 762_50,
 				lender: 'Stadtsparkasse München'
 			},
 			'DE75701500001002783946'
@@ -1653,8 +1988,62 @@ export async function createDemoData(
 		}
 	}
 
-	// Repairs, modernisation and the costs of managing the portfolio.
-	expense(
+	// This year's bills of the Hausmeisterdienst and the Treppenhausreinigung (each quarter), the
+	// Gartenpflege and the Schornsteinfeger so far; the Belege for the Betriebskostenabrechnung
+	// follow once the year is over.
+	const thisYearIndex = byYear(COST_INDEX, Y - 1);
+	for (const [index, day] of ['03-31', '06-30', '09-30', '12-31'].entries()) {
+		const quarterEnd = at(0, day);
+		if (quarterEnd >= date) break;
+		paidTo(
+			expense(
+				quarterEnd,
+				Math.round((72000 * thisYearIndex) / 4),
+				'operating_costs',
+				`Hausmeisterdienst ${index + 1}. Quartal ${Y}`,
+				lindenId
+			),
+			caretaker
+		);
+		paidTo(
+			expense(
+				quarterEnd,
+				Math.round((46800 * thisYearIndex) / 4),
+				'operating_costs',
+				`Treppenhausreinigung ${index + 1}. Quartal ${Y}`,
+				lindenId
+			),
+			cleaner
+		);
+	}
+	if (at(0, '05-20') < date) {
+		paidTo(
+			expense(
+				at(0, '05-20'),
+				Math.round(21600 * thisYearIndex),
+				'operating_costs',
+				`Pflege von Hof und Vorgarten ${Y}`,
+				lindenId
+			),
+			gardener
+		);
+	}
+	if (at(0, '03-18') < date) {
+		paidTo(
+			expense(
+				at(0, '03-18'),
+				Math.round(9800 * thisYearIndex),
+				'operating_costs',
+				`Abgasmessung und Feuerstättenschau ${Y}`,
+				lindenId
+			),
+			chimneySweep
+		);
+	}
+
+	// Repairs, modernisation and the costs of managing the portfolio. The repairs are paid for
+	// the Reparaturen among the tasks below.
+	const painting = expense(
 		at(-4, '09-22'),
 		485000,
 		'maintenance',
@@ -1662,28 +2051,37 @@ export async function createDemoData(
 		lindenId,
 		'Wohnung EG rechts'
 	);
-	expense(
+	const circulationPump = expense(
 		at(-3, '02-14'),
 		124000,
 		'maintenance',
 		'Heizungsreparatur: Umwälzpumpe getauscht',
 		lindenId
 	);
-	expense(
-		at(-3, '10-10'),
-		89000,
-		'modernization',
-		'Funk-Rauchwarnmelder, alle Wohnungen',
-		lindenId
+	paidTo(
+		expense(
+			at(-3, '10-10'),
+			89000,
+			'modernization',
+			'Funk-Rauchwarnmelder, alle Wohnungen',
+			lindenId
+		),
+		electrician
 	);
-	expense(
-		at(-8, '09-03'),
-		214000,
-		'modernization',
-		'Klingel- und Gegensprechanlage erneuert',
-		lindenId
+	paidTo(
+		expense(
+			at(-8, '09-03'),
+			214000,
+			'modernization',
+			'Klingel- und Gegensprechanlage erneuert',
+			lindenId
+		),
+		electrician
 	);
-	expense(at(-5, '07-14'), 156000, 'maintenance', 'Hofpflaster ausgebessert', lindenId);
+	paidTo(
+		expense(at(-5, '07-14'), 156000, 'maintenance', 'Hofpflaster ausgebessert', lindenId),
+		gardener
+	);
 	expense(
 		at(-7, '04-12'),
 		412000,
@@ -1692,18 +2090,49 @@ export async function createDemoData(
 		parkId,
 		'Wohnung 14'
 	);
-	expense(
-		at(-6, '11-15'),
-		268000,
-		'maintenance',
-		'Malerarbeiten und Kleinreparaturen vor Neuvermietung',
-		rosenheimId,
-		'Wohnung 9'
+	paidTo(
+		expense(
+			at(-6, '11-15'),
+			268000,
+			'maintenance',
+			'Malerarbeiten und Kleinreparaturen vor Neuvermietung',
+			rosenheimId,
+			'Wohnung 9'
+		),
+		painter
 	);
-	expense(at(-1, '06-18'), 318000, 'maintenance', 'Wasserschaden Bad', lindenId, 'Wohnung 1. OG');
-	expense(at(0, '04-09'), 89000, 'maintenance', 'Dachrinne und Fallrohr erneuert', lindenId);
-	expense(at(-2, '11-12'), 34000, 'maintenance', 'Badarmatur getauscht', parkId, 'Wohnung 14');
-	expense(
+	const waterDamage = expense(
+		at(-1, '06-18'),
+		318000,
+		'maintenance',
+		'Wasserschaden Bad',
+		lindenId,
+		'Wohnung 1. OG'
+	);
+	const waterDamageDrying = expense(
+		at(-1, '07-02'),
+		76000,
+		'maintenance',
+		'Bautrocknung nach Wasserschaden',
+		lindenId,
+		'Wohnung 1. OG'
+	);
+	const gutter = expense(
+		at(-1, '04-09'),
+		89000,
+		'maintenance',
+		'Dachrinne und Fallrohr erneuert',
+		lindenId
+	);
+	const tap = expense(
+		at(-2, '11-12'),
+		34000,
+		'maintenance',
+		'Badarmatur getauscht',
+		parkId,
+		'Wohnung 14'
+	);
+	const heatExchanger = expense(
 		at(-1, '09-03'),
 		61000,
 		'maintenance',
@@ -1728,9 +2157,43 @@ export async function createDemoData(
 		accountId,
 		bankAccountId: bankAccount.id,
 		importId: null,
-		status: transactions[index].status,
+		status: transactions[index].status as 'matched' | 'unmatched' | 'ignored',
 		...row
 	}));
+
+	// The Rücklagenkonto: the monthly transfer to the Instandhaltungsrücklage for two years, but its
+	// statements were last loaded two months ago, so the task list asks for them.
+	const reserveAccount = {
+		id: crypto.randomUUID(),
+		accountId,
+		name: 'Rücklagenkonto DKB',
+		iban: 'DE02120300000000202051',
+		bic: 'BYLADEM1001',
+		holder: 'Katrin Hoffmann'
+	};
+	const reserveRows = await fingerprintRows(
+		monthsInRange(addMonthsToMonth(lastMonth, -24), addMonthsToMonth(lastMonth, -1)).map(
+			(month): BankRow => ({
+				bookingDate: `${month}-05`,
+				valueDate: `${month}-05`,
+				amount: 25000,
+				counterpartName: 'Katrin Hoffmann',
+				counterpartIban: bankAccount.iban,
+				purpose: `Übertrag Instandhaltungsrücklage ${month}`,
+				externalId: null
+			})
+		)
+	);
+	transactionRows.push(
+		...reserveRows.map((row) => ({
+			id: crypto.randomUUID(),
+			accountId,
+			bankAccountId: reserveAccount.id,
+			importId: null,
+			status: 'ignored' as const,
+			...row
+		}))
+	);
 
 	// Drafts of the Betriebskostenabrechnungen of every history year but the last, approved below.
 	const drafts = historyYears.slice(0, -1).flatMap((year) =>
@@ -1752,7 +2215,71 @@ export async function createDemoData(
 	}));
 
 	// Tasks: two repeating, one for the tenant in arrears, the handover of the flat being re-let, one
-	// done.
+	// overdue (so the start page shows how it marks one), one done.
+	// The Reparaturen the Dienstleister did, with the expenses that paid for them.
+	const expenseDay = (expenseId: string) => expenseRows.find((row) => row.id === expenseId)!.date;
+	/** A Reparatur done a few days before its bill, with the bill linked to it. */
+	const repair = (
+		title: string,
+		by: { id: string },
+		propertyId: string,
+		bills: string[],
+		note: string | null = null
+	) => {
+		const id = crypto.randomUUID();
+		const billed = soFar(expenseDay(bills[0]));
+		for (const bill of bills) paidTo(bill, by).taskId = id;
+		return {
+			id,
+			accountId,
+			title,
+			category: 'repair' as const,
+			dueDate: addDays(billed, -10),
+			done: true,
+			doneAt: new Date(`${addDays(billed, -3)}T15:00:00Z`),
+			propertyId,
+			leaseId: null,
+			serviceProviderId: by.id,
+			note
+		};
+	};
+	const repairRows = [
+		repair('Malerarbeiten und Boden nach Auszug EG rechts', painter, lindenId, [painting]),
+		repair('Heizung ohne Wärme: Umwälzpumpe tauschen', heating, lindenId, [circulationPump]),
+		repair(
+			'Wasserschaden im Bad 1. OG beheben',
+			plumber,
+			lindenId,
+			[waterDamage, waterDamageDrying],
+			'Undichte Leitung hinter der Vorwand; Bautrocknung drei Wochen. Schaden der Gebäudeversicherung gemeldet.'
+		),
+		repair('Dachrinne und Fallrohr Hofseite erneuern', roofer, lindenId, [gutter]),
+		repair('Tropfende Badarmatur Wohnung 14', plumber, parkId, [tap]),
+		repair('Gastherme Wohnung 9 heizt nicht', heating, rosenheimId, [heatExchanger]),
+		{
+			id: crypto.randomUUID(),
+			accountId,
+			title: 'Außenbeleuchtung im Hof defekt',
+			category: 'repair' as const,
+			dueDate: addDays(date, 10),
+			propertyId: lindenId,
+			leaseId: null,
+			serviceProviderId: electrician.id,
+			note: 'Bewegungsmelder am Hofeingang schaltet nicht mehr; Herr Lindner kommt nächste Woche.'
+		},
+		{
+			id: crypto.randomUUID(),
+			accountId,
+			title: 'Kellerfenster schließt nicht',
+			category: 'repair' as const,
+			dueDate: addDays(date, -2),
+			propertyId: parkId,
+			leaseId: null,
+			serviceProviderId: null,
+			note: 'Hinweis von der Hausverwaltung der WEG; Angebot einholen.'
+		}
+	];
+
 	const taskRows = [
 		{
 			id: crypto.randomUUID(),
@@ -1764,6 +2291,7 @@ export async function createDemoData(
 			repeatAnchor: addMonths(date, 1),
 			propertyId: lindenId,
 			leaseId: null,
+			serviceProviderId: electrician.id,
 			note: 'Jährliche Funktionsprüfung, alle Wohnungen.'
 		},
 		{
@@ -1776,7 +2304,34 @@ export async function createDemoData(
 			repeatAnchor: addDays(date, 21),
 			propertyId: rosenheimId,
 			leaseId: null,
+			serviceProviderId: heating.id,
 			note: 'Termin mit Frau Weber abstimmen.'
+		},
+		{
+			id: crypto.randomUUID(),
+			accountId,
+			title: 'Feuerstättenschau und Abgasmessung',
+			category: 'inspection' as const,
+			dueDate: addMonths(date, 4),
+			repeatMonths: 12,
+			repeatAnchor: addMonths(date, 4),
+			propertyId: lindenId,
+			leaseId: null,
+			serviceProviderId: chimneySweep.id,
+			note: 'Termin eine Woche vorher per Aushang im Treppenhaus ankündigen.'
+		},
+		{
+			id: crypto.randomUUID(),
+			accountId,
+			title: 'Winterdienst und Streugut vorbereiten',
+			category: 'maintenance' as const,
+			dueDate: addDays(date, 14),
+			repeatMonths: 12,
+			repeatAnchor: addDays(date, 14),
+			propertyId: lindenId,
+			leaseId: null,
+			serviceProviderId: caretaker.id,
+			note: 'Räumplan für Gehweg und Hof mit dem Hausmeisterdienst abstimmen.'
 		},
 		{
 			id: crypto.randomUUID(),
@@ -1799,6 +2354,16 @@ export async function createDemoData(
 		{
 			id: crypto.randomUUID(),
 			accountId,
+			title: 'Angebote für die Treppenhausreinigung einholen',
+			dueDate: addDays(date, -3),
+			propertyId: lindenId,
+			leaseId: null,
+			serviceProviderId: cleaner.id,
+			note: 'Der Vertrag mit Glanz & Co. läuft zum Jahresende aus.'
+		},
+		{
+			id: crypto.randomUUID(),
+			accountId,
 			title: 'Eigentümerversammlung Parkallee: Vollmacht schicken',
 			dueDate: addDays(date, -12),
 			done: true,
@@ -1806,7 +2371,8 @@ export async function createDemoData(
 			propertyId: parkId,
 			leaseId: null,
 			note: null
-		}
+		},
+		...repairRows
 	];
 
 	// The audit lines the features' own functions write.
@@ -1825,6 +2391,11 @@ export async function createDemoData(
 			bankAccount.id,
 			`Bankverbindung „${bankAccount.name}“ (${formatIban(bankAccount.iban)}) angelegt`
 		),
+		audit(
+			'bankAccount',
+			reserveAccount.id,
+			`Bankverbindung „${reserveAccount.name}“ (${formatIban(reserveAccount.iban)}) angelegt`
+		),
 		...costItemRows.map((item) =>
 			audit(
 				'cost_item',
@@ -1841,11 +2412,12 @@ export async function createDemoData(
 	// bank accounts and tasks up to their limits.
 	const adding: [QuotaKind, number][] = [
 		['tenants', tenantRows.length],
-		['bankAccounts', 1],
+		['bankAccounts', 2],
 		['bankTransactions', transactionRows.length],
 		['matchingRules', ruleRows.length],
 		['expenses', expenseRows.length],
-		['tasks', taskRows.length]
+		['tasks', taskRows.length],
+		['serviceProviders', serviceProviderRows.length]
 	];
 	for (const [kind, rows] of adding) await assertQuota(db, accountId, kind, rows);
 
@@ -1859,8 +2431,10 @@ export async function createDemoData(
 			...newLeaseStatements(db, context, leaseEntries),
 			...insert(rentChanges, rentChangeRows),
 			...insert(leasePersons, personsRows),
+			...insert(depositSettlements, settlementRows),
 			...insert(depositTransactions, depositRows),
-			...insert(bankAccounts, [bankAccount]),
+			...insert(handoverProtocols, handoverRows),
+			...insert(bankAccounts, [bankAccount, reserveAccount]),
 			...insert(bankTransactions, transactionRows),
 			...insert(payments, paymentRows),
 			...insert(matchingRules, ruleRows),
@@ -1871,8 +2445,10 @@ export async function createDemoData(
 			...insert(meterReadings, readingRows),
 			...insert(associationStatements, associationRows),
 			...insert(operatingCostStatements, draftRows),
-			...insert(expenses, expenseRows),
+			...insert(serviceProviders, serviceProviderRows),
+			// Before the expenses that paid for them.
 			...insert(tasks, taskRows),
+			...insert(expenses, expenseRows),
 			...insert(taxYears, taxYearRows),
 			...insert(auditLog, auditRows),
 			// The last line is also the guard against a second run at the same time (a double
@@ -2000,6 +2576,18 @@ export async function createDemoData(
 			}
 		}
 
+		// Nowak's heating failed for a week two winters ago: the landlord booked the Mietminderung
+		// by hand, a correction to open and change on the Mietkonto tab.
+		const reduction = await postCharge(db, context, {
+			leaseId: leaseId('nowak'),
+			kind: 'adjustment',
+			period: reductionMonth,
+			dueDate: at(-2, '02-01'),
+			amount: -8500,
+			note: 'Mietminderung Heizungsausfall 12.–19. Januar'
+		});
+		if (!reduction) throw new Error('Korrektur nicht gebucht');
+
 		// Weber and Albrecht heat with their own gas contract and claimed the landlord's CO₂ share of
 		// last year (§ 6 CO2KostAufG).
 		const weberKwh = 7900;
@@ -2109,11 +2697,17 @@ export async function createDemoData(
 					tenantRows.map((row) => row.id)
 				)
 			),
-			db.delete(bankAccounts).where(eq(bankAccounts.id, bankAccount.id)),
+			db.delete(bankAccounts).where(inArray(bankAccounts.id, [bankAccount.id, reserveAccount.id])),
 			db.delete(tasks).where(
 				inArray(
 					tasks.id,
 					taskRows.map((row) => row.id)
+				)
+			),
+			db.delete(serviceProviders).where(
+				inArray(
+					serviceProviders.id,
+					serviceProviderRows.map((row) => row.id)
 				)
 			),
 			db.delete(properties).where(inArray(properties.id, propertyIds))

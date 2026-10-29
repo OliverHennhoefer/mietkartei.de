@@ -158,6 +158,56 @@ describe('createLease', () => {
 	});
 });
 
+describe('one lease per unit at a time', () => {
+	it('refuses a lease that overlaps another of its main or extra units', async () => {
+		const { unitId: flat } = await seedUnit(db, 'a', { name: 'Wohnung' });
+		const { unitId: parking } = await seedUnit(db, 'a', { name: 'Stellplatz' });
+		const first = await createLease(
+			db,
+			contextA,
+			leaseInput(flat, { extraUnitIds: [parking], endDate: '2025-06-30' })
+		);
+		if (!first.ok) throw new Error('setup failed');
+
+		// Two leases at once would split the unit's operating costs between them.
+		expect(await createLease(db, contextA, leaseInput(flat, { startDate: '2025-06-30' }))).toEqual({
+			ok: false,
+			reason: 'overlap',
+			date: '2025-01-01'
+		});
+		expect(
+			await createLease(db, contextA, leaseInput(parking, { startDate: '2025-03-01' }))
+		).toMatchObject({ ok: false, reason: 'overlap' });
+		// The day after the end is free.
+		const next = await createLease(db, contextA, leaseInput(flat, { startDate: '2025-07-01' }));
+		expect(next.ok).toBe(true);
+		if (!next.ok) return;
+
+		// Neither an edit nor a later end may reach into the next lease.
+		const lease = await getLease(db, 'a', first.id);
+		expect(
+			await updateLease(db, contextA, first.id, { ...leaseInputOf(lease!), endDate: null })
+		).toEqual({ ok: false, reason: 'overlap', date: '2025-07-01' });
+		expect(
+			await updateLease(db, contextA, first.id, { ...leaseInputOf(lease!), baseRent: 61000 })
+		).toEqual({ ok: true });
+		expect(
+			await endLease(db, contextA, first.id, {
+				terminatedAt: '2025-03-01',
+				terminatedBy: 'tenant',
+				endDate: '2025-08-31'
+			})
+		).toEqual({ overlap: '2025-07-01' });
+	});
+
+	it('does not look at the units of another account', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		expect((await createLease(db, contextA, leaseInput(unitId))).ok).toBe(true);
+		const { unitId: foreign } = await seedUnit(db, 'b');
+		expect((await createLease(db, contextB, leaseInput(foreign))).ok).toBe(true);
+	});
+});
+
 describe('a refused charge sync', () => {
 	/** Runs the command while the account may hold no more rent charges than it has. */
 	async function withoutChargeRoom(command: () => Promise<unknown>) {
@@ -242,9 +292,13 @@ describe('listLeases and getLease', () => {
 		const withParking = await createLease(
 			db,
 			contextA,
-			leaseInput(flat, { extraUnitIds: [parking], tenantIds: [tenantId] })
+			leaseInput(flat, { extraUnitIds: [parking], tenantIds: [tenantId], endDate: '2025-06-30' })
 		);
-		const parkingOnly = await createLease(db, contextA, leaseInput(parking));
+		const parkingOnly = await createLease(
+			db,
+			contextA,
+			leaseInput(parking, { startDate: '2025-07-01' })
+		);
 		if (!withParking.ok || !parkingOnly.ok) throw new Error('setup failed');
 
 		const ids = (leases: { id: string }[]) => leases.map((lease) => lease.id).sort();
@@ -538,10 +592,10 @@ describe('updateLease', () => {
 
 describe('listLeases with many leases', () => {
 	it('binds at most 100 parameters per statement (D1) and keeps tenants and units in order', async () => {
-		const { unitId } = await seedUnit(db, 'a');
 		const zed = await seedTenant(db, 'a', { firstName: 'Zoe', lastName: 'Zander' });
 		const abe = await seedTenant(db, 'a', { firstName: 'Abe', lastName: 'Adler' });
 		for (let index = 0; index < 120; index += 1) {
+			const { unitId } = await seedUnit(db, 'a');
 			const lease = await createLease(
 				db,
 				contextA,
@@ -619,8 +673,12 @@ describe('deleteLease', () => {
 
 	it('refuses to delete a lease with payments or corrections on it', async () => {
 		const { unitId } = await seedUnit(db, 'a');
-		const paid = await createLease(db, contextA, leaseInput(unitId));
-		const corrected = await createLease(db, contextA, leaseInput(unitId));
+		const paid = await createLease(db, contextA, leaseInput(unitId, { endDate: '2025-06-30' }));
+		const corrected = await createLease(
+			db,
+			contextA,
+			leaseInput(unitId, { startDate: '2025-07-01' })
+		);
 		if (!paid.ok || !corrected.ok) throw new Error('setup failed');
 		await db
 			.insert(payments)

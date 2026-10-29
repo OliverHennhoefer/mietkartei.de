@@ -9,7 +9,8 @@ import {
 	deleteLeasePersons,
 	endLease,
 	getLease,
-	listLeasePersons
+	listLeasePersons,
+	updateLeasePersons
 } from '#lib/server/leases.ts';
 import { listLedger } from '#lib/server/ledger.ts';
 import { rentOnDate } from '#lib/server/rents.ts';
@@ -19,7 +20,7 @@ import type { Actions, PageServerLoad } from './$types';
 // The "Übersicht" tab: the lease as the layout loaded it, plus what the other tabs sum up
 // (current rent, balance, deposit) and the persons history and the end of the lease, which are
 // edited here. A fixed number of queries whatever the lease's size.
-export const load: PageServerLoad = async ({ locals, parent }) => {
+export const load: PageServerLoad = async ({ locals, parent, url }) => {
 	const accountId = requireAccount(locals);
 	const { lease } = await parent();
 	const date = today();
@@ -31,8 +32,12 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 		leaseDeletion(locals.db, accountId, lease.id)
 	]);
 	const current = rent ?? lease.currentRent;
+	// ?bearbeiten=<id> opens a later row of the persons history in the edit dialog; the first
+	// one belongs to the lease.
+	const editing = persons.slice(1).find((row) => row.id === url.searchParams.get('bearbeiten'));
 	return {
 		persons,
+		editing: editing ?? null,
 		deletion,
 		currentRent: {
 			baseRent: current.baseRent,
@@ -63,11 +68,13 @@ const notFound = () => error(404, 'Diesen Mietvertrag gibt es nicht.');
 
 /** One shape for every failed form on this page, so the page can tell them apart by `which`. */
 type FormFailure = {
-	which: 'persons' | 'end';
+	which: 'persons' | 'editPersons' | 'end';
 	errors: Partial<Record<string, string>>;
 	values: Record<string, string>;
 };
 const refuse = (failure: FormFailure) => fail(400, failure);
+const initialMessage =
+	'Der erste Eintrag gehört zum Vertragsbeginn und bleibt; die Personenzahl bei Einzug änderst du unter „Bearbeiten“.';
 
 export const actions: Actions = {
 	addPersons: async ({ request, locals, params }) => {
@@ -95,19 +102,44 @@ export const actions: Actions = {
 		});
 	},
 
+	updatePersons: async ({ request, locals, params }) => {
+		const context = auditContext(locals);
+		const form = await request.formData();
+		const rowId = String(form.get('rowId') ?? '');
+		const result = parseLeasePersons(form);
+		if (!result.ok) {
+			return refuse({ which: 'editPersons', errors: result.errors, values: result.values });
+		}
+		const outcome = await updateLeasePersons(locals.db, context, params.id, rowId, result.data);
+		if (outcome === 'missing') notFound();
+		if (outcome === 'initial') return fail(400, { message: initialMessage });
+		if (outcome !== 'updated') {
+			return refuse({
+				which: 'editPersons',
+				errors: {
+					validFrom:
+						outcome === 'duplicate'
+							? 'Für dieses Datum gibt es schon einen Eintrag.'
+							: 'Das Datum liegt nicht nach dem Vertragsbeginn.'
+				},
+				values: {
+					validFrom: result.data.validFrom,
+					persons: String(result.data.persons),
+					note: result.data.note ?? ''
+				}
+			});
+		}
+		redirect(303, `/vertraege/${params.id}`);
+	},
+
 	deletePersons: async ({ request, locals, params }) => {
 		const context = auditContext(locals);
 		const rowId = (await request.formData()).get('rowId');
 		if (typeof rowId !== 'string') return fail(400, { message: 'Ungültige Auswahl.' });
 		const outcome = await deleteLeasePersons(locals.db, context, params.id, rowId);
 		if (outcome === 'missing') notFound();
-		if (outcome === 'initial') {
-			return fail(400, {
-				message:
-					'Der erste Eintrag gehört zum Vertragsbeginn und bleibt; die Personenzahl bei Einzug änderst du unter „Bearbeiten“.'
-			});
-		}
-		return { which: 'persons' as const };
+		if (outcome === 'initial') return fail(400, { message: initialMessage });
+		redirect(303, `/vertraege/${params.id}`);
 	},
 
 	end: async ({ request, locals, params }) => {
@@ -150,6 +182,15 @@ export const actions: Actions = {
 			return refuse({
 				which: 'end',
 				errors: { endDate: 'Das Vertragsende liegt vor dem Vertragsbeginn.' },
+				values
+			});
+		}
+		if (typeof outcome === 'object') {
+			return refuse({
+				which: 'end',
+				errors: {
+					endDate: `Bis zu diesem Ende wäre die Einheit doppelt vermietet: ein anderer Vertrag beginnt am ${formatDate(outcome.overlap)}. Wähle ein Ende davor.`
+				},
 				values
 			});
 		}

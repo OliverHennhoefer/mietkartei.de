@@ -119,6 +119,29 @@ export async function confirmRule(
 	return true;
 }
 
+/** Changes a rule's lease, field, text and whether it assigns on import. */
+export async function updateRule(
+	db: Database,
+	context: AuditContext,
+	ruleId: string,
+	input: RuleInput
+): Promise<{ ok: true } | { ok: false; reason: 'missing' | 'unknown-lease' }> {
+	if (!(await getRule(db, context.accountId, ruleId))) return { ok: false, reason: 'missing' };
+	const [lease] = await db
+		.select({ id: leases.id })
+		.from(leases)
+		.where(and(eq(leases.accountId, context.accountId), eq(leases.id, input.leaseId)));
+	if (!lease) return { ok: false, reason: 'unknown-lease' };
+	await runBatch(db, [
+		db
+			.update(matchingRules)
+			.set(input)
+			.where(and(eq(matchingRules.accountId, context.accountId), eq(matchingRules.id, ruleId))),
+		auditEntry(db, context, 'matchingRule', ruleId, 'update', ruleSummary(input, 'geändert'))
+	]);
+	return { ok: true };
+}
+
 export async function deleteRule(
 	db: Database,
 	context: AuditContext,

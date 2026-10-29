@@ -1,0 +1,901 @@
+[
+	{
+		"slug": "mieterwechsel",
+		"title": "Mieterwechsel mitten im Monat",
+		"summary": "Im Obergeschoss zieht die Mieterin am 15. Juli aus, am 16. Juli zieht eine Familie ein. Wer zahlt welchen Teil?",
+		"intro": "Ein Haus mit drei Wohnungen in Leipzig, abgerechnet wird das Jahr 2025. Im Obergeschoss endet ein Mietvertrag am 15. Juli, der nächste beginnt am 16. Juli. Jeder Beleg wird erst auf die Wohnungen verteilt und dann tagesgenau auf die beiden Mietverträge. Die Gebäudeversicherung läuft von Juli bis Juni, von beiden Policen gehört also nur ein Teil in das Jahr 2025.",
+		"year": 2025,
+		"property": {
+			"name": "Gartenstraße 12",
+			"street": "Gartenstraße 12",
+			"postalCode": "04107",
+			"city": "Leipzig"
+		},
+		"units": [
+			{
+				"id": "eg",
+				"name": "Erdgeschoss",
+				"area": 80
+			},
+			{
+				"id": "og",
+				"name": "Obergeschoss",
+				"area": 60
+			},
+			{
+				"id": "dg",
+				"name": "Dachgeschoss",
+				"area": 60
+			}
+		],
+		"leases": [
+			{
+				"id": "krueger",
+				"unitId": "eg",
+				"tenant": {
+					"salutation": "Herr",
+					"firstName": "Jonas",
+					"lastName": "Krüger"
+				},
+				"start": "2021-04-01",
+				"end": null,
+				"persons": 2,
+				"baseRent": 72000,
+				"operatingCostPrepayment": 10000,
+				"heatingCostPrepayment": 0
+			},
+			{
+				"id": "schulz",
+				"unitId": "og",
+				"tenant": {
+					"salutation": "Frau",
+					"firstName": "Petra",
+					"lastName": "Schulz"
+				},
+				"start": "2018-09-01",
+				"end": "2025-07-15",
+				"persons": 1,
+				"baseRent": 54000,
+				"operatingCostPrepayment": 7000,
+				"heatingCostPrepayment": 0
+			},
+			{
+				"id": "yilmaz",
+				"unitId": "og",
+				"tenant": {
+					"salutation": "Herr",
+					"firstName": "Deniz",
+					"lastName": "Yılmaz"
+				},
+				"start": "2025-07-16",
+				"end": null,
+				"persons": 3,
+				"baseRent": 59000,
+				"operatingCostPrepayment": 9000,
+				"heatingCostPrepayment": 0
+			},
+			{
+				"id": "weber",
+				"unitId": "dg",
+				"tenant": {
+					"salutation": "Frau",
+					"firstName": "Lena",
+					"lastName": "Weber"
+				},
+				"start": "2023-02-01",
+				"end": null,
+				"persons": 2,
+				"baseRent": 56000,
+				"operatingCostPrepayment": 8000,
+				"heatingCostPrepayment": 0
+			}
+		],
+		"items": [
+			{
+				"id": "grundsteuer",
+				"description": "Grundsteuer 2025",
+				"label": "Grundsteuer",
+				"category": "grundsteuer",
+				"key": "area",
+				"periodStart": "2025-01-01",
+				"periodEnd": "2025-12-31",
+				"amount": 72000
+			},
+			{
+				"id": "muell",
+				"description": "Müllabfuhr 2025",
+				"label": "Müllabfuhr",
+				"category": "muell",
+				"key": "persons",
+				"periodStart": "2025-01-01",
+				"periodEnd": "2025-12-31",
+				"amount": 54750
+			},
+			{
+				"id": "hausmeister",
+				"description": "Hausmeisterdienst 2025",
+				"label": "Hausmeister",
+				"category": "hausmeister",
+				"key": "units",
+				"periodStart": "2025-01-01",
+				"periodEnd": "2025-12-31",
+				"amount": 109500
+			},
+			{
+				"id": "versicherung-2024",
+				"description": "Gebäudeversicherung 07/2024 bis 06/2025",
+				"label": "Versicherung 2024/25",
+				"category": "versicherung",
+				"key": "area",
+				"periodStart": "2024-07-01",
+				"periodEnd": "2025-06-30",
+				"amount": 102200
+			},
+			{
+				"id": "versicherung-2025",
+				"description": "Gebäudeversicherung 07/2025 bis 06/2026",
+				"label": "Versicherung 2025/26",
+				"category": "versicherung",
+				"key": "area",
+				"periodStart": "2025-07-01",
+				"periodEnd": "2026-06-30",
+				"amount": 109500
+			}
+		],
+		"expected": {
+			"leases": {
+				"krueger": {
+					"shares": {
+						"grundsteuer": 28800,
+						"muell": 18478,
+						"hausmeister": 36500,
+						"versicherung-2024": 20272,
+						"versicherung-2025": 22080
+					},
+					"prepayments": 120000
+				},
+				"schulz": {
+					"shares": {
+						"grundsteuer": 11599,
+						"muell": 4961,
+						"hausmeister": 19600,
+						"versicherung-2024": 15204,
+						"versicherung-2025": 1350
+					},
+					"prepayments": 45387
+				},
+				"yilmaz": {
+					"shares": {
+						"grundsteuer": 10001,
+						"muell": 12833,
+						"hausmeister": 16900,
+						"versicherung-2025": 15210
+					},
+					"prepayments": 49645
+				},
+				"weber": {
+					"shares": {
+						"grundsteuer": 21600,
+						"muell": 18478,
+						"hausmeister": 36500,
+						"versicherung-2024": 15204,
+						"versicherung-2025": 16560
+					},
+					"prepayments": 96000
+				}
+			},
+			"landlordCo2Share": 0
+		},
+		"check": [
+			"Nachgerechnet ohne mietkartei: mit exakten Brüchen statt Kommazahlen, jeder Betrag erst am Ende auf den Cent gerundet. Wo Cents übrig bleiben, bekommt sie der größte Rest (Restbetragsverfahren), sodass die Anteile genau die Rechnung ergeben.",
+			"Der Anteil des Obergeschosses wird nach Tagen geteilt: Frau Schulz wohnte 196 der 365 Tage dort, Familie Yılmaz 169. Beim Müll zählen Personentage: 196 für Frau Schulz, 3 × 169 = 507 für die Familie.",
+			"Von der Versicherung 07/2024 bis 06/2025 (365 Tage) gehören 181 Tage in das Jahr 2025, von der Police ab Juli 184 Tage. Die zweite Police teilen sich im Obergeschoss nur die Tage ab Juli: 15 für Frau Schulz, 169 für die Familie.",
+			"Die Vorauszahlungen im Juli sind nach Tagen anteilig: 70 € × 15/31 = 33,87 € und 90 € × 16/31 = 46,45 €."
+		],
+		"sources": [
+			{
+				"label": "§ 2 Betriebskostenverordnung",
+				"url": "https://www.gesetze-im-internet.de/betrkv/__2.html"
+			},
+			{
+				"label": "§ 556a BGB: Abrechnungsmaßstab",
+				"url": "https://www.gesetze-im-internet.de/bgb/__556a.html"
+			},
+			{
+				"label": "§ 556 Abs. 3 BGB: Abrechnungszeitraum und Frist",
+				"url": "https://www.gesetze-im-internet.de/bgb/__556.html"
+			}
+		],
+		"result": {
+			"items": [
+				{
+					"itemId": "grundsteuer",
+					"description": "Grundsteuer 2025",
+					"categoryName": "Grundsteuer",
+					"keyName": "Wohnfläche",
+					"keyKind": "area",
+					"total": 72000,
+					"allocable": true,
+					"allocated": 72000,
+					"landlordCo2Share": 0,
+					"vacancyShare": 0,
+					"excludedShare": 0,
+					"unallocated": 0
+				},
+				{
+					"itemId": "muell",
+					"description": "Müllabfuhr 2025",
+					"categoryName": "Müllbeseitigung",
+					"keyName": "Personen",
+					"keyKind": "persons",
+					"total": 54750,
+					"allocable": true,
+					"allocated": 54750,
+					"landlordCo2Share": 0,
+					"vacancyShare": 0,
+					"excludedShare": 0,
+					"unallocated": 0
+				},
+				{
+					"itemId": "hausmeister",
+					"description": "Hausmeisterdienst 2025",
+					"categoryName": "Hauswart",
+					"keyName": "Wohneinheiten",
+					"keyKind": "units",
+					"total": 109500,
+					"allocable": true,
+					"allocated": 109500,
+					"landlordCo2Share": 0,
+					"vacancyShare": 0,
+					"excludedShare": 0,
+					"unallocated": 0
+				},
+				{
+					"itemId": "versicherung-2024",
+					"description": "Gebäudeversicherung 07/2024 bis 06/2025",
+					"categoryName": "Sach- und Haftpflichtversicherung",
+					"keyName": "Wohnfläche",
+					"keyKind": "area",
+					"total": 50680,
+					"allocable": true,
+					"allocated": 50680,
+					"landlordCo2Share": 0,
+					"vacancyShare": 0,
+					"excludedShare": 0,
+					"unallocated": 0
+				},
+				{
+					"itemId": "versicherung-2025",
+					"description": "Gebäudeversicherung 07/2025 bis 06/2026",
+					"categoryName": "Sach- und Haftpflichtversicherung",
+					"keyName": "Wohnfläche",
+					"keyKind": "area",
+					"total": 55200,
+					"allocable": true,
+					"allocated": 55200,
+					"landlordCo2Share": 0,
+					"vacancyShare": 0,
+					"excludedShare": 0,
+					"unallocated": 0
+				}
+			],
+			"costsTotal": 342130,
+			"landlordCo2Share": 0,
+			"leases": [
+				{
+					"leaseId": "schulz",
+					"occupancy": {
+						"start": "2025-01-01",
+						"end": "2025-07-15",
+						"days": 196
+					},
+					"persons": [
+						{
+							"from": "2025-01-01",
+							"to": "2025-07-15",
+							"persons": 1
+						}
+					],
+					"lines": [
+						{
+							"itemId": "grundsteuer",
+							"itemTotal": 72000,
+							"allocated": 72000,
+							"keyTotal": "200 m²",
+							"share": "60 m² von 200 m² · 196 von 365 Tagen",
+							"amount": 11599
+						},
+						{
+							"itemId": "muell",
+							"itemTotal": 54750,
+							"allocated": 54750,
+							"keyTotal": "2.163 Personentage",
+							"share": "703 von 2.163 Personentagen · davon 196 Personentage",
+							"amount": 4961
+						},
+						{
+							"itemId": "hausmeister",
+							"itemTotal": 109500,
+							"allocated": 109500,
+							"keyTotal": "3 Einheiten",
+							"share": "1 von 3 Einheiten · 196 von 365 Tagen",
+							"amount": 19600
+						},
+						{
+							"itemId": "versicherung-2024",
+							"itemTotal": 50680,
+							"allocated": 50680,
+							"keyTotal": "200 m²",
+							"share": "60 m² von 200 m² · 181 von 181 Tagen",
+							"amount": 15204
+						},
+						{
+							"itemId": "versicherung-2025",
+							"itemTotal": 55200,
+							"allocated": 55200,
+							"keyTotal": "200 m²",
+							"share": "60 m² von 200 m² · 15 von 184 Tagen",
+							"amount": 1350
+						}
+					],
+					"costsTotal": 52714,
+					"prepaymentsTotal": 45387,
+					"balance": 7327
+				},
+				{
+					"leaseId": "krueger",
+					"occupancy": {
+						"start": "2025-01-01",
+						"end": "2025-12-31",
+						"days": 365
+					},
+					"persons": [
+						{
+							"from": "2025-01-01",
+							"to": "2025-12-31",
+							"persons": 2
+						}
+					],
+					"lines": [
+						{
+							"itemId": "grundsteuer",
+							"itemTotal": 72000,
+							"allocated": 72000,
+							"keyTotal": "200 m²",
+							"share": "80 m² von 200 m² · 365 von 365 Tagen",
+							"amount": 28800
+						},
+						{
+							"itemId": "muell",
+							"itemTotal": 54750,
+							"allocated": 54750,
+							"keyTotal": "2.163 Personentage",
+							"share": "730 von 2.163 Personentagen",
+							"amount": 18478
+						},
+						{
+							"itemId": "hausmeister",
+							"itemTotal": 109500,
+							"allocated": 109500,
+							"keyTotal": "3 Einheiten",
+							"share": "1 von 3 Einheiten · 365 von 365 Tagen",
+							"amount": 36500
+						},
+						{
+							"itemId": "versicherung-2024",
+							"itemTotal": 50680,
+							"allocated": 50680,
+							"keyTotal": "200 m²",
+							"share": "80 m² von 200 m² · 181 von 181 Tagen",
+							"amount": 20272
+						},
+						{
+							"itemId": "versicherung-2025",
+							"itemTotal": 55200,
+							"allocated": 55200,
+							"keyTotal": "200 m²",
+							"share": "80 m² von 200 m² · 184 von 184 Tagen",
+							"amount": 22080
+						}
+					],
+					"costsTotal": 126130,
+					"prepaymentsTotal": 120000,
+					"balance": 6130
+				},
+				{
+					"leaseId": "weber",
+					"occupancy": {
+						"start": "2025-01-01",
+						"end": "2025-12-31",
+						"days": 365
+					},
+					"persons": [
+						{
+							"from": "2025-01-01",
+							"to": "2025-12-31",
+							"persons": 2
+						}
+					],
+					"lines": [
+						{
+							"itemId": "grundsteuer",
+							"itemTotal": 72000,
+							"allocated": 72000,
+							"keyTotal": "200 m²",
+							"share": "60 m² von 200 m² · 365 von 365 Tagen",
+							"amount": 21600
+						},
+						{
+							"itemId": "muell",
+							"itemTotal": 54750,
+							"allocated": 54750,
+							"keyTotal": "2.163 Personentage",
+							"share": "730 von 2.163 Personentagen",
+							"amount": 18478
+						},
+						{
+							"itemId": "hausmeister",
+							"itemTotal": 109500,
+							"allocated": 109500,
+							"keyTotal": "3 Einheiten",
+							"share": "1 von 3 Einheiten · 365 von 365 Tagen",
+							"amount": 36500
+						},
+						{
+							"itemId": "versicherung-2024",
+							"itemTotal": 50680,
+							"allocated": 50680,
+							"keyTotal": "200 m²",
+							"share": "60 m² von 200 m² · 181 von 181 Tagen",
+							"amount": 15204
+						},
+						{
+							"itemId": "versicherung-2025",
+							"itemTotal": 55200,
+							"allocated": 55200,
+							"keyTotal": "200 m²",
+							"share": "60 m² von 200 m² · 184 von 184 Tagen",
+							"amount": 16560
+						}
+					],
+					"costsTotal": 108342,
+					"prepaymentsTotal": 96000,
+					"balance": 12342
+				},
+				{
+					"leaseId": "yilmaz",
+					"occupancy": {
+						"start": "2025-07-16",
+						"end": "2025-12-31",
+						"days": 169
+					},
+					"persons": [
+						{
+							"from": "2025-07-16",
+							"to": "2025-12-31",
+							"persons": 3
+						}
+					],
+					"lines": [
+						{
+							"itemId": "grundsteuer",
+							"itemTotal": 72000,
+							"allocated": 72000,
+							"keyTotal": "200 m²",
+							"share": "60 m² von 200 m² · 169 von 365 Tagen",
+							"amount": 10001
+						},
+						{
+							"itemId": "muell",
+							"itemTotal": 54750,
+							"allocated": 54750,
+							"keyTotal": "2.163 Personentage",
+							"share": "703 von 2.163 Personentagen · davon 507 Personentage",
+							"amount": 12833
+						},
+						{
+							"itemId": "hausmeister",
+							"itemTotal": 109500,
+							"allocated": 109500,
+							"keyTotal": "3 Einheiten",
+							"share": "1 von 3 Einheiten · 169 von 365 Tagen",
+							"amount": 16900
+						},
+						{
+							"itemId": "versicherung-2025",
+							"itemTotal": 55200,
+							"allocated": 55200,
+							"keyTotal": "200 m²",
+							"share": "60 m² von 200 m² · 169 von 184 Tagen",
+							"amount": 15210
+						}
+					],
+					"costsTotal": 54944,
+					"prepaymentsTotal": 49645,
+					"balance": 5299
+				}
+			]
+		}
+	},
+	{
+		"slug": "heizkosten-co2",
+		"title": "Heizkosten mit CO₂-Aufteilung",
+		"summary": "Gasheizung für vier Wohnungen: Erst trägt der Vermieter seinen Teil der CO₂-Kosten, dann wird der Rest zu 70 % nach Verbrauch und zu 30 % nach Fläche verteilt.",
+		"intro": "Ein Haus mit vier Wohnungen in Kassel, beheizt mit Gas, abgerechnet wird das Jahr 2025. Die Gasrechnung über 3.600 € enthält 442,20 € CO₂-Kosten. Wie viel davon der Vermieter trägt, hängt am Ausstoß des Gebäudes je Quadratmeter (CO2KostAufG). Was bleibt, wird nach der Heizkostenverordnung verteilt: 70 % nach den Wärmezählern der Wohnungen, 30 % nach Wohnfläche.",
+		"year": 2025,
+		"property": {
+			"name": "Am Hang 3",
+			"street": "Am Hang 3",
+			"postalCode": "34119",
+			"city": "Kassel"
+		},
+		"units": [
+			{
+				"id": "w1",
+				"name": "Wohnung 1",
+				"area": 70
+			},
+			{
+				"id": "w2",
+				"name": "Wohnung 2",
+				"area": 70
+			},
+			{
+				"id": "w3",
+				"name": "Wohnung 3",
+				"area": 55
+			},
+			{
+				"id": "w4",
+				"name": "Wohnung 4",
+				"area": 55
+			}
+		],
+		"leases": [
+			{
+				"id": "hoffmann",
+				"unitId": "w1",
+				"tenant": {
+					"salutation": "Frau",
+					"firstName": "Sabine",
+					"lastName": "Hoffmann"
+				},
+				"start": "2019-05-01",
+				"end": null,
+				"persons": 2,
+				"baseRent": 61000,
+				"operatingCostPrepayment": 0,
+				"heatingCostPrepayment": 8500
+			},
+			{
+				"id": "nowak",
+				"unitId": "w2",
+				"tenant": {
+					"salutation": "Herr",
+					"firstName": "Tomasz",
+					"lastName": "Nowak"
+				},
+				"start": "2022-01-01",
+				"end": null,
+				"persons": 1,
+				"baseRent": 62000,
+				"operatingCostPrepayment": 0,
+				"heatingCostPrepayment": 7500
+			},
+			{
+				"id": "becker",
+				"unitId": "w3",
+				"tenant": {
+					"salutation": "Herr",
+					"firstName": "Paul",
+					"lastName": "Becker"
+				},
+				"start": "2020-10-01",
+				"end": null,
+				"persons": 1,
+				"baseRent": 48000,
+				"operatingCostPrepayment": 0,
+				"heatingCostPrepayment": 6000
+			},
+			{
+				"id": "schmitt",
+				"unitId": "w4",
+				"tenant": {
+					"salutation": "Frau",
+					"firstName": "Maria",
+					"lastName": "Schmitt"
+				},
+				"start": "2024-03-01",
+				"end": null,
+				"persons": 2,
+				"baseRent": 49500,
+				"operatingCostPrepayment": 0,
+				"heatingCostPrepayment": 6500
+			}
+		],
+		"items": [
+			{
+				"id": "gas",
+				"description": "Gas 2025, 40.000 kWh",
+				"label": "Gas",
+				"category": "heizung",
+				"key": "mixed",
+				"consumptionPercent": 70,
+				"periodStart": "2025-01-01",
+				"periodEnd": "2025-12-31",
+				"amount": 360000,
+				"co2": {
+					"fuel": "gas",
+					"fuelKwh": 40000,
+					"co2Kg": 8040,
+					"co2Cost": 44220
+				}
+			}
+		],
+		"heatMeters": [
+			{
+				"unitId": "w1",
+				"start": 41200,
+				"end": 50200
+			},
+			{
+				"unitId": "w2",
+				"start": 37500,
+				"end": 45500
+			},
+			{
+				"unitId": "w3",
+				"start": 28100,
+				"end": 34100
+			},
+			{
+				"unitId": "w4",
+				"start": 12900,
+				"end": 19900
+			}
+		],
+		"expected": {
+			"leases": {
+				"hoffmann": {
+					"shares": {
+						"gas": 99340
+					},
+					"prepayments": 102000
+				},
+				"nowak": {
+					"shares": {
+						"gas": 91456
+					},
+					"prepayments": 90000
+				},
+				"becker": {
+					"shares": {
+						"gas": 69605
+					},
+					"prepayments": 72000
+				},
+				"schmitt": {
+					"shares": {
+						"gas": 77489
+					},
+					"prepayments": 78000
+				}
+			},
+			"landlordCo2Share": 22110
+		},
+		"check": [
+			"Nachgerechnet ohne mietkartei: mit exakten Brüchen statt Kommazahlen, jeder Betrag erst am Ende auf den Cent gerundet. Wo Cents übrig bleiben, bekommt sie der größte Rest (Restbetragsverfahren), sodass die Anteile genau die Rechnung ergeben.",
+			"CO₂: 40.000 kWh Erdgas × 0,201 kg/kWh = 8.040 kg, auf 250 m² Wohnfläche 32,16 kg je m² und Jahr. Das ist die Stufe ab 32 kg mit 50 % Vermieteranteil, also 442,20 € × 50 % = 221,10 €. Bei 55 € je Tonne (BEHG 2025) kosten 8,04 t genau 442,20 €.",
+			"Verteilt werden 3.600,00 € − 221,10 € = 3.378,90 €: 70 % = 2.365,23 € nach 30.000 kWh der Wärmezähler, 30 % = 1.013,67 € nach 250 m².",
+			"Wohnung 1 zum Beispiel: 2.365,23 € × 9.000/30.000 = 709,57 € plus 1.013,67 € × 70/250 = 283,83 €, zusammen 993,40 €."
+		],
+		"sources": [
+			{
+				"label": "§§ 7, 8 Heizkostenverordnung: 50 bis 70 % nach Verbrauch",
+				"url": "https://www.gesetze-im-internet.de/heizkostenv/__7.html"
+			},
+			{
+				"label": "Anlage zum CO2KostAufG: Stufenmodell",
+				"url": "https://www.gesetze-im-internet.de/co2kostaufg/anlage.html"
+			},
+			{
+				"label": "§ 10 Abs. 2 BEHG: CO₂-Preis 2025",
+				"url": "https://www.gesetze-im-internet.de/behg/__10.html"
+			}
+		],
+		"result": {
+			"items": [
+				{
+					"itemId": "gas",
+					"description": "Gas 2025, 40.000 kWh",
+					"categoryName": "Heizung",
+					"keyName": "Heizkosten 70/30",
+					"keyKind": "mixed",
+					"total": 360000,
+					"allocable": true,
+					"allocated": 337890,
+					"landlordCo2Share": 22110,
+					"vacancyShare": 0,
+					"excludedShare": 0,
+					"unallocated": 0,
+					"co2": {
+						"fuel": "gas",
+						"fuelKwh": 40000,
+						"co2Kg": 8040,
+						"buildingCo2Kg": 8040,
+						"co2Cost": 44220,
+						"area": 250,
+						"kgPerSquareMetre": 32.16,
+						"landlordPercent": 50,
+						"landlordAmount": 22110,
+						"tenantAmount": 22110
+					}
+				}
+			],
+			"costsTotal": 360000,
+			"landlordCo2Share": 22110,
+			"leases": [
+				{
+					"leaseId": "hoffmann",
+					"occupancy": {
+						"start": "2025-01-01",
+						"end": "2025-12-31",
+						"days": 365
+					},
+					"persons": [
+						{
+							"from": "2025-01-01",
+							"to": "2025-12-31",
+							"persons": 2
+						}
+					],
+					"lines": [
+						{
+							"itemId": "gas",
+							"itemTotal": 360000,
+							"allocated": 337890,
+							"keyTotal": "70 % nach Verbrauch: 30.000 kWh · 30 % nach Fläche: 250 m²",
+							"share": "70 % nach Verbrauch: 9.000 von 30.000 kWh · 30 % nach Fläche: 70 m² von 250 m² · 365 von 365 Tagen",
+							"amount": 99340,
+							"co2": {
+								"fuel": "gas",
+								"fuelKwh": 40000,
+								"co2Kg": 8040,
+								"buildingCo2Kg": 8040,
+								"co2Cost": 44220,
+								"area": 250,
+								"kgPerSquareMetre": 32.16,
+								"landlordPercent": 50,
+								"landlordAmount": 22110,
+								"tenantAmount": 22110
+							}
+						}
+					],
+					"costsTotal": 99340,
+					"prepaymentsTotal": 102000,
+					"balance": -2660
+				},
+				{
+					"leaseId": "becker",
+					"occupancy": {
+						"start": "2025-01-01",
+						"end": "2025-12-31",
+						"days": 365
+					},
+					"persons": [
+						{
+							"from": "2025-01-01",
+							"to": "2025-12-31",
+							"persons": 1
+						}
+					],
+					"lines": [
+						{
+							"itemId": "gas",
+							"itemTotal": 360000,
+							"allocated": 337890,
+							"keyTotal": "70 % nach Verbrauch: 30.000 kWh · 30 % nach Fläche: 250 m²",
+							"share": "70 % nach Verbrauch: 6.000 von 30.000 kWh · 30 % nach Fläche: 55 m² von 250 m² · 365 von 365 Tagen",
+							"amount": 69605,
+							"co2": {
+								"fuel": "gas",
+								"fuelKwh": 40000,
+								"co2Kg": 8040,
+								"buildingCo2Kg": 8040,
+								"co2Cost": 44220,
+								"area": 250,
+								"kgPerSquareMetre": 32.16,
+								"landlordPercent": 50,
+								"landlordAmount": 22110,
+								"tenantAmount": 22110
+							}
+						}
+					],
+					"costsTotal": 69605,
+					"prepaymentsTotal": 72000,
+					"balance": -2395
+				},
+				{
+					"leaseId": "nowak",
+					"occupancy": {
+						"start": "2025-01-01",
+						"end": "2025-12-31",
+						"days": 365
+					},
+					"persons": [
+						{
+							"from": "2025-01-01",
+							"to": "2025-12-31",
+							"persons": 1
+						}
+					],
+					"lines": [
+						{
+							"itemId": "gas",
+							"itemTotal": 360000,
+							"allocated": 337890,
+							"keyTotal": "70 % nach Verbrauch: 30.000 kWh · 30 % nach Fläche: 250 m²",
+							"share": "70 % nach Verbrauch: 8.000 von 30.000 kWh · 30 % nach Fläche: 70 m² von 250 m² · 365 von 365 Tagen",
+							"amount": 91456,
+							"co2": {
+								"fuel": "gas",
+								"fuelKwh": 40000,
+								"co2Kg": 8040,
+								"buildingCo2Kg": 8040,
+								"co2Cost": 44220,
+								"area": 250,
+								"kgPerSquareMetre": 32.16,
+								"landlordPercent": 50,
+								"landlordAmount": 22110,
+								"tenantAmount": 22110
+							}
+						}
+					],
+					"costsTotal": 91456,
+					"prepaymentsTotal": 90000,
+					"balance": 1456
+				},
+				{
+					"leaseId": "schmitt",
+					"occupancy": {
+						"start": "2025-01-01",
+						"end": "2025-12-31",
+						"days": 365
+					},
+					"persons": [
+						{
+							"from": "2025-01-01",
+							"to": "2025-12-31",
+							"persons": 2
+						}
+					],
+					"lines": [
+						{
+							"itemId": "gas",
+							"itemTotal": 360000,
+							"allocated": 337890,
+							"keyTotal": "70 % nach Verbrauch: 30.000 kWh · 30 % nach Fläche: 250 m²",
+							"share": "70 % nach Verbrauch: 7.000 von 30.000 kWh · 30 % nach Fläche: 55 m² von 250 m² · 365 von 365 Tagen",
+							"amount": 77489,
+							"co2": {
+								"fuel": "gas",
+								"fuelKwh": 40000,
+								"co2Kg": 8040,
+								"buildingCo2Kg": 8040,
+								"co2Cost": 44220,
+								"area": 250,
+								"kgPerSquareMetre": 32.16,
+								"landlordPercent": 50,
+								"landlordAmount": 22110,
+								"tenantAmount": 22110
+							}
+						}
+					],
+					"costsTotal": 77489,
+					"prepaymentsTotal": 78000,
+					"balance": -511
+				}
+			]
+		}
+	}
+]

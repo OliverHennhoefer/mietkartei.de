@@ -338,9 +338,19 @@ export const rentChangeReasons = [
 	'manual',
 	'graduated',
 	'indexed',
-	'statement'
+	'statement',
+	'comparative'
 ] as const;
 export type RentChangeReason = (typeof rentChangeReasons)[number];
+
+/** § 558a Abs. 2 BGB: how an increase to the ortsübliche Vergleichsmiete is justified. */
+export const comparisonSources = [
+	'rent_index',
+	'rent_database',
+	'expert_opinion',
+	'comparable_flats'
+] as const;
+export type ComparisonSource = (typeof comparisonSources)[number];
 
 export const rentChangeStatuses = ['approved', 'proposed'] as const;
 
@@ -375,6 +385,17 @@ export const rentChanges = sqliteTable(
 		letterText: text('letter_text'),
 		letterTable: text('letter_table', { mode: 'json' }).$type<string[][]>(),
 		deliveredOn: text('delivered_on'),
+		/**
+		 * For a § 558 increase (reason 'comparative'): the ortsübliche Vergleichsmiete in cents per
+		 * m², how it is justified, the Kappungsgrenze in percent and the day the tenant consented.
+		 * Until the consent the change is proposed; deliveredOn is the day the demand reached the
+		 * tenant, and validFrom the day the new rent is due (§ 558b Abs. 1 BGB).
+		 */
+		comparativeRent: integer('comparative_rent'),
+		comparisonSource: text('comparison_source', { enum: comparisonSources }),
+		comparisonDetails: text('comparison_details'),
+		cappingPercent: integer('capping_percent'),
+		consentedOn: text('consented_on'),
 		createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
 		createdAt: createdAt()
 	},
@@ -385,6 +406,73 @@ export const rentChanges = sqliteTable(
 		uniqueIndex('rent_changes_approved_unique')
 			.on(table.leaseId, table.validFrom)
 			.where(sql`${table.status} = 'approved'`)
+	]
+);
+
+export const handoverKinds = ['move_in', 'move_out'] as const;
+export type HandoverKind = (typeof handoverKinds)[number];
+export const roomConditions = ['good', 'worn', 'damaged'] as const;
+export type RoomCondition = (typeof roomConditions)[number];
+
+export type HandoverRoom = { name: string; condition: RoomCondition; note: string | null };
+export type HandoverKey = { label: string; count: number };
+export type HandoverReading = { meterId: string; label: string; value: number; unit: string };
+
+/**
+ * Übergabeprotokoll: the state of the flat when the tenant moves in or out, one of each per
+ * lease. The readings are also stored as Zählerstände on its date.
+ */
+export const handoverProtocols = sqliteTable(
+	'handover_protocols',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		kind: text('kind', { enum: handoverKinds }).notNull(),
+		date: text('date').notNull(),
+		/** Who was there, as typed. */
+		attendees: text('attendees'),
+		rooms: text('rooms', { mode: 'json' }).notNull().$type<HandoverRoom[]>(),
+		keys: text('keys', { mode: 'json' }).notNull().$type<HandoverKey[]>(),
+		readings: text('readings', { mode: 'json' }).notNull().$type<HandoverReading[]>(),
+		notes: text('notes'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('handover_protocols_account_id_idx').on(table.accountId),
+		uniqueIndex('handover_protocols_lease_kind_unique').on(table.leaseId, table.kind)
+	]
+);
+
+/**
+ * Kautionsabrechnung: the settlement of the deposit after the lease ended, one per lease, with its
+ * letter. Its bookings (interest, Einbehalte, the offset against arrears and the payout) are
+ * deposit movements and a payment that point to it and go with it.
+ */
+export const depositSettlements = sqliteTable(
+	'deposit_settlements',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		/** The date of the letter and of its bookings. */
+		date: text('date').notNull(),
+		/** Paid back to the tenant; 0 when the deductions take the whole deposit. */
+		payout: integer('payout').notNull(),
+		/** Arrears left on the rent ledger after the offset. */
+		remaining: integer('remaining').notNull(),
+		/** Rows of the letter's table: item and amount. */
+		items: text('items', { mode: 'json' }).notNull().$type<string[][]>(),
+		letterText: text('letter_text').notNull(),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('deposit_settlements_account_id_idx').on(table.accountId),
+		uniqueIndex('deposit_settlements_lease_unique').on(table.leaseId)
 	]
 );
 
@@ -412,6 +500,13 @@ export const depositTransactions = sqliteTable(
 		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id, {
 			// Checked at the end of the statement, so deleting the whole account still works; a bank
 			// account with assigned transactions is refused by the banking module before that.
+			onDelete: 'no action'
+		}),
+		/**
+		 * Set when the movement is a booking of the Kautionsabrechnung. No delete action, as SQLite
+		 * adds the column with a bare REFERENCES: deleting the settlement deletes its bookings first.
+		 */
+		settlementId: text('settlement_id').references(() => depositSettlements.id, {
 			onDelete: 'no action'
 		}),
 		createdAt: createdAt()
@@ -530,7 +625,8 @@ export const rentCharges = sqliteTable(
 	]
 );
 
-export const paymentSources = ['manual', 'bank'] as const;
+/** deposit: the offset of arrears against the deposit in the Kautionsabrechnung. */
+export const paymentSources = ['manual', 'bank', 'deposit'] as const;
 export type PaymentSource = (typeof paymentSources)[number];
 
 /**
@@ -553,6 +649,10 @@ export const payments = sqliteTable(
 		bankTransactionId: text('bank_transaction_id').references(() => bankTransactions.id, {
 			// Checked at the end of the statement, so deleting the whole account still works; a bank
 			// account with assigned transactions is refused by the banking module before that.
+			onDelete: 'no action'
+		}),
+		/** The Kautionsabrechnung of an offset (source deposit); no delete action, as above. */
+		settlementId: text('settlement_id').references(() => depositSettlements.id, {
 			onDelete: 'no action'
 		}),
 		createdAt: createdAt()
@@ -778,10 +878,25 @@ export const expenses = sqliteTable(
 			// account with assigned transactions is refused by the banking module before that.
 			onDelete: 'no action'
 		}),
+		/**
+		 * The task (usually a Reparatur) the expense paid for. Added to an existing table, so SQLite
+		 * keeps no delete action; deleting a task clears it first.
+		 */
+		taskId: text('task_id').references((): AnySQLiteColumn => tasks.id, { onDelete: 'no action' }),
+		/**
+		 * The Dienstleister who was paid, optional ("unbekannt" without). Added to an existing
+		 * table, so SQLite keeps no delete action; deleting a Dienstleister clears it first.
+		 */
+		serviceProviderId: text('service_provider_id').references(
+			(): AnySQLiteColumn => serviceProviders.id,
+			{ onDelete: 'no action' }
+		),
 		createdAt: createdAt()
 	},
 	(table) => [
 		index('expenses_account_id_date_idx').on(table.accountId, table.date),
+		index('expenses_task_id_idx').on(table.taskId),
+		index('expenses_service_provider_id_idx').on(table.serviceProviderId),
 		uniqueIndex('expenses_bank_transaction_unique')
 			.on(table.bankTransactionId)
 			.where(sql`${table.bankTransactionId} is not null`)
@@ -1279,8 +1394,31 @@ export const insurancePolicies = sqliteTable(
 	]
 );
 
-export const taskCategories = ['maintenance', 'inspection', 'insurance', 'other'] as const;
+export const taskCategories = [
+	'repair',
+	'maintenance',
+	'inspection',
+	'insurance',
+	'other'
+] as const;
 export type TaskCategory = (typeof taskCategories)[number];
+
+/** Dienstleister: a firm or person the landlord hires, from the plumber to the Hausmeisterdienst. */
+export const serviceProviders = sqliteTable(
+	'service_providers',
+	{
+		id: id(),
+		accountId: accountId(),
+		name: text('name').notNull(),
+		/** Leistung, e.g. "Sanitär", "Hausmeisterdienst" or "Schornsteinfeger". */
+		service: text('service'),
+		phone: text('phone'),
+		email: text('email'),
+		note: text('note'),
+		createdAt: createdAt()
+	},
+	(table) => [index('service_providers_account_id_idx').on(table.accountId)]
+);
 
 /** Aufgabe with an optional due date. Deadlines derived from the data are computed, not stored. */
 export const tasks = sqliteTable(
@@ -1304,6 +1442,13 @@ export const tasks = sqliteTable(
 		followUpId: text('follow_up_id'),
 		propertyId: text('property_id').references(() => properties.id, { onDelete: 'set null' }),
 		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
+		/**
+		 * The Dienstleister who does the job, optional. Added to an existing table, so SQLite keeps
+		 * no delete action; deleting a Dienstleister clears it first.
+		 */
+		serviceProviderId: text('service_provider_id').references(() => serviceProviders.id, {
+			onDelete: 'no action'
+		}),
 		note: text('note'),
 		createdAt: createdAt()
 	},
@@ -1338,6 +1483,13 @@ export const users = sqliteTable(
 		showPropertyMaps: bool('show_property_maps', true),
 		/** Light or dark colours, or whatever the device is set to. */
 		theme: text('theme', { enum: themes }).notNull().default('system'),
+		/**
+		 * The weekly Fristenübersicht by mail: the address of the app its links lead to, taken when
+		 * the user turned it on; null while it is off.
+		 */
+		deadlineMailOrigin: text('deadline_mail_origin'),
+		/** The day the last Fristenübersicht went out (or was due without anything in it). */
+		deadlineMailSentOn: text('deadline_mail_sent_on'),
 		createdAt: createdAt()
 	},
 	(table) => [

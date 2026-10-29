@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- scripts/build_guides.py appends the Ratgeber pages at build time. -->
   <url>
     <loc>https://mietkartei.de/</loc>
   </url>
@@ -11,5 +12,11 @@
   </url>
   <url>
     <loc>https://mietkartei.de/impressum/</loc>
+  </url>
+  <url>
+    <loc>https://mietkartei.de/datenschutz/</loc>
+  </url>
+  <url>
+    <loc>https://mietkartei.de/auftragsverarbeitung/</loc>
   </url>
 </urlset>

@@ -1,9 +1,10 @@
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { createBankAccount } from '#lib/server/bank/accounts.ts';
 import { assignTransaction } from '#lib/server/bank/transactions.ts';
 import { listCo2Splits } from '#lib/server/co2.ts';
-import { bankTransactions } from '#lib/server/db/schema.ts';
+import { bankTransactions, leases } from '#lib/server/db/schema.ts';
 import { listDepositMovements } from '#lib/server/deposits.ts';
 import { getLease } from '#lib/server/leases.ts';
 import { listLedger } from '#lib/server/ledger.ts';
@@ -16,6 +17,11 @@ import {
 	testDatabase
 } from '#lib/server/testing.ts';
 import { actions as co2Actions, load as loadCo2 } from './co2/+page.server';
+import { GET as settlementPdf } from './kaution/abrechnung/+server';
+import {
+	GET as settlementText,
+	PUT as saveSettlementText
+} from './kaution/abrechnung/text/+server';
 import { actions as depositActions, load as loadDeposit } from './kaution/+page.server';
 import { actions as ledgerActions, load as loadLedger } from './mietkonto/+page.server';
 import { GET as reminderPdf } from './mietkonto/schreiben/[reminderId]/+server';
@@ -62,18 +68,19 @@ describe('mietkonto', () => {
 			data: {
 				range: { from: '2025-04', to: '2026-03' },
 				rows: [{}, {}, {}],
-				charged: 240000,
+				debit: 240000,
+				credit: 0,
 				balance: 240000,
 				paymentDefault: 240000
 			}
 		});
 		// Only January; the balance still counts February and March.
 		expect(await tab(loadLedger, '?from=2026-01&to=2026-01')).toMatchObject({
-			data: { rows: [{}], charged: 80000, windowBalance: 80000, balance: 240000 }
+			data: { rows: [{}], debit: 80000, windowBalance: 80000, balance: 240000 }
 		});
 	});
 
-	it('books and deletes a payment', async () => {
+	it('books, edits and deletes a payment', async () => {
 		expect(
 			await act(ledgerActions.payment, { date: '2026-03-02', amount: '800,00', note: '' })
 		).toEqual({ data: { booked: 'payment' } });
@@ -91,13 +98,44 @@ describe('mietkonto', () => {
 		// A rent charge cannot be deleted here, a payment id is not a charge.
 		const rent = rows.find((row) => row.kind === 'charge')!;
 		expect(rent.deletable).toBe(false);
-		expect(await act(ledgerActions.deleteCharge, { id: rent.id })).toMatchObject({ fail: 400 });
-		expect(await act(ledgerActions.deleteCharge, { id: payment.id })).toMatchObject({ fail: 400 });
-		expect(await act(ledgerActions.deletePayment, { id: rent.id })).toMatchObject({ fail: 400 });
-		expect(await act(ledgerActions.deletePayment, { id: payment.id })).toEqual({
-			data: { deleted: 'payment' }
+		expect(await act(ledgerActions.delete, { id: rent.id })).toMatchObject({ fail: 400 });
+		expect(await act(ledgerActions.update, { id: rent.id, date: '2026-03-01' })).toMatchObject({
+			fail: 400
+		});
+		expect(await tab(loadLedger, `?bearbeiten=${rent.id}`)).toMatchObject({
+			data: { editing: null }
+		});
+		// The payment opens in the edit dialog and is changed there.
+		expect(await tab(loadLedger, `?bearbeiten=${payment.id}`)).toMatchObject({
+			data: { editing: { id: payment.id, kind: 'payment', date: '2026-03-02', amount: 80000 } }
+		});
+		expect(
+			await act(ledgerActions.update, { id: payment.id, date: '2026-03-03', amount: 'x' })
+		).toMatchObject({ fail: 400, data: { form: 'edit' } });
+		expect(
+			await act(ledgerActions.update, {
+				id: payment.id,
+				date: '2026-03-03',
+				amount: '750,00',
+				note: 'bar'
+			})
+		).toEqual({ redirect: `/vertraege/${leaseId}/mietkonto` });
+		expect((await listLedger(db, 'a', leaseId)).paid).toBe(75000);
+		expect(await act(ledgerActions.delete, { id: payment.id })).toEqual({
+			redirect: `/vertraege/${leaseId}/mietkonto`
 		});
 		expect((await listLedger(db, 'a', leaseId)).paid).toBe(0);
+
+		// A refund is booked with its side and a positive amount; it stands in Soll.
+		expect(
+			await act(ledgerActions.payment, { date: '2026-03-04', side: 'refund', amount: '50,00' })
+		).toEqual({ data: { booked: 'payment' } });
+		const refund = (
+			(await tab(loadLedger)) as {
+				data: { rows: { kind: string; amount: number; debit: number; credit: number }[] };
+			}
+		).data.rows.find((row) => row.kind === 'payment');
+		expect(refund).toMatchObject({ amount: -5000, debit: 5000, credit: 0 });
 	});
 
 	it('links a payment from the bank to its transaction and keeps it', async () => {
@@ -135,33 +173,66 @@ describe('mietkonto', () => {
 			fromBank: true,
 			bankTransactionId: 't-miete'
 		});
-		expect(await act(ledgerActions.deletePayment, { id: payment.id })).toEqual({
+		expect(await act(ledgerActions.delete, { id: payment.id })).toEqual({
 			fail: 400,
 			data: { message: expect.stringContaining('stammt aus einem Umsatz') }
 		});
+		expect(await tab(loadLedger, `?bearbeiten=${payment.id}`)).toMatchObject({
+			data: { editing: null }
+		});
 	});
 
-	it('posts and deletes a correction', async () => {
+	it('posts, edits and deletes a correction', async () => {
 		expect(
 			await act(ledgerActions.adjustment, {
 				date: '2026-02-01',
-				amount: '-50,00',
+				side: 'credit',
+				amount: '50,00',
 				note: 'Minderung'
 			})
 		).toEqual({ data: { booked: 'adjustment' } });
+		// Without a side, or with a sign, the correction is refused: the side says the direction.
+		expect(
+			await act(ledgerActions.adjustment, { date: '2026-02-01', amount: '-50,00', note: 'x' })
+		).toMatchObject({ fail: 400, data: { errors: { side: expect.any(String) } } });
 		expect(await act(ledgerActions.adjustment, { date: 'x' })).toMatchObject({
 			fail: 400,
 			data: { form: 'adjustment' }
 		});
 		const rows = (
 			(await tab(loadLedger)) as {
-				data: { rows: { id: string; deletable: boolean; amount: number }[] };
+				data: {
+					rows: { id: string; deletable: boolean; amount: number; debit: number; credit: number }[];
+				};
 			}
 		).data.rows;
 		const correction = rows.find((row) => row.amount === -5000)!;
 		expect(correction.deletable).toBe(true);
-		expect(await act(ledgerActions.deleteCharge, { id: correction.id })).toEqual({
-			data: { deleted: 'adjustment' }
+		// A credit stands in Haben, without a sign.
+		expect(correction).toMatchObject({ debit: 0, credit: 5000 });
+		expect(
+			await act(ledgerActions.update, {
+				id: correction.id,
+				date: '2026-03-01',
+				side: 'credit',
+				amount: '60,00',
+				note: ''
+			})
+		).toMatchObject({ fail: 400, data: { form: 'edit', errors: { note: expect.any(String) } } });
+		expect(
+			await act(ledgerActions.update, {
+				id: correction.id,
+				date: '2026-03-01',
+				side: 'credit',
+				amount: '60,00',
+				note: 'Minderung März'
+			})
+		).toEqual({ redirect: `/vertraege/${leaseId}/mietkonto` });
+		expect(await tab(loadLedger, `?bearbeiten=${correction.id}`)).toMatchObject({
+			data: { editing: { kind: 'adjustment', date: '2026-03-01', amount: -6000 } }
+		});
+		expect(await act(ledgerActions.delete, { id: correction.id })).toEqual({
+			redirect: `/vertraege/${leaseId}/mietkonto`
 		});
 	});
 
@@ -171,12 +242,18 @@ describe('mietkonto', () => {
 			await act(ledgerActions.payment, { date: '2026-03-02', amount: '800,00' }, id)
 		).toMatchObject({ error: 404 });
 		expect(
-			await act(ledgerActions.adjustment, { date: '2026-03-02', amount: '10,00', note: 'x' }, id)
+			await act(
+				ledgerActions.adjustment,
+				{ date: '2026-03-02', side: 'claim', amount: '10,00', note: 'x' },
+				id
+			)
 		).toMatchObject({ error: 404 });
 		const [foreignLine] = (await listLedger(db, 'b', id)).lines;
-		expect(await act(ledgerActions.deleteCharge, { id: foreignLine.id }, leaseId)).toMatchObject({
-			fail: 400
-		});
+		for (const handler of [ledgerActions.update, ledgerActions.delete]) {
+			expect(
+				await act(handler, { id: foreignLine.id, date: '2026-03-02', amount: '1,00' }, leaseId)
+			).toMatchObject({ fail: 400 });
+		}
 	});
 });
 
@@ -223,8 +300,11 @@ describe('mietkonto reminders', () => {
 		expect(await outcome(() => saveReminderText(foreignSite as never))).toMatchObject({
 			error: 403
 		});
+		expect(await tab(loadLedger, `?schreiben=${created.data.reminderId}`)).toMatchObject({
+			data: { reminder: { id: created.data.reminderId, level: 1 } }
+		});
 		expect(await act(ledgerActions.deleteReminder, { id: created.data.reminderId })).toEqual({
-			data: { deleted: 'reminder' }
+			redirect: `/vertraege/${leaseId}/mietkonto`
 		});
 		expect(await act(ledgerActions.deleteReminder, { id: created.data.reminderId })).toEqual({
 			fail: 400,
@@ -283,9 +363,24 @@ describe('kaution', () => {
 		).toMatchObject({ error: 404 });
 	});
 
-	it('deletes a movement once', async () => {
+	it('edits a movement and deletes it once', async () => {
 		await act(depositActions.add, { date: '2026-01-02', kind: 'received', amount: '100,00' });
 		const [movement] = await listDepositMovements(db, 'a', leaseId);
+		expect(await tab(loadDeposit, `?bearbeiten=${movement.id}`)).toMatchObject({
+			data: { editing: { id: movement.id, amount: 10000 } }
+		});
+		const edit = { movementId: movement.id, date: '2026-01-03', kind: 'returned', amount: '40,00' };
+		expect(await act(depositActions.update, { ...edit, amount: '0' })).toMatchObject({
+			fail: 400,
+			data: { edit: true }
+		});
+		expect(await act(depositActions.update, edit, foreignLeaseId)).toMatchObject({ fail: 404 });
+		expect(await act(depositActions.update, edit)).toEqual({
+			redirect: `/vertraege/${leaseId}/kaution`
+		});
+		expect(await listDepositMovements(db, 'a', leaseId)).toMatchObject([
+			{ date: '2026-01-03', kind: 'returned', amount: -4000 }
+		]);
 		expect(await act(depositActions.delete, {})).toMatchObject({ fail: 400 });
 		expect(
 			await act(depositActions.delete, { movementId: movement.id }, foreignLeaseId)
@@ -293,7 +388,7 @@ describe('kaution', () => {
 			fail: 404
 		});
 		expect(await act(depositActions.delete, { movementId: movement.id })).toEqual({
-			data: { deleted: true }
+			redirect: `/vertraege/${leaseId}/kaution`
 		});
 		expect(await act(depositActions.delete, { movementId: movement.id })).toMatchObject({
 			fail: 404
@@ -323,6 +418,18 @@ describe('kaution', () => {
 			parts: [{ leaseId, amount: 180000 }]
 		});
 		const [movement] = await listDepositMovements(db, 'a', leaseId);
+		expect(await tab(loadDeposit, `?bearbeiten=${movement.id}`)).toMatchObject({
+			data: { editing: null }
+		});
+		expect(
+			await act(depositActions.update, {
+				movementId: movement.id,
+				date: '2026-01-02',
+				kind: 'received',
+				amount: '1700,00'
+			})
+		).toMatchObject({ fail: 400, data: { message: expect.stringContaining('Umsatz') } });
+		expect(await act(depositActions.update, {})).toMatchObject({ fail: 400 });
 		expect(await act(depositActions.delete, { movementId: movement.id })).toEqual({
 			fail: 400,
 			data: {
@@ -330,6 +437,123 @@ describe('kaution', () => {
 					'Diese Bewegung stammt aus einem Umsatz. Hebe die Zuordnung unter Bank auf, dann verschwindet sie hier.'
 			}
 		});
+	});
+
+	it('settles the deposit after the end and deletes the settlement with its bookings', async () => {
+		await act(depositActions.add, { date: '2026-01-02', kind: 'received', amount: '1800,00' });
+		// Still running: no settlement form.
+		expect(await tab(loadDeposit)).toMatchObject({ data: { settlement: null, settleable: false } });
+		await db.update(leases).set({ endDate: '2026-02-28' }).where(eq(leases.id, leaseId));
+		// January and February are owed, 1.600 €.
+		expect(await tab(loadDeposit)).toMatchObject({
+			data: { settleable: true, arrears: 160000, maxDeductions: 8 }
+		});
+		// ?datum= gives the arrears on that day; one before the end or malformed is ignored.
+		expect(await tab(loadDeposit, '?datum=2026-02-15')).toMatchObject({
+			data: { settleDate: '2026-03-02' }
+		});
+		expect(await tab(loadDeposit, '?datum=2026-03-01')).toMatchObject({
+			data: { settleDate: '2026-03-01', arrears: 160000 }
+		});
+
+		const settle = {
+			date: '2026-03-02',
+			interest: '',
+			label1: 'Reparatur der Badtür',
+			amount1: '150,00',
+			offsetArrears: 'on'
+		};
+		expect(await act(depositActions.settle, { ...settle, label1: '' })).toMatchObject({
+			fail: 400,
+			data: { settle: true, errors: { label1: expect.any(String) } }
+		});
+		expect(await act(depositActions.settle, { ...settle, amount1: '' })).toMatchObject({
+			fail: 400,
+			data: { errors: { amount1: expect.any(String) } }
+		});
+		expect(await act(depositActions.settle, { ...settle, date: '2026-02-27' })).toMatchObject({
+			fail: 400,
+			data: { settle: true, message: expect.stringContaining('Vertragsende') }
+		});
+		expect(await act(depositActions.settle, { ...settle, shownArrears: '80000' })).toMatchObject({
+			fail: 400,
+			data: {
+				settle: true,
+				message: expect.stringContaining('1.600,00'),
+				values: { label1: 'Reparatur der Badtür' },
+				arrears: 160000
+			}
+		});
+		expect(await act(depositActions.settle, settle, foreignLeaseId)).toMatchObject({
+			error: 404
+		});
+		expect(await act(depositActions.settle, { ...settle, shownArrears: '160000' })).toEqual({
+			data: { settled: true }
+		});
+		expect(await tab(loadDeposit)).toMatchObject({
+			data: { settlement: { payout: 5000, remaining: 0 }, settleable: false }
+		});
+
+		// Its bookings are changed only by deleting it.
+		const movements = await listDepositMovements(db, 'a', leaseId);
+		const booked = movements.find((movement) => movement.settlementId)!;
+		expect(await tab(loadDeposit, `?bearbeiten=${booked.id}`)).toMatchObject({
+			data: { editing: null }
+		});
+		const edit = { movementId: booked.id, date: '2026-03-02', kind: 'withheld', amount: '1,00' };
+		expect(await act(depositActions.update, edit)).toMatchObject({
+			fail: 400,
+			data: { message: expect.stringContaining('Kautionsabrechnung') }
+		});
+		expect(await act(depositActions.delete, { movementId: booked.id })).toMatchObject({
+			fail: 400,
+			data: { message: expect.stringContaining('Kautionsabrechnung') }
+		});
+		const offset = (await listLedger(db, 'a', leaseId)).lines.find(
+			(line) => line.label === 'Verrechnet mit der Kaution'
+		)!;
+		expect(await act(ledgerActions.delete, { id: offset.id })).toMatchObject({
+			fail: 400,
+			data: { message: expect.stringContaining('Tab Kaution') }
+		});
+
+		const params = { id: leaseId };
+		const printed = (await outcome(() => settlementPdf(routeEvent(db, { params })))) as {
+			data: Response;
+		};
+		expect(printed.data.headers.get('Content-Type')).toBe('application/pdf');
+		const shown = (await outcome(() => settlementText(routeEvent(db, { params })))) as {
+			data: Response;
+		};
+		const { blocks } = (await shown.data.json()) as { blocks: { paragraph?: string }[] };
+		const paragraphs = blocks.flatMap((block) => block.paragraph ?? []);
+		const save = (json: unknown) =>
+			outcome(() => saveSettlementText(routeEvent(db, { params, json })));
+		expect(await save({ paragraphs: [...paragraphs, 'Alles Gute.'] })).toMatchObject({
+			data: { status: 204 }
+		});
+		expect(await save({ paragraphs: [''] })).toMatchObject({ error: 400 });
+		const foreignSite = routeEvent(db, { params, json: { paragraphs } }) as { request: Request };
+		foreignSite.request.headers.set('origin', 'https://example.org');
+		expect(await outcome(() => saveSettlementText(foreignSite as never))).toMatchObject({
+			error: 403
+		});
+
+		expect(await act(depositActions.deleteSettlement, {})).toEqual({
+			redirect: `/vertraege/${leaseId}/kaution`
+		});
+		expect(await act(depositActions.deleteSettlement, {})).toMatchObject({ fail: 404 });
+		expect(await listDepositMovements(db, 'a', leaseId)).toHaveLength(1);
+		const missing = { params: { id: leaseId } };
+		expect(await outcome(() => settlementPdf(routeEvent(db, missing)))).toMatchObject({
+			error: 404
+		});
+		expect(await outcome(() => settlementText(routeEvent(db, missing)))).toMatchObject({
+			error: 404
+		});
+		expect(
+			await outcome(() => saveSettlementText(routeEvent(db, { ...missing, json: { paragraphs } })))
+		).toMatchObject({ error: 404 });
 	});
 });
 
@@ -365,7 +589,12 @@ describe('co2', () => {
 		expect(await act(co2Actions.delete, { splitId: row.id }, foreignLeaseId)).toMatchObject({
 			error: 404
 		});
-		expect(await act(co2Actions.delete, { splitId: row.id })).toEqual({ data: { deleted: true } });
+		expect(await tab(loadCo2, `?bearbeiten=${row.id}`)).toMatchObject({
+			data: { editing: { id: row.id } }
+		});
+		expect(await act(co2Actions.delete, { splitId: row.id })).toEqual({
+			redirect: `/vertraege/${leaseId}/co2`
+		});
 	});
 
 	it('refuses a lease of another account', async () => {

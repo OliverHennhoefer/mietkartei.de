@@ -34,6 +34,8 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	await expect(page.locator('select[name="unitId"]')).toHaveValue(unitId);
 	const remove = page.getByRole('button', { name: `${tenantName} entfernen` });
 	await expect(remove).toBeVisible();
+	// The pill's button works once the page is hydrated; a click before that does nothing.
+	await page.waitForLoadState('networkidle');
 	// The tenant picker: remove the pill, find the tenant again by part of the name and add it with
 	// the keyboard.
 	await remove.click();
@@ -116,7 +118,11 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	// The added persons row goes again; the first row stays.
 	await persons
 		.getByRole('row', { name: /01\.01\.2026/ })
-		.getByRole('button', { name: 'Entfernen' })
+		.getByRole('link', { name: '01.01.2026' })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Personenstand bearbeiten' })
+		.getByRole('button', { name: 'Löschen' })
 		.click();
 	await expect(persons.getByRole('row')).toHaveCount(2);
 	await expect(persons).not.toContainText('Kind geboren');
@@ -143,7 +149,7 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	await expect(movements.getByRole('row')).toHaveCount(2);
 	await expect(movements).toContainText('Erhalten');
 	await expect(movements).toContainText('erste Rate');
-	await expect(movements).toContainText(/\+600,00\s€/);
+	await expect(movements).toContainText(/600,00\s€/);
 	const outstanding = page
 		.getByLabel('Zusammenfassung')
 		.locator('.stat', { hasText: 'Noch offen' });
@@ -182,7 +188,11 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 
 	// The deposit movement booked by mistake goes again: the whole deposit is open.
 	await page.goto(`${leaseUrl}/kaution`);
-	await movements.getByRole('button', { name: 'Löschen' }).click();
+	await movements.getByRole('link').first().click();
+	await page
+		.getByRole('dialog', { name: 'Bewegung bearbeiten' })
+		.getByRole('button', { name: 'Löschen' })
+		.click();
 	await expect(page.getByText('Noch keine Bewegungen.')).toBeVisible();
 	await expect(outstanding).toContainText(/1\.500,00\s€/);
 
@@ -192,6 +202,95 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	await expect(row).toContainText('Beendet');
 	await expect(row).toContainText('01.01.2025 – 31.05.2026');
 	await expect(row).toContainText(/800,00\s€/);
+});
+
+test('settles the deposit of an ended lease and writes the letter', async ({ page }) => {
+	// 800 € a month through 2025 with one month unpaid at the end and paid since, the deposit of
+	// 1.800 € paid in.
+	const { leaseId } = await seedLease(page.request, {
+		lease: { endDate: '2025-12-31', terminatedAt: '2025-09-15', terminatedBy: 'tenant' }
+	});
+	await seedRows(page.request, 'payments', [
+		{ leaseId, date: '2025-12-01', amount: 880000, note: 'Mieten 2025' },
+		{ leaseId, date: '2026-01-15', amount: 80000, note: 'Dezember' }
+	]);
+	await seedRows(page.request, 'deposit_transactions', [
+		{ leaseId, date: '2025-01-02', kind: 'received', amount: 180000 }
+	]);
+	await page.goto(`/vertraege/${leaseId}/kaution`);
+
+	// Interest of 12 €, a repair withheld and the arrears of 800 € offset leave 712 €.
+	await page.getByLabel('Zinsen bis heute (optional)').fill('12,00');
+	await page.getByLabel('Grund').fill('Reparatur der Badtür');
+	await page.locator('input[name="amount1"]').fill('300,00');
+	// Settled today, nothing is owed; on the day of the end, the 800 € were.
+	await expect(page.getByLabel(/Mietrückstand von/)).toHaveCount(0);
+	await expect(page.locator('.preview')).toContainText(/Auszahlung\s1\.512,00\s€/);
+	await page.getByLabel('Datum der Abrechnung').fill('2025-12-31');
+	await page.getByLabel('Datum der Abrechnung').dispatchEvent('change');
+	await expect(
+		page.getByLabel('Mietrückstand von 800,00 € mit der Kaution verrechnen')
+	).toBeChecked();
+	await expect(page.locator('.preview')).toContainText(/Auszahlung\s712,00\s€/);
+	await page.getByRole('button', { name: 'Weiterer Einbehalt' }).click();
+	await expect(page.locator('input[name="label2"]')).toBeVisible();
+	await page.getByRole('button', { name: 'Kaution abrechnen' }).click();
+
+	await expect(page.getByText(/Abgerechnet am .*712,00\s€/)).toBeVisible();
+	const movements = page.getByRole('table', { name: 'Kautionsbewegungen' });
+	await expect(movements.getByText('Abrechnung')).toHaveCount(4);
+	await expect(movements).toContainText('Einbehalt: Reparatur der Badtür');
+	await page.getByRole('link', { name: 'Schreiben ansehen' }).click();
+	const letter = page.getByRole('dialog', { name: /Kautionsabrechnung vom/ });
+	await expect(letter).toContainText('Ihr Mietverhältnis');
+	await expect(letter).toContainText('Verrechnet mit dem Mietrückstand');
+	await letter.getByRole('button', { name: 'Vorschau schließen' }).click();
+
+	// Deleting the settlement takes its bookings with it; the form is back.
+	page.once('dialog', (dialog) => void dialog.accept());
+	await page.getByRole('button', { name: 'Abrechnung löschen' }).click();
+	await expect(page.getByRole('button', { name: 'Kaution abrechnen' })).toBeVisible();
+	await expect(movements.getByRole('row')).toHaveCount(2);
+});
+
+test('records the handover at moving in and out and prints the protocol', async ({ page }) => {
+	const { leaseId } = await seedLease(page.request, { lease: { endDate: '2025-12-31' } });
+	await page.goto(`/vertraege/${leaseId}/uebergabe`);
+	await page.getByRole('link', { name: 'Protokoll anlegen' }).first().click();
+	await expect(page.locator('input[name="date"]')).toHaveValue('2025-01-01');
+	await page.locator('select[name="condition2"]').selectOption('worn');
+	await page.locator('input[name="roomNote2"]').fill('Kratzer auf der Arbeitsplatte');
+	await page.getByRole('button', { name: 'Protokoll speichern' }).click();
+	await expect(page.locator('.protocol').first()).toContainText('Übergabe am 01.01.2025: 5 Räume');
+
+	// The move-out starts from the move-in's rooms; the PDF shows both.
+	await page.getByRole('link', { name: 'Protokoll anlegen' }).click();
+	await expect(page.locator('input[name="date"]')).toHaveValue('2025-12-31');
+	await expect(page.locator('input[name="room2"]')).toHaveValue('Küche');
+	await page.locator('select[name="condition3"]').selectOption('damaged');
+	await page.locator('input[name="roomNote3"]').fill('Badtür gesplittert');
+	// A refusal keeps the form with what was typed, each row in its place.
+	const firstKey = page.locator('input[name="key1"]');
+	const label = await firstKey.inputValue();
+	const count = await page.locator('input[name="keyCount1"]').inputValue();
+	await firstKey.fill('');
+	await page.getByRole('button', { name: 'Protokoll speichern' }).click();
+	await expect(page.getByText('Bitte gib an, wofür der Schlüssel ist.')).toBeVisible();
+	await expect(page.locator('input[name="keyCount1"]')).toHaveValue(count);
+	await firstKey.fill(label);
+	await page.locator('input[name="date"]').fill('2024-12-31');
+	await page.getByRole('button', { name: 'Protokoll speichern' }).click();
+	await expect(page.getByText('Der Auszug kann nicht vor dem Einzug')).toBeVisible();
+	await expect(page.locator('input[name="roomNote3"]')).toHaveValue('Badtür gesplittert');
+	await page.locator('input[name="date"]').fill('2025-12-31');
+	await page.getByRole('button', { name: 'Protokoll speichern' }).click();
+	await expect(page.locator('.protocol').nth(1)).toContainText('Mängel in Bad');
+	await expect(page.getByRole('link', { name: 'Protokoll ansehen' }).nth(1)).toHaveAttribute(
+		'href',
+		`/vertraege/${leaseId}/uebergabe/auszug`
+	);
+	const printed = await page.request.get(`/vertraege/${leaseId}/uebergabe/auszug`);
+	expect(printed.headers()['content-type']).toBe('application/pdf');
 });
 
 test('shows validation errors and the deposit hint', async ({ page }) => {

@@ -71,7 +71,7 @@ Danach startest du den Client neu.
 
 Ein Schlüssel oder eine verbundene App hat dieselben Rechte wie du und sieht alle Daten deines Kontos, auch die persönlichen Daten deiner Mieter. Gib ihn nur Programmen, denen du vertraust.
 
-**Lesen** kann der Assistent Objekte und Einheiten, Mieter, Mietverträge mit Mietänderungen und Kaution, das Mietkonto jedes Vertrags, Salden und Rückstände, den Mahnstand mit Verzugszinsen, Belege, Kostenarten und Umlageschlüssel, Betriebskostenabrechnungen, Hausgeldabrechnungen von Eigentumswohnungen, Ausgaben, die Auswertung, die [Steuerübersicht](steuer.md) je Objekt und Jahr, Fristen und Aufgaben.
+**Lesen** kann der Assistent Objekte und Einheiten, Mieter, Mietverträge mit Mietänderungen und Kaution, das Mietkonto jedes Vertrags, Salden und Rückstände, den Mahnstand mit Verzugszinsen, Belege, Kostenarten und Umlageschlüssel, Betriebskostenabrechnungen, Hausgeldabrechnungen von Eigentumswohnungen, Ausgaben, die Auswertung, die [Steuerübersicht](steuer.md) je Objekt und Jahr, Fristen und Aufgaben. Zu jeder gesetzlichen Frist nennt mietkartei die Rechtsgrundlage, und den Wortlaut der Paragraphen, die mietkartei anwendet (Mietrecht des BGB, Betriebskostenverordnung, Heizkostenverordnung, CO2-Kostenaufteilungsgesetz und einzelne Paragraphen des EStG), liest der Assistent in der aktuellen Fassung von [gesetze-im-internet.de](https://www.gesetze-im-internet.de/). So zitiert er das Gesetz statt aus dem Gedächtnis. Eine Rechtsberatung ersetzt das nicht.
 
 **Schreiben** darf der Assistent mit Schreibrechten nur vier Dinge, die etwas hinzufügen:
 

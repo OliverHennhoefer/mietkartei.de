@@ -7,6 +7,8 @@ import { actions, load } from './+page.server';
 
 const env = vi.hoisted(() => ({
 	REGISTRATION_EMAILS: 'neu@example.org',
+	SETUP_CODE: '',
+	HOSTED: false,
 	STRIPE_SECRET_KEY: '',
 	STRIPE_PRICE_ID: '',
 	STRIPE_YEARLY_PRICE_ID: '',

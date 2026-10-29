@@ -92,7 +92,15 @@ describe('miethoehe', () => {
 	it('answers 404 for every action on a lease of another account', async () => {
 		const { unitId } = await seedUnit(db, 'b');
 		const foreign = await seedLease(db, 'b', unitId);
-		for (const action of ['change', 'step', 'propose', 'approve', 'delete'] as const) {
+		for (const action of [
+			'change',
+			'step',
+			'propose',
+			'approve',
+			'demand',
+			'consent',
+			'delete'
+		] as const) {
 			expect(await act(action, change, foreign), action).toMatchObject({ error: 404 });
 		}
 		expect(
@@ -116,7 +124,7 @@ describe('miethoehe', () => {
 		expect(await act('delete', { changeId: '' })).toMatchObject({ error: 404 });
 		expect(await act('delete', { changeId: 'unbekannt' })).toMatchObject({ error: 404 });
 		expect(await act('delete', { changeId: added.id })).toEqual({
-			data: { source: 'delete', saved: true }
+			redirect: `/vertraege/${leaseId}/miethoehe`
 		});
 		const [initial] = await listRentChanges(db, 'a', leaseId);
 		expect(await act('delete', { changeId: initial.id })).toMatchObject({
@@ -202,5 +210,65 @@ describe('miethoehe', () => {
 			data: { source: 'step', errors: expect.anything() }
 		});
 		expect(await act('step', step, graduated)).toEqual({ data: { source: 'step', saved: true } });
+	});
+
+	it('demands a § 558 increase, records the consent and prints the letter', async () => {
+		// A fixed lease from 2024-01-01 at 600 € on 64 m²; today is 01.10.2026.
+		const fixed = await lease({ startDate: '2024-01-01' });
+		expect(await page(fixed)).toMatchObject({
+			data: {
+				comparative: {
+					lastChange: '2024-01-01',
+					demandFrom: '2025-01-01',
+					validFrom: '2027-01-01',
+					currentBaseRent: 60000,
+					caps: { 20: 72000, 15: 69000 },
+					refusal: undefined
+				}
+			}
+		});
+		const demand = {
+			deliveredOn: '2026-10-05',
+			baseRent: '720,00',
+			comparativeRent: '11,50',
+			cappingPercent: '20',
+			comparisonSource: 'comparable_flats',
+			comparisonDetails: 'Lindenstraße 6, 2. OG, 66 m², 11,60 € je m²; …'
+		};
+		expect(await act('demand', { ...demand, cappingPercent: '30' }, fixed)).toMatchObject({
+			fail: 400,
+			data: { source: 'demand', errors: { cappingPercent: expect.any(String) } }
+		});
+		expect(await act('demand', { ...demand, baseRent: '800,00' }, fixed)).toMatchObject({
+			fail: 400,
+			data: { source: 'demand', refusal: expect.stringContaining('Kappungsgrenze') }
+		});
+		expect(await act('demand', demand, fixed)).toEqual({
+			data: { source: 'demand', saved: true }
+		});
+		const [, demanded] = await listRentChanges(db, 'a', fixed);
+		expect(demanded).toMatchObject({ status: 'proposed', validFrom: '2027-01-01' });
+		const printed = (await outcome(() =>
+			letter(routeEvent(db, { params: { id: fixed, changeId: demanded.id } }))
+		)) as { data: Response };
+		expect(printed.data.headers.get('Content-Type')).toBe('application/pdf');
+
+		const consent = { changeId: demanded.id, consentedOn: '2026-11-02', baseRent: '720,00' };
+		expect(await act('consent', { ...consent, baseRent: '' }, fixed)).toMatchObject({
+			fail: 400,
+			data: { source: 'consent', errors: { baseRent: expect.any(String) } }
+		});
+		expect(await act('consent', { ...consent, baseRent: '900,00' }, fixed)).toMatchObject({
+			fail: 400,
+			data: { source: 'consent', refusal: expect.any(String) }
+		});
+		expect(await act('consent', { ...consent, changeId: 'x' }, fixed)).toMatchObject({
+			error: 404
+		});
+		expect(await act('consent', consent, fixed)).toEqual({
+			data: { source: 'consent', saved: true }
+		});
+		const [, agreed] = await listRentChanges(db, 'a', fixed);
+		expect(agreed).toMatchObject({ status: 'approved', baseRent: 72000 });
 	});
 });

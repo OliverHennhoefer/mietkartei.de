@@ -725,7 +725,12 @@ describe('transaction helpers', () => {
 		expect(
 			transactionLabel({ amount: -1250, bookingDate: '2026-10-02', counterpartName: '' })
 		).toBe('Umsatz -12,50\u00a0€ vom 02.10.2026 (ohne Namen)');
-		const preset = { category: 'other' as const, scope: '', description: 'Strom' };
+		const preset = {
+			category: 'other' as const,
+			scope: '',
+			description: 'Strom',
+			serviceProviderId: ''
+		};
 		const presets = {
 			byIban: new Map([['DE89370400440532013000', preset]]),
 			byName: new Map([['stadtwerke', { ...preset, description: 'Wasser' }]])
