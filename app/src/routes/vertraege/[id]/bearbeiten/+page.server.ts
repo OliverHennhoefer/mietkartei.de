@@ -100,11 +100,16 @@ export const actions: Actions = {
 									unitId:
 										'Für dieses Objekt gibt es schon eine Betriebskostenabrechnung mit diesem Vertrag. Der Vertrag muss dort eine Einheit behalten; lege für die neue Einheit einen neuen Vertrag an.'
 								}
-							: outcome.reason === 'archived'
-								? { tenantIds: 'Einer der Mieter ist archiviert. Hol ihn zuerst aus dem Archiv.' }
-								: outcome.reason === 'unknown-unit'
-									? { unitId: 'Eine der Einheiten gibt es nicht.' }
-									: { tenantIds: 'Einen der Mieter gibt es nicht.' };
+							: outcome.reason === 'party-dates'
+								? {
+										tenantIds:
+											'So hätte der Vertrag an einem Tag keinen Mieter, oder ein Ein- oder Austritt läge außerhalb der Laufzeit. Passe zuerst die Daten unter „Vertragsparteien“ in der Übersicht an.'
+									}
+								: outcome.reason === 'archived'
+									? { tenantIds: 'Einer der Mieter ist archiviert. Hol ihn zuerst aus dem Archiv.' }
+									: outcome.reason === 'unknown-unit'
+										? { unitId: 'Eine der Einheiten gibt es nicht.' }
+										: { tenantIds: 'Einen der Mieter gibt es nicht.' };
 			return fail(400, { errors, values, depositWarning: depositWarning(result.data) });
 		}
 		redirect(303, `/vertraege/${lease.id}`);

@@ -287,6 +287,17 @@ describe('vertraege/[id]', () => {
 			parent: { lease }
 		})) as { data: { editingParty: { leftOn: string } } };
 		expect(dialog.data.editingParty.leftOn).toBe('2025-06-30');
+
+		// The lease form cannot take the joining tenant off again: nobody would be left.
+		const edit = (await run(loadEdit, { params: { id }, parent: { lease } })) as {
+			data: { defaults: Record<string, string> };
+		};
+		expect(
+			await run(editActions.update, {
+				params: { id },
+				form: { ...edit.data.defaults, tenantIds: [tenantId] }
+			})
+		).toMatchObject({ fail: 400, data: { errors: { tenantIds: expect.any(String) } } });
 	});
 
 	it('records persons from a date, edits and deletes them, but not the first entry', async () => {

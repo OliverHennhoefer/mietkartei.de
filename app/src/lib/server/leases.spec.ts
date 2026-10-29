@@ -945,7 +945,7 @@ describe('the parties to a lease over time', () => {
 	});
 
 	it('refuses dates outside the term, a lease without a party and a second entry', async () => {
-		const { leaseId, anna, ben, clara } = await couple();
+		const { unitId, leaseId, anna, ben, clara } = await couple();
 		const party = (input: { joinedOn: string | null; leftOn: string | null }, tenantId = anna) =>
 			updateLeaseParty(db, contextA, leaseId, tenantId, input);
 		expect(await party({ joinedOn: '2023-01-01', leftOn: null })).toEqual({
@@ -977,6 +977,15 @@ describe('the parties to a lease over time', () => {
 			ok: false,
 			reason: 'already-party'
 		});
+		// Nor can the lease form take Ben off: Anna left, so the flat would have nobody after her.
+		expect(
+			await updateLease(
+				db,
+				contextA,
+				leaseId,
+				leaseInput(unitId, { tenantIds: [anna], startDate: '2023-01-01' })
+			)
+		).toEqual({ ok: false, reason: 'party-dates' });
 		expect(await addLeaseParty(db, contextA, leaseId, 'unbekannt', null)).toEqual({
 			ok: false,
 			reason: 'unknown-tenant'

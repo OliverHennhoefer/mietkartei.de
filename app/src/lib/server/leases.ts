@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { addDays, formatDate, monthOf, today, type IsoDate } from '../dates';
+import { currentParties, isPartyOn, partiesOn } from '../domain/lease-parties';
 import { rentOn, type RentChange as RentHistoryEntry } from '../domain/rents';
 import { personName } from '../format';
 import { terminatedByLabels } from '../labels';
@@ -81,6 +82,8 @@ export type Tenant = typeof tenants.$inferSelect;
 /** A tenant on the lease with the days they joined and left it; null for its start and end. */
 export type LeaseParty = { tenant: Tenant; joinedOn: IsoDate | null; leftOn: IsoDate | null };
 
+export { currentParties, isPartyOn, partiesOn };
+
 export type LeaseSummary = Lease & {
 	unit: Unit;
 	property: Property;
@@ -101,20 +104,6 @@ export type LeaseSummary = Lease & {
 
 export function isActive(lease: { startDate: string; endDate: string | null }, date = today()) {
 	return lease.startDate <= date && (lease.endDate === null || lease.endDate >= date);
-}
-
-/** Whether the tenant is a party to the lease on the day. */
-export function isPartyOn(party: Omit<LeaseParty, 'tenant'>, date: IsoDate): boolean {
-	return (party.joinedOn ?? '') <= date && (party.leftOn ?? '9999-12-31') >= date;
-}
-
-/**
- * The tenants who are parties on the day; every party when none is (the dates leave a gap), so a
- * letter never goes out without a recipient.
- */
-export function partiesOn(parties: readonly LeaseParty[], date: IsoDate): Tenant[] {
-	const on = parties.filter((party) => isPartyOn(party, date));
-	return (on.length > 0 ? on : parties).map((party) => party.tenant);
 }
 
 /** The lease's label in lists: unit name, property name. */
@@ -185,12 +174,7 @@ async function decorate(db: Database, accountId: string, rows: Lease[]): Promise
 		const parties = tenantRows
 			.filter((row) => row.leaseId === lease.id)
 			.map(({ tenant, joinedOn, leftOn }) => ({ tenant, joinedOn, leftOn }));
-		const onDay =
-			date < lease.startDate
-				? lease.startDate
-				: lease.endDate && date > lease.endDate
-					? lease.endDate
-					: date;
+
 		const current = rentOn(history, date) ??
 			rentOn(history, lease.startDate) ?? {
 				baseRent: lease.baseRent,
@@ -202,7 +186,7 @@ async function decorate(db: Database, accountId: string, rows: Lease[]): Promise
 				...lease,
 				unit,
 				property,
-				tenants: partiesOn(parties, onDay),
+				tenants: currentParties(lease, parties, date),
 				parties,
 				extraUnits: extraRows.filter((row) => row.leaseId === lease.id).map((row) => row.unit),
 				currentRent: {
@@ -267,6 +251,7 @@ export type LeaseError =
 	| 'missing'
 	| 'start-after-changes'
 	| 'settled-property'
+	| 'party-dates'
 	| 'overlap';
 
 /** A refused lease; an overlap names the start of the other lease. */
@@ -655,6 +640,10 @@ export async function updateLease(
 		.map((party) => party.tenant.id)
 		.filter((id) => tenantIds.includes(id));
 	const addedIds = tenantIds.filter((id) => !keptIds.includes(id));
+	const kept = existing.parties.filter((party) => keptIds.includes(party.tenant.id));
+	if (partiesProblem(input, [...kept, ...addedIds.map(() => ({ joinedOn: null, leftOn: null }))])) {
+		return { ok: false, reason: 'party-dates' };
+	}
 	await runBatch(db, [
 		db
 			.update(leases)
@@ -1026,13 +1015,13 @@ export type LeasePartyRefusal =
 	| 'no-party';
 
 /**
- * Why the dates leave the lease without a party on a day of its term, or a date outside it;
- * undefined when they fit. A gap can open only at the start or the day after someone left.
+ * Why the parties' days do not fit the term: a day outside it, a tenant leaving before joining,
+ * or a day of the term without a party (a gap opens only at the start or the day after someone
+ * left). Undefined when they fit.
  */
 function partiesProblem(
-	lease: Pick<Lease, 'startDate' | 'endDate'>,
-	parties: readonly Omit<LeaseParty, 'tenant'>[],
-	changed: LeasePartyInput
+	lease: { startDate: IsoDate; endDate: IsoDate | null },
+	parties: readonly Omit<LeaseParty, 'tenant'>[]
 ):
 	| Exclude<
 			LeasePartyRefusal,
@@ -1040,15 +1029,19 @@ function partiesProblem(
 	  >
 	| undefined {
 	const end = lease.endDate ?? '9999-12-31';
-	if (changed.joinedOn && (changed.joinedOn <= lease.startDate || changed.joinedOn > end)) {
-		return 'joined-outside';
+	for (const party of parties) {
+		if (party.joinedOn && (party.joinedOn <= lease.startDate || party.joinedOn > end)) {
+			return 'joined-outside';
+		}
+		if (party.leftOn && (party.leftOn < lease.startDate || party.leftOn >= end)) {
+			return 'left-outside';
+		}
+		if (party.joinedOn && party.leftOn && party.leftOn < party.joinedOn) {
+			return 'left-before-joined';
+		}
 	}
-	if (changed.leftOn && (changed.leftOn < lease.startDate || changed.leftOn >= end)) {
-		return 'left-outside';
-	}
-	if (changed.joinedOn && changed.leftOn && changed.leftOn < changed.joinedOn) {
-		return 'left-before-joined';
-	}
+	// The form asks for a tenant; a lease without any (an import, a test) has no days to check.
+	if (parties.length === 0) return undefined;
 	const days = [
 		lease.startDate,
 		...parties.flatMap((party) => (party.leftOn ? [addDays(party.leftOn, 1)] : []))
@@ -1081,7 +1074,7 @@ export async function addLeaseParty(
 	if (!tenant) return { ok: false, reason: 'unknown-tenant' };
 	if (tenant.archivedAt) return { ok: false, reason: 'archived' };
 	const added = { joinedOn, leftOn: null };
-	const problem = partiesProblem(lease, [...lease.parties, added], added);
+	const problem = partiesProblem(lease, [...lease.parties, added]);
 	if (problem) return { ok: false, reason: problem };
 	await runBatch(db, [
 		db.insert(leaseTenants).values({ leaseId, tenantId, joinedOn }),
@@ -1112,7 +1105,7 @@ export async function updateLeaseParty(
 	const party = lease.parties.find((other) => other.tenant.id === tenantId);
 	if (!party) return { ok: false, reason: 'missing' };
 	const parties = lease.parties.map((other) => (other === party ? { ...other, ...input } : other));
-	const problem = partiesProblem(lease, parties, input);
+	const problem = partiesProblem(lease, parties);
 	if (problem) return { ok: false, reason: problem };
 	const changes: string[] = [];
 	if (input.joinedOn !== party.joinedOn) {
