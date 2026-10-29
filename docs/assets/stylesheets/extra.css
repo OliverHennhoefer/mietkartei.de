@@ -155,6 +155,11 @@ body[data-md-color-scheme="slate"][data-md-color-primary] {
   gap: 6px 24px;
 }
 
+/* The links keep their one line; the status wraps first when the footer runs short. */
+.mk-footer-links {
+  flex-shrink: 0;
+}
+
 .mk-made-in {
   display: inline-flex;
   align-items: center;

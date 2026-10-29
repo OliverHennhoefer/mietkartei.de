@@ -314,7 +314,8 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .post-list a:hover h2 { text-decoration: underline; text-underline-offset: 4px; }
 .footer { border-top: 1px solid var(--line); padding-top: clamp(14px, 2.2vh, 20px); font-size: var(--text-xs); line-height: 1.5; color: var(--muted); }
 .status { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 24px; }
-.footer-links { display: flex; flex-wrap: wrap; gap: 6px 24px; }
+/* The links keep their one line; the status wraps first when the footer runs short. */
+.footer-links { display: flex; flex-wrap: wrap; flex-shrink: 0; gap: 6px 24px; }
 .footer a { text-decoration: none; text-underline-offset: 3px; }
 .footer a:hover { color: var(--foreground); text-decoration: underline; }
 .legal-section { margin-top: 36px; font-size: var(--text-base); line-height: 1.8; overflow-wrap: anywhere; }

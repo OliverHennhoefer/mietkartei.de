@@ -687,6 +687,9 @@ button.account-card[aria-expanded='true'] {
 	align-items: baseline;
 	gap: 6px 24px;
 }
+.website-footer-links {
+	flex-shrink: 0;
+}
 .website-footer .made-in {
 	display: inline-flex;
 	align-items: center;
