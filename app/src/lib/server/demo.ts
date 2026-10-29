@@ -451,7 +451,7 @@ export async function createDemoData(
 
 	// Tenants. Those who moved out are archived, with the address they moved to.
 	const tenantInputs = {
-		schmidt: tenant('Frau', 'Anna', 'Schmidt', 'anna.schmidt@example.org', '0170 2345678'),
+		schmidt: tenant('Herr', 'Armin', 'Schmidt', 'armin.schmidt@example.org', '0170 2345678'),
 		kraus: tenant('Frau', 'Helga', 'Kraus', null, '030 6912345', [
 			'Wilhelmsaue 41',
 			'10713',
@@ -703,7 +703,7 @@ export async function createDemoData(
 				comparison: { index: 'Berliner Mietspiegel', field: 'Feld E3' }
 			},
 			bank: {
-				payer: 'Anna Schmidt',
+				payer: 'Armin Schmidt',
 				iban: 'DE80100500001062734591',
 				purpose: (month) => `Miete ${month} Lindenstr. 12 EG links`
 			}
