@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { validateSession } from '#lib/server/auth.ts';
+import { DEMO_STARTS_PER_HOUR } from '#lib/server/demo-accounts.ts';
+import { accounts, users } from '#lib/server/db/schema.ts';
 import type { Database } from '#lib/server/db/index.ts';
 import { memoryStorage, outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
 import { actions, load } from './+page.server';
@@ -59,6 +61,21 @@ describe('starting the demo', () => {
 		env.DEMO = false;
 		const result = await outcome(() => actions.default(routeEvent(db, { user: null, form: {} })));
 		expect(result).toMatchObject({ error: 404 });
+	});
+
+	it('asks the visitor to come back when the demos of the last hour reached the limit', async () => {
+		const ids = Array.from({ length: DEMO_STARTS_PER_HOUR }, () => crypto.randomUUID());
+		await db.insert(accounts).values(ids.map((id) => ({ id, name: 'Demo' })));
+		await db.insert(users).values(
+			ids.map((id) => ({
+				accountId: id,
+				email: `demo-${id}@demo.invalid`,
+				passwordHash: '!',
+				name: 'Demo'
+			}))
+		);
+		const result = await outcome(() => actions.default(routeEvent(db, { user: null, form: {} })));
+		expect(result).toEqual({ fail: 503, data: { busy: true } });
 	});
 
 	it('starts only for a visitor the bot check confirms, when it is on', async () => {
