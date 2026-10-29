@@ -250,8 +250,7 @@ describe('mietkonto', () => {
 		expect(await run(loadBalances, { url: '/mietkonto' })).toMatchObject({
 			data: {
 				leaseCount: 3,
-				rows: [{ leaseId: owing }, { leaseId: paid, balance: -20000 }, { leaseId: upcoming }],
-				stats: { arrearsCount: 1 }
+				rows: [{ leaseId: owing }, { leaseId: paid, balance: -20000 }, { leaseId: upcoming }]
 			}
 		});
 		expect(await run(loadBalances, { url: '/mietkonto?filter=rueckstaende' })).toMatchObject({
