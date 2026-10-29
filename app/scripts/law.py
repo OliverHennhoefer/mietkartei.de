@@ -6,8 +6,9 @@ durch ..."). Statutes are official works without copyright (§ 5 Abs. 1 UrhG). T
 so an assistant reads the law through the MCP server without the app calling another service.
 
 Run from app/: python3 -I scripts/law.py
-It needs no packages. The workflow "Update law texts" runs it every month and opens a pull request
-when a text changed; a changed section may also change a rule the app computes.
+It needs no packages. gesetze-im-internet.de does not answer GitHub's runners, so it runs on a
+machine in Germany rather than in a workflow. When a text changed, check the code that cites the
+section: a changed section may also change a rule the app computes.
 """
 import io
 import json
@@ -58,16 +59,33 @@ def norms(slug):
     return root.findall("norm")
 
 
+EQUATION = "[Formel nur als Bild veröffentlicht, siehe url]"
+
 # Marks a line break of the text; line breaks of the XML source are only whitespace.
 BREAK = "\x00"
+
+
+def sentence_number(element, parts):
+    """A superscript sentence number (EStG numbers its sentences), unlike an exponent such as m²:
+    it starts the text or follows whitespace or a bracket."""
+    if element.tag != "SUP" or not (element.text or "").strip().isdigit():
+        return False
+    before = "".join(parts)
+    return not before.strip() or before[-1].isspace() or before[-1] in "(" + BREAK
 
 
 def inline(element):
     """The text of an element with its children; footnote marks are left out."""
     parts = [element.text or ""]
     for child in element:
-        if child.tag == "FnR":
+        if child.tag == "FnR" or sentence_number(child, parts):
             pass
+        elif child.tag == "LA":
+            # Paragraphs of a list item follow each other without whitespace in the source.
+            parts.append(" " + inline(child))
+        elif child.tag == "IMG":
+            # Some equations are published only as an image; point to the page that shows it.
+            parts.append(child.get("ALT") or child.get("alt") or EQUATION)
         elif child.tag == "BR":
             parts.append(BREAK)
         elif child.tag == "DL":
@@ -107,7 +125,7 @@ def law_entry(law):
     head = found[0].find("metadaten")
     name = clean("".join(head.find("langue").itertext())) if head.find("langue") is not None else ""
     notes = [
-        clean("".join(note.itertext()))
+        clean("".join(note.itertext())).rstrip(";").strip()
         for note in head.findall("standangabe/standkommentar")
     ]
     by_section = {}
