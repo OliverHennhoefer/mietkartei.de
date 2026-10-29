@@ -368,6 +368,23 @@ describe('exportZip', () => {
 		expect(await exportEntries('a')).toEqual([]);
 	});
 
+	it('counts several documents without a file in the log', async () => {
+		for (const name of ['Eins.pdf', 'Zwei.pdf']) {
+			const stored = await storeDocument(
+				db,
+				contextA,
+				{ name, mimeType: 'application/pdf', bytes: new TextEncoder().encode(name) },
+				{ storage }
+			);
+			if (!stored.ok) throw new Error(stored.reason);
+			await storage.delete(`a/${stored.id}`);
+		}
+		await readZip(await exportZip(db, contextA, { storage }));
+		expect(await exportEntries('a')).toEqual([
+			'Alle Daten als ZIP-Datei exportiert (2 Dokumente ohne Datei im Speicher)'
+		]);
+	});
+
 	it('builds a ZIP for an empty account', async () => {
 		const files = unzipSync(await readZip(await exportZip(db, contextB, { storage })));
 		expect(Object.keys(files).sort()).toEqual(['documents/', 'export.json']);

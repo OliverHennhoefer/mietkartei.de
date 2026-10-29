@@ -457,8 +457,8 @@ export async function correctDelivery(
 	if (hasApprovedOn(others, validFrom)) return sameDayRefusal(validFrom);
 	// First the history without the change, as when it is deleted; then the change on its new
 	// date, as when it is approved. The update statements run in that order in one batch.
-	const previous = rentOn(others, change.validFrom);
-	if (!previous) return refuse('Dem Mietvertrag fehlt die Miete bei Vertragsbeginn.');
+	// An approved index change starts after the lease, so the initial rent is before it.
+	const previous = rentOn(others, change.validFrom)!;
 	const removed = laterRows(
 		db,
 		context.accountId,

@@ -357,6 +357,64 @@ describe('correctDelivery', () => {
 		});
 	});
 
+	it('keeps the chosen date of a commercial lease and only records the day', async () => {
+		await seedValues();
+		const { unitId: office } = await seedUnit(db, 'a', { name: 'Büro' });
+		const lease = await createLeaseWithoutCharges(
+			db,
+			contextA,
+			leaseInput(office, { ...indexed, kind: 'commercial' })
+		);
+		if (!lease.ok) throw new Error('setup failed');
+		const proposed = await proposeIndexChange(db, contextA, lease.id);
+		if (!proposed?.ok) throw new Error('no proposal');
+		await approveChange(db, contextA, lease.id, proposed.id, {
+			deliveredOn: '2026-10-15',
+			validFrom: '2026-11-01'
+		});
+		expect(await correctDelivery(db, contextA, lease.id, proposed.id, '2026-10-20')).toEqual({
+			ok: true,
+			id: proposed.id
+		});
+		const [, change] = await listRentChanges(db, 'a', lease.id);
+		expect(change).toMatchObject({ validFrom: '2026-11-01', deliveredOn: '2026-10-20' });
+		expect(await correctDelivery(db, contextA, lease.id, proposed.id, '2026-11-01')).toEqual({
+			ok: false,
+			message: 'Die neue Miete kann erst nach der Zustellung gelten.'
+		});
+	});
+
+	it('refuses a date with another change and one inside the waiting period', async () => {
+		const changeId = await approved();
+		await manualChange(db, contextA, leaseId, {
+			validFrom: '2027-01-01',
+			baseRent: 63096,
+			operatingCostPrepayment: 16000,
+			heatingCostPrepayment: 5000,
+			reason: 'statement',
+			note: null
+		});
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2026-11-03')).toEqual({
+			ok: false,
+			message: 'Am 01.01.2027 gibt es schon eine Mietänderung.'
+		});
+		// The Kaltmiete changed by agreement on 1 March 2026: no new rent before March 2027.
+		await manualChange(db, contextA, leaseId, {
+			validFrom: '2026-03-01',
+			baseRent: 61000,
+			operatingCostPrepayment: 15000,
+			heatingCostPrepayment: 5000,
+			reason: 'manual',
+			note: 'Vereinbarung'
+		});
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2026-12-03')).toEqual({
+			ok: false,
+			message:
+				'Die Miete muss mindestens ein Jahr unverändert bleiben (§ 557b Abs. 2 BGB); die neue Miete kann frühestens am 01.03.2027 gelten.'
+		});
+		expect(await correctDelivery(db, contextA, leaseId, 'missing', '2026-12-03')).toBeUndefined();
+	});
+
 	it('only records the day when the effective date stays', async () => {
 		const changeId = await approved();
 		const before = (await listRentChanges(db, 'a', leaseId))[1];
