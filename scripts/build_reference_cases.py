@@ -338,8 +338,14 @@ def render_case(layout: str, case: Case) -> str:
     content = f"""        <a class="back-link" href="/rechenbeispiele/"><span aria-hidden="true">←</span> Alle Rechenbeispiele</a>
         <p class="eyebrow">Rechenbeispiel Betriebskosten {case.year}</p>
         <h1>{html.escape(case.data["title"])}</h1>
-        <p class="lead">{html.escape(case.data["intro"])}</p>
-        <p class="case-demo"><a class="button button-primary" href="{DEMO}/demo?beispiel={case.data["slug"]}">In der Demo öffnen<span aria-hidden="true">↗</span></a><span>Dasselbe Haus in mietkartei, mit dem Entwurf genau dieser Abrechnung. Ändere einen Beleg und sieh, wie sich die Anteile verschieben.</span></p>
+        <p class="lead case-lead">{html.escape(case.data["intro"])}</p>
+        <aside class="case-demo" aria-label="In der Demo ausprobieren">
+          <div>
+            <p class="case-demo-title">Selbst ausprobieren</p>
+            <p>Dasselbe Haus als eigener Bestand in mietkartei, mit dem Entwurf genau dieser Abrechnung. Ändere einen Beleg und sieh, wie sich die Anteile verschieben.</p>
+          </div>
+          <a class="button button-primary" href="{DEMO}/demo?beispiel={case.data["slug"]}">In der Demo öffnen<span aria-hidden="true">↗</span></a>
+        </aside>
         <nav class="case-steps" aria-label="Schritte"><ol>{nav}</ol></nav>
         <div class="case-body">
 {sections}
@@ -379,7 +385,7 @@ def render_index(layout: str, cases: list[Case]) -> str:
     content = f"""        <a class="back-link" href="/"><span aria-hidden="true">←</span> Zur Startseite</a>
         <p class="eyebrow">Nachgerechnet</p>
         <h1>Rechenbeispiele</h1>
-        <p class="lead">Wie mietkartei Betriebskosten verteilt, Schritt für Schritt an kleinen Häusern mit erfundenen Mietern. Jedes Beispiel ist unabhängig nachgerechnet und läuft bei jeder Änderung als Test: Stimmt ein Cent nicht, wird die Änderung nicht übernommen.</p>
+        <p class="lead case-lead">Wie mietkartei Betriebskosten verteilt, Schritt für Schritt an kleinen Häusern mit erfundenen Mietern. Jedes Beispiel ist unabhängig nachgerechnet und läuft bei jeder Änderung als Test: Stimmt ein Cent nicht, wird die Änderung nicht übernommen.</p>
         <ul class="case-list">
           {"".join(cards)}
         </ul>"""
