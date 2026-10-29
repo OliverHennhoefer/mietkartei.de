@@ -83,11 +83,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		leaseCount: rows.length,
 		rows: onlyArrears ? arrears : rows,
 		onlyArrears,
-		today: today(),
-		stats: {
-			arrearsTotal: arrears.reduce((sum, row) => sum + row.overdue, 0),
-			arrearsCount: arrears.length
-		}
+		today: today()
 	};
 };
 
