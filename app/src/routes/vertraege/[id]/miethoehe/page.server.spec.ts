@@ -97,6 +97,7 @@ describe('miethoehe', () => {
 			'step',
 			'propose',
 			'approve',
+			'delivery',
 			'demand',
 			'consent',
 			'delete'
@@ -164,6 +165,23 @@ describe('miethoehe', () => {
 		expect(
 			await act('approve', { changeId: 'unbekannt', deliveredOn: '2026-10-15' })
 		).toMatchObject({ error: 404 });
+
+		// The letter arrived later than entered: the change moves with it.
+		expect(await act('delivery', { changeId: proposal.id, deliveredOn: '' })).toMatchObject({
+			fail: 400,
+			data: { source: 'delivery', errors: { deliveredOn: expect.any(String) } }
+		});
+		expect(await act('delivery', { changeId: proposal.id, deliveredOn: '2026-11-02' })).toEqual({
+			redirect: `/vertraege/${leaseId}/miethoehe`
+		});
+		const corrected = (await listRentChanges(db, 'a', leaseId)).find(
+			(row) => row.id === proposal.id
+		)!;
+		expect(corrected).toMatchObject({ validFrom: '2027-01-01', deliveredOn: '2026-11-02' });
+		const [initial] = await listRentChanges(db, 'a', leaseId);
+		expect(
+			await act('delivery', { changeId: initial.id, deliveredOn: '2026-11-02' })
+		).toMatchObject({ fail: 400, data: { source: 'delivery', refusal: expect.any(String) } });
 
 		const printed = (await outcome(() =>
 			letter(routeEvent(db, { params: { id: leaseId, changeId: proposal.id } }))

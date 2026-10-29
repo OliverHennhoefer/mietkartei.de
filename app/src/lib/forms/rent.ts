@@ -1,3 +1,4 @@
+import type { IsoDate } from '../dates';
 import { cappingPercents, type ComparativeDemand } from '../domain/comparative-rent';
 import { comparisonSources } from '../server/db/schema';
 import type {
@@ -73,6 +74,13 @@ export function parseApproval(
 		parser.fail('validFrom', 'Die neue Miete kann erst nach der Zustellung gelten.');
 	}
 	return parser.result(() => ({ deliveredOn: deliveredOn!, validFrom }));
+}
+
+/** The corrected delivery date of an approved index change. */
+export function parseDelivery(form: FormData): ParseResult<{ deliveredOn: IsoDate }> {
+	const parser = new FormParser<{ deliveredOn: IsoDate }>(form);
+	const deliveredOn = parser.date('deliveredOn');
+	return parser.result(() => ({ deliveredOn: deliveredOn! }));
 }
 
 /** A § 558 demand: whether it keeps the rules of § 558 is checked by the server module. */

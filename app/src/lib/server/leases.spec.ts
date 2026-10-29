@@ -510,6 +510,22 @@ describe('updateLease', () => {
 		]);
 	});
 
+	it('names the tenants who joined or left the lease in the log', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const anna = await seedTenant(db, 'a', { firstName: 'Anna', lastName: 'Alt' });
+		const ben = await seedTenant(db, 'a', { firstName: 'Ben', lastName: 'Bleibt' });
+		const clara = await seedTenant(db, 'a', { firstName: 'Clara', lastName: 'Neu' });
+		const result = await createLease(db, contextA, leaseInput(unitId, { tenantIds: [anna, ben] }));
+		if (!result.ok) throw new Error(result.reason);
+		expect(
+			await updateLease(db, contextA, result.id, leaseInput(unitId, { tenantIds: [ben, clara] }))
+		).toEqual({ ok: true });
+		const [entry] = await db.select().from(auditLog).where(eq(auditLog.action, 'update'));
+		expect(entry.summary).toBe(
+			'Mietvertrag geändert: Mieter hinzugefügt: Clara Neu, Mieter entfernt: Anna Alt'
+		);
+	});
+
 	it('refuses a start date on or after a later rent change or persons row instead of failing', async () => {
 		const { unitId } = await seedUnit(db, 'a');
 		const tenantId = await seedTenant(db, 'a');

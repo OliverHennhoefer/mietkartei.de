@@ -10,6 +10,15 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ## [Unveröffentlicht]
 
+### Neu
+
+- Den Zugang einer freigegebenen Indexanpassung kannst du nachträglich korrigieren, wenn das Schreiben an einem anderen Tag ankommt als bei der Freigabe angenommen. Bei Wohnraum verschiebt sich die neue Miete dann auf den richtigen Monat (§ 557b Abs. 3 BGB), der Brief und die Sollstellungen werden neu berechnet.
+
+### Geändert
+
+- Das Protokoll nennt beim Bearbeiten eines Mietvertrags die Mieter, die hinzugekommen oder ausgeschieden sind.
+- Fehlt zu einem Dokument die Datei im Speicher, nennt der Export es in `FEHLENDE-DOKUMENTE.txt` und das Protokoll zählt es, statt es stillschweigend auszulassen.
+
 ## [0.1.0] - 2026-10-29
 
 Erste öffentliche Version. Sie enthält:

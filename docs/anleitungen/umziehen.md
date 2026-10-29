@@ -13,6 +13,7 @@ Deine Daten gehören dir. Du kannst jederzeit alles herunterladen und mit wenige
 
 - `export.json`: alle Einträge deines Kontos, also Objekte, Einheiten, Mieter, Mietverträge, Mietkonten und Zahlungen, Kautionen, Bankumsätze, Betriebskosten und Abrechnungen, Zähler, Versicherungen, Hausgeldabrechnungen, Aufgaben, Steuerdaten und das Protokoll,
 - den Ordner `documents/` mit allen hochgeladenen Dokumenten im Original.
+- `FEHLENDE-DOKUMENTE.txt`, nur wenn zu einem Dokument die Datei im Speicher fehlt: Die Liste nennt diese Dokumente, damit dir die Lücke gleich auffällt und nicht erst, wenn du das Dokument brauchst. Ihre Angaben stehen trotzdem in `export.json`, und das Protokoll vermerkt beim Export, wie viele es sind.
 
 Passwörter und API-Schlüssel sind nicht enthalten. Den Export darf nur der Vermieter herunterladen, Mitverwalter nicht. Auch ein Konto, das nach der Testphase ohne Abo nur noch lesbar ist, kann jederzeit exportieren.
 

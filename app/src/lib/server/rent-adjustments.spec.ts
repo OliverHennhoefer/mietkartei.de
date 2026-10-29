@@ -9,6 +9,7 @@ import { ensureCharges } from './ledger';
 import {
 	addGraduatedStep,
 	approveChange,
+	correctDelivery,
 	demandComparativeIncrease,
 	recordConsent,
 	rentLetter,
@@ -288,6 +289,168 @@ describe('approveChange within the waiting period', () => {
 				validFrom: null
 			})
 		).toBeUndefined();
+	});
+});
+
+describe('correctDelivery', () => {
+	async function approved(deliveredOn = '2026-10-15') {
+		await seedValues();
+		const proposed = await proposeIndexChange(db, contextA, leaseId);
+		if (!proposed?.ok) throw new Error('no proposal');
+		await approveChange(db, contextA, leaseId, proposed.id, { deliveredOn, validFrom: null });
+		return proposed.id;
+	}
+
+	it('moves the change with its letter when the letter arrived a month later', async () => {
+		const changeId = await approved();
+		// A § 560 adjustment entered afterwards carried the new Kaltmiete from 15 December on.
+		await manualChange(db, contextA, leaseId, {
+			validFrom: '2026-12-15',
+			baseRent: 63096,
+			operatingCostPrepayment: 16000,
+			heatingCostPrepayment: 5000,
+			reason: 'statement',
+			note: null
+		});
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2026-11-03')).toEqual({
+			ok: true,
+			id: changeId
+		});
+		const history = await listRentChanges(db, 'a', leaseId);
+		// The § 560 row falls back to the old Kaltmiete; the index change keeps its amount and
+		// takes the prepayments valid on its new date.
+		expect(
+			history.map((row) => [row.validFrom, row.reason, row.baseRent, row.operatingCostPrepayment])
+		).toEqual([
+			['2024-01-01', 'initial', 60000, 15000],
+			['2026-12-15', 'statement', 60000, 16000],
+			['2027-01-01', 'indexed', 63096, 16000]
+		]);
+		expect(history[2].deliveredOn).toBe('2026-11-03');
+		expect(history[2].letterText).toContain('ab dem 01.01.2027');
+		expect((await summaries('a')).at(-1)).toBe(
+			'update: Zugang der Indexanpassung am 03.11.2026 eingetragen; die Kaltmiete von 630,96\u00a0€ gilt ab 01.01.2027 statt ab 01.12.2026'
+		);
+	});
+
+	it('does not count a prepayment change that inherited the Kaltmiete as a new increase', async () => {
+		const changeId = await approved();
+		await manualChange(db, contextA, leaseId, {
+			validFrom: '2026-12-15',
+			baseRent: 63096,
+			operatingCostPrepayment: 16000,
+			heatingCostPrepayment: 5000,
+			reason: 'manual',
+			note: null
+		});
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2026-11-03')).toEqual({
+			ok: true,
+			id: changeId
+		});
+	});
+
+	it('refuses an effective date before the lease began', async () => {
+		const changeId = await approved();
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2023-09-10')).toEqual({
+			ok: false,
+			message: 'Die neue Miete kann erst nach dem Beginn des Mietvertrags gelten.'
+		});
+	});
+
+	it('keeps the chosen date of a commercial lease and only records the day', async () => {
+		await seedValues();
+		const { unitId: office } = await seedUnit(db, 'a', { name: 'Büro' });
+		const lease = await createLeaseWithoutCharges(
+			db,
+			contextA,
+			leaseInput(office, { ...indexed, kind: 'commercial' })
+		);
+		if (!lease.ok) throw new Error('setup failed');
+		const proposed = await proposeIndexChange(db, contextA, lease.id);
+		if (!proposed?.ok) throw new Error('no proposal');
+		await approveChange(db, contextA, lease.id, proposed.id, {
+			deliveredOn: '2026-10-15',
+			validFrom: '2026-11-01'
+		});
+		expect(await correctDelivery(db, contextA, lease.id, proposed.id, '2026-10-20')).toEqual({
+			ok: true,
+			id: proposed.id
+		});
+		const [, change] = await listRentChanges(db, 'a', lease.id);
+		expect(change).toMatchObject({ validFrom: '2026-11-01', deliveredOn: '2026-10-20' });
+		expect(await correctDelivery(db, contextA, lease.id, proposed.id, '2026-11-01')).toEqual({
+			ok: false,
+			message: 'Die neue Miete kann erst nach der Zustellung gelten.'
+		});
+	});
+
+	it('refuses a date with another change and one inside the waiting period', async () => {
+		const changeId = await approved();
+		await manualChange(db, contextA, leaseId, {
+			validFrom: '2027-01-01',
+			baseRent: 63096,
+			operatingCostPrepayment: 16000,
+			heatingCostPrepayment: 5000,
+			reason: 'statement',
+			note: null
+		});
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2026-11-03')).toEqual({
+			ok: false,
+			message: 'Am 01.01.2027 gibt es schon eine Mietänderung.'
+		});
+		// The Kaltmiete changed by agreement on 1 March 2026: no new rent before March 2027.
+		await manualChange(db, contextA, leaseId, {
+			validFrom: '2026-03-01',
+			baseRent: 61000,
+			operatingCostPrepayment: 15000,
+			heatingCostPrepayment: 5000,
+			reason: 'manual',
+			note: 'Vereinbarung'
+		});
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2026-12-03')).toEqual({
+			ok: false,
+			message:
+				'Die Miete muss mindestens ein Jahr unverändert bleiben (§ 557b Abs. 2 BGB); die neue Miete kann frühestens am 01.03.2027 gelten.'
+		});
+		expect(await correctDelivery(db, contextA, leaseId, 'missing', '2026-12-03')).toBeUndefined();
+	});
+
+	it('only records the day when the effective date stays', async () => {
+		const changeId = await approved();
+		const before = (await listRentChanges(db, 'a', leaseId))[1];
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2026-10-28')).toEqual({
+			ok: true,
+			id: changeId
+		});
+		const after = (await listRentChanges(db, 'a', leaseId))[1];
+		expect(after).toEqual({ ...before, deliveredOn: '2026-10-28' });
+	});
+
+	it('refuses other changes, a change a later step builds on and a foreign lease', async () => {
+		const changeId = await approved('2025-03-10');
+		const initial = (await listRentChanges(db, 'a', leaseId))[0];
+		expect(await correctDelivery(db, contextA, leaseId, initial.id, '2025-03-10')).toEqual({
+			ok: false,
+			message: 'Den Zugang korrigierst du nur bei einer freigegebenen Indexanpassung.'
+		});
+		// A later index change, entered as approved, builds on this one.
+		const first = (await listRentChanges(db, 'a', leaseId))[1];
+		await db.insert(rentChanges).values({
+			...first,
+			id: 'later',
+			validFrom: '2026-07-01',
+			baseRent: 64000,
+			letterText: null,
+			letterTable: null
+		});
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2025-04-02')).toEqual({
+			ok: false,
+			message:
+				'Der Zugang lässt sich nicht mehr korrigieren, weil eine spätere Index- oder Staffeländerung auf dieser Änderung aufbaut.'
+		});
+		expect(await correctDelivery(db, contextA, foreignLeaseId, changeId, '2025-03-20')).toBe(
+			undefined
+		);
 	});
 });
 
