@@ -31,6 +31,7 @@ describe('parseTask', () => {
 				repeatMonths: 12,
 				propertyId: 'property-1',
 				leaseId: null,
+				contractorId: null,
 				note: 'Alle Wohnungen.'
 			},
 			values: {
@@ -39,6 +40,7 @@ describe('parseTask', () => {
 				dueDate: '2026-11-30',
 				repeatMonths: '12',
 				link: 'property:property-1',
+				contractorId: '',
 				note: 'Alle Wohnungen.'
 			}
 		});
@@ -55,6 +57,7 @@ describe('parseTask', () => {
 			repeatMonths: null,
 			propertyId: null,
 			leaseId: 'lease-1',
+			contractorId: null,
 			note: null
 		});
 	});
@@ -81,6 +84,9 @@ describe('parseTask', () => {
 		expect(errorsOf({ title: 'Aufgabe', link: 'property:' })).toEqual({
 			link: 'Bitte wähle einen gültigen Eintrag aus.'
 		});
+		expect(errorsOf({ title: 'Aufgabe', contractorId: 'kein id' })).toEqual({
+			contractorId: 'Bitte wähle einen gültigen Eintrag aus.'
+		});
 	});
 
 	it('needs a due date to repeat and refuses unknown intervals and categories', () => {
@@ -90,7 +96,7 @@ describe('parseTask', () => {
 		expect(errorsOf({ title: 'Aufgabe', dueDate: '2026-11-30', repeatMonths: '7' })).toEqual({
 			repeatMonths: 'Bitte wähle einen gültigen Eintrag aus.'
 		});
-		expect(errorsOf({ title: 'Aufgabe', category: 'repair' })).toEqual({
+		expect(errorsOf({ title: 'Aufgabe', category: 'renovation' })).toEqual({
 			category: 'Bitte wähle einen gültigen Eintrag aus.'
 		});
 	});

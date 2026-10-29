@@ -210,6 +210,7 @@ export const insuranceKindLabels: Record<InsuranceKind, string> = {
 };
 
 export const taskCategoryLabels: Record<TaskCategory, string> = {
+	repair: 'Reparatur',
 	maintenance: 'Wartung',
 	inspection: 'Prüfung',
 	insurance: 'Versicherung',

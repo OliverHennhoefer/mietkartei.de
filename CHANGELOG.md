@@ -26,6 +26,7 @@ Erste öffentliche Version. Sie enthält:
 - Helle oder dunkle Farben zur Wahl unter Einstellungen → Darstellung; ohne Wahl folgt mietkartei der Einstellung des Geräts.
 - Zähler und Abrechnungskreise, Dokumente, Aufgaben und Fristen.
 - Startseite Aufgaben mit allem, was zu tun ist: eigene Aufgaben und Erinnerungen an Rückstände, nicht zugeordnete Bankumsätze, länger nicht geladene Kontoauszüge und Leerstand; darüber die nächsten Fristen, alle Fristen auf einer eigenen Seite.
+- Reparaturen: Aufgaben der Art „Reparatur“ nennen den Handwerker, der sie erledigt, und die Ausgaben, mit denen sie bezahlt wurden, ob von Hand erfasst oder aus der Bank zugeordnet; die Liste zeigt die Kosten je Reparatur. Handwerker mit Gewerk und Kontakt stehen unter Aufgaben → Handwerker.
 - Fristen per E-Mail: Jeden Montag eine Übersicht der überfälligen und in den nächsten zwei Wochen fälligen Fristen und Aufgaben mit Links, einzuschalten je Zugang unter Einstellungen → Kalender; ohne Anstehendes kommt keine E-Mail.
 - Alle Tabellen lassen sich mit einem Klick auf die Spaltenüberschrift sortieren: Text von A bis Z, Beträge und Daten vom größten und neuesten an, Hinweise und Status vom dringendsten an; ein zweiter Klick dreht die Reihenfolge um, ein dritter stellt die gewohnte wieder her.
 - Auswertung mit Überblick, Mieteinnahmen, Ausgaben, Objektvergleich, Rendite und Cashflow nach Zins und Tilgung Nebenkosten-Vergleich mit dem Betriebskostenspiegel des Mieterbunds sowie Prognose der nächsten zwölf Monate mit möglichen Mieterhöhungen und erwarteten Nachzahlungen.

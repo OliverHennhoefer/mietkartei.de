@@ -39,6 +39,7 @@
 				: task.leaseId
 					? linkValue('lease', task.leaseId)
 					: '',
+			contractorId: task.contractorId ?? '',
 			note: task.note ?? ''
 		};
 	});
@@ -138,6 +139,7 @@
 
 <PageHeader title="Aufgaben">
 	{#snippet actions()}
+		<a class="button secondary" href="/aufgaben/handwerker">Handwerker</a>
 		<CreateButton href="?neu" label="Aufgabe anlegen" onclick={openDialog} />
 	{/snippet}
 </PageHeader>
@@ -258,6 +260,16 @@
 								><Icon name="history" size={12} />{repeatLabel(task.repeatMonths)}</span
 							>{/if}
 					</div>
+					{#if task.contractor || task.costs.count > 0}
+						<span class="links muted">
+							{#if task.contractor}<a href="/aufgaben/handwerker"
+									><Icon name="user" size={13} />{task.contractor.name}</a
+								>{#if task.contractor.phone}<a href="tel:{task.contractor.phone}"
+										>{task.contractor.phone}</a
+									>{/if}{/if}
+							{#if task.costs.count > 0}<span>Kosten <Money cents={task.costs.total} /></span>{/if}
+						</span>
+					{/if}
 					{#if task.property || task.lease}
 						<span class="links muted">
 							{#if task.property}<a href="/objekte/{task.property.id}"
@@ -297,6 +309,8 @@
 							{#if task.doneAt}· erledigt am {formatDate(dayOf(task.doneAt))}{/if}
 							{#if task.property}· {task.property.name}{/if}
 							{#if task.lease}· {task.lease.label}{/if}
+							{#if task.contractor}· {task.contractor.name}{/if}
+							{#if task.costs.count > 0}· Kosten <Money cents={task.costs.total} />{/if}
 						</span>
 					</div>
 					<form method="POST" action="?/done" use:enhance>
@@ -350,7 +364,13 @@
 	>
 		<!-- Keyed, so choosing another template refills fields the browser has not touched yet. -->
 		{#key data.template?.key}
-			<TaskFields {values} {errors} properties={data.properties} leases={data.leases} />
+			<TaskFields
+				{values}
+				{errors}
+				properties={data.properties}
+				leases={data.leases}
+				contractors={data.contractors}
+			/>
 		{/key}
 		<div class="form-actions">
 			<button type="submit">Aufgabe anlegen</button>
@@ -374,12 +394,65 @@
 				errors={editRefused?.errors}
 				properties={data.properties}
 				leases={data.leases}
+				contractors={data.contractors}
 			/>
+			{#if data.editingExpenses}
+				{@const costs = [...data.editingExpenses.linked, ...data.editingExpenses.candidates]}
+				<input type="hidden" name="expenses" value="1" />
+				<fieldset class="costs">
+					<legend>Kosten</legend>
+					{#if costs.length === 0}
+						<p class="muted small">
+							Es gibt keine Ausgaben für Instandhaltung aus den letzten drei Jahren, die noch keiner
+							Aufgabe zugeordnet sind. Erfasse die Rechnung unter
+							<a href="/auswertung/ausgaben">Ausgaben</a> oder ordne sie unter
+							<a href="/bank">Bank</a> zu.
+						</p>
+					{:else}
+						<p class="muted small">
+							Die Ausgaben, die diese Aufgabe bezahlt haben; zur Wahl stehen Ausgaben für
+							Instandhaltung der letzten drei Jahre{data.editing.property || data.editing.lease
+								? ' für dasselbe Objekt'
+								: ''}.
+						</p>
+						{#each costs as expense (expense.id)}
+							<label class="inline cost">
+								<input
+									type="checkbox"
+									name="expenseId"
+									value={expense.id}
+									checked={data.editingExpenses.linked.some((row) => row.id === expense.id)}
+								/>
+								<span>
+									{formatDate(expense.date)} · {expense.description}
+									<span class="muted small"
+										>{expense.scopeLabel}{expense.fromBank ? ' · Bank' : ''}</span
+									>
+								</span>
+								<Money cents={expense.amount} />
+							</label>
+						{/each}
+					{/if}
+				</fieldset>
+			{/if}
 		</EditDialog>
 	{/key}
 {/if}
 
 <style>
+	.costs {
+		display: grid;
+		gap: 0.4rem;
+	}
+	.cost {
+		display: grid;
+		grid-template-columns: auto 1fr auto;
+		align-items: baseline;
+		gap: 0.5rem;
+	}
+	.cost .small {
+		display: block;
+	}
 	.first-run {
 		margin-bottom: 1.5rem;
 	}

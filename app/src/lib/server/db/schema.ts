@@ -878,10 +878,16 @@ export const expenses = sqliteTable(
 			// account with assigned transactions is refused by the banking module before that.
 			onDelete: 'no action'
 		}),
+		/**
+		 * The task (usually a Reparatur) the expense paid for. Added to an existing table, so SQLite
+		 * keeps no delete action; deleting a task clears it first.
+		 */
+		taskId: text('task_id').references((): AnySQLiteColumn => tasks.id, { onDelete: 'no action' }),
 		createdAt: createdAt()
 	},
 	(table) => [
 		index('expenses_account_id_date_idx').on(table.accountId, table.date),
+		index('expenses_task_id_idx').on(table.taskId),
 		uniqueIndex('expenses_bank_transaction_unique')
 			.on(table.bankTransactionId)
 			.where(sql`${table.bankTransactionId} is not null`)
@@ -1379,8 +1385,31 @@ export const insurancePolicies = sqliteTable(
 	]
 );
 
-export const taskCategories = ['maintenance', 'inspection', 'insurance', 'other'] as const;
+export const taskCategories = [
+	'repair',
+	'maintenance',
+	'inspection',
+	'insurance',
+	'other'
+] as const;
 export type TaskCategory = (typeof taskCategories)[number];
+
+/** Handwerker: a firm or person the landlord hires for repairs and maintenance. */
+export const contractors = sqliteTable(
+	'contractors',
+	{
+		id: id(),
+		accountId: accountId(),
+		name: text('name').notNull(),
+		/** Gewerk, e.g. "Sanitär" or "Elektro". */
+		trade: text('trade'),
+		phone: text('phone'),
+		email: text('email'),
+		note: text('note'),
+		createdAt: createdAt()
+	},
+	(table) => [index('contractors_account_id_idx').on(table.accountId)]
+);
 
 /** Aufgabe with an optional due date. Deadlines derived from the data are computed, not stored. */
 export const tasks = sqliteTable(
@@ -1404,6 +1433,13 @@ export const tasks = sqliteTable(
 		followUpId: text('follow_up_id'),
 		propertyId: text('property_id').references(() => properties.id, { onDelete: 'set null' }),
 		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
+		/**
+		 * The Handwerker who does the job. Added to an existing table, so SQLite keeps no delete
+		 * action; deleting a contractor clears it first.
+		 */
+		contractorId: text('contractor_id').references(() => contractors.id, {
+			onDelete: 'no action'
+		}),
 		note: text('note'),
 		createdAt: createdAt()
 	},
