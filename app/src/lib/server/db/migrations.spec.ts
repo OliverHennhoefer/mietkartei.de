@@ -50,3 +50,33 @@ describe('0028_rent_charge_reversal_link', () => {
 		expect(db.prepare('select id from rent_charges').all()).toEqual([]);
 	});
 });
+
+describe('0052_service_providers', () => {
+	it('renames the Handwerker to Dienstleister and keeps the tasks that name them', () => {
+		const db = new Sqlite(':memory:');
+		db.pragma('foreign_keys = ON');
+		for (const file of files.filter((name) => name < '0052')) apply(db, file);
+		db.exec(`
+			insert into accounts (id, name) values ('a', 'A');
+			insert into contractors (id, account_id, name, trade) values ('c', 'a', 'Wendt', 'Sanitär');
+			insert into tasks (id, account_id, title, contractor_id) values ('t', 'a', 'Leck', 'c');
+			insert into expenses (id, account_id, date, amount, category, description, task_id)
+				values ('e', 'a', '2026-01-01', 100, 'maintenance', 'Rechnung', 't');
+		`);
+		apply(
+			db,
+			files.find((name) => name.startsWith('0052'))!
+		);
+		expect(db.prepare('select id, name, service from service_providers').all()).toEqual([
+			{ id: 'c', name: 'Wendt', service: 'Sanitär' }
+		]);
+		expect(db.prepare('select service_provider_id from tasks').all()).toEqual([
+			{ service_provider_id: 'c' }
+		]);
+		db.exec(`update expenses set service_provider_id = 'c'`);
+		expect(db.pragma('foreign_key_check')).toEqual([]);
+		// The references followed the rename: an unknown Dienstleister is refused.
+		expect(() => db.exec(`update tasks set service_provider_id = 'x'`)).toThrow();
+		expect(() => db.exec(`update expenses set service_provider_id = 'x'`)).toThrow();
+	});
+});

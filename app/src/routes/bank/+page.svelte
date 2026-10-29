@@ -84,7 +84,7 @@
 	 */
 	function expenseValue(
 		transaction: (typeof data.transactions)[number],
-		name: 'category' | 'scope'
+		name: 'category' | 'scope' | 'serviceProviderId'
 	): string {
 		if (formId === transaction.id) return values?.[name] ?? '';
 		return transaction.expensePreset?.[name] ?? '';
@@ -406,6 +406,35 @@
 										<span class="error">{expenseErrors.scope}</span>
 									{/if}
 								</label>
+								{#if data.serviceProviders.length > 0}
+									<label>
+										Dienstleister
+										<select
+											name="serviceProviderId"
+											aria-invalid={formId === transaction.id && expenseErrors?.serviceProviderId
+												? 'true'
+												: undefined}
+										>
+											<option
+												value=""
+												selected={expenseValue(transaction, 'serviceProviderId') === ''}
+											>
+												Unbekannt
+											</option>
+											{#each data.serviceProviders as provider (provider.id)}
+												<option
+													value={provider.id}
+													selected={expenseValue(transaction, 'serviceProviderId') === provider.id}
+												>
+													{provider.name}
+												</option>
+											{/each}
+										</select>
+										{#if formId === transaction.id && expenseErrors?.serviceProviderId}
+											<span class="error">{expenseErrors.serviceProviderId}</span>
+										{/if}
+									</label>
+								{/if}
 								<label>
 									Beschreibung
 									<input

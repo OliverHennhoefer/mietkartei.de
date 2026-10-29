@@ -7,7 +7,7 @@ import {
 	associationStatements,
 	auditLog,
 	co2CostSplits,
-	contractors,
+	serviceProviders,
 	costItems,
 	depositSettlements,
 	depositTransactions,
@@ -124,11 +124,17 @@ describe('createDemoData', () => {
 			)
 		);
 		expect(overlapping).toEqual([]);
-		expect(await rows(tasks)).toHaveLength(14);
-		// Five Handwerker; six Reparaturen done and paid for, two still open.
-		expect(await db.select().from(contractors).where(eq(contractors.accountId, 'a'))).toHaveLength(
-			5
+		expect(await rows(tasks)).toHaveLength(16);
+		// Seven Dienstleister, among them the Hausmeisterdienst and the Schornsteinfeger; six
+		// Reparaturen done and paid for, two still open.
+		const providers = await db
+			.select()
+			.from(serviceProviders)
+			.where(eq(serviceProviders.accountId, 'a'));
+		expect(providers.map((row) => row.service)).toEqual(
+			expect.arrayContaining(['Hausmeisterdienst', 'Schornsteinfeger'])
 		);
+		expect(providers).toHaveLength(7);
 		const repairs = (await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).filter(
 			(row) => row.category === 'repair'
 		);
@@ -140,6 +146,21 @@ describe('createDemoData', () => {
 		expect(paid).toHaveLength(7);
 		expect(paid.every((row) => repairs.some((task) => task.id === row.taskId))).toBe(true);
 		expect(paid.every((row) => row.category === 'maintenance')).toBe(true);
+		// A Reparatur's bills name its Dienstleister; the expenses of every history year name some,
+		// and leave others unknown.
+		expect(
+			paid.every(
+				(row) =>
+					row.serviceProviderId ===
+					repairs.find((task) => task.id === row.taskId)!.serviceProviderId
+			)
+		).toBe(true);
+		const allExpenses = await db.select().from(expenses).where(eq(expenses.accountId, 'a'));
+		const caretakerId = providers.find((row) => row.service === 'Hausmeisterdienst')!.id;
+		expect(
+			allExpenses.filter((row) => row.serviceProviderId === caretakerId).length
+		).toBeGreaterThanOrEqual(7);
+		expect(allExpenses.some((row) => row.serviceProviderId === null)).toBe(true);
 		expect(await countUnmatched(db, 'a')).toBe(3);
 
 		// Every history year but the last is settled: three properties over seven years, each
@@ -215,7 +236,7 @@ describe('createDemoData', () => {
 
 		await db.run(sql`drop trigger refuse_tasks`);
 		expect(await createDemoData(db, contextA, { storage })).toEqual({ ok: true, leases: 11 });
-		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(14);
+		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(16);
 	});
 
 	it('takes its rows out again when a later step fails, keeping what the account held', async () => {

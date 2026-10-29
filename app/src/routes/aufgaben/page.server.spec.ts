@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { today } from '#lib/dates.ts';
-import { createContractor } from '#lib/server/contractors.ts';
+import { createServiceProvider } from '#lib/server/service-providers.ts';
 import { expenses } from '#lib/server/db/schema.ts';
 import { createTask as storeTask, getTask, listTasks } from '#lib/server/tasks.ts';
 import {
@@ -149,25 +149,25 @@ describe('aufgaben', () => {
 		expect(await getTask(db, 'b', id)).toMatchObject({ title: 'Fremd' });
 	});
 
-	it('names a Handwerker and links the expenses that paid for a Reparatur', async () => {
-		const contractorId = await createContractor(db, contextA, {
+	it('names a Dienstleister and links the expenses that paid for a Reparatur', async () => {
+		const serviceProviderId = await createServiceProvider(db, contextA, {
 			name: 'Elektro Lindner',
-			trade: 'Elektro',
+			service: 'Elektro',
 			phone: null,
 			email: null,
 			note: null
 		});
 		expect(
-			await run(actions.create, { form: { title: 'Fremd', contractorId: 'unbekannt' } })
+			await run(actions.create, { form: { title: 'Fremd', serviceProviderId: 'unbekannt' } })
 		).toMatchObject({
 			fail: 400,
-			data: { errors: { contractorId: 'Diesen Handwerker gibt es nicht.' } }
+			data: { errors: { serviceProviderId: 'Diesen Dienstleister gibt es nicht.' } }
 		});
 		const form = {
 			title: 'Hofbeleuchtung defekt',
 			category: 'repair',
 			link: `property:${propertyId}`,
-			contractorId
+			serviceProviderId
 		};
 		const id = await createTask(form);
 		const [expense] = await db
@@ -184,8 +184,8 @@ describe('aufgaben', () => {
 
 		expect(await run(load, { url: `/aufgaben?bearbeiten=${id}` })).toMatchObject({
 			data: {
-				contractors: [{ id: contractorId, name: 'Elektro Lindner (Elektro)' }],
-				editing: { id, contractor: { name: 'Elektro Lindner' } },
+				serviceProviders: [{ id: serviceProviderId, name: 'Elektro Lindner (Elektro)' }],
+				editing: { id, serviceProvider: { name: 'Elektro Lindner' } },
 				editingExpenses: { linked: [], candidates: [{ id: expense.id }] }
 			}
 		});

@@ -4,7 +4,7 @@ import { addMonths, daysBetween, formatDate, today } from '#lib/dates.ts';
 import { parseTask, type TaskFormErrors } from '#lib/forms/tasks.ts';
 import { listBankAccounts } from '#lib/server/bank/accounts.ts';
 import { connectionActive, listConnections } from '#lib/server/bank/sync.ts';
-import { listContractors } from '#lib/server/contractors.ts';
+import { serviceProviderOptions } from '#lib/server/service-providers.ts';
 import { countUnmatched } from '#lib/server/bank/transactions.ts';
 import { bankTransactions, costCategories } from '#lib/server/db/schema.ts';
 import { listDeadlines } from '#lib/server/deadlines.ts';
@@ -67,7 +67,7 @@ const VACANT_LISTED = 5;
 const linkErrors = {
 	'unknown-property': 'Dieses Objekt gibt es nicht.',
 	'unknown-lease': 'Diesen Mietvertrag gibt es nicht.',
-	'unknown-contractor': 'Diesen Handwerker gibt es nicht.',
+	'unknown-service-provider': 'Diesen Dienstleister gibt es nicht.',
 	'unknown-expense':
 		'Eine der Ausgaben gibt es nicht mehr, oder sie gehört inzwischen zu einer anderen Aufgabe.',
 	missing: 'Diese Aufgabe gibt es nicht.'
@@ -75,8 +75,8 @@ const linkErrors = {
 
 /** The field a refusal of the server module belongs to. */
 function refusal(reason: TaskError): TaskFormErrors {
-	return reason === 'unknown-contractor'
-		? { contractorId: linkErrors[reason] }
+	return reason === 'unknown-service-provider'
+		? { serviceProviderId: linkErrors[reason] }
 		: { link: linkErrors[reason] };
 }
 
@@ -101,7 +101,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		[categories],
 		latestBookings,
 		connections,
-		contractors,
+		serviceProviders,
 		editingExpenses
 	] = await Promise.all([
 		listDeadlines(locals.db, accountId, { to: addMonths(date, 12) }),
@@ -126,7 +126,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.where(eq(bankTransactions.accountId, accountId))
 			.groupBy(bankTransactions.bankAccountId),
 		listConnections(locals.db, accountId),
-		listContractors(locals.db, accountId),
+		serviceProviderOptions(locals.db, accountId),
 		editing ? taskExpenses(locals.db, accountId, editing, date) : null
 	]);
 
@@ -262,10 +262,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			label: leaseLabel(lease),
 			active: lease.active
 		})),
-		contractors: contractors.map((contractor) => ({
-			id: contractor.id,
-			name: contractor.trade ? `${contractor.name} (${contractor.trade})` : contractor.name
-		}))
+		serviceProviders
 	};
 };
 

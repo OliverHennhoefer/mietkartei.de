@@ -883,11 +883,20 @@ export const expenses = sqliteTable(
 		 * keeps no delete action; deleting a task clears it first.
 		 */
 		taskId: text('task_id').references((): AnySQLiteColumn => tasks.id, { onDelete: 'no action' }),
+		/**
+		 * The Dienstleister who was paid, optional ("unbekannt" without). Added to an existing
+		 * table, so SQLite keeps no delete action; deleting a Dienstleister clears it first.
+		 */
+		serviceProviderId: text('service_provider_id').references(
+			(): AnySQLiteColumn => serviceProviders.id,
+			{ onDelete: 'no action' }
+		),
 		createdAt: createdAt()
 	},
 	(table) => [
 		index('expenses_account_id_date_idx').on(table.accountId, table.date),
 		index('expenses_task_id_idx').on(table.taskId),
+		index('expenses_service_provider_id_idx').on(table.serviceProviderId),
 		uniqueIndex('expenses_bank_transaction_unique')
 			.on(table.bankTransactionId)
 			.where(sql`${table.bankTransactionId} is not null`)
@@ -1394,21 +1403,21 @@ export const taskCategories = [
 ] as const;
 export type TaskCategory = (typeof taskCategories)[number];
 
-/** Handwerker: a firm or person the landlord hires for repairs and maintenance. */
-export const contractors = sqliteTable(
-	'contractors',
+/** Dienstleister: a firm or person the landlord hires, from the plumber to the Hausmeisterdienst. */
+export const serviceProviders = sqliteTable(
+	'service_providers',
 	{
 		id: id(),
 		accountId: accountId(),
 		name: text('name').notNull(),
-		/** Gewerk, e.g. "Sanitär" or "Elektro". */
-		trade: text('trade'),
+		/** Leistung, e.g. "Sanitär", "Hausmeisterdienst" or "Schornsteinfeger". */
+		service: text('service'),
 		phone: text('phone'),
 		email: text('email'),
 		note: text('note'),
 		createdAt: createdAt()
 	},
-	(table) => [index('contractors_account_id_idx').on(table.accountId)]
+	(table) => [index('service_providers_account_id_idx').on(table.accountId)]
 );
 
 /** Aufgabe with an optional due date. Deadlines derived from the data are computed, not stored. */
@@ -1434,10 +1443,10 @@ export const tasks = sqliteTable(
 		propertyId: text('property_id').references(() => properties.id, { onDelete: 'set null' }),
 		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
 		/**
-		 * The Handwerker who does the job. Added to an existing table, so SQLite keeps no delete
-		 * action; deleting a contractor clears it first.
+		 * The Dienstleister who does the job, optional. Added to an existing table, so SQLite keeps
+		 * no delete action; deleting a Dienstleister clears it first.
 		 */
-		contractorId: text('contractor_id').references(() => contractors.id, {
+		serviceProviderId: text('service_provider_id').references(() => serviceProviders.id, {
 			onDelete: 'no action'
 		}),
 		note: text('note'),

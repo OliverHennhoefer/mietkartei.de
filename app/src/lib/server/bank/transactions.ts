@@ -17,7 +17,13 @@ import {
 	payments,
 	type BankTransactionStatus
 } from '../db/schema';
-import { expenseScopeValue, expenseSummary, resolveScope, scopeLabels } from '../expenses';
+import {
+	expenseScopeValue,
+	expenseSummary,
+	knownServiceProvider,
+	resolveScope,
+	scopeLabels
+} from '../expenses';
 import { paymentEntry } from '../ledger';
 import { leaseLabel, type LeaseSummary } from '../leases';
 import { listRules, ruleEntry, unconfirmEntries } from './rules';
@@ -205,11 +211,18 @@ export async function leaseByIban(db: Database, accountId: string): Promise<Map<
 }
 
 /** What an earlier expense from the same counterpart was booked as: the expense form's preset. */
-export type ExpensePreset = { category: Expense['category']; scope: string; description: string };
+export type ExpensePreset = {
+	category: Expense['category'];
+	scope: string;
+	description: string;
+	/** '' when unknown. */
+	serviceProviderId: string;
+};
 
 /**
  * The last expense booked from each counterpart, by IBAN and by name (lowercased), so a payee
- * booked once (Stadtwerke, the insurer) comes back with the same category, scope and description.
+ * booked once (Stadtwerke, the insurer) comes back with the same category, scope, description and
+ * Dienstleister.
  * One query.
  */
 export async function expenseByCounterpart(
@@ -223,7 +236,8 @@ export async function expenseByCounterpart(
 			category: expenses.category,
 			propertyId: expenses.propertyId,
 			unitId: expenses.unitId,
-			description: expenses.description
+			description: expenses.description,
+			serviceProviderId: expenses.serviceProviderId
 		})
 		.from(expenses)
 		.innerJoin(bankTransactions, eq(expenses.bankTransactionId, bankTransactions.id))
@@ -235,7 +249,8 @@ export async function expenseByCounterpart(
 		const preset: ExpensePreset = {
 			category: row.category,
 			scope: expenseScopeValue(row),
-			description: row.description
+			description: row.description,
+			serviceProviderId: row.serviceProviderId ?? ''
 		};
 		if (row.iban) byIban.set(row.iban, preset);
 		const name = row.name?.trim().toLowerCase();
@@ -475,13 +490,16 @@ export async function assignExpense(
 	context: AuditContext,
 	transactionId: string,
 	input: ExpenseAssignmentInput
-): Promise<'assigned' | 'missing' | 'not-open' | 'unknown-scope'> {
+): Promise<'assigned' | 'missing' | 'not-open' | 'unknown-scope' | 'unknown-service-provider'> {
 	const { accountId } = context;
 	const transaction = await getTransaction(db, accountId, transactionId);
 	if (!transaction) return 'missing';
 	if (transaction.status !== 'unmatched') return 'not-open';
 	const scope = await resolveScope(db, accountId, input.scope);
 	if (!scope) return 'unknown-scope';
+	if (!(await knownServiceProvider(db, accountId, input.serviceProviderId))) {
+		return 'unknown-service-provider';
+	}
 	await assertQuota(db, accountId, 'expenses');
 	const id = crypto.randomUUID();
 	const row = {
@@ -492,6 +510,7 @@ export async function assignExpense(
 		amount: -transaction.amount,
 		category: input.category,
 		description: input.description,
+		serviceProviderId: input.serviceProviderId ?? null,
 		bankTransactionId: transaction.id
 	};
 	const done = await runGuarded(db, accountId, transaction.id, 'unmatched', [

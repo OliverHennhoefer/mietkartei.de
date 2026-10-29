@@ -198,21 +198,21 @@ test('answers unknown tasks with 404 and refuses a lease of another account', as
 	await expect(openTask(page, `Fremd ${suffix}`)).toHaveCount(0);
 });
 
-test('names the Handwerker of a Reparatur and links the bill that paid for it', async ({
+test('names the Dienstleister of a Reparatur and links the bill that paid for it', async ({
 	page
 }) => {
-	const contractor = `Elektro Lindner ${suffix}`;
+	const serviceProvider = `Elektro Lindner ${suffix}`;
 	const title = `Hofbeleuchtung defekt ${suffix}`;
 	const bill = `Bewegungsmelder getauscht ${suffix}`;
 	await page.goto('/aufgaben');
-	await page.getByRole('link', { name: 'Handwerker' }).click();
-	await expect(page).toHaveURL(/\/aufgaben\/handwerker$/);
-	await page.getByLabel('Name').fill(contractor);
-	await page.getByLabel('Gewerk (optional)').fill('Elektro');
+	await page.getByRole('link', { name: 'Dienstleister' }).first().click();
+	await expect(page).toHaveURL(/\/dienstleister$/);
+	await page.getByLabel('Name').fill(serviceProvider);
+	await page.getByLabel('Leistung (optional)').fill('Elektro');
 	await page.getByLabel('Telefon (optional)').fill('030 9182 4410');
-	await page.getByRole('button', { name: 'Handwerker anlegen' }).click();
-	await expect(page.getByRole('status')).toContainText(`„${contractor}“ wurde angelegt.`);
-	await expect(page.getByRole('table', { name: 'Handwerker' })).toContainText('030 9182 4410');
+	await page.getByRole('button', { name: 'Dienstleister anlegen' }).last().click();
+	await expect(page.getByRole('status')).toContainText(`„${serviceProvider}“ wurde angelegt.`);
+	await expect(page.getByRole('table', { name: 'Dienstleister' })).toContainText('030 9182 4410');
 
 	await seedRows(page.request, 'expenses', [
 		{ date: today(), amount: 18900, category: 'maintenance', description: bill }
@@ -221,16 +221,15 @@ test('names the Handwerker of a Reparatur and links the bill that paid for it', 
 	const create = page.getByRole('dialog', { name: 'Aufgabe anlegen' });
 	await create.getByLabel('Aufgabe', { exact: true }).fill(title);
 	await create.getByLabel('Art').selectOption({ label: 'Reparatur' });
-	await create
-		.getByLabel('Handwerker (optional)')
-		.selectOption({ label: `${contractor} (Elektro)` });
+	await expect(create.getByLabel('Dienstleister')).toHaveValue('');
+	await create.getByLabel('Dienstleister').selectOption({ label: `${serviceProvider} (Elektro)` });
 	await create.getByRole('button', { name: 'Aufgabe anlegen' }).click();
 	await expect(create).toBeHidden();
 	const item = openTask(page, title);
 	await expect(item).toContainText('Reparatur');
-	await expect(item.getByRole('link', { name: contractor })).toHaveAttribute(
+	await expect(item.getByRole('link', { name: serviceProvider })).toHaveAttribute(
 		'href',
-		'/aufgaben/handwerker'
+		/^\/dienstleister\?bearbeiten=/
 	);
 
 	await item.getByRole('link', { name: title }).click();
@@ -239,4 +238,13 @@ test('names the Handwerker of a Reparatur and links the bill that paid for it', 
 	await edit.getByRole('button', { name: 'Speichern' }).click();
 	await expect(edit).toBeHidden();
 	await expect(openTask(page, title)).toContainText('Kosten 189,00');
+
+	// The bill took the Dienstleister of the Reparatur; the Ausgaben sum it up by Dienstleister.
+	await page.goto('/auswertung/ausgaben');
+	await expect(page.getByRole('row', { name: new RegExp(bill) })).toContainText(serviceProvider);
+	await expect(
+		page
+			.getByRole('table', { name: /nach Dienstleister/ })
+			.getByRole('row', { name: new RegExp(serviceProvider) })
+	).toContainText('189,00');
 });

@@ -67,6 +67,7 @@
 			sections: [
 				{ href: '/objekte', label: 'Objekte', icon: 'building' },
 				{ href: '/mieter', label: 'Mieter', icon: 'people' },
+				{ href: '/dienstleister', label: 'Dienstleister', icon: 'wrench' },
 				{ href: '/vertraege', label: 'Mietverträge', icon: 'file' }
 			]
 		},

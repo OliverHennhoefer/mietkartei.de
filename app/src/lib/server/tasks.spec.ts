@@ -2,7 +2,7 @@ import { isHttpError } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from './db';
-import { createContractor, deleteContractor } from './contractors';
+import { createServiceProvider, deleteServiceProvider } from './service-providers';
 import { auditLog, expenses, tasks } from './db/schema';
 import { createLease } from './leases';
 import { QUOTAS } from './quotas';
@@ -380,48 +380,48 @@ describe('Reparaturen', () => {
 			.returning({ id: expenses.id })
 			.then(([row]) => row.id);
 
-	it('names the Handwerker, refusing one of another account, and keeps him on the next occurrence', async () => {
-		const plumber = await createContractor(db, contextA, {
+	it('names the Dienstleister, refusing one of another account, and keeps it on the next occurrence', async () => {
+		const plumber = await createServiceProvider(db, contextA, {
 			name: 'Sanitär Wendt',
-			trade: 'Sanitär',
+			service: 'Sanitär',
 			phone: '030 1',
 			email: null,
 			note: null
 		});
-		const foreign = await createContractor(db, contextB, {
+		const foreign = await createServiceProvider(db, contextB, {
 			name: 'Fremd',
-			trade: null,
+			service: null,
 			phone: null,
 			email: null,
 			note: null
 		});
-		expect(await createTask(db, contextA, input({ contractorId: foreign }))).toEqual({
+		expect(await createTask(db, contextA, input({ serviceProviderId: foreign }))).toEqual({
 			ok: false,
-			reason: 'unknown-contractor'
+			reason: 'unknown-service-provider'
 		});
 		const created = await createTask(
 			db,
 			contextA,
 			input({
 				category: 'repair',
-				contractorId: plumber,
+				serviceProviderId: plumber,
 				dueDate: '2026-03-01',
 				repeatMonths: 12
 			})
 		);
 		if (!created.ok) throw new Error(created.reason);
-		expect((await getTask(db, 'a', created.id))?.contractor).toEqual({
+		expect((await getTask(db, 'a', created.id))?.serviceProvider).toEqual({
 			id: plumber,
 			name: 'Sanitär Wendt',
 			phone: '030 1'
 		});
 		await setDone(db, contextA, created.id, true, '2026-03-02');
 		const { open } = await listTasks(db, 'a');
-		expect(open[0].contractorId).toBe(plumber);
+		expect(open[0].serviceProviderId).toBe(plumber);
 
-		// Deleting the Handwerker clears the name on both tasks.
-		expect(await deleteContractor(db, contextA, plumber)).toBe(true);
-		expect((await listTasks(db, 'a')).open[0].contractor).toBeNull();
+		// Deleting the Dienstleister clears the name on both tasks.
+		expect(await deleteServiceProvider(db, contextA, plumber)).toBe(true);
+		expect((await listTasks(db, 'a')).open[0].serviceProvider).toBeNull();
 	});
 
 	it('links exactly the chosen expenses and sums them; deleting the task keeps them', async () => {
@@ -468,6 +468,37 @@ describe('Reparaturen', () => {
 		expect(await deleteTask(db, contextA, created.id)).toBe(true);
 		const [kept] = await db.select().from(expenses).where(eq(expenses.id, late));
 		expect(kept.taskId).toBeNull();
+	});
+
+	it('names the Dienstleister of the task on linked expenses that name none', async () => {
+		const provider = (name: string) =>
+			createServiceProvider(db, contextA, {
+				name,
+				service: null,
+				phone: null,
+				email: null,
+				note: null
+			});
+		const roofer = await provider('Dachdeckerei Seifert');
+		const plumber = await provider('Sanitär Wendt');
+		const created = await createTask(db, contextA, input({ category: 'repair' }));
+		if (!created.ok) throw new Error(created.reason);
+		const unnamed = await bill('a', '2026-03-01', 1000);
+		const named = await bill('a', '2026-03-02', 2000, { serviceProviderId: plumber });
+		const providerOf = async (id: string) =>
+			(await db.select().from(expenses).where(eq(expenses.id, id)))[0].serviceProviderId;
+		// Without a Dienstleister on the task the expenses stay as they are.
+		await updateTask(db, contextA, created.id, input({ category: 'repair' }), [unnamed]);
+		expect(await providerOf(unnamed)).toBeNull();
+		await updateTask(
+			db,
+			contextA,
+			created.id,
+			input({ category: 'repair', serviceProviderId: roofer }),
+			[unnamed, named]
+		);
+		expect(await providerOf(unnamed)).toBe(roofer);
+		expect(await providerOf(named)).toBe(plumber);
 	});
 
 	it('links more expenses than a statement may bind at once', async () => {
