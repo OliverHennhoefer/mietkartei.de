@@ -7,6 +7,8 @@ import { weekStart } from './deadline-mails';
 import type { Database } from './db';
 import { accounts, outbox, users } from './db/schema';
 import { createDemoData } from './demo';
+import { createReferenceData } from './reference-demo';
+import type { ReferenceCase } from '../domain/reference-cases';
 import type { Storage } from './storage';
 
 // The public demo (DEMO=true, demo.mietkartei.de): every visitor gets an account of their own
@@ -27,10 +29,14 @@ export const DEMO_STARTS_PER_HOUR = 50;
 const HOUR = 60 * 60 * 1000;
 
 /**
- * Creates a demo account with the demo data and returns the session for its owner, or null when
- * the demos of the last hour reached DEMO_STARTS_PER_HOUR.
+ * Creates a demo account with the demo data, or with one Rechenbeispiel of the website only, and
+ * returns the session for its owner and the page to open first, or null when the demos of the
+ * last hour reached DEMO_STARTS_PER_HOUR.
  */
-export async function startDemo(db: Database, options?: { storage?: Storage }) {
+export async function startDemo(
+	db: Database,
+	options?: { storage?: Storage; example?: ReferenceCase }
+) {
 	// The account and its owner come first, in one batch, and the count after them: parallel
 	// starts each see their own account and those before it, so no more than the limit get through.
 	const accountId = crypto.randomUUID();
@@ -40,7 +46,7 @@ export async function startDemo(db: Database, options?: { storage?: Storage }) {
 			id: accountId,
 			name: 'Demo',
 			// The sender of the demo's letters and statements.
-			landlordName: 'Katrin Hoffmann',
+			landlordName: options?.example ? 'Eva Beispiel' : 'Katrin Hoffmann',
 			street: 'Kastanienallee 25',
 			postalCode: '10435',
 			city: 'Berlin',
@@ -70,8 +76,12 @@ export async function startDemo(db: Database, options?: { storage?: Storage }) {
 		const { waitUntil } = await import('cloudflare:workers');
 		waitUntil(cleanup);
 	} else await cleanup;
-	await createDemoData(db, { accountId, userId }, options);
-	return createSession(db, userId);
+	let home = '/';
+	if (options?.example) {
+		const statementId = await createReferenceData(db, { accountId, userId }, options.example);
+		home = `/betriebskosten/abrechnungen/${statementId}`;
+	} else await createDemoData(db, { accountId, userId }, options);
+	return { ...(await createSession(db, userId)), home };
 }
 
 /** The demo accounts created since the time. */

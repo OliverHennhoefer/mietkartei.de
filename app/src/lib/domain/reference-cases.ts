@@ -16,7 +16,8 @@ import type {
 // the case and the computed statement to website/rechenbeispiele/faelle.json, from which
 // scripts/build_reference_cases.py builds the pages on mietkartei.de/rechenbeispiele/.
 
-export type ReferenceCategory = 'grundsteuer' | 'muell' | 'hausmeister' | 'versicherung' | 'heizung';
+export type ReferenceCategory =
+	'grundsteuer' | 'muell' | 'hausmeister' | 'versicherung' | 'heizung';
 
 export type ReferenceCase = {
 	slug: string;
@@ -83,7 +84,13 @@ const categories: Record<ReferenceCategory, StatementCategory> = {
 		allocable: true,
 		consumptionBased: true
 	},
-	muell: { id: 'muell', name: 'Müllbeseitigung', betrkvItem: 8, allocable: true, consumptionBased: false },
+	muell: {
+		id: 'muell',
+		name: 'Müllbeseitigung',
+		betrkvItem: 8,
+		allocable: true,
+		consumptionBased: false
+	},
 	versicherung: {
 		id: 'versicherung',
 		name: 'Sach- und Haftpflichtversicherung',
@@ -222,7 +229,10 @@ export function referenceInput(c: ReferenceCase): StatementInput {
 	};
 }
 
-const betrkv = { label: '§ 2 Betriebskostenverordnung', url: 'https://www.gesetze-im-internet.de/betrkv/__2.html' };
+const betrkv = {
+	label: '§ 2 Betriebskostenverordnung',
+	url: 'https://www.gesetze-im-internet.de/betrkv/__2.html'
+};
 const bgb556a = {
 	label: '§ 556a BGB: Abrechnungsmaßstab',
 	url: 'https://www.gesetze-im-internet.de/bgb/__556a.html'

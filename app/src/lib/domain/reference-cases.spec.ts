@@ -43,15 +43,17 @@ describe('reference cases', () => {
 						leaseId: lease.leaseId,
 						occupancy: lease.occupancy,
 						persons: lease.persons,
-						lines: lease.lines.map(({ itemId, itemTotal, allocated, keyTotal, share, amount, co2 }) => ({
-							itemId,
-							itemTotal,
-							allocated,
-							keyTotal,
-							share,
-							amount,
-							co2
-						})),
+						lines: lease.lines.map(
+							({ itemId, itemTotal, allocated, keyTotal, share, amount, co2 }) => ({
+								itemId,
+								itemTotal,
+								allocated,
+								keyTotal,
+								share,
+								amount,
+								co2
+							})
+						),
 						costsTotal: lease.costsTotal,
 						prepaymentsTotal: lease.prepaymentsTotal,
 						balance: lease.balance

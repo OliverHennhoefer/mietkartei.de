@@ -17,6 +17,7 @@ from pathlib import Path
 from build_guides import fill, json_ld
 
 SITE = "https://mietkartei.de"
+DEMO = "https://demo.mietkartei.de"
 KEY_LABELS = {
     "area": "nach Wohnfläche",
     "persons": "nach Personen",
@@ -338,6 +339,7 @@ def render_case(layout: str, case: Case) -> str:
         <p class="eyebrow">Rechenbeispiel Betriebskosten {case.year}</p>
         <h1>{html.escape(case.data["title"])}</h1>
         <p class="lead">{html.escape(case.data["intro"])}</p>
+        <p class="case-demo"><a class="button button-primary" href="{DEMO}/demo?beispiel={case.data["slug"]}">In der Demo öffnen<span aria-hidden="true">↗</span></a><span>Dasselbe Haus in mietkartei, mit dem Entwurf genau dieser Abrechnung. Ändere einen Beleg und sieh, wie sich die Anteile verschieben.</span></p>
         <nav class="case-steps" aria-label="Schritte"><ol>{nav}</ol></nav>
         <div class="case-body">
 {sections}
