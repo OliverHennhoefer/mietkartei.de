@@ -4,7 +4,12 @@ import { weekday } from '../dates';
 import { validateSession } from './auth';
 import type { Database } from './db';
 import { accounts, outbox, properties, users } from './db/schema';
-import { DEMO_LIFETIME, deleteExpiredDemoAccounts, startDemo } from './demo-accounts';
+import {
+	DEMO_LIFETIME,
+	DEMO_STARTS_PER_HOUR,
+	deleteExpiredDemoAccounts,
+	startDemo
+} from './demo-accounts';
 import { memoryStorage, testDatabase } from './testing';
 
 let db: Database;
@@ -23,7 +28,7 @@ async function ageAccount(accountId: string, age: number) {
 
 describe('startDemo', () => {
 	it('signs a new owner into an account of their own with the demo data', async () => {
-		const { token } = await startDemo(db, { storage });
+		const { token } = (await startDemo(db, { storage }))!;
 		const session = await validateSession(db, token);
 		expect(session?.user).toMatchObject({ role: 'owner', name: 'Demo' });
 		const accountId = session!.user.accountId;
@@ -41,18 +46,44 @@ describe('startDemo', () => {
 	});
 
 	it('deletes expired demo accounts first', async () => {
-		const first = await validateSession(db, (await startDemo(db, { storage })).token);
+		const first = await validateSession(db, (await startDemo(db, { storage }))!.token);
 		await ageAccount(first!.user.accountId, DEMO_LIFETIME + 1000);
 		await startDemo(db, { storage });
 		const ids = (await db.select({ id: accounts.id }).from(accounts)).map((row) => row.id);
 		expect(ids).not.toContain(first!.user.accountId);
 		expect(ids).toHaveLength(3);
 	});
+
+	it('starts no more demos once the last hour reached its limit', async () => {
+		// Empty demo accounts of the last hour stand in for the demos, which take long to seed.
+		const demoAccounts = (age: number) =>
+			Array.from({ length: DEMO_STARTS_PER_HOUR }, () => ({
+				id: crypto.randomUUID(),
+				createdAt: new Date(Date.now() - age)
+			}));
+		const addDemoAccounts = async (rows: { id: string; createdAt: Date }[]) => {
+			await db
+				.insert(accounts)
+				.values(rows.map(({ id, createdAt }) => ({ id, name: 'Demo', createdAt })));
+			await db.insert(users).values(
+				rows.map(({ id }) => ({
+					accountId: id,
+					email: `demo-${id}@demo.invalid`,
+					passwordHash: '!',
+					name: 'Demo'
+				}))
+			);
+		};
+		await addDemoAccounts(demoAccounts(2 * 60 * 60 * 1000));
+		expect(await startDemo(db, { storage })).not.toBeNull();
+		await addDemoAccounts(demoAccounts(60_000).slice(1));
+		expect(await startDemo(db, { storage })).toBeNull();
+	});
 });
 
 describe('deleteExpiredDemoAccounts', () => {
 	it('keeps fresh demo accounts and every account that is not a demo', async () => {
-		const fresh = await validateSession(db, (await startDemo(db, { storage })).token);
+		const fresh = await validateSession(db, (await startDemo(db, { storage }))!.token);
 		await ageAccount(fresh!.user.accountId, DEMO_LIFETIME - 60_000);
 		await ageAccount('a', DEMO_LIFETIME * 10);
 		expect(await deleteExpiredDemoAccounts(db, Date.now(), { storage })).toBe(0);

@@ -1,4 +1,4 @@
-import { and, asc, eq, like, lt } from 'drizzle-orm';
+import { and, asc, count, eq, gte, like, lt } from 'drizzle-orm';
 import { deleteAccount } from './accounts';
 import { createSession } from './auth';
 import { today } from '../dates';
@@ -17,9 +17,20 @@ export const DEMO_LIFETIME = 24 * 60 * 60 * 1000;
 const DEMO_EMAIL_DOMAIN = '@demo.invalid';
 /** Expired accounts deleted per new demo, so the work stays small after a busy day. */
 const EXPIRED_PER_START = 5;
+/**
+ * New demos per hour across all visitors. Each one writes some 3,000 rows (16,000 row writes with
+ * the indexes) and 2.4 MB, so a script with many addresses could otherwise run up the bill and
+ * fill the database; real visitors stay far below it.
+ */
+export const DEMO_STARTS_PER_HOUR = 50;
+const HOUR = 60 * 60 * 1000;
 
-/** Creates a demo account with the demo data and returns the session for its owner. */
+/**
+ * Creates a demo account with the demo data and returns the session for its owner, or null when
+ * the demos of the last hour reached DEMO_STARTS_PER_HOUR.
+ */
 export async function startDemo(db: Database, options?: { storage?: Storage }) {
+	if ((await countDemoStarts(db, Date.now() - HOUR)) >= DEMO_STARTS_PER_HOUR) return null;
 	// Clearing out yesterday's demos is not the visitor's business: on Workers it runs after the
 	// response.
 	const cleanup = deleteExpiredDemoAccounts(db, Date.now(), options);
@@ -55,6 +66,22 @@ export async function startDemo(db: Database, options?: { storage?: Storage }) {
 		.returning({ id: users.id });
 	await createDemoData(db, { accountId: account.id, userId: user.id }, options);
 	return createSession(db, user.id);
+}
+
+/** The demo accounts created since the time. */
+async function countDemoStarts(db: Database, since: number): Promise<number> {
+	const [row] = await db
+		.select({ count: count() })
+		.from(accounts)
+		.innerJoin(users, eq(users.accountId, accounts.id))
+		.where(
+			and(
+				eq(users.role, 'owner'),
+				like(users.email, `demo-%${DEMO_EMAIL_DOMAIN}`),
+				gte(accounts.createdAt, new Date(since))
+			)
+		);
+	return row.count;
 }
 
 /**
