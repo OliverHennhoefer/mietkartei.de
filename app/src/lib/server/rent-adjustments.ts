@@ -455,12 +455,6 @@ export async function correctDelivery(
 	}
 
 	if (hasApprovedOn(others, validFrom)) return sameDayRefusal(validFrom);
-	const waitingUntil = waitingPeriodEnd(others.filter((other) => other.validFrom < validFrom));
-	if (lease.kind === 'residential' && waitingUntil && validFrom < waitingUntil) {
-		return refuse(
-			`Die Miete muss mindestens ein Jahr unverändert bleiben (§ 557b Abs. 2 BGB); die neue Miete kann frühestens am ${formatDate(waitingUntil)} gelten.`
-		);
-	}
 	// First the history without the change, as when it is deleted; then the change on its new
 	// date, as when it is approved. The update statements run in that order in one batch.
 	const previous = rentOn(others, change.validFrom);
@@ -474,7 +468,17 @@ export async function correctDelivery(
 		amountsOf(previous)
 	);
 	const without = withLaterRows(others, removed);
-	const before = rentOn(without, validFrom)!;
+	const before = rentOn(without, validFrom);
+	if (!before || validFrom <= lease.startDate) {
+		return refuse('Die neue Miete kann erst nach dem Beginn des Mietvertrags gelten.');
+	}
+	// Against the history without the change: rows that inherited its Kaltmiete have it no more.
+	const waitingUntil = waitingPeriodEnd(without.filter((other) => other.validFrom < validFrom));
+	if (lease.kind === 'residential' && waitingUntil && validFrom < waitingUntil) {
+		return refuse(
+			`Die Miete muss mindestens ein Jahr unverändert bleiben (§ 557b Abs. 2 BGB); die neue Miete kann frühestens am ${formatDate(waitingUntil)} gelten.`
+		);
+	}
 	const amounts = { ...amountsOf(before), baseRent: change.baseRent };
 	const moved: HistoryChange = { ...change, ...amounts, validFrom };
 	const later = laterRows(db, context.accountId, without, validFrom, amountsOf(before), amounts);

@@ -333,6 +333,30 @@ describe('correctDelivery', () => {
 		);
 	});
 
+	it('does not count a prepayment change that inherited the Kaltmiete as a new increase', async () => {
+		const changeId = await approved();
+		await manualChange(db, contextA, leaseId, {
+			validFrom: '2026-12-15',
+			baseRent: 63096,
+			operatingCostPrepayment: 16000,
+			heatingCostPrepayment: 5000,
+			reason: 'manual',
+			note: null
+		});
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2026-11-03')).toEqual({
+			ok: true,
+			id: changeId
+		});
+	});
+
+	it('refuses an effective date before the lease began', async () => {
+		const changeId = await approved();
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2023-09-10')).toEqual({
+			ok: false,
+			message: 'Die neue Miete kann erst nach dem Beginn des Mietvertrags gelten.'
+		});
+	});
+
 	it('only records the day when the effective date stays', async () => {
 		const changeId = await approved();
 		const before = (await listRentChanges(db, 'a', leaseId))[1];
