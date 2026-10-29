@@ -15,7 +15,7 @@ Mietverwaltung, Bankabgleich und Betriebskostenabrechnung (Nebenkostenabrechnung
 
 <br>
 
-<a href="https://demo.mietkartei.de"><img src="assets/screenshots/auswertung.png" alt="Auswertung von mietkartei mit Einnahmen, Ausgaben, Überschuss und Kaltmiete pro m² sowie dem Verlauf über ein Jahr" width="900"></a>
+<a href="https://demo.mietkartei.de"><img src="assets/screenshots/rundgang.webp" alt="Rundgang durch mietkartei mit Beispieldaten: Aufgaben, Auswertung über mehrere Jahre, Rendite, Mietkonto, Bankabgleich, Betriebskostenabrechnungen, Anteil eines Mieters, Nebenkosten-Vergleich, Fristen und Mieterseite" width="900"></a>
 
 </div>
 
@@ -56,7 +56,7 @@ Du vermietest selbst? Dann weißt du am besten, was fehlt. Jede Hilfe zählt: Co
 | [`app/`](app/) | Die Anwendung: SvelteKit, Drizzle ORM und SQLite, lauffähig mit Node.js, Docker oder Cloudflare Workers |
 | [`website/`](website/) | Die Startseite [mietkartei.de](https://mietkartei.de) |
 | [`docs/`](docs/) | Die Dokumentation [docs.mietkartei.de](https://docs.mietkartei.de), gebaut mit Zensical |
-| [`assets/`](assets/) | Logo, Schrift und die Bildschirmfotos dieser Seite (`npm run screenshots` in `app/`) |
+| [`assets/`](assets/) | Logo, Schrift und der Rundgang dieser Seite (`npm run screenshots` in `app/`, dann `scripts/build_readme_animation.py`) |
 | [`.github/`](.github/) | Workflows, Vorlagen sowie Anleitungen zu [Deployment](.github/DEPLOYMENT.md), [Betrieb auf einem Server](.github/SELF_HOSTING.md) und [Pflege](.github/MAINTENANCE.md) |
 
 </details>
