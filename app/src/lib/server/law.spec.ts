@@ -37,6 +37,19 @@ describe('law', () => {
 		}
 	});
 
+	it('has the wording and version of every section', () => {
+		for (const law of listLawSections()) {
+			expect(law.name, law.abbreviation).not.toBe('');
+			expect(law.version, law.abbreviation).not.toBe('');
+			for (const { id } of law.sections) {
+				expect(findLawSection(id)?.text, id).toMatch(/\S/);
+			}
+		}
+		expect(findLawSection('bgb-556')?.text).toContain(
+			'spätestens bis zum Ablauf des zwölften Monats'
+		);
+	});
+
 	it('names the basis of the statutory deadlines', () => {
 		expect(deadlineLegalBasis.statement).toEqual([
 			{ section: 'bgb-556', citation: '§ 556 Abs. 3 Satz 2 und 3 BGB' }
