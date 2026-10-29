@@ -93,7 +93,7 @@ Release notes are aimed at users and self-hosters and are therefore written in G
 8. Add required upgrade steps and known limitations. Update the supported versions in [SECURITY.md](../SECURITY.md) if needed.
 9. Publish the release after a final review.
 
-Publishing runs [release.yml](workflows/release.yml): it attaches the source archive, `SHA256SUMS` and the signed build provenance of the archive (`mietkartei-<version>.tar.gz.sigstore.json`) to the release. The app workflow pushes the versioned Docker image with a build provenance attestation. Check afterwards that the three assets are on the release; the OpenSSF Scorecard counts them for Signed-Releases. If the run failed, start **Release** by hand under Actions with the tag; it attaches the files to the existing release.
+Publishing runs [release.yml](workflows/release.yml): it attaches the source archive, `SHA256SUMS` and the signed build provenance of the archive (`mietkartei-<version>.tar.gz.sigstore.json`) to the release. The app workflow pushes the versioned Docker image with a build provenance attestation. Check afterwards that the three assets are on the release; the OpenSSF Scorecard counts them for Signed-Releases. If the run failed, start **Release** by hand under Actions and pick the release tag under "Use workflow from"; it attaches the files to the existing release. This works for tags whose commit already has the manual trigger, that is from v0.1.1 on.
 
 The repository only allows actions pinned to a full commit SHA. That rules out the SLSA generator of slsa-framework, which has to be referenced by tag, so the provenance comes from `actions/attest-build-provenance` like the image's.
 

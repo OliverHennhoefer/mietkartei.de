@@ -3,16 +3,13 @@ name: Release
 # A published release gets the source archive, its checksum and a signed build provenance that ties
 # the archive to this repository, the tag and this workflow. Self-hosters can check a download with
 # `sha256sum -c SHA256SUMS` and `gh attestation verify <archive> --owner OliverHennhoefer`. The
-# Docker image is attested in app.yml when it is pushed. Started by hand with a tag, it attaches
-# the files to that tag's existing release, e.g. after a failed run.
+# Docker image is attested in app.yml when it is pushed. Started by hand on a release tag ("Use
+# workflow from" the tag), it attaches the files to that release again, e.g. after a failed run.
+# The run must start from the tag itself, since the provenance names the ref and commit it ran on.
 "on":
   release:
     types: [published]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: Tag of an existing release, e.g. v0.1.0
-        required: true
 
 permissions:
   contents: read
@@ -26,13 +23,13 @@ jobs:
       attestations: write
       contents: write
       id-token: write
+    if: github.ref_type == 'tag'
     env:
-      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      TAG: ${{ github.ref_name }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/tags/${{ env.TAG }}
           persist-credentials: false
 
       - name: Build archive and checksum
