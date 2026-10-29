@@ -169,6 +169,16 @@ describe('readingsDecrease', () => {
 		});
 		expect(readingsDecrease(dip, '2025-01-01', '2025-12-31')).toBe(true);
 		expect(readingsDecrease(meter(), '2025-01-01', '2025-12-31')).toBe(false);
+		// A decrease after the reading closing the period does not touch it.
+		const later = meter({
+			readings: [reading('2025-01-01', 100), reading('2025-12-31', 200), reading('2026-10-01', 150)]
+		});
+		expect(readingsDecrease(later, '2025-01-01', '2025-12-31')).toBe(false);
+		// Interpolated bounds rest on the readings around them.
+		const around = meter({
+			readings: [reading('2024-12-01', 100), reading('2025-06-30', 50), reading('2026-01-31', 300)]
+		});
+		expect(readingsDecrease(around, '2025-01-01', '2025-12-31')).toBe(true);
 	});
 
 	it('ignores readings far outside the period and outside the meter lifetime', () => {

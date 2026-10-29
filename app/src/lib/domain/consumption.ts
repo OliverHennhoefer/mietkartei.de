@@ -1,4 +1,4 @@
-import { addDays, daysBetween, overlap, type DateRange, type IsoDate } from '../dates';
+import { daysBetween, overlap, type DateRange, type IsoDate } from '../dates';
 import type { MeterKind } from '../server/db/schema';
 
 // Consumption from meter readings. A meter has readings on dates; the value on any other day is
@@ -118,24 +118,38 @@ export function meterConsumption(meter: Meter, from: IsoDate, to: IsoDate): Cons
 /**
  * Whether a reading the meter's consumption from `from` to `to` rests on is lower than the one
  * before it: a typo or a replaced meter entered as a new reading. The consumption would come out
- * too low or negative, and the allocation would shift the cost onto the other units.
+ * too low or negative, and the allocation would shift the cost onto the other units. Only the
+ * readings from the one giving the value on `from` to the one giving the value on `to` count.
  */
 export function readingsDecrease(meter: Meter, from: IsoDate, to: IsoDate): boolean {
 	const clipped = overlap({ start: from, end: to }, lifetime(meter));
 	if (!clipped || clipped.start >= clipped.end) return false;
-	// The readings around the period count too: the values on its bounds come from them.
-	const start = addDays(clipped.start, -EXACT_READING_DAYS);
-	const end = addDays(clipped.end, EXACT_READING_DAYS);
 	const readings = sortReadings(meter.readings);
-	return readings.some((reading, index) => {
-		const previous = readings[index - 1];
-		return (
-			previous !== undefined &&
-			reading.readAt >= start &&
-			previous.readAt <= end &&
-			reading.value < previous.value
-		);
-	});
+	const first = boundIndex(readings, clipped.start, 'start');
+	const last = boundIndex(readings, clipped.end, 'end');
+	if (first === undefined || last === undefined) return false;
+	for (let index = first + 1; index <= last; index++) {
+		if (readings[index].value < readings[index - 1].value) return true;
+	}
+	return false;
+}
+
+/**
+ * The index of the reading valueAt rests on for the date: the one near it, else the last before
+ * it (for a period's start) or the first after it (for its end).
+ */
+function boundIndex(
+	readings: readonly Reading[],
+	date: IsoDate,
+	side: 'start' | 'end'
+): number | undefined {
+	const near = readingNear(readings, date);
+	if (near) return readings.indexOf(near);
+	const index =
+		side === 'start'
+			? readings.findLastIndex((reading) => reading.readAt < date)
+			: readings.findIndex((reading) => reading.readAt > date);
+	return index < 0 ? undefined : index;
 }
 
 export type UnitConsumption = {
