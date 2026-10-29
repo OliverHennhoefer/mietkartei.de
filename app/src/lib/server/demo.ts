@@ -1376,6 +1376,18 @@ export async function createDemoData(
 		'030 2214 8806',
 		null
 	);
+	const cleaner = serviceProvider(
+		'Glanz & Co. Gebäudeservice',
+		'Gebäudereinigung',
+		'030 6187 2240',
+		'auftrag@glanz-gebaeudeservice.de'
+	);
+	const gardener = serviceProvider(
+		'Grünwerk Kreuzberg',
+		'Garten- und Landschaftsbau',
+		'030 6912 5573',
+		'hallo@gruenwerk-kreuzberg.de'
+	);
 	const serviceProviderRows = [
 		plumber,
 		heating,
@@ -1383,13 +1395,14 @@ export async function createDemoData(
 		painter,
 		roofer,
 		caretaker,
-		chimneySweep
+		chimneySweep,
+		cleaner,
+		gardener
 	];
 	/** The Dienstleister of the Mehrfamilienhaus's yearly bills, by supplier. */
-	const providerOfSupplier = new Map([
-		[caretaker.name, caretaker.id],
-		[chimneySweep.name, chimneySweep.id]
-	]);
+	const providerOfSupplier = new Map(
+		[caretaker, chimneySweep, cleaner, gardener].map((provider) => [provider.name, provider.id])
+	);
 	/** Names the Dienstleister on the expense. */
 	const paidTo = (expenseId: string, provider: { id: string }) => {
 		const row = expenseRows.find((candidate) => candidate.id === expenseId)!;
@@ -1975,8 +1988,9 @@ export async function createDemoData(
 		}
 	}
 
-	// This year's bills of the Hausmeisterdienst (each quarter) and the Schornsteinfeger so far; the
-	// Belege for the Betriebskostenabrechnung follow once the year is over.
+	// This year's bills of the Hausmeisterdienst and the Treppenhausreinigung (each quarter), the
+	// Gartenpflege and the Schornsteinfeger so far; the Belege for the Betriebskostenabrechnung
+	// follow once the year is over.
 	const thisYearIndex = byYear(COST_INDEX, Y - 1);
 	for (const [index, day] of ['03-31', '06-30', '09-30', '12-31'].entries()) {
 		const quarterEnd = at(0, day);
@@ -1990,6 +2004,28 @@ export async function createDemoData(
 				lindenId
 			),
 			caretaker
+		);
+		paidTo(
+			expense(
+				quarterEnd,
+				Math.round((46800 * thisYearIndex) / 4),
+				'operating_costs',
+				`Treppenhausreinigung ${index + 1}. Quartal ${Y}`,
+				lindenId
+			),
+			cleaner
+		);
+	}
+	if (at(0, '05-20') < date) {
+		paidTo(
+			expense(
+				at(0, '05-20'),
+				Math.round(21600 * thisYearIndex),
+				'operating_costs',
+				`Pflege von Hof und Vorgarten ${Y}`,
+				lindenId
+			),
+			gardener
 		);
 	}
 	if (at(0, '03-18') < date) {
@@ -2022,21 +2058,30 @@ export async function createDemoData(
 		'Heizungsreparatur: Umwälzpumpe getauscht',
 		lindenId
 	);
-	expense(
-		at(-3, '10-10'),
-		89000,
-		'modernization',
-		'Funk-Rauchwarnmelder, alle Wohnungen',
-		lindenId
+	paidTo(
+		expense(
+			at(-3, '10-10'),
+			89000,
+			'modernization',
+			'Funk-Rauchwarnmelder, alle Wohnungen',
+			lindenId
+		),
+		electrician
 	);
-	expense(
-		at(-8, '09-03'),
-		214000,
-		'modernization',
-		'Klingel- und Gegensprechanlage erneuert',
-		lindenId
+	paidTo(
+		expense(
+			at(-8, '09-03'),
+			214000,
+			'modernization',
+			'Klingel- und Gegensprechanlage erneuert',
+			lindenId
+		),
+		electrician
 	);
-	expense(at(-5, '07-14'), 156000, 'maintenance', 'Hofpflaster ausgebessert', lindenId);
+	paidTo(
+		expense(at(-5, '07-14'), 156000, 'maintenance', 'Hofpflaster ausgebessert', lindenId),
+		gardener
+	);
 	expense(
 		at(-7, '04-12'),
 		412000,
@@ -2246,6 +2291,7 @@ export async function createDemoData(
 			repeatAnchor: addMonths(date, 1),
 			propertyId: lindenId,
 			leaseId: null,
+			serviceProviderId: electrician.id,
 			note: 'Jährliche Funktionsprüfung, alle Wohnungen.'
 		},
 		{
@@ -2312,6 +2358,7 @@ export async function createDemoData(
 			dueDate: addDays(date, -3),
 			propertyId: lindenId,
 			leaseId: null,
+			serviceProviderId: cleaner.id,
 			note: 'Der Vertrag mit Glanz & Co. läuft zum Jahresende aus.'
 		},
 		{
