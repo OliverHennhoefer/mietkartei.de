@@ -125,7 +125,7 @@ describe('createDemoData', () => {
 		);
 		expect(overlapping).toEqual([]);
 		expect(await rows(tasks)).toHaveLength(16);
-		// Seven Dienstleister, among them the Hausmeisterdienst and the Schornsteinfeger; six
+		// Nine Dienstleister, among them the Hausmeisterdienst and the Schornsteinfeger; six
 		// Reparaturen done and paid for, two still open.
 		const providers = await db
 			.select()
@@ -134,7 +134,7 @@ describe('createDemoData', () => {
 		expect(providers.map((row) => row.service)).toEqual(
 			expect.arrayContaining(['Hausmeisterdienst', 'Schornsteinfeger'])
 		);
-		expect(providers).toHaveLength(7);
+		expect(providers).toHaveLength(9);
 		const repairs = (await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).filter(
 			(row) => row.category === 'repair'
 		);
