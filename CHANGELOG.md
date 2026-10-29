@@ -10,6 +10,8 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ## [Unveröffentlicht]
 
+## [0.1.0] - 2026-10-29
+
 Erste öffentliche Version. Sie enthält:
 
 ### Neu
@@ -38,4 +40,5 @@ Erste öffentliche Version. Sie enthält:
 - Betrieb gehostet unter app.mietkartei.de oder selbst als Docker-Container.
 - Selbst betreiben im eigenen Cloudflare-Konto ohne eigene Domain: eingerichtet über „Deploy to Cloudflare“, die erste Registrierung mit einem selbst gewählten Einrichtungscode, Updates per Klick in GitHub.
 
-[Unveröffentlicht]: https://github.com/OliverHennhoefer/mietkartei.de/commits/main
+[Unveröffentlicht]: https://github.com/OliverHennhoefer/mietkartei.de/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/OliverHennhoefer/mietkartei.de/releases/tag/v0.1.0
