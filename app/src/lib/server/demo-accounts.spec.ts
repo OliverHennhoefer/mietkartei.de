@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, like, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { weekday } from '../dates';
 import { validateSession } from './auth';
@@ -78,6 +78,23 @@ describe('startDemo', () => {
 		expect(await startDemo(db, { storage })).not.toBeNull();
 		await addDemoAccounts(demoAccounts(60_000).slice(1));
 		expect(await startDemo(db, { storage })).toBeNull();
+	});
+
+	it('lets no more than the limit through when demos start at the same time', async () => {
+		const recent = Array.from({ length: DEMO_STARTS_PER_HOUR - 2 }, () => crypto.randomUUID());
+		await db.insert(accounts).values(recent.map((id) => ({ id, name: 'Demo' })));
+		await db.insert(users).values(
+			recent.map((id) => ({
+				accountId: id,
+				email: `demo-${id}@demo.invalid`,
+				passwordHash: '!',
+				name: 'Demo'
+			}))
+		);
+		const started = await Promise.all(Array.from({ length: 5 }, () => startDemo(db, { storage })));
+		expect(started.filter(Boolean).length).toBeLessThanOrEqual(2);
+		const demos = await db.select({ id: users.id }).from(users).where(like(users.email, 'demo-%'));
+		expect(demos.length).toBeLessThanOrEqual(DEMO_STARTS_PER_HOUR);
 	});
 });
 
