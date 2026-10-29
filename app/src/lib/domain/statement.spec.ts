@@ -496,6 +496,21 @@ describe('computeStatement prepayments', () => {
 	const pay = (date: string, amount: number): LedgerPayment => ({ date, amount });
 	const elevenMonths = months(1, 11).map((month) => pay(`${month}-05`, 80000));
 
+	it('credits no prepayments when the main unit lies in another property', () => {
+		// A parking space here, the flat (and the prepayments) in another property: crediting
+		// them in both statements would refund them twice.
+		const input = scenario();
+		input.leases[0] = { ...input.leases[0], prepaymentsElsewhere: true };
+		const result = computeStatement(input, options);
+		const statement = result.leases.find((lease) => lease.leaseId === 'l-eg')!;
+		expect(statement.prepayments).toEqual([]);
+		expect(statement.prepaymentsTotal).toBe(0);
+		expect(statement.balance).toBe(statement.costsTotal);
+		expect(statement.warnings).toContainEqual(
+			expect.objectContaining({ code: 'prepayments_elsewhere', blocking: false })
+		);
+	});
+
 	it('credits only the prepayments that were paid', () => {
 		// December unpaid: 11 × 200 € = 2.200 € paid, the 200 € of December are open.
 		const unpaid = eg(elevenMonths);
@@ -637,6 +652,30 @@ describe('computeStatement warnings', () => {
 		// Unblocked, EG would carry the whole 1.000 €, OG nothing.
 		expect(result.leases.find((l) => l.leaseId === 'l-eg')?.costsTotal).toBe(100000);
 		expect(result.leases.find((l) => l.leaseId === 'l-og')?.costsTotal).toBe(0);
+	});
+
+	it('blocks approval while a reading is lower than the one before it', () => {
+		// EG 1.000 → 100 (a typo), OG 0 → 100: without the block OG would carry everything.
+		const result = computeStatement(
+			small({
+				items: [item('i-heizung', 'Fernwärme', 'c-heizung', 'k-consumption', 60000)],
+				keys: [key('k-consumption', 'Wärme', 'consumption', { meterKind: 'heat' })],
+				meters: [
+					meter('m-eg', 'eg', [reading('2025-01-01', 1000), reading('2025-12-31', 100)]),
+					meter('m-og', 'og', [reading('2025-01-01', 0), reading('2025-12-31', 100)])
+				]
+			}),
+			options
+		);
+		expect(result.property.warnings).toMatchObject([
+			{
+				code: 'decreasing_reading',
+				blocking: true,
+				unitId: 'eg',
+				meterId: 'm-eg',
+				href: '/objekte/p/zaehler?meter=m-eg'
+			}
+		]);
 	});
 
 	it('blocks approval while a reading is missing and clears it with an estimate', () => {

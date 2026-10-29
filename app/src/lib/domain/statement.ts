@@ -108,6 +108,11 @@ export type StatementLease = {
 	ledgerStart: IsoDate | null;
 	/** The main unit and the extra units, as far as they belong to the property. */
 	unitIds: string[];
+	/**
+	 * The main unit lies in another property. The lease's prepayments are credited once, in the
+	 * statement of the main unit's property; this one bills the costs of the extra units alone.
+	 */
+	prepaymentsElsewhere?: boolean;
 	tenants: StatementTenant[];
 	persons: PersonsEntry[];
 	rentHistory: RentChange[];
@@ -210,6 +215,7 @@ export type WarningCode =
 	| 'co2_missing_area'
 	| 'missing_meter'
 	| 'missing_reading'
+	| 'decreasing_reading'
 	| 'estimated_reading'
 	| 'estimated_share'
 	| 'no_interim_reading'
@@ -221,6 +227,7 @@ export type WarningCode =
 	| 'direct_by_days'
 	| 'no_weight'
 	| 'flat_lease'
+	| 'prepayments_elsewhere'
 	| 'deadline_passed'
 	| 'unknown_key'
 	| 'unknown_category'
@@ -603,6 +610,7 @@ type UnitUsage = {
 	estimated: boolean;
 	unit: string;
 	missingMeterIds: string[];
+	decreasingMeterIds: string[];
 	noMeter: boolean;
 };
 
@@ -758,6 +766,17 @@ function usageOf(ctx: Context, unit: StatementUnit, kind: MeterKind): UnitUsage 
 			meterId,
 			href: zaehlerHref(ctx, meterId),
 			message: `Für den Zähler ${meterLabel(meter)} der Einheit ${unit.name} fehlt ein Zählerstand am Anfang oder Ende des Zeitraums; erfasse einen Stand oder eine Schätzung (§ 9a HeizKV).`
+		});
+	}
+	for (const meterId of usage.decreasingMeterIds) {
+		const meter = meters.find((candidate) => candidate.id === meterId)!;
+		warn(ctx, {
+			code: 'decreasing_reading',
+			blocking: true,
+			unitId: unit.id,
+			meterId,
+			href: zaehlerHref(ctx, meterId),
+			message: `Ein Zählerstand des Zählers ${meterLabel(meter)} der Einheit ${unit.name} ist kleiner als der vorige; korrigiere den Stand, oder trage bei einem Zählertausch den alten Zähler als ausgebaut ein und lege den neuen an.`
 		});
 	}
 	if (usage.estimated) {
@@ -1161,6 +1180,7 @@ function paidRent(lease: StatementLease, asOf: IsoDate): Map<IsoMonth, number> {
  * starts have no charges; their prepayments come from the rent history and count as paid.
  */
 function prepaymentsOf(lease: StatementLease, range: DateRange, asOf: IsoDate): PrepaymentMonth[] {
+	if (lease.prepaymentsElsewhere) return [];
 	const rentByMonth = new Map(
 		lease.charges
 			.filter((charge) => charge.kind === 'rent')
@@ -1661,6 +1681,15 @@ export function computeStatement(
 				leaseId: lease.id,
 				href: `/vertraege/${lease.id}`,
 				message: `Der Mietvertrag ${label} zahlt eine ${accumulator.excluded[0].reason}; diese Anteile bleiben beim Vermieter.`
+			});
+		}
+		if (lease.prepaymentsElsewhere) {
+			warn(ctx, {
+				code: 'prepayments_elsewhere',
+				blocking: false,
+				leaseId: lease.id,
+				href: `/vertraege/${lease.id}`,
+				message: `Der Mietvertrag ${label} hat seine Haupteinheit in einem anderen Objekt; seine Vorauszahlungen werden in dessen Abrechnung angerechnet, hier nur die Kosten.`
 			});
 		}
 		const prepayments = prepaymentsOf(lease, range, today);

@@ -3,6 +3,7 @@ import {
 	hasReadingNear,
 	meterConsumption,
 	readingNear,
+	readingsDecrease,
 	unitConsumption,
 	valueAt,
 	type Meter,
@@ -140,14 +141,52 @@ describe('unitConsumption', () => {
 			value: 1050,
 			estimated: false,
 			missingMeterIds: ['m3'],
+			decreasingMeterIds: [],
 			unit: 'kWh'
 		});
 		expect(unitConsumption([], '2025-01-01', '2025-12-31')).toEqual({
 			value: 0,
 			estimated: false,
 			missingMeterIds: [],
+			decreasingMeterIds: [],
 			unit: ''
 		});
+	});
+});
+
+describe('readingsDecrease', () => {
+	it('finds a reading lower than the one before it within the period or around its bounds', () => {
+		const typo = meter({ readings: [reading('2025-01-01', 1000), reading('2025-12-31', 100)] });
+		expect(readingsDecrease(typo, '2025-01-01', '2025-12-31')).toBe(true);
+		expect(meterConsumption(typo, '2025-01-01', '2025-12-31').value).toBe(-900);
+		// A dip in the middle of the period counts even when the end is higher again.
+		const dip = meter({
+			readings: [
+				reading('2025-01-01', 1000),
+				reading('2025-06-30', 900),
+				reading('2025-12-31', 2000)
+			]
+		});
+		expect(readingsDecrease(dip, '2025-01-01', '2025-12-31')).toBe(true);
+		expect(readingsDecrease(meter(), '2025-01-01', '2025-12-31')).toBe(false);
+	});
+
+	it('ignores readings far outside the period and outside the meter lifetime', () => {
+		const earlier = meter({
+			readings: [
+				reading('2023-01-01', 5000),
+				reading('2023-12-31', 10),
+				reading('2025-01-01', 20),
+				reading('2025-12-31', 30)
+			]
+		});
+		expect(readingsDecrease(earlier, '2025-01-01', '2025-12-31')).toBe(false);
+		expect(readingsDecrease(earlier, '2023-01-01', '2023-12-31')).toBe(true);
+		const removed = meter({
+			removedAt: '2024-06-30',
+			readings: [reading('2024-01-01', 0), reading('2024-06-30', 50), reading('2025-12-31', 0)]
+		});
+		expect(readingsDecrease(removed, '2025-01-01', '2025-12-31')).toBe(false);
 	});
 });
 

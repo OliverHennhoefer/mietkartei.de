@@ -408,6 +408,11 @@ describe('loadStatementInput', () => {
 		const garageLease = input.leases.find((lease) => lease.id === created.id)!;
 		// Only the garage is in this property; the main unit of the lease is not.
 		expect(garageLease.unitIds).toEqual([garage.id]);
+		// Its prepayments are credited in the Nachbarhaus statement, not here as well.
+		expect(garageLease.prepaymentsElsewhere).toBe(true);
+		expect(
+			input.leases.every((lease) => lease === garageLease || !lease.prepaymentsElsewhere)
+		).toBe(true);
 		expect(input.circles).toEqual([
 			{ id: circle.id, name: 'Aufzug', unitIds: expect.arrayContaining([unit.OG, unit.DG]) }
 		]);

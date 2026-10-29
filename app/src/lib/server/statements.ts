@@ -287,6 +287,7 @@ export async function loadStatementInput(
 			...(unitIdSet.has(lease.unitId) ? [lease.unitId] : []),
 			...extraLinks.filter((link) => link.leaseId === lease.id).map((link) => link.unitId)
 		],
+		prepaymentsElsewhere: !unitIdSet.has(lease.unitId),
 		tenants: tenantRows
 			.filter((row) => row.leaseId === lease.id)
 			.map(({ tenant }) => ({
