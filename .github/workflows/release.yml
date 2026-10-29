@@ -46,13 +46,14 @@ jobs:
         with:
           subject-path: ${{ steps.archive.outputs.name }}.tar.gz
 
-      # The signed bundle on the release lets the archive be checked offline and counts for the
-      # OpenSSF Scorecard's Signed-Releases check.
+      # The signed bundle on the release lets the archive be checked offline. It holds an in-toto
+      # statement with SLSA provenance, and the .intoto.jsonl name gives the OpenSSF Scorecard's
+      # Signed-Releases check its full score (a .sigstore.json name only counts as a signature).
       - name: Attach to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NAME: ${{ steps.archive.outputs.name }}
           BUNDLE: ${{ steps.attest.outputs.bundle-path }}
         run: |
-          cp "$BUNDLE" "$NAME.tar.gz.sigstore.json"
-          gh release upload "$TAG" "$NAME.tar.gz" "$NAME.tar.gz.sigstore.json" SHA256SUMS --clobber --repo "$GITHUB_REPOSITORY"
+          cp "$BUNDLE" "$NAME.intoto.jsonl"
+          gh release upload "$TAG" "$NAME.tar.gz" "$NAME.intoto.jsonl" SHA256SUMS --clobber --repo "$GITHUB_REPOSITORY"
