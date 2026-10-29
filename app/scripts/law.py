@@ -59,6 +59,8 @@ def norms(slug):
     return root.findall("norm")
 
 
+EQUATION = "[Formel nur als Bild veröffentlicht, siehe url]"
+
 # Marks a line break of the text; line breaks of the XML source are only whitespace.
 BREAK = "\x00"
 
@@ -81,6 +83,9 @@ def inline(element):
         elif child.tag == "LA":
             # Paragraphs of a list item follow each other without whitespace in the source.
             parts.append(" " + inline(child))
+        elif child.tag == "IMG":
+            # Some equations are published only as an image; point to the page that shows it.
+            parts.append(child.get("ALT") or child.get("alt") or EQUATION)
         elif child.tag == "BR":
             parts.append(BREAK)
         elif child.tag == "DL":

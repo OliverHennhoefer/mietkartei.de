@@ -43,6 +43,8 @@ describe('law', () => {
 			expect(law.version, law.abbreviation).not.toBe('');
 			for (const { id } of law.sections) {
 				expect(findLawSection(id)?.text, id).toMatch(/\S/);
+				// An equation published as an image must not vanish from the text.
+				expect(findLawSection(id)?.text, id).not.toMatch(/(^|\n)\.(\n|$)/);
 			}
 		}
 		expect(findLawSection('bgb-556')?.text).toContain(
