@@ -219,6 +219,12 @@ describe('vertraege/[id]', () => {
 				form: { validFrom: '2026-01-01', persons: '3' }
 			})
 		).toMatchObject({ error: 404 });
+		expect(
+			await run(leaseActions.addParty, { params, form: { tenantId, joinedOn: '' } })
+		).toMatchObject({ error: 404 });
+		expect(
+			await run(leaseActions.updateParty, { params, form: { tenantId, joinedOn: '', leftOn: '' } })
+		).toMatchObject({ error: 404 });
 		for (const action of [leaseActions.updatePersons, leaseActions.deletePersons]) {
 			expect(
 				await run(action, { params, form: { rowId: 'x', validFrom: '2026-01-01', persons: '3' } })
@@ -246,6 +252,41 @@ describe('vertraege/[id]', () => {
 				deadlines: null
 			}
 		});
+	});
+
+	it('lets a tenant join and another leave the lease, with the dates in the dialog', async () => {
+		const joining = await seedTenant(db, 'a', { firstName: 'Neu' });
+		const before = (await overview(id)) as { data: { joinable: { id: string }[] } };
+		expect(before.data.joinable.map((tenant) => tenant.id)).toEqual([joining]);
+		const add = (form: Record<string, string>) =>
+			run(leaseActions.addParty, { params: { id }, form });
+		expect(await add({ tenantId: joining, joinedOn: '2024-06-01' })).toMatchObject({
+			fail: 400,
+			data: { which: 'addParty', errors: { joinedOn: expect.any(String) } }
+		});
+		expect(await add({ tenantId: joining, joinedOn: '2025-07-01' })).toEqual({
+			data: { which: 'addParty' }
+		});
+		const update = (form: Record<string, string>) =>
+			run(leaseActions.updateParty, { params: { id }, form });
+		expect(await update({ tenantId, joinedOn: '', leftOn: '2025-06-29' })).toMatchObject({
+			fail: 400,
+			data: { which: 'editParty', errors: { leftOn: expect.any(String) } }
+		});
+		expect(await update({ tenantId, joinedOn: '', leftOn: '2025-06-30' })).toEqual({
+			redirect: `/vertraege/${id}`
+		});
+		expect(await update({ tenantId: 'x', joinedOn: '', leftOn: '' })).toMatchObject({
+			error: 404
+		});
+		const lease = (await getLease(db, 'a', id))!;
+		expect(lease.tenants.map((tenant) => tenant.id)).toEqual([joining]);
+		const dialog = (await run(loadOverview, {
+			params: { id },
+			url: `/vertraege/${id}?mieter=${tenantId}`,
+			parent: { lease }
+		})) as { data: { editingParty: { leftOn: string } } };
+		expect(dialog.data.editingParty.leftOn).toBe('2025-06-30');
 	});
 
 	it('records persons from a date, edits and deletes them, but not the first entry', async () => {

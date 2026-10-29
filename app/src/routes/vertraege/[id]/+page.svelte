@@ -30,6 +30,20 @@
 	const personsForm = $derived(form?.which === 'persons' && form.errors ? form : undefined);
 	const endForm = $derived(form?.which === 'end' && form.errors ? form : undefined);
 	const editPersonsForm = $derived(form?.which === 'editPersons' && form.errors ? form : undefined);
+	const addPartyForm = $derived(form?.which === 'addParty' && form.errors ? form : undefined);
+	const editPartyForm = $derived(form?.which === 'editParty' && form.errors ? form : undefined);
+	const partyValues = $derived(
+		editPartyForm?.values ??
+			(data.editingParty && {
+				joinedOn: data.editingParty.joinedOn ?? '',
+				leftOn: data.editingParty.leftOn ?? ''
+			})
+	);
+	// The parties in the order they joined; those from the start first.
+	const parties = $derived(
+		[...lease.parties].sort((a, b) => (a.joinedOn ?? '').localeCompare(b.joinedOn ?? ''))
+	);
+	const changedParties = $derived(lease.parties.some((party) => party.joinedOn || party.leftOn));
 	// After a refused save the typed values win; otherwise the dialog shows the row as stored.
 	const editValues = $derived(
 		editPersonsForm?.values ??
@@ -45,7 +59,10 @@
 		persons: byNumber((row) => row.persons),
 		note: byText((row) => row.note)
 	});
-	const parties = Object.entries(terminatedByLabels) as [keyof typeof terminatedByLabels, string][];
+	const terminators = Object.entries(terminatedByLabels) as [
+		keyof typeof terminatedByLabels,
+		string
+	][];
 
 	// "Vertrag beenden": the end date follows the receipt date and the party (§ 573c / § 580a
 	// BGB) until it is typed over; changing either input proposes it again. The action checks it.
@@ -130,6 +147,76 @@
 		<dd class="notes">{lease.notes}</dd>
 	{/if}
 </dl>
+
+<h2>Vertragsparteien</h2>
+<div class="table-wrap">
+	<table class="table" aria-label="Vertragsparteien">
+		<thead>
+			<tr>
+				<th>Mieter</th>
+				<th>Eingetreten</th>
+				<th>Ausgetreten</th>
+				<th class="actions"></th>
+			</tr>
+		</thead>
+		<tbody>
+			{#each parties as party (party.tenant.id)}
+				<tr>
+					<td><a href="/mieter/{party.tenant.id}">{personName(party.tenant)}</a></td>
+					<td>{party.joinedOn ? formatDate(party.joinedOn) : 'bei Vertragsbeginn'}</td>
+					<td>{party.leftOn ? formatDate(party.leftOn) : '–'}</td>
+					<td class="actions">
+						<a
+							href="?mieter={party.tenant.id}"
+							data-sveltekit-reset="false"
+							class="button secondary small">Ein-/Austritt</a
+						>
+					</td>
+				</tr>
+			{/each}
+		</tbody>
+	</table>
+</div>
+<p class="muted small">
+	{#if changedParties}
+		Briefe und Abrechnungen gehen an die Mieter, die heute Vertragspartei sind.
+	{/if}
+	Tritt ein Mieter aus dem Vertrag aus oder ein neuer ein (Nachtrag zum Mietvertrag), trag hier das Datum
+	ein; so bleibt erkennbar, wer an einem früheren Tag Vertragspartei war.
+</p>
+{#if data.joinable.length > 0 && !lease.terminatedAt}
+	<form method="POST" action="?/addParty" class="card form" use:enhance>
+		<Field label="Mieter tritt ein" error={addPartyForm?.errors.tenantId}>
+			<select
+				name="tenantId"
+				aria-invalid={addPartyForm?.errors.tenantId ? 'true' : undefined}
+				required
+			>
+				<option value="">Bitte wählen</option>
+				{#each data.joinable as tenant (tenant.id)}
+					<option value={tenant.id} selected={addPartyForm?.values.tenantId === tenant.id}
+						>{personName(tenant)}</option
+					>
+				{/each}
+			</select>
+		</Field>
+		<Field
+			label="Eingetreten am (optional)"
+			error={addPartyForm?.errors.joinedOn}
+			hint="Leer, wenn der Mieter von Anfang an Vertragspartei war."
+		>
+			<input
+				name="joinedOn"
+				type="date"
+				defaultValue={addPartyForm?.values.joinedOn ?? ''}
+				aria-invalid={addPartyForm?.errors.joinedOn ? 'true' : undefined}
+			/>
+		</Field>
+		<div class="form-actions">
+			<button type="submit">Mieter hinzufügen</button>
+		</div>
+	</form>
+{/if}
 
 <h2>Aktuelle Miete</h2>
 <dl class="details" aria-label="Aktuelle Miete">
@@ -254,7 +341,7 @@
 				onchange={proposeEnd}
 				aria-invalid={endForm?.errors.terminatedBy ? 'true' : undefined}
 			>
-				{#each parties as [party, label] (party)}
+				{#each terminators as [party, label] (party)}
 					<option value={party}>{label}</option>
 				{/each}
 			</select>
@@ -330,6 +417,46 @@
 		>
 			<input type="hidden" name="rowId" value={data.editing.id} />
 			{@render personsFields(editValues, editPersonsForm?.errors ?? {})}
+		</EditDialog>
+	{/key}
+{/if}
+
+{#if data.editingParty && partyValues}
+	{#key data.editingParty.tenant.id}
+		<EditDialog
+			title="{personName(data.editingParty.tenant)}: Ein- und Austritt"
+			action="?/updateParty"
+			close="/vertraege/{lease.id}"
+		>
+			<input type="hidden" name="tenantId" value={data.editingParty.tenant.id} />
+			<Field
+				label="Eingetreten am (optional)"
+				error={editPartyForm?.errors.joinedOn}
+				hint="Leer: von Vertragsbeginn an."
+			>
+				<input
+					name="joinedOn"
+					type="date"
+					defaultValue={partyValues.joinedOn}
+					aria-invalid={editPartyForm?.errors.joinedOn ? 'true' : undefined}
+				/>
+			</Field>
+			<Field
+				label="Ausgetreten am (optional)"
+				error={editPartyForm?.errors.leftOn}
+				hint="Der letzte Tag als Vertragspartei; leer: bis Vertragsende."
+			>
+				<input
+					name="leftOn"
+					type="date"
+					defaultValue={partyValues.leftOn}
+					aria-invalid={editPartyForm?.errors.leftOn ? 'true' : undefined}
+				/>
+			</Field>
+			<p class="muted small">
+				Wer versehentlich eingetragen wurde, entfernst du unter „Bearbeiten“; ein Austritt bleibt
+				mit Datum im Vertrag stehen.
+			</p>
 		</EditDialog>
 	{/key}
 {/if}

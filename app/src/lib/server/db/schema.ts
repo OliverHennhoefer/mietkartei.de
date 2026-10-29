@@ -304,7 +304,13 @@ export const leaseTenants = sqliteTable(
 			.references(() => leases.id, { onDelete: 'cascade' }),
 		tenantId: text('tenant_id')
 			.notNull()
-			.references(() => tenants.id, { onDelete: 'restrict' })
+			.references(() => tenants.id, { onDelete: 'restrict' }),
+		/**
+		 * The day a tenant became a party to the lease after its start (a Nachtrag), and the last
+		 * day of one who left it before its end. Null: from the start, and to the end.
+		 */
+		joinedOn: text('joined_on'),
+		leftOn: text('left_on')
 	},
 	(table) => [
 		primaryKey({ columns: [table.leaseId, table.tenantId] }),

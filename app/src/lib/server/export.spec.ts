@@ -122,7 +122,9 @@ describe('exportJson', () => {
 		expect(data.tables.units).toEqual([expect.objectContaining({ id: own.unitId })]);
 		expect(data.tables.tenants).toEqual([expect.objectContaining({ id: own.tenantId })]);
 		expect(data.tables.leases).toEqual([expect.objectContaining({ id: own.leaseId })]);
-		expect(data.tables.lease_tenants).toEqual([{ leaseId: own.leaseId, tenantId: own.tenantId }]);
+		expect(data.tables.lease_tenants).toEqual([
+			{ leaseId: own.leaseId, tenantId: own.tenantId, joinedOn: null, leftOn: null }
+		]);
 		// January to March 2025 at 600 + 150 + 50 € = 800,00 € each, and the one payment of 800,00 €.
 		expect(data.tables.rent_charges.map((row) => [row.period, row.amount])).toEqual([
 			['2025-01', 80000],

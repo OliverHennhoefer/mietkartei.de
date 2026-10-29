@@ -812,7 +812,7 @@ describe('commitImport', () => {
 			ledgerStart: '2026-01-01'
 		});
 		expect(await db.select().from(leaseTenants).where(eq(leaseTenants.leaseId, lease.id))).toEqual([
-			{ leaseId: lease.id, tenantId }
+			{ leaseId: lease.id, tenantId, joinedOn: null, leftOn: null }
 		]);
 		const charges = await db.select().from(rentCharges).where(eq(rentCharges.leaseId, lease.id));
 		expect(charges.filter((charge) => charge.kind === 'adjustment')).toMatchObject([

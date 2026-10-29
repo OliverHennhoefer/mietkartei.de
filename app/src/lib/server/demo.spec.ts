@@ -30,7 +30,7 @@ import { createDemoData, isEmptyAccount } from './demo';
 import { addDays, today } from '../dates';
 import { listDeadlines } from './deadlines';
 import { addressKey } from './geocoding';
-import { termsOverlap } from './leases';
+import { listLeases, termsOverlap } from './leases';
 import { listBalances } from './ledger';
 import { QUOTAS } from './quotas';
 import { contextA, contextB, memoryStorage, seedUnit, testDatabase } from './testing';
@@ -68,9 +68,19 @@ describe('createDemoData', () => {
 		// address they moved to, their deposits paid back. Nowak has given notice, and Krüger's
 		// lease for the same flat starts the day after his ends.
 		const tenantRows = await db.select().from(tenants).where(eq(tenants.accountId, 'a'));
-		expect(tenantRows).toHaveLength(13);
+		expect(tenantRows).toHaveLength(14);
 		const former = tenantRows.filter((row) => row.archivedAt);
-		expect(former).toHaveLength(6);
+		expect(former).toHaveLength(7);
+		// On the Weber lease Jonas Albrecht took Sophie Weber's place by a Nachtrag.
+		const weber = (await listLeases(db, 'a')).find((lease) => lease.unit.name === 'Wohnung 9')!;
+		expect(
+			weber.parties.map((party) => [party.tenant.firstName, !!party.joinedOn, !!party.leftOn])
+		).toEqual([
+			['Jonas', true, false],
+			['Julia', false, false],
+			['Sophie', false, true]
+		]);
+		expect(weber.tenants.map((tenant) => tenant.firstName)).toEqual(['Jonas', 'Julia']);
 		expect(former.every((row) => row.city)).toBe(true);
 		const deposits = await db
 			.select()

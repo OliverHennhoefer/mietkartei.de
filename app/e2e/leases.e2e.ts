@@ -75,7 +75,7 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	await expect(page).toHaveURL(/\/vertraege\/(?!neu)[^/?]+$/);
 	const leaseUrl = page.url();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText(label);
-	await expect(page.getByText(tenantName)).toHaveCount(2);
+	await expect(page.getByText(tenantName)).toHaveCount(3);
 	await expect(page.getByLabel('Aktuelle Miete')).toContainText(/800,00\s€/);
 	await expect(page.getByLabel('Kaution', { exact: true })).toContainText(/1\.800,00\s€/);
 	await expect(page.getByLabel('Saldo')).toContainText('Rückstand');
@@ -362,4 +362,41 @@ test('answers unknown leases and leases of another account with 404', async ({ p
 		maxRedirects: 0
 	});
 	expect(booked.status()).toBe(404);
+});
+
+test('records a co-tenant leaving and another joining the lease', async ({ page }) => {
+	const { leaseId } = await seedLease(page.request, { lease: { startDate: '2024-01-01' } });
+	const s = suffix();
+	await seedRows(page.request, 'tenants', [{ firstName: 'Jonas', lastName: `Neu-${s}` }]);
+
+	await page.goto(`/vertraege/${leaseId}`);
+	const parties = page.getByRole('table', { name: 'Vertragsparteien' });
+	await expect(parties.getByRole('row')).toHaveCount(2);
+	await expect(parties.getByRole('row').nth(1)).toContainText('bei Vertragsbeginn');
+
+	// Jonas joins by a Nachtrag on 1 April 2025.
+	await page.getByLabel('Mieter tritt ein').selectOption({ label: `Jonas Neu-${s}` });
+	await page.getByLabel('Eingetreten am (optional)').fill('2025-04-01');
+	await page.getByRole('button', { name: 'Mieter hinzufügen' }).click();
+	await expect(parties.getByRole('row')).toHaveCount(3);
+	await expect(parties.getByRole('row').nth(2)).toContainText('01.04.2025');
+
+	// The first tenant leaves the day before; leaving a day earlier would leave the flat without a
+	// party for a day.
+	await parties.getByRole('row').nth(1).getByRole('link', { name: 'Ein-/Austritt' }).click();
+	const dialog = page.getByRole('dialog');
+	await dialog.getByLabel('Ausgetreten am (optional)').fill('2025-03-30');
+	await dialog.getByRole('button', { name: 'Speichern' }).click();
+	await expect(dialog.getByText('keinen Mieter')).toBeVisible();
+	await dialog.getByLabel('Ausgetreten am (optional)').fill('2025-03-31');
+	await dialog.getByRole('button', { name: 'Speichern' }).click();
+	await expect(dialog).toHaveCount(0);
+	await expect(parties.getByRole('row').nth(1)).toContainText('31.03.2025');
+	// Today only Jonas is a party.
+	await expect(page.locator('dl.details').first()).toContainText(`Jonas Neu-${s}`);
+	await expect(page.locator('dl.details').first()).not.toContainText('Erika');
+	if (process.env.SCREENSHOT_DIR) {
+		await page.getByRole('heading', { name: 'Vertragsparteien' }).scrollIntoViewIfNeeded();
+		await page.screenshot({ path: `${process.env.SCREENSHOT_DIR}/parteien.png` });
+	}
 });

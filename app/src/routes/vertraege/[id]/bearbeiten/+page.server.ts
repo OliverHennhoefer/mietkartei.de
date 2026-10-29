@@ -14,7 +14,7 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 	const accountId = requireAccount(locals);
 	const { lease } = await parent();
 	// Archived tenants are offered only when they are on the lease already.
-	const onLease = new Set(lease.tenants.map((tenant) => tenant.id));
+	const onLease = new Set(lease.parties.map((party) => party.tenant.id));
 	const tenants = (await listTenants(locals.db, accountId, { archived: true })).filter(
 		(tenant) => !tenant.archivedAt || onLease.has(tenant.id)
 	);
