@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Database } from '#lib/server/db/index.ts';
-import { units } from '#lib/server/db/schema.ts';
+import { tenants, units } from '#lib/server/db/schema.ts';
 import { getLease, listLeasePersons } from '#lib/server/leases.ts';
 import { createPayment, listLedger } from '#lib/server/ledger.ts';
 import {
@@ -279,6 +279,31 @@ describe('vertraege/[id]', () => {
 		expect(await update({ tenantId: 'x', joinedOn: '', leftOn: '' })).toMatchObject({
 			error: 404
 		});
+		// Every refusal names its field.
+		const archived = await seedTenant(db, 'a', { firstName: 'Archiv' });
+		await db.update(tenants).set({ archivedAt: '2025-01-01' }).where(eq(tenants.id, archived));
+		for (const [form, field] of [
+			[{ tenantId: joining, joinedOn: '' }, 'tenantId'],
+			[{ tenantId: 'unbekannt', joinedOn: '' }, 'tenantId'],
+			[{ tenantId: archived, joinedOn: '' }, 'tenantId'],
+			[{ tenantId: '', joinedOn: '' }, 'tenantId'],
+			[{ tenantId: archived, joinedOn: 'kein Datum' }, 'joinedOn']
+		] as const) {
+			expect(await add(form), JSON.stringify(form)).toMatchObject({
+				fail: 400,
+				data: { which: 'addParty', errors: { [field]: expect.any(String) } }
+			});
+		}
+		for (const [form, field] of [
+			[{ tenantId: joining, joinedOn: '2025-07-01', leftOn: '2024-01-01' }, 'leftOn'],
+			[{ tenantId: joining, joinedOn: '2025-08-01', leftOn: '2025-07-15' }, 'leftOn'],
+			[{ tenantId: joining, joinedOn: '2024-06-01', leftOn: '' }, 'joinedOn']
+		] as const) {
+			expect(await update(form), JSON.stringify(form)).toMatchObject({
+				fail: 400,
+				data: { which: 'editParty', errors: { [field]: expect.any(String) } }
+			});
+		}
 		const lease = (await getLease(db, 'a', id))!;
 		expect(lease.tenants.map((tenant) => tenant.id)).toEqual([joining]);
 		const dialog = (await run(loadOverview, {
