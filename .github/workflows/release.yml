@@ -1,12 +1,15 @@
 name: Release
 
-# A published release gets the source archive, its checksum and a SLSA provenance that ties the
-# archive to this repository, the tag and this workflow. Self-hosters can check a download with
-# `sha256sum -c SHA256SUMS` and `slsa-verifier verify-artifact`. The Docker image is attested in
-# app.yml when it is pushed.
+# A published release gets the source archive, its checksum and a signed build provenance that ties
+# the archive to this repository, the tag and this workflow. Self-hosters can check a download with
+# `sha256sum -c SHA256SUMS` and `gh attestation verify <archive> --owner OliverHennhoefer`. The
+# Docker image is attested in app.yml when it is pushed. Started by hand on a release tag ("Use
+# workflow from" the tag), it attaches the files to that release again, e.g. after a failed run.
+# The run must start from the tag itself, since the provenance names the ref and commit it ran on.
 "on":
   release:
     types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -17,9 +20,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
+      attestations: write
       contents: write
-    outputs:
-      hashes: ${{ steps.archive.outputs.hashes }}
+      id-token: write
+    if: github.ref_type == 'tag'
+    env:
+      TAG: ${{ github.ref_name }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -28,30 +34,25 @@ jobs:
 
       - name: Build archive and checksum
         id: archive
-        env:
-          TAG: ${{ github.event.release.tag_name }}
         run: |
           name="mietkartei-${TAG#v}"
           git archive --format=tar.gz --prefix="$name/" -o "$name.tar.gz" HEAD
           sha256sum "$name.tar.gz" > SHA256SUMS
-          echo "hashes=$(base64 -w0 SHA256SUMS)" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
 
+      - name: Attest build provenance
+        id: attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ steps.archive.outputs.name }}.tar.gz
+
+      # The signed bundle on the release lets the archive be checked offline and counts for the
+      # OpenSSF Scorecard's Signed-Releases check.
       - name: Attach to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$TAG" mietkartei-*.tar.gz SHA256SUMS --clobber --repo "$GITHUB_REPOSITORY"
-
-  # The generator must be referenced by tag, not by commit: it verifies its own ref when it signs.
-  provenance:
-    name: SLSA provenance
-    needs: [archive]
-    permissions:
-      actions: read
-      contents: write
-      id-token: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
-    with:
-      base64-subjects: ${{ needs.archive.outputs.hashes }}
-      provenance-name: mietkartei.intoto.jsonl
-      upload-assets: true
+          NAME: ${{ steps.archive.outputs.name }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          cp "$BUNDLE" "$NAME.tar.gz.sigstore.json"
+          gh release upload "$TAG" "$NAME.tar.gz" "$NAME.tar.gz.sigstore.json" SHA256SUMS --clobber --repo "$GITHUB_REPOSITORY"
