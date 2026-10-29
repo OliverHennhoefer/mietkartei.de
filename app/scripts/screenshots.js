@@ -206,7 +206,7 @@ try {
 		'bankumsaetze',
 		'/bank',
 		['[data-slide]'],
-		mark('li.transaction', 'Anna Schmidt')
+		mark('li.transaction', 'Armin Schmidt')
 	);
 
 	// The guides: the bank page while its suggestions are still open, then the setup pages.
@@ -231,7 +231,7 @@ try {
 	await page.waitForURL(/\/betriebskosten\/abrechnungen\//);
 	// One tenant's share, with the allocation key worked out per cost category, at the top below
 	// the sticky header.
-	const share = page.locator('section.lease').filter({ hasText: 'Anna Schmidt' });
+	const share = page.locator('section.lease').filter({ hasText: 'Armin Schmidt' });
 	await share.evaluate((section) => {
 		const header = document.querySelector('.site-header')?.getBoundingClientRect().height ?? 0;
 		window.scrollTo(0, section.getBoundingClientRect().top + window.scrollY - header - 24);
@@ -242,7 +242,7 @@ try {
 		'abrechnung-mieter',
 		page.url(),
 		['[data-slide] h3', '[data-slide] table tbody tr:nth-child(5)'],
-		mark('section.lease', 'Anna Schmidt')
+		mark('section.lease', 'Armin Schmidt')
 	);
 	await page.evaluate(() => window.scrollTo(0, 0));
 	await shoot('abrechnung-entwurf', undefined, docsOutput);
