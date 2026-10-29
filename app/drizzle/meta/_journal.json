@@ -372,6 +372,13 @@
       "when": 1793256148618,
       "tag": "0052_service_providers",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "6",
+      "when": 1793307619157,
+      "tag": "0053_foreign_key_indexes",
+      "breakpoints": true
     }
   ]
 }
