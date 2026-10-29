@@ -345,7 +345,7 @@ export async function createDemoData(
 			// 640.000 € plus Grunderwerbsteuer, Notar, Grundbuch and Makler.
 			acquisitionCost: 736_000_00,
 			// The principal of the loans booked below.
-			loanAmount: 520_000_00,
+			loanAmount: 400_000_00,
 			buildingShare: 70,
 			// Built 1906: 2.5 % (§ 7 Abs. 4 Nr. 2 b EStG).
 			depreciationRate: 2.5,
@@ -367,7 +367,7 @@ export async function createDemoData(
 			state: 'BB' as const,
 			acquisitionDate: acquisition[parkId],
 			acquisitionCost: 274_400_00,
-			loanAmount: 200_000_00,
+			loanAmount: 150_000_00,
 			buildingShare: 80,
 			depreciationRate: 2,
 			notes: 'WEG mit 14 Einheiten, Baujahr 1996, Aufzug, Zentralheizung.',
@@ -388,7 +388,7 @@ export async function createDemoData(
 			state: 'BY' as const,
 			acquisitionDate: acquisition[rosenheimId],
 			acquisitionCost: 471_300_00,
-			loanAmount: 380_000_00,
+			loanAmount: 300_000_00,
 			buildingShare: 45,
 			depreciationRate: 2,
 			notes: 'WEG mit 21 Einheiten, Baujahr 1972, Gasetagenheizung je Wohnung.',
@@ -1934,15 +1934,15 @@ export async function createDemoData(
 	const loans: [string, Loan, string | null][] = [
 		[
 			lindenId,
-			{ principal: 520_000_00, ratePercent: 1.65, payment: 1_798_33, lender: 'Berliner Sparkasse' },
+			{ principal: 400_000_00, ratePercent: 1.65, payment: 1_383_33, lender: 'Berliner Sparkasse' },
 			null
 		],
 		[
 			parkId,
 			{
-				principal: 200_000_00,
+				principal: 150_000_00,
 				ratePercent: 1.35,
-				payment: 725_00,
+				payment: 543_75,
 				lender: 'Mittelbrandenburgische Sparkasse'
 			},
 			'DE08160500003502219846'
@@ -1950,9 +1950,9 @@ export async function createDemoData(
 		[
 			rosenheimId,
 			{
-				principal: 380_000_00,
+				principal: 300_000_00,
 				ratePercent: 1.05,
-				payment: 965_83,
+				payment: 762_50,
 				lender: 'Stadtsparkasse München'
 			},
 			'DE75701500001002783946'
