@@ -19,6 +19,7 @@ GitHub uses the issue and pull request templates from the default branch `main`.
 | `workflows/scorecard.yml` | Rates the repository's security practices with OpenSSF Scorecard |
 | `workflows/release.yml` | Attaches the source archive, checksum and SLSA provenance to a published release |
 | `workflows/municipalities.yml` | Monthly update of the bundled Gemeinde table from Destatis |
+| `workflows/registry-cleanup.yml` | Weekly deletion of stale image versions in GHCR |
 | `HOMEPAGE.md` | Preview, build and deployment of the homepage |
 | `DOCUMENTATION.md` | Preview, build and deployment of the documentation |
 | `DEPLOYMENT.md` | Cloudflare access, domains and hosting migration |

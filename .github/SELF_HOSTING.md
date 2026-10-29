@@ -9,7 +9,7 @@ The app has a basic email and password login, but no password reset or protectio
 | Part | Where | Credentials |
 | --- | --- | --- |
 | Image build | GitHub Actions, job **Publish image** in [app.yml](workflows/app.yml), after every push to `main` with passing checks | Built-in `GITHUB_TOKEN`, nothing to set up |
-| Image | `ghcr.io/oliverhennhoefer/mietkartei`: `latest` and `sha-<first 7 characters of the commit>` from `main`; `1.2.3` and `1.2` from a published release `v1.2.3` | Public package: none |
+| Image | `ghcr.io/oliverhennhoefer/mietkartei`: `latest` and `sha-<first 7 characters of the commit>` from `main`; `1.2.3` and `1.2` from a published release `v1.2.3`. [registry-cleanup.yml](workflows/registry-cleanup.yml) keeps only the ten newest `sha-*` tags | Public package: none |
 | Deployment | Started by hand from a laptop with SSH access to the server | The laptop's existing SSH key; it never leaves the laptop |
 | Data | Docker volume `mietkartei-data` on the server | – |
 
