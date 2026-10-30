@@ -1,7 +1,9 @@
 import { sql, type Table } from 'drizzle-orm';
 import { monthOf, monthsInRange, today, type IsoDate } from '../dates';
+import { defaultMeterUnit } from '../domain/operating-costs';
 import {
 	referenceCases,
+	referenceKey,
 	type ReferenceCase,
 	type ReferenceCategory
 } from '../domain/reference-cases';
@@ -10,6 +12,7 @@ import type { AuditContext } from './audit';
 import type { Database } from './db';
 import { chunk, rowsPerStatement, runBatch } from './db/batch';
 import {
+	allocationKeys,
 	auditLog,
 	costItems,
 	meterReadings,
@@ -36,18 +39,13 @@ export function referenceCase(slug: string | null): ReferenceCase | undefined {
 /** The categories of the account the case's categories stand for. */
 const categoryNames: Record<ReferenceCategory, string> = {
 	grundsteuer: 'Grundsteuer',
+	wasser: 'Wasserversorgung',
+	abwasser: 'Entwässerung',
 	muell: 'Straßenreinigung und Müllbeseitigung',
 	hausmeister: 'Hauswart',
 	versicherung: 'Sach- und Haftpflichtversicherung',
 	heizung: 'Heizung'
 };
-
-/** The seeded key of the case's key. */
-function keyName(item: ReferenceCase['items'][number]): string {
-	if (item.key === 'mixed')
-		return `Heizung ${item.consumptionPercent}/${100 - item.consumptionPercent!}`;
-	return { area: 'Wohnfläche', persons: 'Personen', units: 'Einheiten' }[item.key as string]!;
-}
 
 /**
  * Writes the case into the empty account and returns the id of its statement draft, or null when
@@ -67,7 +65,18 @@ export async function createReferenceData(
 	const categories = await listCategories(db, accountId);
 	const keys = await listKeys(db, accountId);
 	const categoryId = (name: string) => categories.find((row) => row.name === name)!.id;
-	const keyId = (name: string) => keys.find((row) => row.name === name)!.id;
+	// A key the account does not start with, the Kaltwasser key, is added for the case.
+	const keyRows = [...new Map(c.items.map((item) => [referenceKey(item).name, item])).values()]
+		.filter((item) => !keys.some((row) => row.name === referenceKey(item).name))
+		.map((item) => ({
+			id: crypto.randomUUID(),
+			accountId,
+			name: referenceKey(item).name,
+			kind: item.key,
+			meterKind: referenceKey(item).meterKind,
+			consumptionPercent: item.consumptionPercent ?? null
+		}));
+	const keyId = (name: string) => [...keys, ...keyRows].find((row) => row.name === name)!.id;
 
 	const propertyId = crypto.randomUUID();
 	const unitIds = new Map(c.units.map((unit) => [unit.id, crypto.randomUUID()]));
@@ -156,7 +165,7 @@ export async function createReferenceData(
 		accountId,
 		propertyId,
 		categoryId: categoryId(categoryNames[item.category]),
-		allocationKeyId: keyId(keyName(item)),
+		allocationKeyId: keyId(referenceKey(item).name),
 		description: item.description,
 		periodStart: item.periodStart,
 		periodEnd: item.periodEnd,
@@ -167,15 +176,15 @@ export async function createReferenceData(
 		co2Kg: item.co2?.co2Kg ?? null,
 		co2Cost: item.co2?.co2Cost ?? null
 	}));
-	const meterRows = (c.heatMeters ?? []).map((meter) => ({
+	const meterRows = (c.meters ?? []).map((meter) => ({
 		id: crypto.randomUUID(),
 		accountId,
 		propertyId,
 		unitId: unitIds.get(meter.unitId)!,
-		kind: 'heat' as const,
-		unit: 'kWh'
+		kind: meter.kind,
+		unit: defaultMeterUnit(meter.kind)
 	}));
-	const readingRows = (c.heatMeters ?? []).flatMap((meter, index) =>
+	const readingRows = (c.meters ?? []).flatMap((meter, index) =>
 		[
 			[period.start, meter.start],
 			[period.end, meter.end]
@@ -199,6 +208,7 @@ export async function createReferenceData(
 			notes: `Rechenbeispiel „${c.title}“ von mietkartei.de/rechenbeispiele/${c.slug}/`
 		}),
 		...insert(units, unitRows),
+		...insert(allocationKeys, keyRows),
 		...insert(tenants, tenantRows),
 		...newLeaseStatements(db, context, leaseEntries),
 		...insert(payments, paymentRows),
