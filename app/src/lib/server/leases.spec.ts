@@ -83,6 +83,18 @@ describe('createLease', () => {
 			active: true
 		});
 		expect(leaseLabel(lease!)).toBe('EG links · Haus');
+		// A property named after its unit does not name the unit twice.
+		expect(
+			leaseLabel({ unit: { name: 'Wohnung 14' }, property: { name: 'Parkallee 8, Wohnung 14' } })
+		).toBe('Wohnung 14 · Parkallee 8');
+		expect(leaseLabel({ unit: { name: 'Haus' }, property: { name: 'Haus' } })).toBe('Haus');
+		// Only a whole part of the name counts, not a unit name that happens to be inside a word.
+		expect(leaseLabel({ unit: { name: '1' }, property: { name: 'Parkallee 12' } })).toBe(
+			'1 · Parkallee 12'
+		);
+		expect(leaseLabel({ unit: { name: 'Haus' }, property: { name: 'Hausstraße 8' } })).toBe(
+			'Haus · Hausstraße 8'
+		);
 		expect(lease!.tenants.map((tenant) => tenant.id)).toEqual([tenantId]);
 		// The main unit is never also an extra unit, and duplicates are dropped.
 		expect(lease!.extraUnits.map((unit) => unit.id)).toEqual([parkingId]);
