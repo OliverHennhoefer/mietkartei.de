@@ -481,6 +481,39 @@ describe('findInvitation and acceptInvitation', () => {
 		expect(await db.select().from(users).where(eq(users.email, 'neu@example.org'))).toHaveLength(0);
 	});
 
+	it('refuses an address registered while the password is hashed', async () => {
+		const { token } = await invite();
+		hashing.during = () =>
+			db.insert(users).values({
+				accountId: 'b',
+				email: 'neu@example.org',
+				passwordHash: 'x',
+				role: 'manager'
+			});
+		const accepted = await acceptInvitation(
+			db,
+			token,
+			{ name: 'Neu', password: 'passwort-von-neu' },
+			now
+		).finally(() => (hashing.during = undefined));
+		expect(accepted).toEqual({ ok: false, reason: 'email-taken' });
+	});
+
+	it('passes on a failure that the invitation does not explain', async () => {
+		const { token } = await invite();
+		const failing = new Proxy(db, {
+			get(target, key, receiver) {
+				if (key !== 'transaction') return Reflect.get(target, key, receiver);
+				return () => {
+					throw new Error('disk full');
+				};
+			}
+		});
+		await expect(
+			acceptInvitation(failing, token, { name: 'Neu', password: 'passwort-von-neu' }, now)
+		).rejects.toThrow('disk full');
+	});
+
 	it('accepts one of two simultaneous acceptances and refuses the other', async () => {
 		const { token } = await invite();
 		const results = await Promise.all([

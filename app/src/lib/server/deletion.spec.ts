@@ -237,6 +237,21 @@ describe('leases', () => {
 		expect(await db.select().from(leases).where(eq(leases.id, leaseId))).toHaveLength(1);
 	});
 
+	it('passes on a failure of the delete that no history explains', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const leaseId = await seedLease(db, 'a', unitId);
+		const failing = new Proxy(db, {
+			get(target, key, receiver) {
+				if (key !== 'transaction') return Reflect.get(target, key, receiver);
+				return () => {
+					throw new Error('disk full');
+				};
+			}
+		});
+		await expect(deleteLease(failing, contextA, leaseId)).rejects.toThrow('disk full');
+		expect(await db.select().from(leases).where(eq(leases.id, leaseId))).toHaveLength(1);
+	});
+
 	it('does not see or delete records of another account', async () => {
 		const { unitId } = await seedUnit(db, 'b');
 		const leaseId = await seedLease(db, 'b', unitId);
