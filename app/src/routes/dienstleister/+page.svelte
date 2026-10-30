@@ -38,10 +38,7 @@
 	}
 </script>
 
-<PageHeader
-	title="Dienstleister"
-	lead="Wen du beauftragst, vom Handwerker bis zum Hausmeisterdienst, mit Leistung und Kontakt. Aufgaben und Ausgaben können den Dienstleister nennen; ohne Angabe gilt er als unbekannt."
->
+<PageHeader title="Dienstleister">
 	{#snippet actions()}
 		<CreateButton href="#dienstleister-anlegen" label="Dienstleister anlegen" />
 	{/snippet}

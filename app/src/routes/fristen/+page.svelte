@@ -22,10 +22,7 @@
 	const soon = (date: string) => daysBetween(data.today, date) <= 14;
 </script>
 
-<PageHeader
-	title="Fristen"
-	lead="Was aus Verträgen, Versicherungen und Abrechnungen in den nächsten zwölf Monaten fällig wird."
-/>
+<PageHeader title="Fristen" />
 
 {#if data.deadlines.length === 0}
 	<p class="muted">In den nächsten zwölf Monaten steht keine Frist an.</p>

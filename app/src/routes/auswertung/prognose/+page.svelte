@@ -56,10 +56,7 @@
 	});
 </script>
 
-<PageHeader
-	title="Prognose"
-	lead="Was die nächsten zwölf Monate bringen, wo die Miete steigen kann und wie die nächste Nebenkostenabrechnung ausfallen dürfte."
-/>
+<PageHeader title="Prognose" />
 
 <Sections />
 

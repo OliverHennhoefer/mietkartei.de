@@ -46,10 +46,7 @@
 	};
 </script>
 
-<PageHeader
-	title="Datenübernahme"
-	lead="Übernimm Objekte, Mieter, Mietverträge und Zahlungen aus einer CSV-Datei deiner bisherigen Software."
-/>
+<PageHeader title="Datenübernahme" />
 
 {#if summary}
 	<Alert tone="success">

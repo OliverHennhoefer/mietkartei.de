@@ -21,7 +21,7 @@
 	});
 </script>
 
-<PageHeader title="Mietverträge" lead="Laufende Verträge zuerst, danach die beendeten.">
+<PageHeader title="Mietverträge">
 	{#snippet actions()}
 		<CreateButton href="/vertraege/neu" label="Mietvertrag anlegen" />
 	{/snippet}

@@ -24,7 +24,7 @@
 	);
 </script>
 
-<PageHeader title="Objekte" lead="Gebäude, Einheiten und Vermietung im Überblick.">
+<PageHeader title="Objekte">
 	{#snippet actions()}
 		<CreateButton href="/objekte/neu" label="Objekt anlegen" />
 	{/snippet}

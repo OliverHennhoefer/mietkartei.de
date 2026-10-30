@@ -35,10 +35,7 @@
 	);
 </script>
 
-<PageHeader
-	title="Nebenkosten-Vergleich"
-	lead="Deine umlagefähigen Betriebskosten je m² neben dem Durchschnitt aus dem Betriebskostenspiegel des Mieterbunds."
-/>
+<PageHeader title="Nebenkosten-Vergleich" />
 
 <Sections />
 
