@@ -7,11 +7,7 @@
 	let { data, form }: PageProps = $props();
 </script>
 
-<PageHeader
-	title="Mietvertrag anlegen"
-	lead="Einheit, Mieter, Laufzeit und die Miete bei Vertragsbeginn."
-	back={{ href: '/vertraege', label: 'Alle Mietverträge' }}
-/>
+<PageHeader title="Mietvertrag anlegen" back={{ href: '/vertraege', label: 'Alle Mietverträge' }} />
 
 {#if data.units.length === 0}
 	<EmptyState

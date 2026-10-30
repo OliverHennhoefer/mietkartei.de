@@ -15,7 +15,7 @@
 	let mapFor = $state<string>();
 	// The stock in one line: the current properties, their units, the running leases and vacancy.
 	const lead = $derived.by(() => {
-		if (data.properties.length === 0) return 'Gebäude, Einheiten und Vermietung im Überblick.';
+		if (data.properties.length === 0) return undefined;
 		const sum = (key: 'unitCount' | 'activeLeases' | 'vacantUnits') =>
 			data.properties.reduce((total, property) => total + property[key], 0);
 		return `${pluralize(data.properties.length, 'Objekt', 'Objekte')} mit ${pluralize(sum('unitCount'), 'Einheit', 'Einheiten')}, ${pluralize(sum('activeLeases'), 'laufender Mietvertrag', 'laufende Mietverträge')}, ${sum('vacantUnits')} leer.`;

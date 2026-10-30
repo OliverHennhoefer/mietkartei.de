@@ -9,7 +9,7 @@
 	let { data }: PageProps = $props();
 </script>
 
-<PageHeader title="Mietverträge" lead="Laufende Verträge zuerst, danach die beendeten.">
+<PageHeader title="Mietverträge">
 	{#snippet actions()}
 		<a href="/vertraege/neu" class="button">Mietvertrag anlegen</a>
 	{/snippet}

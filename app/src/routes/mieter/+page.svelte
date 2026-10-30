@@ -52,7 +52,7 @@
 	}
 </script>
 
-<PageHeader title="Mieter" lead="Alle Personen und Firmen, die bei dir mieten oder gemietet haben.">
+<PageHeader title="Mieter">
 	{#snippet actions()}
 		<a href="/mieter/neu" class="button">Mieter anlegen</a>
 	{/snippet}

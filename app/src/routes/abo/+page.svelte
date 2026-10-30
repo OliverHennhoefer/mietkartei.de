@@ -19,7 +19,7 @@
 	} as const;
 </script>
 
-<PageHeader title="Abo" lead="Testphase, Abo und Zahlung über Stripe." />
+<PageHeader title="Abo" />
 
 {#if !data.owner}
 	<p class="muted">Das Abo verwaltet der Vermieter des Kontos.</p>

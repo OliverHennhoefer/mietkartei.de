@@ -18,7 +18,7 @@
 	];
 </script>
 
-<PageHeader title="Bank" lead="Umsätze importieren und Mietverträgen oder Ausgaben zuordnen." />
+<PageHeader title="Bank" />
 
 <Tabs {tabs} />
 

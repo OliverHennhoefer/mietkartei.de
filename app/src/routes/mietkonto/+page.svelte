@@ -21,10 +21,7 @@
 	const dayMonth = (date: string) => formatDate(date).slice(0, 6);
 </script>
 
-<PageHeader
-	title="Mietkonto"
-	lead="Alle Mietverträge mit ihrem Saldo. Rückstände stehen oben, mit dem letzten Schreiben dazu."
-/>
+<PageHeader title="Mietkonto" />
 
 {#if data.leaseCount === 0}
 	<EmptyState

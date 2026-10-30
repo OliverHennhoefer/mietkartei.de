@@ -27,10 +27,7 @@
 	);
 </script>
 
-<PageHeader
-	title="Objekte im Vergleich"
-	lead="Einnahmen, Ausgaben, Kaltmiete und Leerstand je Objekt und Einheit."
-/>
+<PageHeader title="Objekte im Vergleich" />
 
 <Sections />
 

@@ -7,11 +7,7 @@
 	let { form }: PageProps = $props();
 </script>
 
-<PageHeader
-	title="Objekt anlegen"
-	lead="Ein Gebäude oder Grundstück; die Einheiten legst du danach an."
-	back={{ href: '/objekte', label: 'Alle Objekte' }}
-/>
+<PageHeader title="Objekt anlegen" back={{ href: '/objekte', label: 'Alle Objekte' }} />
 
 <form method="POST" action="?/create" class="card" use:enhance>
 	<PortfolioPropertyFields values={form?.values} errors={form?.errors} />

@@ -110,7 +110,7 @@
 	}
 </script>
 
-<PageHeader title="Export" lead="Alle Daten deines Kontos als eine Datei." />
+<PageHeader title="Export" />
 
 <section class="card export">
 	<p>

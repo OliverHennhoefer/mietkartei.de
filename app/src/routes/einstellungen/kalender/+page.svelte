@@ -11,10 +11,7 @@
 	const link = $derived(form && 'link' in form ? form.link : undefined);
 </script>
 
-<PageHeader
-	title="Kalender"
-	lead="Fristen und fällige Aufgaben im eigenen Kalender, etwa in Outlook, Apple Kalender oder Google Kalender."
-/>
+<PageHeader title="Kalender" />
 
 <Alert tone="info">
 	<p>

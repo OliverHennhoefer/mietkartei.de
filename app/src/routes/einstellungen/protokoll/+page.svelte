@@ -10,10 +10,7 @@
 	const actionLabel = (action: string) => auditActionLabels[action] ?? action;
 </script>
 
-<PageHeader
-	title="Protokoll"
-	lead="Wer wann was geändert hat, die neuesten {data.limit} Einträge."
-/>
+<PageHeader title="Protokoll" />
 
 <form method="GET" class="toolbar">
 	<label class="inline">

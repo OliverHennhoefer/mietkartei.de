@@ -46,10 +46,7 @@
 	const amount = (cents: number | null) => (cents === null ? '' : formatCentsPlain(cents));
 </script>
 
-<PageHeader
-	title="Rendite und Cashflow"
-	lead="Was dein Bestand im Verhältnis zum Kaufpreis und zu deinem Eigenkapital abwirft."
-/>
+<PageHeader title="Rendite und Cashflow" />
 
 <Sections />
 

@@ -34,10 +34,7 @@
 	});
 </script>
 
-<PageHeader
-	title="Verbraucherpreisindex"
-	lead="Die Indexwerte, nach denen Indexmieten angepasst werden."
-/>
+<PageHeader title="Verbraucherpreisindex" />
 
 <Alert tone="info">
 	<p>

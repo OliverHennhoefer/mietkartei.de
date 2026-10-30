@@ -43,10 +43,7 @@
 	);
 </script>
 
-<PageHeader
-	title="Mieteinnahmen"
-	lead="Was du verlangt hast und was angekommen ist, über die Jahre."
-/>
+<PageHeader title="Mieteinnahmen" />
 
 <Sections />
 

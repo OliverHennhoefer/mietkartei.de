@@ -43,10 +43,7 @@
 	}
 </script>
 
-<PageHeader
-	title="Ausgaben"
-	lead="Was du für deinen Bestand bezahlt hast, je Jahr. Die Auswertung rechnet damit."
-/>
+<PageHeader title="Ausgaben" />
 
 <Sections />
 
