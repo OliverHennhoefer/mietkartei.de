@@ -242,6 +242,17 @@ describe('import', () => {
 		expect(await db.select().from(bankTransactions)).toHaveLength(3);
 	});
 
+	it('answers a double commit without rule hits with duplicates', async () => {
+		slowAnalysis.on = true;
+		const results = await Promise.all([importSparkasse(), importSparkasse()]).finally(
+			() => (slowAnalysis.on = false)
+		);
+		const [winner, loser] = results.sort((a, b) => (b?.imported ?? 0) - (a?.imported ?? 0));
+		expect(winner).toMatchObject({ imported: 3, duplicates: 0 });
+		expect(loser).toMatchObject({ imported: 0, duplicates: 3 });
+		expect(await db.select().from(bankTransactions)).toHaveLength(3);
+	});
+
 	it('books many rule hits with one audit line each', async () => {
 		await createRule(db, contextA, {
 			leaseId,

@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, ne, type SQL } from 'drizzle-orm';
+import { and, asc, count, eq, exists, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
 import { formatDate } from '../dates';
 import { personName, pluralize } from '../format';
 import type { SQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core';
@@ -599,6 +599,43 @@ export async function leaseDeletion(
 }
 
 /**
+ * A batch statement that fails the whole batch when the lease has history (the blockers of
+ * leaseDeletion): then it copies the lease onto its own primary key, which the key refuses. The
+ * check before the batch is only a read, and the history would go with the lease by cascade, so a
+ * payment booked in between (a bank import, another tab) would be lost without it. It goes first
+ * in the batch.
+ */
+function historyGuard(db: Database, accountId: string, leaseId: string) {
+	const any = (table: SQLiteTable, where: SQL | undefined) =>
+		exists(
+			db
+				.select({ one: sql`1` })
+				.from(table)
+				.where(where)
+		);
+	const ofLease = <T extends { accountId: SQLiteColumn; leaseId: SQLiteColumn }>(table: T) =>
+		and(eq(table.accountId, accountId), eq(table.leaseId, leaseId));
+	return db.insert(leases).select(
+		db
+			.select()
+			.from(leases)
+			.where(
+				and(
+					eq(leases.accountId, accountId),
+					eq(leases.id, leaseId),
+					or(
+						any(payments, ofLease(payments)),
+						any(depositTransactions, ofLease(depositTransactions)),
+						any(rentCharges, and(ofLease(rentCharges), ne(rentCharges.kind, 'rent'))),
+						any(statementResults, ofLease(statementResults)),
+						any(paymentReminders, ofLease(paymentReminders))
+					)
+				)
+			)
+	);
+}
+
+/**
  * Deletes the lease with its rent and persons history, generated rent charges and matching rules
  * (database cascade), and the documents left without any link. A lease with history (payments,
  * deposit movements, postings, statements, reminders) is ended instead; see leaseDeletion.
@@ -614,17 +651,23 @@ export async function deleteLease(
 	if (!existing) return 'missing';
 	if ((await leaseDeletion(db, accountId, leaseId)).blockers.length > 0) return 'in-use';
 	const orphaned = await orphanedDocuments(db, accountId, { leaseIds: [leaseId] });
-	await runBatch(db, [
-		db.delete(leases).where(and(eq(leases.accountId, accountId), eq(leases.id, leaseId))),
-		auditEntry(
-			db,
-			context,
-			'lease',
-			leaseId,
-			'delete',
-			`Mietvertrag ${existing.unitName} · ${existing.propertyName} gelöscht`
-		)
-	]);
+	try {
+		await runBatch(db, [
+			historyGuard(db, accountId, leaseId),
+			db.delete(leases).where(and(eq(leases.accountId, accountId), eq(leases.id, leaseId))),
+			auditEntry(
+				db,
+				context,
+				'lease',
+				leaseId,
+				'delete',
+				`Mietvertrag ${existing.unitName} · ${existing.propertyName} gelöscht`
+			)
+		]);
+	} catch (cause) {
+		if ((await leaseDeletion(db, accountId, leaseId)).blockers.length > 0) return 'in-use';
+		throw cause;
+	}
 	await deleteDocuments(db, context, orphaned, options?.storage);
 	return 'deleted';
 }

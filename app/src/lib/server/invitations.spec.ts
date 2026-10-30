@@ -34,6 +34,20 @@ import {
 import { QUOTAS } from './quotas';
 import { contextA, contextB, testDatabase } from './testing';
 
+// Runs `during` while acceptInvitation hashes the password, so a test can change the invitation
+// between the checks and the batch.
+const hashing = vi.hoisted(() => ({ during: undefined as (() => Promise<unknown>) | undefined }));
+vi.mock('./auth', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('./auth')>();
+	return {
+		...actual,
+		hashPassword: async (password: string) => {
+			await hashing.during?.();
+			return actual.hashPassword(password);
+		}
+	};
+});
+
 const now = Date.parse('2026-03-01T10:00:00Z');
 const later = now + INVITATION_LIFETIME;
 
@@ -451,6 +465,30 @@ describe('findInvitation and acceptInvitation', () => {
 		expect(
 			await acceptInvitation(db, token, { name: 'Noch', password: 'passwort-von-noch' }, now)
 		).toEqual({ ok: false, reason: 'accepted' });
+		expect(await db.select().from(users).where(eq(users.email, 'neu@example.org'))).toHaveLength(1);
+	});
+
+	it('creates no user when the invitation is revoked while the password is hashed', async () => {
+		const { id, token } = await invite();
+		hashing.during = () => revokeInvitation(db, contextA, id, now);
+		const accepted = await acceptInvitation(
+			db,
+			token,
+			{ name: 'Neu', password: 'passwort-von-neu' },
+			now
+		).finally(() => (hashing.during = undefined));
+		expect(accepted).toEqual({ ok: false, reason: 'invalid' });
+		expect(await db.select().from(users).where(eq(users.email, 'neu@example.org'))).toHaveLength(0);
+	});
+
+	it('accepts one of two simultaneous acceptances and refuses the other', async () => {
+		const { token } = await invite();
+		const results = await Promise.all([
+			acceptInvitation(db, token, { name: 'Eins', password: 'passwort-von-eins' }, now),
+			acceptInvitation(db, token, { name: 'Zwei', password: 'passwort-von-zwei' }, now)
+		]);
+		expect(results.filter((result) => result.ok)).toHaveLength(1);
+		expect(results.filter((result) => !result.ok)).toEqual([{ ok: false, reason: 'accepted' }]);
 		expect(await db.select().from(users).where(eq(users.email, 'neu@example.org'))).toHaveLength(1);
 	});
 });

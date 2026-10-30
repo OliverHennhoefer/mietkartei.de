@@ -165,14 +165,13 @@ export async function previewImport(
 export type ImportResult = ImportCounts & { importId: string; imported: number; assigned: number };
 
 /**
- * Writes the import, its new transactions (onConflictDoNothing on the fingerprint, so a file
- * imported twice at once still adds nothing twice), the payments of the rule hits and the audit
- * entries in one batch, bulk inserts split per 100 parameters. Undefined when the bank account is
- * not in the account.
+ * Writes the import, its new transactions, the payments of the rule hits and the audit entries
+ * in one batch, bulk inserts split per 100 parameters. Undefined when the bank account is not in
+ * the account.
  *
- * When the same file is committed twice at once, both requests see the rows as new; the second
- * batch skips the transactions but its payments point at ids that were never stored, so the batch
- * fails. Then the import runs once more and reports the rows as duplicates.
+ * When the same file is committed twice at once, both requests see the rows as new; the unique
+ * fingerprint refuses the second batch, which then runs once more and reports the rows as
+ * duplicates.
  */
 export async function commitImport(
 	db: Database,
@@ -262,7 +261,7 @@ async function commitOnce(
 				importedBy: context.userId
 			}),
 			...chunk(transactionRows, rowsPerStatement(bankTransactions)).map((rows) =>
-				db.insert(bankTransactions).values(rows).onConflictDoNothing()
+				db.insert(bankTransactions).values(rows)
 			),
 			...chunk(paymentRows, rowsPerStatement(payments)).map((rows) =>
 				db.insert(payments).values(rows)

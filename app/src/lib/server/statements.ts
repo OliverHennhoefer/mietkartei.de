@@ -482,9 +482,22 @@ export async function listStatements(db: Database, accountId: string): Promise<S
 			.filter((row) => row.statement.status === 'approved' && row.statement.correctsId)
 			.map((row) => row.statement.correctsId!)
 	);
+	// A draft is computed from the current inputs, as its page shows it; only an approved statement
+	// has a stored result.
+	const drafts = new Map(
+		await Promise.all(
+			rows
+				.filter((row) => row.statement.status === 'draft')
+				.map(
+					async ({ statement }) =>
+						[statement.id, (await computeDraft(db, accountId, statement))?.property] as const
+				)
+		)
+	);
 	const groups: StatementGroup[] = [];
 	for (const { statement, propertyName } of rows) {
-		const result = parseProperty(statement);
+		const result =
+			statement.status === 'draft' ? drafts.get(statement.id) : parseProperty(statement);
 		const entry: StatementListEntry = {
 			id: statement.id,
 			propertyId: statement.propertyId,
@@ -836,7 +849,6 @@ export async function createStatement(
 	const period = { start: input.periodStart, end: input.periodEnd };
 	const statementInput = await loadStatementInput(db, accountId, input.propertyId, period);
 	if (!statementInput) return { ok: false, message: 'Dieses Objekt gibt es nicht.' };
-	const result = computeStatement(statementInput);
 	await assertQuota(db, accountId, 'operatingCostStatements');
 
 	const id = crypto.randomUUID();
@@ -849,8 +861,7 @@ export async function createStatement(
 			periodStart: period.start,
 			periodEnd: period.end,
 			version: 1,
-			status: 'draft',
-			result: JSON.stringify(result.property)
+			status: 'draft'
 		}),
 		auditEntry(
 			db,
@@ -1092,8 +1103,7 @@ export async function createCorrection(
 			periodEnd: row.periodEnd,
 			version,
 			status: 'draft',
-			correctsId: id,
-			result: JSON.stringify(result.property)
+			correctsId: id
 		}),
 		auditEntry(
 			db,
