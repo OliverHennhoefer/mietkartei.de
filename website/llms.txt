@@ -14,7 +14,7 @@ Was mietkartei kann:
 - Zähler und Abrechnungskreise, Dokumente, Aufgaben und Fristen.
 - Mitverwalter, Datenübernahme per CSV, Änderungsprotokoll und vollständiger Export als ZIP (alle Einträge als JSON, alle Dokumente im Original), der sich in eine andere mietkartei-Instanz einspielen lässt, etwa von app.mietkartei.de auf den eigenen Server und zurück.
 
-Was es kostet: Selbst betrieben ist mietkartei kostenlos und ohne Einschränkungen, der komplette Code ist Open Source unter der AGPL-3.0. Die gehostete Version unter app.mietkartei.de kostet 8 € im Monat oder 72 € im Jahr inklusive Mehrwertsteuer, mit 30 Tagen kostenlosem Test und jederzeit kündbar. Der Preis ist pauschal, ohne Aufschlag pro Einheit und ohne Zusatzmodule.
+Was es kostet: Selbst betrieben ist mietkartei kostenlos und ohne Einschränkungen, der komplette Code ist Open Source unter der AGPL-3.0. Die gehostete Version unter app.mietkartei.de kostet 5 € im Monat oder 50 € im Jahr inklusive Mehrwertsteuer, mit 30 Tagen kostenlosem Test und jederzeit kündbar. Der Preis ist pauschal, ohne Aufschlag pro Einheit und ohne Zusatzmodule.
 
 Für wen: Privatvermieter, die für große Verwaltungsprogramme zu klein und für Excel zu groß sind.
 
@@ -23,17 +23,18 @@ Worauf mietkartei setzt: nachvollziehbar gerechnete Umlagen, kein Lock-in (offen
 ## Links
 
 - [Startseite](https://mietkartei.de/): Überblick über das Produkt
-- [Preise](https://mietkartei.de/preise/): Selbst betrieben kostenlos als Open Source, gehostet 8 € im Monat oder 72 € im Jahr inklusive Mehrwertsteuer
+- [Preise](https://mietkartei.de/preise/): Selbst betrieben kostenlos als Open Source, gehostet 5 € im Monat oder 50 € im Jahr inklusive Mehrwertsteuer
 - [Häufige Fragen](https://mietkartei.de/fragen/): Zielgruppe, Kosten, Nebenkostenabrechnung, KI-Assistenten, Bankimport, Datenübernahme, Datenhaltung und Selbsthosten
 - [Demo](https://demo.mietkartei.de/): eigener Beispielbestand ohne Anmeldung, wird nach 24 Stunden gelöscht
 - [Ratgeber](https://mietkartei.de/ratgeber/): Mietrecht, Heiz- und Betriebskosten für private Vermieter, auch als [RSS-Feed](https://mietkartei.de/ratgeber/feed.xml)
+- [Rechenbeispiele](https://mietkartei.de/rechenbeispiele/): Betriebskostenabrechnung Schritt für Schritt (Mieterwechsel mitten im Monat, Heizkosten mit CO₂-Aufteilung), unabhängig nachgerechnet und als automatischer Test auf den Cent geprüft
 - [Dokumentation](https://docs.mietkartei.de/): Anleitungen zu mietkartei, als ein Textdokument unter [llms-full.txt](https://docs.mietkartei.de/llms-full.txt)
 - [Nebenkostenabrechnung erstellen](https://docs.mietkartei.de/anleitungen/nebenkostenabrechnung/): Schritt für Schritt von den Belegen bis zum PDF je Mieter
 - [Umlageschlüssel](https://docs.mietkartei.de/anleitungen/umlageschluessel/): welcher Schlüssel für welche Kostenart passt
 - [Kontoauszüge importieren](https://docs.mietkartei.de/anleitungen/kontoauszuege-importieren/): Mietzahlungen per camt.053 oder CSV zuordnen
 - [Von Excel umsteigen](https://docs.mietkartei.de/anleitungen/von-excel-umsteigen/): Objekte, Mieter, Mietverträge und Zahlungen per CSV übernehmen
 - [KI-Assistenten anbinden](https://docs.mietkartei.de/anleitungen/ki-assistenten/): MCP-Server unter https://app.mietkartei.de/mcp (OAuth für claude.ai und ChatGPT, sonst API-Schlüssel) und REST-API
-- [Selbst hosten](https://docs.mietkartei.de/selbst-hosten/): mietkartei mit Docker oder aus dem Quellcode betreiben
+- [Selbst hosten](https://docs.mietkartei.de/selbst-hosten/): mietkartei im eigenen Cloudflare-Konto (Workers Paid, rund 5 US-Dollar im Monat, ohne Domain), mit Docker oder aus dem Quellcode betreiben
 - [Umziehen und Daten mitnehmen](https://docs.mietkartei.de/anleitungen/umziehen/): Export herunterladen und in eine andere Instanz einspielen, mit allen Dokumenten und dem Änderungsprotokoll
 - [Quellcode auf GitHub](https://github.com/OliverHennhoefer/mietkartei.de): Code, Fehlerberichte und Funktionswünsche
 
@@ -44,3 +45,5 @@ Worauf mietkartei setzt: nachvollziehbar gerechnete Umlagen, kein Lock-in (offen
 ## Optional
 
 - [Impressum](https://mietkartei.de/impressum/): Anbieter und Kontakt
+- [Datenschutzerklärung](https://mietkartei.de/datenschutz/): Verarbeitung von Daten auf der Website
+- [Auftragsverarbeitung](https://mietkartei.de/auftragsverarbeitung/): Vertrag nach Art. 28 DSGVO für Vermieter in der gehosteten App

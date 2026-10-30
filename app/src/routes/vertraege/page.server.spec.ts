@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Database } from '#lib/server/db/index.ts';
-import { units } from '#lib/server/db/schema.ts';
+import { tenants, units } from '#lib/server/db/schema.ts';
 import { getLease, listLeasePersons } from '#lib/server/leases.ts';
 import { createPayment, listLedger } from '#lib/server/ledger.ts';
 import {
@@ -128,8 +128,8 @@ describe('vertraege/neu', () => {
 			startDate: '2026-01-01',
 			ledgerStart: '2026-03-01'
 		});
-		// Only March is charged; the rent is due on the third working day.
-		expect((await listLedger(db, 'a', id)).lines.map((line) => line.date)).toEqual(['2026-03-04']);
+		// Only March is charged; the rent stands on the first of the month (due on the third working day).
+		expect((await listLedger(db, 'a', id)).lines.map((line) => line.date)).toEqual(['2026-03-01']);
 	});
 
 	it('keeps the start of a lease that begins this month and books an opening balance', async () => {
@@ -219,9 +219,17 @@ describe('vertraege/[id]', () => {
 				form: { validFrom: '2026-01-01', persons: '3' }
 			})
 		).toMatchObject({ error: 404 });
-		expect(await run(leaseActions.deletePersons, { params, form: { rowId: 'x' } })).toMatchObject({
-			error: 404
-		});
+		expect(
+			await run(leaseActions.addParty, { params, form: { tenantId, joinedOn: '' } })
+		).toMatchObject({ error: 404 });
+		expect(
+			await run(leaseActions.updateParty, { params, form: { tenantId, joinedOn: '', leftOn: '' } })
+		).toMatchObject({ error: 404 });
+		for (const action of [leaseActions.updatePersons, leaseActions.deletePersons]) {
+			expect(
+				await run(action, { params, form: { rowId: 'x', validFrom: '2026-01-01', persons: '3' } })
+			).toMatchObject({ error: 404 });
+		}
 		expect(
 			await run(leaseActions.end, {
 				params,
@@ -246,7 +254,91 @@ describe('vertraege/[id]', () => {
 		});
 	});
 
-	it('records persons from a date and deletes them, but not the first entry', async () => {
+	it('lets a tenant join and another leave the lease, with the dates in the dialog', async () => {
+		const joining = await seedTenant(db, 'a', { firstName: 'Neu' });
+		const before = (await overview(id)) as { data: { joinable: { id: string }[] } };
+		expect(before.data.joinable.map((tenant) => tenant.id)).toEqual([joining]);
+		const add = (form: Record<string, string>) =>
+			run(leaseActions.addParty, { params: { id }, form });
+		expect(await add({ tenantId: joining, joinedOn: '2024-06-01' })).toMatchObject({
+			fail: 400,
+			data: { which: 'addParty', errors: { joinedOn: expect.any(String) } }
+		});
+		expect(await add({ tenantId: joining, joinedOn: '2025-07-01' })).toEqual({
+			data: { which: 'addParty' }
+		});
+		const update = (form: Record<string, string>) =>
+			run(leaseActions.updateParty, { params: { id }, form });
+		expect(await update({ tenantId, joinedOn: '', leftOn: '2025-06-29' })).toMatchObject({
+			fail: 400,
+			data: { which: 'editParty', errors: { leftOn: expect.any(String) } }
+		});
+		expect(await update({ tenantId, joinedOn: '', leftOn: '2025-06-30' })).toEqual({
+			redirect: `/vertraege/${id}`
+		});
+		expect(await update({ tenantId: 'x', joinedOn: '', leftOn: '' })).toMatchObject({
+			error: 404
+		});
+		// Every refusal names its field.
+		const archived = await seedTenant(db, 'a', { firstName: 'Archiv' });
+		await db.update(tenants).set({ archivedAt: '2025-01-01' }).where(eq(tenants.id, archived));
+		for (const [form, field] of [
+			[{ tenantId: joining, joinedOn: '' }, 'tenantId'],
+			[{ tenantId: 'unbekannt', joinedOn: '' }, 'tenantId'],
+			[{ tenantId: archived, joinedOn: '' }, 'tenantId'],
+			[{ tenantId: '', joinedOn: '' }, 'tenantId'],
+			[{ tenantId: archived, joinedOn: 'kein Datum' }, 'joinedOn']
+		] as const) {
+			expect(await add(form), JSON.stringify(form)).toMatchObject({
+				fail: 400,
+				data: { which: 'addParty', errors: { [field]: expect.any(String) } }
+			});
+		}
+		for (const [form, field] of [
+			[{ tenantId: joining, joinedOn: '2025-07-01', leftOn: '2024-01-01' }, 'leftOn'],
+			[{ tenantId: joining, joinedOn: '2025-08-01', leftOn: '2025-07-15' }, 'leftOn'],
+			[{ tenantId: joining, joinedOn: '2024-06-01', leftOn: '' }, 'joinedOn']
+		] as const) {
+			expect(await update(form), JSON.stringify(form)).toMatchObject({
+				fail: 400,
+				data: { which: 'editParty', errors: { [field]: expect.any(String) } }
+			});
+		}
+		const lease = (await getLease(db, 'a', id))!;
+		expect(lease.tenants.map((tenant) => tenant.id)).toEqual([joining]);
+		const dialog = (await run(loadOverview, {
+			params: { id },
+			url: `/vertraege/${id}?mieter=${tenantId}`,
+			parent: { lease }
+		})) as { data: { editingParty: { leftOn: string } } };
+		expect(dialog.data.editingParty.leftOn).toBe('2025-06-30');
+
+		// Nor can the lease end before the new tenant joins.
+		expect(
+			await run(leaseActions.end, {
+				params: { id },
+				form: {
+					terminatedAt: '2025-03-01',
+					terminatedBy: 'tenant',
+					endDate: '2025-06-30',
+					earlyEndAgreed: 'on'
+				}
+			})
+		).toMatchObject({ fail: 400, data: { which: 'end', errors: { endDate: expect.any(String) } } });
+
+		// The lease form cannot take the joining tenant off again: nobody would be left.
+		const edit = (await run(loadEdit, { params: { id }, parent: { lease } })) as {
+			data: { defaults: Record<string, string> };
+		};
+		expect(
+			await run(editActions.update, {
+				params: { id },
+				form: { ...edit.data.defaults, tenantIds: [tenantId] }
+			})
+		).toMatchObject({ fail: 400, data: { errors: { tenantIds: expect.any(String) } } });
+	});
+
+	it('records persons from a date, edits and deletes them, but not the first entry', async () => {
 		const add = (form: Record<string, string>) =>
 			run(leaseActions.addPersons, { params: { id }, form });
 		expect(await add({ validFrom: '2026-01-01', persons: '3' })).toEqual({
@@ -269,7 +361,39 @@ describe('vertraege/[id]', () => {
 		expect(await run(leaseActions.deletePersons, { params: { id }, form: {} })).toMatchObject({
 			fail: 400
 		});
-		expect(await remove(later.id)).toEqual({ data: { which: 'persons' } });
+		const update = (form: Record<string, string>) =>
+			run(leaseActions.updatePersons, { params: { id }, form });
+		expect(await update({ rowId: first.id, validFrom: '2025-01-01', persons: '2' })).toMatchObject({
+			fail: 400
+		});
+		expect(await update({ rowId: later.id, validFrom: '2025-01-01', persons: '2' })).toMatchObject({
+			fail: 400,
+			data: { which: 'editPersons', errors: { validFrom: expect.any(String) } }
+		});
+		expect(await update({ rowId: later.id, validFrom: '2024-12-01', persons: '2' })).toMatchObject({
+			fail: 400,
+			data: { which: 'editPersons', errors: { validFrom: expect.any(String) } }
+		});
+		expect(await update({ rowId: later.id, persons: '99' })).toMatchObject({
+			fail: 400,
+			data: { which: 'editPersons' }
+		});
+		expect(
+			await update({ rowId: 'gibt-es-nicht', validFrom: '2026-02-01', persons: '2' })
+		).toMatchObject({ error: 404 });
+		await add({ validFrom: '2026-06-01', persons: '4' });
+		expect(await update({ rowId: later.id, validFrom: '2026-06-01', persons: '2' })).toMatchObject({
+			fail: 400,
+			data: { which: 'editPersons', errors: { validFrom: expect.any(String) } }
+		});
+		expect(await update({ rowId: later.id, validFrom: '2026-02-01', persons: '2' })).toEqual({
+			redirect: `/vertraege/${id}`
+		});
+		expect((await listLeasePersons(db, 'a', id))[1]).toMatchObject({
+			validFrom: '2026-02-01',
+			persons: 2
+		});
+		expect(await remove(later.id)).toEqual({ redirect: `/vertraege/${id}` });
 	});
 
 	it('ends the lease with the notice period unless an earlier end was agreed', async () => {
@@ -298,6 +422,46 @@ describe('vertraege/[id]', () => {
 		expect(await overview(id)).toMatchObject({ data: { deadlines: expect.anything() } });
 	});
 
+	it('refuses a second lease of the unit at the same time, on create, edit and end', async () => {
+		const overlap = expect.stringContaining('schon an einen anderen Vertrag vermietet');
+		// The lease from 2025 runs open-ended; a new one from 2026 would share the unit.
+		expect(await run(newActions.create, { form: lease() })).toMatchObject({
+			fail: 400,
+			data: { errors: { startDate: overlap } }
+		});
+		await run(leaseActions.end, {
+			params: { id },
+			form: {
+				terminatedAt: '2026-03-02',
+				terminatedBy: 'tenant',
+				endDate: '2026-05-31',
+				earlyEndAgreed: 'on'
+			}
+		});
+		const next = idOf(
+			await run(newActions.create, { form: { ...lease(), startDate: '2026-06-01' } })
+		);
+		expect(
+			await run(leaseActions.end, {
+				params: { id },
+				form: { terminatedAt: '2026-03-02', terminatedBy: 'tenant', endDate: '2026-06-30' }
+			})
+		).toMatchObject({
+			fail: 400,
+			data: { which: 'end', errors: { endDate: expect.stringContaining('01.06.2026') } }
+		});
+		const parent = { lease: await getLease(db, 'a', next) };
+		const loaded = (await run(loadEdit, { params: { id: next }, parent })) as {
+			data: { defaults: Record<string, string> };
+		};
+		expect(
+			await run(editActions.update, {
+				params: { id: next },
+				form: { ...loaded.data.defaults, tenantIds: [tenantId], startDate: '2026-05-01' }
+			})
+		).toMatchObject({ fail: 400, data: { errors: { startDate: overlap } } });
+	});
+
 	it('names § 580a BGB for the notice period of a commercial lease', async () => {
 		const shop = await seedUnit(db, 'a', { name: 'Laden' });
 		const commercial = await seedLease(db, 'a', shop.unitId, {
@@ -316,7 +480,9 @@ describe('vertraege/[id]', () => {
 	});
 
 	it('deletes a lease without bookings and keeps one with a payment', async () => {
-		const paid = await seedLease(db, 'a', unitId, { startDate: '2025-01-01' });
+		const paid = await seedLease(db, 'a', (await seedUnit(db, 'a', { name: 'OG' })).unitId, {
+			startDate: '2025-01-01'
+		});
 		await createPayment(db, contextA, {
 			leaseId: paid,
 			date: '2026-01-05',

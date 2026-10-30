@@ -19,6 +19,8 @@ concurrency:
 jobs:
   check:
     name: Check websites
+    # Copies of the repository, such as those of the Deploy to Cloudflare button, run none of this.
+    if: github.repository == 'OliverHennhoefer/mietkartei.de'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     concurrency:
@@ -64,6 +66,7 @@ jobs:
               homepage = shared or any(
                   path.startswith('website/') or path in {
                       'scripts/build_homepage.py', 'scripts/build_guides.py',
+                      'scripts/build_reference_cases.py',
                   }
                   for path in paths
               )

@@ -126,7 +126,10 @@ describe('operations', () => {
 		expect(await run('list_cost_items', { year: 2024 })).toEqual([]);
 		expect(await run('list_statements')).toEqual([]);
 		const deadlines = (await run('list_deadlines')) as Record<string, unknown>[];
-		for (const deadline of deadlines) expect(deadline).not.toHaveProperty('href');
+		for (const deadline of deadlines) {
+			expect(deadline).not.toHaveProperty('href');
+			expect(deadline).toHaveProperty('legalBasis');
+		}
 		expect(await run('list_tasks')).toMatchObject([{ title: 'Rauchmelder prüfen' }]);
 		expect(await run('list_tasks', { status: 'done' })).toEqual([]);
 		expect(await run('list_tasks', { status: 'all' })).toHaveLength(1);
@@ -169,6 +172,19 @@ describe('operations', () => {
 			totals: { expenses: number; charged: number };
 		};
 		expect(current.totals).toMatchObject({ expenses: 0, charged: 0 });
+	});
+
+	it('return the law the app applies', async () => {
+		const laws = (await run('list_law_sections')) as { abbreviation: string }[];
+		expect(laws.map((law) => law.abbreviation)).toContain('BGB');
+		expect(await run('get_law_section', { id: '§ 556 Abs. 3 BGB' })).toMatchObject({
+			id: 'bgb-556',
+			law: 'BGB',
+			url: 'https://www.gesetze-im-internet.de/bgb/__556.html'
+		});
+		await expect(run('get_law_section', { id: '§ 1 ZPO' })).rejects.toMatchObject({
+			status: 404
+		});
 	});
 
 	it('do not find rows of another account', async () => {
@@ -234,6 +250,20 @@ describe('write operations', () => {
 		} finally {
 			QUOTAS.tasks.max = max;
 		}
+	});
+
+	it('answer a write that lost a race against another user as a conflict', async () => {
+		const create = operationByName.get('create_task')!;
+		const racing = {
+			...create,
+			run: async () => {
+				throw new Error('Failed query', { cause: new Error('UNIQUE constraint failed') });
+			}
+		};
+		await expect(runOperation(db, writer, racing, { title: 'x' })).rejects.toMatchObject({
+			status: 409,
+			code: 'conflict'
+		});
 	});
 
 	it('book a payment on the rent account, audited under the key’s user', async () => {

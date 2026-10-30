@@ -28,7 +28,7 @@
 	{#each filters as filter (filter.kind)}
 		<label>
 			{linkKindLabels[filter.kind]}
-			<select name={filter.kind}>
+			<select name={filter.kind} onchange={(event) => event.currentTarget.form?.requestSubmit()}>
 				<option value="">Alle</option>
 				{#each filter.options as option (option.id)}
 					<option value={option.id} selected={data.filter[filter.kind] === option.id}>
@@ -39,7 +39,7 @@
 		</label>
 	{/each}
 	<div class="form-actions">
-		<button type="submit" class="secondary">Filtern</button>
+		<noscript><button type="submit" class="secondary">Anzeigen</button></noscript>
 		{#if data.filtered}<a href="/dokumente">Alle anzeigen</a>{/if}
 	</div>
 </form>

@@ -135,6 +135,8 @@ describe('restoreExport', () => {
 		await seedSource();
 		const exported = await collect(source, 'a');
 		delete (exported.tables as Record<string, unknown>).tasks;
+		// An export from before the Reparaturen has no links from expenses to tasks either.
+		for (const row of exported.tables.expenses) delete row.taskId;
 		delete (exported.tables as Record<string, unknown>).users;
 		for (const row of exported.tables.properties) delete row.notes;
 		delete exported.tables.accounts[0].landlordName;

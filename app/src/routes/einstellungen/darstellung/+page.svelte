@@ -67,12 +67,12 @@
 	}
 	.themes legend {
 		font-weight: 500;
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 		padding: 0;
 		margin-bottom: 0.5rem;
 	}
 	.hint {
 		margin: 0.4rem 0 1.25rem;
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 	}
 </style>

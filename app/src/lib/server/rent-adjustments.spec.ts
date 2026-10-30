@@ -3,18 +3,21 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { addMonthsToMonth, firstOfMonth, monthOf, today } from '../dates';
 import { effectiveFrom } from '../domain/index-rent';
 import type { Database } from './db';
-import { auditLog, consumerPriceIndex, rentCharges } from './db/schema';
+import { auditLog, consumerPriceIndex, rentChanges, rentCharges } from './db/schema';
 import { getLease, leaseInputOf, updateLease, type LeaseSummary } from './leases';
 import { ensureCharges } from './ledger';
 import {
 	addGraduatedStep,
 	approveChange,
-	indexLetter,
+	correctDelivery,
+	demandComparativeIncrease,
+	recordConsent,
+	rentLetter,
 	manualChange,
 	proposeIndexChange,
 	removeChange,
 	recipientLines,
-	updateIndexLetterText
+	updateRentLetterText
 } from './rent-adjustments';
 import { QUOTAS } from './quotas';
 import { listRentChanges } from './rents';
@@ -289,6 +292,168 @@ describe('approveChange within the waiting period', () => {
 	});
 });
 
+describe('correctDelivery', () => {
+	async function approved(deliveredOn = '2026-10-15') {
+		await seedValues();
+		const proposed = await proposeIndexChange(db, contextA, leaseId);
+		if (!proposed?.ok) throw new Error('no proposal');
+		await approveChange(db, contextA, leaseId, proposed.id, { deliveredOn, validFrom: null });
+		return proposed.id;
+	}
+
+	it('moves the change with its letter when the letter arrived a month later', async () => {
+		const changeId = await approved();
+		// A § 560 adjustment entered afterwards carried the new Kaltmiete from 15 December on.
+		await manualChange(db, contextA, leaseId, {
+			validFrom: '2026-12-15',
+			baseRent: 63096,
+			operatingCostPrepayment: 16000,
+			heatingCostPrepayment: 5000,
+			reason: 'statement',
+			note: null
+		});
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2026-11-03')).toEqual({
+			ok: true,
+			id: changeId
+		});
+		const history = await listRentChanges(db, 'a', leaseId);
+		// The § 560 row falls back to the old Kaltmiete; the index change keeps its amount and
+		// takes the prepayments valid on its new date.
+		expect(
+			history.map((row) => [row.validFrom, row.reason, row.baseRent, row.operatingCostPrepayment])
+		).toEqual([
+			['2024-01-01', 'initial', 60000, 15000],
+			['2026-12-15', 'statement', 60000, 16000],
+			['2027-01-01', 'indexed', 63096, 16000]
+		]);
+		expect(history[2].deliveredOn).toBe('2026-11-03');
+		expect(history[2].letterText).toContain('ab dem 01.01.2027');
+		expect((await summaries('a')).at(-1)).toBe(
+			'update: Zugang der Indexanpassung am 03.11.2026 eingetragen; die Kaltmiete von 630,96\u00a0€ gilt ab 01.01.2027 statt ab 01.12.2026'
+		);
+	});
+
+	it('does not count a prepayment change that inherited the Kaltmiete as a new increase', async () => {
+		const changeId = await approved();
+		await manualChange(db, contextA, leaseId, {
+			validFrom: '2026-12-15',
+			baseRent: 63096,
+			operatingCostPrepayment: 16000,
+			heatingCostPrepayment: 5000,
+			reason: 'manual',
+			note: null
+		});
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2026-11-03')).toEqual({
+			ok: true,
+			id: changeId
+		});
+	});
+
+	it('refuses an effective date before the lease began', async () => {
+		const changeId = await approved();
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2023-09-10')).toEqual({
+			ok: false,
+			message: 'Die neue Miete kann erst nach dem Beginn des Mietvertrags gelten.'
+		});
+	});
+
+	it('keeps the chosen date of a commercial lease and only records the day', async () => {
+		await seedValues();
+		const { unitId: office } = await seedUnit(db, 'a', { name: 'Büro' });
+		const lease = await createLeaseWithoutCharges(
+			db,
+			contextA,
+			leaseInput(office, { ...indexed, kind: 'commercial' })
+		);
+		if (!lease.ok) throw new Error('setup failed');
+		const proposed = await proposeIndexChange(db, contextA, lease.id);
+		if (!proposed?.ok) throw new Error('no proposal');
+		await approveChange(db, contextA, lease.id, proposed.id, {
+			deliveredOn: '2026-10-15',
+			validFrom: '2026-11-01'
+		});
+		expect(await correctDelivery(db, contextA, lease.id, proposed.id, '2026-10-20')).toEqual({
+			ok: true,
+			id: proposed.id
+		});
+		const [, change] = await listRentChanges(db, 'a', lease.id);
+		expect(change).toMatchObject({ validFrom: '2026-11-01', deliveredOn: '2026-10-20' });
+		expect(await correctDelivery(db, contextA, lease.id, proposed.id, '2026-11-01')).toEqual({
+			ok: false,
+			message: 'Die neue Miete kann erst nach der Zustellung gelten.'
+		});
+	});
+
+	it('refuses a date with another change and one inside the waiting period', async () => {
+		const changeId = await approved();
+		await manualChange(db, contextA, leaseId, {
+			validFrom: '2027-01-01',
+			baseRent: 63096,
+			operatingCostPrepayment: 16000,
+			heatingCostPrepayment: 5000,
+			reason: 'statement',
+			note: null
+		});
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2026-11-03')).toEqual({
+			ok: false,
+			message: 'Am 01.01.2027 gibt es schon eine Mietänderung.'
+		});
+		// The Kaltmiete changed by agreement on 1 March 2026: no new rent before March 2027.
+		await manualChange(db, contextA, leaseId, {
+			validFrom: '2026-03-01',
+			baseRent: 61000,
+			operatingCostPrepayment: 15000,
+			heatingCostPrepayment: 5000,
+			reason: 'manual',
+			note: 'Vereinbarung'
+		});
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2026-12-03')).toEqual({
+			ok: false,
+			message:
+				'Die Miete muss mindestens ein Jahr unverändert bleiben (§ 557b Abs. 2 BGB); die neue Miete kann frühestens am 01.03.2027 gelten.'
+		});
+		expect(await correctDelivery(db, contextA, leaseId, 'missing', '2026-12-03')).toBeUndefined();
+	});
+
+	it('only records the day when the effective date stays', async () => {
+		const changeId = await approved();
+		const before = (await listRentChanges(db, 'a', leaseId))[1];
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2026-10-28')).toEqual({
+			ok: true,
+			id: changeId
+		});
+		const after = (await listRentChanges(db, 'a', leaseId))[1];
+		expect(after).toEqual({ ...before, deliveredOn: '2026-10-28' });
+	});
+
+	it('refuses other changes, a change a later step builds on and a foreign lease', async () => {
+		const changeId = await approved('2025-03-10');
+		const initial = (await listRentChanges(db, 'a', leaseId))[0];
+		expect(await correctDelivery(db, contextA, leaseId, initial.id, '2025-03-10')).toEqual({
+			ok: false,
+			message: 'Den Zugang korrigierst du nur bei einer freigegebenen Indexanpassung.'
+		});
+		// A later index change, entered as approved, builds on this one.
+		const first = (await listRentChanges(db, 'a', leaseId))[1];
+		await db.insert(rentChanges).values({
+			...first,
+			id: 'later',
+			validFrom: '2026-07-01',
+			baseRent: 64000,
+			letterText: null,
+			letterTable: null
+		});
+		expect(await correctDelivery(db, contextA, leaseId, changeId, '2025-04-02')).toEqual({
+			ok: false,
+			message:
+				'Der Zugang lässt sich nicht mehr korrigieren, weil eine spätere Index- oder Staffeländerung auf dieser Änderung aufbaut.'
+		});
+		expect(await correctDelivery(db, contextA, foreignLeaseId, changeId, '2025-03-20')).toBe(
+			undefined
+		);
+	});
+});
+
 describe('manualChange', () => {
 	const input = {
 		validFrom: '2025-01-01',
@@ -381,7 +546,10 @@ describe('addGraduatedStep', () => {
 		const lease = await createLeaseWithoutCharges(
 			db,
 			contextA,
-			leaseInput(unitId, { startDate: '2025-01-01', rentModel: 'graduated' })
+			leaseInput((await seedUnit(db, 'a', { name: 'OG' })).unitId, {
+				startDate: '2025-01-01',
+				rentModel: 'graduated'
+			})
 		);
 		if (!lease.ok) throw new Error('setup failed');
 		graduatedId = lease.id;
@@ -420,7 +588,11 @@ describe('addGraduatedStep', () => {
 		const lease = await createLeaseWithoutCharges(
 			db,
 			contextA,
-			leaseInput(unitId, { startDate: '2025-01-01', rentModel: 'graduated', kind: 'commercial' })
+			leaseInput((await seedUnit(db, 'a', { name: 'OG' })).unitId, {
+				startDate: '2025-01-01',
+				rentModel: 'graduated',
+				kind: 'commercial'
+			})
 		);
 		if (!lease.ok) throw new Error('setup failed');
 		expect(
@@ -527,19 +699,19 @@ describe('removeChange', () => {
 	});
 });
 
-describe('indexLetter', () => {
+describe('rentLetter', () => {
 	it('builds the letter of an approved change with sender, recipient and table', async () => {
 		await seedValues();
 		const proposed = await proposeIndexChange(db, contextA, leaseId);
 		const changeId = proposed?.ok ? proposed.id : '';
 		// No letter before the approval.
-		expect(await indexLetter(db, 'a', leaseId, changeId)).toBeUndefined();
+		expect(await rentLetter(db, 'a', leaseId, changeId)).toBeUndefined();
 		await approveChange(db, contextA, leaseId, changeId, {
 			deliveredOn: '2026-10-15',
 			validFrom: null
 		});
 
-		const result = await indexLetter(db, 'a', leaseId, changeId);
+		const result = await rentLetter(db, 'a', leaseId, changeId);
 		expect(result?.filename).toBe('Mieterhöhung Mustermann 01.12.2026.pdf');
 		expect(result?.landlord.complete).toBe(false);
 		const letter = result!.letter;
@@ -564,7 +736,7 @@ describe('indexLetter', () => {
 			deliveredOn: '2026-10-15',
 			validFrom: null
 		});
-		const before = (await indexLetter(db, 'a', leaseId, changeId))!.letter;
+		const before = (await rentLetter(db, 'a', leaseId, changeId))!.letter;
 		// The initial rent and the index base are corrected after the letter went out.
 		const lease = await getLease(db, 'a', leaseId);
 		const updated = await updateLease(db, contextA, leaseId, {
@@ -573,7 +745,7 @@ describe('indexLetter', () => {
 			indexBaseValue: 117
 		});
 		expect(updated.ok).toBe(true);
-		const after = (await indexLetter(db, 'a', leaseId, changeId))!.letter;
+		const after = (await rentLetter(db, 'a', leaseId, changeId))!.letter;
 		expect(after.paragraphs).toEqual(before.paragraphs);
 		expect(after.tables?.[0].rows).toEqual([
 			['Verbraucherpreisindex', '118,2 (Januar 2024)', '124,3 (Januar 2026)'],
@@ -586,26 +758,26 @@ describe('indexLetter', () => {
 		await seedValues();
 		const proposed = await proposeIndexChange(db, contextA, leaseId);
 		const changeId = proposed?.ok ? proposed.id : '';
-		expect(await updateIndexLetterText(db, contextA, leaseId, changeId, ['Text'])).toBeUndefined();
+		expect(await updateRentLetterText(db, contextA, leaseId, changeId, ['Text'])).toBeUndefined();
 		await approveChange(db, contextA, leaseId, changeId, {
 			deliveredOn: '2026-10-15',
 			validFrom: null
 		});
-		const { paragraphs } = (await indexLetter(db, 'a', leaseId, changeId))!.letter;
+		const { paragraphs } = (await rentLetter(db, 'a', leaseId, changeId))!.letter;
 		const edited = [
 			paragraphs[0],
 			`${paragraphs[1]} Bei Fragen rufen Sie gern an.`,
 			...paragraphs.slice(2)
 		];
 
-		expect(await updateIndexLetterText(db, contextA, leaseId, changeId, edited)).toMatchObject({
+		expect(await updateRentLetterText(db, contextA, leaseId, changeId, edited)).toMatchObject({
 			ok: true
 		});
-		expect((await indexLetter(db, 'a', leaseId, changeId))!.letter.paragraphs).toEqual(edited);
-		expect(await updateIndexLetterText(db, contextA, leaseId, changeId, [''])).toMatchObject({
+		expect((await rentLetter(db, 'a', leaseId, changeId))!.letter.paragraphs).toEqual(edited);
+		expect(await updateRentLetterText(db, contextA, leaseId, changeId, [''])).toMatchObject({
 			ok: false
 		});
-		expect(await updateIndexLetterText(db, contextB, leaseId, changeId, edited)).toBeUndefined();
+		expect(await updateRentLetterText(db, contextB, leaseId, changeId, edited)).toBeUndefined();
 	});
 
 	it('does not leak into another account', async () => {
@@ -616,9 +788,149 @@ describe('indexLetter', () => {
 			deliveredOn: '2026-10-15',
 			validFrom: null
 		});
-		expect(await indexLetter(db, 'b', foreignLeaseId, changeId)).toBeDefined();
-		expect(await indexLetter(db, 'a', foreignLeaseId, changeId)).toBeUndefined();
-		expect(await indexLetter(db, 'a', leaseId, changeId)).toBeUndefined();
+		expect(await rentLetter(db, 'b', foreignLeaseId, changeId)).toBeDefined();
+		expect(await rentLetter(db, 'a', foreignLeaseId, changeId)).toBeUndefined();
+		expect(await rentLetter(db, 'a', leaseId, changeId)).toBeUndefined();
+	});
+});
+
+describe('a § 558 demand and the consent', () => {
+	let fixedId: string;
+	// A fixed residential lease from 2024-01-01 at 600 € on 64 m²: a demand received on
+	// 10.03.2026 makes the new rent due on 01.06.2026, capped at 720 € (20 % on 600 €).
+	const demand = {
+		deliveredOn: '2026-03-10',
+		baseRent: 72000,
+		comparativeRent: 1150,
+		cappingPercent: 20 as const,
+		comparisonSource: 'rent_index' as const,
+		comparisonDetails: 'Mietspiegel 2026, Feld C2'
+	};
+
+	beforeEach(async () => {
+		const { unitId: flat } = await seedUnit(db, 'a', { name: 'OG' });
+		const tenantId = await seedTenant(db, 'a', { salutation: 'Herr', lastName: 'Beispiel' });
+		const lease = await createLeaseWithoutCharges(
+			db,
+			contextA,
+			leaseInput(flat, { startDate: '2024-01-01', tenantIds: [tenantId] })
+		);
+		if (!lease.ok) throw new Error('setup failed');
+		fixedId = lease.id;
+	});
+
+	it('stores the demand with its letter until the tenant consents, partly here', async () => {
+		const result = await demandComparativeIncrease(db, contextA, fixedId, demand);
+		if (!result?.ok) throw new Error(JSON.stringify(result));
+		let [, demanded] = await listRentChanges(db, 'a', fixedId);
+		expect(demanded).toMatchObject({
+			reason: 'comparative',
+			status: 'proposed',
+			validFrom: '2026-06-01',
+			baseRent: 72000,
+			deliveredOn: '2026-03-10',
+			comparativeRent: 1150,
+			comparisonSource: 'rent_index',
+			cappingPercent: 20,
+			consentedOn: null
+		});
+		const letter = (await rentLetter(db, 'a', fixedId, result.id))!.letter;
+		expect(letter.subject).toBe('Mieterhöhung auf die ortsübliche Vergleichsmiete (§ 558 BGB)');
+		expect(letter.paragraphs).toHaveLength(5);
+		expect(letter.tables?.[0].rows[0]).toEqual(['Kaltmiete', '600,00\u00a0€', '720,00\u00a0€']);
+
+		// One demand at a time.
+		expect(await demandComparativeIncrease(db, contextA, fixedId, demand)).toMatchObject({
+			ok: false,
+			message: expect.stringContaining('schon ein Erhöhungsverlangen')
+		});
+
+		const consent = (input: { consentedOn: string; baseRent: number }) =>
+			recordConsent(db, contextA, fixedId, result.id, input);
+		expect(await consent({ consentedOn: '2026-03-01', baseRent: 70000 })).toMatchObject({
+			ok: false,
+			message: expect.stringContaining('vor dem Zugang')
+		});
+		expect(await consent({ consentedOn: '2026-04-02', baseRent: 73000 })).toMatchObject({
+			ok: false,
+			message: expect.stringContaining('höchstens bei den verlangten 720,00\u00a0€')
+		});
+		expect(await consent({ consentedOn: '2026-04-02', baseRent: 70000 })).toEqual({
+			ok: true,
+			id: result.id
+		});
+		[, demanded] = await listRentChanges(db, 'a', fixedId);
+		expect(demanded).toMatchObject({
+			status: 'approved',
+			baseRent: 70000,
+			operatingCostPrepayment: 15000,
+			consentedOn: '2026-04-02'
+		});
+		expect(await consent({ consentedOn: '2026-04-02', baseRent: 70000 })).toMatchObject({
+			ok: false,
+			message: 'Die Zustimmung ist schon eingetragen.'
+		});
+		expect(await summaries('a')).toEqual(
+			expect.arrayContaining([
+				'create: Mieterhöhung nach § 558 BGB auf 720,00\u00a0€ Kaltmiete ab 01.06.2026 verlangt (Zugang am 10.03.2026)',
+				'approve: Zustimmung zur Mieterhöhung vom 02.04.2026: Kaltmiete 700,00\u00a0€ ab 01.06.2026'
+			])
+		);
+	});
+
+	it('refuses the consent when a correction of the history broke the demand', async () => {
+		const result = await demandComparativeIncrease(db, contextA, fixedId, demand);
+		if (!result?.ok) throw new Error(JSON.stringify(result));
+		// The initial rent was 500 €, not 600 €: 20 % allow 600 € now, not the 720 € demanded.
+		const lease = await getLease(db, 'a', fixedId);
+		await updateLease(db, contextA, fixedId, { ...leaseInputOf(lease!), baseRent: 50000 });
+		const consent = (baseRent: number) =>
+			recordConsent(db, contextA, fixedId, result.id, { consentedOn: '2026-04-02', baseRent });
+		expect(await consent(72000)).toMatchObject({
+			ok: false,
+			message: expect.stringMatching(/^Das Verlangen passt nicht mehr.*Kappungsgrenze.*neu\.$/)
+		});
+		// Within the new cap the tenant may still agree.
+		expect(await consent(60000)).toMatchObject({ ok: true });
+	});
+
+	it('refuses the consent when the waiting period moved', async () => {
+		const result = await demandComparativeIncrease(db, contextA, fixedId, demand);
+		if (!result?.ok) throw new Error(JSON.stringify(result));
+		// A raise on 01.04.2025 booked later pushes the due date to 01.07.2026.
+		await db.insert(rentChanges).values({
+			accountId: 'a',
+			leaseId: fixedId,
+			validFrom: '2025-04-01',
+			baseRent: 62000,
+			operatingCostPrepayment: 15000,
+			heatingCostPrepayment: 5000,
+			reason: 'manual',
+			status: 'approved'
+		});
+		expect(
+			await recordConsent(db, contextA, fixedId, result.id, {
+				consentedOn: '2026-04-02',
+				baseRent: 70000
+			})
+		).toMatchObject({ ok: false, message: expect.stringContaining('erst ab dem 01.07.2026') });
+	});
+
+	it('refuses a demand over the cap, on an index lease and of another account', async () => {
+		expect(
+			await demandComparativeIncrease(db, contextA, fixedId, { ...demand, baseRent: 72100 })
+		).toMatchObject({ ok: false, message: expect.stringContaining('Kappungsgrenze von 20 %') });
+		expect(await demandComparativeIncrease(db, contextA, leaseId, demand)).toMatchObject({
+			ok: false,
+			message: expect.stringContaining('Indexmiete')
+		});
+		expect(await demandComparativeIncrease(db, contextB, fixedId, demand)).toBeUndefined();
+		expect(
+			await recordConsent(db, contextA, fixedId, 'missing', {
+				consentedOn: '2026-04-02',
+				baseRent: 70000
+			})
+		).toBeUndefined();
 	});
 });
 
@@ -638,7 +950,10 @@ describe('later rows follow a change of a field', () => {
 		const lease = await createLeaseWithoutCharges(
 			db,
 			contextA,
-			leaseInput(unitId, { startDate: '2025-01-01', rentModel: 'graduated' })
+			leaseInput((await seedUnit(db, 'a', { name: 'OG' })).unitId, {
+				startDate: '2025-01-01',
+				rentModel: 'graduated'
+			})
 		);
 		if (!lease.ok) throw new Error('setup failed');
 		graduatedId = lease.id;

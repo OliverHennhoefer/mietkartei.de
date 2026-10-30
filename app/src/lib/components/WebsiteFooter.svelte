@@ -37,5 +37,6 @@
 		<a href="https://mietkartei.de/ratgeber/">Ratgeber</a>
 		<a href="https://docs.mietkartei.de/">Dokumentation</a>
 		<a href="https://mietkartei.de/impressum/">Impressum</a>
+		<a href="https://mietkartei.de/datenschutz/">Datenschutz</a>
 	</nav>
 </footer>

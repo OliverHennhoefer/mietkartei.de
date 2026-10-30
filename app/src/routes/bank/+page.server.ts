@@ -26,6 +26,7 @@ import {
 } from '#lib/server/bank/transactions.ts';
 import { bankTransactionStatuses, type BankTransactionStatus } from '#lib/server/db/schema.ts';
 import { scopeOptions } from '#lib/server/expenses.ts';
+import { serviceProviderOptions } from '#lib/server/service-providers.ts';
 import { listLeases } from '#lib/server/leases.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -55,17 +56,27 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// The Bankabruf fetches what is new before the list is read, at most every six hours.
 	if (!(await apiReadOnly(locals.db, accountId))) await syncDue(locals.db, auditContext(locals));
 
-	const [bankAccounts, listed, openCount, leases, rules, byIban, scopes, presets] =
-		await Promise.all([
-			listBankAccounts(locals.db, accountId),
-			listTransactions(locals.db, accountId, { status, bankAccountId, transactionId }),
-			countUnmatched(locals.db, accountId),
-			listLeases(locals.db, accountId),
-			listRules(locals.db, accountId),
-			leaseByIban(locals.db, accountId),
-			scopeOptions(locals.db, accountId),
-			expenseByCounterpart(locals.db, accountId)
-		]);
+	const [
+		bankAccounts,
+		listed,
+		openCount,
+		leases,
+		rules,
+		byIban,
+		scopes,
+		presets,
+		serviceProviders
+	] = await Promise.all([
+		listBankAccounts(locals.db, accountId),
+		listTransactions(locals.db, accountId, { status, bankAccountId, transactionId }),
+		countUnmatched(locals.db, accountId),
+		listLeases(locals.db, accountId),
+		listRules(locals.db, accountId),
+		leaseByIban(locals.db, accountId),
+		scopeOptions(locals.db, accountId),
+		expenseByCounterpart(locals.db, accountId),
+		serviceProviderOptions(locals.db, accountId)
+	]);
 	const assignments = await listAssignments(
 		locals.db,
 		accountId,
@@ -92,7 +103,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		leases: leaseOptions(leases),
 		// Booking as a deposit only makes sense once some lease has one agreed.
 		depositAgreed: leases.some((lease) => lease.securityDeposit > 0),
-		scopes
+		scopes,
+		serviceProviders
 	};
 };
 
@@ -140,6 +152,13 @@ export const actions: Actions = {
 		}
 		const outcome = await assignExpense(locals.db, auditContext(locals), id, result.data);
 		if (outcome === 'missing') notFound();
+		if (outcome === 'unknown-service-provider') {
+			return fail(400, {
+				id,
+				expenseErrors: { serviceProviderId: 'Diesen Dienstleister gibt es nicht.' },
+				values: result.values
+			});
+		}
 		if (outcome !== 'assigned') {
 			const message =
 				outcome === 'not-open'

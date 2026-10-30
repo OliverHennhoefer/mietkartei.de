@@ -1,0 +1,46 @@
+name: Clean up images
+
+# Every push to main publishes a new image version tagged sha-<commit> plus its build provenance
+# attestation, so GHCR piles up versions. This keeps the release tags (1.2.3, 1.2), latest and the
+# ten newest sha-* images for rollbacks, with their attestations, and deletes the older sha-*
+# images, untagged images and attestations whose image is gone. Runs on Sundays and by hand under
+# Actions; a manual run only logs what it would delete unless "Delete" is ticked.
+
+"on":
+  schedule:
+    - cron: "17 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      delete:
+        description: Delete (otherwise only log what would be deleted)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: registry-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Delete stale image versions
+    # Copies of the repository, such as those of the Deploy to Cloudflare button, run none of this.
+    if: github.repository == 'OliverHennhoefer/mietkartei.de'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      packages: write
+    steps:
+      - name: Delete stale versions of ghcr.io/oliverhennhoefer/mietkartei
+        uses: dataaxiom/ghcr-cleanup-action@d52806a0dc70b430571a37da1fde39733ffd640f # v1.2.2
+        with:
+          package: mietkartei
+          # A release image also carries a sha-* tag; only that tag is removed, the image stays.
+          delete-tags: sha-*
+          keep-n-tagged: 10
+          exclude-tags: latest,*.*
+          delete-untagged: true
+          delete-orphaned-images: true
+          dry-run: ${{ github.event_name == 'workflow_dispatch' && !inputs.delete }}

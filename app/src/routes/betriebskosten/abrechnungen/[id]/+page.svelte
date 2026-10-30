@@ -6,6 +6,7 @@
 	import Icon from '#lib/components/Icon.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PreviewLink from '#lib/components/PreviewLink.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate, formatDateTime, formatMonth } from '#lib/dates.ts';
 	import {
 		balanceLabel,
@@ -15,6 +16,7 @@
 	import { formatArea, personName, pluralize } from '#lib/format.ts';
 	import { allocationKeyKindLabels, statementStatusLabels } from '#lib/labels.ts';
 	import { formatCents } from '#lib/money.ts';
+	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	// One statement: a draft (recomputed on every load, warnings as links to the fix, approval)
@@ -43,6 +45,30 @@
 		].filter(Boolean);
 		return query.length > 0 ? `/vertraege/${lease.leaseId}/miethoehe?${query.join('&')}` : null;
 	};
+	// One order for the cost and prepayment tables of all leases, so they stay comparable.
+	type Line = LeaseStatement['lines'][number];
+	type Prepayment = LeaseStatement['prepayments'][number];
+	const itemSort = new TableSort<(typeof property.items)[number]>({
+		description: byText((item) => item.description),
+		category: byText((item) => item.categoryName),
+		key: byText((item) => (item.allocable ? item.keyName : null)),
+		total: byNumber((item) => item.total),
+		allocated: byNumber((item) => (item.allocable ? item.allocated : null))
+	});
+	const lineSort = new TableSort<Line>({
+		category: byText((line) => line.categoryName),
+		total: byNumber((line) => line.association?.total ?? line.itemTotal),
+		key: byText((line) => line.keyName),
+		amount: byNumber((line) => line.amount)
+	});
+	const prepaymentSort = new TableSort<Prepayment>({
+		period: byDate((month) => month.period),
+		charged: byNumber((month) => month.charged),
+		operating: byNumber((month) => month.operatingCostPrepayment),
+		heating: byNumber((month) => month.heatingCostPrepayment),
+		amount: byNumber((month) => month.amount),
+		source: byText((month) => (month.source === 'ledger' ? 'Mietkonto' : 'Miethistorie'))
+	});
 	const reversedOnDelivery = $derived(
 		form && 'reversed' in form && typeof form.reversed === 'number' ? form.reversed : 0
 	);
@@ -129,37 +155,37 @@
 {/if}
 
 <div class="stats">
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={property.costsTotal} /></span>
 		<span class="label">Gesamtkosten</span>
 	</div>
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={property.allocableTotal} /></span>
 		<span class="label">Umlagefähig</span>
 	</div>
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={property.nonAllocableTotal} /></span>
 		<span class="label">Nicht umlagefähig</span>
 	</div>
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={property.vacancyShare} /></span>
 		<span class="label">Leerstand (Vermieter)</span>
 	</div>
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={property.landlordCo2Share} /></span>
 		<span class="label">CO₂-Anteil Vermieter</span>
 	</div>
 	{#if property.excludedTotal > 0}
-		<div class="stat card">
+		<div class="stat">
 			<span class="value"><Money cents={property.excludedTotal} /></span>
 			<span class="label">Pauschalen (Vermieter)</span>
 		</div>
 	{/if}
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={property.nachzahlungen} /></span>
 		<span class="label">Nachzahlungen</span>
 	</div>
-	<div class="stat card">
+	<div class="stat">
 		<span class="value"><Money cents={property.guthaben} /></span>
 		<span class="label">Guthaben</span>
 	</div>
@@ -170,15 +196,15 @@
 	<table class="table" aria-label="Belege">
 		<thead>
 			<tr>
-				<th>Beleg</th>
-				<th>Kostenart</th>
-				<th>Umlageschlüssel</th>
-				<th class="num">Kosten im Zeitraum</th>
-				<th class="num">Umgelegt</th>
+				<SortHeader sort={itemSort} key="description">Beleg</SortHeader>
+				<SortHeader sort={itemSort} key="category">Kostenart</SortHeader>
+				<SortHeader sort={itemSort} key="key">Umlageschlüssel</SortHeader>
+				<SortHeader sort={itemSort} key="total" class="num">Kosten im Zeitraum</SortHeader>
+				<SortHeader sort={itemSort} key="allocated" class="num">Umgelegt</SortHeader>
 			</tr>
 		</thead>
 		<tbody>
-			{#each property.items as item (item.itemId)}
+			{#each itemSort.rows(property.items) as item (item.itemId)}
 				<tr>
 					<td><a href="/betriebskosten/belege/{item.itemId}">{item.description}</a></td>
 					<td>{item.categoryName}</td>
@@ -230,14 +256,14 @@
 			<table class="table" aria-label="Kosten {unitNames(lease)}">
 				<thead>
 					<tr>
-						<th>Kostenart</th>
-						<th class="num">Gesamtkosten</th>
-						<th>Umlageschlüssel</th>
-						<th class="num">Anteil</th>
+						<SortHeader sort={lineSort} key="category">Kostenart</SortHeader>
+						<SortHeader sort={lineSort} key="total" class="num">Gesamtkosten</SortHeader>
+						<SortHeader sort={lineSort} key="key">Umlageschlüssel</SortHeader>
+						<SortHeader sort={lineSort} key="amount" class="num">Anteil</SortHeader>
 					</tr>
 				</thead>
 				<tbody>
-					{#each lease.lines as line (line.itemId)}
+					{#each lineSort.rows(lease.lines) as line (line.itemId)}
 						<tr>
 							<td>
 								{line.categoryName}
@@ -285,16 +311,18 @@
 				<table class="table" aria-label="Vorauszahlungen {unitNames(lease)}">
 					<thead>
 						<tr>
-							<th>Monat</th>
-							<th class="num">Soll</th>
-							<th class="num">Betriebskosten</th>
-							<th class="num">Heizkosten</th>
-							<th class="num">Geleistet</th>
-							<th>Quelle</th>
+							<SortHeader sort={prepaymentSort} key="period">Monat</SortHeader>
+							<SortHeader sort={prepaymentSort} key="charged" class="num">Soll</SortHeader>
+							<SortHeader sort={prepaymentSort} key="operating" class="num"
+								>Betriebskosten</SortHeader
+							>
+							<SortHeader sort={prepaymentSort} key="heating" class="num">Heizkosten</SortHeader>
+							<SortHeader sort={prepaymentSort} key="amount" class="num">Geleistet</SortHeader>
+							<SortHeader sort={prepaymentSort} key="source">Quelle</SortHeader>
 						</tr>
 					</thead>
 					<tbody>
-						{#each lease.prepayments as month (month.period)}
+						{#each prepaymentSort.rows(lease.prepayments) as month (month.period)}
 							<tr>
 								<td>{formatMonth(month.period)}</td>
 								<td class="num"><Money cents={month.charged} /></td>
@@ -477,7 +505,7 @@
 		grid-template-columns: max-content 1fr;
 		gap: 0.25rem 1rem;
 		margin: 0;
-		font-size: 0.95rem;
+		font-size: var(--text-base);
 	}
 	dl.details dt {
 		color: var(--color-muted);
@@ -493,7 +521,7 @@
 	}
 	.balance {
 		margin: 0;
-		font-size: 1.1rem;
+		font-size: var(--text-lg);
 	}
 	.lease-actions {
 		border-top: 1px solid var(--color-border);

@@ -3,10 +3,12 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import Sections from '../Sections.svelte';
 	import { benchmarkSource, referenceTotal } from '#lib/domain/cost-benchmark.ts';
 	import { formatNumber } from '#lib/format.ts';
 	import { perSqm } from '../figures';
+	import { byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -16,6 +18,18 @@
 	const difference = $derived(
 		data.perSqm === null ? null : Math.round((data.perSqm / referenceTotal - 1) * 100)
 	);
+	const rowSort = new TableSort<PageProps['data']['rows'][number]>({
+		label: byText((row) => row.label),
+		amount: byNumber((row) => row.amount),
+		perSqm: byNumber((row) => row.perSqm),
+		reference: byNumber((row) => row.reference)
+	});
+	const propertySort = new TableSort<PageProps['data']['properties'][number]>({
+		name: byText((row) => row.name),
+		area: byNumber((row) => row.area || null),
+		amount: byNumber((row) => row.amount),
+		perSqm: byNumber((row) => row.perSqm)
+	});
 	const chartRows = $derived(
 		data.rows.map((row) => ({ label: row.label, value: row.perSqm, reference: row.reference }))
 	);
@@ -122,14 +136,14 @@
 					<table class="table">
 						<thead>
 							<tr>
-								<th>Kostenart</th>
-								<th class="number">im Jahr</th>
-								<th class="number">je m² im Monat</th>
-								<th class="number">Durchschnitt</th>
+								<SortHeader sort={rowSort} key="label">Kostenart</SortHeader>
+								<SortHeader sort={rowSort} key="amount" class="num">im Jahr</SortHeader>
+								<SortHeader sort={rowSort} key="perSqm" class="num">je m² im Monat</SortHeader>
+								<SortHeader sort={rowSort} key="reference" class="num">Durchschnitt</SortHeader>
 							</tr>
 						</thead>
 						<tbody>
-							{#each data.rows as row (row.key)}
+							{#each rowSort.rows(data.rows) as row (row.key)}
 								<tr>
 									<td>{row.label}</td>
 									<td class="number"><Money cents={row.amount} /></td>
@@ -156,14 +170,14 @@
 				<table class="table">
 					<thead>
 						<tr>
-							<th>Objekt</th>
-							<th class="number">Fläche</th>
-							<th class="number">im Jahr</th>
-							<th class="number">je m² im Monat</th>
+							<SortHeader sort={propertySort} key="name">Objekt</SortHeader>
+							<SortHeader sort={propertySort} key="area" class="num">Fläche</SortHeader>
+							<SortHeader sort={propertySort} key="amount" class="num">im Jahr</SortHeader>
+							<SortHeader sort={propertySort} key="perSqm" class="num">je m² im Monat</SortHeader>
 						</tr>
 					</thead>
 					<tbody>
-						{#each data.properties as row (row.id)}
+						{#each propertySort.rows(data.properties) as row (row.id)}
 							<tr>
 								<td><a href="?jahr={data.year}&objekt={row.id}">{row.name}</a></td>
 								<td class="number">{row.area > 0 ? `${formatNumber(row.area, 1)} m²` : '–'}</td>
@@ -205,18 +219,18 @@
 		align-content: start;
 	}
 	.tile .value {
-		font-size: 1.5rem;
+		font-size: var(--text-xl);
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 		letter-spacing: -0.01em;
 	}
 	.tile .label {
 		color: var(--color-muted);
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 	}
 	.tile .note {
 		margin-top: 0.5rem;
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 		color: var(--color-muted);
 	}
 	mark {

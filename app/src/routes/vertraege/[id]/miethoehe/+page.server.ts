@@ -1,23 +1,35 @@
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { addMonthsToMonth, firstOfMonth, monthOf, today } from '#lib/dates.ts';
+import { comparativeSituation } from '#lib/domain/comparative-rent.ts';
 import { effectiveFrom, indexSituation, nextGraduatedStepAllowed } from '#lib/domain/index-rent.ts';
 import { rentOn } from '#lib/domain/rents.ts';
-import { parseApproval, parseGraduatedStep, parseManualChange } from '#lib/forms/rent.ts';
+import {
+	parseApproval,
+	parseComparativeDemand,
+	parseConsent,
+	parseDelivery,
+	parseGraduatedStep,
+	parseManualChange
+} from '#lib/forms/rent.ts';
 import { landlordAddress } from '#lib/server/accounts.ts';
 import { currentIndexValues } from '#lib/server/consumer-price-index.ts';
 import { getLease, type LeaseSummary } from '#lib/server/leases.ts';
 import {
 	addGraduatedStep,
 	approveChange,
+	correctDelivery,
+	demandComparativeIncrease,
 	manualChange,
 	proposeIndexChange,
+	recordConsent,
 	removeChange
 } from '#lib/server/rent-adjustments.ts';
 import { listRentChanges } from '#lib/server/rents.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
-// The "Miethöhe" tab: the rent history with manual changes, Staffel steps and index proposals.
+// The "Miethöhe" tab: the rent history with manual changes, Staffel steps, index proposals and
+// § 558 demands.
 // The lease comes from the layout; every action loads it again, so an id of another account
 // answers 404 before anything is written.
 
@@ -49,6 +61,8 @@ export const load: PageServerLoad = async ({ locals, params, parent, url }) => {
 		changes,
 		today: day,
 		situation: indexSituation(lease, changes, values, day),
+		// A § 558 demand that reaches the tenant today; the form recomputes for another day.
+		comparative: comparativeSituation({ ...lease, floorArea: lease.unit.floorArea }, changes, day),
 		nextStepAllowed:
 			lease.rentModel === 'graduated' ? nextGraduatedStepAllowed(changes) : undefined,
 		prepayment: prepaymentCents,
@@ -154,12 +168,80 @@ export const actions: Actions = {
 		return { source: 'approve', saved: true };
 	},
 
+	delivery: async ({ request, locals, params }) => {
+		const lease = await requireLease(locals, params.id);
+		const form = await request.formData();
+		const changeId = changeIdOf(form);
+		const result = parseDelivery(form);
+		if (!result.ok) {
+			return fail(400, { source: 'delivery', errors: result.errors, values: result.values });
+		}
+		const outcome = await correctDelivery(
+			locals.db,
+			auditContext(locals),
+			lease.id,
+			changeId,
+			result.data.deliveredOn
+		);
+		if (!outcome) error(404, 'Diese Mietänderung gibt es nicht.');
+		if (!outcome.ok) {
+			return fail(400, {
+				source: 'delivery',
+				refusal: outcome.message,
+				values: stringValues(form)
+			});
+		}
+		redirect(303, `/vertraege/${params.id}/miethoehe`);
+	},
+
+	demand: async ({ request, locals, params }) => {
+		const lease = await requireLease(locals, params.id);
+		const form = await request.formData();
+		const result = parseComparativeDemand(form);
+		if (!result.ok) {
+			return fail(400, { source: 'demand', errors: result.errors, values: result.values });
+		}
+		const outcome = await demandComparativeIncrease(
+			locals.db,
+			auditContext(locals),
+			lease.id,
+			result.data
+		);
+		if (!outcome) error(404, 'Diesen Mietvertrag gibt es nicht.');
+		if (!outcome.ok) {
+			return fail(400, { source: 'demand', refusal: outcome.message, values: stringValues(form) });
+		}
+		return { source: 'demand', saved: true };
+	},
+
+	consent: async ({ request, locals, params }) => {
+		const lease = await requireLease(locals, params.id);
+		const form = await request.formData();
+		const changeId = changeIdOf(form);
+		const result = parseConsent(form);
+		if (!result.ok) {
+			return fail(400, { source: 'consent', errors: result.errors, values: result.values });
+		}
+		const outcome = await recordConsent(
+			locals.db,
+			auditContext(locals),
+			lease.id,
+			changeId,
+			result.data
+		);
+		if (!outcome) error(404, 'Diese Mietänderung gibt es nicht.');
+		if (!outcome.ok) {
+			return fail(400, { source: 'consent', refusal: outcome.message, values: stringValues(form) });
+		}
+		return { source: 'consent', saved: true };
+	},
+
 	delete: async ({ request, locals, params }) => {
 		const lease = await requireLease(locals, params.id);
 		const changeId = changeIdOf(await request.formData());
 		const outcome = await removeChange(locals.db, auditContext(locals), lease.id, changeId);
 		if (!outcome) error(404, 'Diese Mietänderung gibt es nicht.');
 		if (!outcome.ok) return fail(400, { source: 'delete', refusal: outcome.message });
-		return { source: 'delete', saved: true };
+		redirect(303, `/vertraege/${params.id}/miethoehe`);
 	}
 };

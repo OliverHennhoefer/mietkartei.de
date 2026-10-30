@@ -120,6 +120,37 @@ describe('returns', () => {
 		expect(haus.equity).toBeCloseTo(5400 / 100000);
 	});
 
+	it('estimates from the latest earlier year that has both interest and rates', () => {
+		const data = input();
+		const ratesOf = (year: number) =>
+			Array.from({ length: 12 }, (_, index) => ({
+				date: `${year}-${String(index + 1).padStart(2, '0')}-15`,
+				amount: 1000_00,
+				category: 'loan_payment' as const,
+				propertyId: 'haus'
+			}));
+		const [haus] = returns(
+			{
+				...data,
+				// 2025 has a Zinsbescheinigung but no rates booked, so 2024 is the latest share known;
+				// 2023 is older and had a higher share.
+				interest: [
+					{ propertyId: 'haus', year: 2023, amount: 7200_00 },
+					{ propertyId: 'haus', year: 2024, amount: 6000_00 },
+					{ propertyId: 'haus', year: 2025, amount: 6500_00 }
+				],
+				expenses: [...data.expenses, ...ratesOf(2023), ...ratesOf(2024)]
+			},
+			{ range: year, propertyId: null }
+		).properties;
+		expect(haus).toMatchObject({
+			interest: 6000_00,
+			estimatedInterest: 6000_00,
+			repayment: 6000_00,
+			unsplit: 0
+		});
+	});
+
 	it('gives no return on equity without the loan', () => {
 		const data = input();
 		const result = returns(

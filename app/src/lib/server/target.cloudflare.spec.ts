@@ -179,3 +179,14 @@ describe('the street map on the cloudflare target', () => {
 		expect(await propertiesToLocate(db, 'a', 5)).toEqual([]);
 	});
 });
+
+describe('the demo on the cloudflare target', () => {
+	it('deletes expired demo accounts after the response', async () => {
+		const { memoryStorage, testDatabase } = await import('./testing');
+		const { startDemo } = await import('./demo-accounts');
+		const db = await testDatabase();
+		await startDemo(db, { storage: memoryStorage() });
+		expect(workers.waitUntil).toHaveBeenCalledOnce();
+		await expect(workers.waitUntil.mock.calls[0][0]).resolves.toBe(0);
+	});
+});

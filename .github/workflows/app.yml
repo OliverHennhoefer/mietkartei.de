@@ -35,6 +35,8 @@ env:
 jobs:
   check:
     name: Lint, type check and unit tests
+    # Copies of the repository, such as those of the Deploy to Cloudflare button, run none of this.
+    if: github.repository == 'OliverHennhoefer/mietkartei.de'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # The Codecov upload signs in with a GitHub OIDC token instead of a stored secret.
@@ -90,6 +92,21 @@ jobs:
             exit 1
           fi
 
+      # Deployed databases record a migration as applied, so a change to a merged one never
+      # reaches them. Changes go into a new migration, see .github/MIGRATIONS.md.
+      - name: Check that merged migrations stay unchanged
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          changed=$(git diff --name-status --no-renames FETCH_HEAD HEAD -- drizzle | grep -v -e '^A' -e 'meta/_journal.json$' || true)
+          if [ -n "$changed" ]; then
+            echo "::error::A merged migration was changed or removed. Add a new migration instead, see .github/MIGRATIONS.md."
+            echo "$changed"
+            exit 1
+          fi
+
       - name: Unit tests
         run: npm run test:coverage
 
@@ -106,6 +123,8 @@ jobs:
 
   e2e:
     name: End-to-end tests (${{ matrix.target }})
+    # Copies of the repository, such as those of the Deploy to Cloudflare button, run none of this.
+    if: github.repository == 'OliverHennhoefer/mietkartei.de'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -149,6 +168,8 @@ jobs:
 
   docker:
     name: Docker image
+    # Copies of the repository, such as those of the Deploy to Cloudflare button, run none of this.
+    if: github.repository == 'OliverHennhoefer/mietkartei.de'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -220,6 +241,14 @@ jobs:
 
       - name: Build
         run: npm run build:cloudflare
+
+      # D1 Time Travel restores the database to any minute of the last 30 days; this is the one to
+      # return to if a migration goes wrong, see .github/MIGRATIONS.md.
+      - name: Note the restore point
+        run: |
+          at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "Restore point before the migrations: $at"
+          echo "Restore point before the migrations: \`npx wrangler d1 time-travel restore mietkartei --timestamp=$at\`" >> "$GITHUB_STEP_SUMMARY"
 
       # Migrations only add to the schema, so the running version keeps working until the deploy.
       - name: Apply database migrations

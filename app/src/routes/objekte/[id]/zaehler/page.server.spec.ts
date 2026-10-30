@@ -75,7 +75,7 @@ describe('zaehler', () => {
 		});
 	});
 
-	it('adds readings once per day and deletes them', async () => {
+	it('adds readings once per day, edits and deletes them', async () => {
 		const meterId = await createMeter();
 		const reading = { meterId, readAt: '2025-01-01', value: '100' };
 		expect(await act('createReading', reading)).toEqual({
@@ -87,13 +87,36 @@ describe('zaehler', () => {
 		});
 		expect(await act('createReading', { ...reading, value: '-1' })).toMatchObject({ fail: 400 });
 		const [{ id: readingId }] = await listReadings(db, 'a', meterId);
+		expect(await page(`?meter=${meterId}&bearbeiten=${readingId}`)).toMatchObject({
+			data: { editing: { id: readingId, value: 100 } }
+		});
+		await act('createReading', { ...reading, readAt: '2025-06-30' });
+		const edit = { meterId, readingId, readAt: '2025-06-30', value: '120,5' };
+		expect(await act('updateReading', edit)).toMatchObject({
+			fail: 400,
+			data: { form: 'editReading', errors: { readAt: expect.any(String) } }
+		});
+		expect(await act('updateReading', { ...edit, readAt: '2025-01-02' })).toEqual({
+			redirect: `/objekte/${propertyId}/zaehler?meter=${meterId}`
+		});
+		expect(
+			(await listReadings(db, 'a', meterId)).find((row) => row.id === readingId)
+		).toMatchObject({ readAt: '2025-01-02', value: 120.5 });
+		expect(await act('updateReading', { ...edit, value: '-1' })).toMatchObject({
+			fail: 400,
+			data: { form: 'editReading' }
+		});
+		expect(await act('updateReading', { ...edit, readingId: '' })).toMatchObject({ error: 404 });
+		expect(await act('updateReading', { ...edit, readingId: 'fremd' })).toMatchObject({
+			error: 404
+		});
 		expect(await act('deleteReading', { meterId, readingId: 'fremd' })).toMatchObject({
 			error: 404
 		});
 		expect(await act('deleteReading', { meterId, readingId })).toEqual({
 			redirect: `/objekte/${propertyId}/zaehler?meter=${meterId}`
 		});
-		expect(await listReadings(db, 'a', meterId)).toEqual([]);
+		expect(await listReadings(db, 'a', meterId)).toHaveLength(1);
 	});
 
 	it('removes a meter from service, not before it was installed, and deletes it', async () => {
@@ -120,6 +143,7 @@ describe('zaehler', () => {
 			'createReading',
 			'removeMeter',
 			'deleteMeter',
+			'updateReading',
 			'deleteReading'
 		] as const) {
 			expect(await act(action, { meterId }, second.propertyId), action).toMatchObject({

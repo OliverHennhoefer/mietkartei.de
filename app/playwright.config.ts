@@ -36,7 +36,7 @@ const commands = {
 		'wrangler d1 migrations apply DB --local --persist-to .e2e/wrangler',
 		'wrangler r2 object put mietkartei-map/map/fixture.pmtiles --file .e2e/map.pmtiles --local --persist-to .e2e/wrangler',
 		'wrangler r2 object put mietkartei-map/map/manifest.json --file .e2e/map.pmtiles.manifest.json --local --persist-to .e2e/wrangler',
-		`wrangler dev --port ${port} --local-upstream localhost:${port} --inspector-port 0 --persist-to .e2e/wrangler --var MAIL_TRANSPORT:outbox --var GEOCODER_URL:off --var E2E:true --var REGISTRATION_EMAILS:vermieterin@example.org --var STRIPE_SECRET_KEY:sk_test_fake --var STRIPE_PRICE_ID:price_fake --var STRIPE_WEBHOOK_SECRET:whsec_fake --var STRIPE_API_BASE:http://localhost:${stripePort}`
+		`wrangler dev --port ${port} --local-upstream localhost:${port} --inspector-port 0 --persist-to .e2e/wrangler --var MAIL_TRANSPORT:outbox --var GEOCODER_URL:off --var E2E:true --var REGISTRATION_EMAILS:vermieterin@example.org --var STRIPE_SECRET_KEY:sk_test_fake --var STRIPE_PRICE_ID:price_fake --var STRIPE_YEARLY_PRICE_ID: --var STRIPE_WEBHOOK_SECRET:whsec_fake --var STRIPE_API_BASE:http://localhost:${stripePort}`
 	]
 };
 

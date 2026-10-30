@@ -152,12 +152,12 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.25rem 1rem;
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 	}
 	.readout {
 		margin: 0 0 0.5rem;
 		color: var(--color-muted);
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 		font-variant-numeric: tabular-nums;
 		min-height: 1.4em;
 	}
@@ -197,7 +197,7 @@
 	}
 	.axis {
 		fill: var(--color-muted);
-		font-size: 11px;
+		font-size: var(--text-xs);
 		font-variant-numeric: tabular-nums;
 	}
 	.charged {
@@ -211,7 +211,7 @@
 	}
 	.value {
 		fill: var(--color-text);
-		font-size: 12px;
+		font-size: var(--text-xs);
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 	}

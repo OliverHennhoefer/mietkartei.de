@@ -11,10 +11,11 @@ import {
 	type IsoDate
 } from '../dates';
 import { co2Deadline } from '../domain/co2';
+import { consentDeadline, lastBaseRentChange, lawsuitDeadline } from '../domain/comparative-rent';
 import { depositInstalments } from '../domain/deposit';
 import { nextCancellation } from '../domain/insurance';
 import { leaseEndDeadlines } from '../domain/lease-end';
-import { objectionDeadline, statementDeadline } from '../domain/statement';
+import { objectionDeadline, periodLabel, statementDeadline } from '../domain/statement';
 import { insuranceKindLabels } from '../labels';
 import { personName } from '../format';
 import { formatCents } from '../money';
@@ -30,6 +31,7 @@ import {
 	rentChanges,
 	statementResults
 } from './db/schema';
+import { cite, type Citation } from './law';
 import { leaseLabel, listLeases, type LeaseSummary } from './leases';
 
 // Fristen: deadlines that follow from the data, computed on every request and never stored. Each
@@ -45,10 +47,33 @@ export type DeadlineKind =
 	| 'deposit_return'
 	| 'graduated_step'
 	| 'index_proposal'
+	| 'comparative_possible'
+	| 'comparative_consent'
 	| 'co2_reimbursement'
 	| 'meter_reading'
 	| 'insurance_notice'
 	| 'insurance_end';
+
+/**
+ * The law each kind of deadline follows from; none where no statute sets it (the lease end, the
+ * deposit return, insurance). The final meter reading has none either: § 9b HeizkostenV covers
+ * heating and hot water meters only, the row also stands for cold water and electricity.
+ */
+export const deadlineLegalBasis: Record<DeadlineKind, Citation[]> = {
+	statement: [cite('bgb-556', 'Abs. 3 Satz 2 und 3')],
+	objection: [cite('bgb-556', 'Abs. 3 Satz 5 und 6')],
+	lease_end: [],
+	deposit_instalment: [cite('bgb-551', 'Abs. 2')],
+	deposit_return: [],
+	graduated_step: [cite('bgb-557a')],
+	index_proposal: [cite('bgb-557b', 'Abs. 2 und 3')],
+	comparative_possible: [cite('bgb-558', 'Abs. 1')],
+	comparative_consent: [cite('bgb-558b', 'Abs. 1 und 2')],
+	co2_reimbursement: [cite('co2kostaufg-6', 'Abs. 2')],
+	meter_reading: [],
+	insurance_notice: [],
+	insurance_end: []
+};
 
 export type Deadline = {
 	kind: DeadlineKind;
@@ -79,8 +104,54 @@ function leaseDetail(lease: LeaseSummary): string {
 	return names ? `${names} · ${leaseLabel(lease)}` : leaseLabel(lease);
 }
 
-function yearOf(date: IsoDate): number {
-	return Number(date.slice(0, 4));
+type Period = { start: IsoDate; end: IsoDate };
+
+/**
+ * The ended billing periods of a property that overlap one of its leases, from the first lease
+ * on: the periods of its statements as they are, calendar years before the first statement (the
+ * last one cut short where that statement starts), and after a statement twelve months each in
+ * its rhythm until the next statement or today.
+ */
+export function billingPeriods(
+	statements: { periodStart: IsoDate; periodEnd: IsoDate }[],
+	leases: Period[],
+	today: IsoDate
+): Period[] {
+	if (leases.length === 0) return [];
+	const known = [
+		...new Map(
+			statements.map((row) => [
+				`${row.periodStart}:${row.periodEnd}`,
+				{ start: row.periodStart, end: row.periodEnd }
+			])
+		).values()
+	].sort((a, b) => a.start.localeCompare(b.start));
+	const periods: Period[] = [];
+	// From the first statement on, even one before every lease, so that its rhythm carries over.
+	let cursor = leases.reduce(
+		(min, lease) => (lease.start < min ? lease.start : min),
+		known[0]?.start ?? '9999-12-31'
+	);
+	let previous: Period | undefined;
+	while (cursor <= today) {
+		const next = known.find((period) => period.end >= cursor);
+		let period: Period;
+		if (next && next.start <= cursor) {
+			period = next;
+		} else {
+			period = previous
+				? { start: cursor, end: addDays(addMonths(cursor, 12), -1) }
+				: { start: `${cursor.slice(0, 4)}-01-01`, end: `${cursor.slice(0, 4)}-12-31` };
+			if (next && period.end >= next.start) period.end = addDays(next.start, -1);
+		}
+		if (period.end > today) break;
+		if (leases.some((lease) => lease.start <= period.end && lease.end >= period.start)) {
+			periods.push(period);
+		}
+		previous = period;
+		cursor = addDays(period.end, 1);
+	}
+	return periods;
 }
 
 /**
@@ -105,10 +176,7 @@ export async function listDeadlines(
 		readingRows,
 		policyRows
 	] = await Promise.all([
-		db
-			.select()
-			.from(rentChanges)
-			.where(and(eq(rentChanges.accountId, accountId), eq(rentChanges.status, 'approved'))),
+		db.select().from(rentChanges).where(eq(rentChanges.accountId, accountId)),
 		db
 			.select({
 				leaseId: depositTransactions.leaseId,
@@ -181,48 +249,45 @@ export async function listDeadlines(
 		deadlines.push({ ...deadline, overdue: deadline.date < today });
 	};
 
-	// Betriebskostenabrechnung (§ 556 Abs. 3 BGB): per property and ended calendar year with a
-	// residential lease, until an approved statement covers the end of that year; then per residential
-	// lease of that statement until its delivery is recorded, since the deadline is about the statement
-	// reaching the tenant. Years before a lease's ledger start are not the app's business.
-	const yearsByProperty = new Map<string, Set<number>>();
+	// Betriebskostenabrechnung (§ 556 Abs. 3 BGB): per property and ended billing period with a
+	// residential lease, until an approved statement for that period exists; then per residential
+	// lease of that statement until its delivery is recorded, since the deadline is about the
+	// statement reaching the tenant. The periods are those of the property's statements; before the
+	// first one they are calendar years, after the last one they continue its rhythm (a July to June
+	// period is followed by the next July to June). Periods before a lease's ledger start are not the
+	// app's business.
+	const leasesByProperty = new Map<string, { start: IsoDate; end: IsoDate }[]>();
 	for (const lease of allLeases) {
 		if (lease.kind !== 'residential') continue;
 		// A lease with Pauschale or Inklusivmiete for both cost groups gets no statement.
 		if (lease.operatingCostModel !== 'prepayment' && lease.heatingCostModel !== 'prepayment') {
 			continue;
 		}
-		const bookkeepingStart =
+		const start =
 			lease.ledgerStart && lease.ledgerStart > lease.startDate
 				? lease.ledgerStart
 				: lease.startDate;
-		const lastYear = Math.min(
-			yearOf(lease.endDate ?? today),
-			yearOf(today) - (today.endsWith('-12-31') ? 0 : 1)
-		);
-		for (let year = yearOf(bookkeepingStart); year <= lastYear; year += 1) {
-			let years = yearsByProperty.get(lease.property.id);
-			if (!years) yearsByProperty.set(lease.property.id, (years = new Set()));
-			years.add(year);
-		}
+		let ranges = leasesByProperty.get(lease.property.id);
+		if (!ranges) leasesByProperty.set(lease.property.id, (ranges = []));
+		ranges.push({ start, end: lease.endDate ?? '9999-12-31' });
 	}
-	for (const [propertyId, years] of yearsByProperty) {
+	for (const [propertyId, ranges] of leasesByProperty) {
 		const property = allLeases.find((lease) => lease.property.id === propertyId)?.property;
-		for (const year of years) {
-			const periodEnd = `${year}-12-31`;
-			const deadline = statementDeadline(periodEnd);
-			const approved = statementRows.filter(
+		const statements = statementRows.filter((row) => row.propertyId === propertyId);
+		for (const period of billingPeriods(statements, ranges, today)) {
+			const deadline = statementDeadline(period.end);
+			const label = periodLabel(period.start, period.end);
+			const approved = statements.filter(
 				(row) =>
-					row.propertyId === propertyId &&
 					row.status === 'approved' &&
-					row.periodStart <= periodEnd &&
-					row.periodEnd >= periodEnd
+					row.periodStart === period.start &&
+					row.periodEnd === period.end
 			);
 			if (approved.length === 0) {
 				push({
 					kind: 'statement',
 					date: deadline,
-					title: `Betriebskostenabrechnung ${year}`,
+					title: `Betriebskostenabrechnung ${label}`,
 					detail: `${property?.name ?? 'Objekt'}: die Abrechnung muss den Mietern bis zum ${formatDate(deadline)} zugehen.`,
 					href: '/betriebskosten',
 					propertyId
@@ -247,7 +312,7 @@ export async function listDeadlines(
 				push({
 					kind: 'statement',
 					date: deadline,
-					title: `Betriebskostenabrechnung ${year} zustellen`,
+					title: `Betriebskostenabrechnung ${label} zustellen`,
 					detail: `${leaseDetail(lease)}: die Abrechnung muss bis zum ${formatDate(deadline)} zugehen; trag die Zustellung ein.`,
 					href: `/betriebskosten/abrechnungen/${statementId}`,
 					leaseId,
@@ -268,7 +333,7 @@ export async function listDeadlines(
 			{
 				kind: 'objection',
 				date: objectionDeadline(result.deliveredOn),
-				title: `Einwendungsfrist Betriebskostenabrechnung ${yearOf(statement.periodEnd)}`,
+				title: `Einwendungsfrist Betriebskostenabrechnung ${periodLabel(statement.periodStart, statement.periodEnd)}`,
 				detail: `${leaseDetail(lease)} · zugestellt am ${formatDate(result.deliveredOn)}`,
 				href: `/betriebskosten/abrechnungen/${statement.id}`,
 				leaseId: lease.id,
@@ -278,9 +343,18 @@ export async function listDeadlines(
 		);
 	}
 
-	// Per lease: end, deposit, Staffel, index, CO₂, meters.
+	// Per lease: end, deposit, Staffel, index, § 558, CO₂, meters.
 	const changesByLease = new Map<string, typeof changeRows>();
+	const demandsByLease = new Map<string, typeof changeRows>();
 	for (const change of changeRows) {
+		if (change.status !== 'approved') {
+			if (change.reason === 'comparative' && change.deliveredOn) {
+				const demands = demandsByLease.get(change.leaseId);
+				if (demands) demands.push(change);
+				else demandsByLease.set(change.leaseId, [change]);
+			}
+			continue;
+		}
 		const list = changesByLease.get(change.leaseId);
 		if (list) list.push(change);
 		else changesByLease.set(change.leaseId, [change]);
@@ -438,6 +512,42 @@ export async function listDeadlines(
 					},
 					false
 				);
+			}
+		}
+
+		// § 558: the earliest day to ask for an increase to the Vergleichsmiete, to know about, and a
+		// demand waiting for the tenant's consent: first the consent period, then the three months
+		// to sue for it (§ 558b Abs. 2 BGB).
+		if (lease.rentModel === 'fixed' && lease.kind === 'residential' && !ended) {
+			const demands = demandsByLease.get(lease.id) ?? [];
+			const lastChange = lastBaseRentChange(history);
+			if (lastChange && demands.length === 0) {
+				const demandFrom = addMonths(lastChange, 12);
+				push(
+					{
+						kind: 'comparative_possible',
+						date: demandFrom,
+						title: 'Mieterhöhung nach § 558 möglich',
+						detail: `Erhöhung bis zur Vergleichsmiete kann ab ${formatDate(demandFrom)} verlangt werden; letzte Änderung der Kaltmiete am ${formatDate(lastChange)} · ${detail}`,
+						href: `/vertraege/${lease.id}/miethoehe`,
+						...base
+					},
+					false
+				);
+			}
+			for (const demand of demands) {
+				const consentBy = consentDeadline(demand.deliveredOn!);
+				const suing = consentBy < today;
+				push({
+					kind: 'comparative_consent',
+					date: suing ? lawsuitDeadline(demand.deliveredOn!) : consentBy,
+					title: suing ? 'Klagefrist Mieterhöhung' : 'Zustimmung zur Mieterhöhung',
+					detail: suing
+						? `Der Mieter hat der Erhöhung auf ${formatCents(demand.baseRent)} bis zum ${formatDate(consentBy)} nicht zugestimmt; trag die Zustimmung ein, klag auf Zustimmung oder lösche das Verlangen · ${detail}`
+						: `Kaltmiete ${formatCents(demand.baseRent)} ab ${formatDate(demand.validFrom)}; trag die Zustimmung ein, sobald sie vorliegt · ${detail}`,
+					href: `/vertraege/${lease.id}/miethoehe`,
+					...base
+				});
 			}
 		}
 

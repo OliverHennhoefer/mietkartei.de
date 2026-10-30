@@ -34,6 +34,8 @@ env:
 jobs:
   upload:
     name: Extract and upload the map
+    # Copies of the repository, such as those of the Deploy to Cloudflare button, run none of this.
+    if: github.repository == 'OliverHennhoefer/mietkartei.de'
     runs-on: ubuntu-latest
     timeout-minutes: 150
     environment:

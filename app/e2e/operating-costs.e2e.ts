@@ -458,7 +458,15 @@ test('edits and deletes categories, keys, circles, cost items, meters and readin
 	await readings.getByLabel(/^Stand in/).fill('12,5');
 	await readings.getByRole('button', { name: 'Zählerstand erfassen' }).click();
 	await expect(readings.getByRole('table')).toContainText('01.01.2025');
-	await readings.getByRole('table').getByRole('button', { name: 'Löschen' }).click();
+	// The date opens the reading in a dialog: change it, then delete it there.
+	await readings.getByRole('table').getByRole('link', { name: '01.01.2025' }).click();
+	const reading = page.getByRole('dialog', { name: 'Zählerstand bearbeiten' });
+	await reading.getByLabel(/^Stand in/).fill('13,5');
+	await reading.getByRole('button', { name: 'Speichern' }).click();
+	await expect(reading).toBeHidden();
+	await expect(readings.getByRole('table')).toContainText('13,5');
+	await readings.getByRole('table').getByRole('link', { name: '01.01.2025' }).click();
+	await reading.getByRole('button', { name: 'Löschen' }).click();
 	await expect(readings).toContainText('Noch kein Zählerstand erfasst.');
 
 	await readings.getByLabel('Ausgebaut am').fill('2025-06-30');

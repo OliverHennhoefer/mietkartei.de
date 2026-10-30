@@ -24,7 +24,7 @@
     <meta property="og:image:height" content="630">
     <meta property="og:image:alt" content="mietkartei: Vermieten. Mit Überblick. Mieten, Bankumsätze und die Betriebskostenabrechnung ohne Excel-Chaos, daneben die Übersicht der App.">
     <meta name="twitter:card" content="summary_large_image">
-    <link rel="preload" href="assets/fonts/geist/Geist.ttf" as="font" type="font/ttf" crossorigin>
+    <link rel="preload" href="assets/fonts/geist/Geist.woff2" as="font" type="font/woff2" crossorigin>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -72,12 +72,12 @@
               {
                 "@type": "Offer",
                 "name": "Gehostet unter app.mietkartei.de",
-                "price": "8",
+                "price": "5",
                 "priceCurrency": "EUR",
                 "url": "https://app.mietkartei.de/anmelden",
                 "priceSpecification": {
                   "@type": "UnitPriceSpecification",
-                  "price": "8",
+                  "price": "5",
                   "priceCurrency": "EUR",
                   "billingDuration": "P1M",
                   "valueAddedTaxIncluded": true
@@ -125,13 +125,13 @@
               <img src="assets/screenshots/auswertung.png" alt="Auswertung eines Objekts mit Einnahmen, Ausgaben, Überschuss und Kaltmiete pro m² sowie dem Verlauf über ein Jahr" width="1600" height="1000" decoding="async">
             </figure>
             <p class="float float-surplus" aria-hidden="true"><span>Überschuss 2025</span><strong><span class="neon">+4.531,17 €</span></strong></p>
-            <p class="float float-payment" aria-hidden="true"><span>Mieteingang erkannt</span><strong>Anna Schmidt · 990,00 €</strong><small>Vorschlag: gleiche IBAN wie früher</small></p>
+            <p class="float float-payment" aria-hidden="true"><span>Mieteingang erkannt</span><strong>Armin Schmidt · 990,00 €</strong><small>Vorschlag: gleiche IBAN wie früher</small></p>
           </div>
           <ul class="facts" aria-label="Was mietkartei ausmacht">
             <li><strong>Open Source</strong>Der Code ist öffentlich einsehbar.</li>
             <li><strong>Server in der EU</strong>Oder auf deinem eigenen Rechner.</li>
             <li><strong>Voller Export</strong>Alle Daten und Belege als ZIP.</li>
-            <li><strong>Ein Preis</strong>8 € im Monat, egal wie viele Wohnungen.</li>
+            <li><strong>Ein Preis</strong>5 € im Monat, egal wie viele Wohnungen.</li>
           </ul>
         </section>
 
@@ -143,7 +143,7 @@
             <div class="feature-copy">
               <span class="feature-number">01</span>
               <h3>Die Nebenkostenabrechnung, mit Rechenweg.</h3>
-              <p>Belege erfassen, Umlageschlüssel wählen, prüfen und freigeben. mietkartei legt tagesgenau um, berücksichtigt Mieterwechsel, Heizkostenverordnung und CO₂-Kostenaufteilung und erstellt für jeden Mieter ein PDF. Jede Zeile zeigt, wie sein Anteil entsteht.</p>
+              <p>Belege erfassen, Umlageschlüssel wählen, prüfen und freigeben. mietkartei legt tagesgenau um, berücksichtigt Mieterwechsel, Heizkostenverordnung und CO₂-Kostenaufteilung und erstellt für jeden Mieter ein PDF. Jede Zeile zeigt, wie sein Anteil entsteht. <a class="feature-more" href="/rechenbeispiele/">Nachgerechnet: die Rechenbeispiele</a></p>
             </div>
             <figure class="window"><img src="assets/screenshots/abrechnung-mieter.png" alt="Anteil eines Mieters in der Betriebskostenabrechnung mit Umlageschlüssel je Kostenart" width="1600" height="1000" decoding="async" loading="lazy"></figure>
           </article>
@@ -202,9 +202,22 @@
               <p class="kicker">Mit KI-Assistent</p>
               <h2 class="section-title" id="fragen">Fragen in ganzen Sätzen.</h2>
               <p class="section-lead">Wer möchte, verbindet mietkartei mit <a href="https://docs.mietkartei.de/anleitungen/ki-assistenten/">Claude oder ChatGPT</a>. Die Antworten kommen aus deinen eigenen Zahlen. Ob der Assistent nur lesen oder auch buchen darf, entscheidest du.</p>
+              <div class="handoff">
+                <p class="handoff-label">Oder überlass das Einrichten deinem Assistenten:</p>
+                <div class="handoff-actions">
+                  <button type="button" class="copy" data-copy="prompt-hosted">Auftrag fürs Abo kopieren</button>
+                  <button type="button" class="copy copy-ghost" data-copy="prompt-selfhost">Auftrag zum Selbstbetreiben kopieren</button>
+                </div>
+                <p class="handoff-hint">In Claude oder ChatGPT einfügen, fertig. Zum Selbstbetreiben in Claude Code oder Codex.</p>
+                <details class="handoff-details">
+                  <summary>Was steht im Auftrag?</summary>
+                  <p id="prompt-hosted">Lies https://mietkartei.de/llms.txt und hilf mir, mietkartei über https://app.mietkartei.de/mcp mit dir zu verbinden. Zeig mir danach, welche Mieten offen sind.</p>
+                  <p id="prompt-selfhost">Richte mietkartei nach https://docs.mietkartei.de/selbst-hosten/ auf diesem Rechner ein. Verbinde dich danach mit dem MCP-Server meiner Instanz unter /mcp.</p>
+                </details>
+              </div>
             </div>
             <div class="chat" aria-label="Beispiel eines Gesprächs mit Claude">
-              <p class="bubble bubble-question">Was trägt Anna Schmidt 2025 an Nebenkosten für Grundsteuer und Wasser?</p>
+              <p class="bubble bubble-question">Was trägt Armin Schmidt 2025 an Nebenkosten für Grundsteuer und Wasser?</p>
               <div class="bubble bubble-answer">
                 <span class="chat-source">Claude · aus mietkartei</span>
                 <p>Für Wohnung EG links, 62 m², ganzjährig:</p>
@@ -248,7 +261,7 @@
             <li>
               <span class="step-number">3</span>
               <h3>Weg wählen</h3>
-              <p>Gehostet für 8 € im Monat, die ersten 30 Tage kostenlos und monatlich kündbar. Oder kostenlos auf deinem eigenen Rechner oder NAS.</p>
+              <p>Gehostet für 5 € im Monat, die ersten 30 Tage kostenlos und monatlich kündbar, oder für 50 € im Jahr. So viel, wie Cloudflare allein fürs Selbstbetreiben nimmt, nur ohne Einrichtung. Oder kostenlos auf deinem eigenen Rechner oder NAS.</p>
               <a class="step-link" href="/preise/">Preise vergleichen<span aria-hidden="true">→</span></a>
             </li>
           </ol>
@@ -257,5 +270,6 @@
 
       <!-- footer -->
     </div>
+    <script src="/assets/copy.js" defer></script>
   </body>
 </html>

@@ -1,11 +1,15 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import Alert from '#lib/components/Alert.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import EditDialog from '#lib/components/EditDialog.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Field from '#lib/components/Field.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { formatIban } from '#lib/domain/bank-matching.ts';
+	import { byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -14,6 +18,18 @@
 	const values = $derived(form && 'values' in form ? form.values : undefined);
 	const message = $derived(form && 'message' in form ? form.message : undefined);
 	const synced = $derived(form && 'synced' in form ? form.synced : undefined);
+	// ?bearbeiten=<id> opens a bank account in its dialog.
+	const opened = $derived(
+		data.bankAccounts.find((account) => account.id === page.url.searchParams.get('bearbeiten'))
+	);
+
+	const sort = new TableSort<PageProps['data']['bankAccounts'][number]>({
+		name: byText((account) => account.name),
+		iban: byText((account) => account.iban),
+		bic: byText((account) => account.bic),
+		holder: byText((account) => account.holder),
+		transactions: byNumber((account) => account.transactionCount)
+	});
 
 	const dateTime = new Intl.DateTimeFormat('de-DE', {
 		dateStyle: 'medium',
@@ -30,9 +46,6 @@
 {:else}
 	{#if message}
 		<Alert tone="danger"><p>{message}</p></Alert>
-	{/if}
-	{#if form && 'deleted' in form}
-		<Alert tone="success"><p>Die Bankverbindung wurde gelöscht.</p></Alert>
 	{/if}
 	{#if form && 'ended' in form}
 		<Alert tone="success"><p>Der Bankabruf ist beendet. Die Umsätze bleiben erhalten.</p></Alert>
@@ -65,19 +78,20 @@
 			<table class="table" aria-label="Bankverbindungen">
 				<thead>
 					<tr>
-						<th>Bezeichnung</th>
-						<th>IBAN</th>
-						<th>BIC</th>
-						<th>Kontoinhaber</th>
-						<th class="num">Umsätze</th>
+						<SortHeader {sort} key="name">Bezeichnung</SortHeader>
+						<SortHeader {sort} key="iban">IBAN</SortHeader>
+						<SortHeader {sort} key="bic">BIC</SortHeader>
+						<SortHeader {sort} key="holder">Kontoinhaber</SortHeader>
+						<SortHeader {sort} key="transactions" class="num">Umsätze</SortHeader>
 						{#if data.sync}<th>Bankabruf</th>{/if}
-						<th class="actions"><span class="visually-hidden">Aktionen</span></th>
 					</tr>
 				</thead>
 				<tbody>
-					{#each data.bankAccounts as account (account.id)}
+					{#each sort.rows(data.bankAccounts) as account (account.id)}
 						<tr>
-							<td>{account.name}</td>
+							<td>
+								<a href="?bearbeiten={account.id}" data-sveltekit-reset="false">{account.name}</a>
+							</td>
 							<td class="iban">{formatIban(account.iban)}</td>
 							<td>{account.bic ?? '–'}</td>
 							<td>{account.holder}</td>
@@ -118,15 +132,6 @@
 									{/if}
 								</td>
 							{/if}
-							<td class="actions">
-								<ConfirmButton
-									action="?/delete"
-									label="Löschen"
-									message="Bankverbindung „{account.name}“ mit allen importierten Umsätzen löschen?"
-								>
-									<input type="hidden" name="id" value={account.id} />
-								</ConfirmButton>
-							</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -134,7 +139,7 @@
 		</div>
 	{/if}
 
-	<h2>Bankverbindung anlegen</h2>
+	<h2 id="bankverbindung-anlegen">Bankverbindung anlegen</h2>
 	<form method="POST" action="?/create" class="card" use:enhance>
 		<Field label="Bezeichnung" error={errors?.name}>
 			<input
@@ -184,6 +189,30 @@
 			<p class="form-actions form-wide" role="status">„{form.created}“ wurde angelegt.</p>
 		{/if}
 	</form>
+{/if}
+
+{#if opened}
+	{#key opened.id}
+		<EditDialog
+			title={opened.name}
+			deleteAction="?/delete"
+			deleteMessage="Bankverbindung „{opened.name}“ mit allen importierten Umsätzen löschen?"
+			close="/bank/konten"
+			error={message}
+		>
+			<input type="hidden" name="id" value={opened.id} />
+			<dl class="details">
+				<dt>IBAN</dt>
+				<dd>{formatIban(opened.iban)}</dd>
+				<dt>BIC</dt>
+				<dd>{opened.bic ?? '–'}</dd>
+				<dt>Kontoinhaber</dt>
+				<dd>{opened.holder}</dd>
+				<dt>Umsätze</dt>
+				<dd>{opened.transactionCount}</dd>
+			</dl>
+		</EditDialog>
+	{/key}
 {/if}
 
 <style>

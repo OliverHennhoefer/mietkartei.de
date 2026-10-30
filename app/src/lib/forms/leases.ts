@@ -1,3 +1,4 @@
+import type { IsoDate } from '../dates';
 import {
 	heatingCostModels,
 	leaseKinds,
@@ -5,7 +6,12 @@ import {
 	rentModels,
 	terminatedByParties
 } from '../server/db/schema';
-import type { LeaseEndInput, LeaseInput, LeasePersonsInput } from '../server/leases';
+import type {
+	LeaseEndInput,
+	LeaseInput,
+	LeasePartyInput,
+	LeasePersonsInput
+} from '../server/leases';
 import { FormParser, type ParseResult } from './fields';
 
 // Parses the lease forms. Whether the unit and tenants belong to the account is checked by the
@@ -132,16 +138,27 @@ export function parseLeaseEdit(form: FormData, current: LeaseInput): ParseResult
 	return parseLease(merged);
 }
 
-/** The opening balance of the ledger (Anfangssaldo), a signed amount; empty means none. */
+export const openingBalanceSides = ['arrears', 'credit'] as const;
+
+/**
+ * The opening balance of the ledger (Anfangssaldo); empty means none. The lease form names its
+ * side, a Rückstand or a Guthaben of the tenant, with an amount without a sign; without a side
+ * (the import of a spreadsheet) the amount carries the sign: negative for a Guthaben.
+ */
 export function parseOpeningBalance(
 	form: FormData
-): ParseResult<{ openingBalance: number | null }> {
-	const parser = new FormParser<{ openingBalance: number | null }>(form);
-	const openingBalance = parser.money('openingBalance', {
+): ParseResult<{ openingBalance: number | null; openingBalanceSide: string | null }> {
+	const parser = new FormParser<{
+		openingBalance: number | null;
+		openingBalanceSide: string | null;
+	}>(form);
+	const side = parser.oneOf('openingBalanceSide', openingBalanceSides, { required: false });
+	const amount = parser.money('openingBalance', {
 		required: false,
-		min: -100_000_000_00
+		min: side ? 0 : -100_000_000_00
 	});
-	return parser.result(() => ({ openingBalance }));
+	const openingBalance = amount !== null && side === 'credit' ? -amount : amount;
+	return parser.result(() => ({ openingBalance, openingBalanceSide: side }));
 }
 
 /** "Personen ab Datum" on the lease overview. */
@@ -151,6 +168,27 @@ export function parseLeasePersons(form: FormData): ParseResult<LeasePersonsInput
 	const persons = parser.number('persons', { integer: true, min: 0, max: 20 });
 	const note = parser.optionalText('note');
 	return parser.result(() => ({ validFrom: validFrom!, persons: persons!, note }));
+}
+
+/** A tenant joining the lease on the overview: the day is optional (from the start). */
+export function parseLeasePartyAdd(
+	form: FormData
+): ParseResult<{ tenantId: string; joinedOn: IsoDate | null }> {
+	const parser = new FormParser<{ tenantId: string; joinedOn: IsoDate | null }>(form);
+	const tenantId = parser.text('tenantId', { max: 64 });
+	const joinedOn = parser.date('joinedOn', { required: false });
+	return parser.result(() => ({ tenantId: tenantId!, joinedOn }));
+}
+
+/** The days a tenant joined and left the lease, both optional. */
+export function parseLeaseParty(form: FormData): ParseResult<LeasePartyInput> {
+	const parser = new FormParser<LeasePartyInput>(form);
+	const joinedOn = parser.date('joinedOn', { required: false });
+	const leftOn = parser.date('leftOn', { required: false });
+	if (joinedOn && leftOn && leftOn < joinedOn) {
+		parser.fail('leftOn', 'Der Austritt liegt vor dem Eintritt.');
+	}
+	return parser.result(() => ({ joinedOn, leftOn }));
 }
 
 /** "Vertrag beenden" on the lease overview. */

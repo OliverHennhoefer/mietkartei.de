@@ -6,19 +6,50 @@ import { formatCents } from '../money';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import { expenses, properties, units } from './db/schema';
+import { expenses, properties, serviceProviders, units } from './db/schema';
 import { assertQuota } from './quotas';
 
 // Ausgaben: money the landlord paid out, for a unit, a property or the portfolio as a whole.
 // Entered here by hand, or assigned from a bank transaction by the banking module (which also
-// deletes them again on undo). The analysis reads them; nothing else depends on them.
+// deletes them again on undo). Each may name the Dienstleister who was paid; without one it counts
+// as "unbekannt". The analysis reads them; nothing else depends on them.
 
 export type Expense = typeof expenses.$inferSelect;
 
 export type ExpenseRow = Expense & {
 	/** "EG links · Haus", "Haus" or "Gesamter Bestand". */
 	scopeLabel: string;
+	/** The name of the Dienstleister; null when unknown. */
+	serviceProviderName: string | null;
 };
+
+/** Whether the Dienstleister, when one is named, belongs to the account. */
+export async function knownServiceProvider(
+	db: Database,
+	accountId: string,
+	serviceProviderId: string | null | undefined
+): Promise<boolean> {
+	if (!serviceProviderId) return true;
+	const [row] = await db
+		.select({ id: serviceProviders.id })
+		.from(serviceProviders)
+		.where(
+			and(eq(serviceProviders.accountId, accountId), eq(serviceProviders.id, serviceProviderId))
+		);
+	return Boolean(row);
+}
+
+/** The names of the account's Dienstleister by id; one query. */
+export async function serviceProviderNames(
+	db: Database,
+	accountId: string
+): Promise<Map<string, string>> {
+	const rows = await db
+		.select({ id: serviceProviders.id, name: serviceProviders.name })
+		.from(serviceProviders)
+		.where(eq(serviceProviders.accountId, accountId));
+	return new Map(rows.map((row) => [row.id, row.name]));
+}
 
 /** The property and unit columns of a scope, checked against the account. */
 export type ResolvedScope = { propertyId: string | null; unitId: string | null };
@@ -80,7 +111,7 @@ export async function listExpenses(
 	accountId: string,
 	range: { from?: string; to?: string } = {}
 ): Promise<ExpenseRow[]> {
-	const [rows, label] = await Promise.all([
+	const [rows, label, names] = await Promise.all([
 		db
 			.select()
 			.from(expenses)
@@ -92,19 +123,29 @@ export async function listExpenses(
 				)
 			)
 			.orderBy(desc(expenses.date), desc(expenses.createdAt)),
-		scopeLabels(db, accountId)
+		scopeLabels(db, accountId),
+		serviceProviderNames(db, accountId)
 	]);
-	return rows.map((row) => ({ ...row, scopeLabel: label(row) }));
+	return rows.map((row) => ({
+		...row,
+		scopeLabel: label(row),
+		serviceProviderName: (row.serviceProviderId && names.get(row.serviceProviderId)) || null
+	}));
 }
 
 export async function createExpense(
 	db: Database,
 	context: AuditContext,
 	input: ExpenseInput
-): Promise<{ ok: true; id: string } | { ok: false; reason: 'unknown-scope' }> {
+): Promise<
+	{ ok: true; id: string } | { ok: false; reason: 'unknown-scope' | 'unknown-service-provider' }
+> {
 	const { accountId } = context;
 	const scope = await resolveScope(db, accountId, input.scope);
 	if (!scope) return { ok: false, reason: 'unknown-scope' };
+	if (!(await knownServiceProvider(db, accountId, input.serviceProviderId))) {
+		return { ok: false, reason: 'unknown-service-provider' };
+	}
 	await assertQuota(db, accountId, 'expenses');
 	const id = crypto.randomUUID();
 	const row = {
@@ -114,13 +155,46 @@ export async function createExpense(
 		date: input.date,
 		amount: input.amount,
 		category: input.category,
-		description: input.description
+		description: input.description,
+		serviceProviderId: input.serviceProviderId ?? null
 	};
 	await runBatch(db, [
 		db.insert(expenses).values(row),
 		auditEntry(db, context, 'expense', id, 'create', `${expenseSummary(row)} erfasst`)
 	]);
 	return { ok: true, id };
+}
+
+/** Changes a manual expense; one from a bank transaction is changed on the bank page instead. */
+export async function updateExpense(
+	db: Database,
+	context: AuditContext,
+	expenseId: string,
+	input: ExpenseInput
+): Promise<'updated' | 'missing' | 'from-bank' | 'unknown-scope' | 'unknown-service-provider'> {
+	const { accountId } = context;
+	const ofAccount = and(eq(expenses.accountId, accountId), eq(expenses.id, expenseId));
+	const [existing] = await db.select().from(expenses).where(ofAccount);
+	if (!existing) return 'missing';
+	if (existing.bankTransactionId) return 'from-bank';
+	const scope = await resolveScope(db, accountId, input.scope);
+	if (!scope) return 'unknown-scope';
+	if (!(await knownServiceProvider(db, accountId, input.serviceProviderId))) {
+		return 'unknown-service-provider';
+	}
+	const row = {
+		...scope,
+		date: input.date,
+		amount: input.amount,
+		category: input.category,
+		description: input.description,
+		serviceProviderId: input.serviceProviderId
+	};
+	await runBatch(db, [
+		db.update(expenses).set(row).where(ofAccount),
+		auditEntry(db, context, 'expense', expenseId, 'update', `${expenseSummary(row)} geändert`)
+	]);
+	return 'updated';
 }
 
 /** Deletes a manual expense; one from a bank transaction is undone on the bank page instead. */
@@ -176,19 +250,21 @@ export async function scopeOptions(db: Database, accountId: string): Promise<Sco
 	}));
 }
 
-/** An earlier description with the category and scope it was booked with last. */
+/** An earlier description with the category, scope and Dienstleister it was booked with last. */
 export type ExpenseSuggestion = {
 	description: string;
 	category: Expense['category'];
 	scope: string;
+	/** '' when unknown. */
+	serviceProviderId: string;
 };
 
 /** How many descriptions the suggestion list offers at most. */
 const SUGGESTIONS = 200;
 
 /**
- * The distinct descriptions of the account, most recent first, each with the category and
- * scope of its latest expense: picking one again fills them in. One query.
+ * The distinct descriptions of the account, most recent first, each with the category, scope and
+ * Dienstleister of its latest expense: picking one again fills them in. One query.
  */
 export async function expenseSuggestions(
 	db: Database,
@@ -199,7 +275,8 @@ export async function expenseSuggestions(
 			description: expenses.description,
 			category: expenses.category,
 			propertyId: expenses.propertyId,
-			unitId: expenses.unitId
+			unitId: expenses.unitId,
+			serviceProviderId: expenses.serviceProviderId
 		})
 		.from(expenses)
 		.where(eq(expenses.accountId, accountId))
@@ -211,7 +288,8 @@ export async function expenseSuggestions(
 		result.set(row.description, {
 			description: row.description,
 			category: row.category,
-			scope: expenseScopeValue(row)
+			scope: expenseScopeValue(row),
+			serviceProviderId: row.serviceProviderId ?? ''
 		});
 	}
 	return [...result.values()];

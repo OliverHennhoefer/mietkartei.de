@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
+import { today } from '#lib/dates.ts';
+import { createServiceProvider } from '#lib/server/service-providers.ts';
+import { expenses } from '#lib/server/db/schema.ts';
 import { createTask as storeTask, getTask, listTasks } from '#lib/server/tasks.ts';
 import {
+	contextA,
 	contextB,
 	outcome,
 	routeEvent,
@@ -9,7 +13,6 @@ import {
 	seedUnit,
 	testDatabase
 } from '#lib/server/testing.ts';
-import { actions as taskActions, load as loadTask } from './[id]/+page.server';
 import { actions, load } from './+page.server';
 
 let db: Database;
@@ -98,41 +101,34 @@ describe('aufgaben', () => {
 
 	it('deletes a task from the list once', async () => {
 		const id = await createTask({ title: 'Weg' });
-		expect(await run(actions.delete, { form: { id } })).toEqual({ data: { deleted: id } });
+		expect(await run(actions.delete, { form: { id } })).toEqual({ redirect: '/aufgaben' });
 		expect(await run(actions.delete, { form: { id } })).toMatchObject({ fail: 404 });
 	});
-});
 
-describe('aufgaben/[id]', () => {
-	it('edits and deletes a task, and answers 404 for another account’s', async () => {
+	it('opens a task in the edit dialog and saves it', async () => {
 		const id = await createTask({ title: 'Heizung warten' });
-		expect(await run(loadTask, { params: { id } })).toMatchObject({
-			data: { task: { id, title: 'Heizung warten' } }
+		expect(await run(load, { url: `/aufgaben?bearbeiten=${id}` })).toMatchObject({
+			data: { editing: { id, title: 'Heizung warten' } }
+		});
+		expect(await run(load, { url: '/aufgaben?bearbeiten=unbekannt' })).toMatchObject({
+			data: { editing: null }
 		});
 		expect(
-			await run(taskActions.update, {
-				params: { id },
-				form: { title: 'Heizung warten lassen', link: `lease:${leaseId}` }
+			await run(actions.update, {
+				form: { id, title: 'Heizung warten lassen', link: `lease:${leaseId}` }
 			})
 		).toEqual({ redirect: '/aufgaben' });
 		expect((await getTask(db, 'a', id))?.leaseId).toBe(leaseId);
 		expect(
-			await run(taskActions.update, { params: { id }, form: { title: 'x', link: 'lease:fremd' } })
-		).toMatchObject({ fail: 400, data: { errors: { link: expect.any(String) } } });
-		expect(await run(taskActions.update, { params: { id }, form: { title: '' } })).toMatchObject({
-			fail: 400
+			await run(actions.update, { form: { id, title: 'x', link: 'lease:fremd' } })
+		).toMatchObject({ fail: 400, data: { edit: true, errors: { link: expect.any(String) } } });
+		expect(await run(actions.update, { form: { id, title: '' } })).toMatchObject({
+			fail: 400,
+			data: { edit: true }
 		});
-		expect(await run(taskActions.delete, { params: { id }, form: {} })).toEqual({
-			redirect: '/aufgaben'
-		});
-		for (const handler of [loadTask, taskActions.update, taskActions.delete]) {
-			expect(await run(handler, { params: { id }, form: { title: 'x' } })).toMatchObject({
-				error: 404
-			});
-		}
 	});
 
-	it("answers 404 for another account's task and leaves it as it is", async () => {
+	it("neither opens, edits nor deletes another account's task", async () => {
 		const foreign = await storeTask(db, contextB, {
 			title: 'Fremd',
 			category: 'other',
@@ -144,11 +140,66 @@ describe('aufgaben/[id]', () => {
 		});
 		if (!foreign.ok) throw new Error('setup failed');
 		const id = foreign.id;
-		for (const handler of [loadTask, taskActions.update, taskActions.delete]) {
-			expect(await run(handler, { params: { id }, form: { title: 'x' } })).toMatchObject({
-				error: 404
-			});
+		expect(await run(load, { url: `/aufgaben?bearbeiten=${id}` })).toMatchObject({
+			data: { editing: null }
+		});
+		for (const handler of [actions.update, actions.delete]) {
+			expect(await run(handler, { form: { id, title: 'x' } })).toMatchObject({ fail: 404 });
 		}
 		expect(await getTask(db, 'b', id)).toMatchObject({ title: 'Fremd' });
+	});
+
+	it('names a Dienstleister and links the expenses that paid for a Reparatur', async () => {
+		const serviceProviderId = await createServiceProvider(db, contextA, {
+			name: 'Elektro Lindner',
+			service: 'Elektro',
+			phone: null,
+			email: null,
+			note: null
+		});
+		expect(
+			await run(actions.create, { form: { title: 'Fremd', serviceProviderId: 'unbekannt' } })
+		).toMatchObject({
+			fail: 400,
+			data: { errors: { serviceProviderId: 'Diesen Dienstleister gibt es nicht.' } }
+		});
+		const form = {
+			title: 'Hofbeleuchtung defekt',
+			category: 'repair',
+			link: `property:${propertyId}`,
+			serviceProviderId
+		};
+		const id = await createTask(form);
+		const [expense] = await db
+			.insert(expenses)
+			.values({
+				accountId: 'a',
+				propertyId,
+				date: today(),
+				amount: 18900,
+				category: 'maintenance',
+				description: 'Bewegungsmelder getauscht'
+			})
+			.returning({ id: expenses.id });
+
+		expect(await run(load, { url: `/aufgaben?bearbeiten=${id}` })).toMatchObject({
+			data: {
+				serviceProviders: [{ id: serviceProviderId, name: 'Elektro Lindner (Elektro)' }],
+				editing: { id, serviceProvider: { name: 'Elektro Lindner' } },
+				editingExpenses: { linked: [], candidates: [{ id: expense.id }] }
+			}
+		});
+		expect(
+			await run(actions.update, {
+				form: { ...form, id, expenses: '1', expenseId: 'unbekannt' }
+			})
+		).toMatchObject({ fail: 400, data: { edit: true, message: expect.any(String) } });
+		expect(
+			await run(actions.update, { form: { ...form, id, expenses: '1', expenseId: expense.id } })
+		).toEqual({ redirect: '/aufgaben' });
+		expect((await getTask(db, 'a', id))?.costs).toEqual({ total: 18900, count: 1 });
+		expect(await run(load)).toMatchObject({
+			data: { open: [{ id, costs: { total: 18900 } }], editingExpenses: null }
+		});
 	});
 });

@@ -18,7 +18,8 @@ const INSTRUCTIONS =
 	'costs (Betriebskosten) with their statements, dunning (Mahnwesen), expenses (Ausgaben), the ' +
 	'analysis (Auswertung), deadlines and tasks. Amounts are integer euro cents, dates YYYY-MM-DD. ' +
 	'Start with list_properties, list_leases or list_balances and follow ' +
-	'the ids. Answer the landlord in German unless asked otherwise.';
+	'the ids. Where a result cites German law, get_law_section returns the wording of that section; ' +
+	'quote it rather than the law from memory. Answer the landlord in German unless asked otherwise.';
 
 type JsonRpcId = string | number | null;
 

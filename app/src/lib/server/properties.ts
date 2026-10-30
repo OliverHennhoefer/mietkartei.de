@@ -1,4 +1,5 @@
 import { and, asc, eq, gte, inArray, isNull, lte, or } from 'drizzle-orm';
+import { isPartyOn } from '../domain/lease-parties';
 import type { Database } from './db';
 import { leaseTenants, leaseUnits, leases, properties, tenants, units } from './db/schema';
 import type { PropertyInput, UnitInput } from '../validation';
@@ -142,21 +143,28 @@ export async function updateUnit(
 	return true;
 }
 
-/** The tenants of each lease, sorted by name; one query per 90 leases. */
+/** The tenants of each lease on the date, sorted by name; one query per 90 leases. */
 async function tenantsOfLeases(
 	db: Database,
 	accountId: string,
-	leaseIds: string[]
+	leaseIds: string[],
+	date: string
 ): Promise<Map<string, Tenant[]>> {
 	const byLease = new Map<string, Tenant[]>(leaseIds.map((id) => [id, []]));
 	for (const ids of chunkIds(leaseIds)) {
 		const rows = await db
-			.select({ leaseId: leaseTenants.leaseId, tenant: tenants })
+			.select({
+				leaseId: leaseTenants.leaseId,
+				tenant: tenants,
+				joinedOn: leaseTenants.joinedOn,
+				leftOn: leaseTenants.leftOn
+			})
 			.from(leaseTenants)
 			.innerJoin(tenants, eq(leaseTenants.tenantId, tenants.id))
 			.where(and(eq(tenants.accountId, accountId), inArray(leaseTenants.leaseId, ids)))
 			.orderBy(asc(tenants.lastName), asc(tenants.firstName));
-		for (const row of rows) byLease.get(row.leaseId)?.push(row.tenant);
+		// The parties on the day: a co-tenant who left no longer occupies the unit.
+		for (const row of rows) if (isPartyOn(row, date)) byLease.get(row.leaseId)?.push(row.tenant);
 	}
 	return byLease;
 }
@@ -226,9 +234,12 @@ export async function unitsWithOccupancy(
 	]
 		.filter((entry) => unitIds.has(entry.unitId))
 		.sort((a, b) => a.lease.startDate.localeCompare(b.lease.startDate));
-	const tenantsOf = await tenantsOfLeases(db, accountId, [
-		...new Set(placed.map((entry) => entry.lease.id))
-	]);
+	const tenantsOf = await tenantsOfLeases(
+		db,
+		accountId,
+		[...new Set(placed.map((entry) => entry.lease.id))],
+		date
+	);
 
 	return ownUnits.map((unit) => ({
 		...unit,

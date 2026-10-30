@@ -110,7 +110,7 @@
 		.index-grid th,
 		.index-grid td {
 			padding: 0.6rem 0.3rem;
-			font-size: 0.875rem;
+			font-size: var(--text-sm);
 		}
 		.index-grid th:first-child,
 		.index-grid td:first-child {

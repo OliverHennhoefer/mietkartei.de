@@ -1,14 +1,16 @@
 <script lang="ts">
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import Badge from '#lib/components/Badge.svelte';
 	import Balance from '#lib/components/Balance.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
 	import { reminderLevelLabels } from '#lib/domain/reminders.ts';
-	import { formatNumber, personName, pluralize } from '#lib/format.ts';
-	import { formatCents } from '#lib/money.ts';
+	import { personName } from '#lib/format.ts';
+	import { byDate, byNumber, bySeverity, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -28,19 +30,24 @@
 				.includes(search.trim().toLocaleLowerCase('de'))
 		)
 	);
-	const overview = $derived(data.overview);
-	const summary = $derived(
-		[
-			`${pluralize(overview.renting, 'Mieter', 'Mieter')} in ${pluralize(overview.households, 'Mietverhältnis', 'Mietverhältnissen')}`,
-			`${formatCents(overview.rent)} Warmmiete im Monat`,
-			overview.tenure === null
-				? null
-				: `im Schnitt ${formatNumber(overview.tenure, 1)} Jahre Mietdauer`
-		]
-			.filter(Boolean)
-			.join(' · ')
-	);
-
+	type Tenant = PageProps['data']['tenants'][number];
+	const sort = new TableSort<Tenant>({
+		name: byText(personName),
+		lease: byText((tenant) => {
+			const lease = tenant.activeLeases[0] ?? tenant.moveIn;
+			return lease && `${lease.property} ${lease.unit}`;
+		}),
+		rent: byNumber((tenant) => tenant.rent || null),
+		balance: byNumber((tenant) => (tenant.activeLeases.length > 0 ? tenant.overdue : null)),
+		since: byDate((tenant) => tenant.since),
+		hints: bySeverity(
+			(tenant) =>
+				(tenant.overdue > 0 ? 100 + 10 * tenant.reminders.length : 0) +
+				(tenant.moveOut ? 2 : 0) +
+				(tenant.moveIn ? 1 : 0)
+		)
+	});
+	const sortedTenants = $derived(sort.rows(filteredTenants));
 	function address(tenant: {
 		street: string | null;
 		postalCode: string | null;
@@ -54,7 +61,7 @@
 
 <PageHeader title="Mieter">
 	{#snippet actions()}
-		<a href="/mieter/neu" class="button">Mieter anlegen</a>
+		<CreateButton href="/mieter/neu" label="Mieter anlegen" />
 	{/snippet}
 </PageHeader>
 
@@ -63,54 +70,13 @@
 		title="Du hast noch keine Mieter angelegt."
 		text="Lege den ersten Mieter an oder importiere deine Mieter aus einer CSV-Datei."
 	>
-		<a href="/mieter/neu" class="button">Mieter anlegen</a>
+		<CreateButton href="/mieter/neu" label="Mieter anlegen" />
 		<a href="/einstellungen/datenuebernahme" class="button secondary">Importieren</a>
 	</EmptyState>
 {:else}
-	{#if data.pending.length > 0}
-		<section aria-labelledby="pending-title">
-			<h2 id="pending-title" class="pending-title">Steht an</h2>
-			<ul class="pending">
-				{#each data.pending as item (item.kind + item.tenantId)}
-					<li class="card {item.kind}">
-						<span class="dot" aria-hidden="true"></span>
-						<div>
-							<a href="/mieter/{item.tenantId}"><strong>{item.name}</strong></a>
-							<p>
-								{#if item.kind === 'arrears'}
-									Seit {formatMonth(item.openSince)} offen: <Balance cents={item.overdue} />
-									{#if item.reminder}<span class="muted reminder"
-											>{reminderLevelLabels[item.reminder.level]} vom {formatDate(
-												item.reminder.date
-											)}</span
-										>{/if}
-								{:else if item.kind === 'out'}
-									{#if item.terminatedBy === 'tenant'}Hat gekündigt, zieht am {formatDate(
-											item.date
-										)} aus
-									{:else if item.terminatedBy === 'landlord'}Gekündigt, zieht am {formatDate(
-											item.date
-										)} aus
-									{:else}Mietvertrag endet am {formatDate(item.date)}{/if}
-									<span class="muted">· {item.label}</span>
-								{:else}
-									Zieht am {formatDate(item.date)} ein
-									<span class="muted">· <a href="/vertraege/{item.id}">{item.label}</a></span>
-								{/if}
-							</p>
-						</div>
-					</li>
-				{/each}
-			</ul>
-		</section>
-	{/if}
-
 	{#if data.tenants.length === 0}
 		<p class="muted">Alle deine Mieter sind archiviert.</p>
 	{:else}
-		{#if overview.households > 0}
-			<p class="summary muted">{summary}</p>
-		{/if}
 		<div class="list-toolbar">
 			<h2>
 				Deine Mieter <span class="result-count" aria-live="polite">{filteredTenants.length}</span>
@@ -137,18 +103,20 @@
 				<table class="table" aria-label="Mieter">
 					<thead>
 						<tr>
-							<th>Name</th>
-							<th>Mietet</th>
-							<th class="num">Warmmiete</th>
-							<th class="num">Mietkonto</th>
-							<th>Mieter seit</th>
-							<th>Hinweis</th>
+							<SortHeader {sort} key="name">Name</SortHeader>
+							<SortHeader {sort} key="lease">Mietet</SortHeader>
+							<SortHeader {sort} key="rent" class="num">Warmmiete</SortHeader>
+							<SortHeader {sort} key="balance" class="num">Mietkonto</SortHeader>
+							<SortHeader {sort} key="since">Mieter seit</SortHeader>
+							<SortHeader {sort} key="hints">Hinweis</SortHeader>
 						</tr>
 					</thead>
 					<tbody>
-						{#each filteredTenants as tenant, row (tenant.id)}
+						{#each sortedTenants as tenant, row (tenant.id)}
 							<tr
-								class:group-start={row > 0 && tenant.groupId !== filteredTenants[row - 1].groupId}
+								class:group-start={!sort.active &&
+									row > 0 &&
+									tenant.groupId !== sortedTenants[row - 1].groupId}
 							>
 								<td>
 									<a href="/mieter/{tenant.id}"><strong>{personName(tenant)}</strong></a>
@@ -158,12 +126,16 @@
 								</td>
 								<td>
 									{#if tenant.activeLeases.length > 0}
-										{#each tenant.activeLeases as lease, index (lease.id)}
-											{#if index > 0},{/if}
-											<a href="/vertraege/{lease.id}">{lease.label}</a>
+										{#each tenant.activeLeases as lease (lease.id)}
+											<a class="lease" href="/vertraege/{lease.id}"
+												>{lease.unit}<span class="muted small">{lease.property}</span></a
+											>
 										{/each}
 									{:else if tenant.moveIn}
-										<a href="/vertraege/{tenant.moveIn.id}">{tenant.moveIn.label}</a>
+										<a class="lease" href="/vertraege/{tenant.moveIn.id}"
+											>{tenant.moveIn.unit}<span class="muted small">{tenant.moveIn.property}</span
+											></a
+										>
 									{:else}
 										<span class="muted">keine</span>
 									{/if}
@@ -182,11 +154,22 @@
 								<td>
 									<span class="badges">
 										{#if tenant.overdue > 0}
-											<Badge tone="danger"
-												>{tenant.reminder
-													? `Rückstand · ${reminderLevelLabels[tenant.reminder.level]}`
-													: 'Rückstand'}</Badge
-											>
+											<Badge tone="danger">Rückstand</Badge>
+											{#if tenant.reminder}
+												<Badge
+													tone="danger"
+													icon={false}
+													title={tenant.reminders
+														.map(
+															(letter) =>
+																`${reminderLevelLabels[letter.level]} vom ${formatDate(letter.date)}`
+														)
+														.join('\n')}
+													>{reminderLevelLabels[tenant.reminder.level]} vom {formatDate(
+														tenant.reminder.date
+													)}</Badge
+												>
+											{/if}
 										{/if}
 										{#if tenant.moveOut}
 											<Badge tone="warning">Auszug {formatDate(tenant.moveOut.date)}</Badge>
@@ -195,6 +178,16 @@
 											<Badge tone="info">Einzug {formatDate(tenant.moveIn.date)}</Badge>
 										{/if}
 									</span>
+									{#if tenant.overdue > 0 && tenant.openSince}<span class="muted small note"
+											>Seit {formatMonth(tenant.openSince)} offen</span
+										>{/if}
+									{#if tenant.moveOut}<span class="muted small note"
+											>{tenant.moveOut.terminatedBy === 'tenant'
+												? 'Hat gekündigt'
+												: tenant.moveOut.terminatedBy === 'landlord'
+													? 'Von dir gekündigt'
+													: 'Mietvertrag endet'}</span
+										>{/if}
 								</td>
 							</tr>
 						{/each}
@@ -232,50 +225,14 @@
 			border-top: 0;
 		}
 	}
-	.pending-title {
-		margin-top: 0;
-	}
-	.pending {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr));
-		gap: 0.75rem;
-		margin: 0 0 1.5rem;
-		padding: 0;
-		list-style: none;
-	}
-	.pending li {
-		display: flex;
-		gap: 0.75rem;
-		align-items: flex-start;
-		padding: 1rem 1.15rem;
-	}
-	.pending p {
-		margin: 0.25rem 0 0;
-		font-size: 0.875rem;
-	}
-	/* Red for money owed, green for a tenant coming, grey for one leaving. */
-	.dot {
-		flex: none;
-		width: 0.55rem;
-		height: 0.55rem;
-		margin-top: 0.45rem;
-		border-radius: 50%;
-		background: var(--color-muted);
-	}
-	.arrears .dot {
-		background: var(--color-danger);
-	}
-	.in .dot {
-		background: var(--color-success);
-	}
-	.reminder {
+	.contact,
+	.lease,
+	.lease span {
 		display: block;
 	}
-	.summary {
-		margin: 0 0 1.5rem;
-	}
-	.contact {
+	.note {
 		display: block;
+		margin-top: 0.3rem;
 	}
 	.badges {
 		display: flex;

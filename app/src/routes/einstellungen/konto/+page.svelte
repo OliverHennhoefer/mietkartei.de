@@ -31,14 +31,24 @@
 
 <PageHeader title="Konto" />
 
+{#if data.hosted}
+	<p class="muted">
+		Welche Daten mietkartei speichert, bei welchen Dienstleistern und wie lange, steht in der
+		<a href="https://mietkartei.de/datenschutz/">Datenschutzerklärung</a>. Für die Daten deiner
+		Mieter gilt der
+		<a href="https://mietkartei.de/auftragsverarbeitung/">Vertrag zur Auftragsverarbeitung</a>.
+	</p>
+{/if}
+
 {#if data.canLoadDemo}
 	<section class="card demo" aria-labelledby="demodaten">
 		<h2 id="demodaten">Demodaten</h2>
 		<p>
-			Probier mietkartei mit einem kleinen Beispielbestand aus: zwei Objekte, fünf Mietverträge,
-			zwei Jahre Mietzahlungen, ein Bankkonto mit offenen Umsätzen, Belege des Vorjahres und zwei
-			Aufgaben. Das geht nur, solange dein Konto noch kein Objekt hat. Wenn du fertig bist, setzt du
-			das Konto unten auf Werkseinstellungen zurück und fängst neu an.
+			Probier mietkartei mit einem Beispielbestand aus: ein Mehrfamilienhaus und zwei
+			Eigentumswohnungen, elf Mietverträge, acht Jahre Mietzahlungen, Bankkonten mit offenen
+			Umsätzen, die Betriebskostenabrechnungen der Vorjahre und Aufgaben. Das geht nur, solange dein
+			Konto noch kein Objekt hat. Wenn du fertig bist, setzt du das Konto unten auf
+			Werkseinstellungen zurück und fängst neu an.
 		</p>
 		{#if form?.demoFailed}
 			<Alert tone="danger"><p>{form.demoFailed}</p></Alert>
