@@ -90,16 +90,19 @@ test('shows arrears, books and deletes a payment and a correction', async ({ pag
 	await expect(paymentRow).toContainText('800,00 €');
 	await expect(paymentForm.getByLabel('Betrag in €')).toHaveValue('3.200,00');
 
-	// A credit of 200 € as a correction.
+	// A credit of 200 € as a correction: chosen as Gutschrift, typed without a sign.
 	const adjustmentForm = page.getByRole('form', { name: 'Korrektur oder Anfangssaldo' });
-	await adjustmentForm.getByLabel('Betrag in €').fill('-200');
+	await adjustmentForm.getByLabel('Art').selectOption('credit');
+	await adjustmentForm.getByLabel('Betrag in €').fill('200');
 	await adjustmentForm.getByLabel('Vermerk').fill(`Mietminderung ${suffix}`);
 	await adjustmentForm.getByRole('button', { name: 'Korrektur buchen' }).click();
 	await expect(page.getByText('Korrektur gebucht.')).toBeVisible();
 	await expect(await balance(page)).toHaveText('Saldo −3.000,00 € Rückstand');
 	const adjustmentRow = ledger.locator('tr', { hasText: `Mietminderung ${suffix}` });
 	await expect(adjustmentRow).toContainText(`Korrektur ${formatMonth(monthOf(today()))}`);
-	await expect(adjustmentRow).toContainText('-200,00 €');
+	// It stands in Haben, without a sign.
+	await expect(adjustmentRow.getByRole('cell').nth(2)).toHaveText('');
+	await expect(adjustmentRow.getByRole('cell').nth(3)).toHaveText('200,00 €');
 
 	// Only the month the lease started: one rent, nothing else.
 	await page.getByLabel('von').fill(startMonth);
@@ -110,17 +113,32 @@ test('shows arrears, books and deletes a payment and a correction', async ({ pag
 	await expect(ledger).toContainText(`Miete ${formatMonth(startMonth)}`);
 	await expect(await balance(page)).toHaveText('Saldo −3.000,00 € Rückstand');
 
-	// Back to the default months; delete the correction, then the payment.
+	// Back to the default months. The date opens a booking in a dialog: change the correction,
+	// then delete it and the payment there.
 	await page.goto(`/vertraege/${leaseId}/mietkonto`);
-	confirmNextDialog(page);
-	await adjustmentRow.getByRole('button', { name: 'Löschen' }).click();
-	await expect(page.getByText('Korrektur gelöscht.')).toBeVisible();
-	await expect(await balance(page)).toHaveText('Saldo −3.200,00 € Rückstand');
-	await expect(adjustmentRow).toHaveCount(0);
+	await adjustmentRow.getByRole('link').first().click();
+	const correction = page.getByRole('dialog', { name: 'Korrektur bearbeiten' });
+	await expect(correction.getByLabel('Vermerk')).toHaveValue(`Mietminderung ${suffix}`);
+	await expect(correction.getByLabel('Art')).toHaveValue('credit');
+	await expect(correction.getByLabel('Betrag in €')).toHaveValue('200,00');
+	await correction.getByLabel('Betrag in €').fill('150');
+	await correction.getByRole('button', { name: 'Speichern' }).click();
+	await expect(correction).toBeHidden();
+	await expect(adjustmentRow).toContainText('150,00 €');
+	await expect(await balance(page)).toHaveText('Saldo −3.050,00 € Rückstand');
 
+	await adjustmentRow.getByRole('link').first().click();
 	confirmNextDialog(page);
-	await paymentRow.getByRole('button', { name: 'Löschen' }).click();
-	await expect(page.getByText('Zahlung gelöscht.')).toBeVisible();
+	await correction.getByRole('button', { name: 'Löschen' }).click();
+	await expect(adjustmentRow).toHaveCount(0);
+	await expect(await balance(page)).toHaveText('Saldo −3.200,00 € Rückstand');
+
+	await paymentRow.getByRole('link').first().click();
+	confirmNextDialog(page);
+	await page
+		.getByRole('dialog', { name: 'Zahlung bearbeiten' })
+		.getByRole('button', { name: 'Löschen' })
+		.click();
 	await expect(await balance(page)).toHaveText('Saldo −4.000,00 € Rückstand');
 	await expect(paymentRow).toHaveCount(0);
 });
@@ -186,10 +204,15 @@ test('makes the rent due on the third working day after a public holiday', async
 		lease: { startDate: '2025-10-01', endDate: '2025-10-31' }
 	});
 	await page.goto(`/vertraege/${leaseId}/mietkonto?from=2025-10&to=2025-10`);
+	// The ledger books the rent on the first of the month; the open items show when it fell due.
 	const rent = page
 		.getByRole('table', { name: 'Buchungen' })
 		.locator('tr', { hasText: 'Miete Oktober 2025' });
-	await expect(rent.getByRole('cell').first()).toHaveText('06.10.2025');
+	await expect(rent.getByRole('cell').first()).toHaveText('01.10.2025');
+	const open = page
+		.getByRole('table', { name: 'Offene Posten' })
+		.locator('tr', { hasText: 'Miete Oktober 2025' });
+	await expect(open.getByRole('cell').first()).toHaveText('06.10.2025');
 });
 
 test('writes a Zahlungserinnerung, suggests a Mahnung next and lists it with the arrears', async ({
@@ -263,11 +286,18 @@ test('writes a Zahlungserinnerung, suggests a Mahnung next and lists it with the
 	await page.goto('/mietkonto?filter=rueckstaende');
 	await expect(row).toContainText(/Erinnerung \d{2}\.\d{2}\.\s*Frist bis \d{2}\.\d{2}\./);
 	await expect(row.getByRole('link', { name: 'Mahnen' })).toBeVisible();
+	// The tenant list shows the Rückstand and the latest letter sent about it.
+	await page.goto('/mieter');
+	const pills = page
+		.getByRole('table', { name: 'Mieter' })
+		.locator('tr', { hasText: reminded })
+		.locator('.badge');
+	await expect(pills).toHaveText(['Rückstand', /Zahlungserinnerung vom \d{2}\.\d{2}\.\d{4}$/]);
 
 	await page.goto(`/vertraege/${leaseId}/mietkonto`);
+	await letters.getByRole('link').first().click();
 	confirmNextDialog(page);
-	await letters.getByRole('button', { name: 'Löschen' }).click();
-	await expect(page.getByText('Schreiben gelöscht.')).toBeVisible();
+	await page.getByRole('dialog').getByRole('button', { name: 'Löschen' }).click();
 	await expect(letters).toHaveCount(0);
 });
 

@@ -14,6 +14,7 @@ import {
 	costCategories,
 	costItemUnitAmounts,
 	costItems,
+	leaseTenants,
 	meterReadings,
 	meters,
 	operatingCostStatements,
@@ -345,6 +346,20 @@ describe('loadStatementInput', () => {
 		expect(result.property.landlordCo2Share).toBe(12000);
 	});
 
+	it('addresses the tenants who are parties today, not a co-tenant who left', async () => {
+		const { propertyId, leaseIds } = await seedScenario(db, 'a');
+		const [former] = await db
+			.insert(tenants)
+			.values({ accountId: 'a', firstName: 'Fritz', lastName: 'Früher', city: 'Köln' })
+			.returning({ id: tenants.id });
+		await db
+			.insert(leaseTenants)
+			.values({ leaseId: leaseIds.eg, tenantId: former.id, leftOn: '2025-03-31' });
+		const input = (await loadStatementInput(db, 'a', propertyId, period))!;
+		const eg = input.leases.find((lease) => lease.id === leaseIds.eg)!;
+		expect(eg.tenants.map((tenant) => tenant.lastName)).toEqual(['Müller']);
+	});
+
 	it('is undefined for a property of another account', async () => {
 		const { propertyId } = await seedScenario(db, 'b');
 		expect(await loadStatementInput(db, 'a', propertyId, period)).toBeUndefined();
@@ -408,6 +423,11 @@ describe('loadStatementInput', () => {
 		const garageLease = input.leases.find((lease) => lease.id === created.id)!;
 		// Only the garage is in this property; the main unit of the lease is not.
 		expect(garageLease.unitIds).toEqual([garage.id]);
+		// Its prepayments are credited in the Nachbarhaus statement, not here as well.
+		expect(garageLease.prepaymentsElsewhere).toBe(true);
+		expect(
+			input.leases.every((lease) => lease === garageLease || !lease.prepaymentsElsewhere)
+		).toBe(true);
 		expect(input.circles).toEqual([
 			{ id: circle.id, name: 'Aufzug', unitIds: expect.arrayContaining([unit.OG, unit.DG]) }
 		]);

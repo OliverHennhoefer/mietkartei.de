@@ -1,4 +1,4 @@
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { dayOf } from '#lib/dates.ts';
 import { parseBankAccount, type BankAccountInput } from '#lib/forms/bank.ts';
 import type { FieldErrors } from '#lib/forms/fields.ts';
@@ -84,7 +84,7 @@ export const actions: Actions = {
 					'Diese Bankverbindung hat zugeordnete Umsätze und kann nicht gelöscht werden. Hebe die Zuordnungen zuerst auf.'
 			});
 		}
-		return { deleted: true };
+		redirect(303, '/bank/konten');
 	},
 
 	/** Fetches the transactions of one bank account now, whenever it last did. */

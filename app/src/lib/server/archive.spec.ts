@@ -8,7 +8,14 @@ import {
 	tenantArchiving
 } from './archive';
 import type { Database } from './db';
-import { createLease, getLease, leaseInputOf, listUnitsWithProperty, updateLease } from './leases';
+import {
+	createLease,
+	getLease,
+	leaseInputOf,
+	listUnitsWithProperty,
+	updateLease,
+	updateLeaseParty
+} from './leases';
 import { listProperties, propertyOverview } from './properties';
 import { listTenants } from './tenants';
 import {
@@ -33,7 +40,7 @@ describe('properties', () => {
 		const sold = await seedUnit(db, 'a', { propertyName: 'Verkauft' });
 		const parking = await seedUnit(db, 'a', { name: 'Stellplatz', propertyName: 'Hof' });
 		const main = await seedLease(db, 'a', sold.unitId, { endDate: '2025-06-30' });
-		await seedLease(db, 'a', parking.unitId, { startDate: '2025-08-01' });
+		await seedLease(db, 'a', parking.unitId, { startDate: '2025-08-01', endDate: '2025-08-31' });
 
 		// On 2025-06-30 the lease still runs; from July on the property is free.
 		const running = await propertyArchiving(db, 'a', sold.propertyId, '2025-06-30');
@@ -78,7 +85,9 @@ describe('properties', () => {
 
 		expect(await restoreProperty(db, contextA, sold.propertyId)).toBe(true);
 		expect(await listProperties(db, 'a')).toHaveLength(2);
-		expect((await createLease(db, contextA, leaseInput(sold.unitId))).ok).toBe(true);
+		expect(
+			(await createLease(db, contextA, leaseInput(sold.unitId, { startDate: '2025-07-01' }))).ok
+		).toBe(true);
 		expect(await integrityProblems(db)).toEqual([]);
 	});
 
@@ -128,6 +137,22 @@ describe('tenants', () => {
 		expect(await restoreTenant(db, contextA, tenantId)).toBe(true);
 		expect((await listTenants(db, 'a')).map((row) => row.id)).toEqual([tenantId]);
 		expect(await restoreTenant(db, contextB, tenantId)).toBe(false);
+
+		// A co-tenant who left a lease that runs on can be archived the day after leaving.
+		const flat = await seedUnit(db, 'a', { name: 'OG' });
+		const stays = await seedTenant(db, 'a', { firstName: 'Bleibt' });
+		const running = await seedLease(db, 'a', flat.unitId, {
+			startDate: '2024-01-01',
+			tenantIds: [stays, tenantId]
+		});
+		expect(
+			await updateLeaseParty(db, contextA, running, tenantId, {
+				joinedOn: null,
+				leftOn: '2025-07-31'
+			})
+		).toEqual({ ok: true });
+		expect(await archiveTenant(db, contextA, tenantId, '2025-07-31')).toBe('in-use');
+		expect(await archiveTenant(db, contextA, tenantId, '2025-08-01')).toBe('archived');
 		expect(await integrityProblems(db)).toEqual([]);
 	});
 });

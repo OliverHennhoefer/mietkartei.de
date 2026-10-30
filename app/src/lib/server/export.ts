@@ -49,9 +49,13 @@ export const exportTables: AccountTable[] = [
 	schema.bankAccounts,
 	schema.bankImports,
 	schema.bankTransactions,
+	schema.depositSettlements,
+	schema.handoverProtocols,
 	schema.payments,
 	schema.depositTransactions,
 	schema.paymentReminders,
+	schema.serviceProviders,
+	schema.tasks,
 	schema.expenses,
 	schema.matchingRules,
 	schema.allocationKeys,
@@ -68,7 +72,6 @@ export const exportTables: AccountTable[] = [
 	schema.statementResults,
 	schema.co2CostSplits,
 	schema.documents,
-	schema.tasks,
 	schema.associationStatements,
 	schema.taxYears
 ];
@@ -204,12 +207,24 @@ export function documentPath(document: { id: string; name: string }): string {
 /**
  * The ZIP as a stream: export.json (deflated) plus one file per document whose object still
  * exists, stored as it is (PDFs and scans do not compress). A document without an object stays
- * in the JSON only. The document rows are listed up front (one query, no lookup per document);
+ * in the JSON only; MISSING_DOCUMENTS_FILE lists those documents and the log entry counts them,
+ * so the gap shows when the archive is made, not when the file is needed. The document rows are listed up front (one query, no lookup per document);
  * everything else is read while the reader pulls, one piece at a time: a page of rows for
  * export.json (EXPORT_PAGE_ROWS), then a chunk of a document. So memory stays at about one page
  * or chunk however large the account is. The export is logged once the last file is in, so an
  * export that fails part-way is not logged as done.
  */
+/** The note in the ZIP on documents whose file is gone from storage; only when there are some. */
+export const MISSING_DOCUMENTS_FILE = 'FEHLENDE-DOKUMENTE.txt';
+
+function missingDocumentsNote(missing: readonly { id: string; name: string }[]): string {
+	return (
+		'Zu diesen Dokumenten fehlt die Datei im Speicher. Ihre Angaben stehen in export.json ' +
+		'(Tabelle documents), die Datei selbst ist nicht in diesem Export:\r\n\r\n' +
+		missing.map((document) => `${document.name} (${document.id})\r\n`).join('')
+	);
+}
+
 export async function exportZip(
 	db: Database,
 	context: AuditContext,
@@ -233,6 +248,7 @@ export async function exportZip(
 	let writingJson = true;
 
 	let next = 0;
+	const missing: { id: string; name: string }[] = [];
 	let current:
 		{ file: ZipPassThrough; reader: ReadableStreamDefaultReader<Uint8Array> } | undefined;
 
@@ -267,11 +283,19 @@ export async function exportZip(
 		if (next < rows.length) {
 			const document = rows[next++];
 			const object = await storage.get(document.storageKey);
-			if (!object) return;
+			if (!object) {
+				missing.push(document);
+				return;
+			}
 			const file = new ZipPassThrough(documentPath(document));
 			zip.add(file);
 			current = { file, reader: object.body.getReader() };
 			return;
+		}
+		if (missing.length > 0) {
+			const note = new ZipDeflate(MISSING_DOCUMENTS_FILE, { level: 6 });
+			zip.add(note);
+			note.push(strToU8(missingDocumentsNote(missing)), true);
 		}
 		await auditEntry(
 			db,
@@ -279,7 +303,12 @@ export async function exportZip(
 			'account',
 			context.accountId,
 			'export',
-			'Alle Daten als ZIP-Datei exportiert'
+			'Alle Daten als ZIP-Datei exportiert' +
+				(missing.length === 0
+					? ''
+					: missing.length === 1
+						? ' (1 Dokument ohne Datei im Speicher)'
+						: ` (${missing.length} Dokumente ohne Datei im Speicher)`)
 		);
 		zip.end();
 	}

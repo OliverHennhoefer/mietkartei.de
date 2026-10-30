@@ -39,13 +39,20 @@
 	.tabs {
 		display: flex;
 		gap: 1.5rem;
+		/* Sideways scrolling without a visible scrollbar. The links' -1px bottom margin would
+		   otherwise make the bar overflow vertically and show a native scrollbar on Windows. */
 		overflow-x: auto;
+		overflow-y: hidden;
+		scrollbar-width: none;
 		border-bottom: 1px solid var(--color-border);
 		margin: 0 0 2rem;
 	}
+	.tabs::-webkit-scrollbar {
+		display: none;
+	}
 	.tabs a {
 		padding: 0.75rem 0 1rem;
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 		white-space: nowrap;
 		text-decoration: none;
 		color: var(--color-muted);

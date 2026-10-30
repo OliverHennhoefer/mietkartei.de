@@ -11,6 +11,7 @@ import { auditLog, leaseTenants, properties } from './db/schema';
 import { storeDocument } from './documents';
 import {
 	EXPORT_PAGE_ROWS,
+	MISSING_DOCUMENTS_FILE,
 	accountTables,
 	documentPath,
 	exportJson,
@@ -121,7 +122,9 @@ describe('exportJson', () => {
 		expect(data.tables.units).toEqual([expect.objectContaining({ id: own.unitId })]);
 		expect(data.tables.tenants).toEqual([expect.objectContaining({ id: own.tenantId })]);
 		expect(data.tables.leases).toEqual([expect.objectContaining({ id: own.leaseId })]);
-		expect(data.tables.lease_tenants).toEqual([{ leaseId: own.leaseId, tenantId: own.tenantId }]);
+		expect(data.tables.lease_tenants).toEqual([
+			{ leaseId: own.leaseId, tenantId: own.tenantId, joinedOn: null, leftOn: null }
+		]);
 		// January to March 2025 at 600 + 150 + 50 € = 800,00 € each, and the one payment of 800,00 €.
 		expect(data.tables.rent_charges.map((row) => [row.period, row.amount])).toEqual([
 			['2025-01', 80000],
@@ -238,9 +241,16 @@ describe('exportZip', () => {
 
 		const files = unzipSync(await readZip(await exportZip(db, contextA, { storage })));
 		expect(Object.keys(files).sort()).toEqual(
-			['export.json', 'documents/', `documents/${stored.id}-Mietvertrag.pdf`].sort()
+			[
+				'export.json',
+				'documents/',
+				`documents/${stored.id}-Mietvertrag.pdf`,
+				MISSING_DOCUMENTS_FILE
+			].sort()
 		);
 		expect(strFromU8(files[`documents/${stored.id}-Mietvertrag.pdf`])).toBe('%PDF-1.4 test');
+		// The lost file is named in the archive, so the gap shows now and not when it is needed.
+		expect(strFromU8(files[MISSING_DOCUMENTS_FILE])).toContain(`Weg.pdf (${lost.id})`);
 
 		const data = JSON.parse(strFromU8(files['export.json'])) as ExportData;
 		expect(data.accountId).toBe('a');
@@ -254,7 +264,14 @@ describe('exportZip', () => {
 		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'export'));
 		expect(
 			audit.map((entry) => [entry.accountId, entry.userId, entry.entity, entry.summary])
-		).toEqual([['a', 'user-a', 'account', 'Alle Daten als ZIP-Datei exportiert']]);
+		).toEqual([
+			[
+				'a',
+				'user-a',
+				'account',
+				'Alle Daten als ZIP-Datei exportiert (1 Dokument ohne Datei im Speicher)'
+			]
+		]);
 		// Logged once the archive was complete, so the entry is not part of the exported log.
 		expect(data.tables.audit_log.some((row) => row.action === 'export')).toBe(false);
 	});
@@ -351,6 +368,23 @@ describe('exportZip', () => {
 		await reader.cancel('abgebrochen');
 		expect(cancelled).toHaveBeenCalledWith('abgebrochen');
 		expect(await exportEntries('a')).toEqual([]);
+	});
+
+	it('counts several documents without a file in the log', async () => {
+		for (const name of ['Eins.pdf', 'Zwei.pdf']) {
+			const stored = await storeDocument(
+				db,
+				contextA,
+				{ name, mimeType: 'application/pdf', bytes: new TextEncoder().encode(name) },
+				{ storage }
+			);
+			if (!stored.ok) throw new Error(stored.reason);
+			await storage.delete(`a/${stored.id}`);
+		}
+		await readZip(await exportZip(db, contextA, { storage }));
+		expect(await exportEntries('a')).toEqual([
+			'Alle Daten als ZIP-Datei exportiert (2 Dokumente ohne Datei im Speicher)'
+		]);
 	});
 
 	it('builds a ZIP for an empty account', async () => {

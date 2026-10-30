@@ -17,9 +17,9 @@ beforeEach(() => {
 	bindings.env = {};
 });
 
-/** wrangler.jsonc without its comment lines; it has no comments after values. */
-function wranglerConfig() {
-	const text = readFileSync('wrangler.jsonc', 'utf8');
+/** A wrangler.jsonc without its comment lines; it has no comments after values. */
+function wranglerConfig(path = 'wrangler.jsonc') {
+	const text = readFileSync(path, 'utf8');
 	return JSON.parse(
 		text
 			.split('\n')
@@ -155,6 +155,12 @@ describe('wrangler.jsonc', () => {
 		expect(limiter.simple).toEqual({ limit: API_LIMIT, period: API_PERIOD_SECONDS });
 	});
 
+	it('runs the scheduled jobs daily, but not in the demo', () => {
+		const config = wranglerConfig();
+		expect(config.triggers).toEqual({ crons: ['0 5 * * *'] });
+		expect(config.env.demo.triggers).toEqual({ crons: [] });
+	});
+
 	it('migrates D1 from the same folder as the SQLite database', () => {
 		const [db] = wranglerConfig().d1_databases;
 		expect(db.migrations_dir).toBe('drizzle');
@@ -176,5 +182,39 @@ describe('wrangler.jsonc', () => {
 			name: 'AUTH_LIMITER',
 			simple: { limit: AUTH_LIMIT, period: AUTH_PERIOD_SECONDS }
 		});
+	});
+});
+
+describe('wrangler.jsonc of a self-hosted copy', () => {
+	const hosted = wranglerConfig();
+	const selfHosted = wranglerConfig('../wrangler.jsonc');
+
+	it('deploys the same build to workers.dev, without a domain', () => {
+		expect(selfHosted.main).toBe(`app/${hosted.main}`);
+		expect(selfHosted.assets).toEqual({
+			...hosted.assets,
+			directory: `app/${hosted.assets.directory}`
+		});
+		expect(selfHosted.compatibility_date).toBe(hosted.compatibility_date);
+		expect(selfHosted.compatibility_flags).toEqual(hosted.compatibility_flags);
+		expect(selfHosted.triggers).toEqual(hosted.triggers);
+		expect(selfHosted.workers_dev).toBe(true);
+		expect(selfHosted.routes).toBeUndefined();
+	});
+
+	it('binds what the adapters read, with the same limits', () => {
+		expect(selfHosted.d1_databases).toEqual([
+			{ binding: 'DB', database_name: 'mietkartei', migrations_dir: 'app/drizzle' }
+		]);
+		expect(selfHosted.r2_buckets.map((bucket: { binding: string }) => bucket.binding)).toEqual([
+			'DOCUMENTS'
+		]);
+		expect(selfHosted.ratelimits).toEqual(hosted.ratelimits);
+	});
+
+	it('is not the hosted variant and keeps mails in the outbox', () => {
+		expect(hosted.vars.HOSTED).toBe('true');
+		expect(hosted.env.demo.vars.HOSTED).toBe('true');
+		expect(selfHosted.vars).toEqual({ MAIL_TRANSPORT: 'outbox' });
 	});
 });

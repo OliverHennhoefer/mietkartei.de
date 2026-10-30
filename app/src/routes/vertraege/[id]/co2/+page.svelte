@@ -2,16 +2,18 @@
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
-	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import EditDialog from '#lib/components/EditDialog.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { behgHint, co2KgFromKwh, residentialTiers } from '#lib/domain/co2.ts';
 	import { formatArea, formatNumber, parseDecimal } from '#lib/format.ts';
 	import { fuelLabels } from '#lib/labels.ts';
 	import { formatCents } from '#lib/money.ts';
 	import type { Fuel } from '#lib/server/db/schema.ts';
+	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	// The CO₂ tab: the heading and tab bar come from the lease layout. The tenant bought the fuel
@@ -67,6 +69,18 @@
 		const index = residentialTiers.findIndex(([, percent]) => percent === landlordPercent);
 		return index < 0 ? '–' : `Stufe ${index + 1}`;
 	}
+
+	const sort = new TableSort<PageProps['data']['splits'][number]>({
+		year: byNumber((split) => split.year),
+		fuel: byText((split) => fuelLabels[split.fuel]),
+		co2: byNumber((split) => split.co2Kg),
+		perSqm: byNumber((split) => split.kgPerSquareMetre),
+		tier: byNumber((split) => split.landlordPercent),
+		percent: byNumber((split) => split.landlordPercent),
+		amount: byNumber((split) => split.amount),
+		claimed: byDate((split) => split.claimedOn),
+		deadline: byDate((split) => split.deadline)
+	});
 </script>
 
 <h2 class="visually-hidden">CO₂-Kostenaufteilung</h2>
@@ -199,22 +213,23 @@
 		<table class="table" aria-label="CO₂-Kostenaufteilungen">
 			<thead>
 				<tr>
-					<th>Jahr</th>
-					<th>Brennstoff</th>
-					<th class="num">CO₂</th>
-					<th class="num">je m²</th>
-					<th>Stufe</th>
-					<th class="num">Vermieteranteil</th>
-					<th class="num">Gutschrift</th>
-					<th>Geltend gemacht</th>
-					<th>Frist</th>
-					<th class="actions"><span class="visually-hidden">Aktionen</span></th>
+					<SortHeader {sort} key="year">Jahr</SortHeader>
+					<SortHeader {sort} key="fuel">Brennstoff</SortHeader>
+					<SortHeader {sort} key="co2" class="num">CO₂</SortHeader>
+					<SortHeader {sort} key="perSqm" class="num">je m²</SortHeader>
+					<SortHeader {sort} key="tier">Stufe</SortHeader>
+					<SortHeader {sort} key="percent" class="num">Vermieteranteil</SortHeader>
+					<SortHeader {sort} key="amount" class="num">Gutschrift</SortHeader>
+					<SortHeader {sort} key="claimed">Geltend gemacht</SortHeader>
+					<SortHeader {sort} key="deadline">Frist</SortHeader>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.splits as split (split.id)}
+				{#each sort.rows(data.splits) as split (split.id)}
 					<tr>
-						<td>{split.year}</td>
+						<td>
+							<a href="?bearbeiten={split.id}" data-sveltekit-reset="false">{split.year}</a>
+						</td>
 						<td>{fuelLabels[split.fuel]}</td>
 						<td class="num">{formatNumber(split.co2Kg, 1)} kg</td>
 						<td class="num">{formatNumber(split.kgPerSquareMetre, 1)} kg/m²</td>
@@ -229,18 +244,43 @@
 							{formatDate(split.deadline)}
 							{#if split.deadlinePassed}<Badge tone="danger">Frist abgelaufen</Badge>{/if}
 						</td>
-						<td class="actions">
-							<ConfirmButton
-								action="?/delete"
-								label="Löschen"
-								message={`CO₂-Kostenaufteilung ${split.year} und die Gutschrift über ${formatCents(split.amount)} löschen?`}
-							>
-								<input type="hidden" name="splitId" value={split.id} />
-							</ConfirmButton>
-						</td>
 					</tr>
 				{/each}
 			</tbody>
 		</table>
 	</div>
+{/if}
+
+{#if data.editing}
+	{@const split = data.editing}
+	{#key split.id}
+		<EditDialog
+			title="CO₂-Kostenaufteilung {split.year}"
+			deleteAction="?/delete"
+			deleteMessage={`CO₂-Kostenaufteilung ${split.year} und die Gutschrift über ${formatCents(split.amount)} löschen?`}
+			close="/vertraege/{data.lease.id}/co2"
+		>
+			<input type="hidden" name="splitId" value={split.id} />
+			<dl class="details">
+				<dt>Brennstoff</dt>
+				<dd>{fuelLabels[split.fuel]}</dd>
+				<dt>CO₂</dt>
+				<dd>{formatNumber(split.co2Kg, 1)} kg ({formatNumber(split.kgPerSquareMetre, 1)} kg/m²)</dd>
+				<dt>Stufe</dt>
+				<dd>{tierLabel(split.landlordPercent)} ({formatArea(split.area)})</dd>
+				<dt>Vermieteranteil</dt>
+				<dd>{split.landlordPercent} %</dd>
+				<dt>Gutschrift</dt>
+				<dd><Money cents={split.amount} /></dd>
+				<dt>Geltend gemacht</dt>
+				<dd>{formatDate(split.claimedOn)}</dd>
+				<dt>Frist</dt>
+				<dd>{formatDate(split.deadline)}</dd>
+			</dl>
+			<p class="muted small">
+				Ändern lässt sich eine Aufteilung nicht. Lösche sie und erfasse sie oben neu; die Gutschrift
+				im Mietkonto wird mit gelöscht.
+			</p>
+		</EditDialog>
+	{/key}
 {/if}

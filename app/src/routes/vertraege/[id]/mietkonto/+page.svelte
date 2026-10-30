@@ -3,15 +3,17 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
 	import Balance from '#lib/components/Balance.svelte';
-	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import EditDialog from '#lib/components/EditDialog.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PreviewLink from '#lib/components/PreviewLink.svelte';
 	import Icon from '#lib/components/Icon.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate, formatMonth } from '#lib/dates.ts';
 	import { formatRate } from '#lib/domain/default-interest.ts';
 	import { reminderLevelLabels } from '#lib/domain/reminders.ts';
 	import { formatCents, formatCentsPlain } from '#lib/money.ts';
+	import { byDate, byNumber, bySeverity, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -22,14 +24,35 @@
 	const paymentValues = $derived(failed?.form === 'payment' ? failed.values : undefined);
 	const adjustmentErrors = $derived(failed?.form === 'adjustment' ? failed.errors : undefined);
 	const adjustmentValues = $derived(failed?.form === 'adjustment' ? failed.values : undefined);
+	const editErrors = $derived(failed?.form === 'edit' ? failed.errors : undefined);
+	// After a refused save the typed values win; otherwise the dialog shows the line as stored.
+	const editValues = $derived(
+		(failed?.form === 'edit' ? failed.values : undefined) ??
+			(data.editing && {
+				date: data.editing.date,
+				amount: formatCentsPlain(Math.abs(data.editing.amount)),
+				note: data.editing.note ?? '',
+				side:
+					data.editing.kind === 'payment'
+						? data.editing.amount < 0
+							? 'refund'
+							: 'received'
+						: data.editing.amount < 0
+							? 'credit'
+							: 'claim'
+			})
+	);
+	const base = $derived(`/vertraege/${data.lease.id}/mietkonto`);
+	/** The page with the shown months kept and another parameter, for the dialogs' links. */
+	const withRange = (name?: string, value?: string) => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- built and read once, for a link
+		const query = new URLSearchParams({ from: data.range.from, to: data.range.to });
+		if (name && value) query.set(name, value);
+		return `${base}?${query}`;
+	};
 	const reminderErrors = $derived(failed?.form === 'reminder' ? failed.errors : undefined);
 	const reminderValues = $derived(failed?.form === 'reminder' ? failed.values : undefined);
 
-	const deletedMessages = {
-		payment: 'Zahlung gelöscht.',
-		adjustment: 'Korrektur gelöscht.',
-		reminder: 'Schreiben gelöscht.'
-	};
 	const reminderPdf = (id: string) => `/vertraege/${data.lease.id}/mietkonto/schreiben/${id}`;
 	const reminderTitle = (reminder: (typeof data.reminders.reminders)[number]) =>
 		`${reminderLevelLabels[reminder.level]} vom ${formatDate(reminder.date)}`;
@@ -39,6 +62,26 @@
 			: undefined
 	);
 	const latest = $derived(data.reminders.current[0]);
+	const rowSort = new TableSort<PageProps['data']['rows'][number]>({
+		date: byDate((row) => row.date),
+		label: byText((row) => row.label),
+		debit: byNumber((row) => (row.credit === 0 ? row.debit : null)),
+		credit: byNumber((row) => (row.credit > 0 ? row.credit : null)),
+		balance: byNumber((row) => row.balance)
+	});
+	type Reminders = PageProps['data']['reminders'];
+	const itemSort = new TableSort<Reminders['items'][number]>({
+		due: byDate((item) => item.dueDate),
+		label: byText((item) => item.label),
+		amount: byNumber((item) => item.amount),
+		open: byNumber((item) => item.open)
+	});
+	const reminderSort = new TableSort<Reminders['reminders'][number]>({
+		date: byDate((reminder) => reminder.date),
+		level: bySeverity((reminder) => reminder.level),
+		amount: byNumber((reminder) => reminder.amount),
+		deadline: byDate((reminder) => reminder.paymentDeadline)
+	});
 	const interestBasis = $derived.by(() => {
 		const rate = data.reminders.baseRates.latest;
 		const basis = 'Fünf Prozentpunkte über dem Basiszinssatz (§ 288 Abs. 1 BGB)';
@@ -58,8 +101,10 @@
 		if (!last || !paymentForm) return;
 		const amount = paymentForm.elements.namedItem('amount');
 		const note = paymentForm.elements.namedItem('note');
-		if (amount instanceof HTMLInputElement) amount.value = formatCentsPlain(last.amount);
+		const side = paymentForm.elements.namedItem('side');
+		if (amount instanceof HTMLInputElement) amount.value = formatCentsPlain(Math.abs(last.amount));
 		if (note instanceof HTMLInputElement) note.value = last.note ?? '';
+		if (side instanceof HTMLSelectElement) side.value = last.amount < 0 ? 'refund' : 'received';
 	}
 </script>
 
@@ -86,10 +131,6 @@
 {:else if form && 'booked' in form}
 	<Alert tone="success">
 		<p>{form.booked === 'payment' ? 'Zahlung gebucht.' : 'Korrektur gebucht.'}</p>
-	</Alert>
-{:else if form?.deleted}
-	<Alert tone="success">
-		<p>{deletedMessages[form.deleted]}</p>
 	</Alert>
 {:else if form?.reminderId}
 	<Alert tone="success">
@@ -118,75 +159,63 @@
 		<table class="table" aria-label="Buchungen">
 			<thead>
 				<tr>
-					<th>Datum</th>
-					<th>Buchung</th>
-					<th class="num">Soll</th>
-					<th class="num">Haben</th>
-					<th class="num">Saldo</th>
-					<th class="actions"></th>
+					<SortHeader sort={rowSort} key="date">Datum</SortHeader>
+					<SortHeader sort={rowSort} key="label">Buchung</SortHeader>
+					<SortHeader sort={rowSort} key="debit" class="num">Soll</SortHeader>
+					<SortHeader sort={rowSort} key="credit" class="num">Haben</SortHeader>
+					<SortHeader sort={rowSort} key="balance" class="num">
+						Saldo
+						{#snippet after()}<span class="legend">+ Guthaben · − Rückstand</span>{/snippet}
+					</SortHeader>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.rows as row (row.id)}
+				{#each rowSort.rows(data.rows) as row (row.id)}
 					<tr>
-						<td>{formatDate(row.date)}</td>
+						<td>
+							{#if row.deletable}
+								<a href={withRange('bearbeiten', row.id)} data-sveltekit-reset="false"
+									>{formatDate(row.date)}</a
+								>
+							{:else}
+								{formatDate(row.date)}
+							{/if}
+						</td>
 						<td>
 							{row.label}
 							{#if row.fromBank}
-								<Badge tone="info">Umsatz</Badge>
+								<!-- Changed or undone at the bank transaction, so the badge leads there. -->
+								<a
+									class="from-bank"
+									href={row.bankTransactionId
+										? `/bank?umsatz=${row.bankTransactionId}`
+										: '/bank?status=matched'}
+									title="Aus einem Umsatz, dort lässt sich die Zuordnung aufheben"
+									><Badge tone="info">Umsatz</Badge></a
+								>
 							{/if}
 						</td>
+						<!-- A credit stands in Haben and a refund in Soll, so neither column needs a sign. -->
 						<td class="num"
-							>{#if row.kind === 'charge'}<Money cents={row.amount} />{/if}</td
+							>{#if row.credit === 0}<Money cents={row.debit} />{/if}</td
 						>
 						<td class="num"
-							>{#if row.kind === 'payment'}<Money cents={row.amount} />{/if}</td
+							>{#if row.credit > 0}<Money cents={row.credit} />{/if}</td
 						>
 						<td class="num"><Balance cents={row.balance} tone={false} /></td>
-						<td class="actions">
-							{#if row.fromBank}
-								<span class="muted small">
-									Zuordnung beim <a
-										href={row.bankTransactionId
-											? `/bank?umsatz=${row.bankTransactionId}`
-											: '/bank?status=matched'}>Umsatz</a
-									> aufheben
-								</span>
-							{:else if row.deletable && row.kind === 'payment'}
-								<ConfirmButton
-									action="?/deletePayment"
-									label="Löschen"
-									message="Zahlung vom {formatDate(row.date)} über {formatCents(
-										row.amount
-									)} löschen?"
-								>
-									<input type="hidden" name="id" value={row.id} />
-								</ConfirmButton>
-							{:else if row.deletable}
-								<ConfirmButton
-									action="?/deleteCharge"
-									label="Löschen"
-									message="Buchung „{row.label}“ über {formatCents(row.amount)} löschen?"
-								>
-									<input type="hidden" name="id" value={row.id} />
-								</ConfirmButton>
-							{/if}
-						</td>
 					</tr>
 				{/each}
 			</tbody>
 			<tfoot>
 				<tr>
 					<td colspan="2">Summe {formatMonth(data.range.from)} bis {formatMonth(data.range.to)}</td>
-					<td class="num"><Money cents={data.charged} /></td>
-					<td class="num"><Money cents={data.paid} /></td>
-					<td class="num"><Balance cents={data.windowBalance} tone={false} /></td>
-					<td></td>
+					<td class="num"><Money cents={data.debit} /></td>
+					<td class="num"><Money cents={data.credit} /></td>
+					<td class="num"><Balance cents={data.windowBalance} tone={false} label /></td>
 				</tr>
 			</tfoot>
 		</table>
 	</div>
-	<p class="muted small">Saldo aus Sicht des Mieters: + = Guthaben, − = Rückstand.</p>
 {/if}
 
 <h2 id="zahlungserinnerung">Zahlungserinnerung und Mahnung</h2>
@@ -223,14 +252,14 @@
 		<table class="table" aria-label="Offene Posten">
 			<thead>
 				<tr>
-					<th>Fällig am</th>
-					<th>Buchung</th>
-					<th class="num">Betrag</th>
-					<th class="num">Offen</th>
+					<SortHeader sort={itemSort} key="due">Fällig am</SortHeader>
+					<SortHeader sort={itemSort} key="label">Buchung</SortHeader>
+					<SortHeader sort={itemSort} key="amount" class="num">Betrag</SortHeader>
+					<SortHeader sort={itemSort} key="open" class="num">Offen</SortHeader>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.reminders.items as item, index (index)}
+				{#each itemSort.rows(data.reminders.items) as item, index (index)}
 					<tr>
 						<td>{formatDate(item.dueDate)}</td>
 						<td>{item.label}</td>
@@ -307,17 +336,21 @@
 		<table class="table" aria-label="Erstellte Schreiben">
 			<thead>
 				<tr>
-					<th>Datum</th>
-					<th>Schreiben</th>
-					<th class="num">Betrag</th>
-					<th>Zahlungsfrist</th>
+					<SortHeader sort={reminderSort} key="date">Datum</SortHeader>
+					<SortHeader sort={reminderSort} key="level">Schreiben</SortHeader>
+					<SortHeader sort={reminderSort} key="amount" class="num">Betrag</SortHeader>
+					<SortHeader sort={reminderSort} key="deadline">Zahlungsfrist</SortHeader>
 					<th class="actions"></th>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.reminders.reminders as reminder (reminder.id)}
+				{#each reminderSort.rows(data.reminders.reminders) as reminder (reminder.id)}
 					<tr>
-						<td>{formatDate(reminder.date)}</td>
+						<td>
+							<a href={withRange('schreiben', reminder.id)} data-sveltekit-reset="false"
+								>{formatDate(reminder.date)}</a
+							>
+						</td>
 						<td>{reminderLevelLabels[reminder.level]}</td>
 						<td class="num"><Money cents={reminder.amount} /></td>
 						<td>{formatDate(reminder.paymentDeadline)}</td>
@@ -329,16 +362,6 @@
 									title={reminderTitle(reminder)}
 									class="button secondary small"><Icon name="file" size={14} /> Ansehen</PreviewLink
 								>
-								<ConfirmButton
-									action="?/deleteReminder"
-									label="Löschen"
-									small
-									message="{reminderTitle(
-										reminder
-									)} löschen? Das Schreiben verschwindet nur hier, nicht beim Mieter."
-								>
-									<input type="hidden" name="id" value={reminder.id} />
-								</ConfirmButton>
 							</div>
 						</td>
 					</tr>
@@ -378,10 +401,13 @@
 			required
 		/>
 	</Field>
+	<Field label="Art" error={paymentErrors?.side}>
+		{@render paymentSide(paymentValues?.side)}
+	</Field>
 	<Field
 		label="Betrag in €"
 		error={paymentErrors?.amount}
-		hint="Vorbelegt mit dem offenen Saldo, sonst der Gesamtmiete. Negativ für eine Rückzahlung an den Mieter."
+		hint="Vorbelegt mit dem offenen Saldo, sonst der Gesamtmiete."
 	>
 		<input
 			name="amount"
@@ -408,7 +434,7 @@
 <p class="muted">
 	Für Korrekturen und den Anfangssaldo. Führst du das Mietkonto erst ab einem späteren Datum
 	(„Mietkonto führen ab“), buchst du den Stand an diesem Tag hier mit dem Vermerk „Anfangssaldo“:
-	einen Rückstand positiv, ein Guthaben negativ.
+	einen Rückstand als Forderung, ein Guthaben als Gutschrift.
 </p>
 <form
 	method="POST"
@@ -426,16 +452,15 @@
 			required
 		/>
 	</Field>
-	<Field
-		label="Betrag in €"
-		error={adjustmentErrors?.amount}
-		hint="Positiv = Forderung an den Mieter, negativ = Gutschrift."
-	>
+	<Field label="Art" error={adjustmentErrors?.side}>
+		{@render adjustmentSide(adjustmentValues?.side)}
+	</Field>
+	<Field label="Betrag in €" error={adjustmentErrors?.amount}>
 		<input
 			name="amount"
 			inputmode="decimal"
 			defaultValue={adjustmentValues?.amount ?? ''}
-			placeholder="z. B. -50,00"
+			placeholder="z. B. 50,00"
 			aria-invalid={adjustmentErrors?.amount ? 'true' : undefined}
 			required
 		/>
@@ -454,7 +479,110 @@
 	</div>
 </form>
 
+{#if data.editing && editValues}
+	{@const payment = data.editing.kind === 'payment'}
+	{#key data.editing.id}
+		<EditDialog
+			title={payment ? 'Zahlung bearbeiten' : 'Korrektur bearbeiten'}
+			action="?/update"
+			deleteAction="?/delete"
+			deleteMessage="{payment ? 'Zahlung' : 'Korrektur'} vom {formatDate(
+				data.editing.date
+			)} über {formatCents(data.editing.amount)} löschen?"
+			close={withRange()}
+			error={form && 'message' in form ? form.message : undefined}
+		>
+			<input type="hidden" name="id" value={data.editing.id} />
+			<Field label="Datum" error={editErrors?.date}>
+				<input
+					type="date"
+					name="date"
+					defaultValue={editValues.date}
+					aria-invalid={editErrors?.date ? 'true' : undefined}
+					required
+				/>
+			</Field>
+			<Field label="Art" error={editErrors?.side}>
+				{#if payment}
+					{@render paymentSide(editValues.side)}
+				{:else}
+					{@render adjustmentSide(editValues.side)}
+				{/if}
+			</Field>
+			<Field label="Betrag in €" error={editErrors?.amount}>
+				<input
+					name="amount"
+					inputmode="decimal"
+					defaultValue={editValues.amount}
+					aria-invalid={editErrors?.amount ? 'true' : undefined}
+					required
+				/>
+			</Field>
+			<Field label={payment ? 'Vermerk (optional)' : 'Vermerk'} error={editErrors?.note}>
+				<input
+					name="note"
+					defaultValue={editValues.note}
+					aria-invalid={editErrors?.note ? 'true' : undefined}
+					required={!payment}
+				/>
+			</Field>
+		</EditDialog>
+	{/key}
+{/if}
+
+{#if data.reminder}
+	{#key data.reminder.id}
+		<EditDialog
+			title={reminderTitle(data.reminder)}
+			deleteAction="?/deleteReminder"
+			deleteMessage="{reminderTitle(
+				data.reminder
+			)} löschen? Das Schreiben verschwindet nur hier, nicht beim Mieter."
+			close={withRange()}
+			error={form && 'message' in form ? form.message : undefined}
+		>
+			<input type="hidden" name="id" value={data.reminder.id} />
+			<dl class="details">
+				<dt>Betrag</dt>
+				<dd><Money cents={data.reminder.amount} /></dd>
+				<dt>Zahlungsfrist</dt>
+				<dd>{formatDate(data.reminder.paymentDeadline)}</dd>
+				<dt>Schreiben</dt>
+				<dd>
+					<PreviewLink
+						href={reminderPdf(data.reminder.id)}
+						text="{reminderPdf(data.reminder.id)}/text"
+						title={reminderTitle(data.reminder)}>Ansehen</PreviewLink
+					>
+				</dd>
+			</dl>
+		</EditDialog>
+	{/key}
+{/if}
+
+{#snippet paymentSide(value: string | undefined)}
+	<select name="side" required>
+		<option value="received" selected={value !== 'refund'}>Zahlung erhalten (Haben)</option>
+		<option value="refund" selected={value === 'refund'}>Rückzahlung (Soll)</option>
+	</select>
+{/snippet}
+
+{#snippet adjustmentSide(value: string | undefined)}
+	<select name="side" required>
+		<option value="claim" selected={value !== 'credit'}>Forderung (Soll)</option>
+		<option value="credit" selected={value === 'credit'}>Gutschrift (Haben)</option>
+	</select>
+{/snippet}
+
 <style>
+	.legend {
+		display: block;
+		font-weight: 400;
+		font-size: var(--text-xs);
+	}
+	.from-bank {
+		text-decoration: none;
+	}
 	.last-payment {
 		display: flex;
 		flex-wrap: wrap;

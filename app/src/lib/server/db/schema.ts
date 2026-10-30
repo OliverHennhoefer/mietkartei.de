@@ -14,7 +14,8 @@ import { germanStates, type GermanState } from '../../working-days';
 
 // Every record belongs to an account. The hosted variant serves many accounts from one database;
 // a self-hosted instance simply has a single account. Amounts are integer euro cents, dates are
-// ISO strings (YYYY-MM-DD).
+// ISO strings (YYYY-MM-DD). Every foreign key column leads an index. Schema changes must keep the
+// existing data, see .github/MIGRATIONS.md.
 
 const id = () =>
 	text('id')
@@ -303,7 +304,13 @@ export const leaseTenants = sqliteTable(
 			.references(() => leases.id, { onDelete: 'cascade' }),
 		tenantId: text('tenant_id')
 			.notNull()
-			.references(() => tenants.id, { onDelete: 'restrict' })
+			.references(() => tenants.id, { onDelete: 'restrict' }),
+		/**
+		 * The day a tenant became a party to the lease after its start (a Nachtrag), and the last
+		 * day of one who left it before its end. Null: from the start, and to the end.
+		 */
+		joinedOn: text('joined_on'),
+		leftOn: text('left_on')
 	},
 	(table) => [
 		primaryKey({ columns: [table.leaseId, table.tenantId] }),
@@ -338,9 +345,19 @@ export const rentChangeReasons = [
 	'manual',
 	'graduated',
 	'indexed',
-	'statement'
+	'statement',
+	'comparative'
 ] as const;
 export type RentChangeReason = (typeof rentChangeReasons)[number];
+
+/** § 558a Abs. 2 BGB: how an increase to the ortsübliche Vergleichsmiete is justified. */
+export const comparisonSources = [
+	'rent_index',
+	'rent_database',
+	'expert_opinion',
+	'comparable_flats'
+] as const;
+export type ComparisonSource = (typeof comparisonSources)[number];
 
 export const rentChangeStatuses = ['approved', 'proposed'] as const;
 
@@ -375,6 +392,17 @@ export const rentChanges = sqliteTable(
 		letterText: text('letter_text'),
 		letterTable: text('letter_table', { mode: 'json' }).$type<string[][]>(),
 		deliveredOn: text('delivered_on'),
+		/**
+		 * For a § 558 increase (reason 'comparative'): the ortsübliche Vergleichsmiete in cents per
+		 * m², how it is justified, the Kappungsgrenze in percent and the day the tenant consented.
+		 * Until the consent the change is proposed; deliveredOn is the day the demand reached the
+		 * tenant, and validFrom the day the new rent is due (§ 558b Abs. 1 BGB).
+		 */
+		comparativeRent: integer('comparative_rent'),
+		comparisonSource: text('comparison_source', { enum: comparisonSources }),
+		comparisonDetails: text('comparison_details'),
+		cappingPercent: integer('capping_percent'),
+		consentedOn: text('consented_on'),
 		createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
 		createdAt: createdAt()
 	},
@@ -384,7 +412,75 @@ export const rentChanges = sqliteTable(
 		// "The rent on a day" must be one row, so two approved changes never share a date.
 		uniqueIndex('rent_changes_approved_unique')
 			.on(table.leaseId, table.validFrom)
-			.where(sql`${table.status} = 'approved'`)
+			.where(sql`${table.status} = 'approved'`),
+		index('rent_changes_created_by_idx').on(table.createdBy)
+	]
+);
+
+export const handoverKinds = ['move_in', 'move_out'] as const;
+export type HandoverKind = (typeof handoverKinds)[number];
+export const roomConditions = ['good', 'worn', 'damaged'] as const;
+export type RoomCondition = (typeof roomConditions)[number];
+
+export type HandoverRoom = { name: string; condition: RoomCondition; note: string | null };
+export type HandoverKey = { label: string; count: number };
+export type HandoverReading = { meterId: string; label: string; value: number; unit: string };
+
+/**
+ * Übergabeprotokoll: the state of the flat when the tenant moves in or out, one of each per
+ * lease. The readings are also stored as Zählerstände on its date.
+ */
+export const handoverProtocols = sqliteTable(
+	'handover_protocols',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		kind: text('kind', { enum: handoverKinds }).notNull(),
+		date: text('date').notNull(),
+		/** Who was there, as typed. */
+		attendees: text('attendees'),
+		rooms: text('rooms', { mode: 'json' }).notNull().$type<HandoverRoom[]>(),
+		keys: text('keys', { mode: 'json' }).notNull().$type<HandoverKey[]>(),
+		readings: text('readings', { mode: 'json' }).notNull().$type<HandoverReading[]>(),
+		notes: text('notes'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('handover_protocols_account_id_idx').on(table.accountId),
+		uniqueIndex('handover_protocols_lease_kind_unique').on(table.leaseId, table.kind)
+	]
+);
+
+/**
+ * Kautionsabrechnung: the settlement of the deposit after the lease ended, one per lease, with its
+ * letter. Its bookings (interest, Einbehalte, the offset against arrears and the payout) are
+ * deposit movements and a payment that point to it and go with it.
+ */
+export const depositSettlements = sqliteTable(
+	'deposit_settlements',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		/** The date of the letter and of its bookings. */
+		date: text('date').notNull(),
+		/** Paid back to the tenant; 0 when the deductions take the whole deposit. */
+		payout: integer('payout').notNull(),
+		/** Arrears left on the rent ledger after the offset. */
+		remaining: integer('remaining').notNull(),
+		/** Rows of the letter's table: item and amount. */
+		items: text('items', { mode: 'json' }).notNull().$type<string[][]>(),
+		letterText: text('letter_text').notNull(),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('deposit_settlements_account_id_idx').on(table.accountId),
+		uniqueIndex('deposit_settlements_lease_unique').on(table.leaseId)
 	]
 );
 
@@ -414,6 +510,13 @@ export const depositTransactions = sqliteTable(
 			// account with assigned transactions is refused by the banking module before that.
 			onDelete: 'no action'
 		}),
+		/**
+		 * Set when the movement is a booking of the Kautionsabrechnung. No delete action, as SQLite
+		 * adds the column with a bare REFERENCES: deleting the settlement deletes its bookings first.
+		 */
+		settlementId: text('settlement_id').references(() => depositSettlements.id, {
+			onDelete: 'no action'
+		}),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -421,7 +524,8 @@ export const depositTransactions = sqliteTable(
 		index('deposit_transactions_lease_id_idx').on(table.leaseId),
 		uniqueIndex('deposit_transactions_bank_transaction_unique')
 			.on(table.bankTransactionId)
-			.where(sql`${table.bankTransactionId} is not null`)
+			.where(sql`${table.bankTransactionId} is not null`),
+		index('deposit_transactions_settlement_id_idx').on(table.settlementId)
 	]
 );
 
@@ -530,7 +634,8 @@ export const rentCharges = sqliteTable(
 	]
 );
 
-export const paymentSources = ['manual', 'bank'] as const;
+/** deposit: the offset of arrears against the deposit in the Kautionsabrechnung. */
+export const paymentSources = ['manual', 'bank', 'deposit'] as const;
 export type PaymentSource = (typeof paymentSources)[number];
 
 /**
@@ -555,12 +660,17 @@ export const payments = sqliteTable(
 			// account with assigned transactions is refused by the banking module before that.
 			onDelete: 'no action'
 		}),
+		/** The Kautionsabrechnung of an offset (source deposit); no delete action, as above. */
+		settlementId: text('settlement_id').references(() => depositSettlements.id, {
+			onDelete: 'no action'
+		}),
 		createdAt: createdAt()
 	},
 	(table) => [
 		index('payments_account_id_idx').on(table.accountId),
 		index('payments_lease_id_date_idx').on(table.leaseId, table.date),
-		index('payments_bank_transaction_id_idx').on(table.bankTransactionId)
+		index('payments_bank_transaction_id_idx').on(table.bankTransactionId),
+		index('payments_settlement_id_idx').on(table.settlementId)
 	]
 );
 
@@ -669,7 +779,11 @@ export const bankImports = sqliteTable(
 		importedBy: text('imported_by').references(() => users.id, { onDelete: 'set null' }),
 		createdAt: createdAt()
 	},
-	(table) => [index('bank_imports_account_id_idx').on(table.accountId)]
+	(table) => [
+		index('bank_imports_account_id_idx').on(table.accountId),
+		index('bank_imports_bank_account_id_idx').on(table.bankAccountId),
+		index('bank_imports_imported_by_idx').on(table.importedBy)
+	]
 );
 
 export const bankTransactionStatuses = ['unmatched', 'matched', 'ignored'] as const;
@@ -708,7 +822,8 @@ export const bankTransactions = sqliteTable(
 		index('bank_transactions_account_id_idx').on(table.accountId),
 		index('bank_transactions_status_idx').on(table.accountId, table.status),
 		// The same statement line is never imported twice.
-		uniqueIndex('bank_transactions_fingerprint_unique').on(table.bankAccountId, table.fingerprint)
+		uniqueIndex('bank_transactions_fingerprint_unique').on(table.bankAccountId, table.fingerprint),
+		index('bank_transactions_import_id_idx').on(table.importId)
 	]
 );
 
@@ -730,7 +845,10 @@ export const matchingRules = sqliteTable(
 		confirmed: bool('confirmed', false),
 		createdAt: createdAt()
 	},
-	(table) => [index('matching_rules_account_id_idx').on(table.accountId)]
+	(table) => [
+		index('matching_rules_account_id_idx').on(table.accountId),
+		index('matching_rules_lease_id_idx').on(table.leaseId)
+	]
 );
 
 // Expenses (Ausgaben)
@@ -778,13 +896,30 @@ export const expenses = sqliteTable(
 			// account with assigned transactions is refused by the banking module before that.
 			onDelete: 'no action'
 		}),
+		/**
+		 * The task (usually a Reparatur) the expense paid for. Added to an existing table, so SQLite
+		 * keeps no delete action; deleting a task clears it first.
+		 */
+		taskId: text('task_id').references((): AnySQLiteColumn => tasks.id, { onDelete: 'no action' }),
+		/**
+		 * The Dienstleister who was paid, optional ("unbekannt" without). Added to an existing
+		 * table, so SQLite keeps no delete action; deleting a Dienstleister clears it first.
+		 */
+		serviceProviderId: text('service_provider_id').references(
+			(): AnySQLiteColumn => serviceProviders.id,
+			{ onDelete: 'no action' }
+		),
 		createdAt: createdAt()
 	},
 	(table) => [
 		index('expenses_account_id_date_idx').on(table.accountId, table.date),
+		index('expenses_task_id_idx').on(table.taskId),
+		index('expenses_service_provider_id_idx').on(table.serviceProviderId),
 		uniqueIndex('expenses_bank_transaction_unique')
 			.on(table.bankTransactionId)
-			.where(sql`${table.bankTransactionId} is not null`)
+			.where(sql`${table.bankTransactionId} is not null`),
+		index('expenses_property_id_idx').on(table.propertyId),
+		index('expenses_unit_id_idx').on(table.unitId)
 	]
 );
 
@@ -816,7 +951,9 @@ export const costCategories = sqliteTable(
 	(table) => [
 		index('cost_categories_account_id_idx').on(table.accountId),
 		// Seeding the standard categories is idempotent.
-		uniqueIndex('cost_categories_name_unique').on(table.accountId, table.name)
+		uniqueIndex('cost_categories_name_unique').on(table.accountId, table.name),
+		index('cost_categories_allocation_key_id_idx').on(table.allocationKeyId),
+		index('cost_categories_billing_circle_id_idx').on(table.billingCircleId)
 	]
 );
 
@@ -857,7 +994,8 @@ export const allocationKeys = sqliteTable(
 	},
 	(table) => [
 		index('allocation_keys_account_id_idx').on(table.accountId),
-		uniqueIndex('allocation_keys_name_unique').on(table.accountId, table.name)
+		uniqueIndex('allocation_keys_name_unique').on(table.accountId, table.name),
+		index('allocation_keys_property_id_idx').on(table.propertyId)
 	]
 );
 
@@ -874,7 +1012,11 @@ export const allocationKeyShares = sqliteTable(
 			.references(() => units.id, { onDelete: 'cascade' }),
 		share: real('share').notNull()
 	},
-	(table) => [primaryKey({ columns: [table.keyId, table.unitId] })]
+	(table) => [
+		primaryKey({ columns: [table.keyId, table.unitId] }),
+		index('allocation_key_shares_account_id_idx').on(table.accountId),
+		index('allocation_key_shares_unit_id_idx').on(table.unitId)
+	]
 );
 
 /** Abrechnungskreis: the subset of a property's units that shares a cost. */
@@ -889,7 +1031,10 @@ export const billingCircles = sqliteTable(
 		name: text('name').notNull(),
 		createdAt: createdAt()
 	},
-	(table) => [index('billing_circles_property_id_idx').on(table.propertyId)]
+	(table) => [
+		index('billing_circles_property_id_idx').on(table.propertyId),
+		index('billing_circles_account_id_idx').on(table.accountId)
+	]
 );
 
 export const billingCircleUnits = sqliteTable(
@@ -903,7 +1048,11 @@ export const billingCircleUnits = sqliteTable(
 			.notNull()
 			.references(() => units.id, { onDelete: 'cascade' })
 	},
-	(table) => [primaryKey({ columns: [table.circleId, table.unitId] })]
+	(table) => [
+		primaryKey({ columns: [table.circleId, table.unitId] }),
+		index('billing_circle_units_account_id_idx').on(table.accountId),
+		index('billing_circle_units_unit_id_idx').on(table.unitId)
+	]
 );
 
 export const fuels = ['gas', 'oil', 'lpg', 'district_heating', 'other'] as const;
@@ -960,7 +1109,11 @@ export const costItems = sqliteTable(
 	},
 	(table) => [
 		index('cost_items_account_id_idx').on(table.accountId),
-		index('cost_items_property_id_period_idx').on(table.propertyId, table.periodStart)
+		index('cost_items_property_id_period_idx').on(table.propertyId, table.periodStart),
+		index('cost_items_category_id_idx').on(table.categoryId),
+		index('cost_items_allocation_key_id_idx').on(table.allocationKeyId),
+		index('cost_items_billing_circle_id_idx').on(table.billingCircleId),
+		index('cost_items_insurance_policy_id_idx').on(table.insurancePolicyId)
 	]
 );
 
@@ -986,7 +1139,9 @@ export const costItemUnitAmounts = sqliteTable(
 	},
 	(table) => [
 		index('cost_item_unit_amounts_cost_item_id_idx').on(table.costItemId),
-		index('cost_item_unit_amounts_account_id_idx').on(table.accountId)
+		index('cost_item_unit_amounts_account_id_idx').on(table.accountId),
+		index('cost_item_unit_amounts_unit_id_idx').on(table.unitId),
+		index('cost_item_unit_amounts_lease_id_idx').on(table.leaseId)
 	]
 );
 
@@ -1014,7 +1169,8 @@ export const meters = sqliteTable(
 	},
 	(table) => [
 		index('meters_account_id_idx').on(table.accountId),
-		index('meters_property_id_idx').on(table.propertyId)
+		index('meters_property_id_idx').on(table.propertyId),
+		index('meters_unit_id_idx').on(table.unitId)
 	]
 );
 
@@ -1078,7 +1234,8 @@ export const operatingCostStatements = sqliteTable(
 			table.periodStart,
 			table.periodEnd,
 			table.version
-		)
+		),
+		index('operating_cost_statements_approved_by_idx').on(table.approvedBy)
 	]
 );
 
@@ -1107,7 +1264,8 @@ export const statementResults = sqliteTable(
 	},
 	(table) => [
 		index('statement_results_account_id_idx').on(table.accountId),
-		uniqueIndex('statement_results_unique').on(table.statementId, table.leaseId)
+		uniqueIndex('statement_results_unique').on(table.statementId, table.leaseId),
+		index('statement_results_lease_id_idx').on(table.leaseId)
 	]
 );
 
@@ -1141,7 +1299,8 @@ export const co2CostSplits = sqliteTable(
 	},
 	(table) => [
 		index('co2_cost_splits_account_id_idx').on(table.accountId),
-		uniqueIndex('co2_cost_splits_unique').on(table.leaseId, table.year)
+		uniqueIndex('co2_cost_splits_unique').on(table.leaseId, table.year),
+		index('co2_cost_splits_created_by_idx').on(table.createdBy)
 	]
 );
 
@@ -1168,7 +1327,11 @@ export const documents = sqliteTable(
 	(table) => [
 		index('documents_account_id_idx').on(table.accountId),
 		index('documents_lease_id_idx').on(table.leaseId),
-		index('documents_property_id_idx').on(table.propertyId)
+		index('documents_property_id_idx').on(table.propertyId),
+		index('documents_unit_id_idx').on(table.unitId),
+		index('documents_tenant_id_idx').on(table.tenantId),
+		index('documents_cost_item_id_idx').on(table.costItemId),
+		index('documents_uploaded_by_idx').on(table.uploadedBy)
 	]
 );
 
@@ -1279,8 +1442,31 @@ export const insurancePolicies = sqliteTable(
 	]
 );
 
-export const taskCategories = ['maintenance', 'inspection', 'insurance', 'other'] as const;
+export const taskCategories = [
+	'repair',
+	'maintenance',
+	'inspection',
+	'insurance',
+	'other'
+] as const;
 export type TaskCategory = (typeof taskCategories)[number];
+
+/** Dienstleister: a firm or person the landlord hires, from the plumber to the Hausmeisterdienst. */
+export const serviceProviders = sqliteTable(
+	'service_providers',
+	{
+		id: id(),
+		accountId: accountId(),
+		name: text('name').notNull(),
+		/** Leistung, e.g. "Sanitär", "Hausmeisterdienst" or "Schornsteinfeger". */
+		service: text('service'),
+		phone: text('phone'),
+		email: text('email'),
+		note: text('note'),
+		createdAt: createdAt()
+	},
+	(table) => [index('service_providers_account_id_idx').on(table.accountId)]
+);
 
 /** Aufgabe with an optional due date. Deadlines derived from the data are computed, not stored. */
 export const tasks = sqliteTable(
@@ -1304,10 +1490,22 @@ export const tasks = sqliteTable(
 		followUpId: text('follow_up_id'),
 		propertyId: text('property_id').references(() => properties.id, { onDelete: 'set null' }),
 		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
+		/**
+		 * The Dienstleister who does the job, optional. Added to an existing table, so SQLite keeps
+		 * no delete action; deleting a Dienstleister clears it first.
+		 */
+		serviceProviderId: text('service_provider_id').references(() => serviceProviders.id, {
+			onDelete: 'no action'
+		}),
 		note: text('note'),
 		createdAt: createdAt()
 	},
-	(table) => [index('tasks_account_id_idx').on(table.accountId)]
+	(table) => [
+		index('tasks_account_id_idx').on(table.accountId),
+		index('tasks_property_id_idx').on(table.propertyId),
+		index('tasks_lease_id_idx').on(table.leaseId),
+		index('tasks_service_provider_id_idx').on(table.serviceProviderId)
+	]
 );
 
 export const themes = ['system', 'light', 'dark'] as const;
@@ -1338,6 +1536,13 @@ export const users = sqliteTable(
 		showPropertyMaps: bool('show_property_maps', true),
 		/** Light or dark colours, or whatever the device is set to. */
 		theme: text('theme', { enum: themes }).notNull().default('system'),
+		/**
+		 * The weekly Fristenübersicht by mail: the address of the app its links lead to, taken when
+		 * the user turned it on; null while it is off.
+		 */
+		deadlineMailOrigin: text('deadline_mail_origin'),
+		/** The day the last Fristenübersicht went out (or was due without anything in it). */
+		deadlineMailSentOn: text('deadline_mail_sent_on'),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -1354,16 +1559,20 @@ export const users = sqliteTable(
  * The secret link of a user's calendar subscription (iCal) with the account's deadlines and tasks.
  * Only the hash of the link token is stored; a new link replaces the old one.
  */
-export const calendarFeeds = sqliteTable('calendar_feeds', {
-	id: id(),
-	accountId: accountId(),
-	userId: text('user_id')
-		.notNull()
-		.unique()
-		.references(() => users.id, { onDelete: 'cascade' }),
-	tokenHash: text('token_hash').notNull().unique(),
-	createdAt: createdAt()
-});
+export const calendarFeeds = sqliteTable(
+	'calendar_feeds',
+	{
+		id: id(),
+		accountId: accountId(),
+		userId: text('user_id')
+			.notNull()
+			.unique()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		tokenHash: text('token_hash').notNull().unique(),
+		createdAt: createdAt()
+	},
+	(table) => [index('calendar_feeds_account_id_idx').on(table.accountId)]
+);
 
 /** A signed-in browser. The id is the SHA-256 hash of the cookie token, never the token itself. */
 export const sessions = sqliteTable(
@@ -1432,7 +1641,8 @@ export const apiKeys = sqliteTable(
 		index('api_keys_account_id_idx').on(table.accountId),
 		index('api_keys_user_id_idx').on(table.userId),
 		uniqueIndex('api_keys_access_hash_unique').on(table.accessHash),
-		uniqueIndex('api_keys_refresh_hash_unique').on(table.refreshHash)
+		uniqueIndex('api_keys_refresh_hash_unique').on(table.refreshHash),
+		index('api_keys_client_id_idx').on(table.clientId)
 	]
 );
 
@@ -1456,7 +1666,10 @@ export const oauthCodes = sqliteTable(
 		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
 		createdAt: createdAt()
 	},
-	(table) => [index('oauth_codes_user_id_idx').on(table.userId)]
+	(table) => [
+		index('oauth_codes_user_id_idx').on(table.userId),
+		index('oauth_codes_client_id_idx').on(table.clientId)
+	]
 );
 
 /**
@@ -1478,7 +1691,10 @@ export const invitations = sqliteTable(
 		revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),
 		createdAt: createdAt()
 	},
-	(table) => [index('invitations_account_id_idx').on(table.accountId)]
+	(table) => [
+		index('invitations_account_id_idx').on(table.accountId),
+		index('invitations_invited_by_idx').on(table.invitedBy)
+	]
 );
 
 /** A password reset link. The id is the SHA-256 hash of the token; valid for one hour. */
@@ -1584,5 +1800,8 @@ export const auditLog = sqliteTable(
 		action: text('action').notNull(),
 		summary: text('summary').notNull()
 	},
-	(table) => [index('audit_log_account_id_at_idx').on(table.accountId, table.at)]
+	(table) => [
+		index('audit_log_account_id_at_idx').on(table.accountId, table.at),
+		index('audit_log_user_id_idx').on(table.userId)
+	]
 );

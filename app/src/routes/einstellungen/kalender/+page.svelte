@@ -11,10 +11,7 @@
 	const link = $derived(form && 'link' in form ? form.link : undefined);
 </script>
 
-<PageHeader
-	title="Kalender"
-	lead="Fristen und fällige Aufgaben im eigenen Kalender, etwa in Outlook, Apple Kalender oder Google Kalender."
-/>
+<PageHeader title="Kalender" />
 
 <Alert tone="info">
 	<p>
@@ -65,6 +62,38 @@
 		/>
 	{/if}
 </div>
+
+<h2>Fristen per E-Mail</h2>
+<p>
+	Jeden Montag eine Übersicht an {data.deadlineMail.email}: die Fristen und deine offenen Aufgaben,
+	die überfällig sind oder in den nächsten zwei Wochen anstehen, jeweils mit Link. Steht nichts an,
+	kommt keine E-Mail.
+</p>
+{#if data.demo}
+	<p class="muted">In der Demo werden keine E-Mails verschickt.</p>
+{/if}
+{#if data.deadlineMail.on}
+	<p>
+		Die wöchentliche Übersicht ist eingeschaltet{data.deadlineMail.sentOn
+			? `; zuletzt am ${formatDate(data.deadlineMail.sentOn)}`
+			: ''}.
+	</p>
+{/if}
+{#if form && 'mailSaved' in form}
+	<Alert tone="success">
+		<p>
+			{form.mailSaved
+				? 'Die wöchentliche Übersicht ist eingeschaltet. Die erste kommt mit dem nächsten Lauf, spätestens am nächsten Morgen.'
+				: 'Die wöchentliche Übersicht ist ausgeschaltet.'}
+		</p>
+	</Alert>
+{/if}
+<form method="POST" action="?/mail" use:enhance class="form-actions">
+	<input type="hidden" name="on" value={data.deadlineMail.on ? 'false' : 'true'} />
+	<button type="submit" class={data.deadlineMail.on ? 'secondary' : undefined}>
+		{data.deadlineMail.on ? 'Übersicht abbestellen' : 'Wöchentliche Übersicht einschalten'}
+	</button>
+</form>
 
 <style>
 	.link {

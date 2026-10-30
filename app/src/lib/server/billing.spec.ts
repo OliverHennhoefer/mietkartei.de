@@ -170,6 +170,9 @@ describe('refusesWrite', () => {
 			true
 		);
 		expect(refusesWrite('canceled', 'POST', '/einstellungen/profil/', true, 'profile')).toBe(false);
+		// The Fristen mail can be turned off, as each mail says.
+		expect(refusesWrite('expired', 'POST', '/einstellungen/kalender', true, 'mail')).toBe(false);
+		expect(refusesWrite('expired', 'POST', '/einstellungen/kalender', true, 'create')).toBe(true);
 		// The pages of reset and address confirmation links finish what the profile started.
 		expect(refusesWrite('expired', 'POST', '/passwort-zuruecksetzen/abc', true)).toBe(false);
 		expect(refusesWrite('canceled', 'POST', '/e-mail-bestaetigen/abc', true)).toBe(false);

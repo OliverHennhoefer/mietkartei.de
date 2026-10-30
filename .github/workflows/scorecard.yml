@@ -14,6 +14,8 @@ permissions: read-all
 jobs:
   analysis:
     name: OpenSSF Scorecard
+    # Copies of the repository, such as those of the Deploy to Cloudflare button, run none of this.
+    if: github.repository == 'OliverHennhoefer/mietkartei.de'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

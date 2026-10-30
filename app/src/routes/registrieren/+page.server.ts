@@ -9,7 +9,13 @@ import {
 	requestRegistration,
 	withdrawRegistrationRequest
 } from '#lib/server/registration-requests.ts';
-import { mayRegister, registrationOffered, registrationRule } from '#lib/server/registration.ts';
+import {
+	mayRegister,
+	registrationOffered,
+	registrationRule,
+	setupCodeMatches,
+	setupCodeRequired
+} from '#lib/server/registration.ts';
 import { setSessionCookie } from '#lib/server/session.ts';
 import { TURNSTILE_FIELD, turnstileSiteKey, verifyTurnstile } from '#lib/server/turnstile.ts';
 import { parseCredentials, type CredentialsInput, type FieldErrors } from '#lib/validation.ts';
@@ -21,6 +27,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		open: registrationOffered(rule),
 		restricted: rule.emails.length > 0,
+		setupCode: setupCodeRequired(rule),
 		turnstileSiteKey: turnstileSiteKey()
 	};
 };
@@ -48,6 +55,9 @@ export const actions: Actions = {
 			return fail(400, { botCheckFailed: true, values: { email } });
 		}
 		if (!mayRegister(rule, email)) return fail(403, { notListed: true, values: { email } });
+		if (setupCodeRequired(rule) && !setupCodeMatches(rule, form.get('setupCode'))) {
+			return fail(403, { wrongSetupCode: true, values: { email } });
+		}
 
 		if (restricted) {
 			const origin = mailLinkOrigin(event.url, ORIGIN, __DEPLOY_TARGET__);

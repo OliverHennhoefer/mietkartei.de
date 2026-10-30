@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { createBankAccount } from '#lib/server/bank/accounts.ts';
 import { assignExpense } from '#lib/server/bank/transactions.ts';
+import { createServiceProvider } from '#lib/server/service-providers.ts';
 import { bankTransactions } from '#lib/server/db/schema.ts';
 import { listExpenses } from '#lib/server/expenses.ts';
 import {
@@ -133,7 +134,7 @@ describe('auswertung/prognose', () => {
 });
 
 describe('auswertung/ausgaben', () => {
-	it('creates an expense on a unit, lists it in its year and deletes it', async () => {
+	it('creates an expense on a unit, lists it in its year, edits and deletes it', async () => {
 		expect(
 			await run(actions.create, {
 				form: {
@@ -149,10 +150,75 @@ describe('auswertung/ausgaben', () => {
 		expect(await run(loadExpenses)).toMatchObject({
 			data: { year, expenses: [{ id: expense.id, amount: 8990 }] }
 		});
-		expect(await run(actions.delete, { form: { id: expense.id } })).toEqual({
-			data: { deleted: expense.id }
+		expect(
+			await run(loadExpenses, { url: `/auswertung/ausgaben?bearbeiten=${expense.id}` })
+		).toMatchObject({ data: { editing: { id: expense.id, scope: `unit:${unitId}` } } });
+		const edit = {
+			id: expense.id,
+			date: `${year}-02-03`,
+			amount: '99,90',
+			category: 'modernization',
+			scope: `property:${propertyId}`,
+			description: 'Silikonfuge Bad'
+		};
+		expect(await run(actions.update, { form: { ...edit, amount: 'x' } })).toMatchObject({
+			fail: 400,
+			data: { edit: true, errors: { amount: expect.any(String) } }
 		});
+		expect(await run(actions.update, { form: { ...edit, scope: 'unit:fremd' } })).toMatchObject({
+			fail: 400,
+			data: { edit: true, errors: { scope: expect.any(String) } }
+		});
+		expect(await run(actions.update, { form: edit })).toEqual({
+			redirect: `/auswertung/ausgaben?jahr=${year}`
+		});
+		expect(await listExpenses(db, 'a')).toMatchObject([
+			{ amount: 9990, propertyId, unitId: null, description: 'Silikonfuge Bad' }
+		]);
+		expect(await run(actions.delete, { form: { id: expense.id } })).toEqual({
+			redirect: '/auswertung/ausgaben'
+		});
+		expect(await run(actions.update, { form: edit })).toMatchObject({ fail: 404 });
 		expect(await run(actions.delete, { form: { id: expense.id } })).toMatchObject({ fail: 404 });
+	});
+
+	it('names the Dienstleister or leaves it unknown and sums the year by Dienstleister', async () => {
+		const caretaker = await createServiceProvider(db, contextA, {
+			name: 'Hausmeisterservice Krüger',
+			service: 'Hausmeisterdienst',
+			phone: null,
+			email: null,
+			note: null
+		});
+		const expense = (amount: string, serviceProviderId: string) =>
+			run(actions.create, {
+				form: {
+					date: `${year}-02-01`,
+					amount,
+					category: 'operating_costs',
+					scope: '',
+					description: 'Hausmeisterdienst',
+					serviceProviderId
+				}
+			});
+		expect(await expense('10,00', 'fremd')).toMatchObject({
+			fail: 400,
+			data: { errors: { serviceProviderId: 'Diesen Dienstleister gibt es nicht.' } }
+		});
+		await expense('600,00', caretaker);
+		await expense('120,00', caretaker);
+		await expense('900,00', '');
+		expect(await run(loadExpenses)).toMatchObject({
+			data: {
+				serviceProviders: [
+					{ id: caretaker, name: 'Hausmeisterservice Krüger (Hausmeisterdienst)' }
+				],
+				byServiceProvider: [
+					{ id: caretaker, name: 'Hausmeisterservice Krüger', count: 2, total: 72000 },
+					{ id: null, name: 'Unbekannt', count: 1, total: 90000 }
+				]
+			}
+		});
 	});
 
 	it('keeps an expense booked from a bank transaction, which is undone under Bank', async () => {
@@ -179,13 +245,28 @@ describe('auswertung/ausgaben', () => {
 			description: 'Hausmeister'
 		});
 		const [expense] = await listExpenses(db, 'a');
+		expect(
+			await run(loadExpenses, { url: `/auswertung/ausgaben?bearbeiten=${expense.id}` })
+		).toMatchObject({ data: { editing: null } });
 		expect(await run(actions.delete, { form: { id: expense.id } })).toEqual({
 			fail: 400,
 			data: {
 				message: 'Diese Ausgabe stammt aus einem Bankumsatz; hebe die Zuordnung unter Bank auf.'
 			}
 		});
-		expect(await listExpenses(db, 'a')).toHaveLength(1);
+		expect(
+			await run(actions.update, {
+				form: {
+					id: expense.id,
+					date: `${year}-03-05`,
+					amount: '120,50',
+					category: 'operating_costs',
+					scope: `property:${propertyId}`,
+					description: 'Hausmeister März'
+				}
+			})
+		).toMatchObject({ fail: 400, data: { message: expect.stringContaining('Bankumsatz') } });
+		expect(await listExpenses(db, 'a')).toMatchObject([{ description: 'Hausmeister' }]);
 	});
 
 	it('offers every year back to the earliest expense', async () => {

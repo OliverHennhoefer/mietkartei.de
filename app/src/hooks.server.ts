@@ -7,7 +7,7 @@ import { isCrossSiteForm } from '#lib/server/csrf.ts';
 import { enforceRole } from '#lib/server/roles.ts';
 import { allowFormRedirect, applySecurityHeaders } from '#lib/server/security-headers.ts';
 import { deleteSessionCookie, getSessionToken, setSessionCookie } from '#lib/server/session.ts';
-import { isForeignKeyError } from '#lib/server/db/errors.ts';
+import { isConflictError } from '#lib/server/db/errors.ts';
 import { getDatabase } from '#lib/server/db/index.ts';
 import { getAuthLimiter } from '#lib/server/rate-limit/index.ts';
 
@@ -18,6 +18,8 @@ const publicPaths = new Set([
 	'/passwort-vergessen',
 	// Stripe's deliveries carry a signature instead of a session.
 	'/api/webhooks/stripe',
+	// Posted by server.js or worker.js with a token of the process instead of a session.
+	'/api/jobs',
 	'/health',
 	'/robots.txt',
 	// Checks the request before anything else and sends visitors to sign in with a way back.
@@ -139,17 +141,17 @@ export const handle: Handle = async ({ event, resolve }) => {
 };
 
 /**
- * Unknown errors are logged as by SvelteKit's default hook. A foreign key violation means the page
- * acted on a record that another tab or person changed meanwhile: a conflict, and reloading
- * resolves it, so it gets a message that says so instead of the generic one.
+ * Unknown errors are logged as by SvelteKit's default hook. A foreign key or unique violation means
+ * another tab or person of the account changed, deleted or created the same thing meanwhile: a
+ * conflict, and reloading resolves it, so it gets a message that says so instead of the generic one.
  */
 export const handleError: HandleServerError = ({ kind, error }) => {
 	if (kind !== 'unknown') return;
-	if (isForeignKeyError(error)) {
+	if (isConflictError(error)) {
 		return {
 			status: 409,
 			message:
-				'Die Änderung wurde nicht gespeichert, weil ein Eintrag, auf den sie sich bezieht, inzwischen geändert oder gelöscht wurde. Lade die Seite neu und versuche es noch einmal.'
+				'Die Änderung wurde nicht gespeichert, weil derselbe Eintrag gerade an anderer Stelle angelegt, geändert oder gelöscht wurde. Lade die Seite neu und versuche es noch einmal.'
 		};
 	}
 	console.error(error);

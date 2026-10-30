@@ -3,7 +3,9 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDateTime } from '#lib/dates.ts';
+	import { byDate, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -16,6 +18,22 @@
 	// What was copied last: the server address or the new key.
 	let copied = $state<'url' | 'key' | undefined>();
 
+	type App = PageProps['data']['apps'][number];
+	type Key = PageProps['data']['keys'][number];
+	const appSort = new TableSort<App>({
+		name: byText((app) => app.name),
+		scope: byText((app) => scopeLabels[app.scope]),
+		created: byDate((app) => app.createdAt),
+		used: byDate((app) => app.lastUsedAt)
+	});
+	const keySort = new TableSort<Key>({
+		name: byText((key) => key.name),
+		prefix: byText((key) => key.prefix),
+		scope: byText((key) => scopeLabels[key.scope]),
+		expires: byDate((key) => key.expiresAt),
+		used: byDate((key) => key.lastUsedAt)
+	});
+
 	async function copy(text: string, what: 'url' | 'key') {
 		// The clipboard needs https; over plain http the text is selected by hand.
 		try {
@@ -27,10 +45,7 @@
 	}
 </script>
 
-<PageHeader
-	title="KI-Assistenten"
-	lead="Verbinde Claude, ChatGPT oder einen anderen KI-Assistenten mit deinen Daten."
-/>
+<PageHeader title="KI-Assistenten" />
 
 {#if refused}
 	<Alert tone="danger"><p>{refused}</p></Alert>
@@ -107,15 +122,15 @@
 		<table class="table" aria-label="Verbundene Apps">
 			<thead>
 				<tr>
-					<th>App</th>
-					<th>Rechte</th>
-					<th>Verbunden seit</th>
-					<th>Zuletzt genutzt</th>
+					<SortHeader sort={appSort} key="name">App</SortHeader>
+					<SortHeader sort={appSort} key="scope">Rechte</SortHeader>
+					<SortHeader sort={appSort} key="created">Verbunden seit</SortHeader>
+					<SortHeader sort={appSort} key="used">Zuletzt genutzt</SortHeader>
 					<th class="actions"></th>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.apps as app (app.id)}
+				{#each appSort.rows(data.apps) as app (app.id)}
 					<tr>
 						<td>{app.name}</td>
 						<td>{scopeLabels[app.scope]}</td>
@@ -150,16 +165,16 @@
 		<table class="table" aria-label="API-Schlüssel">
 			<thead>
 				<tr>
-					<th>Name</th>
-					<th>Schlüssel</th>
-					<th>Rechte</th>
-					<th>Gültig bis</th>
-					<th>Zuletzt genutzt</th>
+					<SortHeader sort={keySort} key="name">Name</SortHeader>
+					<SortHeader sort={keySort} key="prefix">Schlüssel</SortHeader>
+					<SortHeader sort={keySort} key="scope">Rechte</SortHeader>
+					<SortHeader sort={keySort} key="expires">Gültig bis</SortHeader>
+					<SortHeader sort={keySort} key="used">Zuletzt genutzt</SortHeader>
 					<th class="actions"></th>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.keys as key (key.id)}
+				{#each keySort.rows(data.keys) as key (key.id)}
 					<tr>
 						<td>{key.name}</td>
 						<td><code>{key.prefix}…</code></td>
@@ -257,7 +272,7 @@
 	}
 	.created h3 {
 		margin: 1.25rem 0 0.5rem;
-		font-size: 0.95rem;
+		font-size: var(--text-base);
 	}
 	.key {
 		display: flex;
@@ -275,7 +290,7 @@
 		border: 1px solid var(--color-border);
 		border-radius: 6px;
 		background: var(--color-subtle);
-		font-size: 0.8rem;
+		font-size: var(--text-xs);
 	}
 	code {
 		font-size: 0.85em;

@@ -1,43 +1,24 @@
-import { daysBetween, today, type IsoDate, type IsoMonth } from '#lib/dates.ts';
+import { today, type IsoDate, type IsoMonth } from '#lib/dates.ts';
 import { total } from '#lib/domain/rents.ts';
 import { currentReminders } from '#lib/domain/reminders.ts';
-import { personName } from '#lib/format.ts';
 import { leaseLabel, listLeases, type LeaseSummary } from '#lib/server/leases.ts';
 import { listBalances } from '#lib/server/ledger.ts';
 import { listRemindersByLease } from '#lib/server/reminders.ts';
-import type { ReminderLevel, TerminatedBy } from '#lib/server/db/schema.ts';
+import type { ReminderLevel } from '#lib/server/db/schema.ts';
 import { requireAccount } from '#lib/server/session.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import type { PageServerLoad } from './$types';
 
-export type Pending =
-	| {
-			kind: 'arrears';
-			tenantId: string;
-			name: string;
-			overdue: number;
-			openSince: IsoMonth;
-			reminder: { level: ReminderLevel; date: IsoDate } | null;
-	  }
-	| {
-			kind: 'out';
-			tenantId: string;
-			name: string;
-			date: IsoDate;
-			terminatedBy: TerminatedBy | null;
-			label: string;
-	  }
-	| { kind: 'in'; tenantId: string; name: string; id: string; date: IsoDate; label: string };
-
 // Tenants with their active leases, the archived ones (moved out) apart: one query for the
 // tenants, one set for the leases, so the number of queries does not grow with the number of
-// tenants. The active tenants are grouped by property (by name; a tenant renting in several goes
-// with the first), the tenants without an active lease last; within a group they keep the name
-// order. groupId (the property's id, null for none) lets the page draw a divider between groups.
+// tenants. The tenants who need something done come first: the Rückstände, largest first, then
+// the coming moves (a notice given, a lease about to begin) by date. The rest are grouped by
+// property (by name; a tenant renting in several goes with the first), the tenants without an
+// active lease last; within a group they keep the name order. groupId ('attention' for the first
+// group, else the property's id, null for none) lets the page draw a divider between groups.
 //
-// Each tenant carries what matters today: the Warmmiete, the Rückstand with the latest letter
-// about it, since when they rent, a notice given and a lease about to begin; the page puts what
-// needs doing above the list and sums the tenants up in one line.
+// Each tenant carries what matters today: the Warmmiete, the Rückstand with the letters about it,
+// since when they rent, a notice given and a lease about to begin; the page shows it on the row.
 export const load: PageServerLoad = async ({ locals }) => {
 	const accountId = requireAccount(locals);
 	const date = today();
@@ -62,7 +43,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		const active = own.filter((lease) => lease.active);
 		let overdue = 0;
 		let openSince: IsoMonth | null = null;
-		let reminder: { level: ReminderLevel; date: IsoDate } | null = null;
+		const letters: { level: ReminderLevel; date: IsoDate }[] = [];
 		for (const lease of own) {
 			const balance = balanceByLease.get(lease.id);
 			if (!balance?.overdue) continue;
@@ -70,17 +51,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 			if (balance.openSince && (!openSince || balance.openSince < openSince)) {
 				openSince = balance.openSince;
 			}
-			const [latest] = currentReminders(reminders.get(lease.id) ?? [], balance.openSinceDate);
-			// The latest letter across the leases; on the same day the higher level.
-			if (
-				latest &&
-				(!reminder ||
-					latest.date > reminder.date ||
-					(latest.date === reminder.date && latest.level > reminder.level))
-			) {
-				reminder = { level: latest.level, date: latest.date };
+			for (const sent of currentReminders(reminders.get(lease.id) ?? [], balance.openSinceDate)) {
+				letters.push({ level: sent.level, date: sent.date });
 			}
 		}
+		// The letters about the current Rückstand across the leases, oldest first; on the same day the
+		// lower level first. The row names the latest and lists them all on hover.
+		letters.sort((a, b) => a.date.localeCompare(b.date) || a.level - b.level);
+		const reminder = letters.at(-1) ?? null;
 		const moveOut = active
 			.filter((lease) => lease.endDate)
 			.sort((a, b) => a.endDate!.localeCompare(b.endDate!))[0];
@@ -89,11 +67,17 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
 		return {
 			...tenant,
-			activeLeases: active.map((lease) => ({ id: lease.id, label: leaseLabel(lease) })),
+			activeLeases: active.map((lease) => ({
+				id: lease.id,
+				label: leaseLabel(lease),
+				unit: lease.unit.name,
+				property: lease.property.name
+			})),
 			rent: active.reduce((sum, lease) => sum + total(lease.currentRent), 0),
 			overdue,
 			openSince,
 			reminder,
+			reminders: letters,
 			/** The start of the earliest lease that has begun. */
 			since:
 				own
@@ -107,7 +91,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 						label: leaseLabel(moveOut)
 					}
 				: null,
-			moveIn: moveIn ? { id: moveIn.id, date: moveIn.startDate, label: leaseLabel(moveIn) } : null
+			moveIn: moveIn
+				? {
+						id: moveIn.id,
+						date: moveIn.startDate,
+						label: leaseLabel(moveIn),
+						unit: moveIn.unit.name,
+						property: moveIn.property.name
+					}
+				: null
 		};
 	});
 	// By name, and properties of the same name apart by id, so each group stays together.
@@ -128,56 +120,20 @@ export const load: PageServerLoad = async ({ locals }) => {
 				: Number(!a.property) - Number(!b.property)
 		)
 		.map(({ tenant, property }) => ({ ...tenant, groupId: property?.id ?? null }));
-
-	// What needs doing, above the list: the Rückstände, largest first, then the moves by date.
-	const moves = active.flatMap((tenant) => {
-		const name = personName(tenant);
-		const own: Extract<Pending, { date: IsoDate }>[] = [];
-		if (tenant.moveOut) {
-			own.push({
-				kind: 'out',
-				tenantId: tenant.id,
-				name,
-				date: tenant.moveOut.date,
-				terminatedBy: tenant.moveOut.terminatedBy,
-				label: tenant.moveOut.label
-			});
-		}
-		if (tenant.moveIn) {
-			own.push({ kind: 'in', tenantId: tenant.id, name, ...tenant.moveIn });
-		}
-		return own;
-	});
-	const pending: Pending[] = [
-		...active
-			.filter((tenant) => tenant.overdue > 0)
-			.sort((a, b) => b.overdue - a.overdue)
-			.map((tenant) => ({
-				kind: 'arrears' as const,
-				tenantId: tenant.id,
-				name: personName(tenant),
-				overdue: tenant.overdue,
-				openSince: tenant.openSince!,
-				reminder: tenant.reminder
-			})),
-		...moves.sort((a, b) => a.date.localeCompare(b.date))
+	const moveDate = (tenant: (typeof active)[number]) =>
+		[tenant.moveOut?.date, tenant.moveIn?.date].filter((date) => date !== undefined).sort()[0];
+	const owing = active.filter((tenant) => tenant.overdue > 0).sort((a, b) => b.overdue - a.overdue);
+	const moving = active
+		.filter((tenant) => tenant.overdue === 0 && moveDate(tenant))
+		.sort((a, b) => moveDate(a)!.localeCompare(moveDate(b)!));
+	const attention = new Set([...owing, ...moving]);
+	const sorted = [
+		...[...attention].map((tenant) => ({ ...tenant, groupId: 'attention' })),
+		...active.filter((tenant) => !attention.has(tenant))
 	];
 
-	// The line under it, over the leases running today.
-	const running = leases.filter((lease) => lease.active);
-	const tenures = running.map((lease) => daysBetween(lease.startDate, date));
 	return {
-		tenants: active,
-		archived: rows.filter((tenant) => tenant.archivedAt),
-		pending,
-		overview: {
-			renting: active.filter((tenant) => tenant.activeLeases.length > 0).length,
-			households: running.length,
-			rent: running.reduce((sum, lease) => sum + total(lease.currentRent), 0),
-			/** Average years the running leases have run so far, null without one. */
-			tenure: tenures.length
-				? tenures.reduce((sum, days) => sum + days, 0) / tenures.length / 365.25
-				: null
-		}
+		tenants: sorted,
+		archived: rows.filter((tenant) => tenant.archivedAt)
 	};
 };

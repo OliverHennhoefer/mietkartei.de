@@ -266,7 +266,7 @@ describe('bank/konten Bankabruf', () => {
 		await connect();
 		calls = [];
 		expect(await run(accountActions.delete, { form: { id: bankAccountId } })).toEqual({
-			data: { deleted: true }
+			redirect: '/bank/konten'
 		});
 		expect(calls).toContain('DELETE /sessions/session-1');
 	});

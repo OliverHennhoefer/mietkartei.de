@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import LeaseForm from '#lib/components/LeaseForm.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
@@ -7,25 +8,21 @@
 	let { data, form }: PageProps = $props();
 </script>
 
-<PageHeader
-	title="Mietvertrag anlegen"
-	lead="Einheit, Mieter, Laufzeit und die Miete bei Vertragsbeginn."
-	back={{ href: '/vertraege', label: 'Alle Mietverträge' }}
-/>
+<PageHeader title="Mietvertrag anlegen" back={{ href: '/vertraege', label: 'Alle Mietverträge' }} />
 
 {#if data.units.length === 0}
 	<EmptyState
 		title="Du hast noch keine Einheit angelegt."
 		text="Ein Mietvertrag gehört zu einer Einheit eines Objekts."
 	>
-		<a href="/objekte" class="button">Objekt und Einheit anlegen</a>
+		<CreateButton href="/objekte" label="Objekt und Einheit anlegen" />
 	</EmptyState>
 {:else if data.tenants.length === 0}
 	<EmptyState
 		title="Du hast noch keinen Mieter angelegt."
 		text="Lege zuerst den Mieter an; danach geht es hier weiter."
 	>
-		<a href="/mieter/neu?return=/vertraege/neu" class="button">Mieter anlegen</a>
+		<CreateButton href="/mieter/neu?return=/vertraege/neu" label="Mieter anlegen" />
 	</EmptyState>
 {:else}
 	<LeaseForm

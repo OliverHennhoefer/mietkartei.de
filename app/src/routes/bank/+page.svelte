@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import { page } from '$app/state';
 	import Alert from '#lib/components/Alert.svelte';
@@ -83,7 +84,7 @@
 	 */
 	function expenseValue(
 		transaction: (typeof data.transactions)[number],
-		name: 'category' | 'scope'
+		name: 'category' | 'scope' | 'serviceProviderId'
 	): string {
 		if (formId === transaction.id) return values?.[name] ?? '';
 		return transaction.expensePreset?.[name] ?? '';
@@ -142,7 +143,7 @@
 				/>{/if}
 			<label class="inline">
 				Konto
-				<select name="konto">
+				<select name="konto" onchange={(event) => event.currentTarget.form?.requestSubmit()}>
 					<option value="" selected={!data.bankAccountId}>alle</option>
 					{#each data.bankAccounts as account (account.id)}
 						<option value={account.id} selected={data.bankAccountId === account.id}>
@@ -151,10 +152,9 @@
 					{/each}
 				</select>
 			</label>
-			<button type="submit" class="secondary small">Anzeigen</button>
+			<noscript><button type="submit" class="secondary small">Anzeigen</button></noscript>
 		</form>
 	{/if}
-	<a href="/bank/import">Kontoauszug importieren</a>
 </div>
 
 {#if message}
@@ -175,7 +175,7 @@
 		title="Noch keine Bankverbindung"
 		text="Lege zuerst das Konto an, auf dem die Mieten eingehen; danach kannst du Kontoauszüge importieren."
 	>
-		<a href="/bank/konten">Bankverbindung anlegen</a>
+		<CreateButton href="/bank/konten#bankverbindung-anlegen" label="Bankverbindung anlegen" />
 	</EmptyState>
 {:else if data.transactions.length === 0}
 	{#if data.transactionId}
@@ -406,6 +406,35 @@
 										<span class="error">{expenseErrors.scope}</span>
 									{/if}
 								</label>
+								{#if data.serviceProviders.length > 0}
+									<label>
+										Dienstleister
+										<select
+											name="serviceProviderId"
+											aria-invalid={formId === transaction.id && expenseErrors?.serviceProviderId
+												? 'true'
+												: undefined}
+										>
+											<option
+												value=""
+												selected={expenseValue(transaction, 'serviceProviderId') === ''}
+											>
+												Unbekannt
+											</option>
+											{#each data.serviceProviders as provider (provider.id)}
+												<option
+													value={provider.id}
+													selected={expenseValue(transaction, 'serviceProviderId') === provider.id}
+												>
+													{provider.name}
+												</option>
+											{/each}
+										</select>
+										{#if formId === transaction.id && expenseErrors?.serviceProviderId}
+											<span class="error">{expenseErrors.serviceProviderId}</span>
+										{/if}
+									</label>
+								{/if}
 								<label>
 									Beschreibung
 									<input
@@ -499,7 +528,7 @@
 		/* The rows keep their height when the details beside them are taller. */
 		align-content: start;
 		gap: 0.25rem;
-		font-size: 1.1rem;
+		font-size: var(--text-lg);
 		white-space: nowrap;
 	}
 	.actions {

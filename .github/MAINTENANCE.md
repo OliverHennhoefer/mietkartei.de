@@ -19,9 +19,11 @@ GitHub uses the issue and pull request templates from the default branch `main`.
 | `workflows/scorecard.yml` | Rates the repository's security practices with OpenSSF Scorecard |
 | `workflows/release.yml` | Attaches the source archive, checksum and SLSA provenance to a published release |
 | `workflows/municipalities.yml` | Monthly update of the bundled Gemeinde table from Destatis |
+| `workflows/registry-cleanup.yml` | Weekly deletion of stale image versions in GHCR |
 | `HOMEPAGE.md` | Preview, build and deployment of the homepage |
 | `DOCUMENTATION.md` | Preview, build and deployment of the documentation |
 | `DEPLOYMENT.md` | Cloudflare access, domains and hosting migration |
+| `MIGRATIONS.md` | Data-preserving database migrations, backups and restore |
 | `dependabot.yml` | Weekly dependency update proposals |
 | `release.yml` | Categories for automatically generated release notes |
 | `RELEASE_TEMPLATE.md` | Template for a release description, used manually |
@@ -93,6 +95,8 @@ Release notes are aimed at users and self-hosters and are therefore written in G
 8. Add required upgrade steps and known limitations. Update the supported versions in [SECURITY.md](../SECURITY.md) if needed.
 9. Publish the release after a final review.
 
-Publishing runs [release.yml](workflows/release.yml): it attaches the source archive, `SHA256SUMS` and a SLSA provenance (`mietkartei.intoto.jsonl`) to the release. The app workflow pushes the versioned Docker image with a build provenance attestation. Check afterwards that the three assets are on the release. The OpenSSF Scorecard counts them for Signed-Releases.
+Publishing runs [release.yml](workflows/release.yml): it attaches the source archive, `SHA256SUMS` and the signed build provenance of the archive (`mietkartei-<version>.intoto.jsonl`, a Sigstore bundle with SLSA provenance; check it offline with `gh attestation verify <archive> --bundle mietkartei-<version>.intoto.jsonl --owner OliverHennhoefer`) to the release. The app workflow pushes the versioned Docker image with a build provenance attestation. Check afterwards that the three assets are on the release; the OpenSSF Scorecard counts them for Signed-Releases. If the run failed, start **Release** by hand under Actions and pick the release tag under "Use workflow from"; it attaches the files to the existing release. This works for tags whose commit already has the manual trigger, that is from v0.1.1 on.
+
+The repository only allows actions pinned to a full commit SHA. That rules out the SLSA generator of slsa-framework, which has to be referenced by tag, so the provenance comes from `actions/attest-build-provenance` like the image's.
 
 When changing the confidential reporting channel, keep [SECURITY.md](../SECURITY.md) and [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) consistent.

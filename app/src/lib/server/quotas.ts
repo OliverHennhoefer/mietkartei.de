@@ -9,6 +9,7 @@ import {
 	bankTransactions,
 	co2CostSplits,
 	costCategories,
+	serviceProviders,
 	costItems,
 	depositTransactions,
 	emailChanges,
@@ -79,6 +80,7 @@ export const QUOTAS = {
 	/** One per lease and year. */
 	co2CostSplits: { table: co2CostSplits, max: 50_000, label: 'CO₂-Kostenaufteilungen' },
 	tasks: { table: tasks, max: 20_000, label: 'Aufgaben' },
+	serviceProviders: { table: serviceProviders, max: 2_000, label: 'Dienstleister' },
 	insurancePolicies: { table: insurancePolicies, max: 2_000, label: 'Versicherungen' },
 	associationStatements: {
 		table: associationStatements,

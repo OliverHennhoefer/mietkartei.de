@@ -1,9 +1,9 @@
 import { TURNSTILE_SECRET_KEY, TURNSTILE_SITE_KEY } from '$app/env/private';
 
-// Cloudflare Turnstile on the registration form: the widget in the browser hands the form a
-// token, which the server checks with Cloudflare before it creates the account. Without both keys
-// the check is off, e.g. on self-hosted instances, whose registration is closed after the first
-// user anyway.
+// Cloudflare Turnstile on the registration form and the demo's start: the widget in the browser
+// hands the form a token, which the server checks with Cloudflare before it creates the account.
+// Without both keys the check is off, e.g. on self-hosted instances, whose registration is closed
+// after the first user anyway.
 
 const VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
@@ -17,7 +17,8 @@ export function turnstileSiteKey(): string | null {
 
 /**
  * Whether Cloudflare confirms the token. A missing token, a refusal and an unreachable service all
- * count as failed, so an outage keeps bots out at the cost of new registrations for its duration.
+ * count as failed, so an outage keeps bots out at the cost of new registrations and demos for its
+ * duration.
  */
 export async function verifyTurnstile(
 	token: FormDataEntryValue | null,

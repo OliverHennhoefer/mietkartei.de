@@ -98,7 +98,9 @@ test('downloads the export as a ZIP with export.json and the uploaded documents'
 	);
 	expect(data.tables.lease_tenants).toContainEqual({
 		leaseId: lease.leaseId,
-		tenantId: lease.tenantId
+		tenantId: lease.tenantId,
+		joinedOn: null,
+		leftOn: null
 	});
 	expect(data.tables.documents).toContainEqual(
 		expect.objectContaining({
@@ -209,9 +211,13 @@ test('fills a fresh account with demo data and resets it to factory settings', a
 	await page.getByRole('button', { name: 'Demodaten anlegen' }).click();
 	await expect(page).toHaveURL(/\/aufgaben$/);
 	await expect(firstRun).toHaveCount(0);
-	const attention = page.getByRole('list', { name: 'Handlungsbedarf' });
+	const attention = page.getByRole('list', { name: 'Offene Aufgaben' });
 	await expect(attention).toContainText('Rückstände bei');
-	await expect(attention).toContainText('3 offene Bankumsätze zuordnen');
+	await expect(attention).toContainText('3\u00a0Bankumsätze zuordnen');
+	await expect(attention).toContainText('Kontoauszug laden: Rücklagenkonto DKB');
+	await expect(page.getByRole('region', { name: 'Nächste Fristen' })).toContainText(
+		'Nächste Frist'
+	);
 
 	await page.goto('/objekte');
 	await expect(page.getByText('Lindenstraße 12').first()).toBeVisible();

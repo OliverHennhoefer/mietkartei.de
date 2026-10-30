@@ -9,6 +9,7 @@ from pathlib import Path
 from shutil import copyfile, rmtree
 
 from build_guides import build_guides, json_ld
+from build_reference_cases import build_reference_cases
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +21,8 @@ OUTPUT.mkdir(parents=True)
 for filename in (
     "index.html",
     "impressum/index.html",
+    "datenschutz/index.html",
+    "auftragsverarbeitung/index.html",
     "fragen/index.html",
     "preise/index.html",
     "styles.css",
@@ -30,6 +33,7 @@ for filename in (
     "_headers",
     "_redirects",
     "assets/social.png",
+    "assets/rechenbeispiele.js",
 ):
     destination = OUTPUT / filename
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -59,7 +63,7 @@ if not expires or datetime.fromisoformat(expires[1]) < datetime.now(timezone.utc
 # Browsers without SVG favicons (Safari) and crawlers ask for /favicon.ico at the root.
 copyfile(ROOT / "assets" / "brand" / "favicon.ico", OUTPUT / "favicon.ico")
 
-for filename in ("Geist.ttf", "OFL.txt"):
+for filename in ("Geist.woff2", "OFL.txt"):
     destination = OUTPUT / "assets" / "fonts" / "geist" / filename
     destination.parent.mkdir(parents=True, exist_ok=True)
     copyfile(ROOT / "assets" / "brand" / "fonts" / "geist" / filename, destination)
@@ -118,6 +122,7 @@ def frame_pages() -> None:
 add_faq_json_ld(OUTPUT / "fragen" / "index.html")
 fingerprint_screenshots(OUTPUT / "index.html")
 build_guides(ROOT / "website", OUTPUT)
+build_reference_cases(ROOT / "website", OUTPUT)
 frame_pages()
 
 print(f"Startseite erzeugt: {OUTPUT}")

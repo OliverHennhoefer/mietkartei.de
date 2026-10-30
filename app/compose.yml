@@ -8,8 +8,8 @@ services:
   app:
     image: ghcr.io/oliverhennhoefer/mietkartei:${MIETKARTEI_TAG:-latest}
     restart: unless-stopped
-    # The login is still basic (no password reset, no rate limiting), so keep the app off the
-    # internet. Bind the port to a private address only, e.g. the server's Tailscale IP.
+    # Bound to localhost by default. Set MIETKARTEI_BIND to a private address such as the server's
+    # Tailscale IP, or keep localhost and put an HTTPS reverse proxy in front with ORIGIN set.
     ports:
       - ${MIETKARTEI_BIND:-127.0.0.1}:3000:3000
     volumes:

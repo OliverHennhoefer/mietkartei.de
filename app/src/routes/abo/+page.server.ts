@@ -85,7 +85,7 @@ function idOf(value: string | { id: string } | null | undefined): string | undef
 }
 
 /**
- * A price as text, read from Stripe: "8,00 € pro Monat" or "72,00 € pro Jahr"; "monatlich" or
+ * A price as text, read from Stripe: "5,00 € pro Monat" or "50,00 € pro Jahr"; "monatlich" or
  * "jährlich" when Stripe does not answer.
  */
 async function priceText(id: string, plan: Plan = 'monthly'): Promise<string> {

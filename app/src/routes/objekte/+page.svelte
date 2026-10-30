@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import Icon from '#lib/components/Icon.svelte';
@@ -13,13 +14,6 @@
 	let search = $state('');
 	/** The property whose map tile opened the large map; undefined while it is closed. */
 	let mapFor = $state<string>();
-	// The stock in one line: the current properties, their units, the running leases and vacancy.
-	const lead = $derived.by(() => {
-		if (data.properties.length === 0) return 'Gebäude, Einheiten und Vermietung im Überblick.';
-		const sum = (key: 'unitCount' | 'activeLeases' | 'vacantUnits') =>
-			data.properties.reduce((total, property) => total + property[key], 0);
-		return `${pluralize(data.properties.length, 'Objekt', 'Objekte')} mit ${pluralize(sum('unitCount'), 'Einheit', 'Einheiten')}, ${pluralize(sum('activeLeases'), 'laufender Mietvertrag', 'laufende Mietverträge')}, ${sum('vacantUnits')} leer.`;
-	});
 	const filteredProperties = $derived(
 		data.properties.filter((property) =>
 			[property.name, property.street, property.postalCode, property.city]
@@ -30,9 +24,9 @@
 	);
 </script>
 
-<PageHeader title="Objekte" {lead}>
+<PageHeader title="Objekte">
 	{#snippet actions()}
-		<a class="button" href="/objekte/neu"><Icon name="plus" size={16} />Objekt anlegen</a>
+		<CreateButton href="/objekte/neu" label="Objekt anlegen" />
 	{/snippet}
 </PageHeader>
 
@@ -41,7 +35,7 @@
 		title="Du hast noch keine Objekte angelegt."
 		text="Lege zuerst ein Objekt an und dann seine Einheiten; Mietverträge kommen danach."
 	>
-		<a class="button" href="/objekte/neu">Erstes Objekt anlegen</a>
+		<CreateButton href="/objekte/neu" label="Erstes Objekt anlegen" />
 		<a class="button secondary" href="/einstellungen/datenuebernahme"
 			>Daten aus einer anderen Software importieren</a
 		>
@@ -147,7 +141,7 @@
 <style>
 	.map-credit {
 		margin: 0.5rem 0 0;
-		font-size: 0.72rem;
+		font-size: var(--text-xs);
 		text-align: right;
 	}
 	.property-list {
@@ -216,18 +210,18 @@
 		min-width: 0;
 	}
 	.property-info strong {
-		font-size: 0.95rem;
+		font-size: var(--text-base);
 		overflow-wrap: anywhere;
 	}
 	.property-address {
 		color: var(--color-muted);
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 		overflow-wrap: anywhere;
 	}
 	.counts {
 		margin-top: 0.4rem;
 		color: var(--color-muted);
-		font-size: 0.78rem;
+		font-size: var(--text-xs);
 	}
 	.property-arrow {
 		color: var(--color-muted);

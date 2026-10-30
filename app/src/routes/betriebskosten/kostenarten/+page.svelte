@@ -1,5 +1,7 @@
 <script lang="ts">
 	import CostCategoryForm from '#lib/components/CostCategoryForm.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
+	import { byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -9,6 +11,17 @@
 		const circle = data.circles.find((candidate) => candidate.id === id);
 		return circle ? `${circle.propertyName} – ${circle.name}` : 'alle Einheiten';
 	};
+	const sort = new TableSort<PageProps['data']['categories'][number]>({
+		item: byText((category) => category.betrkvItem?.toString()),
+		name: byText((category) => category.name),
+		allocable: byNumber((category) => (category.allocable ? 1 : 0)),
+		consumption: byNumber((category) => (category.consumptionBased ? 1 : 0)),
+		key: byText((category) => (category.allocable ? keyName(category.allocationKeyId) : null)),
+		circle: byText((category) =>
+			category.allocable ? circleName(category.billingCircleId) : null
+		),
+		items: byNumber((category) => category.costItemCount)
+	});
 </script>
 
 <h2 class="visually-hidden">Kostenarten</h2>
@@ -21,17 +34,17 @@
 	<table class="table" aria-label="Kostenarten">
 		<thead>
 			<tr>
-				<th class="num">Nr.</th>
-				<th>Kostenart</th>
-				<th>umlagefähig</th>
-				<th>verbrauchsabhängig</th>
-				<th>Standardschlüssel</th>
-				<th>Standardkreis</th>
-				<th class="num">Belege</th>
+				<SortHeader {sort} key="item" class="num">Nr.</SortHeader>
+				<SortHeader {sort} key="name">Kostenart</SortHeader>
+				<SortHeader {sort} key="allocable">umlagefähig</SortHeader>
+				<SortHeader {sort} key="consumption">verbrauchsabhängig</SortHeader>
+				<SortHeader {sort} key="key">Standardschlüssel</SortHeader>
+				<SortHeader {sort} key="circle">Standardkreis</SortHeader>
+				<SortHeader {sort} key="items" class="num">Belege</SortHeader>
 			</tr>
 		</thead>
 		<tbody>
-			{#each data.categories as category (category.id)}
+			{#each sort.rows(data.categories) as category (category.id)}
 				<tr>
 					<td class="num">{category.betrkvItem ?? ''}</td>
 					<td><a href="/betriebskosten/kostenarten/{category.id}">{category.name}</a></td>
@@ -46,7 +59,7 @@
 	</table>
 </div>
 
-<h2>Kostenart anlegen</h2>
+<h2 id="kostenart-anlegen">Kostenart anlegen</h2>
 <CostCategoryForm
 	action="?/create"
 	submitLabel="Kostenart anlegen"

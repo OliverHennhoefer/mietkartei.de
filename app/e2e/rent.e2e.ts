@@ -59,7 +59,7 @@ test('adjusts an index rent from the VPI and writes the letter', async ({ page }
 	// Delivered today: the new rent applies from the first day of the second month after it
 	// (§ 557b Abs. 3 BGB).
 	const effective = formatDate(monthsAhead(2));
-	await page.getByLabel('Schreiben zugestellt am').fill(today());
+	await page.getByLabel('Zugang beim Mieter am').fill(today());
 	await expect(page.getByText(`Gilt ab ${effective}`)).toBeVisible();
 	page.once('dialog', (dialog) => {
 		// formatCents joins amount and € with a no-break space.
@@ -82,6 +82,20 @@ test('adjusts an index rent from the VPI and writes the letter', async ({ page }
 	expect(letter.status()).toBe(200);
 	expect(letter.headers()['content-type']).toContain('application/pdf');
 	expect((await letter.body()).subarray(0, 5).toString()).toBe('%PDF-');
+
+	// The letter arrived a month later than entered: correcting the delivery moves the new rent a
+	// month on, and back again.
+	const correct = async (shownFrom: string, deliveredOn: string, validFrom: string) => {
+		await history.getByRole('row').nth(2).getByRole('link', { name: shownFrom }).click();
+		const dialog = page.getByRole('dialog');
+		await dialog.getByLabel('Zugang beim Mieter am').fill(deliveredOn);
+		await dialog.getByRole('button', { name: 'Speichern' }).click();
+		await expect(dialog).toHaveCount(0);
+		await expect(history.getByRole('row').nth(2)).toContainText(validFrom);
+	};
+	const later = formatDate(monthsAhead(3));
+	await correct(effective, monthsAhead(1), later);
+	await correct(later, today(), effective);
 
 	// A manual change of the base rent on an indexed residential lease needs a reason. It starts
 	// a month after the index change.

@@ -2,6 +2,7 @@
 // headers and assumes https, which would fail its CSRF check for form posts to this plain http
 // server. So the origin is http plus the Host header by default, and ORIGIN states the public
 // URL when the app runs behind a reverse proxy, e.g. one that terminates https.
+import { randomBytes } from 'node:crypto';
 import http from 'node:http';
 import process from 'node:process';
 
@@ -27,6 +28,33 @@ const server = http.createServer((req, res) => {
 
 const host = process.env.HOST || '0.0.0.0';
 const port = Number(process.env.PORT || 3000);
+
+// The scheduled jobs (the weekly Fristenübersicht), started once an hour through the app's own
+// /api/jobs with a token only this process knows; see src/lib/server/jobs.ts.
+const JOB_INTERVAL_MS = 60 * 60 * 1000;
+globalThis.__mietkartei_job_token = randomBytes(32).toString('hex');
+const jobHost = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host;
+
+async function runJobs() {
+	try {
+		const response = await fetch(
+			`http://${jobHost.includes(':') ? `[${jobHost}]` : jobHost}:${port}/api/jobs`,
+			{
+				method: 'POST',
+				// Not a form post, so the CSRF check of the hook lets it through.
+				headers: {
+					authorization: `Bearer ${globalThis.__mietkartei_job_token}`,
+					'content-type': 'application/json'
+				},
+				body: '{}'
+			}
+		);
+		if (!response.ok) console.error(`[jobs] /api/jobs answered ${response.status}`);
+	} catch (error) {
+		console.error('[jobs] /api/jobs failed:', error);
+	}
+}
+
 server.listen(port, host, () => {
 	console.log(
 		`Listening on http://${host}:${port}${origin ? ` (public origin ${origin.origin})` : ''}`
@@ -34,6 +62,8 @@ server.listen(port, host, () => {
 	// Without ORIGIN the Host header of each request names the app, and anyone can send any Host,
 	// so password reset mails only go out for requests to localhost.
 	if (!origin) console.warn('ORIGIN is not set: password reset mails only work at localhost.');
+	setTimeout(runJobs, 60_000).unref();
+	setInterval(runJobs, JOB_INTERVAL_MS).unref();
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {

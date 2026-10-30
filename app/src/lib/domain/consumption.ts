@@ -115,11 +115,50 @@ export function meterConsumption(meter: Meter, from: IsoDate, to: IsoDate): Cons
 	};
 }
 
+/**
+ * Whether a reading the meter's consumption from `from` to `to` rests on is lower than the one
+ * before it: a typo or a replaced meter entered as a new reading. The consumption would come out
+ * too low or negative, and the allocation would shift the cost onto the other units. Only the
+ * readings from the one giving the value on `from` to the one giving the value on `to` count.
+ */
+export function readingsDecrease(meter: Meter, from: IsoDate, to: IsoDate): boolean {
+	const clipped = overlap({ start: from, end: to }, lifetime(meter));
+	if (!clipped || clipped.start >= clipped.end) return false;
+	const readings = sortReadings(meter.readings);
+	const first = boundIndex(readings, clipped.start, 'start');
+	const last = boundIndex(readings, clipped.end, 'end');
+	if (first === undefined || last === undefined) return false;
+	for (let index = first + 1; index <= last; index++) {
+		if (readings[index].value < readings[index - 1].value) return true;
+	}
+	return false;
+}
+
+/**
+ * The index of the reading valueAt rests on for the date: the one near it, else the last before
+ * it (for a period's start) or the first after it (for its end).
+ */
+function boundIndex(
+	readings: readonly Reading[],
+	date: IsoDate,
+	side: 'start' | 'end'
+): number | undefined {
+	const near = readingNear(readings, date);
+	if (near) return readings.indexOf(near);
+	const index =
+		side === 'start'
+			? readings.findLastIndex((reading) => reading.readAt < date)
+			: readings.findIndex((reading) => reading.readAt > date);
+	return index < 0 ? undefined : index;
+}
+
 export type UnitConsumption = {
 	value: number;
 	estimated: boolean;
 	/** Meters without a usable value on a bound; the unit's value is incomplete while any exist. */
 	missingMeterIds: string[];
+	/** Meters with a reading lower than the one before it in the period (see readingsDecrease). */
+	decreasingMeterIds: string[];
 	/** The unit of measure of the first meter, '' without meters. */
 	unit: string;
 };
@@ -130,11 +169,13 @@ export function unitConsumption(meters: readonly Meter[], from: IsoDate, to: Iso
 		value: 0,
 		estimated: false,
 		missingMeterIds: [],
+		decreasingMeterIds: [],
 		unit: meters[0]?.unit ?? ''
 	};
 	for (const meter of meters) {
 		const consumption = meterConsumption(meter, from, to);
 		if (consumption.missing) result.missingMeterIds.push(meter.id);
+		if (readingsDecrease(meter, from, to)) result.decreasingMeterIds.push(meter.id);
 		result.value += consumption.value;
 		result.estimated ||= consumption.estimated;
 	}

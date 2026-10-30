@@ -2,35 +2,42 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import SortHeader from '#lib/components/SortHeader.svelte';
 	import Sections from '../Sections.svelte';
 	import { formatArea, pluralize } from '#lib/format.ts';
 	import Filters from '../Filters.svelte';
 	import { percent, perSqm } from '../figures';
+	import { byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
 	const all = $derived(data.period === 'all');
 
-	// The unit table sorts by the column the user picks; by default the most expensive first.
-	type UnitRow = (typeof data.units)[number];
-	const unitSorts = {
-		expenses: { label: 'Ausgaben', value: (row: UnitRow) => row.expenses },
-		net: { label: 'Überschuss', value: (row: UnitRow) => row.net },
-		received: { label: 'Eingang', value: (row: UnitRow) => row.received },
-		rentPerSqm: { label: 'Kaltmiete pro m²', value: (row: UnitRow) => row.rentPerSqm ?? -1 },
-		vacantDays: { label: 'Leerstand', value: (row: UnitRow) => row.vacantDays }
-	} as const;
-	let unitSort = $state<keyof typeof unitSorts>('expenses');
-	const sortedUnits = $derived(
-		[...data.units].sort((a, b) => unitSorts[unitSort].value(b) - unitSorts[unitSort].value(a))
-	);
+	// By default the most expensive unit first.
+	const units = $derived([...data.units].sort((a, b) => b.expenses - a.expenses));
+	const propertySort = new TableSort<PageProps['data']['properties'][number]>({
+		name: byText((row) => row.name),
+		units: byNumber((row) => row.unitCount),
+		received: byNumber((row) => row.received),
+		expenses: byNumber((row) => row.expenses),
+		net: byNumber((row) => row.net),
+		rentPerSqm: byNumber((row) => row.rentPerSqm),
+		vacancy: byNumber((row) => (row.unitDays > 0 ? row.vacantDays / row.unitDays : null))
+	});
+	const unitSort = new TableSort<PageProps['data']['units'][number]>({
+		name: byText((row) => row.name),
+		area: byNumber((row) => row.floorArea),
+		baseRent: byNumber((row) => row.baseRent),
+		received: byNumber((row) => row.received),
+		expenses: byNumber((row) => row.expenses),
+		net: byNumber((row) => row.net),
+		rentPerSqm: byNumber((row) => row.rentPerSqm),
+		vacancy: byNumber((row) => row.vacantDays)
+	});
 </script>
 
-<PageHeader
-	title="Objekte im Vergleich"
-	lead="Einnahmen, Ausgaben, Kaltmiete und Leerstand je Objekt und Einheit."
-/>
+<PageHeader title="Objekte im Vergleich" />
 
 <Sections />
 
@@ -56,17 +63,19 @@
 				<table class="table">
 					<thead>
 						<tr>
-							<th>Objekt</th>
-							<th class="number">Einheiten</th>
-							<th class="number">Einnahmen</th>
-							<th class="number">Ausgaben</th>
-							<th class="number">Überschuss</th>
-							<th class="number">Kaltmiete pro m²</th>
-							<th class="number">Leerstand</th>
+							<SortHeader sort={propertySort} key="name">Objekt</SortHeader>
+							<SortHeader sort={propertySort} key="units" class="num">Einheiten</SortHeader>
+							<SortHeader sort={propertySort} key="received" class="num">Einnahmen</SortHeader>
+							<SortHeader sort={propertySort} key="expenses" class="num">Ausgaben</SortHeader>
+							<SortHeader sort={propertySort} key="net" class="num">Überschuss</SortHeader>
+							<SortHeader sort={propertySort} key="rentPerSqm" class="num"
+								>Kaltmiete pro m²</SortHeader
+							>
+							<SortHeader sort={propertySort} key="vacancy" class="num">Leerstand</SortHeader>
 						</tr>
 					</thead>
 					<tbody>
-						{#each data.properties as row (row.id)}
+						{#each propertySort.rows(data.properties) as row (row.id)}
 							<tr>
 								<td
 									><a href="?jahr={all ? 'gesamt' : data.period}&objekt={row.id}">{row.name}</a></td
@@ -90,17 +99,7 @@
 
 	{#if data.units.length > 0}
 		<section aria-labelledby="units">
-			<div class="row between">
-				<h2 id="units">Einheiten</h2>
-				<label class="inline sort">
-					Sortieren nach
-					<select bind:value={unitSort}>
-						{#each Object.entries(unitSorts) as [key, sort] (key)}
-							<option value={key}>{sort.label}</option>
-						{/each}
-					</select>
-				</label>
-			</div>
+			<h2 id="units">Einheiten</h2>
 			<p class="muted small">
 				Einnahmen zählen für die Haupteinheit des Mietvertrags. Ausgaben nur, wenn sie der Einheit
 				selbst zugeordnet sind; Ausgaben für das ganze Objekt stehen oben beim Objekt.
@@ -109,18 +108,18 @@
 				<table class="table">
 					<thead>
 						<tr>
-							<th>Einheit</th>
-							<th class="number">Fläche</th>
-							<th class="number">Kaltmiete (Soll)</th>
-							<th class="number">Eingang</th>
-							<th class="number">Ausgaben</th>
-							<th class="number">Überschuss</th>
-							<th class="number">pro m²</th>
-							<th class="number">Leerstand</th>
+							<SortHeader sort={unitSort} key="name">Einheit</SortHeader>
+							<SortHeader sort={unitSort} key="area" class="num">Fläche</SortHeader>
+							<SortHeader sort={unitSort} key="baseRent" class="num">Kaltmiete (Soll)</SortHeader>
+							<SortHeader sort={unitSort} key="received" class="num">Eingang</SortHeader>
+							<SortHeader sort={unitSort} key="expenses" class="num">Ausgaben</SortHeader>
+							<SortHeader sort={unitSort} key="net" class="num">Überschuss</SortHeader>
+							<SortHeader sort={unitSort} key="rentPerSqm" class="num">pro m²</SortHeader>
+							<SortHeader sort={unitSort} key="vacancy" class="num">Leerstand</SortHeader>
 						</tr>
 					</thead>
 					<tbody>
-						{#each sortedUnits as row (row.id)}
+						{#each unitSort.rows(units) as row (row.id)}
 							<tr>
 								<td>
 									<a href="/objekte/{row.propertyId}">{row.name}</a>
@@ -157,12 +156,6 @@
 	.number {
 		text-align: right;
 		font-variant-numeric: tabular-nums;
-		white-space: nowrap;
-	}
-	.row.between {
-		align-items: center;
-	}
-	.sort {
 		white-space: nowrap;
 	}
 </style>

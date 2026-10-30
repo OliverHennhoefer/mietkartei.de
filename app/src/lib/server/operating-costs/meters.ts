@@ -259,6 +259,45 @@ export async function createReading(
 	return { ok: true, id };
 }
 
+/** Changes a reading of the given meter; another reading on the new date is refused. */
+export async function updateReading(
+	db: Database,
+	context: AuditContext,
+	meterId: string,
+	readingId: string,
+	input: ReadingInput
+): Promise<{ ok: true } | { ok: false; reason: 'missing' | 'duplicate-date' }> {
+	const { accountId } = context;
+	const ofMeter = and(
+		eq(meterReadings.accountId, accountId),
+		eq(meterReadings.meterId, meterId),
+		eq(meterReadings.id, readingId)
+	);
+	const [existing] = await db
+		.select({ meter: meters })
+		.from(meterReadings)
+		.innerJoin(meters, eq(meters.id, meterReadings.meterId))
+		.where(ofMeter);
+	if (!existing) return { ok: false, reason: 'missing' };
+	const [taken] = await db
+		.select({ id: meterReadings.id })
+		.from(meterReadings)
+		.where(and(eq(meterReadings.meterId, meterId), eq(meterReadings.readAt, input.readAt)));
+	if (taken && taken.id !== readingId) return { ok: false, reason: 'duplicate-date' };
+	await runBatch(db, [
+		db.update(meterReadings).set(input).where(ofMeter),
+		auditEntry(
+			db,
+			context,
+			'meter_reading',
+			readingId,
+			'update',
+			`Zählerstand ${formatNumber(input.value)} ${existing.meter.unit} am ${formatDate(input.readAt)} für Zähler ${meterLabel(existing.meter)} geändert${input.estimated ? ' (geschätzt)' : ''}`
+		)
+	]);
+	return { ok: true };
+}
+
 /** Deletes a reading of the given meter; a reading of another meter counts as missing. */
 export async function deleteReading(
 	db: Database,
