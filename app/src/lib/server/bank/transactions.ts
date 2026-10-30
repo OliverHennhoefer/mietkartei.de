@@ -25,7 +25,7 @@ import {
 	scopeLabels
 } from '../expenses';
 import { paymentEntry } from '../ledger';
-import { leaseLabel, type LeaseSummary } from '../leases';
+import { leaseLabel, leasePlace, type LeaseSummary } from '../leases';
 import { listRules, ruleEntry, unconfirmEntries } from './rules';
 import { assertQuota, QUOTAS, usage } from '../quotas';
 
@@ -650,7 +650,8 @@ export type LeaseOption = {
 	id: string;
 	label: string;
 	unit: string;
-	property: string;
+	/** Null when the unit's name already names the property. */
+	property: string | null;
 	active: boolean;
 };
 
@@ -662,8 +663,7 @@ export function leaseOptions(summaries: readonly LeaseSummary[]): LeaseOption[] 
 		return {
 			id: lease.id,
 			label: lease.active ? label : `${label} (beendet)`,
-			unit: lease.unit.name,
-			property: lease.property.name,
+			...leasePlace(lease),
 			active: lease.active
 		};
 	});
