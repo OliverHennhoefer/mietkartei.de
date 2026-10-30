@@ -824,8 +824,7 @@ a:hover {
 .list > .card a:hover {
 	text-decoration: underline;
 }
-/* An overview panel of key figures: one light surface with a neon glow in the corner and a thin
-   divider between the figures. Each figure carries a divider on its left and the panel clips the
+/* An overview panel of key figures: one light surface with a thin divider between the figures. Each figure carries a divider on its left and the panel clips the
    one of the first figure in every row, so the dividers stay right however the grid wraps. */
 .stats {
 	display: grid;
@@ -835,11 +834,6 @@ a:hover {
 	border: 1px solid var(--color-border);
 	border-radius: 16px;
 	background-color: var(--color-subtle);
-	background-image: radial-gradient(
-		circle at 100% 0%,
-		light-dark(rgb(245 255 0 / 22%), rgb(245 255 0 / 10%)),
-		transparent 45%
-	);
 	box-shadow: var(--shadow);
 }
 .stat {
@@ -879,20 +873,15 @@ a.stat:hover .label {
 	text-transform: uppercase;
 	letter-spacing: 0.08em;
 }
-/* The one figure that needs attention first sits on the neon block of the logo. */
+/* A figure that needs attention sits on a card of its own; the neon stays a small accent inside it. */
 .stat.highlight {
 	justify-content: center;
 	gap: 0.1rem;
 	margin: 0.6rem;
 	padding: 0.65rem 1.1rem;
-	border: 0;
+	border: 1px solid var(--color-border);
 	border-radius: 12px;
-	background: var(--color-highlight);
-	color: var(--color-highlight-text);
-}
-.stat.highlight .label {
-	color: inherit;
-	opacity: 0.7;
+	background: var(--color-surface);
 }
 
 /* Data stays easy to scan, with horizontal scrolling confined to tables. */

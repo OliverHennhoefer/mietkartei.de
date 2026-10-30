@@ -189,7 +189,8 @@
 		{#each data.upcoming as deadline, index (index)}
 			<a class="stat highlight" class:overdue={deadline.overdue} href={deadline.href}>
 				<span class="kicker"
-					>{index === 0 ? 'Nächste Frist' : 'Frist'} · {relative(deadline.date)}</span
+					>{index === 0 ? 'Nächste Frist' : 'Frist'} ·
+					<span class="when">{relative(deadline.date)}</span></span
 				>
 				<strong title={deadline.title}>{deadline.title}</strong>
 				<span class="label"
@@ -561,7 +562,8 @@
 	.amount {
 		color: var(--color-danger);
 	}
-	/* The banner: today's date with the link to all deadlines, then the next ones in neon. */
+	/* The banner: today's date with the link to all deadlines, then the next ones; only when each
+	   is due is marked in neon, as in the list below. */
 	.banner {
 		grid-template-columns: repeat(var(--count), minmax(0, 1fr));
 	}
@@ -584,6 +586,7 @@
 		color: var(--color-text);
 	}
 	.stat.highlight .kicker {
+		color: var(--color-muted);
 		font-size: var(--text-xs);
 		font-weight: 600;
 		text-transform: uppercase;
@@ -593,9 +596,15 @@
 		font-size: var(--text-lg);
 		line-height: 1.3;
 	}
-	.stat.highlight.overdue {
-		background: var(--color-danger);
-		color: var(--color-background);
+	.stat.highlight .when {
+		padding: 0 0.35em;
+		background: var(--color-highlight);
+		color: var(--color-highlight-text);
+	}
+	.stat.highlight.overdue .when {
+		padding: 0;
+		background: none;
+		color: var(--color-danger);
 	}
 	.stat.none {
 		margin: 0;
