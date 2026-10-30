@@ -8,10 +8,13 @@ import {
 	gt,
 	gte,
 	inArray,
+	isNotNull,
 	isNull,
 	lt,
+	lte,
 	ne,
 	notExists,
+	or,
 	sql
 } from 'drizzle-orm';
 import { userRoleLabels, userRolePhrases } from '../labels';
@@ -419,7 +422,10 @@ export type AcceptInvitationResult =
 
 /**
  * Registers the invitee into the inviting account as a manager and marks the invitation
- * accepted, in one batch. The address comes from the invitation, never from the form.
+ * accepted, in one batch. The address comes from the invitation, never from the form. The checks
+ * before the batch are only reads, and hashing the password takes a moment: the invitation may be
+ * revoked, accepted or sent again in between, so the batch starts with a guard that fails it
+ * unless the invitation is still open.
  */
 export async function acceptInvitation(
 	db: Database,
@@ -430,36 +436,69 @@ export async function acceptInvitation(
 	const invitation = await findInvitation(db, token, now);
 	if (!invitation) return { ok: false, reason: 'invalid' };
 	if (invitation.status !== 'open') return { ok: false, reason: invitation.status };
-	const [taken] = await db
-		.select({ id: users.id })
-		.from(users)
-		.where(eq(users.email, invitation.email));
-	if (taken) return { ok: false, reason: 'email-taken' };
+	if (await emailTaken(db, invitation.email)) return { ok: false, reason: 'email-taken' };
 	const userId = crypto.randomUUID();
 	const name = input.name.trim();
-	await runBatch(db, [
-		db.insert(users).values({
-			id: userId,
-			accountId: invitation.accountId,
-			email: invitation.email,
-			passwordHash: await hashPassword(input.password),
-			role: invitation.role,
-			name
-		}),
-		db
-			.update(invitations)
-			.set({ acceptedAt: new Date(now) })
-			.where(eq(invitations.id, invitation.id)),
-		auditEntry(
-			db,
-			{ accountId: invitation.accountId, userId },
-			'user',
-			userId,
-			'create',
-			`${name} hat die Einladung angenommen und ist jetzt ${userRolePhrases[invitation.role]} dabei`
-		)
-	]);
+	const passwordHash = await hashPassword(input.password);
+	try {
+		await runBatch(db, [
+			openGuard(db, invitation.id, now),
+			db.insert(users).values({
+				id: userId,
+				accountId: invitation.accountId,
+				email: invitation.email,
+				passwordHash,
+				role: invitation.role,
+				name
+			}),
+			db
+				.update(invitations)
+				.set({ acceptedAt: new Date(now) })
+				.where(eq(invitations.id, invitation.id)),
+			auditEntry(
+				db,
+				{ accountId: invitation.accountId, userId },
+				'user',
+				userId,
+				'create',
+				`${name} hat die Einladung angenommen und ist jetzt ${userRolePhrases[invitation.role]} dabei`
+			)
+		]);
+	} catch (cause) {
+		const current = await findInvitation(db, token, now);
+		if (!current) return { ok: false, reason: 'invalid' };
+		if (current.status !== 'open') return { ok: false, reason: current.status };
+		if (await emailTaken(db, invitation.email)) return { ok: false, reason: 'email-taken' };
+		throw cause;
+	}
 	return { ok: true, userId, accountId: invitation.accountId };
+}
+
+async function emailTaken(db: Database, email: string): Promise<boolean> {
+	const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
+	return Boolean(taken);
+}
+
+/**
+ * A batch statement that fails the whole batch unless the invitation is still open: otherwise it
+ * copies the row onto its own primary key, which the key refuses. It goes first in the batch.
+ */
+function openGuard(db: Database, invitationId: string, now: number) {
+	return db.insert(invitations).select(
+		db
+			.select()
+			.from(invitations)
+			.where(
+				and(
+					eq(invitations.id, invitationId),
+					or(
+						isNotNull(invitations.acceptedAt),
+						isNotNull(invitations.revokedAt),
+						lte(invitations.expiresAt, new Date(now))
+					)
+				)
+			)
+	);
 }
 
 /** Deletes a user with their sessions, resets, address changes and API keys. */

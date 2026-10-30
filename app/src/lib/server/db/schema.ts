@@ -1218,7 +1218,7 @@ export const operatingCostStatements = sqliteTable(
 		status: text('status', { enum: statementStatuses }).notNull().default('draft'),
 		/** No foreign key: it points at an approved version, and approved versions are never deleted. */
 		correctsId: text('corrects_id'),
-		/** JSON of the computed StatementResult (property level): stored on creation, frozen on approval. */
+		/** JSON of the computed StatementResult (property level), frozen on approval; null for a draft. */
 		result: text('result'),
 		/** Approval after the 12-month deadline with "Verspätung nicht zu vertreten" (§ 556 Abs. 3). */
 		lateApprovalJustified: bool('late_approval_justified', false),

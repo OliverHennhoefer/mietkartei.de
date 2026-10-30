@@ -450,7 +450,7 @@ describe('loadStatementInput', () => {
 });
 
 describe('createStatement and getStatement', () => {
-	it('creates a draft with the stored result and recomputes it on view', async () => {
+	it('creates a draft without a stored result and computes it on view', async () => {
 		const { propertyId } = await seedScenario(db, 'a');
 		const id = await draft(db, propertyId);
 		const view = (await getStatement(db, 'a', id))!;
@@ -464,7 +464,7 @@ describe('createStatement and getStatement', () => {
 		expect(view.superseded).toBe(false);
 
 		const [row] = await db.select().from(operatingCostStatements);
-		expect(JSON.parse(row.result!)).toMatchObject({ costsTotal: 620000 });
+		expect(row.result).toBeNull();
 		const audit = await db.select().from(auditLog).where(eq(auditLog.entity, 'statement'));
 		expect(audit.map((entry) => [entry.action, entry.summary])).toEqual([
 			['create', 'Betriebskostenabrechnung 2025 für Lindenstraße 4 als Entwurf angelegt']
@@ -485,6 +485,24 @@ describe('createStatement and getStatement', () => {
 		expect(await listPropertiesForStatements(db, 'a')).toEqual([
 			{ id: propertyId, name: 'Lindenstraße 4', hasCostItems: true }
 		]);
+	});
+
+	it('shows the same totals for a draft in the list as on its page after a cost changes', async () => {
+		const { propertyId } = await seedScenario(db, 'a');
+		const id = await draft(db, propertyId);
+		const [item] = await db.select().from(costItems).where(eq(costItems.propertyId, propertyId));
+		await db
+			.update(costItems)
+			.set({ amount: item.amount + 60000 })
+			.where(eq(costItems.id, item.id));
+		const view = (await getStatement(db, 'a', id))!;
+		expect(view.result.property.costsTotal).toBe(620000 + 60000);
+		const [group] = await listStatements(db, 'a');
+		expect(group.statements[0]).toMatchObject({
+			costsTotal: view.result.property.costsTotal,
+			nachzahlungen: view.result.property.nachzahlungen,
+			guthaben: view.result.property.guthaben
+		});
 	});
 
 	it('refuses a second statement for the same period and an invalid period', async () => {

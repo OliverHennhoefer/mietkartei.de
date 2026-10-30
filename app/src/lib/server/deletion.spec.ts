@@ -9,6 +9,7 @@ import {
 	leaseTenants,
 	leases,
 	paymentReminders,
+	payments,
 	properties,
 	tasks,
 	tenants,
@@ -208,6 +209,47 @@ describe('leases', () => {
 		expect(await db.select().from(leaseTenants)).toEqual([]);
 		expect(await deleteTenant(db, contextA, tenantId, { storage })).toBe('deleted');
 		expect(await integrityProblems(db)).toEqual([]);
+	});
+
+	it('keeps a lease whose first payment is booked between the check and the delete', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const leaseId = await seedLease(db, 'a', unitId);
+		// A bank import books a payment right before the delete's batch runs.
+		const racing = new Proxy(db, {
+			get(target, key, receiver) {
+				if (key !== 'transaction') return Reflect.get(target, key, receiver);
+				return (run: () => void) => {
+					(
+						target.insert(payments).values({
+							accountId: 'a',
+							leaseId,
+							date: '2025-03-12',
+							amount: 1000,
+							source: 'bank'
+						}) as unknown as { run(): void }
+					).run();
+					return (target as unknown as { transaction(fn: () => void): void }).transaction(run);
+				};
+			}
+		});
+		expect(await deleteLease(racing, contextA, leaseId)).toBe('in-use');
+		expect(await db.select().from(payments).where(eq(payments.leaseId, leaseId))).toHaveLength(1);
+		expect(await db.select().from(leases).where(eq(leases.id, leaseId))).toHaveLength(1);
+	});
+
+	it('passes on a failure of the delete that no history explains', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const leaseId = await seedLease(db, 'a', unitId);
+		const failing = new Proxy(db, {
+			get(target, key, receiver) {
+				if (key !== 'transaction') return Reflect.get(target, key, receiver);
+				return () => {
+					throw new Error('disk full');
+				};
+			}
+		});
+		await expect(deleteLease(failing, contextA, leaseId)).rejects.toThrow('disk full');
+		expect(await db.select().from(leases).where(eq(leases.id, leaseId))).toHaveLength(1);
 	});
 
 	it('does not see or delete records of another account', async () => {
