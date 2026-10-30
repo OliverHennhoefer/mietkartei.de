@@ -97,13 +97,13 @@ type Place = { unit: { name: string }; property: { name: string } };
 
 /**
  * Where the lease is: the unit's name, under it the property's. A Eigentumswohnung is often named
- * after its unit („Parkallee 8, Wohnung 14“ with „Wohnung 14“): the unit is then named once, the
- * property by the rest („Parkallee 8“), or not at all when nothing is left.
+ * after its unit („Parkallee 8, Wohnung 14“ with „Wohnung 14“): a part of the property's name
+ * that is exactly the unit's is left out („Parkallee 8“), the whole name when nothing else is left.
  */
 export function leasePlace(lease: Place): { unit: string; property: string | null } {
-	const property = lease.property.name.includes(lease.unit.name)
-		? lease.property.name.replace(lease.unit.name, '').replace(/^[\s,·–-]+|[\s,·–-]+$/g, '')
-		: lease.property.name;
+	const parts = lease.property.name.split(/\s*[,·–]\s*/);
+	const rest = parts.filter((part) => part !== lease.unit.name);
+	const property = rest.length < parts.length ? rest.join(', ') : lease.property.name;
 	return { unit: lease.unit.name, property: property || null };
 }
 
