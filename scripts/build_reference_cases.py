@@ -22,8 +22,12 @@ KEY_LABELS = {
     "area": "nach Wohnfläche",
     "persons": "nach Personen",
     "units": "nach Wohneinheiten",
+    "consumption": "nach Verbrauch",
     "mixed": "nach Heizkostenverordnung",
 }
+# A unit standing empty counts as this many persons, as "Personen bei Leerstand" in the app.
+VACANCY_PERSONS = 1
+METER_UNITS = {"heat": "kWh", "cold_water": "m³"}
 
 
 def euro(cents: int) -> str:
@@ -44,6 +48,10 @@ def day(iso: str) -> str:
 
 def days(start: str, end: str) -> int:
     return (date.fromisoformat(end) - date.fromisoformat(start)).days + 1
+
+
+def shift(iso: str, by: int) -> str:
+    return date.fromordinal(date.fromisoformat(iso).toordinal() + by).isoformat()
 
 
 def largest_remainder(total: int, weights: list[float]) -> list[int]:
@@ -95,24 +103,46 @@ class Case:
     def leases_of(self, unit_id: str) -> list[dict]:
         return sorted((l for l in self.leases if l["unitId"] == unit_id), key=lambda l: l["start"])
 
+    def timeline(self, unit_id: str, start: str | None = None, end: str | None = None) -> list[tuple[dict | None, str, str]]:
+        """The unit's leases and the gaps between them (None) within start to end, in order."""
+        start, end = start or self.period[0], end or self.period[1]
+        parts, cursor = [], start
+        for lease in self.leases_of(unit_id):
+            first = max(lease["start"], start)
+            last = min(lease["end"] or end, end)
+            if first > last:
+                continue
+            if first > cursor:
+                parts.append((None, cursor, shift(first, -1)))
+            parts.append((lease, first, last))
+            cursor = shift(last, 1)
+        if cursor <= end:
+            parts.append((None, cursor, end))
+        return parts
+
+    def segments(self, unit_id: str) -> list[tuple[int, str]]:
+        return [
+            (days(first, last), self.colour[lease["id"]] if lease else "tone-vacant")
+            for lease, first, last in self.timeline(unit_id)
+        ]
+
     def tenant(self, lease: dict) -> str:
         t = lease["tenant"]
         return f'{t["salutation"]} {t["lastName"]}'
-
-    def occupancy(self, lease: dict) -> tuple[str, str]:
-        start = max(lease["start"], self.period[0])
-        end = min(lease["end"] or self.period[1], self.period[1])
-        return start, end
 
     # The steps
 
     def house_step(self) -> str:
         rows = []
         for unit in reversed(self.units):
-            segments, names = [], []
-            for lease in self.leases_of(unit["id"]):
-                start, end = self.occupancy(lease)
-                segments.append((days(start, end), self.colour[lease["id"]]))
+            names = []
+            for lease, start, end in self.timeline(unit["id"]):
+                if not lease:
+                    names.append(
+                        f'<li><span class="swatch tone-vacant"></span><b>Leerstand</b> {day(start)} bis {day(end)}'
+                        f' · {days(start, end)} Tage, die der Vermieter trägt</li>'
+                    )
+                    continue
                 persons = lease["persons"]
                 names.append(
                     f'<li><span class="swatch {self.colour[lease["id"]]}"></span>'
@@ -123,7 +153,7 @@ class Case:
             rows.append(
                 f'<div class="floor"><div class="floor-name"><b>{html.escape(unit["name"])}</b>'
                 f'<span>{number(unit["area"])} m²</span></div>'
-                f'<div class="floor-time">{bar(segments, 24)}<ul>{"".join(names)}</ul></div></div>'
+                f'<div class="floor-time">{bar(self.segments(unit["id"]), 24)}<ul>{"".join(names)}</ul></div></div>'
             )
         bills = "".join(
             f'<tr><td>{html.escape(item["description"])}</td><td>{day(item["periodStart"])} bis {day(item["periodEnd"])}</td>'
@@ -186,12 +216,22 @@ class Case:
                 )
             parts.append(f'<h3>Je Wohnung zusammen: {euro(allocated)}</h3><ul class="split">{"".join(rows)}</ul>')
 
-        # Units with more than one lease: the unit's share split by days (or person-days).
-        for unit in self.units:
+        # Units with more than one lease or empty days: the unit's share split by days (or
+        # person-days), the empty days' part borne by the landlord.
+        item_start = max(item["periodStart"], self.period[0])
+        item_end = min(item["periodEnd"], self.period[1])
+        vacancy_total = 0
+        for unit_index, unit in enumerate(self.units):
+            shown = sum(largest_remainder(amount, weights)[unit_index] for _, weights, _, amount in components)
+            charged = sum(self.line(l, item)["amount"] for l in self.leases_of(unit["id"]) if self.line(l, item))
+            vacant = sum(days(first, last) for lease, first, last in self.timeline(unit["id"], item_start, item_end) if not lease)
+            # The builder's split must give each unit what mietkartei gave its leases and its vacancy.
+            if shown < charged or (shown != charged and not vacant):
+                raise ValueError(f"{self.slug}/{item['id']}: {unit['id']} shows {shown}, mietkartei {charged}")
+            vacancy_total += shown - charged
             leases = [l for l in self.leases_of(unit["id"]) if self.line(l, item)]
-            if len(leases) < 2:
+            if len(leases) + (1 if vacant else 0) < 2:
                 continue
-            total = sum(self.line(l, item)["amount"] for l in leases)
             rows = []
             for lease in leases:
                 line = self.line(lease, item)
@@ -199,20 +239,27 @@ class Case:
                 rows.append(
                     f'<li><span class="row-label"><span class="swatch {self.colour[lease["id"]]}"></span>{html.escape(self.tenant(lease))}</span>'
                     f'<span class="row-key">{html.escape(detail)}</span>'
-                    f'{bar([(line["amount"], self.colour[lease["id"]]), (total - line["amount"], "tone-rest")])}'
+                    f'{bar([(line["amount"], self.colour[lease["id"]]), (shown - line["amount"], "tone-rest")])}'
                     f'<span class="num">{euro(line["amount"])}</span></li>'
+                )
+            if vacant:
+                detail = (
+                    f"{number(vacant * VACANCY_PERSONS)} Personentage, {VACANCY_PERSONS} je leerem Tag"
+                    if item["key"] == "persons"
+                    else f"{vacant} Tage leer"
+                )
+                rows.append(
+                    f'<li><span class="row-label"><span class="swatch tone-vacant"></span>Leerstand, trägt der Vermieter</span>'
+                    f'<span class="row-key">{detail}</span>'
+                    f'{bar([(shown - charged, "tone-vacant"), (charged, "tone-rest")])}'
+                    f'<span class="num">{euro(shown - charged)}</span></li>'
                 )
             how = "nach Personentagen" if item["key"] == "persons" else "nach Tagen"
             parts.append(
-                f'<h3>{html.escape(unit["name"])}: {euro(total)} {how} geteilt</h3><ul class="split">{"".join(rows)}</ul>'
+                f'<h3>{html.escape(unit["name"])}: {euro(shown)} {how} geteilt</h3><ul class="split">{"".join(rows)}</ul>'
             )
-
-        # The builder's split must give each unit what mietkartei gave its leases.
-        for unit_index, unit in enumerate(self.units):
-            shown = sum(largest_remainder(amount, weights)[unit_index] for _, weights, _, amount in components)
-            charged = sum(self.line(l, item)["amount"] for l in self.leases_of(unit["id"]) if self.line(l, item))
-            if shown != charged:
-                raise ValueError(f"{self.slug}/{item['id']}: {unit['id']} shows {shown}, mietkartei {charged}")
+        if vacancy_total != summary.get("vacancyShare", 0):
+            raise ValueError(f"{self.slug}/{item['id']}: vacancy {vacancy_total}, mietkartei {summary.get('vacancyShare')}")
         return "\n".join(parts)
 
     def period_bar(self, item: dict) -> str:
@@ -251,15 +298,20 @@ class Case:
             weights = []
             for unit in self.units:
                 weights.append(sum(
-                    lease["persons"] * days(*self.occupancy(lease)) for lease in self.leases_of(unit["id"])
+                    (lease["persons"] if lease else VACANCY_PERSONS) * days(first, last)
+                    for lease, first, last in self.timeline(unit["id"])
                 ))
             return [("", weights, "Personentagen", allocated)]
+        meters = {meter["unitId"]: meter for meter in self.data.get("meters") or []}
+        usage = [meters[unit["id"]]["end"] - meters[unit["id"]]["start"] for unit in self.units]
+        meter_unit = METER_UNITS[meters[self.units[0]["id"]]["kind"]] if meters else ""
+        if item["key"] == "consumption":
+            return [("", usage, meter_unit, allocated)]
         if item["key"] == "mixed":
             percent = item["consumptionPercent"]
             by_use = int(allocated * percent / 100 + 0.5)
-            meters = {meter["unitId"]: meter["end"] - meter["start"] for meter in self.data["heatMeters"]}
             return [
-                (f"{percent} % nach Verbrauch", [meters[unit["id"]] for unit in self.units], "kWh", by_use),
+                (f"{percent} % nach Verbrauch", usage, meter_unit, by_use),
                 (f"{100 - percent} % nach Wohnfläche", area, "m²", allocated - by_use),
             ]
         raise ValueError(f"{self.slug}: key {item['key']} has no picture yet")
@@ -282,9 +334,18 @@ class Case:
                     f'<td class="num balance {"due" if balance > 0 else "credit"}">{euro(abs(balance))}<small>{label}</small></td></tr>'
                 )
         landlord = self.result["landlordCo2Share"]
+        vacancy = self.result["vacancyShare"]
+        own = " und ".join(
+            text
+            for amount, text in [
+                (landlord, f"{euro(landlord)} CO₂-Kosten"),
+                (vacancy, f"{euro(vacancy)} für die Tage, an denen Wohnungen leer standen"),
+            ]
+            if amount
+        )
         footer = (
-            f'<p>Dazu trägt der Vermieter {euro(landlord)} CO₂-Kosten selbst. Zusammen ergibt das genau die Belege des Jahres: {euro(self.result["costsTotal"])}.</p>'
-            if landlord
+            f'<p>Dazu trägt der Vermieter {own} selbst. Zusammen ergibt das genau die Belege des Jahres: {euro(self.result["costsTotal"])}.</p>'
+            if own
             else f'<p>Zusammen ergeben die Anteile genau die Belege des Jahres: {euro(self.result["costsTotal"])}.</p>'
         )
         return f"""<h2>Das Ergebnis je Mieter</h2>
@@ -373,10 +434,7 @@ def render_case(layout: str, case: Case) -> str:
 def render_index(layout: str, cases: list[Case]) -> str:
     cards = []
     for case in cases:
-        floors = "".join(
-            bar([(days(*case.occupancy(lease)), case.colour[lease["id"]]) for lease in case.leases_of(unit["id"])], 10)
-            for unit in reversed(case.units)
-        )
+        floors = "".join(bar(case.segments(unit["id"]), 10) for unit in reversed(case.units))
         cards.append(
             f'<li><a href="{case.path}"><div class="case-thumb">{floors}</div>'
             f'<div><h2>{html.escape(case.data["title"])}</h2><p>{html.escape(case.data["summary"])}</p>'
@@ -392,7 +450,7 @@ def render_index(layout: str, cases: list[Case]) -> str:
     return fill(
         layout,
         title="Rechenbeispiele",
-        description="Betriebskostenabrechnung Schritt für Schritt: Mieterwechsel, Heizkosten und CO₂-Aufteilung an Beispielen, unabhängig nachgerechnet.",
+        description="Betriebskostenabrechnung Schritt für Schritt: Mieterwechsel, Leerstand, Wasser nach Zählern, Heizkosten und CO₂-Aufteilung an Beispielen, unabhängig nachgerechnet.",
         path="/rechenbeispiele/",
         og_type="website",
         json_ld=json_ld({

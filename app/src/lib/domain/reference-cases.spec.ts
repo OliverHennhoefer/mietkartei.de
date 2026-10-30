@@ -12,6 +12,7 @@ describe('reference cases', () => {
 		it(`${c.slug}: every tenant pays the independently computed share`, () => {
 			expect(result.property.warnings).toEqual([]);
 			expect(result.property.landlordCo2Share).toBe(c.expected.landlordCo2Share);
+			expect(result.property.vacancyShare).toBe(c.expected.vacancyShare);
 			expect(result.leases.map((lease) => lease.leaseId).sort()).toEqual(
 				Object.keys(c.expected.leases).sort()
 			);
@@ -39,6 +40,7 @@ describe('reference cases', () => {
 					items: property.items,
 					costsTotal: property.costsTotal,
 					landlordCo2Share: property.landlordCo2Share,
+					vacancyShare: property.vacancyShare,
 					leases: leases.map((lease) => ({
 						leaseId: lease.leaseId,
 						occupancy: lease.occupancy,

@@ -355,10 +355,10 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 }
 
 /* Reference cases (Rechenbeispiele): one step of a case at a time, bars as SVG rectangles. The
-   tones tell the leases apart; they keep their contrast on both backgrounds. */
-:root { --tone-1: #2f6fde; --tone-2: #e07b39; --tone-3: #2a9d8f; --tone-4: #9b5de5; --tone-5: #d1495b; --tone-6: #7a8b2a; --tone-unit: #202020; --tone-rest: #ececec; --ok: #1f7a4d; }
+   tones tell the leases apart, a grey the days a unit stood empty; they keep their contrast on both backgrounds. */
+:root { --tone-1: #2f6fde; --tone-2: #e07b39; --tone-3: #2a9d8f; --tone-4: #9b5de5; --tone-5: #d1495b; --tone-6: #7a8b2a; --tone-unit: #202020; --tone-rest: #ececec; --tone-vacant: #9a9a9a; --ok: #1f7a4d; }
 @media (prefers-color-scheme: dark) {
-  :root { --tone-1: #6b9cf0; --tone-2: #f0a06b; --tone-3: #4fc3b4; --tone-4: #b78cf0; --tone-5: #ec7584; --tone-6: #a9bb52; --tone-unit: #ececee; --tone-rest: #36383d; --ok: #5fd39a; }
+  :root { --tone-1: #6b9cf0; --tone-2: #f0a06b; --tone-3: #4fc3b4; --tone-4: #b78cf0; --tone-5: #ec7584; --tone-6: #a9bb52; --tone-unit: #ececee; --tone-rest: #36383d; --tone-vacant: #7d8088; --ok: #5fd39a; }
 }
 .tone-1 { fill: var(--tone-1); background: var(--tone-1); }
 .tone-2 { fill: var(--tone-2); background: var(--tone-2); }
@@ -368,6 +368,7 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 .tone-6 { fill: var(--tone-6); background: var(--tone-6); }
 .tone-unit { fill: var(--tone-unit); }
 .tone-rest { fill: var(--tone-rest); }
+.tone-vacant { fill: var(--tone-vacant); background: var(--tone-vacant); }
 .case-bar { display: block; width: 100%; height: 12px; border-radius: 3px; }
 .swatch { display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 2px; vertical-align: 0; }
 

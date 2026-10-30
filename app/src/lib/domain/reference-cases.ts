@@ -1,5 +1,6 @@
 import { monthsInRange, monthOf, type IsoDate } from '../dates';
-import type { AllocationKeyKind, Fuel } from '../server/db/schema';
+import type { AllocationKeyKind, Fuel, MeterKind } from '../server/db/schema';
+import { defaultMeterUnit } from './operating-costs';
 import { monthlyAmounts } from './rents';
 import type {
 	LedgerCharge,
@@ -17,7 +18,7 @@ import type {
 // scripts/build_reference_cases.py builds the pages on mietkartei.de/rechenbeispiele/.
 
 export type ReferenceCategory =
-	'grundsteuer' | 'muell' | 'hausmeister' | 'versicherung' | 'heizung';
+	'grundsteuer' | 'wasser' | 'abwasser' | 'muell' | 'hausmeister' | 'versicherung' | 'heizung';
 
 export type ReferenceCase = {
 	slug: string;
@@ -56,12 +57,14 @@ export type ReferenceCase = {
 		amount: number;
 		co2?: { fuel: Fuel; fuelKwh: number; co2Kg: number; co2Cost: number };
 	}[];
-	/** Heat meters: the unit's consumption in the year, read on its first and last day. */
-	heatMeters?: { unitId: string; start: number; end: number }[];
+	/** The units' meters of the kind the consumption keys read, read on the year's first and last day. */
+	meters?: { unitId: string; kind: MeterKind; start: number; end: number }[];
 	/** The independent result: each lease's share per item and its paid prepayments, in cents. */
 	expected: {
 		leases: Record<string, { shares: Record<string, number>; prepayments: number }>;
 		landlordCo2Share: number;
+		/** What the landlord bears for the days a unit stood empty. */
+		vacancyShare: number;
 	};
 	/** How the expected figures were obtained, for the page. */
 	check: string[];
@@ -74,6 +77,20 @@ const categories: Record<ReferenceCategory, StatementCategory> = {
 		id: 'grundsteuer',
 		name: 'Grundsteuer',
 		betrkvItem: 1,
+		allocable: true,
+		consumptionBased: false
+	},
+	wasser: {
+		id: 'wasser',
+		name: 'Wasserversorgung',
+		betrkvItem: 2,
+		allocable: true,
+		consumptionBased: false
+	},
+	abwasser: {
+		id: 'abwasser',
+		name: 'Entwässerung',
+		betrkvItem: 3,
 		allocable: true,
 		consumptionBased: false
 	},
@@ -107,29 +124,37 @@ const categories: Record<ReferenceCategory, StatementCategory> = {
 	}
 };
 
-const keyNames: Record<AllocationKeyKind, string> = {
-	area: 'Wohnfläche',
-	persons: 'Personen',
-	units: 'Wohneinheiten',
-	consumption: 'Verbrauch',
-	mixed: 'Heizkosten',
-	custom: 'Eigener Schlüssel',
-	direct: 'Direkt'
-};
+/** The key of an item, named as the account of the demo has it. */
+export function referenceKey(item: ReferenceCase['items'][number]): {
+	name: string;
+	meterKind: MeterKind | null;
+} {
+	if (item.key === 'mixed')
+		return {
+			name: `Heizung ${item.consumptionPercent}/${100 - item.consumptionPercent!}`,
+			meterKind: 'heat'
+		};
+	if (item.key === 'consumption')
+		return { name: 'Kaltwasser nach Verbrauch', meterKind: 'cold_water' };
+	const names: Partial<Record<AllocationKeyKind, string>> = {
+		area: 'Wohnfläche',
+		persons: 'Personen',
+		units: 'Einheiten'
+	};
+	return { name: names[item.key]!, meterKind: null };
+}
 
 /** The case as the input of computeStatement: every prepayment charged and paid on time. */
 export function referenceInput(c: ReferenceCase): StatementInput {
 	const period = { start: `${c.year}-01-01`, end: `${c.year}-12-31` };
 	const keys = new Map<string, StatementKey>();
 	for (const item of c.items) {
-		const id = `${item.key}-${item.consumptionPercent ?? ''}`;
-		keys.set(id, {
-			id,
-			name: item.consumptionPercent
-				? `${keyNames[item.key]} ${item.consumptionPercent}/${100 - item.consumptionPercent}`
-				: keyNames[item.key],
+		const { name, meterKind } = referenceKey(item);
+		keys.set(name, {
+			id: name,
+			name,
 			kind: item.key,
-			meterKind: item.key === 'mixed' || item.key === 'consumption' ? 'heat' : null,
+			meterKind,
 			consumptionPercent: item.consumptionPercent ?? null,
 			shares: []
 		});
@@ -190,7 +215,7 @@ export function referenceInput(c: ReferenceCase): StatementInput {
 			description: item.description,
 			supplier: null,
 			categoryId: item.category,
-			allocationKeyId: `${item.key}-${item.consumptionPercent ?? ''}`,
+			allocationKeyId: referenceKey(item).name,
 			billingCircleId: null,
 			periodStart: item.periodStart,
 			periodEnd: item.periodEnd,
@@ -206,11 +231,11 @@ export function referenceInput(c: ReferenceCase): StatementInput {
 		categories: [...new Set(c.items.map((item) => item.category))].map((id) => categories[id]),
 		keys: [...keys.values()],
 		circles: [],
-		meters: (c.heatMeters ?? []).map((meter) => ({
-			id: `waerme-${meter.unitId}`,
+		meters: (c.meters ?? []).map((meter) => ({
+			id: `${meter.kind}-${meter.unitId}`,
 			unitId: meter.unitId,
-			kind: 'heat',
-			unit: 'kWh',
+			kind: meter.kind,
+			unit: defaultMeterUnit(meter.kind),
 			installedAt: null,
 			removedAt: null,
 			readings: [
@@ -400,7 +425,8 @@ export const referenceCases: ReferenceCase[] = [
 					prepayments: 960_00
 				}
 			},
-			landlordCo2Share: 0
+			landlordCo2Share: 0,
+			vacancyShare: 0
 		},
 		check: [
 			exactCheck,
@@ -492,11 +518,11 @@ export const referenceCases: ReferenceCase[] = [
 				co2: { fuel: 'gas', fuelKwh: 40_000, co2Kg: 8_040, co2Cost: 442_20 }
 			}
 		],
-		heatMeters: [
-			{ unitId: 'w1', start: 41_200, end: 50_200 },
-			{ unitId: 'w2', start: 37_500, end: 45_500 },
-			{ unitId: 'w3', start: 28_100, end: 34_100 },
-			{ unitId: 'w4', start: 12_900, end: 19_900 }
+		meters: [
+			{ unitId: 'w1', kind: 'heat', start: 41_200, end: 50_200 },
+			{ unitId: 'w2', kind: 'heat', start: 37_500, end: 45_500 },
+			{ unitId: 'w3', kind: 'heat', start: 28_100, end: 34_100 },
+			{ unitId: 'w4', kind: 'heat', start: 12_900, end: 19_900 }
 		],
 		expected: {
 			leases: {
@@ -505,7 +531,8 @@ export const referenceCases: ReferenceCase[] = [
 				becker: { shares: { gas: 696_05 }, prepayments: 720_00 },
 				schmitt: { shares: { gas: 774_89 }, prepayments: 780_00 }
 			},
-			landlordCo2Share: 221_10
+			landlordCo2Share: 221_10,
+			vacancyShare: 0
 		},
 		check: [
 			exactCheck,
@@ -525,6 +552,269 @@ export const referenceCases: ReferenceCase[] = [
 			{
 				label: '§ 10 Abs. 2 BEHG: CO₂-Preis 2025',
 				url: 'https://www.gesetze-im-internet.de/behg/__10.html'
+			}
+		]
+	},
+	{
+		slug: 'leerstand',
+		title: 'Leerstand: Was trägt der Vermieter?',
+		summary:
+			'Eine Wohnung steht drei Monate leer, eine andere ab September. Die Kosten der leeren Tage trägt der Vermieter, nicht die übrigen Mieter.',
+		intro:
+			'Ein Haus mit drei Wohnungen in Bremen, abgerechnet wird das Jahr 2025. Das Dachgeschoss wird bis Ende März renoviert und ist erst ab April vermietet. Im Erdgeschoss zieht der Mieter Ende August aus, danach bleibt die Wohnung bis Jahresende leer. Jeder Beleg wird zuerst auf alle drei Wohnungen verteilt, als wären sie bewohnt. Den Anteil der leeren Tage trägt der Vermieter; die Mieter zahlen nie mehr, weil eine Wohnung leer steht.',
+		year: 2025,
+		property: {
+			name: 'Lindenweg 5',
+			street: 'Lindenweg 5',
+			postalCode: '28203',
+			city: 'Bremen'
+		},
+		units: [
+			{ id: 'eg', name: 'Erdgeschoss', area: 75 },
+			{ id: 'og', name: 'Obergeschoss', area: 75 },
+			{ id: 'dg', name: 'Dachgeschoss', area: 50 }
+		],
+		leases: [
+			{
+				id: 'klein',
+				unitId: 'eg',
+				tenant: { salutation: 'Herr', firstName: 'Bernd', lastName: 'Klein' },
+				start: '2016-06-01',
+				end: '2025-08-31',
+				persons: 2,
+				baseRent: 650_00,
+				operatingCostPrepayment: 95_00,
+				heatingCostPrepayment: 0
+			},
+			{
+				id: 'arslan',
+				unitId: 'og',
+				tenant: { salutation: 'Frau', firstName: 'Elif', lastName: 'Arslan' },
+				start: '2020-03-01',
+				end: null,
+				persons: 3,
+				baseRent: 690_00,
+				operatingCostPrepayment: 95_00,
+				heatingCostPrepayment: 0
+			},
+			{
+				id: 'vogel',
+				unitId: 'dg',
+				tenant: { salutation: 'Herr', firstName: 'Lukas', lastName: 'Vogel' },
+				start: '2025-04-01',
+				end: null,
+				persons: 1,
+				baseRent: 480_00,
+				operatingCostPrepayment: 60_00,
+				heatingCostPrepayment: 0
+			}
+		],
+		items: [
+			{
+				id: 'grundsteuer',
+				description: 'Grundsteuer 2025',
+				label: 'Grundsteuer',
+				category: 'grundsteuer',
+				key: 'area',
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				amount: 640_00
+			},
+			{
+				id: 'muell',
+				description: 'Müllabfuhr 2025',
+				label: 'Müllabfuhr',
+				category: 'muell',
+				key: 'persons',
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				amount: 594_00
+			},
+			{
+				id: 'hausmeister',
+				description: 'Hausmeisterdienst 2025',
+				label: 'Hausmeister',
+				category: 'hausmeister',
+				key: 'units',
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				amount: 960_00
+			},
+			{
+				id: 'versicherung',
+				description: 'Gebäudeversicherung 2025',
+				label: 'Versicherung',
+				category: 'versicherung',
+				key: 'area',
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				amount: 880_00
+			}
+		],
+		expected: {
+			leases: {
+				klein: {
+					shares: { grundsteuer: 159_78, muell: 139_60, hausmeister: 213_04, versicherung: 219_70 },
+					prepayments: 760_00
+				},
+				arslan: {
+					shares: { grundsteuer: 240_00, muell: 314_52, hausmeister: 320_00, versicherung: 330_00 },
+					prepayments: 1_140_00
+				},
+				vogel: {
+					shares: { grundsteuer: 120_55, muell: 78_99, hausmeister: 241_10, versicherung: 165_75 },
+					prepayments: 540_00
+				}
+			},
+			landlordCo2Share: 0,
+			vacancyShare: 530_97
+		},
+		check: [
+			exactCheck,
+			'Zuerst bekommt jede Wohnung ihren Anteil, ob bewohnt oder nicht: nach Fläche das Erdgeschoss zum Beispiel 75 von 200 m². Erst dann wird der Anteil einer Wohnung nach Tagen geteilt. Herr Klein wohnte 243 Tage im Erdgeschoss, 122 Tage stand es leer; Herr Vogel wohnte 275 Tage im Dachgeschoss, 90 Tage stand es leer.',
+			'Beim Müll zählt eine leere Wohnung wie eine Person (die Einstellung „Personen bei Leerstand“). So kommen auf das Erdgeschoss 2 × 243 + 1 × 122 = 608 Personentage und auf das Dachgeschoss 1 × 275 + 1 × 90 = 365. Würde der Leerstand mit 0 Personen zählen, trügen Frau Arslan und die anderen Mieter die Müllkosten der leeren Wohnungen mit.',
+			'Der Vermieter trägt die Anteile der leeren Tage: im Erdgeschoss 80,22 € Grundsteuer, 35,04 € Müll, 106,96 € Hausmeister und 110,30 € Versicherung, zusammen 332,52 €; im Dachgeschoss 39,45 €, 25,85 €, 78,90 € und 54,25 €, zusammen 198,45 €. Das sind 530,97 €.'
+		],
+		sources: [betrkv, bgb556a]
+	},
+	{
+		slug: 'wasser-nach-verbrauch',
+		title: 'Wasser und Abwasser nach Zählern',
+		summary:
+			'Vier Wohnungen mit eigenen Wasserzählern: Frisch- und Schmutzwasser nach Kubikmetern, das Regenwasser nach Fläche.',
+		intro:
+			'Ein Haus mit vier Wohnungen in Freiburg, abgerechnet wird das Jahr 2025. Jede Wohnung hat einen Kaltwasserzähler, abgelesen am 1. Januar und am 31. Dezember. Wo der Verbrauch erfasst wird, muss nach Verbrauch abgerechnet werden (§ 556a Abs. 1 BGB): Frischwasser und Schmutzwasser folgen den Kubikmetern der Zähler. Die Gebühr für das Niederschlagswasser hängt an der versiegelten Fläche des Grundstücks, nicht am Verbrauch, und wird nach Wohnfläche verteilt.',
+		year: 2025,
+		property: {
+			name: 'Mühlweg 8',
+			street: 'Mühlweg 8',
+			postalCode: '79098',
+			city: 'Freiburg im Breisgau'
+		},
+		units: [
+			{ id: 'w1', name: 'Wohnung 1', area: 85 },
+			{ id: 'w2', name: 'Wohnung 2', area: 65 },
+			{ id: 'w3', name: 'Wohnung 3', area: 65 },
+			{ id: 'w4', name: 'Wohnung 4', area: 45 }
+		],
+		leases: [
+			{
+				id: 'brandt',
+				unitId: 'w1',
+				tenant: { salutation: 'Frau', firstName: 'Katrin', lastName: 'Brandt' },
+				start: '2017-08-01',
+				end: null,
+				persons: 4,
+				baseRent: 890_00,
+				operatingCostPrepayment: 85_00,
+				heatingCostPrepayment: 0
+			},
+			{
+				id: 'lang',
+				unitId: 'w2',
+				tenant: { salutation: 'Herr', firstName: 'Florian', lastName: 'Lang' },
+				start: '2021-11-01',
+				end: null,
+				persons: 2,
+				baseRent: 720_00,
+				operatingCostPrepayment: 55_00,
+				heatingCostPrepayment: 0
+			},
+			{
+				id: 'costa',
+				unitId: 'w3',
+				tenant: { salutation: 'Frau', firstName: 'Ana', lastName: 'Costa' },
+				start: '2023-05-01',
+				end: null,
+				persons: 1,
+				baseRent: 700_00,
+				operatingCostPrepayment: 25_00,
+				heatingCostPrepayment: 0
+			},
+			{
+				id: 'wolf',
+				unitId: 'w4',
+				tenant: { salutation: 'Herr', firstName: 'Simon', lastName: 'Wolf' },
+				start: '2019-02-01',
+				end: null,
+				persons: 2,
+				baseRent: 520_00,
+				operatingCostPrepayment: 45_00,
+				heatingCostPrepayment: 0
+			}
+		],
+		items: [
+			{
+				id: 'frischwasser',
+				description: 'Frischwasser 2025, 378 m³',
+				label: 'Frischwasser',
+				category: 'wasser',
+				key: 'consumption',
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				amount: 1_247_40
+			},
+			{
+				id: 'schmutzwasser',
+				description: 'Schmutzwasser 2025, 378 m³',
+				label: 'Schmutzwasser',
+				category: 'abwasser',
+				key: 'consumption',
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				amount: 1_001_70
+			},
+			{
+				id: 'niederschlagswasser',
+				description: 'Niederschlagswasser 2025',
+				label: 'Regenwasser',
+				category: 'abwasser',
+				key: 'area',
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				amount: 234_00
+			}
+		],
+		meters: [
+			{ unitId: 'w1', kind: 'cold_water', start: 1_204, end: 1_372 },
+			{ unitId: 'w2', kind: 'cold_water', start: 655, end: 747 },
+			{ unitId: 'w3', kind: 'cold_water', start: 118, end: 159 },
+			{ unitId: 'w4', kind: 'cold_water', start: 893, end: 970 }
+		],
+		expected: {
+			leases: {
+				brandt: {
+					shares: { frischwasser: 554_40, schmutzwasser: 445_20, niederschlagswasser: 76_50 },
+					prepayments: 1_020_00
+				},
+				lang: {
+					shares: { frischwasser: 303_60, schmutzwasser: 243_80, niederschlagswasser: 58_50 },
+					prepayments: 660_00
+				},
+				costa: {
+					shares: { frischwasser: 135_30, schmutzwasser: 108_65, niederschlagswasser: 58_50 },
+					prepayments: 300_00
+				},
+				wolf: {
+					shares: { frischwasser: 254_10, schmutzwasser: 204_05, niederschlagswasser: 40_50 },
+					prepayments: 540_00
+				}
+			},
+			landlordCo2Share: 0,
+			vacancyShare: 0
+		},
+		check: [
+			exactCheck,
+			'Die Zähler zeigen zusammen 168 + 92 + 41 + 77 = 378 m³. Frischwasser kostet damit 1.247,40 € / 378 m³ = 3,30 € je m³, Schmutzwasser 1.001,70 € / 378 m³ = 2,65 € je m³. Wohnung 1 zum Beispiel: 168 m³ × 3,30 € = 554,40 € und 168 m³ × 2,65 € = 445,20 €.',
+			'Das Niederschlagswasser verteilt sich auf 260 m² Wohnfläche, das sind 0,90 € je m²: 85 m² × 0,90 € = 76,50 € für Wohnung 1.',
+			'Nach Personen wäre die Rechnung eine ganz andere: Frau Brandts vierköpfige Familie trüge dann 4 von 9 Teilen des Wassers, obwohl sie 168 von 378 m³ verbraucht hat. Zähler gehen vor.'
+		],
+		sources: [
+			betrkv,
+			bgb556a,
+			{
+				label: '§ 556a Abs. 1 Satz 2 BGB: erfasster Verbrauch',
+				url: 'https://www.gesetze-im-internet.de/bgb/__556a.html'
 			}
 		]
 	}

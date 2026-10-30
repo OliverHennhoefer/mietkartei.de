@@ -33,6 +33,7 @@ describe('createReferenceData', () => {
 			const result = computeStatement(input!);
 			expect(result.property.warnings).toEqual([]);
 			expect(result.property.landlordCo2Share).toBe(c.expected.landlordCo2Share);
+			expect(result.property.vacancyShare).toBe(c.expected.vacancyShare);
 			// The rows have ids of their own: leases are told apart by tenant, items by description.
 			const leaseOf = new Map(input!.leases.map((lease) => [lease.id, lease.tenants[0].lastName]));
 			const itemOf = new Map(input!.items.map((item) => [item.id, item.description]));
