@@ -146,9 +146,9 @@ test('suggests the lease by the tenant name, assigns and remembers a rule', asyn
 	await page.goto('/bank?status=matched');
 	const matched = card(page, purpose);
 	await expect(matched).toHaveCount(1);
-	await expect(matched).toContainText('Zahlung');
 	await expect(matched).toContainText('+850,00 €');
-	await expect(matched).toContainText(`${unitName} · Testhaus ${suffix} – ${lastName}`);
+	// The assignment in two lines: the unit, under it what it was booked as and the property.
+	await expect(matched.getByRole('listitem')).toHaveText(`${unitName} Miete · Testhaus ${suffix}`);
 
 	await page.goto('/bank/regeln');
 	const rule = page.getByRole('row', { name: new RegExp(lastName) });
@@ -210,7 +210,8 @@ test('books an outgoing line as an expense and undoes it', async ({ page }) => {
 
 	await page.goto('/bank?status=matched');
 	const booked = card(page, `Hausmeister ${suffix}`);
-	await expect(booked).toContainText('Ausgabe 120,50 € (Hausgeld (WEG))');
+	await expect(booked.getByRole('listitem')).toContainText('Hausgeld (WEG)');
+	await expect(booked.getByRole('listitem')).toContainText('Ausgabe ·');
 	page.on('dialog', (dialog) => dialog.accept());
 	await booked.getByRole('button', { name: 'Zuordnung aufheben' }).click();
 	await expect(card(page, `Hausmeister ${suffix}`)).toHaveCount(0);
@@ -263,9 +264,7 @@ test('assigns a line by the remembered rule on import', async ({ page }) => {
 	await page.goto('/bank?status=matched');
 	const assigned = card(page, `Miete November für ${lastName}`);
 	await expect(assigned).toHaveCount(1);
-	await expect(assigned.getByRole('listitem')).toHaveText(
-		`Zahlung +850,00 € → ${unitName} · Testhaus ${suffix} – ${lastName}`
-	);
+	await expect(assigned.getByRole('listitem')).toHaveText(`${unitName} Miete · Testhaus ${suffix}`);
 	await page.goto('/bank');
 	await expect(card(page, `Miete November für ${lastName}`)).toHaveCount(0);
 });
@@ -301,12 +300,11 @@ test('splits a line over two leases and books a deposit', async ({ page }) => {
 	await page.goto('/bank?status=matched');
 	const lines = card(page, `Wohnung und Stellplatz ${suffix}`).getByRole('listitem');
 	await expect(lines).toHaveCount(2);
-	await expect(lines.filter({ hasText: unitName })).toContainText('Zahlung +800,00 €');
-	await expect(lines.filter({ hasText: `Stellplatz ${suffix} ·` })).toContainText(
-		'Zahlung +100,00 €'
-	);
+	// A split names each share.
+	await expect(lines.filter({ hasText: unitName })).toContainText('Miete 800,00 €');
+	await expect(lines.filter({ hasText: `Stellplatz ${suffix}` })).toContainText('Miete 100,00 €');
 	await expect(card(page, `Kaution ${suffix}`).getByRole('listitem')).toHaveText(
-		`Kaution +1.800,00 € → ${unitName} · Testhaus ${suffix} – ${lastName}`
+		`${unitName} Kaution · Testhaus ${suffix}`
 	);
 });
 
@@ -327,7 +325,7 @@ test('books a double submit of one assignment once', async ({ page, baseURL }) =
 	const matched = card(page, purpose);
 	await expect(matched).toHaveCount(1);
 	await expect(matched.getByRole('listitem')).toHaveCount(1);
-	await expect(matched.getByRole('listitem')).toContainText('Zahlung +850,00 €');
+	await expect(matched.getByRole('listitem')).toContainText(`${unitName} Miete`);
 });
 
 test('answers an unknown transaction with 404', async ({ page, baseURL }) => {

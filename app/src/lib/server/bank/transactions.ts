@@ -25,7 +25,7 @@ import {
 	scopeLabels
 } from '../expenses';
 import { paymentEntry } from '../ledger';
-import { leaseLabel, type LeaseSummary } from '../leases';
+import { leaseLabel, leasePlace, type LeaseSummary } from '../leases';
 import { listRules, ruleEntry, unconfirmEntries } from './rules';
 import { assertQuota, QUOTAS, usage } from '../quotas';
 
@@ -645,7 +645,15 @@ export async function reopenTransaction(
 	return done ? 'reopened' : 'not-ignored';
 }
 
-export type LeaseOption = { id: string; label: string; active: boolean };
+/** A lease to assign to: the select's label, and unit and property for an assignment's two lines. */
+export type LeaseOption = {
+	id: string;
+	label: string;
+	unit: string;
+	/** Null when the unit's name already names the property. */
+	property: string | null;
+	active: boolean;
+};
 
 /** The entries of a lease select: "EG links · Haus – Mustermann", ended leases marked. */
 export function leaseOptions(summaries: readonly LeaseSummary[]): LeaseOption[] {
@@ -655,6 +663,7 @@ export function leaseOptions(summaries: readonly LeaseSummary[]): LeaseOption[] 
 		return {
 			id: lease.id,
 			label: lease.active ? label : `${label} (beendet)`,
+			...leasePlace(lease),
 			active: lease.active
 		};
 	});
