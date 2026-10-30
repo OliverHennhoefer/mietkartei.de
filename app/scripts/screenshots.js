@@ -225,11 +225,12 @@ try {
 	await page.evaluate(() => window.scrollTo(0, 0));
 	await shoot('abrechnung-entwurf', undefined, docsOutput);
 
-	// The README's tour: whole screens of the main pages in a 1440 × 900 window, numbered in the
-	// order of the animation that scripts/build_readme_animation.py makes of them.
+	// The README's tour: whole screens of the main pages in a 1440 × 900 window at twice the pixels,
+	// numbered in the order of the animation that scripts/build_readme_animation.py makes of them.
 	const tourContext = await browser.newContext({
 		...contextOptions,
 		viewport: { width: 1440, height: 900 },
+		deviceScaleFactor: 2,
 		storageState: await context.storageState()
 	});
 	const tourPage = await tourContext.newPage();
@@ -240,9 +241,76 @@ try {
 			.filter({ hasText: text ?? '' })
 			.first();
 		await element.evaluate((element) =>
-			window.scrollTo(0, element.getBoundingClientRect().top + window.scrollY - 32)
+			window.scrollTo(0, element.getBoundingClientRect().top + window.scrollY - 24)
 		);
 	};
+	// Nothing in a frame is cut by the window's edges: what starts above the top is blanked, and
+	// whatever reaches past the bottom (rows, cards, a chart) goes from the bottom up, so tables and
+	// cards close with their own border. A heading or table left without content goes too.
+	function fitToWindow() {
+		const main = /** @type {HTMLElement} */ (document.querySelector('main'));
+		const limit = window.innerHeight - 16;
+		const atomic =
+			/^(TR|LI|P|H[1-6]|SVG|IMG|CANVAS|BUTTON|DETAILS|LABEL|DT|DD|A|PRE|FIGURE|SELECT|INPUT)$/;
+		/** @param {Element} element */
+		const shown = (element) =>
+			element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden';
+		/** @param {Element} element */
+		const hide = (element) =>
+			(element instanceof HTMLElement || element instanceof SVGElement) &&
+			(element.style.display = 'none');
+		const all = () =>
+			[...main.querySelectorAll('*')].filter(
+				(element) =>
+					!(element.closest('svg') && element.tagName !== 'svg') &&
+					!element.closest('details:not([open]) > :not(summary)') &&
+					shown(element)
+			);
+		// The page keeps its height, so the window stays where it was scrolled to.
+		main.style.minHeight = `${main.offsetHeight}px`;
+		if (window.scrollY > 0) {
+			const above = all().filter((element) => element.getBoundingClientRect().top < 0);
+			for (const element of all()) {
+				if (!(element instanceof HTMLElement)) continue;
+				element.style.visibility = above.includes(element) ? 'hidden' : 'visible';
+			}
+		}
+		for (let round = 0; round < 500; round++) {
+			const past = all().filter((element) => element.getBoundingClientRect().bottom > limit);
+			if (!past.length) break;
+			const below = past.filter((element) => element.getBoundingClientRect().top >= limit);
+			if (below.length) {
+				for (const element of below) hide(element);
+				continue;
+			}
+			const whole = past.find((element) => atomic.test(element.tagName.toUpperCase()));
+			if (whole) {
+				hide(whole);
+				continue;
+			}
+			// A box whose padding alone reaches past the bottom loses its last child.
+			const deepest = past.find(
+				(element) => ![...element.children].some((child) => past.includes(child))
+			);
+			const children = [...(deepest?.children ?? [])].filter(shown);
+			hide(children.length ? children[children.length - 1] : /** @type {Element} */ (deepest));
+		}
+		for (let round = 0; round < 10; round++) {
+			const shownNow = all();
+			const empty = shownNow.filter((element) => {
+				if (element.tagName === 'TABLE')
+					return !element.querySelector('tbody tr:not([style*="none"])');
+				if (element.matches('.card, .table-wrap')) return ![...element.children].some(shown);
+				if (!/^H[1-6]$/.test(element.tagName)) return false;
+				const bottom = element.getBoundingClientRect().bottom;
+				return !shownNow.some(
+					(other) => !element.contains(other) && other.getBoundingClientRect().top >= bottom
+				);
+			});
+			if (!empty.length) break;
+			for (const element of empty) hide(element);
+		}
+	}
 	/** @type {[string, string, () => Promise<void>][]} */
 	const tour = [
 		['aufgaben', '/aufgaben', async () => {}],
@@ -260,7 +328,7 @@ try {
 				await scrollTo('section.lease', 'Armin Schmidt');
 			}
 		],
-		['nebenkosten', `/auswertung/nebenkosten?jahr=${year}`, async () => {}],
+		['nebenkosten', `/auswertung/nebenkosten?jahr=${year}`, () => scrollTo('ul.tiles')],
 		['fristen', '/fristen', async () => {}],
 		[
 			'mieter',
@@ -276,6 +344,9 @@ try {
 		await tourPage.goto(url);
 		await prepare();
 		await tourPage.waitForLoadState('networkidle');
+		// Rows that slide in are measured where they end up.
+		await tourPage.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+		await tourPage.evaluate(fitToWindow);
 		const file = path.join(tourOutput, `${String(index + 1).padStart(2, '0')}-${name}.png`);
 		await tourPage.screenshot({ path: file });
 		console.log(path.relative(path.resolve(import.meta.dirname, '../..'), file));

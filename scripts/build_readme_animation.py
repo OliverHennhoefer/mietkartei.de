@@ -1,7 +1,7 @@
 """Builds the README's tour (assets/screenshots/rundgang.webp) from the frames that
-`npm run screenshots` in app/ takes: each screen stands for three seconds, then fades into the
-next, and the last one back into the first. Needs Pillow (pip install -r
-scripts/requirements-readme.txt)."""
+`npm run screenshots` in app/ takes, scaled to twice the 900 pixels the README shows them at:
+each screen stands for three seconds, then fades into the next, and the last one back into the
+first. Needs Pillow (pip install -r scripts/requirements-readme.txt)."""
 
 from pathlib import Path
 
@@ -13,10 +13,15 @@ OUTPUT = ROOT / "assets" / "screenshots" / "rundgang.webp"
 HOLD_MS = 3000
 FADE_STEPS = 7
 FADE_STEP_MS = 50
+SIZE = (1800, 1125)
 
 
 def main() -> None:
-    screens = [Image.open(path).convert("RGB") for path in sorted(FRAMES.glob("*.png"))]
+    shots = [Image.open(path).convert("RGB") for path in sorted(FRAMES.glob("*.png"))]
+    # Frames of different sizes would be stretched; they must all be the same window.
+    if len({shot.size for shot in shots}) != 1:
+        raise SystemExit("The frames differ in size.")
+    screens = [shot.resize(SIZE, Image.Resampling.LANCZOS) for shot in shots]
     frames: list[Image.Image] = []
     durations: list[int] = []
     for index, screen in enumerate(screens):
