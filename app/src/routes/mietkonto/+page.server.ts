@@ -1,5 +1,11 @@
 import { fail } from '@sveltejs/kit';
-import { getLease, leaseLabel, listLeases, type LeaseSummary } from '#lib/server/leases.ts';
+import {
+	getLease,
+	leaseLabel,
+	leasePlace,
+	listLeases,
+	type LeaseSummary
+} from '#lib/server/leases.ts';
 import { today } from '#lib/dates.ts';
 import { total } from '#lib/domain/rents.ts';
 import { currentReminders } from '#lib/domain/reminders.ts';
@@ -21,8 +27,10 @@ import type { Actions, PageServerLoad } from './$types';
 export type BalanceRow = {
 	leaseId: string;
 	label: string;
+	/** The label in two lines: the unit, under it the property (null when the unit names it). */
+	place: { unit: string; property: string | null };
 	tenants: string;
-	active: boolean;
+	status: 'active' | 'upcoming' | 'ended';
 	balance: number;
 	overdue: number;
 	openSince: string | null;
@@ -60,8 +68,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		return {
 			leaseId: lease.id,
 			label: leaseLabel(lease),
+			place: leasePlace(lease),
 			tenants: lease.tenants.map(personName).join(', '),
-			active: lease.active,
+			status: lease.active ? 'active' : lease.upcoming ? 'upcoming' : 'ended',
 			balance: owed,
 			overdue: balance?.overdue ?? 0,
 			openSince: balance?.openSince ?? null,

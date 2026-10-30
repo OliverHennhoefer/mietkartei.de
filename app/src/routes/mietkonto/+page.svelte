@@ -16,7 +16,7 @@
 	/** The row whose "Miete ist da" is being booked; every button waits until it is done. */
 	let pending = $state<string | null>(null);
 
-	// Short enough that the letter and its deadline fit on one line: „Mahnung 14.09. · Frist abgelaufen“.
+	// The letter, under it its deadline: „Mahnung 14.09.“, „Frist abgelaufen“.
 	const levelLabels = { 1: 'Erinnerung', 2: 'Mahnung', 3: 'Letzte Mahnung' };
 	const dayMonth = (date: string) => formatDate(date).slice(0, 6);
 </script>
@@ -87,10 +87,16 @@
 					{#each data.rows as row (row.leaseId)}
 						<tr>
 							<td>
-								<a href="/vertraege/{row.leaseId}/mietkonto">{row.label}</a>
-								{#if !row.active}
-									<span class="ended"><LeaseStatus status="ended" /></span>
-								{/if}
+								<!-- The status leads the row: green while the lease runs, a grey ring once it has ended. -->
+								<div class="lease">
+									<LeaseStatus status={row.status} dot />
+									<span>
+										<a href="/vertraege/{row.leaseId}/mietkonto">{row.place.unit}</a>
+										{#if row.place.property}
+											<span class="muted small property">{row.place.property}</span>
+										{/if}
+									</span>
+								</div>
 							</td>
 							<td>{row.tenants}</td>
 							<td class="num">
@@ -113,18 +119,13 @@
 							<td>
 								{#if row.reminder}
 									{@const expired = row.reminder.paymentDeadline < data.today}
-									<!-- One line where the table has room; on a narrower screen the deadline wraps as a whole. -->
-									<span class="reminder" class:expired>
-										<span
-											>{#if expired}<Icon name="alert" size={13} />{/if}
-											{levelLabels[row.reminder.level]}
-											{dayMonth(row.reminder.date)} <span class="separator">·</span></span
-										>
-										<span
-											>{expired
+									<span class="reminder">
+										<span>{levelLabels[row.reminder.level]} {dayMonth(row.reminder.date)}</span>
+										<span class="small deadline" class:expired>
+											{expired
 												? 'Frist abgelaufen'
-												: `Frist bis ${dayMonth(row.reminder.paymentDeadline)}`}</span
-										>
+												: `Frist bis ${dayMonth(row.reminder.paymentDeadline)}`}
+										</span>
 									</span>
 								{:else if row.overdue > 0}
 									<span class="muted">noch nicht</span>
@@ -194,25 +195,26 @@
 	.due {
 		display: block;
 	}
-	.ended {
-		margin-left: 0.4rem;
+	.lease {
+		display: flex;
+		align-items: baseline;
+		gap: 0.6rem;
 	}
-	.ended :global(.lease-status) {
-		font-size: 0.78rem;
+	.property,
+	.reminder > span {
+		display: block;
 	}
+	.lease a,
+	.property,
 	.reminder > span {
 		white-space: nowrap;
 	}
-	.reminder :global(svg) {
-		margin-right: 0.15rem;
-		vertical-align: -0.1em;
+	.deadline {
+		color: var(--color-muted);
 	}
-	.reminder.expired {
+	.deadline.expired {
 		color: var(--color-danger);
 		font-weight: 500;
-	}
-	.separator {
-		color: var(--color-muted);
 	}
 	/* Seven columns: narrower gutters than other tables, so the row fits a laptop screen. */
 	@media (min-width: 40.0625rem) {

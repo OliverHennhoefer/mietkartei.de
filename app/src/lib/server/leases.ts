@@ -93,9 +93,24 @@ export function isActive(lease: { startDate: string; endDate: string | null }, d
 	return lease.startDate <= date && (lease.endDate === null || lease.endDate >= date);
 }
 
+type Place = { unit: { name: string }; property: { name: string } };
+
+/**
+ * Where the lease is: the unit's name, under it the property's. A Eigentumswohnung is often named
+ * after its unit („Parkallee 8, Wohnung 14“ with „Wohnung 14“): the unit is then named once, the
+ * property by the rest („Parkallee 8“), or not at all when nothing is left.
+ */
+export function leasePlace(lease: Place): { unit: string; property: string | null } {
+	const property = lease.property.name.includes(lease.unit.name)
+		? lease.property.name.replace(lease.unit.name, '').replace(/^[\s,·–-]+|[\s,·–-]+$/g, '')
+		: lease.property.name;
+	return { unit: lease.unit.name, property: property || null };
+}
+
 /** The lease's label in lists: unit name, property name. */
-export function leaseLabel(lease: { unit: { name: string }; property: { name: string } }): string {
-	return `${lease.unit.name} · ${lease.property.name}`;
+export function leaseLabel(lease: Place): string {
+	const { unit, property } = leasePlace(lease);
+	return property ? `${unit} · ${property}` : unit;
 }
 
 async function decorate(db: Database, accountId: string, rows: Lease[]): Promise<LeaseSummary[]> {
