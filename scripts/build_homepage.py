@@ -33,7 +33,6 @@ for filename in (
     "_headers",
     "_redirects",
     "assets/social.png",
-    "assets/copy.js",
     "assets/rechenbeispiele.js",
 ):
     destination = OUTPUT / filename
