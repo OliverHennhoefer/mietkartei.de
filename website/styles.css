@@ -130,8 +130,8 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .facts li + li { border-left: 1px solid var(--line); }
 .facts strong { color: var(--foreground); font-size: var(--text-xl); font-weight: 600; letter-spacing: -.02em; }
 
-.features { padding: clamp(96px, 14vh, 160px) 0 0; }
-.feature { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: center; gap: 72px; margin-top: 112px; }
+.features { padding: clamp(72px, 10vh, 112px) 0 0; }
+.feature { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: center; gap: 72px; margin-top: 80px; }
 .feature:nth-of-type(even) .feature-copy { order: 2; }
 .feature-number { display: inline-block; padding: 0 6px; background: var(--highlight); color: #000; font-size: var(--text-base); font-weight: 600; }
 .feature h3 { margin: 20px 0 0; font-size: clamp(24px, 2.2vw, 32px); line-height: 1.2; }
@@ -139,7 +139,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .feature-more:hover { text-decoration-color: currentColor; }
 .feature-copy p { margin-top: 16px; color: var(--muted); font-size: var(--text-lg); line-height: 1.7; }
 
-.areas { padding: 140px 0 0; }
+.areas { padding: 96px 0 0; }
 .areas ul { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 48px 0 0; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--line); list-style: none; }
 .areas li { padding: 28px; background: var(--background); }
 .area-icon { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: var(--code-background); color: var(--foreground); }
@@ -150,7 +150,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .areas-more a span { margin-left: 6px; }
 
 /* The chat stands on a dark band in both colour schemes, like the dark logo. */
-.assistant { width: 100vw; margin: 140px calc(50% - 50vw) 0; padding: 120px 24px; background: #1b1c1f; color: #ececee; --foreground: #ececee; --background: #1b1c1f; --muted: #a2a4aa; --line: #36383d; }
+.assistant { width: 100vw; margin: 96px calc(50% - 50vw) 0; padding: 88px 24px; background: #1b1c1f; color: #ececee; --foreground: #ececee; --background: #1b1c1f; --muted: #a2a4aa; --line: #36383d; }
 .assistant-inner { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 80px; max-width: 1192px; margin: 0 auto; }
 .chat { display: grid; gap: 14px; }
 .bubble { max-width: 88%; padding: 14px 18px; border-radius: 16px; font-size: var(--text-base); line-height: 1.55; }
@@ -161,13 +161,13 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .chat-source { color: var(--muted); font-size: var(--text-xs); }
 .amount-cell { white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 500; }
 
-.promises { padding: 120px 0 0; }
+.promises { padding: 88px 0 0; }
 .promises ul { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 48px; margin: 48px 0 0; padding: 0; list-style: none; }
 .promises li { padding-top: 24px; border-top: 2px solid var(--foreground); }
 .promises h3 { margin: 0; font-size: var(--text-xl); letter-spacing: -.025em; }
 .promises p { margin-top: 10px; color: var(--muted); font-size: var(--text-lg); }
 
-.start { padding: 120px 0 140px; }
+.start { padding: 88px 0 104px; }
 .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 48px 0 0; padding: 0; list-style: none; }
 .steps li { display: flex; flex-direction: column; padding: 32px; border: 1px solid var(--line); border-radius: 16px; }
 .step-number { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--highlight); color: #000; font-size: var(--text-lg); font-weight: 600; }
@@ -195,7 +195,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 
 @media (max-width: 900px) {
   .feature, .assistant-inner { grid-template-columns: minmax(0, 1fr); gap: 32px; }
-  .feature { margin-top: 80px; }
+  .feature { margin-top: 64px; }
   .feature:nth-of-type(even) .feature-copy { order: 0; }
   .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .facts li:nth-child(3) { border-left: 0; }
@@ -217,14 +217,14 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
   .float-surplus { left: 8px; bottom: -28px; padding: 12px 16px; }
   .facts li { padding: 20px 16px; }
   .facts strong { font-size: var(--text-lg); }
-  .features { padding-top: 96px; }
-  .assistant { margin-top: 96px; padding: 80px 24px; }
-  .promises { padding-top: 80px; }
+  .features { padding-top: 72px; }
+  .assistant { margin-top: 72px; padding: 64px 24px; }
+  .promises { padding-top: 64px; }
   .promises ul { grid-template-columns: minmax(0, 1fr); gap: 32px; }
-  .areas { padding-top: 96px; }
+  .areas { padding-top: 72px; }
   .areas ul { grid-template-columns: minmax(0, 1fr); }
   .areas li { padding: 22px 20px; }
-  .start { padding: 88px 0 96px; }
+  .start { padding: 64px 0 72px; }
   .steps li { padding: 24px; }
 }
 
