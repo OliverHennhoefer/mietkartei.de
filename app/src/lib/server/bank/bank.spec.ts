@@ -712,8 +712,20 @@ describe('transaction helpers', () => {
 		const summaries = await listLeases(db, 'a');
 		expect(leaseOptions(summaries)).toEqual(
 			expect.arrayContaining([
-				{ id: leaseId, label: 'EG links · Haus – Müller', active: true },
-				{ id: secondLeaseId, label: 'Stellplatz 1 · Haus (beendet)', active: false }
+				{
+					id: leaseId,
+					label: 'EG links · Haus – Müller',
+					unit: 'EG links',
+					property: 'Haus',
+					active: true
+				},
+				{
+					id: secondLeaseId,
+					label: 'Stellplatz 1 · Haus (beendet)',
+					unit: 'Stellplatz 1',
+					property: 'Haus',
+					active: false
+				}
 			])
 		);
 		expect(leaseHints(summaries)).toEqual(

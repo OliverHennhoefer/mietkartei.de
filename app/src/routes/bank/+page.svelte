@@ -3,7 +3,6 @@
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import { page } from '$app/state';
 	import Alert from '#lib/components/Alert.svelte';
-	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
@@ -45,7 +44,7 @@
 	const expenseErrors = $derived(
 		form && 'expenseErrors' in form ? (form.expenseErrors as Record<string, string>) : undefined
 	);
-	const leaseLabels = $derived(new Map(data.leases.map((lease) => [lease.id, lease.label])));
+	const leases = $derived(new Map(data.leases.map((lease) => [lease.id, lease])));
 
 	const filters = [
 		{ status: 'unmatched', label: bankTransactionStatusLabels.unmatched },
@@ -116,6 +115,22 @@
 	}
 
 	const categoryEntries = Object.entries(expenseCategoryLabels);
+
+	/**
+	 * The second line of an assignment: what it was booked as and where, „Miete · Parkallee 8“,
+	 * „Ausgabe · Lindenstraße 12 (ganzes Objekt)“; the share of the amount when it is split.
+	 */
+	function assignmentDetail(
+		transaction: (typeof data.transactions)[number],
+		assignment: (typeof data.transactions)[number]['assignments'][number]
+	): string {
+		const kind = { rent: 'Miete', deposit: 'Kaution', expense: 'Ausgabe' }[assignment.kind];
+		const share =
+			transaction.assignments.length > 1 ? ` ${formatCents(Math.abs(assignment.amount))}` : '';
+		const where =
+			assignment.kind === 'expense' ? assignment.scope : leases.get(assignment.leaseId)?.property;
+		return where ? `${kind}${share} · ${where}` : `${kind}${share}`;
+	}
 </script>
 
 <!-- The heading and the tab bar come from +layout.svelte; this page is the "Umsätze" tab. -->
@@ -198,35 +213,81 @@
 		Ordnest du einen Umsatz als Miete einem Mietvertrag zu, merkt sich Mietkartei den Zahler für den
 		nächsten Import.
 	</p>
-	<ul class="list transactions" aria-label="Umsätze">
+	<!-- One row per transaction, like a bank statement: the status, the date, who and what for, where
+	     the money was booked and the amount. An open row has its assignment forms below it. -->
+	<ul
+		class="transactions card"
+		class:trailing={data.transactions.some((transaction) => transaction.status !== 'unmatched')}
+		aria-label="Umsätze"
+	>
 		{#each data.transactions as transaction (transaction.id)}
-			<li class="card transaction">
-				<div class="head">
+			<li class="transaction {transaction.status}">
+				<div class="line">
+					<span class="status" title={bankTransactionStatusLabels[transaction.status]}
+						><span class="visually-hidden">{bankTransactionStatusLabels[transaction.status]}</span
+						></span
+					>
+					<span class="date">{formatDate(transaction.bookingDate)}</span>
 					<div class="who">
-						<span class="date">{formatDate(transaction.bookingDate)}</span>
-						<strong>{transaction.counterpartName || 'ohne Namen'}</strong>
-						{#if transaction.counterpartIban}
-							<span class="muted small">{formatIban(transaction.counterpartIban)}</span>
-						{/if}
-						<span class="purpose">{transaction.purpose || '–'}</span>
-						{#if data.bankAccounts.length > 1}
-							<span class="muted small">{transaction.bankAccountName}</span>
-						{/if}
+						<strong
+							title={transaction.counterpartIban
+								? formatIban(transaction.counterpartIban)
+								: undefined}>{transaction.counterpartName || 'ohne Namen'}</strong
+						>
+						<span class="muted small purpose">{transaction.purpose || '–'}</span>
 					</div>
-					<div class="amount">
-						<Money cents={transaction.amount} signed />
-						{#if transaction.status === 'matched'}
-							<Badge tone="success">{bankTransactionStatusLabels.matched}</Badge>
-						{:else if transaction.status === 'ignored'}
-							<Badge>{bankTransactionStatusLabels.ignored}</Badge>
-						{:else}
-							<Badge tone="warning">{bankTransactionStatusLabels.unmatched}</Badge>
-						{/if}
-					</div>
+					{#if transaction.status === 'matched'}
+						<ul class="assignments">
+							{#each transaction.assignments as assignment (assignment.id)}
+								{@const lease =
+									assignment.kind === 'expense' ? undefined : leases.get(assignment.leaseId)}
+								<li>
+									<span class="target"
+										>{assignment.kind === 'expense'
+											? expenseCategoryLabels[assignment.category]
+											: (lease?.unit ?? 'Unbekannter Mietvertrag')}</span
+									>
+									<span class="muted small">{assignmentDetail(transaction, assignment)}</span>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+					<Money cents={transaction.amount} signed />
+					<!-- The account only where the list mixes several. -->
+					{#if data.bankAccounts.length > 1 && !data.bankAccountId}
+						<span class="muted small account" title={transaction.bankAccountName}
+							>{transaction.bankAccountName}</span
+						>
+					{/if}
+					{#if transaction.status === 'matched'}
+						<div class="trailing-action">
+							<ConfirmButton
+								action={action('undo')}
+								label="Zuordnung aufheben"
+								tone="secondary"
+								small
+								message="Zuordnung aufheben? Die gebuchten Zahlungen, Kautionsbewegungen oder Ausgaben werden gelöscht."
+							>
+								<input type="hidden" name="id" value={transaction.id} />
+							</ConfirmButton>
+						</div>
+					{:else if transaction.status === 'ignored'}
+						<form
+							method="POST"
+							action={action('reopen')}
+							class="trailing-action"
+							use:enhance={submitting(transaction.id)}
+						>
+							<input type="hidden" name="id" value={transaction.id} />
+							<button type="submit" class="secondary small" disabled={pending === transaction.id}>
+								Wieder öffnen
+							</button>
+						</form>
+					{/if}
 				</div>
 
-				<div class="actions">
-					{#if transaction.status === 'unmatched'}
+				{#if transaction.status === 'unmatched'}
+					<div class="work">
 						<form
 							method="POST"
 							action={action('assign')}
@@ -251,11 +312,6 @@
 										</option>
 									{/each}
 								</select>
-								{#if transaction.suggestion}
-									<span class="muted small">
-										Vorschlag: {sourceLabels[transaction.suggestion.source]}
-									</span>
-								{/if}
 								{#if formId === transaction.id && errors?.leaseId}
 									<span class="error">{errors.leaseId}</span>
 								{/if}
@@ -276,6 +332,22 @@
 									{/if}
 								</select>
 							</label>
+							<div class="row buttons">
+								<button type="submit" disabled={pending === transaction.id}>Zuordnen</button>
+								<button
+									type="submit"
+									class="secondary"
+									formaction={action('ignore')}
+									disabled={pending === transaction.id}
+								>
+									Ignorieren
+								</button>
+							</div>
+							{#if transaction.suggestion}
+								<p class="muted small hint">
+									Vorschlag: {sourceLabels[transaction.suggestion.source]}
+								</p>
+							{/if}
 							{#if data.leases.length > 1}
 								<details class="split" open={rowValue(transaction, 'splitLeaseId') !== ''}>
 									<summary>Zahlung für zwei Verträge? Betrag aufteilen</summary>
@@ -331,17 +403,6 @@
 									</div>
 								</details>
 							{/if}
-							<div class="row">
-								<button type="submit" disabled={pending === transaction.id}>Zuordnen</button>
-								<button
-									type="submit"
-									class="secondary"
-									formaction={action('ignore')}
-									disabled={pending === transaction.id}
-								>
-									Ignorieren
-								</button>
-							</div>
 						</form>
 						<details class="expense" open={expenseOpen(transaction)}>
 							<summary>{expenseLabel(transaction)}</summary>
@@ -456,88 +517,124 @@
 								</div>
 							</form>
 						</details>
-					{:else if transaction.status === 'matched'}
-						<div class="row between">
-							<ul class="assignments">
-								{#each transaction.assignments as assignment (assignment.id)}
-									<li>
-										{#if assignment.kind === 'expense'}
-											Ausgabe <Money cents={assignment.amount} />
-											({expenseCategoryLabels[assignment.category]}) → {assignment.scope}
-										{:else}
-											{assignment.kind === 'rent' ? 'Zahlung' : 'Kaution'}
-											<Money cents={assignment.amount} signed />
-											→ {leaseLabels.get(assignment.leaseId) ?? 'Unbekannter Mietvertrag'}
-										{/if}
-									</li>
-								{/each}
-							</ul>
-							<ConfirmButton
-								action={action('undo')}
-								label="Zuordnung aufheben"
-								tone="secondary"
-								message="Zuordnung aufheben? Die gebuchten Zahlungen, Kautionsbewegungen oder Ausgaben werden gelöscht."
-							>
-								<input type="hidden" name="id" value={transaction.id} />
-							</ConfirmButton>
-						</div>
-					{:else}
-						<form method="POST" action={action('reopen')} use:enhance={submitting(transaction.id)}>
-							<input type="hidden" name="id" value={transaction.id} />
-							<button type="submit" class="secondary small" disabled={pending === transaction.id}>
-								Wieder öffnen
-							</button>
-						</form>
-					{/if}
-				</div>
+					</div>
+				{/if}
 			</li>
 		{/each}
 	</ul>
 {/if}
 
 <style>
-	/* The list is a container: a wide one shows each transaction on the left and what to do with it
-	   on the right, so the column of names and amounts reads like a bank statement. */
+	/* The list is a container: a wide one lays each row out in aligned columns (status, date, who,
+	   booked to, amount, action); a narrow one stacks them under the name and amount. */
 	.transactions {
 		container-type: inline-size;
+		list-style: none;
+		margin: 0;
+		padding: 0;
 	}
-	.list > .transaction {
+	.transaction {
+		padding: 0.9rem 1.25rem;
+	}
+	.transaction + .transaction {
+		border-top: 1px solid var(--color-border);
+	}
+	.line {
 		display: grid;
+		grid-template-columns: 0.625rem minmax(0, 1fr) auto;
+		grid-template-areas:
+			'status who amount'
+			'. date date'
+			'. assignments assignments'
+			'. action action';
+		gap: 0.15rem 0.75rem;
 		align-items: start;
-		gap: 0.75rem;
 	}
-	.head {
-		display: flex;
-		justify-content: space-between;
-		gap: 0.5rem 1.5rem;
+	/* The status as a dot, the word for screen readers and on hover: a ring while the transaction is
+	   open, a green dot once assigned, a grey dot when ignored. */
+	.status {
+		grid-area: status;
+		width: 0.625rem;
+		height: 0.625rem;
+		margin-top: 0.4rem;
+		border-radius: 50%;
+		box-sizing: border-box;
 	}
-	.who {
-		display: grid;
-		gap: 0.15rem;
-		min-width: 0;
+	.unmatched .status {
+		border: 2px solid var(--color-text);
+	}
+	.matched .status {
+		background: var(--color-success);
+		box-shadow: 0 0 0 3px var(--color-success-subtle);
+	}
+	.ignored .status {
+		background: var(--color-muted);
+		opacity: 0.6;
 	}
 	.date {
+		grid-area: date;
 		font-variant-numeric: tabular-nums;
+		color: var(--color-muted);
+		font-size: var(--text-sm);
+	}
+	.who {
+		grid-area: who;
+		min-width: 0;
+	}
+	.who strong,
+	.purpose,
+	.target {
+		display: block;
+	}
+	.who strong {
+		font-weight: 600;
 	}
 	.purpose {
 		overflow-wrap: anywhere;
 	}
-	.amount {
-		display: grid;
-		justify-items: end;
-		/* The rows keep their height when the details beside them are taller. */
-		align-content: start;
-		gap: 0.25rem;
-		font-size: var(--text-lg);
-		white-space: nowrap;
+	.ignored .who strong,
+	.ignored .line > :global(.money) {
+		color: var(--color-muted);
+		font-weight: 400;
 	}
-	.actions {
-		container-type: inline-size;
+	.assignments {
+		grid-area: assignments;
+		display: grid;
+		gap: 0.35rem;
+		min-width: 0;
+		margin: 0.35rem 0 0;
+		padding: 0;
+		list-style: none;
+	}
+	.line > :global(.money) {
+		grid-area: amount;
+		justify-self: end;
+		font-weight: 500;
+	}
+	/* A long account name is cut, whole on hover: the amounts stay one column. */
+	/* On a phone the account shares the date's line, at its right end. */
+	.account {
+		grid-area: date;
+		justify-self: end;
+		max-width: calc(100% - 6.5rem);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-weight: 400;
+	}
+	.trailing-action {
+		grid-area: action;
+		margin-top: 0.5rem;
+	}
+	/* What to do with an open transaction: a quiet panel under its row. */
+	.work {
 		display: grid;
 		gap: 0.75rem;
 		min-width: 0;
-		border-top: 1px solid var(--color-border);
-		padding-top: 0.75rem;
+		margin-top: 0.75rem;
+		padding: 1rem;
+		border-radius: var(--radius);
+		background: var(--color-subtle);
 	}
 	.assign {
 		display: grid;
@@ -547,15 +644,10 @@
 	}
 	.assign .split,
 	.assign .row,
+	.assign .hint,
 	.assign .error,
 	.assign .preset {
 		grid-column: 1 / -1;
-	}
-	/* Lease labels are long, so the lease gets the wider column. */
-	@container (min-width: 32rem) {
-		.rent {
-			grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-		}
 	}
 	.split-fields {
 		display: grid;
@@ -567,29 +659,64 @@
 		border-top: 1px solid var(--color-border);
 		padding-top: 0.75rem;
 	}
-	.preset {
+	.preset,
+	.hint {
 		margin: 0;
 	}
 	.expense .assign {
 		margin-top: 0.5rem;
 	}
-	.assignments {
-		margin: 0;
-		padding-left: 1.25rem;
-	}
 	nav a[aria-current='page'] {
 		font-weight: 600;
 	}
 	@container (min-width: 52rem) {
-		.list > .transaction {
-			grid-template-columns: minmax(16rem, 2fr) minmax(0, 3fr);
-			gap: 2rem;
+		.line {
+			grid-template-columns: 0.625rem 5.5rem minmax(0, 3fr) minmax(0, 2fr) 11rem;
+			grid-template-areas:
+				'status date who assignments amount'
+				'. . who assignments account';
+			/* A taller name or assignment leaves the account right under the amount. */
+			grid-template-rows: auto 1fr;
+			gap: 0 1rem;
 		}
-		.actions {
-			border-top: none;
-			padding-top: 0;
-			border-left: 1px solid var(--color-border);
-			padding-left: 2rem;
+		.trailing .line {
+			grid-template-columns: 0.625rem 5.5rem minmax(0, 3fr) minmax(0, 2fr) 11rem 11rem;
+			grid-template-areas:
+				'status date who assignments amount action'
+				'. . who assignments account action';
+		}
+		/* Without an assignment the name and purpose take its column too. */
+		.unmatched .who,
+		.ignored .who {
+			grid-area: who-start / who-start / who-end / assignments-end;
+		}
+		.date {
+			color: inherit;
+			font-size: inherit;
+		}
+		.account {
+			grid-area: account;
+			max-width: 100%;
+		}
+		.assignments {
+			margin-top: 0;
+		}
+		.trailing-action {
+			margin-top: 0;
+			justify-self: end;
+		}
+		/* The forms line up with the name above them. */
+		.work {
+			margin-left: calc(0.625rem + 5.5rem + 2rem);
+		}
+		/* Lease labels are long, so the lease gets the wider column; the buttons sit beside the
+		   selects. */
+		.rent {
+			grid-template-columns: minmax(0, 2fr) minmax(10rem, 1fr) auto;
+			align-items: end;
+		}
+		.rent .buttons {
+			grid-column: auto;
 		}
 	}
 </style>
