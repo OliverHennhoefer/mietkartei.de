@@ -410,7 +410,7 @@
 						<p class="billing-notice demo-notice" role="note">
 							<span class="demo-tag">Demo</span>
 							<span>Mit Beispieldaten. Nach 24 Stunden wird alles gelöscht.</span>
-							<a href="https://mietkartei.de">Mehr über mietkartei</a>
+							<a href="https://mietkartei.de/fragen/">Häufige Fragen</a>
 						</p>
 					{/if}
 					{#if data.role === 'viewer' && home}
