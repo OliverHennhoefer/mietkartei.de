@@ -98,7 +98,9 @@ test('downloads the export as a ZIP with export.json and the uploaded documents'
 	);
 	expect(data.tables.lease_tenants).toContainEqual({
 		leaseId: lease.leaseId,
-		tenantId: lease.tenantId
+		tenantId: lease.tenantId,
+		joinedOn: null,
+		leftOn: null
 	});
 	expect(data.tables.documents).toContainEqual(
 		expect.objectContaining({

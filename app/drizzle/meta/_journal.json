@@ -379,6 +379,13 @@
       "when": 1793307619157,
       "tag": "0053_foreign_key_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "6",
+      "when": 1793308762787,
+      "tag": "0054_lease_tenant_dates",
+      "breakpoints": true
     }
   ]
 }

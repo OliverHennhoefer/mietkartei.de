@@ -66,7 +66,7 @@ describe('rowsPerStatement', () => {
 		const { bankTransactions, leaseTenants } = await import('./schema');
 		const columns = Object.keys(bankTransactions).length;
 		expect(rowsPerStatement(bankTransactions) * columns).toBeLessThanOrEqual(100);
-		expect(rowsPerStatement(leaseTenants)).toBe(50);
+		expect(rowsPerStatement(leaseTenants)).toBe(25);
 	});
 });
 

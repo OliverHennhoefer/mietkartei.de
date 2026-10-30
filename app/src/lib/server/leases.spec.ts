@@ -25,7 +25,10 @@ import {
 	listLeasePersons,
 	listLeases,
 	listUnitsWithProperty,
-	updateLease
+	updateLease,
+	addLeaseParty,
+	partiesOn,
+	updateLeaseParty
 } from './leases';
 import { deleteLease } from './deletion';
 import { QUOTAS } from './quotas';
@@ -875,5 +878,145 @@ describe('lease persons', () => {
 		const [row] = await listLeasePersons(db, 'b', foreign.id);
 		expect(await deleteLeasePersons(db, contextA, foreign.id, row.id)).toBe('missing');
 		expect(await listLeasePersons(db, 'b', foreign.id)).toHaveLength(1);
+	});
+});
+
+describe('the parties to a lease over time', () => {
+	async function couple() {
+		const { unitId } = await seedUnit(db, 'a');
+		const anna = await seedTenant(db, 'a', { firstName: 'Anna', lastName: 'Alt' });
+		const ben = await seedTenant(db, 'a', { firstName: 'Ben', lastName: 'Bleibt' });
+		const clara = await seedTenant(db, 'a', { firstName: 'Clara', lastName: 'Neu' });
+		const result = await createLease(
+			db,
+			contextA,
+			leaseInput(unitId, { tenantIds: [anna, ben], startDate: '2023-01-01' })
+		);
+		if (!result.ok) throw new Error(result.reason);
+		return { unitId, leaseId: result.id, anna, ben, clara };
+	}
+
+	it('records a tenant leaving and another joining, and keeps them through an edit', async () => {
+		const { unitId, leaseId, anna, ben, clara } = await couple();
+		expect(
+			await updateLeaseParty(db, contextA, leaseId, anna, { joinedOn: null, leftOn: '2025-03-31' })
+		).toEqual({ ok: true });
+		expect(await addLeaseParty(db, contextA, leaseId, clara, '2025-04-01')).toEqual({ ok: true });
+
+		const lease = (await getLease(db, 'a', leaseId))!;
+		// Today Ben and Clara are the parties; Anna stays on the lease with her last day.
+		expect(lease.tenants.map((tenant) => tenant.firstName).sort()).toEqual(['Ben', 'Clara']);
+		expect(
+			lease.parties.map((party) => [party.tenant.firstName, party.joinedOn, party.leftOn])
+		).toEqual([
+			['Anna', null, '2025-03-31'],
+			['Ben', null, null],
+			['Clara', '2025-04-01', null]
+		]);
+		expect(partiesOn(lease.parties, '2024-06-01').map((tenant) => tenant.firstName)).toEqual([
+			'Anna',
+			'Ben'
+		]);
+
+		// The lease form keeps the dates of the tenants it keeps.
+		expect(
+			await updateLease(
+				db,
+				contextA,
+				leaseId,
+				leaseInput(unitId, { tenantIds: [anna, ben, clara], startDate: '2023-01-01' })
+			)
+		).toEqual({ ok: true });
+		const rows = await db.select().from(leaseTenants).where(eq(leaseTenants.leaseId, leaseId));
+		const datesOf = (tenantId: string) => {
+			const row = rows.find((candidate) => candidate.tenantId === tenantId)!;
+			return [row.joinedOn, row.leftOn];
+		};
+		expect([datesOf(anna), datesOf(ben), datesOf(clara)]).toEqual([
+			[null, '2025-03-31'],
+			[null, null],
+			['2025-04-01', null]
+		]);
+		const summaries = (await db.select().from(auditLog).where(eq(auditLog.action, 'update'))).map(
+			(entry) => entry.summary
+		);
+		expect(summaries).toContain('Anna Alt: ausgetreten zum 31.03.2025');
+		expect(summaries).toContain('Clara Neu ab 01.04.2025 in den Mietvertrag eingetreten');
+	});
+
+	it('ends the lease with a tenant leaving later as a party to the end, not before one joins', async () => {
+		const { leaseId, anna, clara } = await couple();
+		await updateLeaseParty(db, contextA, leaseId, anna, { joinedOn: null, leftOn: '2025-06-30' });
+		await addLeaseParty(db, contextA, leaseId, clara, '2025-09-01');
+		const end = (endDate: string) =>
+			endLease(db, contextA, leaseId, {
+				terminatedAt: '2025-01-02',
+				terminatedBy: 'tenant',
+				endDate,
+				earlyEndAgreed: true
+			});
+		expect(await end('2025-08-31')).toBe('party-dates');
+		await db.delete(leaseTenants).where(eq(leaseTenants.tenantId, clara));
+		expect(await end('2025-03-31')).toBe('ended');
+		const lease = (await getLease(db, 'a', leaseId))!;
+		expect(lease.parties.find((party) => party.tenant.id === anna)?.leftOn).toBeNull();
+	});
+
+	it('refuses dates outside the term, a lease without a party and a second entry', async () => {
+		const { unitId, leaseId, anna, ben, clara } = await couple();
+		const party = (input: { joinedOn: string | null; leftOn: string | null }, tenantId = anna) =>
+			updateLeaseParty(db, contextA, leaseId, tenantId, input);
+		expect(await party({ joinedOn: '2023-01-01', leftOn: null })).toEqual({
+			ok: false,
+			reason: 'joined-outside'
+		});
+		expect(await party({ joinedOn: null, leftOn: '2022-12-31' })).toEqual({
+			ok: false,
+			reason: 'left-outside'
+		});
+		expect(await party({ joinedOn: '2024-05-01', leftOn: '2024-04-30' })).toEqual({
+			ok: false,
+			reason: 'left-before-joined'
+		});
+		expect(await party({ joinedOn: null, leftOn: '2025-03-31' })).toEqual({ ok: true });
+		// Ben cannot leave too: from 1 April 2025 nobody would rent the flat.
+		expect(await party({ joinedOn: null, leftOn: '2025-06-30' }, ben)).toEqual({
+			ok: false,
+			reason: 'no-party'
+		});
+		// Nor can he join later than the start while Anna left: the start needs a party too.
+		await party({ joinedOn: null, leftOn: null });
+		await party({ joinedOn: null, leftOn: '2023-06-30' });
+		expect(await party({ joinedOn: '2024-01-01', leftOn: null }, ben)).toEqual({
+			ok: false,
+			reason: 'no-party'
+		});
+		expect(await addLeaseParty(db, contextA, leaseId, ben, null)).toEqual({
+			ok: false,
+			reason: 'already-party'
+		});
+		// Nor can the lease form take Ben off: Anna left, so the flat would have nobody after her.
+		expect(
+			await updateLease(
+				db,
+				contextA,
+				leaseId,
+				leaseInput(unitId, { tenantIds: [anna], startDate: '2023-01-01' })
+			)
+		).toEqual({ ok: false, reason: 'party-dates' });
+		expect(await addLeaseParty(db, contextA, leaseId, 'unbekannt', null)).toEqual({
+			ok: false,
+			reason: 'unknown-tenant'
+		});
+		expect(
+			await updateLeaseParty(db, contextA, leaseId, clara, { joinedOn: null, leftOn: null })
+		).toEqual({
+			ok: false,
+			reason: 'missing'
+		});
+		expect(await addLeaseParty(db, contextB, leaseId, clara, null)).toEqual({
+			ok: false,
+			reason: 'missing'
+		});
 	});
 });

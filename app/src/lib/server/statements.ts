@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, gte, inArray, lte, or } from 'drizzle-orm';
+import { currentParties } from '../domain/lease-parties';
 import type { BatchItem } from 'drizzle-orm/batch';
 import {
 	addDays,
@@ -158,7 +159,12 @@ export async function loadStatementInput(
 		[
 			chunked(leaseIds, (ids) =>
 				db
-					.select({ leaseId: leaseTenants.leaseId, tenant: tenants })
+					.select({
+						leaseId: leaseTenants.leaseId,
+						tenant: tenants,
+						joinedOn: leaseTenants.joinedOn,
+						leftOn: leaseTenants.leftOn
+					})
 					.from(leaseTenants)
 					.innerJoin(tenants, eq(leaseTenants.tenantId, tenants.id))
 					.where(and(eq(tenants.accountId, accountId), inArray(leaseTenants.leaseId, ids)))
@@ -288,16 +294,18 @@ export async function loadStatementInput(
 			...extraLinks.filter((link) => link.leaseId === lease.id).map((link) => link.unitId)
 		],
 		prepaymentsElsewhere: !unitIdSet.has(lease.unitId),
-		tenants: tenantRows
-			.filter((row) => row.leaseId === lease.id)
-			.map(({ tenant }) => ({
-				salutation: tenant.salutation,
-				firstName: tenant.firstName,
-				lastName: tenant.lastName,
-				street: tenant.street,
-				postalCode: tenant.postalCode,
-				city: tenant.city
-			})),
+		// The statement goes to the parties of today, not to a co-tenant who left the lease.
+		tenants: currentParties(
+			lease,
+			tenantRows.filter((row) => row.leaseId === lease.id)
+		).map((tenant) => ({
+			salutation: tenant.salutation,
+			firstName: tenant.firstName,
+			lastName: tenant.lastName,
+			street: tenant.street,
+			postalCode: tenant.postalCode,
+			city: tenant.city
+		})),
 		persons: personRows
 			.filter((row) => row.leaseId === lease.id)
 			.map((row) => ({ validFrom: row.validFrom, persons: row.persons })),

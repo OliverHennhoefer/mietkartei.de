@@ -156,7 +156,13 @@ export async function tenantArchiving(
 		.from(leaseTenants)
 		.innerJoin(leases, eq(leases.id, leaseTenants.leaseId))
 		.where(
-			and(eq(leases.accountId, accountId), eq(leaseTenants.tenantId, tenantId), notEnded(date))
+			and(
+				eq(leases.accountId, accountId),
+				eq(leaseTenants.tenantId, tenantId),
+				notEnded(date),
+				// A co-tenant who left a lease that runs on rents no more.
+				or(isNull(leaseTenants.leftOn), gte(leaseTenants.leftOn, date))
+			)
 		);
 	return {
 		archivedAt: tenant.archivedAt,

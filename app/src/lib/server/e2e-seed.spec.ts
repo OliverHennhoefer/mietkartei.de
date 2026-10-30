@@ -52,7 +52,9 @@ describe('seed lease', () => {
 			securityDeposit: 180000,
 			persons: 2
 		});
-		expect(await db.select().from(leaseTenants)).toEqual([{ leaseId, tenantId }]);
+		expect(await db.select().from(leaseTenants)).toEqual([
+			{ leaseId, tenantId, joinedOn: null, leftOn: null }
+		]);
 
 		const history = await db.select().from(rentChanges).where(eq(rentChanges.leaseId, leaseId));
 		expect(history).toHaveLength(1);

@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
-import { formatDate, monthOf, today, type IsoDate } from '../dates';
+import { addDays, formatDate, monthOf, today, type IsoDate } from '../dates';
+import { currentParties, isPartyOn, partiesOn } from '../domain/lease-parties';
 import { rentOn, type RentChange as RentHistoryEntry } from '../domain/rents';
 import { personName } from '../format';
 import { terminatedByLabels } from '../labels';
@@ -78,10 +79,21 @@ export type Unit = typeof units.$inferSelect;
 export type Property = typeof properties.$inferSelect;
 export type Tenant = typeof tenants.$inferSelect;
 
+/** A tenant on the lease with the days they joined and left it; null for its start and end. */
+export type LeaseParty = { tenant: Tenant; joinedOn: IsoDate | null; leftOn: IsoDate | null };
+
+export { currentParties, isPartyOn, partiesOn };
+
 export type LeaseSummary = Lease & {
 	unit: Unit;
 	property: Property;
+	/**
+	 * The tenants who are parties to the lease today: before its start those of the start, after
+	 * its end those of the end. Letters and statements go to them.
+	 */
 	tenants: Tenant[];
+	/** Every tenant the lease ever had, with the days they joined and left. */
+	parties: LeaseParty[];
 	extraUnits: Unit[];
 	/** The rent valid today, or the initial rent before the lease starts. */
 	currentRent: { baseRent: number; operatingCostPrepayment: number; heatingCostPrepayment: number };
@@ -110,7 +122,12 @@ async function decorate(db: Database, accountId: string, rows: Lease[]): Promise
 		Promise.all(
 			groups.map((leaseIds) =>
 				db
-					.select({ leaseId: leaseTenants.leaseId, tenant: tenants })
+					.select({
+						leaseId: leaseTenants.leaseId,
+						tenant: tenants,
+						joinedOn: leaseTenants.joinedOn,
+						leftOn: leaseTenants.leftOn
+					})
 					.from(leaseTenants)
 					.innerJoin(tenants, eq(leaseTenants.tenantId, tenants.id))
 					.where(and(eq(tenants.accountId, accountId), inArray(leaseTenants.leaseId, leaseIds)))
@@ -154,6 +171,10 @@ async function decorate(db: Database, accountId: string, rows: Lease[]): Promise
 		const property = unit && propertyById.get(unit.propertyId);
 		if (!unit || !property) return [];
 		const history: RentHistoryEntry[] = changeRows.filter((row) => row.leaseId === lease.id);
+		const parties = tenantRows
+			.filter((row) => row.leaseId === lease.id)
+			.map(({ tenant, joinedOn, leftOn }) => ({ tenant, joinedOn, leftOn }));
+
 		const current = rentOn(history, date) ??
 			rentOn(history, lease.startDate) ?? {
 				baseRent: lease.baseRent,
@@ -165,7 +186,8 @@ async function decorate(db: Database, accountId: string, rows: Lease[]): Promise
 				...lease,
 				unit,
 				property,
-				tenants: tenantRows.filter((row) => row.leaseId === lease.id).map((row) => row.tenant),
+				tenants: currentParties(lease, parties, date),
+				parties,
 				extraUnits: extraRows.filter((row) => row.leaseId === lease.id).map((row) => row.unit),
 				currentRent: {
 					baseRent: current.baseRent,
@@ -229,6 +251,7 @@ export type LeaseError =
 	| 'missing'
 	| 'start-after-changes'
 	| 'settled-property'
+	| 'party-dates'
 	| 'overlap';
 
 /** A refused lease; an overlap names the start of the other lease. */
@@ -550,7 +573,7 @@ export async function updateLease(
 	if (!existing) return { ok: false, reason: 'missing' };
 	const reason = await checkReferences(db, accountId, input, {
 		unitIds: [existing.unitId, ...existing.extraUnits.map((unit) => unit.id)],
-		tenantIds: existing.tenants.map((tenant) => tenant.id)
+		tenantIds: existing.parties.map((party) => party.tenant.id)
 	});
 	if (reason) return { ok: false, reason };
 	if (await leavesSettledProperty(db, accountId, leaseId, input)) {
@@ -606,14 +629,34 @@ export async function updateLease(
 	]);
 	const extraUnitIds = [...new Set(input.extraUnitIds)].filter((unitId) => unitId !== input.unitId);
 	const tenantIds = [...new Set(input.tenantIds)];
-	const tenantChange = await tenantChangeOf(db, accountId, existing.tenants, tenantIds);
+	const tenantChange = await tenantChangeOf(
+		db,
+		accountId,
+		existing.parties.map((party) => party.tenant),
+		tenantIds
+	);
+	// The tenants who stay keep the days they joined and left.
+	const keptIds = existing.parties
+		.map((party) => party.tenant.id)
+		.filter((id) => tenantIds.includes(id));
+	const addedIds = tenantIds.filter((id) => !keptIds.includes(id));
+	const kept = existing.parties.filter((party) => keptIds.includes(party.tenant.id));
+	if (partiesProblem(input, [...kept, ...addedIds.map(() => ({ joinedOn: null, leftOn: null }))])) {
+		return { ok: false, reason: 'party-dates' };
+	}
 	await runBatch(db, [
 		db
 			.update(leases)
 			.set(leaseColumns(input))
 			.where(and(eq(leases.accountId, accountId), eq(leases.id, leaseId))),
-		db.delete(leaseTenants).where(eq(leaseTenants.leaseId, leaseId)),
-		...chunk(tenantIds, rowsPerStatement(leaseTenants)).map((ids) =>
+		...chunkIds(
+			existing.parties.map((party) => party.tenant.id).filter((id) => !tenantIds.includes(id))
+		).map((ids) =>
+			db
+				.delete(leaseTenants)
+				.where(and(eq(leaseTenants.leaseId, leaseId), inArray(leaseTenants.tenantId, ids)))
+		),
+		...chunk(addedIds, rowsPerStatement(leaseTenants)).map((ids) =>
 			db.insert(leaseTenants).values(ids.map((tenantId) => ({ leaseId, tenantId })))
 		),
 		db.delete(leaseUnits).where(eq(leaseUnits.leaseId, leaseId)),
@@ -743,7 +786,7 @@ export function leaseInputOf(lease: LeaseSummary): LeaseInput {
 	return {
 		unitId: lease.unitId,
 		extraUnitIds: lease.extraUnits.map((unit) => unit.id),
-		tenantIds: lease.tenants.map((tenant) => tenant.id),
+		tenantIds: lease.parties.map((party) => party.tenant.id),
 		startDate: lease.startDate,
 		endDate: lease.endDate,
 		kind: lease.kind,
@@ -784,10 +827,21 @@ export async function endLease(
 	context: AuditContext,
 	leaseId: string,
 	input: LeaseEndInput
-): Promise<'ended' | 'missing' | 'before-start' | { overlap: IsoDate }> {
+): Promise<'ended' | 'missing' | 'before-start' | 'party-dates' | { overlap: IsoDate }> {
 	const existing = await getLease(db, context.accountId, leaseId);
 	if (!existing) return 'missing';
 	if (input.endDate < existing.startDate) return 'before-start';
+	// A tenant leaving on or after the new end stays a party to it; one joining only after it
+	// would never be one, so the end is refused until that is undone.
+	const leavingLater = existing.parties.filter(
+		(party) => party.leftOn && party.leftOn >= input.endDate
+	);
+	const parties = existing.parties.map((party) =>
+		leavingLater.includes(party) ? { ...party, leftOn: null } : party
+	);
+	if (partiesProblem({ startDate: existing.startDate, endDate: input.endDate }, parties)) {
+		return 'party-dates';
+	}
 	const overlap = await overlappingLease(
 		db,
 		context.accountId,
@@ -808,6 +862,12 @@ export async function endLease(
 				endDate: input.endDate
 			})
 			.where(and(eq(leases.accountId, context.accountId), eq(leases.id, leaseId))),
+		...chunkIds(leavingLater.map((party) => party.tenant.id)).map((ids) =>
+			db
+				.update(leaseTenants)
+				.set({ leftOn: null })
+				.where(and(eq(leaseTenants.leaseId, leaseId), inArray(leaseTenants.tenantId, ids)))
+		),
 		auditEntry(
 			db,
 			context,
@@ -952,4 +1012,143 @@ export async function deleteLeasePersons(
 		)
 	]);
 	return 'deleted';
+}
+
+// The parties to the lease over time: a tenant who joins it after its start (a Nachtrag) or leaves
+// it before its end stays on the lease with the day, so who was a party on an earlier date can be
+// told. Removing a tenant in the lease form is for a tenant entered by mistake.
+
+export type LeasePartyInput = { joinedOn: IsoDate | null; leftOn: IsoDate | null };
+
+export type LeasePartyRefusal =
+	| 'missing'
+	| 'unknown-tenant'
+	| 'archived'
+	| 'already-party'
+	| 'too-many'
+	| 'joined-outside'
+	| 'left-outside'
+	| 'left-before-joined'
+	| 'no-party';
+
+/**
+ * Why the parties' days do not fit the term: a day outside it, a tenant leaving before joining,
+ * or a day of the term without a party (a gap opens only at the start or the day after someone
+ * left). Undefined when they fit.
+ */
+function partiesProblem(
+	lease: { startDate: IsoDate; endDate: IsoDate | null },
+	parties: readonly Omit<LeaseParty, 'tenant'>[]
+):
+	| Exclude<
+			LeasePartyRefusal,
+			'missing' | 'unknown-tenant' | 'archived' | 'already-party' | 'too-many'
+	  >
+	| undefined {
+	const end = lease.endDate ?? '9999-12-31';
+	for (const party of parties) {
+		if (party.joinedOn && (party.joinedOn <= lease.startDate || party.joinedOn > end)) {
+			return 'joined-outside';
+		}
+		if (party.leftOn && (party.leftOn < lease.startDate || party.leftOn >= end)) {
+			return 'left-outside';
+		}
+		if (party.joinedOn && party.leftOn && party.leftOn < party.joinedOn) {
+			return 'left-before-joined';
+		}
+	}
+	// The form asks for a tenant; a lease without any (an import, a test) has no days to check.
+	if (parties.length === 0) return undefined;
+	const days = [
+		lease.startDate,
+		...parties.flatMap((party) => (party.leftOn ? [addDays(party.leftOn, 1)] : []))
+	].filter((day) => day <= end);
+	if (days.some((day) => !parties.some((party) => isPartyOn(party, day)))) return 'no-party';
+	return undefined;
+}
+
+/** As many tenants as the lease form takes (MAX_LEASE_IDS). */
+const MAX_LEASE_PARTIES = 50;
+
+/** Adds a tenant to the lease from a day after its start on (a Nachtrag), or from its start. */
+export async function addLeaseParty(
+	db: Database,
+	context: AuditContext,
+	leaseId: string,
+	tenantId: string,
+	joinedOn: IsoDate | null
+): Promise<{ ok: true } | { ok: false; reason: LeasePartyRefusal }> {
+	const lease = await getLease(db, context.accountId, leaseId);
+	if (!lease) return { ok: false, reason: 'missing' };
+	if (lease.parties.length >= MAX_LEASE_PARTIES) return { ok: false, reason: 'too-many' };
+	if (lease.parties.some((party) => party.tenant.id === tenantId)) {
+		return { ok: false, reason: 'already-party' };
+	}
+	const [tenant] = await db
+		.select()
+		.from(tenants)
+		.where(and(eq(tenants.accountId, context.accountId), eq(tenants.id, tenantId)));
+	if (!tenant) return { ok: false, reason: 'unknown-tenant' };
+	if (tenant.archivedAt) return { ok: false, reason: 'archived' };
+	const added = { joinedOn, leftOn: null };
+	const problem = partiesProblem(lease, [...lease.parties, added]);
+	if (problem) return { ok: false, reason: problem };
+	await runBatch(db, [
+		db.insert(leaseTenants).values({ leaseId, tenantId, joinedOn }),
+		auditEntry(
+			db,
+			context,
+			'lease',
+			leaseId,
+			'update',
+			joinedOn
+				? `${personName(tenant)} ab ${formatDate(joinedOn)} in den Mietvertrag eingetreten`
+				: `${personName(tenant)} als Mieter hinzugefügt`
+		)
+	]);
+	return { ok: true };
+}
+
+/** Sets the days a tenant of the lease joined and left it; null for its start and its end. */
+export async function updateLeaseParty(
+	db: Database,
+	context: AuditContext,
+	leaseId: string,
+	tenantId: string,
+	input: LeasePartyInput
+): Promise<{ ok: true } | { ok: false; reason: LeasePartyRefusal }> {
+	const lease = await getLease(db, context.accountId, leaseId);
+	if (!lease) return { ok: false, reason: 'missing' };
+	const party = lease.parties.find((other) => other.tenant.id === tenantId);
+	if (!party) return { ok: false, reason: 'missing' };
+	const parties = lease.parties.map((other) => (other === party ? { ...other, ...input } : other));
+	const problem = partiesProblem(lease, parties);
+	if (problem) return { ok: false, reason: problem };
+	const changes: string[] = [];
+	if (input.joinedOn !== party.joinedOn) {
+		changes.push(
+			input.joinedOn ? `eingetreten am ${formatDate(input.joinedOn)}` : 'Mieter seit Vertragsbeginn'
+		);
+	}
+	if (input.leftOn !== party.leftOn) {
+		changes.push(
+			input.leftOn ? `ausgetreten zum ${formatDate(input.leftOn)}` : 'Mieter bis Vertragsende'
+		);
+	}
+	if (changes.length === 0) return { ok: true };
+	await runBatch(db, [
+		db
+			.update(leaseTenants)
+			.set(input)
+			.where(and(eq(leaseTenants.leaseId, leaseId), eq(leaseTenants.tenantId, tenantId))),
+		auditEntry(
+			db,
+			context,
+			'lease',
+			leaseId,
+			'update',
+			`${personName(party.tenant)}: ${changes.join(', ')}`
+		)
+	]);
+	return { ok: true };
 }

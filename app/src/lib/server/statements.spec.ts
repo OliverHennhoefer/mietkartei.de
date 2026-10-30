@@ -14,6 +14,7 @@ import {
 	costCategories,
 	costItemUnitAmounts,
 	costItems,
+	leaseTenants,
 	meterReadings,
 	meters,
 	operatingCostStatements,
@@ -343,6 +344,20 @@ describe('loadStatementInput', () => {
 		expect(result.leases.every((lease) => lease.unpaidPrepayments === 0)).toBe(true);
 		expect(result.property.vacancyShare).toBe(39584);
 		expect(result.property.landlordCo2Share).toBe(12000);
+	});
+
+	it('addresses the tenants who are parties today, not a co-tenant who left', async () => {
+		const { propertyId, leaseIds } = await seedScenario(db, 'a');
+		const [former] = await db
+			.insert(tenants)
+			.values({ accountId: 'a', firstName: 'Fritz', lastName: 'Früher', city: 'Köln' })
+			.returning({ id: tenants.id });
+		await db
+			.insert(leaseTenants)
+			.values({ leaseId: leaseIds.eg, tenantId: former.id, leftOn: '2025-03-31' });
+		const input = (await loadStatementInput(db, 'a', propertyId, period))!;
+		const eg = input.leases.find((lease) => lease.id === leaseIds.eg)!;
+		expect(eg.tenants.map((tenant) => tenant.lastName)).toEqual(['Müller']);
 	});
 
 	it('is undefined for a property of another account', async () => {

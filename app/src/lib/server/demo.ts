@@ -52,6 +52,7 @@ import {
 	expenses,
 	insurancePolicies,
 	leasePersons,
+	leaseTenants,
 	leases,
 	matchingRules,
 	meterReadings,
@@ -486,6 +487,11 @@ export async function createDemoData(
 		berger: tenant('Frau', 'Lena', 'Berger', 'lena.berger@example.org', '0151 9876543'),
 		nowak: tenant('Herr', 'Tomasz', 'Nowak', 'tomasz.nowak@example.org'),
 		weber: tenant('Frau', 'Julia', 'Weber', 'julia.weber@example.org'),
+		sophieWeber: tenant('Frau', 'Sophie', 'Weber', 'sophie.weber@example.org', null, [
+			'Leopoldstraße 58',
+			'80802',
+			'München'
+		]),
 		albrecht: tenant('Herr', 'Jonas', 'Albrecht', 'jonas.albrecht@example.org'),
 		krueger: tenant('Frau', 'Miriam', 'Krüger', 'miriam.krueger@example.org', '0160 3318274')
 	};
@@ -495,7 +501,8 @@ export async function createDemoData(
 		dieterSchulze: at(-7, '03-01'),
 		monikaSchulze: at(-7, '03-01'),
 		lorenz: at(-7, '06-01'),
-		fischer: at(-5, '01-15')
+		fischer: at(-5, '01-15'),
+		sophieWeber: at(-3, '04-15')
 	};
 	const tenantRows = Object.entries(tenantInputs).map(([key, input]) => ({
 		id: crypto.randomUUID(),
@@ -518,6 +525,7 @@ export async function createDemoData(
 	const yilmazFirst = indexed(yilmazBase, Y - 4, Y - 3);
 	const yilmazSecond = indexed(yilmazFirst, Y - 3, Y - 1);
 	const yilmazPlanned = at(-1, '10-30');
+	const sophieLeft = at(-3, '03-31');
 	const yilmazDelivery = at(-1, '11-03');
 	const staffel = (step: number) => 92900 + 2300 * step;
 	const plans: {
@@ -829,17 +837,23 @@ export async function createDemoData(
 		{
 			key: 'weber',
 			state: 'BY',
-			input: lease(unitId('Wohnung 9'), [tenantIds.weber, tenantIds.albrecht], {
-				startDate: at(-6, '12-01'),
-				rentModel: 'graduated',
-				baseRent: staffel(0),
-				operatingCostPrepayment: 12000,
-				// Gasetagenheizung: the tenants have their own gas contract.
-				heatingCostPrepayment: 0,
-				securityDeposit: 278700,
-				persons: 2,
-				notes: 'Staffelmiete, jährlich zum 1. Dezember. Eigener Gasvertrag für die Etagenheizung.'
-			}),
+			// Julia Weber rented with her sister Sophie; Jonas Albrecht took Sophie's place in the
+			// lease by a Nachtrag on 1 April three years ago.
+			input: lease(
+				unitId('Wohnung 9'),
+				[tenantIds.weber, tenantIds.sophieWeber, tenantIds.albrecht],
+				{
+					startDate: at(-6, '12-01'),
+					rentModel: 'graduated',
+					baseRent: staffel(0),
+					operatingCostPrepayment: 12000,
+					// Gasetagenheizung: the tenants have their own gas contract.
+					heatingCostPrepayment: 0,
+					securityDeposit: 278700,
+					persons: 2,
+					notes: 'Staffelmiete, jährlich zum 1. Dezember. Eigener Gasvertrag für die Etagenheizung.'
+				}
+			),
 			changes: [
 				...[1, 2, 3, 4, 5, 6].map((step) => ({
 					validFrom: at(-6 + step, '12-01'),
@@ -2419,15 +2433,23 @@ export async function createDemoData(
 			action: 'update',
 			at: new Date(`${addDays(yilmazDelivery, 1)}T08:30:00Z`)
 		},
-		// Jonas Albrecht took over the place of Julia Weber's sister in the lease (Nachtrag).
 		{
 			...audit(
 				'lease',
 				leaseId('weber'),
-				'Mietvertrag geändert: Mieter hinzugefügt: Jonas Albrecht, Mieter entfernt: Lena Weber'
+				`Sophie Weber: ausgetreten zum ${formatDate(sophieLeft)}`
 			),
 			action: 'update',
-			at: new Date(`${at(-3, '04-01')}T09:00:00Z`)
+			at: new Date(`${addDays(sophieLeft, 1)}T09:00:00Z`)
+		},
+		{
+			...audit(
+				'lease',
+				leaseId('weber'),
+				`Jonas Albrecht ab ${formatDate(addDays(sophieLeft, 1))} in den Mietvertrag eingetreten`
+			),
+			action: 'update',
+			at: new Date(`${addDays(sophieLeft, 1)}T09:05:00Z`)
 		}
 	];
 
@@ -2444,6 +2466,27 @@ export async function createDemoData(
 	];
 	for (const [kind, rows] of adding) await assertQuota(db, accountId, kind, rows);
 
+	// The change of parties on the Weber lease (newLeaseStatements adds every tenant from the start).
+	const partyStatements = [
+		db
+			.update(leaseTenants)
+			.set({ leftOn: sophieLeft })
+			.where(
+				and(
+					eq(leaseTenants.leaseId, leaseId('weber')),
+					eq(leaseTenants.tenantId, tenantIds.sophieWeber)
+				)
+			),
+		db
+			.update(leaseTenants)
+			.set({ joinedOn: addDays(sophieLeft, 1) })
+			.where(
+				and(
+					eq(leaseTenants.leaseId, leaseId('weber')),
+					eq(leaseTenants.tenantId, tenantIds.albrecht)
+				)
+			)
+	];
 	const insert = <T extends Table>(table: T, rows: T['$inferInsert'][]) =>
 		chunk(rows, rowsPerStatement(table)).map((group) => db.insert(table).values(group));
 	try {
@@ -2452,6 +2495,7 @@ export async function createDemoData(
 			...insert(units, unitRows),
 			...insert(tenants, tenantRows),
 			...newLeaseStatements(db, context, leaseEntries),
+			...partyStatements,
 			...insert(rentChanges, rentChangeRows),
 			...insert(leasePersons, personsRows),
 			...insert(depositSettlements, settlementRows),
