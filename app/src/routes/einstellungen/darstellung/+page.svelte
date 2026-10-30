@@ -13,7 +13,7 @@
 	] as const;
 </script>
 
-<PageHeader title="Darstellung" lead="Wie mietkartei für dich aussieht." />
+<PageHeader title="Darstellung" />
 
 <form
 	method="POST"

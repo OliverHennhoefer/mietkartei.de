@@ -45,10 +45,7 @@
 	}
 </script>
 
-<PageHeader
-	title="KI-Assistenten"
-	lead="Verbinde Claude, ChatGPT oder einen anderen KI-Assistenten mit deinen Daten."
-/>
+<PageHeader title="KI-Assistenten" />
 
 {#if refused}
 	<Alert tone="danger"><p>{refused}</p></Alert>

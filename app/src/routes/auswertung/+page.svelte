@@ -62,10 +62,7 @@
 	);
 </script>
 
-<PageHeader
-	title="Auswertung"
-	lead="Einnahmen, Ausgaben und Leerstand deines Bestands auf einen Blick."
-/>
+<PageHeader title="Auswertung" />
 
 <Sections />
 

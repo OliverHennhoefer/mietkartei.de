@@ -22,10 +22,7 @@
 	]);
 </script>
 
-<PageHeader
-	title="Dokumente"
-	lead="Mietverträge, Belege, Protokolle und Schreiben, verknüpft mit Objekt, Mietvertrag oder Mieter."
-/>
+<PageHeader title="Dokumente" />
 
 <form method="GET" class="card filter" aria-label="Filter">
 	{#each filters as filter (filter.kind)}

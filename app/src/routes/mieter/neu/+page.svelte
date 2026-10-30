@@ -6,11 +6,7 @@
 	let { data, form }: PageProps = $props();
 </script>
 
-<PageHeader
-	title="Mieter anlegen"
-	lead="Eine Person oder Firma; den Mietvertrag legst du danach an."
-	back={{ href: '/mieter', label: 'Alle Mieter' }}
-/>
+<PageHeader title="Mieter anlegen" back={{ href: '/mieter', label: 'Alle Mieter' }} />
 
 <TenantForm
 	action="?/create"

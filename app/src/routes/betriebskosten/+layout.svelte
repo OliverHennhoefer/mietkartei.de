@@ -44,10 +44,7 @@
 	});
 </script>
 
-<PageHeader
-	title="Betriebskosten"
-	lead="Belege sammeln, Zählerstände erfassen, Abrechnung erstellen."
->
+<PageHeader title="Betriebskosten">
 	{#snippet actions()}
 		{#if create}<CreateButton {...create} />{/if}
 	{/snippet}
