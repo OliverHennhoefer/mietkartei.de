@@ -293,6 +293,7 @@ export async function loadStatementInput(
 			...(unitIdSet.has(lease.unitId) ? [lease.unitId] : []),
 			...extraLinks.filter((link) => link.leaseId === lease.id).map((link) => link.unitId)
 		],
+		prepaymentsElsewhere: !unitIdSet.has(lease.unitId),
 		// The statement goes to the parties of today, not to a co-tenant who left the lease.
 		tenants: currentParties(
 			lease,
