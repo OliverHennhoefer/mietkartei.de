@@ -1,4 +1,5 @@
 import { today } from '../../dates';
+import { suggestLease } from '../../domain/bank-matching';
 import { loadAnalysis } from '../analysis';
 import { listAssociationStatements } from '../association-statements';
 import { applyCategoryDefaults } from '../../domain/operating-costs';
@@ -7,10 +8,27 @@ import { repeatOptions } from '../../task-templates';
 import type { ApiCaller } from '../api-keys';
 import type { AuditContext } from '../audit';
 import type { Database } from '../db';
-import { taskCategories, type ApiKeyScope, type TaskCategory } from '../db/schema';
+import { listRules } from '../bank/rules';
+import {
+	assignExpense,
+	assignTransaction,
+	getTransaction,
+	leaseByIban,
+	leaseHints,
+	listTransactions
+} from '../bank/transactions';
+import {
+	bankTransactionStatuses,
+	expenseCategories,
+	taskCategories,
+	type ApiKeyScope,
+	type BankTransactionStatus,
+	type ExpenseCategory,
+	type TaskCategory
+} from '../db/schema';
 import { deadlineLegalBasis, listDeadlines } from '../deadlines';
 import { depositSummary, listDepositMovements } from '../deposits';
-import { listExpenses } from '../expenses';
+import { createExpense, listExpenses } from '../expenses';
 import { findLawSection, listLawSections } from '../law';
 import { getLease, leaseLabel, listLeases, type LeaseSummary } from '../leases';
 import { createPayment, listBalances, listLedger } from '../ledger';
@@ -23,6 +41,7 @@ import {
 	listCostItems,
 	listKeys
 } from '../operating-costs';
+import { createReading, listMeters } from '../operating-costs/meters';
 import { getProperty, propertyOverview, unitsWithOccupancy } from '../properties';
 import { reminderState } from '../reminders';
 import { listRentChanges } from '../rents';
@@ -30,6 +49,9 @@ import { getStatement, listStatements } from '../statements';
 import { createTask, getTask, listTasks, setDone } from '../tasks';
 import { loadTaxOverview } from '../tax';
 import { getTenant, listTenants } from '../tenants';
+import { listServiceProviders } from '../service-providers';
+import { expenseCategoryLabels } from '../../labels';
+import type { ExpenseScope } from '../../forms/expenses';
 import { schema, type InputSchema } from './input';
 
 // The operations of the API, described once: the REST routes under /api/v1 and the tools of the
@@ -37,7 +59,8 @@ import { schema, type InputSchema } from './input';
 // same checks. Every operation reads and writes through the functions the pages use, scoped to the
 // account of the key's user; writes are audited under that user like a change on the page. Only a
 // few writes are offered, each one adding something and none deleting: a payment, a task (and
-// ticking it off), a cost item.
+// ticking it off), a cost item, an expense, a meter reading and the assignment of an open bank
+// transaction. So an assistant that reads an invoice or a photo of a meter can book it.
 
 export type ApiContext = { db: Database; caller: ApiCaller };
 
@@ -104,6 +127,56 @@ function leaseEntry(lease: LeaseSummary) {
 		currentRent: lease.currentRent,
 		securityDeposit: lease.securityDeposit
 	};
+}
+
+const CATEGORIES = expenseCategories
+	.map((category) => `${category} (${expenseCategoryLabels[category]})`)
+	.join(', ');
+
+/** Where an expense belongs: a unit, a property or, with neither, the whole portfolio. */
+function expenseScope(input: Record<string, string | number | boolean>): ExpenseScope {
+	if (input.propertyId && input.unitId) invalid('Pass either "propertyId" or "unitId".');
+	if (input.unitId) return { kind: 'unit', id: String(input.unitId) };
+	if (input.propertyId) return { kind: 'property', id: String(input.propertyId) };
+	return { kind: 'portfolio' };
+}
+
+const scopeFields = {
+	propertyId: { type: 'string', description: 'The property it was for.' },
+	unitId: { type: 'string', description: 'The unit it was for; instead of propertyId.' }
+} as const;
+
+const expenseFields = {
+	category: {
+		type: 'string',
+		enum: expenseCategories,
+		description: `One of ${CATEGORIES}.`
+	},
+	...scopeFields,
+	description: {
+		type: 'string',
+		maxLength: 200,
+		description: 'E.g. "Rohrbruch Bad, Firma Klempner".'
+	},
+	serviceProviderId: {
+		type: 'string',
+		description:
+			'The Dienstleister who was paid, from list_service_providers; leave out if unknown.'
+	}
+} as const;
+
+/** The answer to an assignment: what happened, or why nothing did. */
+function assignmentResult(
+	outcome: 'assigned' | 'missing' | 'not-open' | 'unknown-lease' | 'amount-mismatch',
+	transactionId: string
+) {
+	if (outcome === 'missing') notFound('Bank transaction');
+	if (outcome === 'unknown-lease') notFound('Lease');
+	if (outcome === 'not-open') {
+		throw new ApiError(409, 'not_open', 'The transaction is already assigned or ignored.');
+	}
+	if (outcome === 'amount-mismatch') invalid('A transaction of 0 cents cannot be assigned.');
+	return { id: transactionId, status: 'matched' };
 }
 
 export const operations: Operation[] = [
@@ -522,6 +595,90 @@ export const operations: Operation[] = [
 		}
 	},
 	{
+		name: 'list_service_providers',
+		description:
+			'Lists the Dienstleister (craftsmen, caretaker, chimney sweep and other firms) with their service and contact, and how many tasks and expenses name each.',
+		method: 'GET',
+		path: '/service-providers',
+		scope: 'read',
+		readOnly: true,
+		input: schema(),
+		run: ({ db, caller }) => listServiceProviders(db, caller.user.accountId)
+	},
+	{
+		name: 'list_meters',
+		description:
+			'Lists the meters (Zähler) of a property: building meters (unitId null) and those of its units, each with kind, serial number, unit of measure and its latest reading. Use it to find the meter for record_meter_reading.',
+		method: 'GET',
+		path: '/properties/{id}/meters',
+		scope: 'read',
+		readOnly: true,
+		input: schema({ id: id('property') }, ['id']),
+		async run({ db, caller }, input) {
+			const { accountId } = caller.user;
+			const property = await getProperty(db, accountId, String(input.id));
+			if (!property) notFound('Property');
+			return listMeters(db, accountId, property.id);
+		}
+	},
+	{
+		name: 'list_bank_transactions',
+		description: `Lists imported bank transactions (Umsätze), newest first, by default the open ones still to assign; page with offset or narrow by booking date. Positive amounts came in, negative ones went out. An open one carries suggestedLeaseId when a rule, the IBAN, a tenant's name or a unit's name points to a lease. Assign with assign_bank_transaction or assign_bank_transaction_as_expense. ${AMOUNTS}`,
+		method: 'GET',
+		path: '/bank-transactions',
+		scope: 'read',
+		readOnly: true,
+		input: schema({
+			status: {
+				type: 'string',
+				enum: [...bankTransactionStatuses, 'all'],
+				description: 'unmatched (default, still open), matched, ignored or all.'
+			},
+			from: { type: 'string', format: 'date', description: 'Booked on or after this day.' },
+			to: { type: 'string', format: 'date', description: 'Booked on or before this day.' },
+			limit: { type: 'integer', minimum: 1, maximum: 200, description: 'At most; default 50.' },
+			offset: {
+				type: 'integer',
+				minimum: 0,
+				description: 'How many to skip; when more is true, pass offset + limit for the next page.'
+			}
+		}),
+		async run({ db, caller }, input) {
+			const { accountId } = caller.user;
+			const status = (input.status as BankTransactionStatus | 'all' | undefined) ?? 'unmatched';
+			const [listed, leases, rules, byIban] = await Promise.all([
+				listTransactions(db, accountId, {
+					status,
+					from: (input.from as string | undefined) ?? null,
+					to: (input.to as string | undefined) ?? null,
+					limit: (input.limit as number | undefined) ?? 50,
+					offset: (input.offset as number | undefined) ?? 0
+				}),
+				listLeases(db, accountId),
+				listRules(db, accountId),
+				leaseByIban(db, accountId)
+			]);
+			const hints = leaseHints(leases);
+			return {
+				transactions: listed.rows.map((row) => ({
+					id: row.id,
+					bankAccountName: row.bankAccountName,
+					bookingDate: row.bookingDate,
+					amount: row.amount,
+					counterpartName: row.counterpartName,
+					counterpartIban: row.counterpartIban,
+					purpose: row.purpose,
+					status: row.status,
+					suggestedLeaseId:
+						row.status === 'unmatched'
+							? (suggestLease(row, { rules, leaseByIban: byIban, leases: hints })?.leaseId ?? null)
+							: null
+				})),
+				more: listed.more
+			};
+		}
+	},
+	{
 		name: 'record_payment',
 		description: `Books a payment of the tenant on the rent account (Mietkonto) of a lease, e.g. a rent transfer. A negative amount is a refund to the tenant. Check get_rent_ledger first, so a payment is not booked twice. ${AMOUNTS}`,
 		method: 'POST',
@@ -755,6 +912,146 @@ export const operations: Operation[] = [
 				notFound(what);
 			}
 			return getCostItem(db, accountId, created.id);
+		}
+	},
+	{
+		name: 'create_expense',
+		description: `Records an expense (Ausgabe) the landlord paid out, e.g. a craftsman's invoice, an insurance premium or a management fee, for a unit, a property or (with neither) the whole portfolio. Operating costs to pass on to tenants are cost items instead (create_cost_item). If the payment is among the bank transactions, use assign_bank_transaction_as_expense so it is not counted twice. ${AMOUNTS}`,
+		method: 'POST',
+		path: '/expenses',
+		scope: 'write',
+		readOnly: false,
+		input: schema(
+			{
+				date: { type: 'string', format: 'date', description: 'The day it was paid.' },
+				amount: {
+					type: 'integer',
+					minimum: 1,
+					maximum: MAX_AMOUNT,
+					description: 'In cents, gross, as paid.'
+				},
+				...expenseFields
+			},
+			['date', 'amount', 'category', 'description']
+		),
+		async run({ db, caller }, input) {
+			const description = String(input.description);
+			const created = await createExpense(db, auditContextOf(caller), {
+				date: String(input.date),
+				amount: Number(input.amount),
+				category: input.category as ExpenseCategory,
+				scope: expenseScope(input),
+				description,
+				serviceProviderId: (input.serviceProviderId as string | undefined) ?? null
+			});
+			if (!created.ok) {
+				notFound(created.reason === 'unknown-scope' ? 'Property or unit' : 'Service provider');
+			}
+			const rows = await listExpenses(db, caller.user.accountId, {
+				from: String(input.date),
+				to: String(input.date)
+			});
+			return rows.find((row) => row.id === created.id);
+		}
+	},
+	{
+		name: 'record_meter_reading',
+		description:
+			'Records a reading (Zählerstand) of a meter on a day, e.g. read off a photo or reported by a tenant. One reading per meter and day. Find the meter with list_meters; the value is in the meter’s unit of measure.',
+		method: 'POST',
+		path: '/meters/{id}/readings',
+		scope: 'write',
+		readOnly: false,
+		input: schema(
+			{
+				id: id('meter'),
+				date: { type: 'string', format: 'date', description: 'The day it was read.' },
+				value: {
+					type: 'number',
+					minimum: 0,
+					maximum: 1_000_000_000,
+					description: 'The reading, e.g. 1234.567.'
+				},
+				estimated: { type: 'boolean', description: 'An estimate, not read off the meter.' },
+				note: { type: 'string', maxLength: 200, description: 'E.g. "Foto vom Mieter".' }
+			},
+			['id', 'date', 'value']
+		),
+		async run({ db, caller }, input) {
+			const created = await createReading(db, auditContextOf(caller), String(input.id), {
+				readAt: String(input.date),
+				value: Number(input.value),
+				estimated: (input.estimated as boolean | undefined) ?? false,
+				note: (input.note as string | undefined) || null
+			});
+			if (!created.ok) {
+				if (created.reason === 'missing') notFound('Meter');
+				throw new ApiError(409, 'duplicate_date', 'The meter already has a reading on this day.');
+			}
+			return {
+				id: created.id,
+				meterId: input.id,
+				readAt: input.date,
+				value: input.value,
+				estimated: (input.estimated as boolean | undefined) ?? false
+			};
+		}
+	},
+	{
+		name: 'assign_bank_transaction',
+		description:
+			'Assigns an open bank transaction in full to one lease: as rent (target "rent", the default: a payment on the Mietkonto) or as a Kaution movement (target "deposit"). Remembers the payer for the next import, as an assignment on the page does. Split payments are assigned in the app.',
+		method: 'POST',
+		path: '/bank-transactions/{id}/assign',
+		scope: 'write',
+		readOnly: false,
+		input: schema(
+			{
+				id: id('bank transaction'),
+				leaseId: id('lease'),
+				target: {
+					type: 'string',
+					enum: ['rent', 'deposit'],
+					description: 'rent (default) or deposit.'
+				}
+			},
+			['id', 'leaseId']
+		),
+		async run({ db, caller }, input) {
+			const { accountId } = caller.user;
+			const transaction = await getTransaction(db, accountId, String(input.id));
+			if (!transaction) notFound('Bank transaction');
+			const outcome = await assignTransaction(db, auditContextOf(caller), transaction.id, {
+				target: (input.target as 'rent' | 'deposit' | undefined) ?? 'rent',
+				parts: [{ leaseId: String(input.leaseId), amount: transaction.amount }]
+			});
+			return assignmentResult(outcome, transaction.id);
+		}
+	},
+	{
+		name: 'assign_bank_transaction_as_expense',
+		description:
+			'Books an open bank transaction as an expense (Ausgabe): an outgoing one as money paid out, an incoming one as a refund that lowers the category’s costs. For a unit, a property or (with neither) the whole portfolio.',
+		method: 'POST',
+		path: '/bank-transactions/{id}/expense',
+		scope: 'write',
+		readOnly: false,
+		input: schema({ id: id('bank transaction'), ...expenseFields }, [
+			'id',
+			'category',
+			'description'
+		]),
+		async run({ db, caller }, input) {
+			const description = String(input.description);
+			const outcome = await assignExpense(db, auditContextOf(caller), String(input.id), {
+				category: input.category as ExpenseCategory,
+				scope: expenseScope(input),
+				description,
+				serviceProviderId: (input.serviceProviderId as string | undefined) ?? null
+			});
+			if (outcome === 'unknown-scope') notFound('Property or unit');
+			if (outcome === 'unknown-service-provider') notFound('Service provider');
+			return assignmentResult(outcome, String(input.id));
 		}
 	}
 ];
