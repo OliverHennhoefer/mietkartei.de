@@ -141,10 +141,10 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 
 .areas { padding: 96px 0 0; }
 .areas ul { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 48px 0 0; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--line); list-style: none; }
-.areas li { padding: 28px; background: var(--background); }
+.areas li { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; align-items: center; align-content: start; padding: 28px; background: var(--background); }
 .area-icon { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: var(--code-background); color: var(--foreground); }
-.areas h3 { margin: 16px 0 0; font-size: var(--text-xl); letter-spacing: -.02em; }
-.areas li p { margin-top: 6px; color: var(--muted); font-size: var(--text-base); line-height: 1.6; }
+.areas h3 { margin: 0; font-size: var(--text-xl); letter-spacing: -.02em; }
+.areas li p { grid-column: 1 / -1; margin-top: 12px; color: var(--muted); font-size: var(--text-base); line-height: 1.6; }
 .areas-more { margin-top: 24px !important; font-size: var(--text-base); }
 .areas-more a { font-weight: 500; text-decoration-color: var(--highlight); text-decoration-thickness: 3px; text-underline-offset: 4px; }
 .areas-more a span { margin-left: 6px; }
