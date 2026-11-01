@@ -22,7 +22,7 @@ import { formatCents } from '../money';
 import type { GermanState } from '../working-days';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
-import { chunk, chunkIds, rowsPerStatement, runBatch } from './db/batch';
+import { chunk, chunkIds, rowsPerStatement, runBatch, selectInChunks } from './db/batch';
 import {
 	leases,
 	payments,
@@ -58,59 +58,105 @@ export type ChargeSync = { inserted: number; updated: number; removed: number };
 /** A lease as the rent charges see it: its term, due day and state, and its rent history. */
 export type ChargeLease = ChargeTerm & { id: string; changes: readonly RentChange[] };
 
-/** The charge view of the given leases of the account, as stored. Three selects per 90 leases. */
+// The reads of the sync take the ids of the leases they are about, or none for every lease of the
+// account. They do not depend on each other, so each caller runs them side by side.
+
+function chargeLeaseRows(db: Database, accountId: string, leaseIds?: string[]) {
+	return db
+		.select({
+			id: leases.id,
+			startDate: leases.startDate,
+			endDate: leases.endDate,
+			ledgerStart: leases.ledgerStart,
+			rentDueDay: leases.rentDueDay,
+			state: properties.state
+		})
+		.from(leases)
+		.innerJoin(units, eq(units.id, leases.unitId))
+		.innerJoin(properties, eq(properties.id, units.propertyId))
+		.where(
+			and(eq(leases.accountId, accountId), leaseIds ? inArray(leases.id, leaseIds) : undefined)
+		);
+}
+
+/** The approved rent history of the leases. */
+function historyRows(db: Database, accountId: string, leaseIds?: string[]) {
+	return db
+		.select({
+			leaseId: rentChanges.leaseId,
+			validFrom: rentChanges.validFrom,
+			baseRent: rentChanges.baseRent,
+			operatingCostPrepayment: rentChanges.operatingCostPrepayment,
+			heatingCostPrepayment: rentChanges.heatingCostPrepayment,
+			status: rentChanges.status
+		})
+		.from(rentChanges)
+		.where(
+			and(
+				eq(rentChanges.accountId, accountId),
+				eq(rentChanges.status, 'approved'),
+				leaseIds ? inArray(rentChanges.leaseId, leaseIds) : undefined
+			)
+		);
+}
+
+/** The columns of a `rent` charge the sync compares. */
+const rentRowColumns = {
+	id: rentCharges.id,
+	leaseId: rentCharges.leaseId,
+	period: rentCharges.period,
+	dueDate: rentCharges.dueDate,
+	baseRent: rentCharges.baseRent,
+	operatingCostPrepayment: rentCharges.operatingCostPrepayment,
+	heatingCostPrepayment: rentCharges.heatingCostPrepayment,
+	amount: rentCharges.amount
+};
+
+/** The stored `rent` charges of the leases. */
+function rentRows(db: Database, accountId: string, leaseIds: string[]) {
+	return db
+		.select(rentRowColumns)
+		.from(rentCharges)
+		.where(
+			and(
+				eq(rentCharges.accountId, accountId),
+				inArray(rentCharges.leaseId, leaseIds),
+				eq(rentCharges.kind, 'rent')
+			)
+		);
+}
+
+type RentRow = Awaited<ReturnType<typeof rentRows>>[number];
+
+/** Runs a read for the leases, in chunks, or once for every lease of the account without ids. */
+function forLeases<T>(
+	leaseIds: readonly string[] | undefined,
+	query: (ids?: string[]) => Promise<T[]>
+): Promise<T[]> {
+	return leaseIds ? selectInChunks(leaseIds, query) : query();
+}
+
+/** The charge view of the leases of the account (every one without ids), as stored. */
+async function chargeView(
+	db: Database,
+	accountId: string,
+	leaseIds: readonly string[] | undefined
+): Promise<ChargeLease[]> {
+	const [leaseRows, changeRows] = await Promise.all([
+		forLeases(leaseIds, (ids) => chargeLeaseRows(db, accountId, ids)),
+		forLeases(leaseIds, (ids) => historyRows(db, accountId, ids))
+	]);
+	const changesByLease: Map<string, RentChange[]> = groupByLease(changeRows);
+	return leaseRows.map((lease) => ({ ...lease, changes: changesByLease.get(lease.id) ?? [] }));
+}
+
+/** The charge view of the given leases of the account, as stored. Two selects per 90 leases. */
 export async function loadChargeLeases(
 	db: Database,
 	accountId: string,
 	leaseIds: readonly string[]
 ): Promise<ChargeLease[]> {
-	const requested = [...new Set(leaseIds)];
-	if (requested.length === 0) return [];
-	const leaseRows = (
-		await Promise.all(
-			chunkIds(requested).map((ids) =>
-				db
-					.select({
-						id: leases.id,
-						startDate: leases.startDate,
-						endDate: leases.endDate,
-						ledgerStart: leases.ledgerStart,
-						rentDueDay: leases.rentDueDay,
-						state: properties.state
-					})
-					.from(leases)
-					.innerJoin(units, eq(units.id, leases.unitId))
-					.innerJoin(properties, eq(properties.id, units.propertyId))
-					.where(and(eq(leases.accountId, accountId), inArray(leases.id, ids)))
-			)
-		)
-	).flat();
-	if (leaseRows.length === 0) return [];
-	const changeRows = (
-		await Promise.all(
-			chunkIds(leaseRows.map((lease) => lease.id)).map((ids) =>
-				db
-					.select({
-						leaseId: rentChanges.leaseId,
-						validFrom: rentChanges.validFrom,
-						baseRent: rentChanges.baseRent,
-						operatingCostPrepayment: rentChanges.operatingCostPrepayment,
-						heatingCostPrepayment: rentChanges.heatingCostPrepayment,
-						status: rentChanges.status
-					})
-					.from(rentChanges)
-					.where(
-						and(
-							eq(rentChanges.accountId, accountId),
-							inArray(rentChanges.leaseId, ids),
-							eq(rentChanges.status, 'approved')
-						)
-					)
-			)
-		)
-	).flat();
-	const changesByLease: Map<string, RentChange[]> = groupByLease(changeRows);
-	return leaseRows.map((lease) => ({ ...lease, changes: changesByLease.get(lease.id) ?? [] }));
+	return chargeView(db, accountId, [...new Set(leaseIds)]);
 }
 
 /** The Bundesland of each unit's property, for the due dates of leases not stored yet. */
@@ -119,19 +165,17 @@ export async function unitStates(
 	accountId: string,
 	unitIds: readonly string[]
 ): Promise<Map<string, GermanState | null>> {
-	const rows = (
-		await Promise.all(
-			chunkIds([...new Set(unitIds)]).map((ids) =>
-				db
-					.select({ unitId: units.id, state: properties.state })
-					.from(units)
-					.innerJoin(properties, eq(properties.id, units.propertyId))
-					.where(and(eq(units.accountId, accountId), inArray(units.id, ids)))
-			)
-		)
-	).flat();
+	const rows = await selectInChunks([...new Set(unitIds)], (ids) =>
+		db
+			.select({ unitId: units.id, state: properties.state })
+			.from(units)
+			.innerJoin(properties, eq(properties.id, units.propertyId))
+			.where(and(eq(units.accountId, accountId), inArray(units.id, ids)))
+	);
 	return new Map(rows.map((row) => [row.unitId, row.state]));
 }
+
+type SyncOptions = { untilMonth?: IsoMonth; otherCharges?: number };
 
 /**
  * The statements that bring the `rent` charges of the given leases in line with their term and
@@ -148,42 +192,32 @@ export async function chargeSyncStatements(
 	db: Database,
 	accountId: string,
 	chargeLeases: readonly ChargeLease[],
-	{
-		untilMonth = monthOf(today()),
-		otherCharges = 0
-	}: { untilMonth?: IsoMonth; otherCharges?: number } = {}
+	options: SyncOptions = {}
 ): Promise<{ statements: Statement[]; sync: ChargeSync }> {
-	const nothing = { statements: [], sync: { inserted: 0, updated: 0, removed: 0 } };
+	const otherCharges = options.otherCharges ?? 0;
 	if (otherCharges > 0) await assertQuota(db, accountId, 'rentCharges', otherCharges);
-	if (chargeLeases.length === 0) return nothing;
-	const chargeRows = (
-		await Promise.all(
-			chunkIds(chargeLeases.map((lease) => lease.id)).map((ids) =>
-				db
-					.select({
-						id: rentCharges.id,
-						leaseId: rentCharges.leaseId,
-						period: rentCharges.period,
-						dueDate: rentCharges.dueDate,
-						baseRent: rentCharges.baseRent,
-						operatingCostPrepayment: rentCharges.operatingCostPrepayment,
-						heatingCostPrepayment: rentCharges.heatingCostPrepayment,
-						amount: rentCharges.amount
-					})
-					.from(rentCharges)
-					.where(
-						and(
-							eq(rentCharges.accountId, accountId),
-							inArray(rentCharges.leaseId, ids),
-							eq(rentCharges.kind, 'rent')
-						)
-					)
-			)
-		)
-	).flat();
+	const stored = await selectInChunks(
+		chargeLeases.map((lease) => lease.id),
+		(ids) => rentRows(db, accountId, ids)
+	);
+	return syncStatementsFrom(db, accountId, chargeLeases, stored, options);
+}
+
+/**
+ * chargeSyncStatements from the `rent` rows the caller read already (`stored`: every one of those
+ * leases; rows of other leases are ignored), so the sync needs no read of its own. The quota is only
+ * read when the sync inserts.
+ */
+async function syncStatementsFrom(
+	db: Database,
+	accountId: string,
+	chargeLeases: readonly ChargeLease[],
+	stored: readonly RentRow[],
+	{ untilMonth = monthOf(today()), otherCharges = 0 }: SyncOptions = {}
+): Promise<{ statements: Statement[]; sync: ChargeSync }> {
 	// Rent charges always have a due date; only a statement's Nachzahlung waits for one.
 	const chargesByLease = groupByLease(
-		chargeRows.map((row) => ({ ...row, dueDate: row.dueDate ?? '' }))
+		stored.map((row) => ({ ...row, dueDate: row.dueDate ?? '' }))
 	);
 
 	const inserts: (typeof rentCharges.$inferInsert)[] = [];
@@ -259,9 +293,12 @@ export async function leaseChargeStatements(
 	leaseId: string,
 	pending: Partial<Omit<ChargeLease, 'id'>> = {}
 ): Promise<Statement[]> {
-	const [lease] = await loadChargeLeases(db, accountId, [leaseId]);
+	const [[lease], stored] = await Promise.all([
+		loadChargeLeases(db, accountId, [leaseId]),
+		rentRows(db, accountId, [leaseId])
+	]);
 	if (!lease) return [];
-	return (await chargeSyncStatements(db, accountId, [{ ...lease, ...pending }])).statements;
+	return (await syncStatementsFrom(db, accountId, [{ ...lease, ...pending }], stored)).statements;
 }
 
 /**
@@ -275,8 +312,12 @@ export async function ensureCharges(
 	leaseIds: string[],
 	untilMonth: IsoMonth = monthOf(today())
 ): Promise<ChargeSync> {
-	const chargeLeases = await loadChargeLeases(db, accountId, leaseIds);
-	const { statements, sync } = await chargeSyncStatements(db, accountId, chargeLeases, {
+	const requested = [...new Set(leaseIds)];
+	const [chargeLeases, stored] = await Promise.all([
+		loadChargeLeases(db, accountId, requested),
+		selectInChunks(requested, (ids) => rentRows(db, accountId, ids))
+	]);
+	const { statements, sync } = await syncStatementsFrom(db, accountId, chargeLeases, stored, {
 		untilMonth
 	});
 	await runBatch(db, statements);
@@ -619,23 +660,34 @@ export async function listLedger(
 	leaseId: string,
 	options: { from?: IsoDate; to?: IsoDate } = {}
 ): Promise<Ledger> {
-	await ensureCharges(db, accountId, [leaseId]);
-	const [chargeRows, paymentRows, [term]] = await Promise.all([
+	const readCharges = () =>
 		db
 			.select()
 			.from(rentCharges)
-			.where(and(eq(rentCharges.accountId, accountId), eq(rentCharges.leaseId, leaseId))),
+			.where(and(eq(rentCharges.accountId, accountId), eq(rentCharges.leaseId, leaseId)));
+	// The rent charges are synced (ensureCharges) from the same reads as the ledger, and only read
+	// again when the sync changed a row.
+	const [[lease], storedCharges, paymentRows] = await Promise.all([
+		loadChargeLeases(db, accountId, [leaseId]),
+		readCharges(),
 		db
 			.select()
 			.from(payments)
-			.where(and(eq(payments.accountId, accountId), eq(payments.leaseId, leaseId))),
-		db
-			.select({ startDate: leases.startDate, ledgerStart: leases.ledgerStart })
-			.from(leases)
-			.where(and(eq(leases.accountId, accountId), eq(leases.id, leaseId)))
+			.where(and(eq(payments.accountId, accountId), eq(payments.leaseId, leaseId)))
 	]);
+	let chargeRows = storedCharges;
+	if (lease) {
+		const rent = storedCharges.filter((row) => row.kind === 'rent');
+		const { statements } = await syncStatementsFrom(db, accountId, [lease], rent);
+		if (statements.length > 0) {
+			await runBatch(db, statements);
+			chargeRows = await readCharges();
+		}
+	}
 	const chargesStart =
-		term?.ledgerStart && term.ledgerStart > term.startDate ? term.ledgerStart : term?.startDate;
+		lease?.ledgerStart && lease.ledgerStart > lease.startDate
+			? lease.ledgerStart
+			: lease?.startDate;
 	/** The day a charge stands on the ledger; see LedgerLine.date. */
 	const chargeDate = (row: (typeof chargeRows)[number]): IsoDate => {
 		if (row.kind !== 'rent') return row.dueDate ?? dayOf(row.createdAt);
@@ -750,28 +802,41 @@ export async function listBalances(
 	options: { untilMonth?: IsoMonth; asOf?: IsoDate; leaseIds?: readonly string[] } = {}
 ): Promise<LeaseBalance[]> {
 	const asOf = options.asOf ?? today();
-	const leaseRows = await db
-		.select({ id: leases.id })
-		.from(leases)
-		.where(eq(leases.accountId, accountId));
-	const only = options.leaseIds && new Set(options.leaseIds);
-	const leaseIds = leaseRows.map((row) => row.id).filter((id) => !only || only.has(id));
-	await ensureCharges(db, accountId, leaseIds, options.untilMonth);
-
-	const [chargeRows, paymentRows] = await Promise.all([
+	const requested = options.leaseIds && [...new Set(options.leaseIds)];
+	const chargesOf = (ids?: string[]) =>
 		db
-			.select({
-				leaseId: rentCharges.leaseId,
-				dueDate: rentCharges.dueDate,
-				amount: rentCharges.amount
-			})
+			.select({ ...rentRowColumns, kind: rentCharges.kind })
 			.from(rentCharges)
-			.where(eq(rentCharges.accountId, accountId)),
-		db
-			.select({ leaseId: payments.leaseId, date: payments.date, amount: payments.amount })
-			.from(payments)
-			.where(eq(payments.accountId, accountId))
+			.where(
+				and(
+					eq(rentCharges.accountId, accountId),
+					ids ? inArray(rentCharges.leaseId, ids) : undefined
+				)
+			);
+	// The leases, their charges and payments in one round. The rent charges are synced
+	// (ensureCharges) from these rows and only read again when the sync changed a row.
+	const [chargeLeases, storedCharges, paymentRows] = await Promise.all([
+		chargeView(db, accountId, requested),
+		forLeases(requested, chargesOf),
+		forLeases(requested, (ids) =>
+			db
+				.select({ leaseId: payments.leaseId, date: payments.date, amount: payments.amount })
+				.from(payments)
+				.where(
+					and(eq(payments.accountId, accountId), ids ? inArray(payments.leaseId, ids) : undefined)
+				)
+		)
 	]);
+	const rent = storedCharges.filter((row) => row.kind === 'rent');
+	const { statements } = await syncStatementsFrom(db, accountId, chargeLeases, rent, {
+		untilMonth: options.untilMonth
+	});
+	let chargeRows = storedCharges;
+	if (statements.length > 0) {
+		await runBatch(db, statements);
+		chargeRows = await forLeases(requested, chargesOf);
+	}
+	const leaseIds = chargeLeases.map((lease) => lease.id);
 
 	const chargesByLease = groupByLease(chargeRows);
 	const paymentsByLease = groupByLease(paymentRows);
