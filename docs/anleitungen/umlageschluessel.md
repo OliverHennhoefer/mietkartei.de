@@ -24,6 +24,8 @@ Unter **Betriebskosten → Umlageschlüssel** sind diese Schlüssel vorbelegt. S
 
 Beim Schlüssel **Personen** zählen die Personen eines Mietvertrags einmal, auch wenn er einen Stellplatz mit der Wohnung vermietet. Ein Stellplatz allein trägt nur dann Personentage, wenn er einen eigenen Mietvertrag hat.
 
+Bei **Wohnfläche** und **Einheiten** zählen Stellplätze nicht mit, solange im Abrechnungskreis auch Wohnungen oder Gewerbe liegen. Ein Mietvertrag über Wohnung und Stellplatz hat dort also einen Anteil, und ein leerer Stellplatz kostet dich nichts. Kosten nur für die Stellplätze, etwa die Wartung des Garagentors, verteilst du über einen Abrechnungskreis, in dem nur die Stellplätze liegen. Dort zählt jeder Stellplatz als Einheit.
+
 Den Verbrauchsanteil darfst du nach Heizkostenverordnung zwischen 50 und 70 Prozent wählen. Liegt er außerhalb, weist der Entwurf der Abrechnung darauf hin.
 
 Hat eine Einheit im Zeitraum des Belegs den Mieter gewechselt oder stand sie leer, fragt der Beleg beim Schlüssel **Beträge je Einheit** die Beträge je Mietvertrag ab, so wie sie der Messdienst nach der Zwischenablesung ausweist (§ 9b Heizkostenverordnung). Was auf den Leerstand entfällt, trägst du nicht ein; es bleibt bei dir. Gibt es keine Zwischenablesung, trägst du stattdessen den Betrag der ganzen Einheit ein; er wird dann nach Tagen auf die Mietverträge und den Leerstand verteilt.

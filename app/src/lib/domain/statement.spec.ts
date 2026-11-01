@@ -1757,6 +1757,83 @@ describe('computeStatement edge cases', () => {
 		expect(muell.vacancyShare).toBe(4461);
 	});
 
+	describe('a parking space next to the flats', () => {
+		const withParking = (floorArea: number | null, leaseId?: string) => {
+			const input = scenario();
+			input.units = [...input.units, { id: 'sp', name: 'Stellplatz', kind: 'parking', floorArea }];
+			input.leases = input.leases.map((entry) =>
+				entry.id === leaseId ? { ...entry, unitIds: [...entry.unitIds, 'sp'] } : entry
+			);
+			return input;
+		};
+		const line = (input: StatementInput, leaseId: string, itemId: string) =>
+			computeStatement(input, options)
+				.leases.find((entry) => entry.leaseId === leaseId)!
+				.lines.find((entry) => entry.itemId === itemId)!;
+		const propertyItem = (input: StatementInput, itemId: string) =>
+			computeStatement(input, options).property.items.find((entry) => entry.itemId === itemId)!;
+
+		it('counts a lease once under the units key when it rents the parking space with the flat', () => {
+			// Hausmeister 900 € over the three flats: 300 € for the EG, as without the parking space,
+			// not 450 € for "1 von 4 Einheiten" twice.
+			expect(line(withParking(null, 'l-eg'), 'l-eg', 'i-hausmeister')).toMatchObject({
+				keyTotal: '3 Einheiten',
+				share: '1 von 3 Einheiten · 365 von 365 Tagen',
+				amount: line(scenario(), 'l-eg', 'i-hausmeister').amount
+			});
+		});
+
+		it('leaves the landlord no units share for a vacant parking space', () => {
+			// Empty all year: no fourth Einheit whose 225 € the landlord would bear as vacancy.
+			expect(propertyItem(withParking(null), 'i-hausmeister').vacancyShare).toBe(
+				propertyItem(scenario(), 'i-hausmeister').vacancyShare
+			);
+		});
+
+		it('leaves the area of a garage out of the Wohnfläche and the CO₂ tier', () => {
+			// With its 18 m² the house would have 202,5 m²: the EG's Grundsteuer would fall below
+			// 72,5 of 184,5 m², and 5.025 kg / 202,5 m² = 24,8 kg/m² would lower the landlord's CO₂
+			// share from 40 % to 30 %.
+			const input = withParking(18, 'l-eg');
+			expect(line(input, 'l-eg', 'i-grundsteuer')).toMatchObject({
+				keyTotal: '184,5 m²',
+				share: '72,5 m² von 184,5 m² · 365 von 365 Tagen',
+				amount: line(scenario(), 'l-eg', 'i-grundsteuer').amount
+			});
+			expect(propertyItem(input, 'i-heizung').co2).toMatchObject({
+				area: 184.5,
+				landlordPercent: 40,
+				landlordAmount: 12000
+			});
+		});
+
+		it('counts parking spaces in a circle of parking spaces alone', () => {
+			const input = scenario();
+			input.units = [
+				...input.units,
+				{ id: 'sp1', name: 'Stellplatz 1', kind: 'parking', floorArea: null },
+				{ id: 'sp2', name: 'Stellplatz 2', kind: 'parking', floorArea: null }
+			];
+			input.circles = [{ id: 'c-sp', name: 'Tiefgarage', unitIds: ['sp1', 'sp2'] }];
+			input.items = [
+				...input.items,
+				item('i-tor', 'Wartung Garagentor', 'c-hausmeister', 'k-units', 20000, {
+					billingCircleId: 'c-sp'
+				})
+			];
+			input.leases = input.leases.map((entry) =>
+				entry.id === 'l-eg' ? { ...entry, unitIds: [...entry.unitIds, 'sp1'] } : entry
+			);
+			// 200 € over the two parking spaces: 100 € for the EG's, 100 € vacancy for the other.
+			expect(line(input, 'l-eg', 'i-tor')).toMatchObject({
+				keyTotal: '2 Einheiten',
+				share: '1 von 2 Einheiten · 365 von 365 Tagen',
+				amount: 10000
+			});
+			expect(propertyItem(input, 'i-tor').vacancyShare).toBe(10000);
+		});
+	});
+
 	it('keeps the zero consumption of a flat that bears the area part of a mixed key', () => {
 		const input = scenario();
 		input.meters = input.meters.map((entry) =>
