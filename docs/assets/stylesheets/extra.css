@@ -89,27 +89,6 @@ body[data-md-color-scheme="slate"][data-md-color-primary] {
   gap: 12px;
 }
 
-/* The website's one page in the header, as in website/_header.html. */
-.mk-nav-link {
-  padding: 8px 4px;
-  color: var(--md-default-fg-color);
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-  text-underline-offset: 6px;
-  text-decoration-thickness: 3px;
-  text-decoration-color: #f5ff00;
-}
-
-.mk-nav-link:hover {
-  color: var(--md-default-fg-color);
-  text-decoration-line: underline;
-}
-
-.mk-nav-short {
-  display: none;
-}
-
 .mk-github {
   display: inline-flex;
   padding: 8px;
@@ -237,24 +216,6 @@ body[data-md-color-scheme="slate"][data-md-color-primary] {
 
   .mk-brand img {
     height: 44px;
-  }
-
-  .mk-nav-long {
-    display: none;
-  }
-
-  .mk-nav-short {
-    display: inline;
-  }
-
-  .mk-nav-link {
-    padding-inline: 0;
-  }
-}
-
-@media (max-width: 480px) {
-  .mk-github {
-    display: none;
   }
 
   .mk-footer {
