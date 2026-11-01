@@ -1672,6 +1672,91 @@ describe('computeStatement edge cases', () => {
 		]);
 	});
 
+	it('counts the persons of a lease once when it rents a parking space with the flat', () => {
+		const persons = (input: StatementInput) =>
+			computeStatement(input, options)
+				.leases.find((entry) => entry.leaseId === 'l-eg')!
+				.lines.find((line) => line.keyKind === 'persons')!;
+		const input = scenario();
+		input.units = [
+			...input.units,
+			{ id: 'sp', name: 'Stellplatz', kind: 'parking', floorArea: null }
+		];
+		input.leases = input.leases.map((entry) =>
+			entry.id === 'l-eg' ? { ...entry, unitIds: [...entry.unitIds, 'sp'] } : entry
+		);
+		// The two persons live in the flat: 730 of 1.641 person-days as without the parking space,
+		// not 1.460 of 2.371 with their days counted again for the parking space.
+		expect(persons(input)).toMatchObject({
+			keyTotal: '1.641 Personentage',
+			share: '730 von 1.641 Personentagen',
+			amount: persons(scenario()).amount
+		});
+	});
+
+	it('shares a parking space by the persons only of the leases that live there', () => {
+		const input = scenario();
+		input.units = [
+			...input.units,
+			{ id: 'sp', name: 'Stellplatz', kind: 'parking', floorArea: null }
+		];
+		// Lease A of the OG rents the parking space with the flat until 30 June; from July a
+		// tenant of the next house rents it alone, its one person counted here.
+		input.leases = [
+			...input.leases.map((entry) =>
+				entry.id === 'l-og-a' ? { ...entry, unitIds: [...entry.unitIds, 'sp'] } : entry
+			),
+			lease(
+				'l-sp',
+				['sp'],
+				{ start: '2025-07-01', end: null },
+				1,
+				{ operating: 1000, heating: 0, months: months(7, 12) },
+				{ salutation: 'Herr', firstName: 'Paul', lastName: 'Park' }
+			)
+		];
+		const result = computeStatement(input, options);
+		const muell = (leaseId: string) =>
+			result.leases
+				.find((entry) => entry.leaseId === leaseId)!
+				.lines.find((line) => line.keyKind === 'persons')!;
+		// Person-days: EG 730, OG 546, DG 365, Stellplatz 184 (Park only; A's days are the OG's):
+		// 1.825. Stellplatz 600 € × 184 / 1.825 = 60,49 €, all of it Park's.
+		expect(muell('l-sp')).toMatchObject({
+			keyTotal: '1.825 Personentage',
+			share: '184 von 1.825 Personentagen · davon 184 Personentage',
+			amount: 6049
+		});
+		// OG 600 € × 546 / 1.825 = 179,51 € (with the remainder cent); A 362 of 546 = 119,02 €.
+		expect(muell('l-og-a')).toMatchObject({
+			share: '546 von 1.825 Personentagen · davon 362 Personentage',
+			amount: 11902
+		});
+	});
+
+	it('counts no persons for a vacant parking space', () => {
+		const input = scenario();
+		input.units = [
+			...input.units,
+			{ id: 'sp', name: 'Stellplatz', kind: 'parking', floorArea: null }
+		];
+		// Let with the DG flat until 31 August, then empty like the flat: only the flat counts its
+		// vacancy with one person, as "Personen bei Leerstand" says.
+		input.leases = input.leases.map((entry) =>
+			entry.id === 'l-dg' ? { ...entry, unitIds: [...entry.unitIds, 'sp'] } : entry
+		);
+		const result = computeStatement(input, options);
+		const persons = (leaseId: string) =>
+			result.leases
+				.find((entry) => entry.leaseId === leaseId)!
+				.lines.find((line) => line.keyKind === 'persons')!;
+		expect(persons('l-eg').share).toBe('730 von 1.641 Personentagen');
+		expect(persons('l-dg').share).toBe('365 von 1.641 Personentagen · davon 243 Personentage');
+		// Müll 600 € × 122 / 1.641 = 44,61 € of the DG's vacancy, nothing for the parking space.
+		const muell = result.property.items.find((entry) => entry.itemId === 'i-muell')!;
+		expect(muell.vacancyShare).toBe(4461);
+	});
+
 	it('keeps the zero consumption of a flat that bears the area part of a mixed key', () => {
 		const input = scenario();
 		input.meters = input.meters.map((entry) =>
