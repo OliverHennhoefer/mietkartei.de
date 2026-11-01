@@ -12,7 +12,6 @@ import { baseRates, publicDataFetches } from './db/schema';
 // a page needs it, at most every REFRESH_AFTER_MS while the Bundesbank has not published it yet.
 // The Bundesbank asks to be named as the source, so the pages that show the rate do.
 
-export const BASE_RATE_SERIES = 'BBIN1.M.DE.BBK.BBKBAS2.EUR.ME';
 const FETCH_ID = 'bundesbank-base-rate';
 const BUNDESBANK_URL =
 	'https://api.statistiken.bundesbank.de/rest/data/BBIN1/M.DE.BBK.BBKBAS2.EUR.ME';

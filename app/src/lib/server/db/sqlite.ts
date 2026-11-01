@@ -5,7 +5,6 @@ import { mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { DATABASE_PATH } from '$app/env/private';
 import type { Database } from './index';
-import * as schema from './schema';
 
 let database: Database | undefined;
 
@@ -24,7 +23,7 @@ export function createSqliteDatabase(path: string, migrationsFolder = 'drizzle')
 	client.pragma('journal_mode = WAL');
 	client.pragma('foreign_keys = ON');
 	if (path !== ':memory:') backUpBeforeMigrating(client, path, migrationsFolder);
-	const db = drizzle(client, { schema });
+	const db = drizzle(client);
 	migrate(db, { migrationsFolder });
 	return db;
 }
