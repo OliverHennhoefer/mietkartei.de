@@ -1,7 +1,7 @@
 import { and, asc, count, eq, getTableColumns, inArray, ne } from 'drizzle-orm';
 import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
-import { chunk, chunkIds, rowsPerStatement, runBatch } from '../db/batch';
+import { chunk, rowsPerStatement, runBatch, selectInChunks } from '../db/batch';
 import {
 	allocationKeyShares,
 	allocationKeys,
@@ -231,21 +231,20 @@ export async function replaceKeyShares(
 	const rows = shares.filter((share) => share.share > 0);
 	const unitIds = [...new Set(rows.map((share) => share.unitId))];
 	if (unitIds.length !== rows.length) return 'unknown-unit';
-	let own = 0;
-	for (const ids of chunkIds(unitIds)) {
-		const rows = await db
+	const { propertyId } = key;
+	const own = await selectInChunks(unitIds, (ids) =>
+		db
 			.select({ id: units.id })
 			.from(units)
 			.where(
 				and(
 					eq(units.accountId, accountId),
-					eq(units.propertyId, key.propertyId),
+					eq(units.propertyId, propertyId),
 					inArray(units.id, ids)
 				)
-			);
-		own += rows.length;
-	}
-	if (own !== unitIds.length) return 'unknown-unit';
+			)
+	);
+	if (own.length !== unitIds.length) return 'unknown-unit';
 	await runBatch(db, [
 		db.delete(allocationKeyShares).where(eq(allocationKeyShares.keyId, keyId)),
 		...chunk(rows, rowsPerStatement(allocationKeyShares)).map((group) =>

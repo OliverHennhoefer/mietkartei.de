@@ -7,7 +7,7 @@ import type { ExpenseAssignmentInput } from '../../forms/expenses';
 import { formatCents } from '../../money';
 import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
-import { chunkIds, runBatch } from '../db/batch';
+import { runBatch, selectInChunks } from '../db/batch';
 import {
 	bankAccounts,
 	bankTransactions,
@@ -109,13 +109,51 @@ export type Assignment =
 
 /**
  * The payments, deposit movements and expenses of the given transactions: three queries per 90
- * ids and two for the expenses' labels.
+ * ids and two for the expenses' labels, all side by side.
  */
 export async function listAssignments(
 	db: Database,
 	accountId: string,
 	transactionIds: readonly string[]
 ): Promise<Map<string, Assignment[]>> {
+	const ids = [...new Set(transactionIds)];
+	const [label, paymentRows, depositRows, expenseRows] = await Promise.all([
+		scopeLabels(db, accountId),
+		selectInChunks(ids, (group) =>
+			db
+				.select({
+					id: payments.id,
+					leaseId: payments.leaseId,
+					amount: payments.amount,
+					bankTransactionId: payments.bankTransactionId
+				})
+				.from(payments)
+				.where(and(eq(payments.accountId, accountId), inArray(payments.bankTransactionId, group)))
+				.orderBy(asc(payments.createdAt))
+		),
+		selectInChunks(ids, (group) =>
+			db
+				.select({
+					id: depositTransactions.id,
+					leaseId: depositTransactions.leaseId,
+					amount: depositTransactions.amount,
+					bankTransactionId: depositTransactions.bankTransactionId
+				})
+				.from(depositTransactions)
+				.where(
+					and(
+						eq(depositTransactions.accountId, accountId),
+						inArray(depositTransactions.bankTransactionId, group)
+					)
+				)
+		),
+		selectInChunks(ids, (group) =>
+			db
+				.select()
+				.from(expenses)
+				.where(and(eq(expenses.accountId, accountId), inArray(expenses.bankTransactionId, group)))
+		)
+	]);
 	const result = new Map<string, Assignment[]>();
 	const add = (transactionId: string | null, assignment: Assignment) => {
 		if (!transactionId) return;
@@ -123,52 +161,17 @@ export async function listAssignments(
 		if (list) list.push(assignment);
 		else result.set(transactionId, [assignment]);
 	};
-	const label = await scopeLabels(db, accountId);
-	await Promise.all(
-		chunkIds([...new Set(transactionIds)]).map(async (ids) => {
-			const [paymentRows, depositRows, expenseRows] = await Promise.all([
-				db
-					.select({
-						id: payments.id,
-						leaseId: payments.leaseId,
-						amount: payments.amount,
-						bankTransactionId: payments.bankTransactionId
-					})
-					.from(payments)
-					.where(and(eq(payments.accountId, accountId), inArray(payments.bankTransactionId, ids)))
-					.orderBy(asc(payments.createdAt)),
-				db
-					.select({
-						id: depositTransactions.id,
-						leaseId: depositTransactions.leaseId,
-						amount: depositTransactions.amount,
-						bankTransactionId: depositTransactions.bankTransactionId
-					})
-					.from(depositTransactions)
-					.where(
-						and(
-							eq(depositTransactions.accountId, accountId),
-							inArray(depositTransactions.bankTransactionId, ids)
-						)
-					),
-				db
-					.select()
-					.from(expenses)
-					.where(and(eq(expenses.accountId, accountId), inArray(expenses.bankTransactionId, ids)))
-			]);
-			for (const row of paymentRows) add(row.bankTransactionId, { kind: 'rent', ...row });
-			for (const row of depositRows) add(row.bankTransactionId, { kind: 'deposit', ...row });
-			for (const row of expenseRows) {
-				add(row.bankTransactionId, {
-					kind: 'expense',
-					id: row.id,
-					amount: row.amount,
-					category: row.category,
-					scope: label(row)
-				});
-			}
-		})
-	);
+	for (const row of paymentRows) add(row.bankTransactionId, { kind: 'rent', ...row });
+	for (const row of depositRows) add(row.bankTransactionId, { kind: 'deposit', ...row });
+	for (const row of expenseRows) {
+		add(row.bankTransactionId, {
+			kind: 'expense',
+			id: row.id,
+			amount: row.amount,
+			category: row.category,
+			scope: label(row)
+		});
+	}
 	return result;
 }
 

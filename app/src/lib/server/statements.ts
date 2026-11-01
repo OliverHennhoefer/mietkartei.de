@@ -34,7 +34,7 @@ import { formatCents } from '../money';
 import { landlordAddress } from './accounts';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
-import { chunk, chunkIds, rowsPerStatement, runBatch } from './db/batch';
+import { chunk, rowsPerStatement, runBatch, selectInChunks } from './db/batch';
 import {
 	allocationKeyShares,
 	allocationKeys,
@@ -84,12 +84,6 @@ export type StatementRow = typeof operatingCostStatements.$inferSelect;
 function claimDueDate(lease: LeaseStatement, deliveredOn: IsoDate | null): IsoDate | null {
 	if ((lease.posted ?? lease.balance) <= 0) return lease.dueDate;
 	return deliveredOn ? addDays(deliveredOn, DUE_DAYS) : null;
-}
-
-/** Runs one query per chunk of ids and concatenates the rows; no query at all without ids. */
-async function chunked<T, I>(ids: readonly I[], query: (ids: I[]) => Promise<T[]>): Promise<T[]> {
-	const groups = await Promise.all(chunkIds(ids).map((group) => query(group)));
-	return groups.flat();
 }
 
 /** The horizon for the rent charges: the period end, but never beyond the current month. */
@@ -182,19 +176,19 @@ export async function loadStatementInput(
 
 	// Leases whose main unit is in the property, plus leases renting one of its units as an extra.
 	const [mainLeases, extraLinks, unitAmountRows, circleUnitRows, readingRows] = await Promise.all([
-		chunked(unitIds, (ids) =>
+		selectInChunks(unitIds, (ids) =>
 			db
 				.select()
 				.from(leases)
 				.where(and(eq(leases.accountId, accountId), inArray(leases.unitId, ids)))
 		),
-		chunked(unitIds, (ids) =>
+		selectInChunks(unitIds, (ids) =>
 			db
 				.select()
 				.from(leaseUnits)
 				.where(and(eq(leaseUnits.accountId, accountId), inArray(leaseUnits.unitId, ids)))
 		),
-		chunked(
+		selectInChunks(
 			itemRows.map((item) => item.id),
 			(ids) =>
 				db
@@ -207,7 +201,7 @@ export async function loadStatementInput(
 						)
 					)
 		),
-		chunked(
+		selectInChunks(
 			circleRows.map((circle) => circle.id),
 			(ids) =>
 				db
@@ -220,7 +214,7 @@ export async function loadStatementInput(
 						)
 					)
 		),
-		chunked(
+		selectInChunks(
 			meterRows.map((meter) => meter.id),
 			(ids) =>
 				db
@@ -234,7 +228,7 @@ export async function loadStatementInput(
 	const extraOnlyIds = [...new Set(extraLinks.map((link) => link.leaseId))].filter(
 		(id) => !mainIds.has(id)
 	);
-	const extraLeases = await chunked(extraOnlyIds, (ids) =>
+	const extraLeases = await selectInChunks(extraOnlyIds, (ids) =>
 		db
 			.select()
 			.from(leases)
@@ -249,7 +243,7 @@ export async function loadStatementInput(
 	// The sync runs alongside the reads it does not change; the charges are read once it is done.
 	const [, tenantRows, personRows, changeRows, paymentRows] = await Promise.all([
 		ensureCharges(db, accountId, leaseIds, chargeHorizon(period)),
-		chunked(leaseIds, (ids) =>
+		selectInChunks(leaseIds, (ids) =>
 			db
 				.select({
 					leaseId: leaseTenants.leaseId,
@@ -262,13 +256,13 @@ export async function loadStatementInput(
 				.where(and(eq(tenants.accountId, accountId), inArray(leaseTenants.leaseId, ids)))
 				.orderBy(asc(tenants.lastName), asc(tenants.firstName))
 		),
-		chunked(leaseIds, (ids) =>
+		selectInChunks(leaseIds, (ids) =>
 			db
 				.select()
 				.from(leasePersons)
 				.where(and(eq(leasePersons.accountId, accountId), inArray(leasePersons.leaseId, ids)))
 		),
-		chunked(leaseIds, (ids) =>
+		selectInChunks(leaseIds, (ids) =>
 			db
 				.select()
 				.from(rentChanges)
@@ -280,7 +274,7 @@ export async function loadStatementInput(
 					)
 				)
 		),
-		chunked(leaseIds, (ids) =>
+		selectInChunks(leaseIds, (ids) =>
 			db
 				.select({ leaseId: payments.leaseId, date: payments.date, amount: payments.amount })
 				.from(payments)
@@ -288,7 +282,7 @@ export async function loadStatementInput(
 		)
 	]);
 	// The whole rent account of each lease: payments settle the oldest charges first.
-	const chargeRows = await chunked(leaseIds, (ids) =>
+	const chargeRows = await selectInChunks(leaseIds, (ids) =>
 		db
 			.select()
 			.from(rentCharges)

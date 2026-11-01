@@ -42,7 +42,10 @@ export function rowsPerStatement(table: Table): number {
 	return Math.max(1, Math.floor(100 / Object.keys(getTableColumns(table)).length));
 }
 
-/** Splits a list of ids for `inArray`, which binds one parameter per id. */
+/**
+ * Splits a list of ids for `inArray`, which binds one parameter per id: for the statements of a
+ * batch. Reads go through selectInChunks.
+ */
 export function chunkIds<T>(ids: readonly T[]): T[][] {
 	return chunk(ids, 90);
 }

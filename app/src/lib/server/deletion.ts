@@ -4,7 +4,7 @@ import { personName, pluralize } from '../format';
 import type { SQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
-import { chunkIds, runBatch } from './db/batch';
+import { runBatch, selectInChunks } from './db/batch';
 import {
 	allocationKeyShares,
 	costItemUnitAmounts,
@@ -90,8 +90,8 @@ async function orphanedDocuments(
 ): Promise<string[]> {
 	// One query per kind of link and group of ids, all side by side.
 	const groups = await Promise.all(
-		(Object.keys(documentLinkColumns) as (keyof DocumentLinkIds)[]).flatMap((key) =>
-			chunkIds(deleted[key] ?? []).map((ids) =>
+		(Object.keys(documentLinkColumns) as (keyof DocumentLinkIds)[]).map((key) =>
+			selectInChunks(deleted[key] ?? [], (ids) =>
 				db
 					.select()
 					.from(documents)
@@ -142,10 +142,13 @@ async function countIn(
 	ids: string[],
 	extra?: SQL
 ): Promise<number> {
-	let total = 0;
-	for (const group of chunkIds(ids))
-		total += await countRows(db, table, and(inArray(column, group), extra));
-	return total;
+	const counts = await selectInChunks(ids, (group) =>
+		db
+			.select({ value: count() })
+			.from(table)
+			.where(and(inArray(column, group), extra))
+	);
+	return counts.reduce((total, row) => total + row.value, 0);
 }
 
 function leaseLink(row: {
@@ -171,20 +174,21 @@ async function leasesOnUnits(
 	accountId: string,
 	unitIds: string[]
 ): Promise<DeletionLink[]> {
-	const leaseIds = new Set<string>();
-	for (const ids of chunkIds(unitIds)) {
-		const [main, extra] = await Promise.all([
+	const [main, extra] = await Promise.all([
+		selectInChunks(unitIds, (ids) =>
 			db
 				.select({ id: leases.id })
 				.from(leases)
-				.where(and(eq(leases.accountId, accountId), inArray(leases.unitId, ids))),
+				.where(and(eq(leases.accountId, accountId), inArray(leases.unitId, ids)))
+		),
+		selectInChunks(unitIds, (ids) =>
 			db
 				.select({ id: leaseUnits.leaseId })
 				.from(leaseUnits)
 				.where(and(eq(leaseUnits.accountId, accountId), inArray(leaseUnits.unitId, ids)))
-		]);
-		for (const row of [...main, ...extra]) leaseIds.add(row.id);
-	}
+		)
+	]);
+	const leaseIds = new Set([...main, ...extra].map((row) => row.id));
 	return leaseLinks(db, accountId, [...leaseIds]);
 }
 
@@ -199,43 +203,37 @@ export async function leaseLinks(
 
 /** The leases with their unit and property names, latest start first. */
 async function leaseRows(db: Database, accountId: string, leaseIds: string[]) {
-	const groups = chunkIds(leaseIds);
 	// The leases and their tenants are read side by side, one query per table and group.
-	const [rowGroups, tenantGroups] = await Promise.all([
-		Promise.all(
-			groups.map((ids) =>
-				db
-					.select({
-						id: leases.id,
-						unitName: units.name,
-						propertyName: properties.name,
-						startDate: leases.startDate,
-						endDate: leases.endDate
-					})
-					.from(leases)
-					.innerJoin(units, eq(units.id, leases.unitId))
-					.innerJoin(properties, eq(properties.id, units.propertyId))
-					.where(and(eq(leases.accountId, accountId), inArray(leases.id, ids)))
-			)
+	const [rows, tenantRows] = await Promise.all([
+		selectInChunks(leaseIds, (ids) =>
+			db
+				.select({
+					id: leases.id,
+					unitName: units.name,
+					propertyName: properties.name,
+					startDate: leases.startDate,
+					endDate: leases.endDate
+				})
+				.from(leases)
+				.innerJoin(units, eq(units.id, leases.unitId))
+				.innerJoin(properties, eq(properties.id, units.propertyId))
+				.where(and(eq(leases.accountId, accountId), inArray(leases.id, ids)))
 		),
-		Promise.all(
-			groups.map((ids) =>
-				db
-					.select({
-						leaseId: leaseTenants.leaseId,
-						firstName: tenants.firstName,
-						lastName: tenants.lastName
-					})
-					.from(leaseTenants)
-					.innerJoin(tenants, eq(tenants.id, leaseTenants.tenantId))
-					.where(and(eq(tenants.accountId, accountId), inArray(leaseTenants.leaseId, ids)))
-					.orderBy(asc(tenants.lastName), asc(tenants.firstName))
-			)
+		selectInChunks(leaseIds, (ids) =>
+			db
+				.select({
+					leaseId: leaseTenants.leaseId,
+					firstName: tenants.firstName,
+					lastName: tenants.lastName
+				})
+				.from(leaseTenants)
+				.innerJoin(tenants, eq(tenants.id, leaseTenants.tenantId))
+				.where(and(eq(tenants.accountId, accountId), inArray(leaseTenants.leaseId, ids)))
+				.orderBy(asc(tenants.lastName), asc(tenants.firstName))
 		)
 	]);
-	const rows = rowGroups.flat();
 	const names = new Map<string, string[]>();
-	for (const row of tenantGroups.flat()) {
+	for (const row of tenantRows) {
 		names.set(row.leaseId, [...(names.get(row.leaseId) ?? []), personName(row)]);
 	}
 	rows.sort((a, b) => b.startDate.localeCompare(a.startDate));

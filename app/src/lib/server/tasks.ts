@@ -18,7 +18,7 @@ import { addMonths, formatDate, today as todayInBerlin, type IsoDate } from '../
 import { scopeLabels } from './expenses';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
-import { chunkIds, runBatch } from './db/batch';
+import { chunkIds, runBatch, selectInChunks } from './db/batch';
 import {
 	serviceProviders,
 	expenses,
@@ -275,22 +275,20 @@ export async function taskExpenses(
 async function expenseLinks(db: Database, accountId: string, taskId: string, expenseIds: string[]) {
 	const ids = [...new Set(expenseIds)];
 	// In groups, as D1 binds at most 100 parameters to a statement.
-	const groups = chunkIds(ids);
 	const free = (group: string[]) =>
 		and(
 			eq(expenses.accountId, accountId),
 			inArray(expenses.id, group),
 			or(isNull(expenses.taskId), eq(expenses.taskId, taskId))
 		);
-	let found = 0;
-	for (const group of groups) {
-		found += (await db.select({ id: expenses.id }).from(expenses).where(free(group))).length;
-	}
-	if (found !== ids.length) return undefined;
+	const found = await selectInChunks(ids, (group) =>
+		db.select({ id: expenses.id }).from(expenses).where(free(group))
+	);
+	if (found.length !== ids.length) return undefined;
 	const ofTask = and(eq(expenses.accountId, accountId), eq(expenses.taskId, taskId));
 	return [
 		db.update(expenses).set({ taskId: null }).where(ofTask),
-		...groups.map((group) => db.update(expenses).set({ taskId }).where(free(group)))
+		...chunkIds(ids).map((group) => db.update(expenses).set({ taskId }).where(free(group)))
 	];
 }
 

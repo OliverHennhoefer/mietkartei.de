@@ -5,7 +5,7 @@ import { leaseTenants, leaseUnits, leases, properties, tenants, units } from './
 import type { PropertyInput, UnitInput } from '../validation';
 import type { AuditContext } from './audit';
 import { auditEntry } from './audit';
-import { chunkIds, runBatch } from './db/batch';
+import { runBatch, selectInChunks } from './db/batch';
 import { assertQuota } from './quotas';
 
 // All queries take the account explicitly, so data of one account can never leak into another.
@@ -150,9 +150,8 @@ async function tenantsOfLeases(
 	leaseIds: string[],
 	date: string
 ): Promise<Map<string, Tenant[]>> {
-	const byLease = new Map<string, Tenant[]>(leaseIds.map((id) => [id, []]));
-	for (const ids of chunkIds(leaseIds)) {
-		const rows = await db
+	const rows = await selectInChunks(leaseIds, (ids) =>
+		db
 			.select({
 				leaseId: leaseTenants.leaseId,
 				tenant: tenants,
@@ -162,10 +161,11 @@ async function tenantsOfLeases(
 			.from(leaseTenants)
 			.innerJoin(tenants, eq(leaseTenants.tenantId, tenants.id))
 			.where(and(eq(tenants.accountId, accountId), inArray(leaseTenants.leaseId, ids)))
-			.orderBy(asc(tenants.lastName), asc(tenants.firstName));
-		// The parties on the day: a co-tenant who left no longer occupies the unit.
-		for (const row of rows) if (isPartyOn(row, date)) byLease.get(row.leaseId)?.push(row.tenant);
-	}
+			.orderBy(asc(tenants.lastName), asc(tenants.firstName))
+	);
+	const byLease = new Map<string, Tenant[]>(leaseIds.map((id) => [id, []]));
+	// The parties on the day: a co-tenant who left no longer occupies the unit.
+	for (const row of rows) if (isPartyOn(row, date)) byLease.get(row.leaseId)?.push(row.tenant);
 	return byLease;
 }
 

@@ -13,7 +13,7 @@ import {
 } from 'drizzle-orm';
 import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
-import { chunk, chunkIds, rowsPerStatement, runBatch } from '../db/batch';
+import { chunk, rowsPerStatement, runBatch, selectInChunks } from '../db/batch';
 import {
 	allocationKeys,
 	billingCircles,
@@ -127,9 +127,8 @@ async function receiptsOf(
 	accountId: string,
 	itemIds: string[]
 ): Promise<Map<string, Receipt[]>> {
-	const byItem = new Map<string, Receipt[]>();
-	for (const ids of chunkIds(itemIds)) {
-		const rows = await db
+	const rows = await selectInChunks(itemIds, (ids) =>
+		db
 			.select({
 				id: documents.id,
 				name: documents.name,
@@ -138,14 +137,15 @@ async function receiptsOf(
 			})
 			.from(documents)
 			.where(and(eq(documents.accountId, accountId), inArray(documents.costItemId, ids)))
-			.orderBy(asc(documents.createdAt), asc(documents.name));
-		for (const row of rows) {
-			if (!row.costItemId) continue;
-			byItem.set(row.costItemId, [
-				...(byItem.get(row.costItemId) ?? []),
-				{ id: row.id, name: row.name, mimeType: row.mimeType }
-			]);
-		}
+			.orderBy(asc(documents.createdAt), asc(documents.name))
+	);
+	const byItem = new Map<string, Receipt[]>();
+	for (const row of rows) {
+		if (!row.costItemId) continue;
+		byItem.set(row.costItemId, [
+			...(byItem.get(row.costItemId) ?? []),
+			{ id: row.id, name: row.name, mimeType: row.mimeType }
+		]);
 	}
 	return byItem;
 }
@@ -440,30 +440,27 @@ export async function replaceUnitAmounts(
 	);
 	if (mixed) return 'unknown-unit';
 	const leaseIds = [...new Set(rows.flatMap((entry) => entry.leaseId ?? []))];
-	let ownLeases = 0;
-	for (const ids of chunkIds(leaseIds)) {
-		const rows = await db
+	const ownLeases = await selectInChunks(leaseIds, (ids) =>
+		db
 			.select({ id: leases.id })
 			.from(leases)
-			.where(and(eq(leases.accountId, accountId), inArray(leases.id, ids)));
-		ownLeases += rows.length;
-	}
-	if (ownLeases !== leaseIds.length) return 'unknown-unit';
-	let own = 0;
-	for (const ids of chunkIds(unitIds)) {
-		const rows = await db
+			.where(and(eq(leases.accountId, accountId), inArray(leases.id, ids)))
+	);
+	if (ownLeases.length !== leaseIds.length) return 'unknown-unit';
+	const { propertyId } = item;
+	const ownUnits = await selectInChunks(unitIds, (ids) =>
+		db
 			.select({ id: units.id })
 			.from(units)
 			.where(
 				and(
 					eq(units.accountId, accountId),
-					eq(units.propertyId, item.propertyId),
+					eq(units.propertyId, propertyId),
 					inArray(units.id, ids)
 				)
-			);
-		own += rows.length;
-	}
-	if (own !== unitIds.length) return 'unknown-unit';
+			)
+	);
+	if (ownUnits.length !== unitIds.length) return 'unknown-unit';
 	await runBatch(db, [
 		db.delete(costItemUnitAmounts).where(eq(costItemUnitAmounts.costItemId, costItemId)),
 		...chunk(rows, rowsPerStatement(costItemUnitAmounts)).map((group) =>
