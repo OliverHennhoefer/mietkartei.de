@@ -196,6 +196,9 @@ describe('toWinAnsi', () => {
 		expect(toWinAnsi('x⁴')).toBe('x4');
 		expect(toWinAnsi('Tab\tund\r\nZeile')).toBe('Tab und\nZeile');
 		expect(toWinAnsi('Danke 😀 Привет')).toBe('Danke ? ??????');
+		expect(toWinAnsi('Yılmaz, Doğan, Șerban, Łukasz Wójcik')).toBe(
+			'Yilmaz, Dogan, Serban, Lukasz Wójcik'
+		);
 		expect(toWinAnsi('')).toBe('');
 	});
 });

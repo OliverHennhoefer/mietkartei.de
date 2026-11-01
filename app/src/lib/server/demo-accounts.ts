@@ -31,11 +31,12 @@ const HOUR = 60 * 60 * 1000;
 /**
  * Creates a demo account with the demo data, or with one Rechenbeispiel of the website only, and
  * returns the session for its owner and the page to open first, or null when the demos of the
- * last hour reached DEMO_STARTS_PER_HOUR.
+ * last hour reached DEMO_STARTS_PER_HOUR. `start: 'statement'` opens the full demo on its newest
+ * approved Betriebskostenabrechnung instead of the start page.
  */
 export async function startDemo(
 	db: Database,
-	options?: { storage?: Storage; example?: ReferenceCase }
+	options?: { storage?: Storage; example?: ReferenceCase; start?: 'statement' }
 ) {
 	// The account and its owner come first, in one batch, and the count after them: parallel
 	// starts each see their own account and those before it, so no more than the limit get through.
@@ -80,7 +81,12 @@ export async function startDemo(
 	if (options?.example) {
 		const statementId = await createReferenceData(db, { accountId, userId }, options.example);
 		home = `/betriebskosten/abrechnungen/${statementId}`;
-	} else await createDemoData(db, { accountId, userId }, options);
+	} else {
+		const created = await createDemoData(db, { accountId, userId }, options);
+		if (created.ok && options?.start === 'statement') {
+			home = `/betriebskosten/abrechnungen/${created.statementId}`;
+		}
+	}
 	return { ...(await createSession(db, userId)), home };
 }
 

@@ -1324,10 +1324,8 @@ describe('statementLetter', () => {
 			'Ihr Anteil'
 		]);
 		expect(tables[0].rows).toHaveLength(4);
-		// The deducted CO₂ share and the allocated rest, each under its own label.
-		expect(tables[0].rows[3][1]).toBe(
-			'3.000,00\u00a0€\nabzüglich CO2-Anteil Vermieter 120,00\u00a0€\numgelegt 2.880,00\u00a0€'
-		);
+		// The deducted CO₂ share and the allocated rest, each on its own line.
+		expect(tables[0].rows[3][1]).toBe('3.000,00\u00a0€\n− 120,00\u00a0€ CO2\n= 2.880,00\u00a0€');
 		expect(tables[0].rows[3][3]).toBe('698,44\u00a0€');
 		expect(tables[0].footer).toEqual(['Summe', '', '', '1.185,99\u00a0€']);
 		expect(tables[1].title).toBe('Geleistete Vorauszahlungen');

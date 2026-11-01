@@ -103,7 +103,12 @@ import type { TenantInput } from './tenants';
 // landlord would have made them on their day. Nothing marks the rows as demo rows; the landlord
 // deletes them with the reset to factory settings (Einstellungen → Konto).
 
-export type DemoResult = { ok: true; leases: number } | { ok: false; reason: 'not-empty' };
+/**
+ * `statementId` is the newest approved Betriebskostenabrechnung of the Mehrfamilienhaus, which
+ * /demo?ziel=abrechnung opens first.
+ */
+export type DemoResult =
+	{ ok: true; leases: number; statementId: string } | { ok: false; reason: 'not-empty' };
 
 /** Years of history before the current one, from 1 January. */
 const HISTORY_YEARS = 8;
@@ -2782,5 +2787,6 @@ export async function createDemoData(
 		throw error;
 	}
 
-	return { ok: true, leases: plans.length };
+	const statementId = drafts.filter((draft) => draft.propertyId === lindenId).at(-1)!.id;
+	return { ok: true, leases: plans.length, statementId };
 }

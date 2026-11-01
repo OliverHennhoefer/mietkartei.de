@@ -420,7 +420,7 @@ test('prints the reference scenario with the four elements of a valid statement'
 	expect(text).toContain('Herr Max Müller');
 	// Gesamtkosten, with the landlord's CO₂ share and the allocated rest apart.
 	expect(text).toContain('1.200,00 €');
-	expect(text).toContain('3.000,00 € abzüglich CO2-Anteil Vermieter 120,00 € umgelegt 2.880,00 €');
+	expect(text).toContain('3.000,00 € - 120,00 € CO2 = 2.880,00 €');
 	// Umlageschlüssel with the key total and the lease's share of it.
 	expect(text).toContain(`Wohnfläche ${suffix}: 184,5 m²`);
 	expect(text).toContain('72,5 m² von 184,5 m² · 365 von 365 Tagen');
