@@ -19,6 +19,7 @@ const sections: SettingsSection[] = [
 	{ href: '/einstellungen/profil', label: 'Profil', icon: 'user' },
 	{ href: '/einstellungen/zugaenge', label: 'Zugänge', icon: 'people', ownerOnly: true },
 	{ href: '/einstellungen/darstellung', label: 'Darstellung', icon: 'map' },
+	{ href: '/einstellungen/benachrichtigungen', label: 'Benachrichtigungen', icon: 'bell' },
 	{ href: '/einstellungen/kalender', label: 'Kalender', icon: 'calendar' },
 	{ href: '/einstellungen/vpi', label: 'Verbraucherpreisindex', icon: 'trend' },
 	{ href: '/einstellungen/protokoll', label: 'Protokoll', icon: 'history' },

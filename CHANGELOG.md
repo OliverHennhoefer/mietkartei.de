@@ -12,11 +12,13 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ### Neu
 
+- Benachrichtigungen: mietkartei meldet sich von selbst, wenn eine Frist oder Aufgabe ansteht, kurz bevorsteht oder überfällig ist, höchstens dreimal je Frist und gesammelt einmal am Tag zu einer Uhrzeit deiner Wahl. Die Hinweise kommen per E-Mail, als Push aufs Handy mit ntfy oder per signiertem Webhook, etwa an n8n, Home Assistant oder darüber an WhatsApp; je Kanal wählst du, ob alles oder nur Dringendes kommt. Aus der E-Mail heraus lässt sich ein Hinweis verschieben oder eine Aufgabe erledigen. Einzurichten unter Einstellungen → Benachrichtigungen, siehe [Anleitung](https://docs.mietkartei.de/anleitungen/benachrichtigungen/).
 - Mieterwechsel im laufenden Vertrag: Tritt ein Mitmieter aus (etwa per Nachtrag) oder ein neuer ein, trägst du in der Übersicht des Mietvertrags unter „Vertragsparteien“ das Datum ein. Der Mieter bleibt mit seinem Austrittsdatum im Vertrag, so bleibt erkennbar, wer an einem früheren Tag Vertragspartei war; Briefe und Abrechnungen gehen an die heutigen Vertragsparteien.
 - Den Zugang einer freigegebenen Indexanpassung kannst du nachträglich korrigieren, wenn das Schreiben an einem anderen Tag ankommt als bei der Freigabe angenommen. Bei Wohnraum verschiebt sich die neue Miete dann auf den richtigen Monat (§ 557b Abs. 3 BGB), der Brief und die Sollstellungen werden neu berechnet.
 
 ### Geändert
 
+- Die wöchentliche Fristenübersicht per E-Mail stellst du jetzt unter Einstellungen → Benachrichtigungen ein statt unter Kalender.
 - Das Protokoll nennt beim Bearbeiten eines Mietvertrags die Mieter, die hinzugekommen oder ausgeschieden sind.
 - Fehlt zu einem Dokument die Datei im Speicher, nennt der Export es in `FEHLENDE-DOKUMENTE.txt` und das Protokoll zählt es, statt es stillschweigend auszulassen.
 

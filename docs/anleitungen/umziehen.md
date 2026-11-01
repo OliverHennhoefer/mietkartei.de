@@ -35,6 +35,7 @@ Einige Dinge hängen an der alten Instanz und kommen deshalb nicht mit:
 
 - **Mitverwalter** lädst du unter **Einstellungen → Mitverwalter** neu ein.
 - **Kalender-Abos** legst du unter **Einstellungen → Kalender** neu an, weil sich die Adresse ändert.
+- **Benachrichtigungen** richtest du unter **Einstellungen → Benachrichtigungen** neu ein; Kanäle und Webhook-Schlüssel sind nicht im Export.
 - **API-Schlüssel und verbundene KI-Assistenten** richtest du neu ein, siehe [KI-Assistenten anbinden](ki-assistenten.md).
 - **Ein Abo** bei app.mietkartei.de kündigst du unter **Abo**, wenn du es nicht mehr brauchst. Danach kannst du das alte Konto unter **Einstellungen → Konto** löschen.
 

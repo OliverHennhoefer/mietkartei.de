@@ -19,6 +19,7 @@
 	import Export from './einstellungen/export/+page.svelte';
 	import Profile from './einstellungen/profil/+page.svelte';
 	import Calendar from './einstellungen/kalender/+page.svelte';
+	import Notifications from './einstellungen/benachrichtigungen/+page.svelte';
 	import DataImport from './einstellungen/datenuebernahme/+page.svelte';
 	import AuditLog from './einstellungen/protokoll/+page.svelte';
 	import PriceIndex from './einstellungen/vpi/+page.svelte';
@@ -42,6 +43,7 @@
 	const settingsViews: Record<string, Component<any>> = {
 		'/einstellungen/profil': Profile,
 		'/einstellungen/zugaenge': Members,
+		'/einstellungen/benachrichtigungen': Notifications,
 		'/einstellungen/kalender': Calendar,
 		'/einstellungen/vpi': PriceIndex,
 		'/einstellungen/protokoll': AuditLog,

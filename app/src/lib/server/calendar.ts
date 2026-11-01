@@ -5,7 +5,7 @@ import { generateToken, hashToken } from './auth';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import { calendarFeeds, tasks } from './db/schema';
-import { listDeadlines } from './deadlines';
+import { listDeadlines, type DeadlineKind } from './deadlines';
 
 // Fristenkalender: a secret link per user that a calendar app subscribes to (iCalendar, RFC 5545).
 // It holds the account's deadlines of the next two years, the overdue ones included, and the
@@ -74,7 +74,13 @@ export async function accountOfToken(db: Database, token: string): Promise<strin
 
 export type CalendarEntry = {
 	uid: string;
+	/** The uid without its domain, e.g. "task-<id>"; Hinweise remember entries by it. */
+	key: string;
+	kind: DeadlineKind | 'task';
 	date: IsoDate;
+	/** The title without the overdue mark. */
+	title: string;
+	overdue: boolean;
 	summary: string;
 	description?: string;
 	/** Absolute link to the page where the matter is handled. */
@@ -113,7 +119,11 @@ export async function calendarEntries(
 		seen.add(uid);
 		entries.push({
 			uid: `${uid}@mietkartei.de`,
+			key: uid,
+			kind: deadline.kind,
 			date: deadline.date,
+			title: deadline.title,
+			overdue: deadline.overdue,
 			summary: deadline.overdue ? `${deadline.title} (überfällig)` : deadline.title,
 			description: deadline.detail,
 			url: `${origin}${deadline.href}`
@@ -123,7 +133,11 @@ export async function calendarEntries(
 		if (!task.dueDate) continue;
 		entries.push({
 			uid: `task-${task.id}@mietkartei.de`,
+			key: `task-${task.id}`,
+			kind: 'task',
 			date: task.dueDate,
+			title: task.title,
+			overdue: task.dueDate < today,
 			summary: task.title,
 			description: task.note ?? undefined,
 			url: `${origin}/aufgaben?bearbeiten=${task.id}`

@@ -118,7 +118,11 @@ describe('calendarEntries', () => {
 		expect(entries.filter((entry) => entry.uid.startsWith('task-'))).toEqual([
 			{
 				uid: `task-${dated.id}@mietkartei.de`,
+				key: `task-${dated.id}`,
+				kind: 'task',
 				date: '2026-11-15',
+				title: 'Heizung warten',
+				overdue: false,
 				summary: 'Heizung warten',
 				description: 'Firma Wärme',
 				url: `https://app.example/aufgaben?bearbeiten=${dated.id}`
@@ -137,7 +141,11 @@ describe('buildCalendar', () => {
 			[
 				{
 					uid: 'task-1@mietkartei.de',
+					key: 'task-1',
+					kind: 'task',
 					date: '2026-12-31',
+					title: 'Kaution abrechnen; Haus, EG',
+					overdue: false,
 					summary: 'Kaution abrechnen; Haus, EG',
 					description: `Zeile 1\nZeile 2 ${'ä'.repeat(60)}`,
 					url: 'https://app.example/aufgaben/1'

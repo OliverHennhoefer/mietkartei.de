@@ -2,11 +2,12 @@
 // (#lib/server/roles.ts) and the layout, which keeps the forms of these pages usable.
 
 /**
- * Paths that accept every POST of a viewer: signing out, their own display settings and calendar
- * link, API keys and connecting an app, which gets read access only.
+ * Paths that accept every POST of a viewer: signing out, their own display settings, Hinweise and
+ * calendar link, API keys and connecting an app, which gets read access only.
  */
 export const viewerPaths = new Set([
 	'/abmelden',
+	'/einstellungen/benachrichtigungen',
 	'/einstellungen/darstellung',
 	'/einstellungen/kalender',
 	'/einstellungen/ki-assistenten',
@@ -15,9 +16,11 @@ export const viewerPaths = new Set([
 
 /**
  * The pages of reset, address confirmation, registration and invitation links, which secure the
- * sign-in or have nothing to do with the signed-in account.
+ * sign-in or have nothing to do with the signed-in account, and the snooze of a Hinweis, which is
+ * the user's own (marking a task done there is refused to viewers by the page).
  */
 export const viewerPrefixes = [
+	'/erinnerung/',
 	'/passwort-zuruecksetzen/',
 	'/e-mail-bestaetigen/',
 	'/registrieren/',

@@ -7,9 +7,9 @@
 	"compatibility_date": "2026-10-01",
 	"compatibility_flags": ["nodejs_als"],
 	"routes": [{ "pattern": "app.mietkartei.de", "custom_domain": true }],
-	// The scheduled jobs, such as the weekly Fristenübersicht, every day at 5:00 UTC; see
-	// worker.js.
-	"triggers": { "crons": ["0 5 * * *"] },
+	// The scheduled jobs, the weekly Fristenübersicht and the Hinweise at the hour each user chose,
+	// every hour; see worker.js.
+	"triggers": { "crons": ["0 * * * *"] },
 	// Registration is closed: only the addresses of the secret REGISTRATION_EMAILS may register.
 	// See src/lib/server/registration.ts and .github/DEPLOYMENT.md.
 	// Mails (password reset, invitations) go out through Resend; the API key is the secret

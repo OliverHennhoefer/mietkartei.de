@@ -22,6 +22,7 @@ nav = [
     { "Steuerübersicht für die Anlage V" = "anleitungen/steuer.md" },
     { "Kontoauszüge importieren" = "anleitungen/kontoauszuege-importieren.md" },
     { "Von Excel umsteigen" = "anleitungen/von-excel-umsteigen.md" },
+    { "Benachrichtigungen einrichten" = "anleitungen/benachrichtigungen.md" },
     { "KI-Assistenten anbinden" = "anleitungen/ki-assistenten.md" },
     { "Umziehen und Daten mitnehmen" = "anleitungen/umziehen.md" },
   ] },
@@ -72,6 +73,7 @@ Dokumentation = [
   { "anleitungen/eigentumswohnung.md" = "Eigentumswohnung in einer WEG: Verwalter, Miteigentumsanteile, Kosten aus der Hausgeldabrechnung und Abgleich mit dem Hausgeld" },
   { "anleitungen/kontoauszuege-importieren.md" = "Kontoauszüge als camt.053 oder CSV importieren und Mietverträgen zuordnen" },
   { "anleitungen/von-excel-umsteigen.md" = "Objekte, Mieter, Mietverträge und Zahlungen per CSV aus Excel übernehmen" },
+  { "anleitungen/benachrichtigungen.md" = "Hinweise zu Fristen und Aufgaben per E-Mail, ntfy oder Webhook, mit Format und Signatur des Webhooks" },
   { "selbst-hosten.md" = "mietkartei im eigenen Cloudflare-Konto, mit Docker oder aus dem Quellcode betreiben" },
 ]
 

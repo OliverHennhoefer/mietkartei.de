@@ -155,9 +155,9 @@ describe('wrangler.jsonc', () => {
 		expect(limiter.simple).toEqual({ limit: API_LIMIT, period: API_PERIOD_SECONDS });
 	});
 
-	it('runs the scheduled jobs daily, but not in the demo', () => {
+	it('runs the scheduled jobs every hour, but not in the demo', () => {
 		const config = wranglerConfig();
-		expect(config.triggers).toEqual({ crons: ['0 5 * * *'] });
+		expect(config.triggers).toEqual({ crons: ['0 * * * *'] });
 		expect(config.env.demo.triggers).toEqual({ crons: [] });
 	});
 

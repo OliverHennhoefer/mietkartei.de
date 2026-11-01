@@ -1,8 +1,9 @@
 // The worker of the cloudflare target: the app as built by adapter-cloudflare, plus a handler for
 // the cron trigger of wrangler.jsonc. vite.config.ts moves the adapter's _worker.js aside and puts
 // this file in its place, so the import below is relative to .svelte-kit/cloudflare/.
-// The trigger starts the scheduled jobs (the weekly Fristenübersicht) through the app's own
-// /api/jobs, with a token only this isolate knows; see src/lib/server/jobs.ts.
+// The trigger starts the scheduled jobs (the weekly Fristenübersicht, the Hinweise) every hour
+// through the app's own /api/jobs, with a token only this isolate knows; see
+// src/lib/server/jobs.ts.
 import app from '../cloudflare-tmp/app-worker.js';
 
 export default {

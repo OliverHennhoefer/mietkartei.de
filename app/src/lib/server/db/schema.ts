@@ -1543,6 +1543,12 @@ export const users = sqliteTable(
 		deadlineMailOrigin: text('deadline_mail_origin'),
 		/** The day the last Fristenübersicht went out (or was due without anything in it). */
 		deadlineMailSentOn: text('deadline_mail_sent_on'),
+		/** The hour in Germany from which the day's Hinweise go out, 6 to 21. */
+		notificationHour: integer('notification_hour').notNull().default(7),
+		/** Whether Hinweise also go out on Saturdays and Sundays; otherwise they wait for Monday. */
+		notificationWeekends: bool('notification_weekends', false),
+		/** The day the user's entries were last checked for Hinweise. */
+		notificationsCheckedOn: text('notifications_checked_on'),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -1572,6 +1578,97 @@ export const calendarFeeds = sqliteTable(
 		createdAt: createdAt()
 	},
 	(table) => [index('calendar_feeds_account_id_idx').on(table.accountId)]
+);
+
+export const notificationChannelKinds = ['email', 'ntfy', 'webhook'] as const;
+export type NotificationChannelKind = (typeof notificationChannelKinds)[number];
+
+/**
+ * Where a user's Hinweise go: their own address by mail, a topic on an ntfy server, or a webhook.
+ * The webhook's signing secret is needed to sign every request, so it is stored as it is, like
+ * the secrets a payment provider shows for its webhooks; ntfy keeps an optional access token here.
+ */
+export const notificationChannels = sqliteTable(
+	'notification_channels',
+	{
+		id: id(),
+		accountId: accountId(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		kind: text('kind', { enum: notificationChannelKinds }).notNull(),
+		/** The topic address (ntfy) or the address posted to (webhook); none for mail. */
+		url: text('url'),
+		secret: text('secret'),
+		/** The address of the app the links lead to, taken when the channel was added. */
+		origin: text('origin').notNull(),
+		/** Only the urgent Hinweise: shortly before a statutory deadline and overdue. */
+		urgentOnly: bool('urgent_only', false),
+		/** Whether tenant names and the like go along; mail always has them. */
+		details: bool('details', false),
+		/** Failed sends in a row; from MAX_FAILURES on the channel is paused until a test works. */
+		failures: integer('failures').notNull().default(0),
+		lastError: text('last_error'),
+		lastSentAt: integer('last_sent_at', { mode: 'timestamp_ms' }),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('notification_channels_account_id_idx').on(table.accountId),
+		index('notification_channels_user_id_idx').on(table.userId)
+	]
+);
+
+export const notificationStages = ['lead', 'soon', 'overdue'] as const;
+export type NotificationStage = (typeof notificationStages)[number];
+
+/**
+ * What a user was last told about a deadline or task, so each stage is told once. `entry` is the
+ * key of the calendar entry; a date that moved starts over.
+ */
+export const notificationStates = sqliteTable(
+	'notification_states',
+	{
+		id: id(),
+		accountId: accountId(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		entry: text('entry').notNull(),
+		date: text('date').notNull(),
+		stage: text('stage', { enum: notificationStages }),
+		/** No Hinweis about the entry before this day. */
+		snoozedUntil: text('snoozed_until'),
+		updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+	},
+	(table) => [
+		uniqueIndex('notification_states_user_entry_unique').on(table.userId, table.entry),
+		index('notification_states_account_id_idx').on(table.accountId)
+	]
+);
+
+/** One send to a channel, for the history on the settings page. */
+export const notificationDeliveries = sqliteTable(
+	'notification_deliveries',
+	{
+		id: id(),
+		accountId: accountId(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		channelId: text('channel_id')
+			.notNull()
+			.references(() => notificationChannels.id, { onDelete: 'cascade' }),
+		/** German, e.g. "1 überfällig, 2 neu" or "Test". */
+		summary: text('summary').notNull(),
+		/** Why the send failed; null when it went through. */
+		error: text('error'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('notification_deliveries_account_id_idx').on(table.accountId),
+		index('notification_deliveries_user_id_idx').on(table.userId, table.createdAt),
+		index('notification_deliveries_channel_id_idx').on(table.channelId)
+	]
 );
 
 /** A signed-in browser. The id is the SHA-256 hash of the cookie token, never the token itself. */
