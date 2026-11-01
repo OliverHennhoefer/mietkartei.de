@@ -38,6 +38,8 @@ export type ReferenceCase = {
 		start: IsoDate;
 		end: IsoDate | null;
 		persons: number;
+		/** Later changes of the persons, e.g. a birth or a partner moving in. */
+		personChanges?: { from: IsoDate; persons: number }[];
 		/** Cents per month; a partial month is prorated by its days, like the rent account. */
 		baseRent: number;
 		operatingCostPrepayment: number;
@@ -196,7 +198,13 @@ export function referenceInput(c: ReferenceCase): StatementInput {
 			ledgerStart: null,
 			unitIds: [lease.unitId],
 			tenants: [{ ...lease.tenant, street: null, postalCode: null, city: null }],
-			persons: [{ validFrom: lease.start, persons: lease.persons }],
+			persons: [
+				{ validFrom: lease.start, persons: lease.persons },
+				...(lease.personChanges ?? []).map((change) => ({
+					validFrom: change.from,
+					persons: change.persons
+				}))
+			],
 			rentHistory,
 			charges,
 			payments: charges.map((charge) => ({ date: `${charge.period}-03`, amount: charge.amount }))
@@ -823,5 +831,132 @@ export const referenceCases: ReferenceCase[] = [
 				url: 'https://www.gesetze-im-internet.de/bgb/__556a.html'
 			}
 		]
+	},
+	{
+		slug: 'personenwechsel',
+		title: 'Personenwechsel: Müll und Wasser nach Personentagen',
+		summary:
+			'Ein Kind kommt zur Welt, eine Partnerin zieht ein, ein Sohn zieht aus. Wer nach Personen umlegt, zählt jeden Tag mit der Personenzahl, die an diesem Tag galt.',
+		intro:
+			'Ein Haus mit drei Wohnungen in Leipzig, abgerechnet wird das Jahr 2025. Alle drei Mieter wohnen das ganze Jahr im Haus, aber die Zahl der Bewohner ändert sich: Bei Familie Schulte kommt am 12. Mai ein Kind zur Welt, bei Herrn Hahn zieht am 1. September die Partnerin ein, und bei Frau Seidel zieht der Sohn Ende Februar aus. Müll und Wasser werden nach Personen umgelegt, so steht es in den Mietverträgen. Mit einer Personenzahl für das ganze Jahr wäre das Ergebnis falsch, gleich welche man nimmt. Richtig sind Personentage: Jeder Tag zählt mit den Personen, die an diesem Tag in der Wohnung lebten.',
+		year: 2025,
+		property: {
+			name: 'Gohliser Straße 21',
+			street: 'Gohliser Straße 21',
+			postalCode: '04155',
+			city: 'Leipzig'
+		},
+		units: [
+			{ id: 'eg', name: 'Erdgeschoss', area: 72 },
+			{ id: 'og', name: 'Obergeschoss', area: 68 },
+			{ id: 'dg', name: 'Dachgeschoss', area: 60 }
+		],
+		leases: [
+			{
+				id: 'schulte',
+				unitId: 'eg',
+				tenant: { salutation: 'Frau', firstName: 'Jana', lastName: 'Schulte' },
+				start: '2021-04-01',
+				end: null,
+				persons: 2,
+				personChanges: [{ from: '2025-05-12', persons: 3 }],
+				baseRent: 640_00,
+				operatingCostPrepayment: 120_00,
+				heatingCostPrepayment: 0
+			},
+			{
+				id: 'hahn',
+				unitId: 'og',
+				tenant: { salutation: 'Herr', firstName: 'Tobias', lastName: 'Hahn' },
+				start: '2019-08-01',
+				end: null,
+				persons: 1,
+				personChanges: [{ from: '2025-09-01', persons: 2 }],
+				baseRent: 610_00,
+				operatingCostPrepayment: 85_00,
+				heatingCostPrepayment: 0
+			},
+			{
+				id: 'seidel',
+				unitId: 'dg',
+				tenant: { salutation: 'Frau', firstName: 'Ingrid', lastName: 'Seidel' },
+				start: '2012-10-01',
+				end: null,
+				persons: 2,
+				personChanges: [{ from: '2025-03-01', persons: 1 }],
+				baseRent: 520_00,
+				operatingCostPrepayment: 75_00,
+				heatingCostPrepayment: 0
+			}
+		],
+		items: [
+			{
+				id: 'grundsteuer',
+				description: 'Grundsteuer 2025',
+				label: 'Grundsteuer',
+				category: 'grundsteuer',
+				key: 'area',
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				amount: 576_00
+			},
+			{
+				id: 'muell',
+				description: 'Müllabfuhr 2025',
+				label: 'Müllabfuhr',
+				category: 'muell',
+				key: 'persons',
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				amount: 702_00
+			},
+			{
+				id: 'wasser',
+				description: 'Wasser und Abwasser 2025',
+				label: 'Wasser',
+				category: 'wasser',
+				key: 'persons',
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				amount: 1_215_00
+			},
+			{
+				id: 'versicherung',
+				description: 'Gebäudeversicherung 2025',
+				label: 'Versicherung',
+				category: 'versicherung',
+				key: 'area',
+				periodStart: '2025-01-01',
+				periodEnd: '2025-12-31',
+				amount: 840_00
+			}
+		],
+		expected: {
+			leases: {
+				schulte: {
+					shares: { grundsteuer: 207_36, muell: 360_92, wasser: 624_67, versicherung: 302_40 },
+					prepayments: 1_440_00
+				},
+				hahn: {
+					shares: { grundsteuer: 195_84, muell: 182_33, wasser: 315_58, versicherung: 285_60 },
+					prepayments: 1_020_00
+				},
+				seidel: {
+					shares: { grundsteuer: 172_80, muell: 158_75, wasser: 274_75, versicherung: 252_00 },
+					prepayments: 900_00
+				}
+			},
+			landlordCo2Share: 0,
+			vacancyShare: 0
+		},
+		sample: 'schulte',
+		check: [
+			exactCheck,
+			'Personentage je Wohnung: Familie Schulte 2 Personen an 131 Tagen bis zum 11. Mai und 3 Personen an 234 Tagen ab dem 12. Mai, das sind 262 + 702 = 964. Herr Hahn 1 Person an 243 Tagen und 2 Personen an 122 Tagen, das sind 243 + 244 = 487. Frau Seidel 2 Personen an 59 Tagen und 1 Person an 306 Tagen, das sind 118 + 306 = 424. Zusammen 1.875 Personentage.',
+			'Der Müll kostet damit 702,00 € / 1.875 = 0,3744 € je Personentag, für Familie Schulte 964 × 0,3744 € = 360,92 €. Das Wasser kostet 1.215,00 € / 1.875 = 0,648 € je Personentag, für Familie Schulte 964 × 0,648 € = 624,67 €.',
+			'Mit der Personenzahl vom 1. Januar trügen Schultes 2 von 5 Teilen, also 280,80 € Müll statt 360,92 €; mit der vom 31. Dezember 3 von 6 Teilen, also 351,00 €. Beides wäre falsch, und Frau Seidel zahlte im ersten Fall bis Jahresende für den ausgezogenen Sohn mit.',
+			'Nach Personen umlegen darf der Vermieter, wenn der Mietvertrag es vorsieht; ohne Vereinbarung gilt die Wohnfläche (§ 556a Abs. 1 BGB). Grundsteuer und Versicherung werden hier nach Wohnfläche verteilt, das Erdgeschoss trägt 72 von 200 m².'
+		],
+		sources: [betrkv, bgb556a]
 	}
 ];

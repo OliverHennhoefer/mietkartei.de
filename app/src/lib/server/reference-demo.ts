@@ -15,6 +15,7 @@ import {
 	allocationKeys,
 	auditLog,
 	costItems,
+	leasePersons,
 	meterReadings,
 	meters,
 	payments,
@@ -211,6 +212,17 @@ export async function createReferenceData(
 		...insert(allocationKeys, keyRows),
 		...insert(tenants, tenantRows),
 		...newLeaseStatements(db, context, leaseEntries),
+		...insert(
+			leasePersons,
+			leaseEntries.flatMap(({ id, lease }) =>
+				(lease.personChanges ?? []).map((change) => ({
+					accountId,
+					leaseId: id,
+					validFrom: change.from,
+					persons: change.persons
+				}))
+			)
+		),
 		...insert(payments, paymentRows),
 		...insert(costItems, costItemRows),
 		...insert(meters, meterRows),
