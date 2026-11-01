@@ -146,24 +146,26 @@ export async function tenantArchiving(
 	tenantId: string,
 	date: IsoDate
 ): Promise<ArchiveCheck | undefined> {
-	const [tenant] = await db
-		.select({ archivedAt: tenants.archivedAt })
-		.from(tenants)
-		.where(and(eq(tenants.accountId, accountId), eq(tenants.id, tenantId)));
-	if (!tenant) return undefined;
-	const running = await db
-		.select({ id: leases.id })
-		.from(leaseTenants)
-		.innerJoin(leases, eq(leases.id, leaseTenants.leaseId))
-		.where(
-			and(
-				eq(leases.accountId, accountId),
-				eq(leaseTenants.tenantId, tenantId),
-				notEnded(date),
-				// A co-tenant who left a lease that runs on rents no more.
-				or(isNull(leaseTenants.leftOn), gte(leaseTenants.leftOn, date))
+	const [[tenant], running] = await Promise.all([
+		db
+			.select({ archivedAt: tenants.archivedAt })
+			.from(tenants)
+			.where(and(eq(tenants.accountId, accountId), eq(tenants.id, tenantId))),
+		db
+			.select({ id: leases.id })
+			.from(leaseTenants)
+			.innerJoin(leases, eq(leases.id, leaseTenants.leaseId))
+			.where(
+				and(
+					eq(leases.accountId, accountId),
+					eq(leaseTenants.tenantId, tenantId),
+					notEnded(date),
+					// A co-tenant who left a lease that runs on rents no more.
+					or(isNull(leaseTenants.leftOn), gte(leaseTenants.leftOn, date))
+				)
 			)
-		);
+	]);
+	if (!tenant) return undefined;
 	return {
 		archivedAt: tenant.archivedAt,
 		runningLeases: await leaseLinks(

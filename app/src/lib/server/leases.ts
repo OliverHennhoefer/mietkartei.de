@@ -222,24 +222,28 @@ export async function listLeases(
 	accountId: string,
 	filter: { unitId?: string; tenantId?: string } = {}
 ): Promise<LeaseSummary[]> {
-	let rows = await db
-		.select()
-		.from(leases)
-		.where(eq(leases.accountId, accountId))
-		.orderBy(desc(leases.startDate));
-	if (filter.unitId) {
-		const extra = await db
-			.select({ leaseId: leaseUnits.leaseId })
-			.from(leaseUnits)
-			.where(and(eq(leaseUnits.accountId, accountId), eq(leaseUnits.unitId, filter.unitId)));
+	// The links a filter needs are read alongside the leases.
+	const [allRows, extra, links] = await Promise.all([
+		db.select().from(leases).where(eq(leases.accountId, accountId)).orderBy(desc(leases.startDate)),
+		filter.unitId
+			? db
+					.select({ leaseId: leaseUnits.leaseId })
+					.from(leaseUnits)
+					.where(and(eq(leaseUnits.accountId, accountId), eq(leaseUnits.unitId, filter.unitId)))
+			: undefined,
+		filter.tenantId
+			? db
+					.select({ leaseId: leaseTenants.leaseId })
+					.from(leaseTenants)
+					.where(eq(leaseTenants.tenantId, filter.tenantId))
+			: undefined
+	]);
+	let rows = allRows;
+	if (extra) {
 		const extraIds = new Set(extra.map((row) => row.leaseId));
 		rows = rows.filter((row) => row.unitId === filter.unitId || extraIds.has(row.id));
 	}
-	if (filter.tenantId) {
-		const links = await db
-			.select({ leaseId: leaseTenants.leaseId })
-			.from(leaseTenants)
-			.where(eq(leaseTenants.tenantId, filter.tenantId));
+	if (links) {
 		const ids = new Set(links.map((row) => row.leaseId));
 		rows = rows.filter((row) => ids.has(row.id));
 	}

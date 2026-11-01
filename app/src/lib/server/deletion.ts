@@ -88,16 +88,18 @@ async function orphanedDocuments(
 	accountId: string,
 	deleted: DocumentLinkIds
 ): Promise<string[]> {
-	const found = new Map<string, typeof documents.$inferSelect>();
-	for (const key of Object.keys(documentLinkColumns) as (keyof DocumentLinkIds)[]) {
-		for (const ids of chunkIds(deleted[key] ?? [])) {
-			const rows = await db
-				.select()
-				.from(documents)
-				.where(and(eq(documents.accountId, accountId), inArray(documentLinkColumns[key], ids)));
-			for (const row of rows) found.set(row.id, row);
-		}
-	}
+	// One query per kind of link and group of ids, all side by side.
+	const groups = await Promise.all(
+		(Object.keys(documentLinkColumns) as (keyof DocumentLinkIds)[]).flatMap((key) =>
+			chunkIds(deleted[key] ?? []).map((ids) =>
+				db
+					.select()
+					.from(documents)
+					.where(and(eq(documents.accountId, accountId), inArray(documentLinkColumns[key], ids)))
+			)
+		)
+	);
+	const found = new Map(groups.flat().map((row) => [row.id, row]));
 	const sets = Object.fromEntries(
 		Object.entries(documentLinkFields).map(([key]) => [
 			key,
@@ -197,38 +199,44 @@ export async function leaseLinks(
 
 /** The leases with their unit and property names, latest start first. */
 async function leaseRows(db: Database, accountId: string, leaseIds: string[]) {
-	const rows = [];
-	for (const ids of chunkIds(leaseIds)) {
-		rows.push(
-			...(await db
-				.select({
-					id: leases.id,
-					unitName: units.name,
-					propertyName: properties.name,
-					startDate: leases.startDate,
-					endDate: leases.endDate
-				})
-				.from(leases)
-				.innerJoin(units, eq(units.id, leases.unitId))
-				.innerJoin(properties, eq(properties.id, units.propertyId))
-				.where(and(eq(leases.accountId, accountId), inArray(leases.id, ids))))
-		);
-	}
+	const groups = chunkIds(leaseIds);
+	// The leases and their tenants are read side by side, one query per table and group.
+	const [rowGroups, tenantGroups] = await Promise.all([
+		Promise.all(
+			groups.map((ids) =>
+				db
+					.select({
+						id: leases.id,
+						unitName: units.name,
+						propertyName: properties.name,
+						startDate: leases.startDate,
+						endDate: leases.endDate
+					})
+					.from(leases)
+					.innerJoin(units, eq(units.id, leases.unitId))
+					.innerJoin(properties, eq(properties.id, units.propertyId))
+					.where(and(eq(leases.accountId, accountId), inArray(leases.id, ids)))
+			)
+		),
+		Promise.all(
+			groups.map((ids) =>
+				db
+					.select({
+						leaseId: leaseTenants.leaseId,
+						firstName: tenants.firstName,
+						lastName: tenants.lastName
+					})
+					.from(leaseTenants)
+					.innerJoin(tenants, eq(tenants.id, leaseTenants.tenantId))
+					.where(and(eq(tenants.accountId, accountId), inArray(leaseTenants.leaseId, ids)))
+					.orderBy(asc(tenants.lastName), asc(tenants.firstName))
+			)
+		)
+	]);
+	const rows = rowGroups.flat();
 	const names = new Map<string, string[]>();
-	for (const ids of chunkIds(leaseIds)) {
-		const tenantRows = await db
-			.select({
-				leaseId: leaseTenants.leaseId,
-				firstName: tenants.firstName,
-				lastName: tenants.lastName
-			})
-			.from(leaseTenants)
-			.innerJoin(tenants, eq(tenants.id, leaseTenants.tenantId))
-			.where(and(eq(tenants.accountId, accountId), inArray(leaseTenants.leaseId, ids)))
-			.orderBy(asc(tenants.lastName), asc(tenants.firstName));
-		for (const row of tenantRows) {
-			names.set(row.leaseId, [...(names.get(row.leaseId) ?? []), personName(row)]);
-		}
+	for (const row of tenantGroups.flat()) {
+		names.set(row.leaseId, [...(names.get(row.leaseId) ?? []), personName(row)]);
 	}
 	rows.sort((a, b) => b.startDate.localeCompare(a.startDate));
 	return rows.map((row) => ({ ...row, tenantNames: names.get(row.id) ?? [] }));
@@ -251,11 +259,14 @@ export async function tenantDeletion(
 	accountId: string,
 	tenantId: string
 ): Promise<DeletionCheck> {
-	const leaseRows = await db
-		.select({ id: leaseTenants.leaseId })
-		.from(leaseTenants)
-		.innerJoin(leases, eq(leases.id, leaseTenants.leaseId))
-		.where(and(eq(leases.accountId, accountId), eq(leaseTenants.tenantId, tenantId)));
+	const [leaseRows, orphaned] = await Promise.all([
+		db
+			.select({ id: leaseTenants.leaseId })
+			.from(leaseTenants)
+			.innerJoin(leases, eq(leases.id, leaseTenants.leaseId))
+			.where(and(eq(leases.accountId, accountId), eq(leaseTenants.tenantId, tenantId))),
+		orphanedDocuments(db, accountId, { tenantIds: [tenantId] })
+	]);
 	const blockers: DeletionBlocker[] = [];
 	if (leaseRows.length > 0) {
 		blockers.push({
@@ -267,7 +278,6 @@ export async function tenantDeletion(
 			)
 		});
 	}
-	const orphaned = await orphanedDocuments(db, accountId, { tenantIds: [tenantId] });
 	return { blockers, removes: documentsLine(orphaned), unlinks: [] };
 }
 
