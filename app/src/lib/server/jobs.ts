@@ -3,8 +3,6 @@
 // instead, with a token they put into globalThis just before. The token never leaves the process,
 // so no request from outside can start the jobs.
 
-export const JOB_PATH = '/api/jobs';
-
 /** The key in globalThis; server.js and worker.js use the same. */
 const TOKEN_KEY = '__mietkartei_job_token';
 

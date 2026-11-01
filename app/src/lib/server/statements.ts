@@ -101,8 +101,11 @@ function chargeHorizon(period: DateRange): string {
 
 /**
  * Everything the computation needs for the property and period, read with a fixed number of
- * queries (one per table, `inArray` over ids in chunks). Undefined when the property is not in
- * the account. Rent charges of the leases are synced first, so the paid prepayments are current.
+ * queries (one per table, `inArray` over ids in chunks). Queries that do not wait for each other
+ * run side by side: first what depends on the property alone, then what hangs on its units, cost
+ * items, circles and meters, then the leases renting one of its units only as an extra, then what
+ * hangs on the leases while their rent charges are synced, and last the charges, so the paid
+ * prepayments are current. Undefined when the property is not in the account.
  */
 export async function loadStatementInput(
 	db: Database,
@@ -110,22 +113,75 @@ export async function loadStatementInput(
 	propertyId: string,
 	period: DateRange
 ): Promise<StatementInput | undefined> {
-	const [property] = await db
-		.select()
-		.from(properties)
-		.where(and(eq(properties.accountId, accountId), eq(properties.id, propertyId)));
+	const [
+		[property],
+		unitRows,
+		itemRows,
+		circleRows,
+		meterRows,
+		categoryRows,
+		keyRows,
+		shareRows,
+		versions,
+		landlord,
+		previous
+	] = await Promise.all([
+		db
+			.select()
+			.from(properties)
+			.where(and(eq(properties.accountId, accountId), eq(properties.id, propertyId))),
+		db
+			.select()
+			.from(units)
+			.where(and(eq(units.accountId, accountId), eq(units.propertyId, propertyId)))
+			.orderBy(asc(units.name)),
+		db
+			.select()
+			.from(costItems)
+			.where(
+				and(
+					eq(costItems.accountId, accountId),
+					eq(costItems.propertyId, propertyId),
+					lte(costItems.periodStart, period.end),
+					gte(costItems.periodEnd, period.start)
+				)
+			)
+			.orderBy(asc(costItems.periodStart), asc(costItems.createdAt)),
+		db
+			.select()
+			.from(billingCircles)
+			.where(
+				and(eq(billingCircles.accountId, accountId), eq(billingCircles.propertyId, propertyId))
+			),
+		db
+			.select()
+			.from(meters)
+			.where(and(eq(meters.accountId, accountId), eq(meters.propertyId, propertyId))),
+		db.select().from(costCategories).where(eq(costCategories.accountId, accountId)),
+		db.select().from(allocationKeys).where(eq(allocationKeys.accountId, accountId)),
+		db.select().from(allocationKeyShares).where(eq(allocationKeyShares.accountId, accountId)),
+		// The versions of this statement: a correction replaces their postings.
+		db
+			.select({ id: operatingCostStatements.id })
+			.from(operatingCostStatements)
+			.where(
+				and(
+					eq(operatingCostStatements.accountId, accountId),
+					eq(operatingCostStatements.propertyId, propertyId),
+					eq(operatingCostStatements.periodStart, period.start),
+					eq(operatingCostStatements.periodEnd, period.end)
+				)
+			),
+		landlordAddress(db, accountId),
+		previousPeriod(db, accountId, propertyId, period.start)
+	]);
 	if (!property) return undefined;
-
-	const unitRows = await db
-		.select()
-		.from(units)
-		.where(and(eq(units.accountId, accountId), eq(units.propertyId, propertyId)))
-		.orderBy(asc(units.name));
 	const unitIds = unitRows.map((unit) => unit.id);
 	const unitIdSet = new Set(unitIds);
+	const versionIds = new Set(versions.map((version) => version.id));
 
 	// Leases whose main unit is in the property, plus leases renting one of its units as an extra.
-	const [mainLeases, extraLinks] = await Promise.all([
+	const [mainLeases, extraLinks, unitAmountRows, circleUnitRows, readingRows] = await Promise.all([
 		chunked(unitIds, (ids) =>
 			db
 				.select()
@@ -137,6 +193,41 @@ export async function loadStatementInput(
 				.select()
 				.from(leaseUnits)
 				.where(and(eq(leaseUnits.accountId, accountId), inArray(leaseUnits.unitId, ids)))
+		),
+		chunked(
+			itemRows.map((item) => item.id),
+			(ids) =>
+				db
+					.select()
+					.from(costItemUnitAmounts)
+					.where(
+						and(
+							eq(costItemUnitAmounts.accountId, accountId),
+							inArray(costItemUnitAmounts.costItemId, ids)
+						)
+					)
+		),
+		chunked(
+			circleRows.map((circle) => circle.id),
+			(ids) =>
+				db
+					.select()
+					.from(billingCircleUnits)
+					.where(
+						and(
+							eq(billingCircleUnits.accountId, accountId),
+							inArray(billingCircleUnits.circleId, ids)
+						)
+					)
+		),
+		chunked(
+			meterRows.map((meter) => meter.id),
+			(ids) =>
+				db
+					.select()
+					.from(meterReadings)
+					.where(and(eq(meterReadings.accountId, accountId), inArray(meterReadings.meterId, ids)))
+					.orderBy(asc(meterReadings.readAt))
 		)
 	]);
 	const mainIds = new Set(mainLeases.map((lease) => lease.id));
@@ -155,133 +246,54 @@ export async function loadStatementInput(
 	);
 	const leaseIds = leaseRows.map((lease) => lease.id);
 
-	await ensureCharges(db, accountId, leaseIds, chargeHorizon(period));
-
-	const [tenantRows, personRows, changeRows, chargeRows, paymentRows, versions] = await Promise.all(
-		[
-			chunked(leaseIds, (ids) =>
-				db
-					.select({
-						leaseId: leaseTenants.leaseId,
-						tenant: tenants,
-						joinedOn: leaseTenants.joinedOn,
-						leftOn: leaseTenants.leftOn
-					})
-					.from(leaseTenants)
-					.innerJoin(tenants, eq(leaseTenants.tenantId, tenants.id))
-					.where(and(eq(tenants.accountId, accountId), inArray(leaseTenants.leaseId, ids)))
-					.orderBy(asc(tenants.lastName), asc(tenants.firstName))
-			),
-			chunked(leaseIds, (ids) =>
-				db
-					.select()
-					.from(leasePersons)
-					.where(and(eq(leasePersons.accountId, accountId), inArray(leasePersons.leaseId, ids)))
-			),
-			chunked(leaseIds, (ids) =>
-				db
-					.select()
-					.from(rentChanges)
-					.where(
-						and(
-							eq(rentChanges.accountId, accountId),
-							inArray(rentChanges.leaseId, ids),
-							eq(rentChanges.status, 'approved')
-						)
-					)
-			),
-			// The whole rent account of each lease: payments settle the oldest charges first.
-			chunked(leaseIds, (ids) =>
-				db
-					.select()
-					.from(rentCharges)
-					.where(and(eq(rentCharges.accountId, accountId), inArray(rentCharges.leaseId, ids)))
-			),
-			chunked(leaseIds, (ids) =>
-				db
-					.select({ leaseId: payments.leaseId, date: payments.date, amount: payments.amount })
-					.from(payments)
-					.where(and(eq(payments.accountId, accountId), inArray(payments.leaseId, ids)))
-			),
-			// The versions of this statement: a correction replaces their postings.
+	// The sync runs alongside the reads it does not change; the charges are read once it is done.
+	const [, tenantRows, personRows, changeRows, paymentRows] = await Promise.all([
+		ensureCharges(db, accountId, leaseIds, chargeHorizon(period)),
+		chunked(leaseIds, (ids) =>
 			db
-				.select({ id: operatingCostStatements.id })
-				.from(operatingCostStatements)
+				.select({
+					leaseId: leaseTenants.leaseId,
+					tenant: tenants,
+					joinedOn: leaseTenants.joinedOn,
+					leftOn: leaseTenants.leftOn
+				})
+				.from(leaseTenants)
+				.innerJoin(tenants, eq(leaseTenants.tenantId, tenants.id))
+				.where(and(eq(tenants.accountId, accountId), inArray(leaseTenants.leaseId, ids)))
+				.orderBy(asc(tenants.lastName), asc(tenants.firstName))
+		),
+		chunked(leaseIds, (ids) =>
+			db
+				.select()
+				.from(leasePersons)
+				.where(and(eq(leasePersons.accountId, accountId), inArray(leasePersons.leaseId, ids)))
+		),
+		chunked(leaseIds, (ids) =>
+			db
+				.select()
+				.from(rentChanges)
 				.where(
 					and(
-						eq(operatingCostStatements.accountId, accountId),
-						eq(operatingCostStatements.propertyId, propertyId),
-						eq(operatingCostStatements.periodStart, period.start),
-						eq(operatingCostStatements.periodEnd, period.end)
+						eq(rentChanges.accountId, accountId),
+						inArray(rentChanges.leaseId, ids),
+						eq(rentChanges.status, 'approved')
 					)
 				)
-		]
-	);
-	const versionIds = new Set(versions.map((version) => version.id));
-
-	const itemRows = await db
-		.select()
-		.from(costItems)
-		.where(
-			and(
-				eq(costItems.accountId, accountId),
-				eq(costItems.propertyId, propertyId),
-				lte(costItems.periodStart, period.end),
-				gte(costItems.periodEnd, period.start)
-			)
+		),
+		chunked(leaseIds, (ids) =>
+			db
+				.select({ leaseId: payments.leaseId, date: payments.date, amount: payments.amount })
+				.from(payments)
+				.where(and(eq(payments.accountId, accountId), inArray(payments.leaseId, ids)))
 		)
-		.orderBy(asc(costItems.periodStart), asc(costItems.createdAt));
-	const itemIds = itemRows.map((item) => item.id);
-
-	const circleRows = await db
-		.select()
-		.from(billingCircles)
-		.where(and(eq(billingCircles.accountId, accountId), eq(billingCircles.propertyId, propertyId)));
-	const meterRows = await db
-		.select()
-		.from(meters)
-		.where(and(eq(meters.accountId, accountId), eq(meters.propertyId, propertyId)));
-
-	const [unitAmountRows, categoryRows, keyRows, shareRows, circleUnitRows, readingRows, landlord] =
-		await Promise.all([
-			chunked(itemIds, (ids) =>
-				db
-					.select()
-					.from(costItemUnitAmounts)
-					.where(
-						and(
-							eq(costItemUnitAmounts.accountId, accountId),
-							inArray(costItemUnitAmounts.costItemId, ids)
-						)
-					)
-			),
-			db.select().from(costCategories).where(eq(costCategories.accountId, accountId)),
-			db.select().from(allocationKeys).where(eq(allocationKeys.accountId, accountId)),
-			db.select().from(allocationKeyShares).where(eq(allocationKeyShares.accountId, accountId)),
-			chunked(
-				circleRows.map((circle) => circle.id),
-				(ids) =>
-					db
-						.select()
-						.from(billingCircleUnits)
-						.where(
-							and(
-								eq(billingCircleUnits.accountId, accountId),
-								inArray(billingCircleUnits.circleId, ids)
-							)
-						)
-			),
-			chunked(
-				meterRows.map((meter) => meter.id),
-				(ids) =>
-					db
-						.select()
-						.from(meterReadings)
-						.where(and(eq(meterReadings.accountId, accountId), inArray(meterReadings.meterId, ids)))
-						.orderBy(asc(meterReadings.readAt))
-			),
-			landlordAddress(db, accountId)
-		]);
+	]);
+	// The whole rent account of each lease: payments settle the oldest charges first.
+	const chargeRows = await chunked(leaseIds, (ids) =>
+		db
+			.select()
+			.from(rentCharges)
+			.where(and(eq(rentCharges.accountId, accountId), inArray(rentCharges.leaseId, ids)))
+	);
 
 	const statementLeases: StatementLease[] = leaseRows.map((lease) => ({
 		id: lease.id,
@@ -431,7 +443,7 @@ export async function loadStatementInput(
 			iban: landlord.iban,
 			bankName: landlord.bankName
 		},
-		previous: await previousPeriod(db, accountId, propertyId, period.start)
+		previous
 	};
 }
 
@@ -734,54 +746,13 @@ export async function getStatement(
 ): Promise<StatementView | undefined> {
 	const row = await statementRow(db, accountId, id);
 	if (!row) return undefined;
-	const [property] = await db
-		.select({ id: properties.id, name: properties.name })
-		.from(properties)
-		.where(and(eq(properties.accountId, accountId), eq(properties.id, row.propertyId)));
-	if (!property) return undefined;
-
-	let result: StatementResult | undefined;
-	let leaseResults: LeaseResultRow[] = [];
-	if (row.status === 'approved') {
-		const propertyResult = parseProperty(row);
-		const rows = await db
-			.select()
-			.from(statementResults)
-			.where(and(eq(statementResults.accountId, accountId), eq(statementResults.statementId, id)))
-			.orderBy(asc(statementResults.createdAt), asc(statementResults.id));
-		if (!propertyResult) return undefined;
-		const frozenLeases = rows.map((entry) => JSON.parse(entry.result) as LeaseStatement);
-		result = { property: propertyResult, leases: frozenLeases };
-		const leaseIds = rows.map((entry) => entry.leaseId);
-		const [reversals, leaseRows] = await Promise.all([
-			deliveryReversals(db, accountId, id),
-			chunked(leaseIds, (ids) =>
-				db
-					.select({ id: leases.id, endDate: leases.endDate })
-					.from(leases)
-					.where(and(eq(leases.accountId, accountId), inArray(leases.id, ids)))
-			)
-		]);
-		const day = today();
-		leaseResults = rows.map((entry, index) => {
-			const lease = leaseRows.find((candidate) => candidate.id === entry.leaseId);
-			return {
-				leaseId: entry.leaseId,
-				balance: entry.balance,
-				deliveredOn: entry.deliveredOn,
-				dueDate: claimDueDate(frozenLeases[index], entry.deliveredOn),
-				objectionDeadline: entry.deliveredOn ? objectionDeadline(entry.deliveredOn) : null,
-				reversedOnDelivery:
-					0 - (reversals.find((charge) => charge.leaseId === entry.leaseId)?.amount ?? 0),
-				active: Boolean(lease) && (lease!.endDate === null || lease!.endDate >= day)
-			};
-		});
-	} else {
-		result = await computeDraft(db, accountId, row);
-		if (!result) return undefined;
-	}
-
-	const [correctedBy, corrects] = await Promise.all([
+	// Everything else hangs on the row alone, so it is read side by side.
+	const [[property], view, correctedBy, corrects] = await Promise.all([
+		db
+			.select({ id: properties.id, name: properties.name })
+			.from(properties)
+			.where(and(eq(properties.accountId, accountId), eq(properties.id, row.propertyId))),
+		viewResult(db, accountId, row),
 		correctionOf(db, accountId, id),
 		row.correctsId
 			? db
@@ -796,6 +767,8 @@ export async function getStatement(
 					.then((rows) => rows[0] ?? null)
 			: Promise.resolve(null)
 	]);
+	if (!property || !view) return undefined;
+	const { result, leaseResults } = view;
 	return {
 		statement: row,
 		property,
@@ -807,6 +780,53 @@ export async function getStatement(
 		corrects,
 		superseded: correctedBy?.status === 'approved'
 	};
+}
+
+/**
+ * The result of the statement: recomputed for a draft, frozen for an approved one with where each
+ * lease's claim stands; undefined when there is none.
+ */
+async function viewResult(
+	db: Database,
+	accountId: string,
+	row: StatementRow
+): Promise<{ result: StatementResult; leaseResults: LeaseResultRow[] } | undefined> {
+	if (row.status !== 'approved') {
+		const result = await computeDraft(db, accountId, row);
+		return result && { result, leaseResults: [] };
+	}
+	const propertyResult = parseProperty(row);
+	if (!propertyResult) return undefined;
+	const [rows, reversals] = await Promise.all([
+		db
+			.select({
+				entry: statementResults,
+				lease: { id: leases.id, endDate: leases.endDate }
+			})
+			.from(statementResults)
+			.leftJoin(
+				leases,
+				and(eq(leases.accountId, accountId), eq(leases.id, statementResults.leaseId))
+			)
+			.where(
+				and(eq(statementResults.accountId, accountId), eq(statementResults.statementId, row.id))
+			)
+			.orderBy(asc(statementResults.createdAt), asc(statementResults.id)),
+		deliveryReversals(db, accountId, row.id)
+	]);
+	const frozenLeases = rows.map(({ entry }) => JSON.parse(entry.result) as LeaseStatement);
+	const day = today();
+	const leaseResults = rows.map(({ entry, lease }, index) => ({
+		leaseId: entry.leaseId,
+		balance: entry.balance,
+		deliveredOn: entry.deliveredOn,
+		dueDate: claimDueDate(frozenLeases[index], entry.deliveredOn),
+		objectionDeadline: entry.deliveredOn ? objectionDeadline(entry.deliveredOn) : null,
+		reversedOnDelivery:
+			0 - (reversals.find((charge) => charge.leaseId === entry.leaseId)?.amount ?? 0),
+		active: Boolean(lease) && (lease!.endDate === null || lease!.endDate >= day)
+	}));
+	return { result: { property: propertyResult, leases: frozenLeases }, leaseResults };
 }
 
 /** The frozen per-lease result of an approved statement, for the PDF; undefined otherwise. */
@@ -842,7 +862,20 @@ function statementName(label: string, propertyName: string): string {
 	return `Betriebskostenabrechnung ${label} für ${propertyName}`;
 }
 
-/** Creates a draft for the property and period with the computed result stored. */
+/** The name of the property of the account, for the audit entry; undefined when there is none. */
+async function nameOfProperty(
+	db: Database,
+	accountId: string,
+	propertyId: string
+): Promise<string | undefined> {
+	const [row] = await db
+		.select({ name: properties.name })
+		.from(properties)
+		.where(and(eq(properties.accountId, accountId), eq(properties.id, propertyId)));
+	return row?.name;
+}
+
+/** Creates a draft for the property and period; its result is computed whenever it is shown. */
 export async function createStatement(
 	db: Database,
 	context: AuditContext,
@@ -853,23 +886,26 @@ export async function createStatement(
 	if (periodError) return { ok: false, message: periodError };
 	// Every statement of the property whose period touches the new one: the same period is
 	// corrected instead, an overlapping one would settle the shared months twice.
-	const overlapping = await db
-		.select({
-			id: operatingCostStatements.id,
-			status: operatingCostStatements.status,
-			periodStart: operatingCostStatements.periodStart,
-			periodEnd: operatingCostStatements.periodEnd
-		})
-		.from(operatingCostStatements)
-		.where(
-			and(
-				eq(operatingCostStatements.accountId, accountId),
-				eq(operatingCostStatements.propertyId, input.propertyId),
-				lte(operatingCostStatements.periodStart, input.periodEnd),
-				gte(operatingCostStatements.periodEnd, input.periodStart)
+	const [overlapping, propertyName] = await Promise.all([
+		db
+			.select({
+				id: operatingCostStatements.id,
+				status: operatingCostStatements.status,
+				periodStart: operatingCostStatements.periodStart,
+				periodEnd: operatingCostStatements.periodEnd
+			})
+			.from(operatingCostStatements)
+			.where(
+				and(
+					eq(operatingCostStatements.accountId, accountId),
+					eq(operatingCostStatements.propertyId, input.propertyId),
+					lte(operatingCostStatements.periodStart, input.periodEnd),
+					gte(operatingCostStatements.periodEnd, input.periodStart)
+				)
 			)
-		)
-		.orderBy(asc(operatingCostStatements.periodStart));
+			.orderBy(asc(operatingCostStatements.periodStart)),
+		nameOfProperty(db, accountId, input.propertyId)
+	]);
 	const existing = overlapping.find(
 		(row) => row.periodStart === input.periodStart && row.periodEnd === input.periodEnd
 	);
@@ -889,20 +925,18 @@ export async function createStatement(
 			message: `Der Zeitraum überschneidet sich mit der Abrechnung ${periodLabel(other.periodStart, other.periodEnd)} (${other.status === 'draft' ? 'Entwurf' : 'freigegeben'}); jeder Monat darf nur einmal abgerechnet werden.`
 		};
 	}
-	const period = { start: input.periodStart, end: input.periodEnd };
-	const statementInput = await loadStatementInput(db, accountId, input.propertyId, period);
-	if (!statementInput) return { ok: false, message: 'Dieses Objekt gibt es nicht.' };
+	if (propertyName === undefined) return { ok: false, message: 'Dieses Objekt gibt es nicht.' };
 	await assertQuota(db, accountId, 'operatingCostStatements');
 
 	const id = crypto.randomUUID();
-	const label = periodLabel(period.start, period.end);
+	const label = periodLabel(input.periodStart, input.periodEnd);
 	await runBatch(db, [
 		db.insert(operatingCostStatements).values({
 			id,
 			accountId,
 			propertyId: input.propertyId,
-			periodStart: period.start,
-			periodEnd: period.end,
+			periodStart: input.periodStart,
+			periodEnd: input.periodEnd,
 			version: 1,
 			status: 'draft'
 		}),
@@ -912,7 +946,7 @@ export async function createStatement(
 			'statement',
 			id,
 			'create',
-			`${statementName(label, statementInput.property.name)} als Entwurf angelegt`
+			`${statementName(label, propertyName)} als Entwurf angelegt`
 		)
 	]);
 	return { ok: true, id };
@@ -952,7 +986,10 @@ export async function approveStatement(
 			message: `Der Abrechnungszeitraum endet am ${formatDate(row.periodEnd)}; freigeben kannst du die Abrechnung erst danach.`
 		};
 	}
-	const result = await computeDraft(db, accountId, row, { today: approvedOn });
+	const [result, previous] = await Promise.all([
+		computeDraft(db, accountId, row, { today: approvedOn }),
+		row.correctsId ? chargesOfStatement(db, accountId, row.correctsId) : Promise.resolve([])
+	]);
 	if (!result) return { ok: false, message: 'Dieses Objekt gibt es nicht.' };
 	const blocking = result.property.warnings.filter((warning) => warning.blocking);
 	if (blocking.length > 0) {
@@ -979,7 +1016,6 @@ export async function approveStatement(
 	// what that statement still posts per lease.
 	let previousPostings = new Map<string, number>();
 	if (row.correctsId) {
-		const previous = await chargesOfStatement(db, accountId, row.correctsId);
 		previousPostings = netClaims(previous);
 		const { originals, deliveryReversals: reversed } = splitCharges(previous);
 		for (const charge of originals) {
@@ -1042,8 +1078,10 @@ export async function approveStatement(
 			}).statement
 		);
 	}
-	await assertQuota(db, accountId, 'statementResults', resultRows.length);
-	await assertQuota(db, accountId, 'rentCharges', statements.length);
+	await Promise.all([
+		assertQuota(db, accountId, 'statementResults', resultRows.length),
+		assertQuota(db, accountId, 'rentCharges', statements.length)
+	]);
 
 	await runBatch(db, [
 		db
@@ -1109,7 +1147,22 @@ export async function createCorrection(
 	if (row.status !== 'approved') {
 		return { ok: false, message: 'Nur eine freigegebene Abrechnung kann korrigiert werden.' };
 	}
-	const existing = await correctionOf(db, accountId, id);
+	const [existing, propertyName, [latest]] = await Promise.all([
+		correctionOf(db, accountId, id),
+		nameOfProperty(db, accountId, row.propertyId),
+		db
+			.select({ version: operatingCostStatements.version })
+			.from(operatingCostStatements)
+			.where(
+				and(
+					eq(operatingCostStatements.accountId, accountId),
+					eq(operatingCostStatements.propertyId, row.propertyId),
+					eq(operatingCostStatements.periodStart, row.periodStart),
+					eq(operatingCostStatements.periodEnd, row.periodEnd)
+				)
+			)
+			.orderBy(desc(operatingCostStatements.version))
+	]);
 	if (existing) {
 		return {
 			ok: false,
@@ -1119,20 +1172,7 @@ export async function createCorrection(
 					: 'Diese Abrechnung wurde schon korrigiert; korrigiere die neueste Version.'
 		};
 	}
-	const result = await computeDraft(db, accountId, row);
-	if (!result) return { ok: false, message: 'Dieses Objekt gibt es nicht.' };
-	const [latest] = await db
-		.select({ version: operatingCostStatements.version })
-		.from(operatingCostStatements)
-		.where(
-			and(
-				eq(operatingCostStatements.accountId, accountId),
-				eq(operatingCostStatements.propertyId, row.propertyId),
-				eq(operatingCostStatements.periodStart, row.periodStart),
-				eq(operatingCostStatements.periodEnd, row.periodEnd)
-			)
-		)
-		.orderBy(desc(operatingCostStatements.version));
+	if (propertyName === undefined) return { ok: false, message: 'Dieses Objekt gibt es nicht.' };
 	const version = (latest?.version ?? row.version) + 1;
 	await assertQuota(db, accountId, 'operatingCostStatements');
 	const correctionId = crypto.randomUUID();
@@ -1154,7 +1194,7 @@ export async function createCorrection(
 			'statement',
 			correctionId,
 			'correct',
-			`Korrektur (Version ${version}) der ${statementName(label, result.property.propertyName)} als Entwurf angelegt`
+			`Korrektur (Version ${version}) der ${statementName(label, propertyName)} als Entwurf angelegt`
 		)
 	]);
 	return { ok: true, id: correctionId };
@@ -1341,10 +1381,7 @@ export async function deleteDraft(
 	const { accountId } = context;
 	const row = await statementRow(db, accountId, id);
 	if (!row || row.status !== 'draft') return false;
-	const [property] = await db
-		.select({ name: properties.name })
-		.from(properties)
-		.where(and(eq(properties.accountId, accountId), eq(properties.id, row.propertyId)));
+	const propertyName = await nameOfProperty(db, accountId, row.propertyId);
 	const label = periodLabel(row.periodStart, row.periodEnd);
 	await runBatch(db, [
 		db
@@ -1362,7 +1399,7 @@ export async function deleteDraft(
 			'statement',
 			id,
 			'delete',
-			`Entwurf der ${statementName(label, property?.name ?? '')} gelöscht`
+			`Entwurf der ${statementName(label, propertyName ?? '')} gelöscht`
 		)
 	]);
 	return true;
