@@ -660,44 +660,6 @@ button.account-card[aria-expanded='true'] {
 	width: auto;
 	height: 52px;
 }
-.website-header-links {
-	display: inline-flex;
-	align-items: center;
-	gap: 12px;
-}
-/* The website's one page in the header, as in website/_header.html. */
-.website-nav-link {
-	padding: 8px 4px;
-	color: var(--color-text);
-	font-size: var(--text-sm);
-	font-weight: 500;
-	text-decoration: none;
-	text-underline-offset: 6px;
-	text-decoration-thickness: 3px;
-	text-decoration-color: var(--color-highlight);
-}
-.website-nav-link:hover {
-	text-decoration-line: underline;
-}
-.website-nav-short {
-	display: none;
-}
-@media (max-width: 600px) {
-	.website-nav-long {
-		display: none;
-	}
-	.website-nav-short {
-		display: inline;
-	}
-	.website-nav-link {
-		padding-inline: 0;
-	}
-}
-@media (max-width: 480px) {
-	.website-github {
-		display: none;
-	}
-}
 .website-github {
 	display: inline-flex;
 	padding: 8px;
