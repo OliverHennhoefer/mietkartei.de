@@ -1602,6 +1602,35 @@ describe('statementLetter variants', () => {
 		);
 	});
 
+	it('adds a GiroCode for a Nachzahlung to the landlord account, and none without one', () => {
+		const giroCodeOf = (statement: LeaseStatement) =>
+			statementLetter(statement).blocks!.flatMap((block) =>
+				'giroCode' in block ? [block.giroCode] : []
+			);
+		const [code] = giroCodeOf({
+			...base,
+			landlord: { ...base.landlord, iban: 'DE02 1203 0000 0000 2020 51' }
+		});
+		const lines = code.payload.split('\n');
+		expect(lines.slice(0, 8)).toEqual([
+			'BCD',
+			'002',
+			'1',
+			'SCT',
+			'',
+			base.landlord.name,
+			'DE02120300000000202051',
+			'EUR105.99'
+		]);
+		expect(lines[10]).toMatch(/^Nachzahlung Betriebskostenabrechnung 2025, /);
+		expect(code.lines).toContain('Betrag: 105,99\u00a0€');
+
+		expect(giroCodeOf({ ...base, landlord: { ...base.landlord, iban: null } })).toEqual([]);
+		const withIban = { ...base, landlord: { ...base.landlord, iban: 'DE02120300000000202051' } };
+		expect(giroCodeOf({ ...withIban, balance: -500, posted: -500 })).toEqual([]);
+		expect(giroCodeOf({ ...withIban, posted: 0 })).toEqual([]);
+	});
+
 	it('says that nothing is owed when costs and prepayments match', () => {
 		const paragraphs = paragraphsOf({ ...base, balance: 0, posted: 0 });
 		expect(paragraphs).toContain(

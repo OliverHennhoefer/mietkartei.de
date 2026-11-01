@@ -80,10 +80,27 @@ describe('createSettlement', () => {
 		expect(result?.letter.blocks?.[2]).toMatchObject({
 			table: { footer: ['Auszahlung an Sie', expect.stringContaining('712,00')] }
 		});
+		// Nothing left to pay, so no GiroCode.
+		expect(result?.letter.blocks?.some((block) => 'giroCode' in block)).toBe(false);
 		const audit = await db.select().from(auditLog).where(eq(auditLog.action, 'create'));
 		expect(audit.map((entry) => entry.summary)).toContainEqual(
 			expect.stringContaining('Kautionsabrechnung vom 15.02.2026 erstellt')
 		);
+	});
+
+	it('adds a GiroCode for arrears the deposit does not cover', async () => {
+		expect(
+			await createSettlement(db, contextA, leaseId, {
+				...input,
+				deductions: [{ label: 'Neuer Bodenbelag', amount: 150000 }]
+			})
+		).toMatchObject({ ok: true });
+		expect(await getSettlement(db, 'a', leaseId)).toMatchObject({ payout: 0, remaining: 48800 });
+		const blocks = (await settlementLetter(db, 'a', leaseId))!.letter.blocks!;
+		const code = blocks.flatMap((block) => ('giroCode' in block ? [block.giroCode] : []));
+		expect(code).toHaveLength(1);
+		expect(code[0].payload).toContain('\nDE02120300000000202051\nEUR488.00\n');
+		expect(code[0].payload).toContain('Mietrückstand nach Kautionsabrechnung vom 15.02.2026');
 	});
 
 	it('offsets only what was due, not a Nachzahlung before its delivery', async () => {
