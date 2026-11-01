@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { giroCodeModules, type GiroCode } from '#lib/domain/girocode.ts';
 	import type { Letter, LetterBlock, PdfTable } from '#lib/server/pdf.ts';
 
 	// A letter as an A4 sheet in HTML, laid out like renderLetter draws it (DIN 5008 form B, the
@@ -17,10 +18,30 @@
 	/** The blocks, each paragraph with its index in `paragraphs`. */
 	const blocks = $derived.by(() => {
 		let index = 0;
-		return letter.blocks.map((block) =>
-			'paragraph' in block ? { paragraph: index++ } : { table: block.table }
+		return letter.blocks.map(
+			(block): { paragraph?: number; table?: PdfTable; giroCode?: GiroCode } =>
+				'paragraph' in block ? { paragraph: index++ } : block
 		);
 	});
+
+	/** The dark modules as one SVG path in module units, like writeGiroCode in pdf.ts. */
+	function giroCodePath(code: GiroCode): { size: number; path: string } {
+		const modules = giroCodeModules(code.payload);
+		const runs: string[] = [];
+		modules.forEach((row, y) => {
+			let x = 0;
+			while (x < row.length) {
+				if (!row[x]) {
+					x++;
+					continue;
+				}
+				const start = x;
+				while (x < row.length && row[x]) x++;
+				runs.push(`M${start} ${y}h${x - start}v1h${start - x}z`);
+			}
+		});
+		return { size: modules.length, path: runs.join('') };
+	}
 
 	/** Column widths as percentages, like columnWidths in pdf.ts. */
 	function widths(table: PdfTable): number[] {
@@ -91,6 +112,17 @@
 							</tfoot>
 						{/if}
 					</table>
+				{:else if block.giroCode}
+					{@const code = giroCodePath(block.giroCode)}
+					<div class="girocode">
+						<svg viewBox="0 0 {code.size} {code.size}" role="img" aria-label="GiroCode">
+							<path d={code.path} />
+						</svg>
+						<div>
+							<div class="girocode-title">Bequem überweisen: mit der Banking-App scannen</div>
+							{#each block.giroCode.lines as line, index (index)}<div>{line}</div>{/each}
+						</div>
+					</div>
 				{/if}
 			{/each}
 			{#if letter.closing}
@@ -209,5 +241,21 @@
 	}
 	.right {
 		text-align: right;
+	}
+	.girocode {
+		display: flex;
+		gap: calc(6 * var(--mm));
+		margin-bottom: calc(14 * var(--pt));
+		overflow-wrap: anywhere;
+	}
+	.girocode svg {
+		flex: none;
+		width: calc(30 * var(--mm));
+		height: calc(30 * var(--mm));
+		fill: #000;
+		shape-rendering: crispEdges;
+	}
+	.girocode-title {
+		font-weight: bold;
 	}
 </style>

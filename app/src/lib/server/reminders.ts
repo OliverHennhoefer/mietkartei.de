@@ -1,3 +1,4 @@
+import { giroCode, ibanNamedIn, paymentPurpose } from '../domain/girocode';
 import { and, desc, eq } from 'drizzle-orm';
 import { formatDate, today, type IsoDate } from '../dates';
 import {
@@ -309,6 +310,16 @@ export async function reminderLetter(
 
 	const label = reminderLevelLabels[reminder.level];
 	const date = formatDate(reminder.date);
+	const code = giroCode({
+		name: landlord.name,
+		iban: ibanNamedIn(reminder.letterText, landlord.iban),
+		amount: reminder.amount,
+		purpose: paymentPurpose(
+			`Mietrückstand ${label} vom ${date}`,
+			[lease.unit.name],
+			lease.tenants.map((tenant) => tenant.lastName)
+		)
+	});
 	// The table of open items follows the paragraph that announces it, the second one.
 	const [salutation, intro, ...rest] = reminder.letterText.split('\n\n');
 	const letter: Letter = {
@@ -331,7 +342,8 @@ export async function reminderLetter(
 					footer: ['', 'Summe', formatCents(reminder.amount)]
 				}
 			},
-			...rest.map((paragraph) => ({ paragraph }))
+			...rest.map((paragraph) => ({ paragraph })),
+			...(code ? [{ giroCode: code }] : [])
 		],
 		closing: ['Mit freundlichen Grüßen', '', landlord.name]
 	};
