@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { giroCode, giroCodeModules, paymentPurpose } from './girocode';
+import { giroCode, giroCodeModules, ibanNamedIn, paymentPurpose } from './girocode';
 
 const input = {
 	name: 'Erika Vermieter',
@@ -86,6 +86,16 @@ describe('giroCode', () => {
 
 	it('leaves out an empty Verwendungszweck in the lines', () => {
 		expect(giroCode({ ...input, purpose: '' })!.lines).toHaveLength(3);
+	});
+});
+
+describe('ibanNamedIn', () => {
+	it('returns the IBAN only when the letter names it, in any spacing', () => {
+		const text = 'Bitte überweisen Sie auf das Konto IBAN DE02 1203 0000 0000 2020 51.';
+		expect(ibanNamedIn(text, 'DE02120300000000202051')).toBe('DE02120300000000202051');
+		expect(ibanNamedIn(text, 'de02 1203 0000 0000 2020 51')).toBe('DE02120300000000202051');
+		expect(ibanNamedIn(text, 'DE63100500006600099110')).toBeNull();
+		expect(ibanNamedIn(text, null)).toBeNull();
 	});
 });
 

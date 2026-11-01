@@ -1,4 +1,4 @@
-import { giroCode, paymentPurpose } from '../domain/girocode';
+import { giroCode, ibanNamedIn, paymentPurpose } from '../domain/girocode';
 import { and, desc, eq } from 'drizzle-orm';
 import { formatDate, today, type IsoDate } from '../dates';
 import {
@@ -312,7 +312,7 @@ export async function reminderLetter(
 	const date = formatDate(reminder.date);
 	const code = giroCode({
 		name: landlord.name,
-		iban: landlord.iban,
+		iban: ibanNamedIn(reminder.letterText, landlord.iban),
 		amount: reminder.amount,
 		purpose: paymentPurpose(
 			`Mietrückstand ${label} vom ${date}`,

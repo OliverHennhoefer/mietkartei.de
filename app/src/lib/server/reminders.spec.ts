@@ -166,6 +166,11 @@ describe('the letters of a lease', () => {
 		expect(last && 'giroCode' in last ? last.giroCode.payload : undefined).toContain(
 			'\nDE02120300000000202051\nEUR1300.00\n\n\nMietrückstand Zahlungserinnerung vom 10.03.2025, EG links'
 		);
+
+		// A new IBAN in the profile does not change the account of a letter already written.
+		await db.update(accounts).set({ iban: 'DE63100500006600099110' }).where(eq(accounts.id, 'a'));
+		const later = (await reminderLetter(db, 'a', leaseId, result.id))!.letter.blocks!;
+		expect(later.some((block) => 'giroCode' in block)).toBe(false);
 	});
 
 	it('take an edited text, keeping the table after the second paragraph', async () => {

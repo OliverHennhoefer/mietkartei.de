@@ -1,4 +1,4 @@
-import { giroCode, paymentPurpose } from '../domain/girocode';
+import { giroCode, ibanNamedIn, paymentPurpose } from '../domain/girocode';
 import { and, eq } from 'drizzle-orm';
 import { formatDate, today, type IsoDate } from '../dates';
 import {
@@ -268,7 +268,7 @@ export async function settlementLetter(
 	// What the deposit did not cover of the arrears, to be paid by the tenant.
 	const code = giroCode({
 		name: landlord.name,
-		iban: landlord.iban,
+		iban: ibanNamedIn(settlement.letterText, landlord.iban),
 		amount: settlement.remaining,
 		purpose: paymentPurpose(
 			`Mietrückstand nach Kautionsabrechnung vom ${date}`,

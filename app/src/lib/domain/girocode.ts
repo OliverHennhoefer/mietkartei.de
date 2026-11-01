@@ -80,6 +80,18 @@ export function giroCode(input: GiroCodeInput): GiroCode | undefined {
 	};
 }
 
+/**
+ * The IBAN, when the stored text of a letter names it. A letter is written once, with the account
+ * of that day; its code repeats only that account, so a later change of the IBAN in the profile
+ * never sends the scanning tenant elsewhere than the text does.
+ */
+export function ibanNamedIn(text: string, iban: string | null): string | null {
+	const normalized = normalizeIban(iban);
+	return normalized && text.replace(/\s+/g, '').toUpperCase().includes(normalized)
+		? normalized
+		: null;
+}
+
 /** The Verwendungszweck from its parts: what is paid, the units and the tenants' last names. */
 export function paymentPurpose(what: string, unitNames: string[], lastNames: string[]): string {
 	return [what, unitNames.join(' + '), lastNames.filter(Boolean).join(', ')]
