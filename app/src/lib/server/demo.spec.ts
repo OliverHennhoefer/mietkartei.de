@@ -212,12 +212,13 @@ describe('createDemoData', () => {
 		expect(
 			await db.select().from(co2CostSplits).where(eq(co2CostSplits.accountId, 'a'))
 		).toHaveLength(1);
-		// Berger's Mietvertrag and Übergabeprotokoll, and a Grundsteuerbescheid per past year.
+		// Berger's Mietvertrag and Übergabeprotokoll, and a Grundsteuerbescheid and a gas bill per
+		// past year.
 		const files = await db.select().from(documents).where(eq(documents.accountId, 'a'));
-		expect(files).toHaveLength(2 + 8);
+		expect(files).toHaveLength(2 + 8 + 8);
 		expect(files.every((row) => row.mimeType === 'application/pdf')).toBe(true);
-		expect(files.filter((row) => row.costItemId)).toHaveLength(8);
-		expect(storage.files.size).toBe(10);
+		expect(files.filter((row) => row.costItemId)).toHaveLength(16);
+		expect(storage.files.size).toBe(18);
 
 		// Only Berger is in arrears, by the two unpaid months before the current one plus the
 		// current month; Schmidt and Yılmaz owe this month (open on the bank account), the CO₂

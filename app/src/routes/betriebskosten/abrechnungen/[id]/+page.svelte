@@ -10,6 +10,8 @@
 	import { formatDate, formatDateTime, formatMonth } from '#lib/dates.ts';
 	import {
 		balanceLabel,
+		changeLabel,
+		periodLabel,
 		suggestedPrepayments,
 		type LeaseStatement
 	} from '#lib/domain/statement.ts';
@@ -191,7 +193,22 @@
 	</div>
 </div>
 
-<h3>Belege im Zeitraum</h3>
+<div class="row receipts-head">
+	<h3>Belege im Zeitraum</h3>
+	{#if data.receipts > 0}
+		<a
+			class="button secondary small"
+			href="/betriebskosten/abrechnungen/{statement.id}/belege"
+			download
+			title="Übersicht und {pluralize(
+				data.receipts,
+				'Belegdatei',
+				'Belegdateien'
+			)} der umgelegten Kosten, für die Belegeinsicht der Mieter"
+			><Icon name="download" size={14} /> Belegpaket (ZIP)</a
+		>
+	{/if}
+</div>
 <div class="table-wrap">
 	<table class="table" aria-label="Belege">
 		<thead>
@@ -225,6 +242,42 @@
 		</tbody>
 	</table>
 </div>
+
+{#if property.comparison}
+	{@const comparison = property.comparison}
+	{@const previousLabel = periodLabel(comparison.previous.start, comparison.previous.end)}
+	<h3>Vergleich mit der Abrechnung {previousLabel}</h3>
+	<p class="muted">
+		Die umlagefähigen Kosten je Kostenart neben denen der letzten freigegebenen Abrechnung. Große
+		Sprünge sind die Stellen, nach denen Mieter zuerst fragen.
+	</p>
+	<div class="table-wrap">
+		<table class="table" aria-label="Vergleich mit der Abrechnung {previousLabel}">
+			<thead>
+				<tr>
+					<th>Kostenart</th>
+					<th class="num">{previousLabel}</th>
+					<th class="num">{view.periodLabel}</th>
+					<th class="num">Veränderung</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each comparison.rows as row (row.categoryName)}
+					<tr>
+						<td>{row.categoryName}</td>
+						<td class="num"
+							>{#if row.previous === null}–{:else}<Money cents={row.previous} />{/if}</td
+						>
+						<td class="num"
+							>{#if row.current === null}–{:else}<Money cents={row.current} />{/if}</td
+						>
+						<td class="num">{changeLabel(row.previous, row.current)}</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	</div>
+{/if}
 
 {#each result.leases as lease (lease.leaseId)}
 	{@const frozen = leaseResult(lease.leaseId)}
@@ -497,8 +550,13 @@
 		display: grid;
 		gap: 0.75rem;
 	}
-	.lease h3 {
+	.lease h3,
+	.receipts-head h3 {
 		margin: 0;
+	}
+	.receipts-head {
+		justify-content: space-between;
+		margin: 1.75rem 0 0.75rem;
 	}
 	dl.details {
 		display: grid;
