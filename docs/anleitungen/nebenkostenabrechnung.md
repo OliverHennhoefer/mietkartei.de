@@ -60,7 +60,7 @@ Die Freigabe verschickt nichts. Lade die PDFs herunter und stell sie deinen Miet
 - **Abrechnungsfrist:** Die Abrechnung muss dem Mieter spätestens zwölf Monate nach Ende des Abrechnungszeitraums zugehen (§ 556 Abs. 3 BGB). Kommt sie später an, kannst du eine Nachzahlung in der Regel nicht mehr verlangen. mietkartei bucht sie dann wieder aus.
 - **Einwendungsfrist:** Der Mieter kann bis zum Ende des zwölften Monats nach Zugang Einwände erheben.
 
-Eine Nachzahlung wird 30 Tage nach Zugang fällig.
+Eine Nachzahlung wird 30 Tage nach Zugang fällig. Hast du unter **Einstellungen → Profil** deine IBAN eingetragen, steht neben der Nachzahlung ein GiroCode. Der Mieter scannt ihn mit seiner Banking-App, Empfänger, Betrag und Verwendungszweck sind dann schon ausgefüllt. Weil der Verwendungszweck die Einheit und den Namen des Mieters nennt, ordnet der Bankabgleich die Zahlung von selbst zu.
 
 Will ein Mieter die Belege sehen (§ 259 BGB), lädst du über **Belegpaket (ZIP)** neben der Überschrift „Belege im Zeitraum“ alles in einer Datei herunter: vorn eine Belegübersicht als PDF mit jeder umgelegten Kostenart, dahinter die eingescannten Belege, nummeriert wie in der Übersicht. Belege nicht umlagefähiger Kosten bleiben draußen. Die Schaltfläche erscheint, sobald mindestens ein Beleg eine Datei hat.
 

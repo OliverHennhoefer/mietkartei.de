@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { giroCode } from '../domain/girocode';
 import { PDFArray, PDFDocument, PDFRawStream, decodePDFRawStream, type PDFPage } from 'pdf-lib';
 import {
 	pdfResponse,
@@ -157,6 +158,24 @@ describe('renderLetter', () => {
 		expect(text.indexOf('Erster Absatz.')).toBeLessThan(text.indexOf('Tabelle A'));
 		expect(text.indexOf('Tabelle A')).toBeLessThan(text.indexOf('Text zwischen den Tabellen.'));
 		expect(text.indexOf('Text zwischen den Tabellen.')).toBeLessThan(text.indexOf('Tabelle B'));
+	});
+
+	it('draws a GiroCode with the transfer in words beside it', async () => {
+		const code = giroCode({
+			name: 'Erika Vermieter',
+			iban: 'DE02120300000000202051',
+			amount: 10599,
+			purpose: 'Nachzahlung Betriebskostenabrechnung 2025'
+		})!;
+		const { doc, pages } = await renderAndLoad({
+			...letter,
+			paragraphs: [],
+			blocks: [{ paragraph: 'Bitte überweisen Sie die Nachzahlung.' }, { giroCode: code }]
+		});
+		expect(doc.getPageCount()).toBe(1);
+		expect(pages[0]).toContain('Bequem überweisen: mit der Banking-App scannen');
+		expect(pages[0]).toContain('IBAN: DE02 1203 0000 0000 2020 51');
+		expect(pages[0]).toContain('Betrag: 105,99\u00a0€');
 	});
 
 	it('wraps long paragraphs and words without throwing', async () => {

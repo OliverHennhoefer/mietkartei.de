@@ -2,7 +2,8 @@ import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { formatCents } from '../money';
 import type { Database } from './db';
-import { auditLog, paymentReminders } from './db/schema';
+import { accounts, auditLog, paymentReminders } from './db/schema';
+import type { LetterBlock } from './pdf';
 import { createPayment } from './ledger';
 import {
 	createReminder,
@@ -152,6 +153,19 @@ describe('the letters of a lease', () => {
 			formatCents(130000)
 		]);
 		expect(await reminderLetter(db, 'b', leaseId, result.id)).toBeUndefined();
+		// Without the landlord's IBAN there is nothing to scan.
+		expect(pdf?.letter.blocks?.some((block) => 'giroCode' in block)).toBe(false);
+	});
+
+	it('adds a GiroCode for the open amount when the landlord has an IBAN', async () => {
+		await db.update(accounts).set({ iban: 'DE02120300000000202051' }).where(eq(accounts.id, 'a'));
+		const result = await createReminder(db, contextA, leaseId, input);
+		if (!result?.ok) throw new Error('setup failed');
+		const blocks = (await reminderLetter(db, 'a', leaseId, result.id))!.letter.blocks!;
+		const last = blocks.at(-1);
+		expect(last && 'giroCode' in last ? last.giroCode.payload : undefined).toContain(
+			'\nDE02120300000000202051\nEUR1300.00\n\n\nMietrückstand Zahlungserinnerung vom 10.03.2025, EG links'
+		);
 	});
 
 	it('take an edited text, keeping the table after the second paragraph', async () => {
@@ -165,7 +179,9 @@ describe('the letters of a lease', () => {
 			ok: true
 		});
 		const after = (await reminderLetter(db, 'a', leaseId, result.id))!.letter.blocks!;
-		expect(after.map((block) => ('table' in block ? 'table' : block.paragraph))).toEqual([
+		const kind = (block: LetterBlock) =>
+			'table' in block ? 'table' : 'giroCode' in block ? 'giroCode' : block.paragraph;
+		expect(after.filter((block) => !('giroCode' in block)).map(kind)).toEqual([
 			paragraphs[0],
 			paragraphs[1],
 			'table',

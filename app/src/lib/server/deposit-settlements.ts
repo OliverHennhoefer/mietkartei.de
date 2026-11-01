@@ -1,3 +1,4 @@
+import { giroCode, paymentPurpose } from '../domain/girocode';
 import { and, eq } from 'drizzle-orm';
 import { formatDate, today, type IsoDate } from '../dates';
 import {
@@ -264,6 +265,17 @@ export async function settlementLetter(
 	if (!lease) return undefined;
 	const landlord = await landlordAddress(db, accountId);
 	const date = formatDate(settlement.date);
+	// What the deposit did not cover of the arrears, to be paid by the tenant.
+	const code = giroCode({
+		name: landlord.name,
+		iban: landlord.iban,
+		amount: settlement.remaining,
+		purpose: paymentPurpose(
+			`Mietrückstand nach Kautionsabrechnung vom ${date}`,
+			[lease.unit.name],
+			lease.tenants.map((tenant) => tenant.lastName)
+		)
+	});
 	const [salutation, intro, ...rest] = settlement.letterText.split('\n\n');
 	const letter: Letter = {
 		sender: addressLines(landlord),
@@ -281,7 +293,8 @@ export async function settlementLetter(
 					footer: ['Auszahlung an Sie', formatCents(settlement.payout)]
 				}
 			},
-			...rest.map((paragraph) => ({ paragraph }))
+			...rest.map((paragraph) => ({ paragraph })),
+			...(code ? [{ giroCode: code }] : [])
 		],
 		closing: ['Mit freundlichen Grüßen', '', landlord.name]
 	};
