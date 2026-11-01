@@ -11,12 +11,7 @@
 			<img src={lockup} alt="mietkartei" width="489" height="96" />
 		</picture>
 	</a>
-	<nav class="website-header-links" aria-label="Seitenlinks">
-		<a class="website-nav-link" href="https://mietkartei.de/nebenkostenabrechnung/"
-			><span class="website-nav-long">Nebenkostenabrechnung</span><span class="website-nav-short"
-				>Nebenkosten</span
-			></a
-		>
+	<nav aria-label="Seitenlinks">
 		<a
 			class="website-github"
 			href="https://github.com/OliverHennhoefer/mietkartei.de"
