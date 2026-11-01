@@ -46,3 +46,15 @@ export function rowsPerStatement(table: Table): number {
 export function chunkIds<T>(ids: readonly T[]): T[][] {
 	return chunk(ids, 90);
 }
+
+/**
+ * Runs `query` once per group of ids (chunkIds), the groups side by side, and concatenates their
+ * rows; no query at all without ids.
+ */
+export async function selectInChunks<I, T>(
+	ids: readonly I[],
+	query: (ids: I[]) => Promise<T[]>
+): Promise<T[]> {
+	const groups = await Promise.all(chunkIds(ids).map((group) => query(group)));
+	return groups.flat();
+}
