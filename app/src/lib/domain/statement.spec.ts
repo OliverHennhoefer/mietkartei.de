@@ -735,6 +735,16 @@ describe('computeStatement warnings', () => {
 			'nach Fläche statt Verbrauch (§ 9a Abs. 2 HeizKV): 60 m² von 100 m² · 365 von 365 Tagen'
 		);
 		expect(eg.lines[0].keyTotal).toBe('nach Fläche statt Verbrauch (§ 9a Abs. 2 HeizKV): 100 m²');
+		// Not split by consumption after all, so the Prüfprotokoll does not certify it.
+		expect(eg.lines[0].heizkv).toBe(false);
+		const measured = computeStatement(
+			heat([
+				meter('m-eg', 'eg', [reading('2025-01-01', 0), reading('2025-12-31', 900)]),
+				meter('m-og', 'og', [reading('2025-01-01', 0), reading('2025-12-31', 400)])
+			]),
+			options
+		);
+		expect(measured.leases.every((lease) => lease.lines.every((line) => line.heizkv))).toBe(true);
 
 		// Estimates on 40 of 100 m² (OG) under a 70/30 key: the 70 % part moves to the area too.
 		const mixed = computeStatement(

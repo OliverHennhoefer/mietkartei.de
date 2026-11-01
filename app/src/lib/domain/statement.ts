@@ -299,6 +299,11 @@ export type CostLine = {
 	keyKind: AllocationKeyKind;
 	/** The item counts as heating cost (Pauschale rules, HeizKV). */
 	heating: boolean;
+	/**
+	 * A heating line split 50–70 % by consumption as §§ 7, 8 HeizKV want, without falling back to
+	 * the floor area; false for any other line.
+	 */
+	heizkv: boolean;
 	/** The item's cost in the period (Gesamtkosten). */
 	itemTotal: number;
 	/** What is allocated to the units: the total after the landlord's CO₂ share. */
@@ -756,6 +761,8 @@ type Component = {
 	usageSplits?: UsageSplit[];
 	/** Per circle unit for a `direct` key: the amounts entered per lease, else null. */
 	leaseAmounts?: (Map<string, number> | null)[];
+	/** A consumption share split by floor area instead (§ 9a Abs. 2 HeizKV). */
+	areaFallback?: boolean;
 };
 
 type Context = {
@@ -956,7 +963,7 @@ function consumptionComponent(
 			href: zaehlerHref(ctx),
 			message: `Geschätzte Verbräuche (${meterKindLabels[kind]}) betreffen mehr als 25 % der Fläche; deshalb werden diese Kosten nur nach Fläche verteilt (§ 9a Abs. 2 HeizKV). Prüfe die Zählerstände.`
 		});
-		return areaComponent(ctx, amount, circleUnits, fallbackLabel);
+		return { ...areaComponent(ctx, amount, circleUnits, fallbackLabel), areaFallback: true };
 	}
 
 	return {
@@ -1531,6 +1538,7 @@ export function computeStatement(
 		}
 
 		// Step 6: §§ 7, 8 HeizKV want 50–70 % of heating and hot water cost by consumption.
+		let heizkv = false;
 		if (heating) {
 			const consumptionKey =
 				key.kind === 'consumption' || key.kind === 'mixed' || key.kind === 'direct';
@@ -1538,7 +1546,8 @@ export function computeStatement(
 			const badPercent =
 				key.kind === 'mixed' &&
 				(percent < HEIZKV_CONSUMPTION_PERCENT.min || percent > HEIZKV_CONSUMPTION_PERCENT.max);
-			if (!consumptionKey || badPercent) {
+			heizkv = consumptionKey && !badPercent;
+			if (!heizkv) {
 				warn(ctx, {
 					code: 'heizkv_key',
 					blocking: false,
@@ -1562,6 +1571,7 @@ export function computeStatement(
 			heating
 		);
 		summary.allocated = components.reduce((sum, component) => sum + component.amount, 0);
+		if (components.some((component) => component.areaFallback)) heizkv = false;
 		// What no weight carries: distributeCents gives all zeros when every weight is 0.
 		let undistributed = 0;
 		const sumOf = (amounts: number[]) => amounts.reduce((sum, amount) => sum + amount, 0);
@@ -1701,6 +1711,7 @@ export function computeStatement(
 					: key.name,
 				keyKind: key.kind,
 				heating,
+				heizkv,
 				itemTotal: total,
 				allocated,
 				keyTotal: association

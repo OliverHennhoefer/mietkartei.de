@@ -1605,9 +1605,6 @@ export function statementLetter(statement: LeaseStatement): Letter {
 	};
 }
 
-/** Heating keys that follow consumption, as the HeizkostenV asks (§§ 7, 8). */
-const CONSUMPTION_KEYS = new Set(['mixed', 'consumption', 'direct']);
-
 /**
  * The Prüfprotokoll of the letter: what the statement was checked for, each with what the frozen
  * result shows. Points that do not apply to the lease (no heating, no CO₂ cost) or did not pass
@@ -1638,7 +1635,9 @@ export function checkRows(statement: LeaseStatement): string[][] {
 			: 'Nur Betriebskosten nach §\u00a02 Betriebskostenverordnung; ohne Verwaltung und Instandhaltung.'
 	]);
 	const heating = statement.lines.filter((line) => line.heating);
-	if (heating.length > 0 && heating.every((line) => CONSUMPTION_KEYS.has(line.keyKind))) {
+	// Only when every heating line was split by consumption as the HeizkostenV wants: not after a
+	// fallback to the floor area (§ 9a Abs. 2) or with a share outside 50–70 %.
+	if (heating.length > 0 && heating.every((line) => line.heizkv)) {
 		rows.push([
 			'Heizkostenverordnung',
 			'Heiz- und Warmwasserkosten nach Verbrauch verteilt (§§\u00a07, 8 HeizkostenV).'

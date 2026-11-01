@@ -1482,6 +1482,13 @@ describe('checkRows', () => {
 			/^Aus dem Mietkonto angerechnet: 6\u00a0Monate, zusammen /
 		);
 
+		// A heating line split by floor area after all (§ 9a Abs. 2 HeizKV) is not certified.
+		const byArea = {
+			...ogA,
+			lines: ogA.lines.map((line) => (line.heating ? { ...line, heizkv: false } : line))
+		};
+		expect(checkRows(byArea).map((row) => row[0])).not.toContain('Heizkostenverordnung');
+
 		// Past the deadline the Frist is not claimed, without heating there is no HeizkostenV row.
 		const late = { ...ogA, late: true, lines: ogA.lines.filter((line) => !line.heating) };
 		expect(checkRows(late).map((row) => row[0])).toEqual([
