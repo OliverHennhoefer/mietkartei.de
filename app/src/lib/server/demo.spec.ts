@@ -47,7 +47,7 @@ describe('createDemoData', () => {
 	it('fills an empty account with properties, leases, history, letters and tasks', async () => {
 		expect(await isEmptyAccount(db, 'a')).toBe(true);
 		const result = await createDemoData(db, contextA, { storage });
-		expect(result).toEqual({ ok: true, leases: 11 });
+		expect(result).toEqual({ ok: true, leases: 11, statementId: expect.any(String) });
 
 		const rows = async (
 			table: typeof properties | typeof units | typeof tenants | typeof leases | typeof tasks
@@ -245,7 +245,11 @@ describe('createDemoData', () => {
 		}
 
 		await db.run(sql`drop trigger refuse_tasks`);
-		expect(await createDemoData(db, contextA, { storage })).toEqual({ ok: true, leases: 11 });
+		expect(await createDemoData(db, contextA, { storage })).toEqual({
+			ok: true,
+			leases: 11,
+			statementId: expect.any(String)
+		});
 		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(16);
 	});
 
@@ -276,7 +280,11 @@ describe('createDemoData', () => {
 		expect(await db.select().from(documents).where(eq(documents.accountId, 'a'))).toEqual([]);
 		expect(storage.files.size).toBe(0);
 		await db.run(sql`drop trigger refuse_documents`);
-		expect(await createDemoData(db, contextA, { storage })).toEqual({ ok: true, leases: 11 });
+		expect(await createDemoData(db, contextA, { storage })).toEqual({
+			ok: true,
+			leases: 11,
+			statementId: expect.any(String)
+		});
 	});
 
 	it('creates the demo once when the button is pressed twice at the same time', async () => {
@@ -284,7 +292,7 @@ describe('createDemoData', () => {
 			createDemoData(db, contextA, { storage }),
 			createDemoData(db, contextA, { storage })
 		]);
-		expect(results).toContainEqual({ ok: true, leases: 11 });
+		expect(results).toContainEqual({ ok: true, leases: 11, statementId: expect.any(String) });
 		expect(results).toContainEqual({ ok: false, reason: 'not-empty' });
 		expect(await db.select().from(properties).where(eq(properties.accountId, 'a'))).toHaveLength(3);
 		expect(await db.select().from(leases).where(eq(leases.accountId, 'a'))).toHaveLength(11);

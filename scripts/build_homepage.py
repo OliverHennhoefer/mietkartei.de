@@ -24,6 +24,7 @@ for filename in (
     "datenschutz/index.html",
     "auftragsverarbeitung/index.html",
     "fragen/index.html",
+    "nebenkostenabrechnung/index.html",
     "preise/index.html",
     "styles.css",
     "robots.txt",
@@ -71,17 +72,18 @@ for filename in ("Geist.woff2", "OFL.txt"):
 
 
 def add_faq_json_ld(page: Path) -> None:
-    """Adds a FAQPage block built from the questions on the FAQ page, so both stay in step."""
+    """Adds a FAQPage block built from the questions on the page, so both stay in step."""
     text = page.read_text(encoding="utf-8")
     pairs = re.findall(r'<div class="faq-item">\s*<h3>(.*?)</h3>\s*<p>(.*?)</p>', text, re.S)
+    path = f"/{page.relative_to(OUTPUT).parent.as_posix()}/"
     if not pairs:
-        raise ValueError("website/fragen/index.html: missing FAQ items")
+        raise ValueError(f"website{path}index.html: missing FAQ items")
     plain = lambda fragment: html.unescape(re.sub(r"<[^>]+>", "", fragment)).strip()
     faq = {
         "@context": "https://schema.org",
         "@type": "FAQPage",
-        "@id": "https://mietkartei.de/fragen/#faq",
-        "url": "https://mietkartei.de/fragen/",
+        "@id": f"https://mietkartei.de{path}#faq",
+        "url": f"https://mietkartei.de{path}",
         "inLanguage": "de-DE",
         "mainEntity": [
             {"@type": "Question", "name": plain(q), "acceptedAnswer": {"@type": "Answer", "text": plain(a)}}
@@ -96,11 +98,11 @@ def fingerprint_screenshots(page: Path) -> None:
     """Appends a content hash to the screenshot URLs, so a retaken screenshot is not served from
     the one-day browser cache of /assets/ under its old name."""
     def versioned(match: re.Match) -> str:
-        digest = hashlib.sha256((OUTPUT / match[1]).read_bytes()).hexdigest()[:10]
+        digest = hashlib.sha256((OUTPUT / match[1].lstrip("/")).read_bytes()).hexdigest()[:10]
         return f'src="{match[1]}?v={digest}"'
 
     text = page.read_text(encoding="utf-8")
-    page.write_text(re.sub(r'src="(assets/screenshots/[\w-]+\.png)"', versioned, text), encoding="utf-8")
+    page.write_text(re.sub(r'src="(/?assets/screenshots/[\w-]+\.png)"', versioned, text), encoding="utf-8")
 
 
 def frame_pages() -> None:
@@ -120,7 +122,9 @@ def frame_pages() -> None:
 
 
 add_faq_json_ld(OUTPUT / "fragen" / "index.html")
+add_faq_json_ld(OUTPUT / "nebenkostenabrechnung" / "index.html")
 fingerprint_screenshots(OUTPUT / "index.html")
+fingerprint_screenshots(OUTPUT / "nebenkostenabrechnung" / "index.html")
 build_guides(ROOT / "website", OUTPUT)
 build_reference_cases(ROOT / "website", OUTPUT)
 frame_pages()

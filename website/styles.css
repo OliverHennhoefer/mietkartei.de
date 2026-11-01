@@ -448,3 +448,40 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
   .split .case-bar { grid-column: 1 / -1; grid-row: 3; }
   .tiers { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
+
+/* The page on the Nebenkostenabrechnung: the frame of the subpages with the sections of the
+   homepage, the reference cases filled in by the build. */
+.topic-page { max-width: 1192px; }
+.topic-lead { max-width: 720px; }
+.topic-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 32px; }
+.topic-shot { margin-top: 56px; }
+.topic-section { padding-top: 96px; }
+.topic-text { max-width: 720px; margin-top: 20px; color: var(--muted); font-size: var(--text-lg); line-height: 1.6; }
+.topic-steps { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.topic-feature { margin-top: 0; }
+.topic-feature .feature-copy p:not(.kicker) { margin-top: 20px; }
+.topic-checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 48px; margin: 48px 0 0; padding: 0; list-style: none; }
+.topic-checks li { padding-top: 20px; border-top: 2px solid var(--foreground); color: var(--muted); font-size: var(--text-base); line-height: 1.65; }
+.topic-checks strong { display: block; margin-bottom: 6px; color: var(--foreground); font-size: var(--text-lg); font-weight: 500; letter-spacing: -.02em; }
+.topic-cases { margin-top: 32px; }
+/* The PDF link sits under the case's text, beside the picture of its house. */
+.topic-cases a.case-pdf { display: inline-block; margin: -16px 0 0 188px; padding: 0 0 24px; text-decoration: underline; font-size: var(--text-sm); font-weight: 500; text-decoration-color: var(--highlight); text-decoration-thickness: 3px; text-underline-offset: 4px; }
+.topic-compare { margin-top: 40px; font-size: var(--text-base); }
+.topic-compare td:first-child { font-weight: 500; }
+.topic-compare td:nth-child(2) { color: var(--muted); }
+.topic-page .faq-group { margin-top: 96px; }
+.topic-note { margin-top: 24px; color: var(--muted); font-size: var(--text-xs); }
+
+@media (max-width: 900px) {
+  .topic-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 600px) {
+  .topic-section { padding-top: 72px; }
+  .topic-steps, .topic-checks { grid-template-columns: minmax(0, 1fr); }
+  .topic-actions { flex-direction: column; }
+  .topic-page .faq-group { grid-template-columns: minmax(0, 1fr); margin-top: 72px; }
+  .topic-cases a.case-pdf { margin-left: 0; }
+}
+.case-sample { max-width: 880px; margin: -16px 0 36px; color: var(--muted); font-size: var(--text-sm); }
+.case-sample a { color: var(--foreground); font-weight: 500; text-decoration-color: var(--highlight); text-decoration-thickness: 3px; text-underline-offset: 4px; }

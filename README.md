@@ -37,6 +37,14 @@ Mietverwaltung, Bankabgleich und Betriebskostenabrechnung (Nebenkostenabrechnung
 - **Kein Lock-in:** Offener Code, Datenübernahme per CSV, vollständiger Export und Änderungsprotokoll.
 - **Kein Datengeschäft:** Keine Werbung, keine Leads. Selbst betrieben kostenlos, gehostet 5 € im Monat oder 50 € im Jahr, egal wie viele Wohnungen.
 
+## Nebenkostenabrechnung, nachgerechnet
+
+<a href="https://mietkartei.de/nebenkostenabrechnung/"><img src="website/assets/screenshots/abrechnung-entwurf.png" alt="Entwurf einer Betriebskostenabrechnung in mietkartei mit Gesamtkosten, umlagefähigen Kosten, CO₂-Anteil des Vermieters, Nachzahlungen und Guthaben" width="720"></a>
+
+Tagesgenau bei Mieterwechsel und Leerstand, Heizkosten nach Heizkostenverordnung, CO₂-Aufteilung nach Stufenmodell und Hinweise vor der Freigabe, etwa auf fehlende Zählerstände oder die Abrechnungsfrist. Jeder Mieter bekommt ein PDF, in dem jede Zeile zeigt, wie sein Anteil entsteht.
+
+Die [Rechenbeispiele](https://mietkartei.de/rechenbeispiele/) sind ohne mietkartei nachgerechnet und laufen bei jeder Änderung als Test: Weicht ein Cent ab, wird die Änderung nicht übernommen. Zu jedem gibt es eine [Muster-Nebenkostenabrechnung als PDF](https://mietkartei.de/rechenbeispiele/mieterwechsel/muster-nebenkostenabrechnung.pdf). → [Mehr zur Nebenkostenabrechnung](https://mietkartei.de/nebenkostenabrechnung/) · [Beispielabrechnung in der Demo](https://demo.mietkartei.de/demo?ziel=abrechnung)
+
 ## Ausprobieren: Demo oder selbst hosten
 
 - **[Demo](https://demo.mietkartei.de):** eigener Beispielbestand mit fertiger Betriebskostenabrechnung, ohne Anmeldung.

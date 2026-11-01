@@ -2,7 +2,8 @@ import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { validateSession } from '#lib/server/auth.ts';
 import { DEMO_STARTS_PER_HOUR } from '#lib/server/demo-accounts.ts';
-import { accounts, users } from '#lib/server/db/schema.ts';
+import { accounts, operatingCostStatements, users } from '#lib/server/db/schema.ts';
+import { today } from '#lib/dates.ts';
 import type { Database } from '#lib/server/db/index.ts';
 import { memoryStorage, outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
 import { actions, load } from './+page.server';
@@ -58,6 +59,9 @@ describe('load', () => {
 		expect(await outcome(() => load(routeEvent(db, { url: '/demo?beispiel=x' })))).toEqual({
 			redirect: '/'
 		});
+		expect(await outcome(() => load(routeEvent(db, { url: '/demo?ziel=abrechnung' })))).toEqual({
+			redirect: '/betriebskosten'
+		});
 	});
 });
 
@@ -89,6 +93,27 @@ describe('starting the demo', () => {
 			.from(accounts)
 			.where(eq(accounts.id, session!.user.accountId));
 		expect(account.landlordName).toBe('Eva Beispiel');
+	});
+
+	it('opens the full demo on its newest Betriebskostenabrechnung', async () => {
+		const cookies = new Map<string, string>();
+		const result = await outcome(() =>
+			actions.default(
+				routeEvent(db, { user: null, form: {}, cookies, url: '/demo?ziel=abrechnung' })
+			)
+		);
+		const id = (result as { redirect: string }).redirect.split('/').at(-1)!;
+		expect(result).toEqual({ redirect: `/betriebskosten/abrechnungen/${id}` });
+		const [statement] = await db
+			.select()
+			.from(operatingCostStatements)
+			.where(eq(operatingCostStatements.id, id));
+		const session = await validateSession(db, [...cookies.values()][0]);
+		expect(statement).toMatchObject({
+			accountId: session!.user.accountId,
+			status: 'approved',
+			periodEnd: `${Number(today().slice(0, 4)) - 2}-12-31`
+		});
 	});
 
 	it('refuses on any other instance', async () => {

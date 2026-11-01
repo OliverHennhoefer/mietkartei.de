@@ -69,4 +69,4 @@ Eine freigegebene Abrechnung bleibt, wie sie ist. Mit **Korrektur erstellen** le
 
 ## Ausprobieren
 
-In der [Demo](https://demo.mietkartei.de) liegt eine fertige Abrechnung für ein Beispielhaus. Dort kannst du jeden Schritt ohne Anmeldung durchklicken.
+In der [Demo](https://demo.mietkartei.de/demo?ziel=abrechnung) liegt eine fertige Abrechnung für ein Beispielhaus; der Link öffnet sie direkt. Dort kannst du jeden Schritt ohne Anmeldung durchklicken. Wie das PDF für einen Mieter aussieht, zeigt die [Muster-Nebenkostenabrechnung](https://mietkartei.de/rechenbeispiele/mieterwechsel/muster-nebenkostenabrechnung.pdf) aus den [Rechenbeispielen](https://mietkartei.de/rechenbeispiele/).

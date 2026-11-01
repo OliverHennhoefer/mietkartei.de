@@ -187,6 +187,7 @@
 			"landlordCo2Share": 0,
 			"vacancyShare": 0
 		},
+		"sample": "yilmaz",
 		"check": [
 			"Nachgerechnet ohne mietkartei: mit exakten Brüchen statt Kommazahlen, jeder Betrag erst am Ende auf den Cent gerundet. Wo Cents übrig bleiben, bekommt sie der größte Rest (Restbetragsverfahren), sodass die Anteile genau die Rechnung ergeben.",
 			"Der Anteil des Obergeschosses wird nach Tagen geteilt: Frau Schulz wohnte 196 der 365 Tage dort, Familie Yılmaz 169. Beim Müll zählen Personentage: 196 für Frau Schulz, 3 × 169 = 507 für die Familie.",
@@ -690,6 +691,7 @@
 			"landlordCo2Share": 22110,
 			"vacancyShare": 0
 		},
+		"sample": "hoffmann",
 		"check": [
 			"Nachgerechnet ohne mietkartei: mit exakten Brüchen statt Kommazahlen, jeder Betrag erst am Ende auf den Cent gerundet. Wo Cents übrig bleiben, bekommt sie der größte Rest (Restbetragsverfahren), sodass die Anteile genau die Rechnung ergeben.",
 			"CO₂: 40.000 kWh Erdgas × 0,201 kg/kWh = 8.040 kg, auf 250 m² Wohnfläche 32,16 kg je m² und Jahr. Das ist die Stufe ab 32 kg mit 50 % Vermieteranteil, also 442,20 € × 50 % = 221,10 €. Bei 55 € je Tonne (BEHG 2025) kosten 8,04 t genau 442,20 €.",
@@ -1057,6 +1059,7 @@
 			"landlordCo2Share": 0,
 			"vacancyShare": 53097
 		},
+		"sample": "vogel",
 		"check": [
 			"Nachgerechnet ohne mietkartei: mit exakten Brüchen statt Kommazahlen, jeder Betrag erst am Ende auf den Cent gerundet. Wo Cents übrig bleiben, bekommt sie der größte Rest (Restbetragsverfahren), sodass die Anteile genau die Rechnung ergeben.",
 			"Zuerst bekommt jede Wohnung ihren Anteil, ob bewohnt oder nicht: nach Fläche das Erdgeschoss zum Beispiel 75 von 200 m². Erst dann wird der Anteil einer Wohnung nach Tagen geteilt. Herr Klein wohnte 243 Tage im Erdgeschoss, 122 Tage stand es leer; Herr Vogel wohnte 275 Tage im Dachgeschoss, 90 Tage stand es leer.",
@@ -1487,6 +1490,7 @@
 			"landlordCo2Share": 0,
 			"vacancyShare": 0
 		},
+		"sample": "wolf",
 		"check": [
 			"Nachgerechnet ohne mietkartei: mit exakten Brüchen statt Kommazahlen, jeder Betrag erst am Ende auf den Cent gerundet. Wo Cents übrig bleiben, bekommt sie der größte Rest (Restbetragsverfahren), sodass die Anteile genau die Rechnung ergeben.",
 			"Die Zähler zeigen zusammen 168 + 92 + 41 + 77 = 378 m³. Frischwasser kostet damit 1.247,40 € / 378 m³ = 3,30 € je m³, Schmutzwasser 1.001,70 € / 378 m³ = 2,65 € je m³. Wohnung 1 zum Beispiel: 168 m³ × 3,30 € = 554,40 € und 168 m³ × 2,65 € = 445,20 €.",

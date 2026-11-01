@@ -13,11 +13,15 @@ import html
 import json
 from datetime import date
 from pathlib import Path
+from shutil import copyfile
 
 from build_guides import fill, json_ld
 
 SITE = "https://mietkartei.de"
 DEMO = "https://demo.mietkartei.de"
+# The letter of each case's sample lease, as the app prints it; reference-samples.spec.ts in the app
+# writes it to website/rechenbeispiele/muster/<slug>.pdf.
+SAMPLE = "muster-nebenkostenabrechnung.pdf"
 KEY_LABELS = {
     "area": "nach Wohnfläche",
     "persons": "nach Personen",
@@ -125,6 +129,11 @@ class Case:
             (days(first, last), self.colour[lease["id"]] if lease else "tone-vacant")
             for lease, first, last in self.timeline(unit_id)
         ]
+
+    def sample_tenant(self) -> str:
+        """The full name of the tenant whose letter is the sample PDF."""
+        t = next(lease for lease in self.leases if lease["id"] == self.data["sample"])["tenant"]
+        return f'{t["firstName"]} {t["lastName"]}'
 
     def tenant(self, lease: dict) -> str:
         t = lease["tenant"]
@@ -407,6 +416,7 @@ def render_case(layout: str, case: Case) -> str:
           </div>
           <a class="button button-primary" href="{DEMO}/demo?beispiel={case.data["slug"]}">In der Demo öffnen<span aria-hidden="true">↗</span></a>
         </aside>
+        <p class="case-sample"><a href="{case.path}{SAMPLE}">Muster-Nebenkostenabrechnung als PDF</a>: die fertige Abrechnung für {html.escape(case.sample_tenant())}, so wie mietkartei sie druckt.</p>
         <nav class="case-steps" aria-label="Schritte"><ol>{nav}</ol></nav>
         <div class="case-body">
 {sections}
@@ -431,21 +441,28 @@ def render_case(layout: str, case: Case) -> str:
     )
 
 
-def render_index(layout: str, cases: list[Case]) -> str:
+def case_cards(cases: list["Case"], sample_links: bool = False) -> str:
+    """The list of the cases with a picture of their houses, as on the overview."""
     cards = []
     for case in cases:
         floors = "".join(bar(case.segments(unit["id"]), 10) for unit in reversed(case.units))
         cards.append(
             f'<li><a href="{case.path}"><div class="case-thumb">{floors}</div>'
             f'<div><h2>{html.escape(case.data["title"])}</h2><p>{html.escape(case.data["summary"])}</p>'
-            f'<p class="case-facts">{len(case.units)} Wohnungen · {len(case.leases)} Mietverträge · {len(case.items)} {"Beleg" if len(case.items) == 1 else "Belege"} · Jahr {case.year}</p></div></a></li>'
+            f'<p class="case-facts">{len(case.units)} Wohnungen · {len(case.leases)} Mietverträge · {len(case.items)} {"Beleg" if len(case.items) == 1 else "Belege"} · Jahr {case.year}</p></div></a>'
+            + (f'<a class="case-pdf" href="{case.path}{SAMPLE}">Muster-PDF<span aria-hidden="true"> ↓</span></a>' if sample_links else "")
+            + "</li>"
         )
+    return "".join(cards)
+
+
+def render_index(layout: str, cases: list[Case]) -> str:
     content = f"""        <a class="back-link" href="/"><span aria-hidden="true">←</span> Zur Startseite</a>
         <p class="eyebrow">Nachgerechnet</p>
         <h1>Rechenbeispiele</h1>
         <p class="lead case-lead">Wie mietkartei Betriebskosten verteilt, Schritt für Schritt an kleinen Häusern mit erfundenen Mietern. Jedes Beispiel ist unabhängig nachgerechnet und läuft bei jeder Änderung als Test: Stimmt ein Cent nicht, wird die Änderung nicht übernommen.</p>
         <ul class="case-list">
-          {"".join(cards)}
+          {case_cards(cases)}
         </ul>"""
     return fill(
         layout,
@@ -477,6 +494,16 @@ def build_reference_cases(website: Path, output: Path) -> None:
         destination = output / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(text, encoding="utf-8")
+    for case in cases:
+        copyfile(folder / "muster" / f"{case.slug}.pdf", output / "rechenbeispiele" / case.slug / SAMPLE)
+
+    # The page on the Nebenkostenabrechnung lists the cases with their sample PDFs.
+    topic = output / "nebenkostenabrechnung" / "index.html"
+    text = topic.read_text(encoding="utf-8")
+    if text.count("<!-- reference-cases -->") != 1:
+        raise ValueError("website/nebenkostenabrechnung/index.html: needs one <!-- reference-cases --> marker")
+    cards = f'<ul class="case-list topic-cases">{case_cards(cases, sample_links=True)}</ul>'
+    topic.write_text(text.replace("<!-- reference-cases -->", cards), encoding="utf-8")
 
     sitemap = output / "sitemap.xml"
     entries = "".join(
