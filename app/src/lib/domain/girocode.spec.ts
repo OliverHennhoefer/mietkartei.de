@@ -55,6 +55,25 @@ describe('giroCode', () => {
 		expect(new TextEncoder().encode(code.payload).length).toBeLessThanOrEqual(331);
 	});
 
+	it('keeps the payload within 331 UTF-8 bytes, cutting the Verwendungszweck by characters', () => {
+		const code = giroCode({
+			...input,
+			name: 'Ä'.repeat(70),
+			purpose: `Квартира ${'Ж'.repeat(120)} 😀`
+		})!;
+		const bytes = new TextEncoder().encode(code.payload).length;
+		expect(bytes).toBeLessThanOrEqual(331);
+		expect(bytes).toBeGreaterThan(325);
+		const purpose = code.payload.split('\n')[10];
+		expect(purpose).toMatch(/^Квартира Ж+$/);
+		expect(code.lines.at(-1)).toBe(`Verwendungszweck: ${purpose}`);
+		// 70 four-byte characters leave no room once the amount is long, even without a purpose.
+		expect(giroCode({ ...input, name: '😀'.repeat(70), amount: 99_999_999_999 })).toBeUndefined();
+		expect(giroCode({ ...input, name: `Erika ${'😀'.repeat(80)}` })!.payload.split('\n')[5]).toBe(
+			`Erika ${'😀'.repeat(64)}`
+		);
+	});
+
 	it('makes no code without an IBAN, a name or something to pay', () => {
 		expect(giroCode({ ...input, iban: null })).toBeUndefined();
 		expect(giroCode({ ...input, iban: 'Sparkasse' })).toBeUndefined();

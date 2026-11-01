@@ -26,6 +26,8 @@ export type GiroCodeInput = {
 
 const MAX_NAME = 70;
 const MAX_PURPOSE = 140;
+/** The whole payload, in UTF-8 bytes. */
+const MAX_PAYLOAD_BYTES = 331;
 /** 999.999.999,99 €, the largest amount the standard allows. */
 const MAX_AMOUNT = 99_999_999_999;
 const IBAN = /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/;
@@ -35,40 +37,45 @@ function epcAmount(cents: number): string {
 	return `EUR${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`;
 }
 
+/** The first `max` characters, never splitting one that takes two UTF-16 units (an emoji). */
+function cut(text: string, max: number): string {
+	return Array.from(text).slice(0, max).join('').trim();
+}
+
+const utf8Length = (text: string) => new TextEncoder().encode(text).length;
+
 /**
  * The GiroCode for a transfer to the landlord, or undefined when it cannot be one: no IBAN or one
- * that is not an IBAN, no name, or an amount that is not a positive number of cents.
+ * that is not an IBAN, no name, or an amount that is not a positive number of cents. The standard
+ * counts the name and the Verwendungszweck in characters but the whole payload in bytes, so a text
+ * of many non-ASCII characters can exceed it: the Verwendungszweck is shortened then, and a name
+ * that alone is too long gives no code.
  */
 export function giroCode(input: GiroCodeInput): GiroCode | undefined {
 	const iban = normalizeIban(input.iban);
-	const name = normalizeText(input.name).slice(0, MAX_NAME).trim();
-	const purpose = normalizeText(input.purpose).slice(0, MAX_PURPOSE).trim();
+	const name = cut(normalizeText(input.name), MAX_NAME);
 	if (!iban || !IBAN.test(iban) || !name) return undefined;
 	if (!Number.isInteger(input.amount) || input.amount <= 0 || input.amount > MAX_AMOUNT) {
 		return undefined;
 	}
 	// Service tag, version, UTF-8, SEPA credit transfer, no BIC (allowed in the EEA since 002),
 	// name, IBAN, amount, no purpose code, no structured reference, the Verwendungszweck.
-	const payload = [
-		'BCD',
-		'002',
-		'1',
-		'SCT',
-		'',
-		name,
-		iban,
-		epcAmount(input.amount),
-		'',
-		'',
-		purpose
-	].join('\n');
+	const head = ['BCD', '002', '1', 'SCT', '', name, iban, epcAmount(input.amount), '', '', ''].join(
+		'\n'
+	);
+	let purpose = Array.from(cut(normalizeText(input.purpose), MAX_PURPOSE));
+	while (purpose.length > 0 && utf8Length(head + purpose.join('')) > MAX_PAYLOAD_BYTES) {
+		purpose = purpose.slice(0, -1);
+	}
+	const payload = head + purpose.join('').trim();
+	if (utf8Length(payload) > MAX_PAYLOAD_BYTES) return undefined;
 	return {
 		payload,
 		lines: [
 			`Empfänger: ${name}`,
 			`IBAN: ${formatIban(iban)}`,
 			`Betrag: ${formatCents(input.amount)}`,
-			...(purpose ? [`Verwendungszweck: ${purpose}`] : [])
+			...(purpose.length ? [`Verwendungszweck: ${purpose.join('').trim()}`] : [])
 		]
 	};
 }
