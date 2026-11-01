@@ -32,6 +32,7 @@
 		></span
 	>
 	<nav class="website-footer-links" aria-label="Weitere Seiten">
+		<a href="https://mietkartei.de/nebenkostenabrechnung/">Nebenkostenabrechnung</a>
 		<a href="https://mietkartei.de/preise/">Preise</a>
 		<a href="https://mietkartei.de/fragen/">Häufige Fragen</a>
 		<a href="https://mietkartei.de/ratgeber/">Ratgeber</a>

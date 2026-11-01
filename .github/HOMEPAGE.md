@@ -46,7 +46,7 @@ The build copies only the listed public files, the homepage screenshots (linked 
 
 ## Page frame
 
-Every page but the homepage follows the pricing page: the shared header, `<main class="subpage …">` with the "← Zur Startseite" link first, then an eyebrow, the `h1` and an optional lead in one size, and the shared footer. Text pages (legal notice, guides) keep a reading width of 720px, the FAQ 1080px. The signed-out app pages (`app/src/lib/components/WebsiteHeader.svelte`, `WebsiteFooter.svelte`) and the documentation (`docs/overrides/main.html`) copy this frame in the same pixel sizes; change them together with `website/_header.html`, `_footer.html` and `website/styles.css`.
+Every page but the homepage follows the pricing page: the shared header, `<main class="subpage …">` with the "← Zur Startseite" link first, then an eyebrow, the `h1` and an optional lead in one size, and the shared footer. Text pages (legal notice, guides) keep a reading width of 720px, the FAQ 1080px. The header holds one page link, Nebenkostenabrechnung ("Nebenkosten" on phones, where the GitHub icon gives way below 480px), underlined in neon on hover and on that page. The signed-out app pages (`app/src/lib/components/WebsiteHeader.svelte`, `WebsiteFooter.svelte`) and the documentation (`docs/overrides/main.html`) copy this frame in the same pixel sizes; change them together with `website/_header.html`, `_footer.html` and `website/styles.css`.
 
 ## Guides
 
