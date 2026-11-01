@@ -4,7 +4,8 @@
 
 ### Die Hausverwaltung von Vermietern für Vermieter.
 
-Mietverwaltung, Bankabgleich und Betriebskostenabrechnung (Nebenkostenabrechnung) für private Vermieter an einem Ort. Open Source, nachvollziehbar gerechnet, ohne Einarbeitung und direkt mit Claude oder ChatGPT nutzbar.
+Mietverwaltung, Bankabgleich und Nebenkostenabrechnung für private Vermieter an einem Ort.<br>
+Open Source, nachvollziehbar gerechnet, ohne Einarbeitung und direkt mit Claude oder ChatGPT nutzbar.
 
 [![Tests](https://img.shields.io/github/actions/workflow/status/OliverHennhoefer/mietkartei.de/app.yml?branch=main&label=Tests)](https://github.com/OliverHennhoefer/mietkartei.de/actions/workflows/app.yml)
 [![Cloudflare Workers](https://img.shields.io/website?url=https%3A%2F%2Fapp.mietkartei.de%2Fhealth&label=Cloudflare%20Workers&logo=cloudflare&logoColor=white&up_message=online&down_message=offline)](https://app.mietkartei.de)
@@ -33,38 +34,17 @@ Mietverwaltung, Bankabgleich und Betriebskostenabrechnung (Nebenkostenabrechnung
 - **Dokumente:** Verträge, Belege und Schreiben direkt am Objekt oder Vertrag ablegen.
 - **Aufgaben und Fristen:** Kündigungsfristen, Mieterhöhungen und Abrechnungstermine im Blick, auch im eigenen Kalender.
 - **Zugänge:** Mitverwalter mit vollen Rechten oder Steuerberater mit Lesezugriff einladen.
-- **KI-Assistenten:** Claude, ChatGPT und andere MCP-Clients beantworten Fragen wie „Wer ist im Rückstand?“, dazu eine REST-API. → [Anleitung](https://docs.mietkartei.de/anleitungen/ki-assistenten/)
+- **KI-Assistenten:** Claude, ChatGPT und andere MCP-Clients beantworten Fragen wie „Wer ist im Rückstand?“, siehe [Anleitung](https://docs.mietkartei.de/anleitungen/ki-assistenten/).
 - **Kein Lock-in:** Offener Code, Datenübernahme per CSV, vollständiger Export und Änderungsprotokoll.
-- **Kein Datengeschäft:** Keine Werbung, keine Leads. Selbst betrieben kostenlos, gehostet 5 € im Monat oder 50 € im Jahr, egal wie viele Wohnungen.
-
-## Nebenkostenabrechnung, nachgerechnet
-
-<a href="https://mietkartei.de/nebenkostenabrechnung/"><img src="website/assets/screenshots/abrechnung-entwurf.png" alt="Entwurf einer Betriebskostenabrechnung in mietkartei mit Gesamtkosten, umlagefähigen Kosten, CO₂-Anteil des Vermieters, Nachzahlungen und Guthaben" width="720"></a>
-
-Tagesgenau bei Mieterwechsel und Leerstand, Heizkosten nach Heizkostenverordnung, CO₂-Aufteilung nach Stufenmodell und Hinweise vor der Freigabe, etwa auf fehlende Zählerstände oder die Abrechnungsfrist. Jeder Mieter bekommt ein PDF, in dem jede Zeile zeigt, wie sein Anteil entsteht, mit dem Vergleich zum Vorjahr je Kostenart. Für die Belegeinsicht gibt es alle Belege samt Übersicht als ein ZIP.
-
-Die [Rechenbeispiele](https://mietkartei.de/rechenbeispiele/) sind ohne mietkartei nachgerechnet und laufen bei jeder Änderung als Test: Weicht ein Cent ab, wird die Änderung nicht übernommen. Zu jedem gibt es eine [Muster-Nebenkostenabrechnung als PDF](https://mietkartei.de/rechenbeispiele/mieterwechsel/muster-nebenkostenabrechnung.pdf). → [Mehr zur Nebenkostenabrechnung](https://mietkartei.de/nebenkostenabrechnung/) · [Beispielabrechnung in der Demo](https://demo.mietkartei.de/demo?ziel=abrechnung)
+- **Kein Datengeschäft:** Keine Werbung. Selbst betrieben kostenlos, gehostet 5 € im Monat oder 50 € im Jahr, egal wie viele Wohnungen.
 
 ## Ausprobieren: Demo oder selbst hosten
 
 - **[Demo](https://demo.mietkartei.de):** eigener Beispielbestand mit fertiger Betriebskostenabrechnung, ohne Anmeldung.
-- **[Selbst hosten](https://docs.mietkartei.de/selbst-hosten/):** kostenlos als Docker-Container auf dem eigenen Rechner oder Server, oder mit wenigen Klicks im eigenen Cloudflare-Konto für rund 5 US-Dollar im Monat an Cloudflare, ohne Server und ohne Domain. Beides mit allen Funktionen.
+- **[Selbst hosten](https://docs.mietkartei.de/selbst-hosten/):** kostenlos als Docker-Container auf dem eigenen Rechner oder Server, oder mit wenigen Klicks im eigenen Cloudflare-Konto für rund 5 Euro im Monat an Cloudflare, ohne Server und ohne Domain. Beides mit allen Funktionen.
 
   [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/OliverHennhoefer/mietkartei.de)
 
 ## Mitmachen
 
-Du vermietest selbst? Dann weißt du am besten, was fehlt. Jede Hilfe zählt: Code, Fehlerberichte, Fachwissen, Texte, Gestaltung, Barrierefreiheit. Ein ⭐ hilft anderen Vermietern, es zu finden.
-
-<details>
-<summary><b>Aufbau des Repositorys</b></summary>
-
-| Ordner | Inhalt |
-| --- | --- |
-| [`app/`](app/) | Die Anwendung: SvelteKit, Drizzle ORM und SQLite, lauffähig mit Node.js, Docker oder Cloudflare Workers |
-| [`website/`](website/) | Die Startseite [mietkartei.de](https://mietkartei.de) |
-| [`docs/`](docs/) | Die Dokumentation [docs.mietkartei.de](https://docs.mietkartei.de), gebaut mit Zensical |
-| [`assets/`](assets/) | Logo, Schrift und der Rundgang dieser Seite (`npm run screenshots` in `app/`, dann `scripts/build_readme_animation.py`) |
-| [`.github/`](.github/) | Workflows, Vorlagen sowie Anleitungen zu [Deployment](.github/DEPLOYMENT.md), [Betrieb auf einem Server](.github/SELF_HOSTING.md) und [Pflege](.github/MAINTENANCE.md) |
-
-</details>
+Du vermietest selbst? Dann weißt du am besten, was fehlt. Jede Hilfe zählt: Code, Fehlerberichte, Fachwissen, Texte, Gestaltung.
