@@ -7,7 +7,7 @@ Zum Ausprobieren gibt es eine Demo mit Beispieldaten unter https://demo.mietkart
 Was mietkartei kann:
 
 - KI-Anbindung: Über den MCP-Server unter https://app.mietkartei.de/mcp verbinden sich Claude (claude.ai, Claude-App, Claude Code), ChatGPT und andere MCP-Clients mit dem eigenen Bestand, in claude.ai und ChatGPT per OAuth ohne Schlüssel. Der Assistent liest Mietkonten, Rückstände, Mahnstand, Abrechnungen, Steuerübersicht und Fristen und bucht mit Schreibrechten auf Wunsch Zahlungen, erfasst Belege und legt Aufgaben an. Dieselben Daten gibt es als REST-API.
-- Betriebskostenabrechnung mit Kostenarten nach Betriebskostenverordnung, tagesgenauer Umlage, Umlageschlüsseln je Kostenart und CO₂-Kostenaufteilung; die Abrechnung je Mieter gibt es als PDF.
+- Betriebskostenabrechnung mit Kostenarten nach Betriebskostenverordnung, tagesgenauer Umlage, Umlageschlüsseln je Kostenart und CO₂-Kostenaufteilung; die Abrechnung je Mieter gibt es als PDF, mit Vergleich zum Vorjahr je Kostenart, und die Belege für die Belegeinsicht als ZIP mit Belegübersicht.
 - Mietkonto mit Soll und Ist je Mietvertrag, Rückständen und Kaution.
 - Bankimport von Kontoauszügen mit Zuordnungsvorschlägen und -regeln.
 - Objekte, Einheiten, Mieter und Mietverträge mit Index- und Staffelmiete.

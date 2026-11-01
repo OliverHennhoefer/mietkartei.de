@@ -46,6 +46,8 @@ Dabei gilt:
 - **CO₂-Kosten:** Bei Heizöl und Erdgas teilt mietkartei die CO₂-Kosten nach dem Stufenmodell des CO₂-Kostenaufteilungsgesetzes auf. Mehr dazu steht im Artikel [CO₂-Kosten aufteilen](https://mietkartei.de/ratgeber/co2-kosten-aufteilen/).
 - **Hinweise:** Fehlen Zählerstände, ist der Verbrauchsanteil der Heizkosten ungewöhnlich oder droht die Abrechnungsfrist abzulaufen, zeigt der Entwurf einen Hinweis mit einem Link zur Stelle, an der du es behebst.
 
+Gibt es für das Objekt schon eine freigegebene Abrechnung aus einem früheren Zeitraum, steht unter den Belegen der **Vergleich mit dem Vorjahr**: die umlagefähigen Kosten je Kostenart in beiden Jahren und die Veränderung in Prozent. Große Sprünge sind die Stellen, nach denen Mieter zuerst fragen. Derselbe Vergleich steht im PDF für den Mieter, beschränkt auf die Kostenarten, die ihn betreffen.
+
 Ein Entwurf rechnet bei jedem Öffnen neu. Fehlt ein Beleg, trägst du ihn nach und öffnest den Entwurf wieder.
 
 ## 4. Freigeben und zustellen
@@ -58,6 +60,8 @@ Die Freigabe verschickt nichts. Lade die PDFs herunter und stell sie deinen Miet
 - **Einwendungsfrist:** Der Mieter kann bis zum Ende des zwölften Monats nach Zugang Einwände erheben.
 
 Eine Nachzahlung wird 30 Tage nach Zugang fällig.
+
+Will ein Mieter die Belege sehen (§ 259 BGB), lädst du über **Belegpaket (ZIP)** neben der Überschrift „Belege im Zeitraum“ alles in einer Datei herunter: vorn eine Belegübersicht als PDF mit jeder umgelegten Kostenart, dahinter die eingescannten Belege, nummeriert wie in der Übersicht. Belege nicht umlagefähiger Kosten bleiben draußen. Die Schaltfläche erscheint, sobald mindestens ein Beleg eine Datei hat.
 
 ## 5. Vorauszahlungen anpassen
 

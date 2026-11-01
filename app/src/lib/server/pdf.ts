@@ -494,7 +494,7 @@ const TRANSLITERATIONS: Record<string, string> = {
 };
 
 /** `Abrechnung Müller 2025.pdf` → `Abrechnung Mueller 2025.pdf`; anything else non-ASCII becomes `_`. */
-function asciiFilename(filename: string): string {
+export function asciiFilename(filename: string): string {
 	return filename
 		.replace(/[äöüÄÖÜß]/g, (char) => TRANSLITERATIONS[char])
 		.normalize('NFD')

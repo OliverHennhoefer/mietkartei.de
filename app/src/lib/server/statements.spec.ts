@@ -880,6 +880,82 @@ describe('paid prepayments', () => {
 	});
 });
 
+describe('Vorjahresvergleich', () => {
+	async function approveYear(db: Database, propertyId: string, year: number) {
+		const created = await createStatement(db, contextA, {
+			propertyId,
+			periodStart: `${year}-01-01`,
+			periodEnd: `${year}-12-31`
+		});
+		if (!created.ok) throw new Error(created.message);
+		const approved = await approveStatement(db, contextA, created.id, {
+			lateApprovalJustified: false,
+			note: null
+		});
+		if (!approved.ok) throw new Error(approved.message);
+		return created.id;
+	}
+
+	it('compares with the last approved statement before the period', async () => {
+		travelTo('2025-03-01');
+		const { propertyId, leaseId } = await seedSingleLease(db, 2024, 12);
+		const first = await approveYear(db, propertyId, 2024);
+		expect((await getStatement(db, 'a', first))!.result.property.comparison).toBeNull();
+
+		// 2025: the Grundsteuer rises from 3.000 to 3.300 €.
+		const [grundsteuer] = await db.select().from(costItems).where(eq(costItems.accountId, 'a'));
+		await db.insert(costItems).values({
+			accountId: 'a',
+			propertyId,
+			categoryId: grundsteuer.categoryId,
+			allocationKeyId: grundsteuer.allocationKeyId,
+			description: 'Grundsteuer 2025',
+			periodStart: '2025-01-01',
+			periodEnd: '2025-12-31',
+			amount: 330000
+		});
+		travelTo('2026-03-01');
+		const input = (await loadStatementInput(db, 'a', propertyId, period))!;
+		expect(input.previous).toEqual({
+			start: '2024-01-01',
+			end: '2024-12-31',
+			categories: [{ name: 'Grundsteuer', total: 300000 }]
+		});
+		// The 2024 period has no approved statement before it.
+		const earlier = { start: '2024-01-01', end: '2024-12-31' };
+		expect((await loadStatementInput(db, 'a', propertyId, earlier))!.previous).toBeUndefined();
+
+		const second = await approveYear(db, propertyId, 2025);
+		const letter = statementLetter((await getLeaseResult(db, 'a', second, leaseId))!);
+		const table = letter
+			.blocks!.flatMap((block) => ('table' in block ? [block.table] : []))
+			.find((candidate) => candidate.title?.startsWith('Vergleich'))!;
+		expect(table.title).toBe('Vergleich mit der Abrechnung 2024');
+		expect(table.columns.map((column) => column.label)).toEqual([
+			'Kostenart',
+			'2024',
+			'2025',
+			'Veränderung'
+		]);
+		expect(table.rows).toEqual([
+			['Grundsteuer', '3.000,00\u00a0€', '3.300,00\u00a0€', '+10\u00a0%']
+		]);
+	});
+
+	it('skips drafts', async () => {
+		travelTo('2025-03-01');
+		const { propertyId } = await seedSingleLease(db, 2024, 12);
+		const created = await createStatement(db, contextA, {
+			propertyId,
+			periodStart: '2024-01-01',
+			periodEnd: '2024-12-31'
+		});
+		expect(created.ok).toBe(true);
+		travelTo('2026-03-01');
+		expect((await loadStatementInput(db, 'a', propertyId, period))!.previous).toBeUndefined();
+	});
+});
+
 describe('quotas', () => {
 	it('refuses statements and results beyond the limits with 409', async () => {
 		const { propertyId } = await seedScenario(db, 'a');

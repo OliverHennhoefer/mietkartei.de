@@ -201,6 +201,24 @@ export type StatementInput = {
 	circles: StatementCircle[];
 	meters: Meter[];
 	landlord: Landlord;
+	/** The property's previous approved statement, for the comparison of the costs; none: no comparison. */
+	previous?: PreviousPeriod | null;
+};
+
+/** The allocable costs of the previous statement per Kostenart (Gesamtkosten in its period). */
+export type PreviousPeriod = {
+	start: IsoDate;
+	end: IsoDate;
+	categories: { name: string; total: number }[];
+};
+
+/**
+ * The Gesamtkosten of each Kostenart against the previous statement's (Vorjahresvergleich);
+ * null on either side where the Kostenart is missing in that period.
+ */
+export type CostComparison = {
+	previous: { start: IsoDate; end: IsoDate };
+	rows: { categoryName: string; previous: number | null; current: number | null }[];
 };
 
 export type StatementOptions = {
@@ -353,6 +371,8 @@ export type LeaseStatement = {
 	/** The deadline had passed when the statement was computed (residential leases only). */
 	late: boolean;
 	warnings: StatementWarning[];
+	/** The Kostenarten of the lease's lines against the previous statement. */
+	comparison: CostComparison | null;
 	/** Set on approval. */
 	approvedOn: IsoDate | null;
 	/**
@@ -425,12 +445,56 @@ export type PropertyResult = {
 	deadline: IsoDate;
 	late: boolean;
 	warnings: StatementWarning[];
+	/** The allocable Kostenarten against the previous statement. */
+	comparison: CostComparison | null;
 	approvedOn: IsoDate | null;
 };
 
 export type StatementResult = { property: PropertyResult; leases: LeaseStatement[] };
 
 // Small helpers shared with the pages
+
+/**
+ * The allocable Gesamtkosten per Kostenart against the previous statement's, in the order of the
+ * items, the Kostenarten only the previous period had last. `only` keeps the named Kostenarten,
+ * e.g. those of one lease. Null without a previous statement or without a Kostenart to show.
+ */
+export function costComparison(
+	items: readonly Pick<PropertyItem, 'categoryName' | 'total' | 'allocable'>[],
+	previous: PreviousPeriod | null | undefined,
+	only?: ReadonlySet<string>
+): CostComparison | null {
+	if (!previous) return null;
+	const current = new Map<string, number>();
+	for (const item of items) {
+		if (item.allocable)
+			current.set(item.categoryName, (current.get(item.categoryName) ?? 0) + item.total);
+	}
+	const before = new Map(previous.categories.map((category) => [category.name, category.total]));
+	const names = [...new Set([...current.keys(), ...before.keys()])].filter(
+		(name) => !only || only.has(name)
+	);
+	if (names.length === 0) return null;
+	return {
+		previous: { start: previous.start, end: previous.end },
+		rows: names.map((name) => ({
+			categoryName: name,
+			previous: before.get(name) ?? null,
+			current: current.get(name) ?? null
+		}))
+	};
+}
+
+/**
+ * The change from `previous` to `current` in whole percent with its sign: `+12 %`, `−3 %`,
+ * `±0 %`; `–` when one side is missing or was zero.
+ */
+export function changeLabel(previous: number | null, current: number | null): string {
+	if (previous === null || current === null || previous === 0) return '–';
+	const percent = Math.round(((current - previous) / previous) * 100);
+	if (percent === 0) return '±0\u00a0%';
+	return `${percent > 0 ? '+' : '−'}${Math.abs(percent)}\u00a0%`;
+}
 
 /** The German message when the period is not a valid statement period, else undefined. */
 export function validatePeriod(start: IsoDate, end: IsoDate): string | undefined {
@@ -1736,6 +1800,11 @@ export function computeStatement(
 			deadline,
 			late: leaseLate,
 			warnings,
+			comparison: costComparison(
+				items,
+				input.previous,
+				new Set(accumulator.lines.map((line) => line.categoryName))
+			),
 			approvedOn: null,
 			dueDate: null,
 			posted: null
@@ -1770,6 +1839,7 @@ export function computeStatement(
 		deadline,
 		late,
 		warnings: ctx.warnings,
+		comparison: costComparison(items, input.previous),
 		approvedOn: null
 	};
 	return { property, leases: leaseStatements };

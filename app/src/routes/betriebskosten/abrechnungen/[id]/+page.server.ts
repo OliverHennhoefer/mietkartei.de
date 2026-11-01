@@ -2,6 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { today } from '#lib/dates.ts';
 import { parseApproval, parseDelivered } from '#lib/forms/statements.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
+import { receiptCount } from '#lib/server/statement-receipts.ts';
 import {
 	approveStatement,
 	createCorrection,
@@ -16,7 +17,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const accountId = requireAccount(locals);
 	const view = await getStatement(locals.db, accountId, params.id);
 	if (!view) error(404, 'Diese Abrechnung gibt es nicht.');
-	return { view, today: today() };
+	const receipts = await receiptCount(locals.db, accountId, view.result.property.items);
+	return { view, receipts, today: today() };
 };
 
 /** Every action answers 404 for a statement of another account before it reads the form. */

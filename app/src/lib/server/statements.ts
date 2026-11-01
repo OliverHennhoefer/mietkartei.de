@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lte, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
 import { currentParties } from '../domain/lease-parties';
 import type { BatchItem } from 'drizzle-orm/batch';
 import {
@@ -13,6 +13,7 @@ import {
 import type { Meter, Reading } from '../domain/consumption';
 import {
 	balanceLabel,
+	changeLabel,
 	computeStatement,
 	leaseLabel,
 	objectionDeadline,
@@ -20,6 +21,7 @@ import {
 	validatePeriod,
 	type LeaseStatement,
 	type LedgerCharge,
+	type PreviousPeriod,
 	type PropertyResult,
 	type StatementInput,
 	type StatementLease,
@@ -428,7 +430,48 @@ export async function loadStatementInput(
 			city: landlord.city,
 			iban: landlord.iban,
 			bankName: landlord.bankName
-		}
+		},
+		previous: await previousPeriod(db, accountId, propertyId, period.start)
+	};
+}
+
+/**
+ * The allocable Gesamtkosten per Kostenart of the property's last approved statement that ends
+ * before `start` (its newest version), for the Vorjahresvergleich; undefined when there is none.
+ */
+async function previousPeriod(
+	db: Database,
+	accountId: string,
+	propertyId: string,
+	start: IsoDate
+): Promise<PreviousPeriod | undefined> {
+	const [row] = await db
+		.select({
+			periodStart: operatingCostStatements.periodStart,
+			periodEnd: operatingCostStatements.periodEnd,
+			result: operatingCostStatements.result
+		})
+		.from(operatingCostStatements)
+		.where(
+			and(
+				eq(operatingCostStatements.accountId, accountId),
+				eq(operatingCostStatements.propertyId, propertyId),
+				eq(operatingCostStatements.status, 'approved'),
+				lt(operatingCostStatements.periodEnd, start)
+			)
+		)
+		.orderBy(desc(operatingCostStatements.periodEnd), desc(operatingCostStatements.version))
+		.limit(1);
+	if (!row?.result) return undefined;
+	const totals = new Map<string, number>();
+	for (const item of (JSON.parse(row.result) as PropertyResult).items) {
+		if (item.allocable)
+			totals.set(item.categoryName, (totals.get(item.categoryName) ?? 0) + item.total);
+	}
+	return {
+		start: row.periodStart,
+		end: row.periodEnd,
+		categories: [...totals].map(([name, total]) => ({ name, total }))
 	};
 }
 
@@ -1482,6 +1525,32 @@ export function statementLetter(statement: LeaseStatement): Letter {
 	}
 	settlement = [limited, settlement].filter(Boolean).join(' ');
 
+	// The Vorjahresvergleich: the Gesamtkosten of the lease's Kostenarten in both periods.
+	const comparison = statement.comparison;
+	const comparisonTable: PdfTable | null = comparison && {
+		title: `Vergleich mit der Abrechnung ${periodLabel(comparison.previous.start, comparison.previous.end)}`,
+		columns: [
+			{ label: 'Kostenart', width: 0.4 },
+			{
+				label: periodLabel(comparison.previous.start, comparison.previous.end),
+				align: 'right',
+				width: 0.2
+			},
+			{
+				label: periodLabel(statement.period.start, statement.period.end),
+				align: 'right',
+				width: 0.2
+			},
+			{ label: 'Veränderung', align: 'right', width: 0.2 }
+		],
+		rows: comparison.rows.map((row) => [
+			row.categoryName,
+			row.previous === null ? '–' : formatCents(row.previous),
+			row.current === null ? '–' : formatCents(row.current),
+			changeLabel(row.previous, row.current)
+		])
+	};
+
 	const excluded =
 		statement.excluded.length > 0
 			? [
@@ -1512,6 +1581,7 @@ export function statementLetter(statement: LeaseStatement): Letter {
 			{ paragraph: result },
 			{ paragraph: settlement },
 			...excluded.map((paragraph) => ({ paragraph })),
+			...(comparisonTable ? [{ table: comparisonTable }] : []),
 			{
 				paragraph:
 					'Die Belege können Sie nach Absprache einsehen. Einwendungen gegen diese Abrechnung teilen Sie uns bitte innerhalb von zwölf Monaten nach Zugang mit (§ 556 Abs. 3 BGB).'
