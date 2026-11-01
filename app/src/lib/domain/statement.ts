@@ -669,7 +669,8 @@ function occupancyOf(
 		unit,
 		leases: occupants,
 		vacancyDays,
-		vacancyPersonDays: vacancyDays * vacancyPersons,
+		// Nobody lives in a parking space: a vacant one counts no persons, only a vacant flat does.
+		vacancyPersonDays: unit.kind === 'parking' ? 0 : vacancyDays * vacancyPersons,
 		segments
 	};
 }
@@ -759,6 +760,11 @@ type Component = {
 	splitBy: 'days' | 'persons' | 'consumption';
 	/** Per circle unit, when splitBy is consumption. */
 	usageSplits?: UsageSplit[];
+	/**
+	 * Per circle unit, when splitBy is persons: the person-days the unit bears for each of its
+	 * occupants (in UnitOccupancy.leases order), then for the vacancy.
+	 */
+	personSplits?: number[][];
 	/** Per circle unit for a `direct` key: the amounts entered per lease, else null. */
 	leaseAmounts?: (Map<string, number> | null)[];
 	/** A consumption share split by floor area instead (§ 9a Abs. 2 HeizKV). */
@@ -996,10 +1002,19 @@ function componentsOf(
 		case 'area':
 			return [areaComponent(ctx, allocated, circleUnits, '')];
 		case 'persons': {
-			const weights = circleUnits.map((unit) => {
+			// The persons live in the lease, not in each of its units: a lease that rents a parking
+			// space with the flat counts its person-days once, on its first unit in the circle (the
+			// main unit, when the circle has it).
+			const circleUnitIds = new Set(circleUnits.map((unit) => unit.id));
+			const bearer = (lease: StatementLease) => lease.unitIds.find((id) => circleUnitIds.has(id));
+			const personSplits = circleUnits.map((unit) => {
 				const occ = occupancy(unit);
 				// The landlord bears the vacancy; counted with no persons, the other tenants would.
-				if (occ.vacancyDays > 0 && ctx.input.property.vacancyPersons === 0) {
+				if (
+					occ.vacancyDays > 0 &&
+					unit.kind !== 'parking' &&
+					ctx.input.property.vacancyPersons === 0
+				) {
 					warn(ctx, {
 						code: 'vacancy_without_persons',
 						blocking: false,
@@ -1007,8 +1022,12 @@ function componentsOf(
 						message: `Leerstand zählt beim Umlageschlüssel „Personen“ mit 0 Personen; die Kosten der leeren Einheiten tragen so die übrigen Mieter. Das Leerstandsrisiko liegt beim Vermieter: setze „Personen bei Leerstand“ auf mindestens 1.`
 					});
 				}
-				return occ.leases.reduce((sum, o) => sum + o.personDays, occ.vacancyPersonDays);
+				return [
+					...occ.leases.map((o) => (bearer(o.lease) === unit.id ? o.personDays : 0)),
+					occ.vacancyPersonDays
+				];
 			});
+			const weights = personSplits.map((split) => split.reduce((sum, days) => sum + days, 0));
 			const total = weights.reduce((sum, weight) => sum + weight, 0);
 			return [
 				{
@@ -1018,7 +1037,8 @@ function componentsOf(
 					weights,
 					unitShare: (index) =>
 						`${formatNumber(weights[index])} von ${formatNumber(total)} Personentagen`,
-					splitBy: 'persons'
+					splitBy: 'persons',
+					personSplits
 				}
 			];
 		}
@@ -1613,11 +1633,11 @@ export function computeStatement(
 					weights = [...occupancy.leases.map((o) => o.days), occupancy.vacancyDays];
 					details = occupancy.leases.map((o) => daysText(o, itemOverlap));
 				} else if (component.splitBy === 'persons') {
-					weights = [...occupancy.leases.map((o) => o.personDays), occupancy.vacancyPersonDays];
+					weights = component.personSplits![unitIndex];
 					// The detail matters only when the unit's person-days are shared.
 					if (occupancy.leases.length > 1 || occupancy.vacancyDays > 0) {
 						details = occupancy.leases.map(
-							(o) => `davon ${formatNumber(o.personDays)} Personentage`
+							(_, i) => `davon ${formatNumber(weights[i])} Personentage`
 						);
 					}
 				} else {
