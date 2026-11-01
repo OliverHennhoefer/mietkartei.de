@@ -1403,7 +1403,7 @@ export function statementLetter(statement: LeaseStatement): Letter {
 				line.association ? `${formatCents(line.association.total)} WEG` : null,
 				line.association ? `Anteil ${formatCents(line.itemTotal)}` : formatCents(line.itemTotal),
 				line.allocated !== line.itemTotal
-					? `abzüglich CO2-Anteil Vermieter ${formatCents(line.itemTotal - line.allocated)}\numgelegt ${formatCents(line.allocated)}`
+					? `− ${formatCents(line.itemTotal - line.allocated)} CO2\n= ${formatCents(line.allocated)}`
 					: null
 			).join('\n'),
 			`${line.keyName}: ${line.keyTotal}\n${line.share}`,

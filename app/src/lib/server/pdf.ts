@@ -100,7 +100,15 @@ const REPLACEMENTS: Record<string, string> = {
 	'−': '-',
 	'…': '...',
 	'\t': ' ',
-	'\r': ''
+	'\r': '',
+	// Letters of tenants' names without a decomposed form, e.g. Turkish and Polish.
+	ı: 'i',
+	İ: 'I',
+	ł: 'l',
+	Ł: 'L',
+	đ: 'd',
+	Đ: 'D',
+	ħ: 'h'
 };
 
 function canEncode(char: string): boolean {
@@ -112,9 +120,16 @@ function canEncode(char: string): boolean {
 	);
 }
 
+/** The letter without its accents (`ğ` → `g`, `ș` → `s`), if WinAnsi can encode what is left. */
+function withoutAccents(char: string): string | undefined {
+	const base = char.normalize('NFD').replace(/\p{M}/gu, '');
+	return base && base !== char && [...base].every(canEncode) ? base : undefined;
+}
+
 /**
  * Makes `text` drawable with a standard font: characters WinAnsi cannot encode become a close
- * ASCII form (`CO₂` → `CO2`) or `?`. Line breaks are kept; the caller wraps on them.
+ * ASCII form (`CO₂` → `CO2`, `Yılmaz` → `Yilmaz`, `Kowalczyk-Wójcik` stays) or `?`. Line breaks
+ * are kept; the caller wraps on them.
  */
 export function toWinAnsi(text: string): string {
 	let out = '';
@@ -122,7 +137,7 @@ export function toWinAnsi(text: string): string {
 		const replacement = REPLACEMENTS[char];
 		if (replacement !== undefined) out += replacement;
 		else if (char === '\n' || canEncode(char)) out += char;
-		else out += '?';
+		else out += withoutAccents(char) ?? '?';
 	}
 	return out;
 }
@@ -400,8 +415,15 @@ export function blocksOf(letter: Letter): LetterBlock[] {
 }
 
 /** Renders the letter as A4 pages and returns the PDF bytes. */
-export async function renderLetter(letter: Letter): Promise<Uint8Array> {
+export async function renderLetter(
+	letter: Letter,
+	options: { date?: Date } = {}
+): Promise<Uint8Array> {
 	const doc = await PDFDocument.create();
+	if (options.date) {
+		doc.setCreationDate(options.date);
+		doc.setModificationDate(options.date);
+	}
 	doc.setTitle(letter.subject);
 	doc.setLanguage('de-DE');
 	doc.setCreator('mietkartei');

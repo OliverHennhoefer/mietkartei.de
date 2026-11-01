@@ -222,6 +222,9 @@ try {
 		['[data-slide] h3', '[data-slide] table tbody tr:nth-child(5)'],
 		mark('section.lease', 'Armin Schmidt')
 	);
+	// The page on the Nebenkostenabrechnung shows the whole draft: its sums, the Belege and the
+	// first tenant.
+	await shootSlide('abrechnung-entwurf', page.url());
 	await page.evaluate(() => window.scrollTo(0, 0));
 	await shoot('abrechnung-entwurf', undefined, docsOutput);
 
