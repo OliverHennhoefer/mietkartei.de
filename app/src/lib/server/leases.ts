@@ -10,7 +10,7 @@ import type { GermanState } from '../working-days';
 import type { AuditContext } from './audit';
 import { auditEntry } from './audit';
 import type { Database } from './db';
-import { chunk, chunkIds, rowsPerStatement, runBatch } from './db/batch';
+import { chunk, chunkIds, rowsPerStatement, runBatch, selectInChunks } from './db/batch';
 import {
 	chargeStatements,
 	chargeSyncStatements,
@@ -128,55 +128,45 @@ export function leaseLabel(lease: Place): string {
 
 async function decorate(db: Database, accountId: string, rows: Lease[]): Promise<LeaseSummary[]> {
 	if (rows.length === 0) return [];
-	// D1 binds at most 100 parameters per statement: the lease ids go in groups (chunkIds), one
-	// query per table and group, and the groups' rows are put together again.
-	const groups = chunkIds(rows.map((row) => row.id));
-	const [allUnits, allProperties, tenantGroups, extraGroups, changeGroups] = await Promise.all([
+	// D1 binds at most 100 parameters per statement: the lease ids go in groups, one query per
+	// table and group (selectInChunks).
+	const leaseIds = rows.map((row) => row.id);
+	const [allUnits, allProperties, tenantLinks, extraLinks, changeRows] = await Promise.all([
 		db.select().from(units).where(eq(units.accountId, accountId)),
 		db.select().from(properties).where(eq(properties.accountId, accountId)),
-		Promise.all(
-			groups.map((leaseIds) =>
-				db
-					.select({
-						leaseId: leaseTenants.leaseId,
-						tenant: tenants,
-						joinedOn: leaseTenants.joinedOn,
-						leftOn: leaseTenants.leftOn
-					})
-					.from(leaseTenants)
-					.innerJoin(tenants, eq(leaseTenants.tenantId, tenants.id))
-					.where(and(eq(tenants.accountId, accountId), inArray(leaseTenants.leaseId, leaseIds)))
-			)
+		selectInChunks(leaseIds, (ids) =>
+			db
+				.select({
+					leaseId: leaseTenants.leaseId,
+					tenant: tenants,
+					joinedOn: leaseTenants.joinedOn,
+					leftOn: leaseTenants.leftOn
+				})
+				.from(leaseTenants)
+				.innerJoin(tenants, eq(leaseTenants.tenantId, tenants.id))
+				.where(and(eq(tenants.accountId, accountId), inArray(leaseTenants.leaseId, ids)))
 		),
-		Promise.all(
-			groups.map((leaseIds) =>
-				db
-					.select({ leaseId: leaseUnits.leaseId, unit: units })
-					.from(leaseUnits)
-					.innerJoin(units, eq(leaseUnits.unitId, units.id))
-					.where(and(eq(leaseUnits.accountId, accountId), inArray(leaseUnits.leaseId, leaseIds)))
-			)
+		selectInChunks(leaseIds, (ids) =>
+			db
+				.select({ leaseId: leaseUnits.leaseId, unit: units })
+				.from(leaseUnits)
+				.innerJoin(units, eq(leaseUnits.unitId, units.id))
+				.where(and(eq(leaseUnits.accountId, accountId), inArray(leaseUnits.leaseId, ids)))
 		),
-		Promise.all(
-			groups.map((leaseIds) =>
-				db
-					.select()
-					.from(rentChanges)
-					.where(and(eq(rentChanges.accountId, accountId), inArray(rentChanges.leaseId, leaseIds)))
-			)
+		selectInChunks(leaseIds, (ids) =>
+			db
+				.select()
+				.from(rentChanges)
+				.where(and(eq(rentChanges.accountId, accountId), inArray(rentChanges.leaseId, ids)))
 		)
 	]);
 	// Ordered as SQLite's ORDER BY did (binary), across the groups.
 	const binary = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-	const tenantRows = tenantGroups
-		.flat()
-		.sort(
-			(a, b) =>
-				binary(a.tenant.lastName, b.tenant.lastName) ||
-				binary(a.tenant.firstName, b.tenant.firstName)
-		);
-	const extraRows = extraGroups.flat().sort((a, b) => binary(a.unit.name, b.unit.name));
-	const changeRows = changeGroups.flat();
+	const tenantRows = tenantLinks.sort(
+		(a, b) =>
+			binary(a.tenant.lastName, b.tenant.lastName) || binary(a.tenant.firstName, b.tenant.firstName)
+	);
+	const extraRows = extraLinks.sort((a, b) => binary(a.unit.name, b.unit.name));
 	const unitById = new Map(allUnits.map((unit) => [unit.id, unit]));
 	const propertyById = new Map(allProperties.map((property) => [property.id, property]));
 	const date = today();
@@ -297,23 +287,24 @@ async function overlappingLease(
 	exceptLeaseId?: string
 ): Promise<IsoDate | undefined> {
 	const unitIds = [...new Set(term.unitIds)];
-	const starts: IsoDate[] = [];
-	for (const ids of chunkIds(unitIds)) {
-		const [main, extra] = await Promise.all([
+	const [main, extra] = await Promise.all([
+		selectInChunks(unitIds, (ids) =>
 			db
 				.select({ id: leases.id, startDate: leases.startDate, endDate: leases.endDate })
 				.from(leases)
-				.where(and(eq(leases.accountId, accountId), inArray(leases.unitId, ids))),
+				.where(and(eq(leases.accountId, accountId), inArray(leases.unitId, ids)))
+		),
+		selectInChunks(unitIds, (ids) =>
 			db
 				.select({ id: leases.id, startDate: leases.startDate, endDate: leases.endDate })
 				.from(leaseUnits)
 				.innerJoin(leases, eq(leases.id, leaseUnits.leaseId))
 				.where(and(eq(leaseUnits.accountId, accountId), inArray(leaseUnits.unitId, ids)))
-		]);
-		for (const lease of [...main, ...extra]) {
-			if (lease.id !== exceptLeaseId && termsOverlap(lease, term)) starts.push(lease.startDate);
-		}
-	}
+		)
+	]);
+	const starts = [...main, ...extra]
+		.filter((lease) => lease.id !== exceptLeaseId && termsOverlap(lease, term))
+		.map((lease) => lease.startDate);
 	return starts.sort()[0];
 }
 
@@ -330,29 +321,25 @@ async function checkReferences(
 ): Promise<Exclude<LeaseError, 'overlap' | 'start-after-changes'> | undefined> {
 	// The form does not cap the number of ids, so they go in groups (D1 binds at most 100).
 	const unitIds = [...new Set([input.unitId, ...input.extraUnitIds])];
-	let ownUnits = 0;
-	let archived = false;
-	for (const ids of chunkIds(unitIds)) {
-		const rows = await db
+	const unitRows = await selectInChunks(unitIds, (ids) =>
+		db
 			.select({ id: units.id, archivedAt: properties.archivedAt })
 			.from(units)
 			.innerJoin(properties, eq(properties.id, units.propertyId))
-			.where(and(eq(units.accountId, accountId), inArray(units.id, ids)));
-		ownUnits += rows.length;
-		if (rows.some((row) => row.archivedAt && !kept.unitIds.includes(row.id))) archived = true;
-	}
-	if (ownUnits !== unitIds.length) return 'unknown-unit';
+			.where(and(eq(units.accountId, accountId), inArray(units.id, ids)))
+	);
+	if (unitRows.length !== unitIds.length) return 'unknown-unit';
 	const tenantIds = [...new Set(input.tenantIds)];
-	let ownTenants = 0;
-	for (const ids of chunkIds(tenantIds)) {
-		const rows = await db
+	const tenantRows = await selectInChunks(tenantIds, (ids) =>
+		db
 			.select({ id: tenants.id, archivedAt: tenants.archivedAt })
 			.from(tenants)
-			.where(and(eq(tenants.accountId, accountId), inArray(tenants.id, ids)));
-		ownTenants += rows.length;
-		if (rows.some((row) => row.archivedAt && !kept.tenantIds.includes(row.id))) archived = true;
-	}
-	if (ownTenants !== tenantIds.length) return 'unknown-tenant';
+			.where(and(eq(tenants.accountId, accountId), inArray(tenants.id, ids)))
+	);
+	if (tenantRows.length !== tenantIds.length) return 'unknown-tenant';
+	const archived =
+		unitRows.some((row) => row.archivedAt && !kept.unitIds.includes(row.id)) ||
+		tenantRows.some((row) => row.archivedAt && !kept.tenantIds.includes(row.id));
 	return archived ? 'archived' : undefined;
 }
 
@@ -562,14 +549,13 @@ async function leavesSettledProperty(
 		.where(and(eq(statementResults.accountId, accountId), eq(statementResults.leaseId, leaseId)));
 	if (settled.length === 0) return false;
 	const unitIds = [...new Set([input.unitId, ...input.extraUnitIds])];
-	const kept = new Set<string>();
-	for (const ids of chunkIds(unitIds)) {
-		const rows = await db
+	const unitRows = await selectInChunks(unitIds, (ids) =>
+		db
 			.select({ propertyId: units.propertyId })
 			.from(units)
-			.where(and(eq(units.accountId, accountId), inArray(units.id, ids)));
-		for (const row of rows) kept.add(row.propertyId);
-	}
+			.where(and(eq(units.accountId, accountId), inArray(units.id, ids)))
+	);
+	const kept = new Set(unitRows.map((row) => row.propertyId));
 	return settled.some((row) => !kept.has(row.propertyId));
 }
 
@@ -729,16 +715,14 @@ async function tenantChangeOf(
 	tenantIds: readonly string[]
 ): Promise<TenantChange> {
 	const addedIds = tenantIds.filter((id) => !current.some((tenant) => tenant.id === id));
-	const added: string[] = [];
-	for (const ids of chunkIds(addedIds)) {
-		const rows = await db
+	const addedRows = await selectInChunks(addedIds, (ids) =>
+		db
 			.select({ firstName: tenants.firstName, lastName: tenants.lastName })
 			.from(tenants)
-			.where(and(eq(tenants.accountId, accountId), inArray(tenants.id, ids)));
-		added.push(...rows.map(personName));
-	}
+			.where(and(eq(tenants.accountId, accountId), inArray(tenants.id, ids)))
+	);
 	return {
-		added: added.sort(),
+		added: addedRows.map(personName).sort(),
 		removed: current.filter((tenant) => !tenantIds.includes(tenant.id)).map(personName)
 	};
 }

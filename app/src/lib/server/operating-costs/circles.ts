@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
-import { chunk, chunkIds, rowsPerStatement, runBatch } from '../db/batch';
+import { chunk, rowsPerStatement, runBatch, selectInChunks } from '../db/batch';
 import { billingCircleUnits, billingCircles, properties, units } from '../db/schema';
 import { assertQuota } from '../quotas';
 
@@ -26,19 +26,24 @@ async function decorate(
 	rows: (BillingCircle & { propertyName: string })[]
 ): Promise<BillingCircleWithUnits[]> {
 	if (rows.length === 0) return [];
+	const links = await selectInChunks(
+		rows.map((row) => row.id),
+		(ids) =>
+			db
+				.select({ circleId: billingCircleUnits.circleId, unitId: billingCircleUnits.unitId })
+				.from(billingCircleUnits)
+				.innerJoin(units, eq(units.id, billingCircleUnits.unitId))
+				.where(
+					and(
+						eq(billingCircleUnits.accountId, accountId),
+						inArray(billingCircleUnits.circleId, ids)
+					)
+				)
+				.orderBy(asc(units.name))
+	);
 	const unitsByCircle = new Map<string, string[]>();
-	for (const ids of chunkIds(rows.map((row) => row.id))) {
-		const links = await db
-			.select({ circleId: billingCircleUnits.circleId, unitId: billingCircleUnits.unitId })
-			.from(billingCircleUnits)
-			.innerJoin(units, eq(units.id, billingCircleUnits.unitId))
-			.where(
-				and(eq(billingCircleUnits.accountId, accountId), inArray(billingCircleUnits.circleId, ids))
-			)
-			.orderBy(asc(units.name));
-		for (const link of links) {
-			unitsByCircle.set(link.circleId, [...(unitsByCircle.get(link.circleId) ?? []), link.unitId]);
-		}
+	for (const link of links) {
+		unitsByCircle.set(link.circleId, [...(unitsByCircle.get(link.circleId) ?? []), link.unitId]);
 	}
 	return rows.map((row) => ({ ...row, unitIds: unitsByCircle.get(row.id) ?? [] }));
 }
@@ -87,9 +92,8 @@ async function unitsBelong(
 	propertyId: string,
 	unitIds: string[]
 ): Promise<boolean> {
-	let own = 0;
-	for (const ids of chunkIds(unitIds)) {
-		const rows = await db
+	const own = await selectInChunks(unitIds, (ids) =>
+		db
 			.select({ id: units.id })
 			.from(units)
 			.where(
@@ -98,10 +102,9 @@ async function unitsBelong(
 					eq(units.propertyId, propertyId),
 					inArray(units.id, ids)
 				)
-			);
-		own += rows.length;
-	}
-	return own === unitIds.length;
+			)
+	);
+	return own.length === unitIds.length;
 }
 
 function unitInserts(db: Database, accountId: string, circleId: string, unitIds: string[]) {

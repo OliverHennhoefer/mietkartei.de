@@ -13,7 +13,7 @@ import { unitKindLabels } from '../units';
 import { addressLines, landlordAddress } from './accounts';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
-import { chunkIds, runBatch } from './db/batch';
+import { runBatch, selectInChunks } from './db/batch';
 import {
 	associationStatements,
 	expenses,
@@ -66,27 +66,17 @@ export async function loadTaxOverview(
 		.from(units)
 		.where(and(eq(units.accountId, accountId), eq(units.propertyId, property.id)));
 	const unitIds = unitRows.map((unit) => unit.id);
-	const leaseRows = unitIds.length
-		? (
-				await Promise.all(
-					chunkIds(unitIds).map((ids) =>
-						db
-							.select({ id: leases.id, unitId: leases.unitId })
-							.from(leases)
-							.where(and(eq(leases.accountId, accountId), inArray(leases.unitId, ids)))
-					)
-				)
-			).flat()
-		: [];
+	const leaseRows = await selectInChunks(unitIds, (ids) =>
+		db
+			.select({ id: leases.id, unitId: leases.unitId })
+			.from(leases)
+			.where(and(eq(leases.accountId, accountId), inArray(leases.unitId, ids)))
+	);
 	const leaseIds = leaseRows.map((lease) => lease.id);
 	const currentMonth = monthOf(today());
 	const lastMonth = `${year}-12`;
 	await ensureCharges(db, accountId, leaseIds, lastMonth < currentMonth ? lastMonth : currentMonth);
 
-	const byLease = <T>(query: (ids: string[]) => Promise<T[]>) =>
-		leaseIds.length
-			? Promise.all(chunkIds(leaseIds).map(query)).then((groups) => groups.flat())
-			: Promise.resolve([] as T[]);
 	const unitIdsOf = db
 		.select({ id: units.id })
 		.from(units)
@@ -94,7 +84,7 @@ export async function loadTaxOverview(
 
 	const [chargeRows, paymentRows, tenantRows, expenseRows, statementRows, [taxYear]] =
 		await Promise.all([
-			byLease((ids) =>
+			selectInChunks(leaseIds, (ids) =>
 				db
 					.select({
 						leaseId: rentCharges.leaseId,
@@ -109,13 +99,13 @@ export async function loadTaxOverview(
 					.from(rentCharges)
 					.where(and(eq(rentCharges.accountId, accountId), inArray(rentCharges.leaseId, ids)))
 			),
-			byLease((ids) =>
+			selectInChunks(leaseIds, (ids) =>
 				db
 					.select({ leaseId: payments.leaseId, date: payments.date, amount: payments.amount })
 					.from(payments)
 					.where(and(eq(payments.accountId, accountId), inArray(payments.leaseId, ids)))
 			),
-			byLease((ids) =>
+			selectInChunks(leaseIds, (ids) =>
 				db
 					.select({
 						leaseId: leaseTenants.leaseId,

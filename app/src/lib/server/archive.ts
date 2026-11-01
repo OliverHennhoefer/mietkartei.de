@@ -3,7 +3,7 @@ import { formatDate, type IsoDate } from '../dates';
 import { personName } from '../format';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
-import { chunkIds, runBatch } from './db/batch';
+import { runBatch, selectInChunks } from './db/batch';
 import { leaseTenants, leaseUnits, leases, properties, tenants, units } from './db/schema';
 import { leaseLinks, type DeletionLink } from './deletion';
 
@@ -26,13 +26,14 @@ async function runningLeasesOnUnits(
 	unitIds: string[],
 	date: IsoDate
 ): Promise<string[]> {
-	const ids = new Set<string>();
-	for (const group of chunkIds(unitIds)) {
-		const [main, extra] = await Promise.all([
+	const [main, extra] = await Promise.all([
+		selectInChunks(unitIds, (group) =>
 			db
 				.select({ id: leases.id })
 				.from(leases)
-				.where(and(eq(leases.accountId, accountId), inArray(leases.unitId, group), notEnded(date))),
+				.where(and(eq(leases.accountId, accountId), inArray(leases.unitId, group), notEnded(date)))
+		),
+		selectInChunks(unitIds, (group) =>
 			db
 				.select({ id: leases.id })
 				.from(leaseUnits)
@@ -40,10 +41,9 @@ async function runningLeasesOnUnits(
 				.where(
 					and(eq(leases.accountId, accountId), inArray(leaseUnits.unitId, group), notEnded(date))
 				)
-		]);
-		for (const row of [...main, ...extra]) ids.add(row.id);
-	}
-	return [...ids];
+		)
+	]);
+	return [...new Set([...main, ...extra].map((row) => row.id))];
 }
 
 // Properties
