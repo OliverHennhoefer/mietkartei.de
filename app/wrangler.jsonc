@@ -36,7 +36,9 @@
 	// bank import of a 2 MB file (~27,000 rows), takes about 1 s each for preview and commit.
 	"limits": { "cpu_ms": 10000 },
 	// Posts of the sign-in, registration, reset and invitation forms per client address, and calls
-	// of the API; see src/lib/server/rate-limit.
+	// of the API; see src/lib/server/rate-limit. Bindings with the same namespace_id share their
+	// counters across all Workers of the Cloudflare account, so every binding, the demo's too, has
+	// a namespace of its own.
 	"ratelimits": [
 		{ "name": "AUTH_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
 		// Calls of the API and the MCP server per key, and calls with a wrong key per address.
@@ -89,8 +91,10 @@
 				// belongs to it. See .github/DEPLOYMENT.md.
 				"TURNSTILE_SITE_KEY": "0x4AAAAAAFqyQueuE_NcsZE5"
 			},
+			// The API and the MCP server answer on the demo as well, so it needs both limiters.
 			"ratelimits": [
-				{ "name": "AUTH_LIMITER", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }
+				{ "name": "AUTH_LIMITER", "namespace_id": "1003", "simple": { "limit": 10, "period": 60 } },
+				{ "name": "API_LIMITER", "namespace_id": "1004", "simple": { "limit": 120, "period": 60 } }
 			],
 			"d1_databases": [
 				{

@@ -178,10 +178,27 @@ describe('wrangler.jsonc', () => {
 		expect(demo.r2_buckets[0].bucket_name).not.toBe(config.r2_buckets[0].bucket_name);
 		// The street map is the same for both.
 		expect(demo.r2_buckets[1]).toEqual(config.r2_buckets[1]);
-		expect(demo.ratelimits[0]).toMatchObject({
-			name: 'AUTH_LIMITER',
-			simple: { limit: AUTH_LIMIT, period: AUTH_PERIOD_SECONDS }
-		});
+		// The API answers on the demo too, so a missing API_LIMITER would fail every call.
+		expect(demo.ratelimits).toEqual([
+			expect.objectContaining({
+				name: 'AUTH_LIMITER',
+				simple: { limit: AUTH_LIMIT, period: AUTH_PERIOD_SECONDS }
+			}),
+			expect.objectContaining({
+				name: 'API_LIMITER',
+				simple: { limit: API_LIMIT, period: API_PERIOD_SECONDS }
+			})
+		]);
+	});
+
+	it('gives every rate limit binding of app and demo a namespace of its own', () => {
+		// Bindings with the same namespace_id share their counters across the Workers of the
+		// Cloudflare account, whatever limit each of them sets.
+		const config = wranglerConfig();
+		const ids = [...config.ratelimits, ...config.env.demo.ratelimits].map(
+			(limit: { namespace_id: string }) => limit.namespace_id
+		);
+		expect(new Set(ids).size).toBe(ids.length);
 	});
 });
 
