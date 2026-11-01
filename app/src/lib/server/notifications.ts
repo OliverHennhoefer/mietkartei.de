@@ -1,10 +1,10 @@
-import { and, desc, eq, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { addDays, daysBetween, dayOf, formatDate, weekday, type IsoDate } from '../dates';
 import { auditEntry, type AuditContext } from './audit';
 import { generateToken } from './auth';
 import { calendarEntries, type CalendarEntry } from './calendar';
 import type { Database } from './db';
-import { chunk, rowsPerStatement, runBatch } from './db/batch';
+import { chunk, chunkIds, rowsPerStatement, runBatch } from './db/batch';
 import {
 	notificationChannels,
 	notificationDeliveries,
@@ -494,35 +494,38 @@ export async function sendDueNotifications(db: Database, now: Date = new Date())
 				loadStates(db, user.id)
 			]);
 			const notices = dueNotices(entries, states, today);
-			let delivered = notices.length === 0;
+			// Done for the day once a channel took its Hinweise, or none had any to take (an
+			// urgent-only channel and nothing urgent). Only failures leave it for the next run.
+			let attempted = 0;
+			let succeeded = 0;
 			for (const channel of channels) {
 				const own = channel.urgentOnly ? notices.filter((n) => isUrgent(n.stage)) : notices;
-				if (own.length === 0) {
-					delivered = true;
-					continue;
-				}
+				if (own.length === 0) continue;
+				attempted += 1;
 				const relinked = own.map((notice) => ({
 					...notice,
 					entry: { ...notice.entry, url: `${channel.origin}${notice.entry.url}` }
 				}));
-				if (await deliverAndRecord(db, channel, user, relinked, now)) {
-					delivered = true;
-					sent += 1;
-				}
+				if (await deliverAndRecord(db, channel, user, relinked, now)) succeeded += 1;
 			}
-			if (!delivered) continue;
+			sent += succeeded;
+			if (attempted > 0 && succeeded === 0) continue;
 			await saveStates(db, user, notices, now);
+			// States of entries that are gone (a task deleted or done, a deadline handled) are of
+			// no use once their date lies long back; an entry still open keeps its state.
+			const current = new Set(entries.map((entry) => entry.key));
+			const stale = [...states]
+				.filter(([key, state]) => !current.has(key) && state.date < addDays(today, -60))
+				.map(([key]) => key);
 			await runBatch(db, [
 				db.update(users).set({ notificationsCheckedOn: today }).where(eq(users.id, user.id)),
-				// States of entries long gone (a task deleted, a deadline handled) are of no use.
-				db
-					.delete(notificationStates)
-					.where(
-						and(
-							eq(notificationStates.userId, user.id),
-							lt(notificationStates.date, addDays(today, -400))
+				...chunkIds(stale).map((keys) =>
+					db
+						.delete(notificationStates)
+						.where(
+							and(eq(notificationStates.userId, user.id), inArray(notificationStates.entry, keys))
 						)
-					)
+				)
 			]);
 		} catch (error) {
 			console.error(`[notifications] The Hinweise of user ${user.id} were not sent:`, error);

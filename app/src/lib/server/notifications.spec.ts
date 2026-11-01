@@ -390,6 +390,57 @@ describe('sendDueNotifications', () => {
 		expect(await db.select().from(notificationDeliveries)).toHaveLength(MAX_FAILURES);
 	});
 
+	it('retries when the channel that had something failed, though an urgent-only one had nothing', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		await addChannel(
+			db,
+			contextA,
+			{ kind: 'webhook', url: 'https://hook.example.de/all', urgentOnly: false, details: false },
+			ORIGIN,
+			false
+		);
+		await addChannel(
+			db,
+			contextA,
+			{ kind: 'ntfy', url: 'https://ntfy.sh/haus', urgentOnly: true, details: false },
+			ORIGIN,
+			false
+		);
+		const fetch = vi.fn(async () => new Response('down', { status: 503 }));
+		vi.stubGlobal('fetch', fetch);
+		await task('a', 'Rauchmelder prüfen', '2026-11-06');
+		expect(await sendDueNotifications(db, morning('2026-11-02'))).toBe(0);
+		expect(await db.select().from(notificationStates)).toHaveLength(0);
+		fetch.mockImplementation(async () => new Response('ok'));
+		expect(await sendDueNotifications(db, new Date('2026-11-02T08:00:00Z'))).toBe(1);
+		expect(await db.select().from(notificationStates)).toHaveLength(1);
+	});
+
+	it('keeps the state of an entry still open long after its date, and drops those gone', async () => {
+		await addChannel(
+			db,
+			contextA,
+			{ kind: 'email', urgentOnly: false, details: false },
+			ORIGIN,
+			false
+		);
+		await task('a', 'Dachrinne reinigen', '2025-01-10');
+		await db.insert(notificationStates).values({
+			accountId: 'a',
+			userId: 'user-a',
+			entry: 'task-gone',
+			date: '2025-01-10',
+			stage: 'overdue',
+			updatedAt: new Date()
+		});
+		expect(await sendDueNotifications(db, morning('2026-11-02'))).toBe(1);
+		expect(await sendDueNotifications(db, morning('2026-11-03'))).toBe(0);
+		expect(await sendDueNotifications(db, morning('2026-11-04'))).toBe(0);
+		const states = await db.select().from(notificationStates);
+		expect(states.map((state) => state.stage)).toEqual(['overdue']);
+		expect(states[0].entry).not.toBe('task-gone');
+	});
+
 	it('holds back a snoozed entry until the snooze ends', async () => {
 		await addChannel(
 			db,
