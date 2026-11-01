@@ -1587,6 +1587,80 @@ export function statementLetter(statement: LeaseStatement): Letter {
 					'Die Belege können Sie nach Absprache einsehen. Einwendungen gegen diese Abrechnung teilen Sie uns bitte innerhalb von zwölf Monaten nach Zugang mit (§ 556 Abs. 3 BGB).'
 			}
 		],
-		closing: ['Mit freundlichen Grüßen', '', landlord.name]
+		closing: ['Mit freundlichen Grüßen', '', landlord.name],
+		appendix: {
+			title: 'Anlage: Prüfprotokoll',
+			blocks: [
+				{
+					paragraph: 'Diese Abrechnung wurde vor dem Versand auf die folgenden Punkte geprüft.'
+				},
+				{
+					table: {
+						columns: [{ label: 'Prüfpunkt', width: 0.28 }, { label: 'Ergebnis' }],
+						rows: checkRows(statement)
+					}
+				}
+			]
+		}
 	};
+}
+
+/**
+ * The Prüfprotokoll of the letter: what the statement was checked for, each with what the frozen
+ * result shows. Points that do not apply to the lease (no heating, no CO₂ cost) or did not pass
+ * (the deadline) are left out rather than printed as failed: the letter says the rest.
+ */
+export function checkRows(statement: LeaseStatement): string[][] {
+	const { period, occupancy } = statement;
+	const rows: string[][] = [
+		[
+			'Abrechnungszeitraum',
+			`${formatDate(period.start)} bis ${formatDate(period.end)}, ${period.days} Tage: nicht länger als zwölf Monate (§\u00a0556 Abs.\u00a03 Satz\u00a01 BGB).`
+		]
+	];
+	if (statement.approvedOn && !statement.late) {
+		rows.push([
+			'Abrechnungsfrist',
+			`Erstellt am ${formatDate(statement.approvedOn)}, die Frist endet am ${formatDate(statement.deadline)} (§\u00a0556 Abs.\u00a03 Satz\u00a02 BGB).`
+		]);
+	}
+	rows.push([
+		'Mindestangaben',
+		'Je Kostenart die Gesamtkosten, der Umlageschlüssel und Ihr Anteil mit Rechenweg, dazu Ihre Vorauszahlungen.'
+	]);
+	rows.push([
+		'Umlagefähigkeit',
+		statement.lines.every((line) => line.betrkvItem !== null)
+			? 'Nur Betriebskosten nach §\u00a02 Betriebskostenverordnung, jede Kostenart mit ihrer Nummer; ohne Verwaltung und Instandhaltung.'
+			: 'Nur Betriebskosten nach §\u00a02 Betriebskostenverordnung; ohne Verwaltung und Instandhaltung.'
+	]);
+	const heating = statement.lines.filter((line) => line.heating);
+	// Only when every heating line was split by consumption as the HeizkostenV wants: not after a
+	// fallback to the floor area (§ 9a Abs. 2) or with a share outside 50–70 %.
+	if (heating.length > 0 && heating.every((line) => line.heizkv)) {
+		rows.push([
+			'Heizkostenverordnung',
+			'Heiz- und Warmwasserkosten nach Verbrauch verteilt (§§\u00a07, 8 HeizkostenV).'
+		]);
+	}
+	const co2 = statement.lines.flatMap((line) => (line.co2 ? [line.co2] : []));
+	if (co2.length > 0) {
+		const percents = [...new Set(co2.map((entry) => `${entry.landlordPercent}\u00a0%`))].join(', ');
+		rows.push([
+			'CO2-Kosten',
+			`Nach dem Stufenmodell des CO2-Kostenaufteilungsgesetzes aufgeteilt; der Anteil des Vermieters (${percents}) ist vor der Umlage abgezogen.`
+		]);
+	}
+	rows.push([
+		'Nutzungszeitraum',
+		occupancy.days < period.days
+			? `Tagesgenau: ${occupancy.days} von ${period.days} Tagen, ${formatDate(occupancy.start)} bis ${formatDate(occupancy.end)}.`
+			: `Der ganze Abrechnungszeitraum, ${period.days} Tage.`
+	]);
+	const months = statement.prepayments.filter((month) => month.amount !== 0).length;
+	rows.push([
+		'Vorauszahlungen',
+		`Aus dem Mietkonto angerechnet: ${pluralize(months, 'Monat', 'Monate')}, zusammen ${formatCents(statement.prepaymentsTotal)}.`
+	]);
+	return rows;
 }

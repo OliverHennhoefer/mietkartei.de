@@ -17,7 +17,8 @@ import {
 	type StatementInput,
 	type StatementItem,
 	type StatementKey,
-	type StatementLease
+	type StatementLease,
+	type StatementWarning
 } from './statement';
 
 // The reference scenario: Lindenstraße 4 (residential, vacancyPersons 1) with three units and the
@@ -278,6 +279,14 @@ function scenario(): StatementInput {
 
 const options = { today: '2026-03-15' };
 
+/**
+ * The warnings without the Mieterbund hints, which the small test houses with round amounts set
+ * off; they have their own test.
+ */
+function findings(result: { property: { warnings: StatementWarning[] } }): StatementWarning[] {
+	return result.property.warnings.filter((warning) => warning.code !== 'above_benchmark');
+}
+
 function lineAmounts(statement: LeaseStatement): Record<string, number> {
 	return Object.fromEntries(statement.lines.map((line) => [line.categoryName, line.amount]));
 }
@@ -306,8 +315,8 @@ describe('computeStatement with the reference scenario', () => {
 		expect(result.property.deadline).toBe('2026-12-31');
 		expect(result.property.late).toBe(false);
 		// Only the DG change without a Zwischenablesung is reported.
-		expect(result.property.warnings.map((warning) => warning.code)).toEqual(['no_interim_reading']);
-		expect(result.property.warnings[0]).toMatchObject({
+		expect(findings(result).map((warning) => warning.code)).toEqual(['no_interim_reading']);
+		expect(findings(result)[0]).toMatchObject({
 			blocking: false,
 			unitId: 'dg',
 			href: '/objekte/p/zaehler?meter=m-dg'
@@ -726,6 +735,16 @@ describe('computeStatement warnings', () => {
 			'nach Fläche statt Verbrauch (§ 9a Abs. 2 HeizKV): 60 m² von 100 m² · 365 von 365 Tagen'
 		);
 		expect(eg.lines[0].keyTotal).toBe('nach Fläche statt Verbrauch (§ 9a Abs. 2 HeizKV): 100 m²');
+		// Not split by consumption after all, so the Prüfprotokoll does not certify it.
+		expect(eg.lines[0].heizkv).toBe(false);
+		const measured = computeStatement(
+			heat([
+				meter('m-eg', 'eg', [reading('2025-01-01', 0), reading('2025-12-31', 900)]),
+				meter('m-og', 'og', [reading('2025-01-01', 0), reading('2025-12-31', 400)])
+			]),
+			options
+		);
+		expect(measured.leases.every((lease) => lease.lines.every((line) => line.heizkv))).toBe(true);
 
 		// Estimates on 40 of 100 m² (OG) under a 70/30 key: the 70 % part moves to the area too.
 		const mixed = computeStatement(
@@ -787,7 +806,7 @@ describe('computeStatement warnings', () => {
 		expect(og.prepaymentsTotal).toBe(12 * 5000);
 		expect(og.balance).toBe(40000 - 60000);
 		expect(result.property.excludedTotal).toBe(40000);
-		expect(result.property.warnings).toMatchObject([
+		expect(findings(result)).toMatchObject([
 			{ code: 'flat_lease', leaseId: 'l-og', href: '/vertraege/l-og' }
 		]);
 
@@ -1094,7 +1113,7 @@ describe('computeStatement warnings', () => {
 		});
 
 		input.keys[0].shares.pop();
-		expect(computeStatement(input, options).property.warnings).toMatchObject([
+		expect(findings(computeStatement(input, options))).toMatchObject([
 			{ code: 'missing_share', blocking: false, unitId: 'og', href: '/betriebskosten/schluessel' }
 		]);
 	});
@@ -1139,8 +1158,8 @@ describe('computeStatement warnings', () => {
 		const input = small();
 		input.leases.pop();
 		const result = computeStatement(input, { today: '2027-01-01' });
-		expect(result.property.warnings.map((w) => w.code)).toEqual(['no_lease', 'deadline_passed']);
-		expect(result.property.warnings[0]).toMatchObject({
+		expect(findings(result).map((w) => w.code)).toEqual(['no_lease', 'deadline_passed']);
+		expect(findings(result)[0]).toMatchObject({
 			unitId: 'og',
 			href: '/objekte/p/einheiten/og'
 		});
@@ -1486,6 +1505,33 @@ describe('computeStatement Vorjahresvergleich', () => {
 		expect(changeLabel(null, 60000)).toBe('–');
 		expect(changeLabel(40000, null)).toBe('–');
 		expect(changeLabel(0, 100)).toBe('–');
+	});
+});
+
+describe('computeStatement Mieterbund hint', () => {
+	it('names the Kostenarten far above the Betriebskostenspiegel, without blocking', () => {
+		// 184,5 m²: a Hauswart of 1.200 € is 0,54 € per m² and month (Mieterbund 0,21 €). Müll
+		// 600 € = 0,27 € (0,20 €) is not twice; the Grundsteuer (0,54 €, Mieterbund 0,18 €) is
+		// the town's and never named.
+		const input = scenario();
+		input.items.find((i) => i.id === 'i-hausmeister')!.amount = 120000;
+		const result = computeStatement(input, options);
+		const hints = result.property.warnings.filter((w) => w.code === 'above_benchmark');
+		expect(hints).toEqual([
+			{
+				code: 'above_benchmark',
+				blocking: false,
+				href: '/auswertung/nebenkosten?jahr=2025&objekt=p',
+				message: expect.stringMatching(
+					/^Hauswart: 0,54\u00a0€ je m² und Monat, der Betriebskostenspiegel des Deutschen Mieterbundes nennt 0,21\u00a0€ \(bundesweit, 2024\)/
+				)
+			}
+		]);
+		// Without the area of a flat there is nothing to compare.
+		input.units[0].floorArea = null;
+		expect(
+			computeStatement(input, options).property.warnings.some((w) => w.code === 'above_benchmark')
+		).toBe(false);
 	});
 });
 

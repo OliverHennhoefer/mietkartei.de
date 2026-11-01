@@ -29,6 +29,7 @@ import { ensureCharges } from './ledger';
 import { QUOTAS } from './quotas';
 import {
 	approveStatement,
+	checkRows,
 	createCorrection,
 	createStatement,
 	deleteDraft,
@@ -1445,6 +1446,58 @@ describe('statementLetter', () => {
 		expect(egParagraphs).toContain(
 			`Das Guthaben von 105,67\u00a0€ erstatten wir Ihnen bis zum ${addDays(today(), 30).split('-').reverse().join('.')} oder verrechnen es mit der nächsten Miete.`
 		);
+	});
+});
+
+describe('checkRows', () => {
+	it('adds the Prüfprotokoll as an Anlage', async () => {
+		travelTo('2026-03-01');
+		const { propertyId, leaseIds } = await seedScenario(db, 'a');
+		const id = await draft(db, propertyId);
+		await approveStatement(db, contextA, id, { lateApprovalJustified: false, note: null });
+		const ogA = (await getLeaseResult(db, 'a', id, leaseIds.ogA)) as LeaseStatement;
+		const appendix = statementLetter(ogA).appendix!;
+		expect(appendix.title).toBe('Anlage: Prüfprotokoll');
+		const rows = checkRows(ogA);
+		expect(rows.map((row) => row[0])).toEqual([
+			'Abrechnungszeitraum',
+			'Abrechnungsfrist',
+			'Mindestangaben',
+			'Umlagefähigkeit',
+			'Heizkostenverordnung',
+			'CO2-Kosten',
+			'Nutzungszeitraum',
+			'Vorauszahlungen'
+		]);
+		const result = Object.fromEntries(rows);
+		expect(result['Abrechnungsfrist']).toBe(
+			'Erstellt am 01.03.2026, die Frist endet am 31.12.2026 (§\u00a0556 Abs.\u00a03 Satz\u00a02 BGB).'
+		);
+		expect(result['CO2-Kosten']).toContain('(40\u00a0%)');
+		// OG A moved out on 30 June.
+		expect(result['Nutzungszeitraum']).toBe(
+			'Tagesgenau: 181 von 365 Tagen, 01.01.2025 bis 30.06.2025.'
+		);
+		expect(result['Vorauszahlungen']).toMatch(
+			/^Aus dem Mietkonto angerechnet: 6\u00a0Monate, zusammen /
+		);
+
+		// A heating line split by floor area after all (§ 9a Abs. 2 HeizKV) is not certified.
+		const byArea = {
+			...ogA,
+			lines: ogA.lines.map((line) => (line.heating ? { ...line, heizkv: false } : line))
+		};
+		expect(checkRows(byArea).map((row) => row[0])).not.toContain('Heizkostenverordnung');
+
+		// Past the deadline the Frist is not claimed, without heating there is no HeizkostenV row.
+		const late = { ...ogA, late: true, lines: ogA.lines.filter((line) => !line.heating) };
+		expect(checkRows(late).map((row) => row[0])).toEqual([
+			'Abrechnungszeitraum',
+			'Mindestangaben',
+			'Umlagefähigkeit',
+			'Nutzungszeitraum',
+			'Vorauszahlungen'
+		]);
 	});
 });
 

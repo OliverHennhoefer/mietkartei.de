@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { benchmarkGroups, costBenchmark, type BenchmarkInput } from './cost-benchmark';
+import {
+	benchmarkGroups,
+	benchmarkOutliers,
+	costBenchmark,
+	type BenchmarkInput
+} from './cost-benchmark';
 
 // Haus: 100 m² over two flats and a parking space. Hof: one of its two flats has no area. 2025.
 
@@ -78,5 +83,34 @@ describe('costBenchmark', () => {
 			perSqm: null,
 			properties: []
 		});
+	});
+});
+
+describe('benchmarkOutliers', () => {
+	// 100 m² over a year: 1 € a year is 1/12 cent per m² and month.
+	const year = 365;
+	it('flags a group at twice the Mieterbund value and 0,10 € more', () => {
+		// Hauswart 0,21 €: 0,42 € (504 €) is flagged, 0,41 € (492 €) not.
+		expect(benchmarkOutliers(new Map([[14, 50400]]), 100, year)).toEqual([
+			{ group: expect.objectContaining({ key: 'caretaker' }), perSqm: 42 }
+		]);
+		expect(benchmarkOutliers(new Map([[14, 49200]]), 100, year)).toEqual([]);
+		// Schornstein 0,04 €: twice is not enough below 0,14 €.
+		expect(benchmarkOutliers(new Map([[12, 12000]]), 100, year)).toEqual([]);
+		expect(benchmarkOutliers(new Map([[12, 16800]]), 100, year)).toHaveLength(1);
+		// The Grundsteuer is the town's, never flagged.
+		expect(benchmarkOutliers(new Map([[1, 100000]]), 100, year)).toEqual([]);
+	});
+
+	it('adds up the items of a group, scales the period and needs an area', () => {
+		// Wasser and Abwasser 0,29 € together: 0,30 + 0,30 € in half a year.
+		const water = new Map([
+			[2, 18000],
+			[3, 18000]
+		]);
+		expect(benchmarkOutliers(water, 100, 182.5)).toEqual([
+			{ group: expect.objectContaining({ key: 'water' }), perSqm: 60 }
+		]);
+		expect(benchmarkOutliers(water, 0, 182.5)).toEqual([]);
 	});
 });

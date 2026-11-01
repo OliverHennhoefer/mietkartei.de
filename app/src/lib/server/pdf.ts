@@ -39,6 +39,8 @@ export type Letter = {
 	blocks?: LetterBlock[];
 	/** E.g. `['Mit freundlichen Grüßen', '', 'Erika Vermieter']`. */
 	closing?: string[];
+	/** An Anlage on a page of its own after the closing, under a bold title. */
+	appendix?: { title: string; blocks: LetterBlock[] };
 };
 
 // A4 in PDF points (1 pt = 1/72 inch).
@@ -444,6 +446,15 @@ export async function renderLetter(
 		// The greeting and the signature are not torn apart by a page break.
 		ensureSpace(ctx, letter.closing.length * LINE_HEIGHT);
 		for (const line of letter.closing) writeLine(ctx, line, regular);
+	}
+
+	if (letter.appendix) {
+		newPage(ctx);
+		writeParagraph(ctx, letter.appendix.title, bold);
+		for (const block of letter.appendix.blocks) {
+			if ('paragraph' in block) writeParagraph(ctx, block.paragraph, regular);
+			else writeTable(ctx, block.table);
+		}
 	}
 
 	writeFooters(ctx);
