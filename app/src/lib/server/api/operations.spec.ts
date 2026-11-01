@@ -4,10 +4,12 @@ import type { ApiCaller } from '../api-keys';
 import { createAssociationStatement } from '../association-statements';
 import { listAuditLog } from '../audit';
 import type { Database } from '../db';
-import { accounts } from '../db/schema';
+import { accounts, bankAccounts, bankTransactions } from '../db/schema';
 import { createExpense } from '../expenses';
 import { createPayment, listLedger } from '../ledger';
 import { QUOTAS } from '../quotas';
+import { createMeter } from '../operating-costs/meters';
+import { createServiceProvider } from '../service-providers';
 import { createTask } from '../tasks';
 import {
 	contextA,
@@ -453,6 +455,168 @@ describe('write operations', () => {
 		);
 		await expect(
 			write('create_cost_item', { ...base, allocationKeyId: 'other' })
+		).rejects.toMatchObject({ status: 404 });
+	});
+
+	it('record an expense for a unit, a property or the portfolio', async () => {
+		const providerId = await createServiceProvider(db, contextA, {
+			name: 'Klempner Kaya',
+			service: 'Sanitär',
+			phone: null,
+			email: null,
+			note: null
+		});
+		expect(await run('list_service_providers')).toMatchObject([
+			{ id: providerId, name: 'Klempner Kaya' }
+		]);
+		expect(
+			await write('create_expense', {
+				date: '2026-03-04',
+				amount: 48790,
+				category: 'maintenance',
+				unitId: ids.unitId,
+				description: 'Rohrbruch Bad',
+				serviceProviderId: providerId
+			})
+		).toMatchObject({
+			amount: 48790,
+			unitId: ids.unitId,
+			propertyId: ids.propertyId,
+			scopeLabel: 'EG links · Haus',
+			serviceProviderName: 'Klempner Kaya'
+		});
+		expect(
+			await write('create_expense', {
+				date: '2026-03-05',
+				amount: 1200,
+				category: 'management',
+				description: 'Kontoführung'
+			})
+		).toMatchObject({ propertyId: null, unitId: null, scopeLabel: 'Gesamter Bestand' });
+		const [entry] = await listAuditLog(db, 'a');
+		expect(entry).toMatchObject({ entity: 'expense', userEmail: 'a@example.org' });
+
+		const base = { date: '2026-03-04', amount: 100, category: 'other', description: 'x' };
+		await expect(
+			write('create_expense', { ...base, propertyId: ids.propertyId, unitId: ids.unitId })
+		).rejects.toMatchObject({ status: 400 });
+		await expect(write('create_expense', { ...base, amount: 0 })).rejects.toMatchObject({
+			status: 400
+		});
+		await expect(write('create_expense', { ...base, category: 'party' })).rejects.toMatchObject({
+			status: 400
+		});
+		await expect(write('create_expense', { ...base, unitId: 'other' })).rejects.toMatchObject({
+			status: 404
+		});
+		await expect(
+			write('create_expense', { ...base, serviceProviderId: 'other' })
+		).rejects.toMatchObject({ status: 404 });
+	});
+
+	it('list the meters of a property and record a reading once a day', async () => {
+		const meter = await createMeter(db, contextA, ids.propertyId, {
+			unitId: ids.unitId,
+			kind: 'cold_water',
+			serialNumber: 'KW-1',
+			unit: 'm³',
+			location: 'Bad',
+			installedAt: null
+		});
+		if (!meter.ok) throw new Error('setup failed');
+		expect(
+			await write('record_meter_reading', { id: meter.id, date: '2026-03-01', value: 123.456 })
+		).toMatchObject({ meterId: meter.id, value: 123.456, estimated: false });
+		expect(await run('list_meters', { id: ids.propertyId })).toMatchObject([
+			{ id: meter.id, unitName: 'EG links', lastReading: { readAt: '2026-03-01', value: 123.456 } }
+		]);
+		await expect(
+			write('record_meter_reading', { id: meter.id, date: '2026-03-01', value: 124 })
+		).rejects.toMatchObject({ status: 409, code: 'duplicate_date' });
+		await expect(
+			write('record_meter_reading', { id: 'other', date: '2026-03-01', value: 1 })
+		).rejects.toMatchObject({ status: 404 });
+		await expect(run('list_meters', { id: 'other' })).rejects.toMatchObject({ status: 404 });
+	});
+
+	it('list open bank transactions with a suggestion and assign them', async () => {
+		const bankAccountId = crypto.randomUUID();
+		await db.insert(bankAccounts).values({
+			id: bankAccountId,
+			accountId: 'a',
+			name: 'Mietkonto',
+			iban: 'DE02120300000000202051',
+			holder: 'Vermieter'
+		});
+		const transaction = (amount: number, counterpartName: string, purpose: string) => ({
+			id: crypto.randomUUID(),
+			accountId: 'a',
+			bankAccountId,
+			bookingDate: '2026-03-02',
+			amount,
+			counterpartName,
+			purpose,
+			fingerprint: crypto.randomUUID()
+		});
+		const rent = transaction(80000, 'Erika Mustermann', 'Miete März');
+		const repair = transaction(-48790, 'Klempner Kaya', 'Rechnung 4711');
+		const deposit = transaction(60000, 'Unbekannt', 'Kaution Rate 1');
+		await db.insert(bankTransactions).values([rent, repair, deposit]);
+
+		const listed = (await run('list_bank_transactions')) as {
+			transactions: { id: string; suggestedLeaseId: string | null }[];
+		};
+		expect(listed.transactions).toHaveLength(3);
+		expect(listed.transactions.find((row) => row.id === rent.id)).toMatchObject({
+			amount: 80000,
+			counterpartName: 'Erika Mustermann',
+			suggestedLeaseId: ids.leaseId
+		});
+		expect(listed.transactions.find((row) => row.id === repair.id)?.suggestedLeaseId).toBeNull();
+
+		expect(await write('assign_bank_transaction', { id: rent.id, leaseId: ids.leaseId })).toEqual({
+			id: rent.id,
+			status: 'matched'
+		});
+		const ledger = await listLedger(db, 'a', ids.leaseId, { to: '2026-03-31' });
+		expect(ledger.lines).toContainEqual(
+			expect.objectContaining({ kind: 'payment', amount: 80000, date: '2026-03-02' })
+		);
+		await expect(
+			write('assign_bank_transaction', { id: rent.id, leaseId: ids.leaseId })
+		).rejects.toMatchObject({ status: 409, code: 'not_open' });
+		await expect(
+			write('assign_bank_transaction', { id: deposit.id, leaseId: 'other' })
+		).rejects.toMatchObject({ status: 404 });
+		expect(
+			await write('assign_bank_transaction', {
+				id: deposit.id,
+				leaseId: ids.leaseId,
+				target: 'deposit'
+			})
+		).toMatchObject({ status: 'matched' });
+
+		expect(
+			await write('assign_bank_transaction_as_expense', {
+				id: repair.id,
+				category: 'maintenance',
+				propertyId: ids.propertyId,
+				description: 'Rohrbruch Bad'
+			})
+		).toMatchObject({ status: 'matched' });
+		expect(await run('list_expenses')).toMatchObject([
+			{ amount: 48790, category: 'maintenance', bankTransactionId: repair.id }
+		]);
+		expect(await run('list_bank_transactions')).toEqual({ transactions: [], more: false });
+		expect(
+			(await run('list_bank_transactions', { status: 'matched' })) as { transactions: unknown[] }
+		).toMatchObject({ transactions: [{}, {}, {}] });
+		await expect(
+			write('assign_bank_transaction_as_expense', {
+				id: 'other',
+				category: 'other',
+				description: 'x'
+			})
 		).rejects.toMatchObject({ status: 404 });
 	});
 });

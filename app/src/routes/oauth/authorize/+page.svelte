@@ -31,8 +31,9 @@
 				</select>
 			</label>
 			<p class="muted">
-				Zum Schreiben gehört nur: Zahlungen buchen, Aufgaben anlegen und erledigen, Belege erfassen.
-				Löschen oder ändern kann die App nichts.
+				Zum Schreiben gehört nur: Zahlungen buchen, Aufgaben anlegen und erledigen, Belege, Ausgaben
+				und Zählerstände erfassen, offene Bankumsätze zuordnen. Löschen oder ändern kann die App
+				nichts.
 			</p>
 		{:else}
 			<input type="hidden" name="scope" value="read" />

@@ -206,9 +206,9 @@
 </p>
 {#if data.scopes.length > 1}
 	<p class="muted">
-		Ein Schlüssel zum Schreiben darf zusätzlich Zahlungen buchen, Aufgaben anlegen und erledigen
-		sowie Belege erfassen. Löschen oder ändern kann er nichts. Jede Änderung steht unter deinem
-		Namen im Protokoll.
+		Ein Schlüssel zum Schreiben darf zusätzlich Zahlungen buchen, Aufgaben anlegen und erledigen,
+		Belege, Ausgaben und Zählerstände erfassen sowie offene Bankumsätze zuordnen. Löschen oder
+		ändern kann er nichts. Jede Änderung steht unter deinem Namen im Protokoll.
 	</p>
 {/if}
 <form method="POST" action="?/create" class="card" use:enhance>
