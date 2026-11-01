@@ -1,3 +1,4 @@
+import { giroCode, paymentPurpose } from '../domain/girocode';
 import { and, asc, desc, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
 import { currentParties } from '../domain/lease-parties';
 import type { BatchItem } from 'drizzle-orm/batch';
@@ -1555,6 +1556,19 @@ export function statementLetter(statement: LeaseStatement): Letter {
 		settlement = limited ? '' : 'Es ist nichts zu zahlen und nichts zu erstatten.';
 	}
 	settlement = [limited, settlement].filter(Boolean).join(' ');
+	const code =
+		claimed > 0
+			? giroCode({
+					name: landlord.name,
+					iban: landlord.iban,
+					amount: claimed,
+					purpose: paymentPurpose(
+						`Nachzahlung ${statementSubject(statement)}`,
+						statement.units.map((unit) => unit.name),
+						statement.tenants.map((tenant) => tenant.lastName)
+					)
+				})
+			: undefined;
 
 	// The Vorjahresvergleich: the Gesamtkosten of the lease's Kostenarten in both periods.
 	const comparison = statement.comparison;
@@ -1611,6 +1625,7 @@ export function statementLetter(statement: LeaseStatement): Letter {
 			...(unpaid ? [{ paragraph: unpaid }] : []),
 			{ paragraph: result },
 			{ paragraph: settlement },
+			...(code ? [{ giroCode: code }] : []),
 			...excluded.map((paragraph) => ({ paragraph })),
 			...(comparisonTable ? [{ table: comparisonTable }] : []),
 			{

@@ -4,6 +4,7 @@
 // so the recipient block shows in the window of a DIN lang envelope.
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+import { giroCodeModules, type GiroCode } from '../domain/girocode';
 
 export type PdfColumn = {
 	label: string;
@@ -22,7 +23,7 @@ export type PdfTable = {
 	title?: string;
 };
 
-export type LetterBlock = { paragraph: string } | { table: PdfTable };
+export type LetterBlock = { paragraph: string } | { table: PdfTable } | { giroCode: GiroCode };
 
 export type Letter = {
 	/** Name and address of the landlord; the first line is also the small sender line above the window. */
@@ -65,6 +66,12 @@ const SENDER_LINE_TOP = 45 * MM;
 const RECIPIENT_TOP = 50 * MM;
 const SUBJECT_TOP = 98.5 * MM;
 const FOOTER_BASELINE = 10 * MM;
+
+// The GiroCode: 30 mm wide, the text 6 mm beside it. A banking app reads a module of 0.4 mm
+// and more; at 30 mm even the largest code a letter makes stays above that.
+const GIROCODE_SIZE = 30 * MM;
+const GIROCODE_GAP = 6 * MM;
+const GIROCODE_TITLE = 'Bequem überweisen: mit der Banking-App scannen';
 
 const CELL_PADDING_X = 3;
 const CELL_PADDING_Y = 2.5;
@@ -346,6 +353,59 @@ function writeTable(ctx: Context, table: PdfTable): void {
 	ctx.cursor.y -= LINE_HEIGHT;
 }
 
+/** The code at the left, the transfer in words beside it; kept together on one page. */
+function writeGiroCode(ctx: Context, code: GiroCode): void {
+	const textLeft = MARGIN_LEFT + GIROCODE_SIZE + GIROCODE_GAP;
+	const captionWidth = MARGIN_LEFT + TEXT_WIDTH - textLeft;
+	const lines = [
+		{ text: GIROCODE_TITLE, font: ctx.bold },
+		...code.lines.flatMap((line) =>
+			wrap(ctx.regular, BODY_SIZE, line, captionWidth).map((text) => ({ text, font: ctx.regular }))
+		)
+	];
+	const height = Math.max(GIROCODE_SIZE, lines.length * LINE_HEIGHT);
+	ensureSpace(ctx, height);
+	const { page, y: top } = ctx.cursor;
+
+	// One path of horizontal runs, so no seams show between neighbouring modules.
+	const modules = giroCodeModules(code.payload);
+	const runs: string[] = [];
+	modules.forEach((row, y) => {
+		let x = 0;
+		while (x < row.length) {
+			if (!row[x]) {
+				x++;
+				continue;
+			}
+			const start = x;
+			while (x < row.length && row[x]) x++;
+			runs.push(`M${start} ${y}h${x - start}v1h${start - x}z`);
+		}
+	});
+	page.drawSvgPath(runs.join(''), {
+		x: MARGIN_LEFT,
+		y: top,
+		scale: GIROCODE_SIZE / modules.length,
+		color: BLACK,
+		borderWidth: 0
+	});
+
+	lines.forEach((line, index) => {
+		drawText(page, line.text, {
+			x: textLeft,
+			y: top - index * LINE_HEIGHT - LINE_HEIGHT * BASELINE,
+			font: line.font
+		});
+	});
+	ctx.cursor.y -= height + LINE_HEIGHT;
+}
+
+function writeBlock(ctx: Context, block: LetterBlock): void {
+	if ('paragraph' in block) writeParagraph(ctx, block.paragraph, ctx.regular);
+	else if ('table' in block) writeTable(ctx, block.table);
+	else writeGiroCode(ctx, block.giroCode);
+}
+
 /** Sender, window field, date and subject of the first page; leaves the cursor below the subject. */
 function writeLetterhead(ctx: Context, letter: Letter): void {
 	const { page } = ctx.cursor;
@@ -437,10 +497,7 @@ export async function renderLetter(
 	const ctx: Context = { doc, regular, bold, cursor: { page, y: 0, top: 0 } };
 	writeLetterhead(ctx, letter);
 
-	for (const block of blocksOf(letter)) {
-		if ('paragraph' in block) writeParagraph(ctx, block.paragraph, regular);
-		else writeTable(ctx, block.table);
-	}
+	for (const block of blocksOf(letter)) writeBlock(ctx, block);
 
 	if (letter.closing?.length) {
 		// The greeting and the signature are not torn apart by a page break.
@@ -451,10 +508,7 @@ export async function renderLetter(
 	if (letter.appendix) {
 		newPage(ctx);
 		writeParagraph(ctx, letter.appendix.title, bold);
-		for (const block of letter.appendix.blocks) {
-			if ('paragraph' in block) writeParagraph(ctx, block.paragraph, regular);
-			else writeTable(ctx, block.table);
-		}
+		for (const block of letter.appendix.blocks) writeBlock(ctx, block);
 	}
 
 	writeFooters(ctx);
@@ -485,10 +539,7 @@ export async function renderReport(report: Report): Promise<Uint8Array> {
 	writeParagraph(ctx, report.title, bold);
 	for (const line of report.subtitle) writeLine(ctx, line, regular);
 	if (report.subtitle.length) ctx.cursor.y -= LINE_HEIGHT;
-	for (const block of report.blocks) {
-		if ('paragraph' in block) writeParagraph(ctx, block.paragraph, regular);
-		else writeTable(ctx, block.table);
-	}
+	for (const block of report.blocks) writeBlock(ctx, block);
 	writeFooters(ctx);
 	return doc.save();
 }

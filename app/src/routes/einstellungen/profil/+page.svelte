@@ -141,8 +141,9 @@
 	<section>
 		<h2>Vermieter (Absender)</h2>
 		<p class="muted">
-			Briefe und Betriebskostenabrechnungen drucken diese Angaben als Absender; die IBAN steht auf
-			der Abrechnung für Nachzahlungen. Solange der Block leer ist, steht der Name deines Kontos
+			Briefe und Betriebskostenabrechnungen drucken diese Angaben als Absender. Mit IBAN tragen
+			Nachzahlungen, Mahnungen und ein Rest nach der Kautionsabrechnung einen GiroCode, den der
+			Mieter mit der Banking-App scannt. Solange der Block leer ist, steht der Name deines Kontos
 			dort.
 		</p>
 		{#if landlord && 'saved' in landlord}
