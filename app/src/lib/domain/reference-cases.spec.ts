@@ -10,7 +10,10 @@ describe('reference cases', () => {
 		const result = computeStatement(referenceInput(c), { today });
 
 		it(`${c.slug}: every tenant pays the independently computed share`, () => {
-			expect(result.property.warnings).toEqual([]);
+			// The Mieterbund hints judge the amounts, not the computation.
+			expect(
+				result.property.warnings.filter((warning) => warning.code !== 'above_benchmark')
+			).toEqual([]);
 			expect(result.property.landlordCo2Share).toBe(c.expected.landlordCo2Share);
 			expect(result.property.vacancyShare).toBe(c.expected.vacancyShare);
 			expect(result.leases.map((lease) => lease.leaseId).sort()).toEqual(

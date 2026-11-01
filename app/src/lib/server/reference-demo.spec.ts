@@ -31,7 +31,10 @@ describe('createReferenceData', () => {
 				end: `${c.year}-12-31`
 			});
 			const result = computeStatement(input!);
-			expect(result.property.warnings).toEqual([]);
+			// The Mieterbund hints judge the amounts, not the computation.
+			expect(
+				result.property.warnings.filter((warning) => warning.code !== 'above_benchmark')
+			).toEqual([]);
 			expect(result.property.landlordCo2Share).toBe(c.expected.landlordCo2Share);
 			expect(result.property.vacancyShare).toBe(c.expected.vacancyShare);
 			// The rows have ids of their own: leases are told apart by tenant, items by description.

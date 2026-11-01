@@ -28,6 +28,7 @@ import type {
 } from '../server/db/schema';
 import type { UnitKind } from '../units';
 import { splitCo2Cost } from './co2';
+import { benchmarkOutliers, benchmarkSource } from './cost-benchmark';
 import { hasReadingNear, meterConsumption, unitConsumption, type Meter } from './consumption';
 import { degreeDays } from './degree-days';
 import { monthlyAmounts, type RentChange } from './rents';
@@ -249,7 +250,8 @@ export type WarningCode =
 	| 'deadline_passed'
 	| 'unknown_key'
 	| 'unknown_category'
-	| 'association_mismatch';
+	| 'association_mismatch'
+	| 'above_benchmark';
 
 /** A finding of the computation; the draft page links `href` as the way to fix it. */
 export type StatementWarning = {
@@ -1364,6 +1366,8 @@ export function computeStatement(
 	let excludedTotal = 0;
 	let unallocatedTotal = 0;
 	let costsTotal = 0;
+	/** The allocable costs of the period per § 2 BetrKV item, for the Mieterbund comparison. */
+	const byBetrkvItem = new Map<number, number>();
 
 	// Step 1, CO₂: the tier follows the building's emissions per m² and year, so the kg of every
 	// fuel bill of a circle (or of the property) are added up first, each prorated to the period.
@@ -1423,6 +1427,9 @@ export function computeStatement(
 		if (!summary.allocable) {
 			nonAllocableTotal += total;
 			continue;
+		}
+		if (category?.betrkvItem) {
+			byBetrkvItem.set(category.betrkvItem, (byBetrkvItem.get(category.betrkvItem) ?? 0) + total);
 		}
 		if (!category) {
 			warn(ctx, {
@@ -1706,6 +1713,21 @@ export function computeStatement(
 				association
 			});
 		}
+	}
+
+	// Kostenarten far above the Betriebskostenspiegel: not wrong as such, but what tenants ask about
+	// first. Measured against the floor area of the house, none when a unit lacks one.
+	const areaUnits = input.units.filter((unit) => unit.kind !== 'parking');
+	const houseArea = areaUnits.every((unit) => unit.floorArea)
+		? areaUnits.reduce((sum, unit) => sum + (unit.floorArea ?? 0), 0)
+		: 0;
+	for (const { group, perSqm } of benchmarkOutliers(byBetrkvItem, houseArea, periodDays)) {
+		warn(ctx, {
+			code: 'above_benchmark',
+			blocking: false,
+			href: `/auswertung/nebenkosten?jahr=${period.end.slice(0, 4)}&objekt=${input.property.id}`,
+			message: `${group.label}: ${formatCents(Math.round(perSqm))} je m² und Monat, der ${benchmarkSource.name} nennt ${formatCents(group.reference)} (bundesweit, ${benchmarkSource.year}). Das ist nicht falsch, aber die Stelle, nach der Mieter zuerst fragen; prüfe Vertrag und Rechnung.`
+		});
 	}
 
 	// Step 6: the deadline, for residential leases.

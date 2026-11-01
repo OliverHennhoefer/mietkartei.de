@@ -149,3 +149,35 @@ export function costBenchmark(
 	const amount = counted.reduce((total, row) => total + row.amount, 0);
 	return { area, amount, perSqm: perMonth(amount, area), rows, properties, withoutArea };
 }
+
+/** A group counts as far above the Mieterbund when it is at least twice its value… */
+export const OUTLIER_FACTOR = 2;
+/** …and at least 0,10 € per m² and month more, so the small groups do not flag cents. */
+export const OUTLIER_MIN_CENTS = 10;
+
+export type BenchmarkOutlier = { group: BenchmarkGroup; perSqm: number };
+
+/**
+ * The groups whose costs are far above the Mieterbund value, for the hint in a statement draft:
+ * `totals` holds the cents of the period per § 2 item, `days` the length of the period.
+ */
+export function benchmarkOutliers(
+	totals: ReadonlyMap<number, number>,
+	area: number,
+	days: number
+): BenchmarkOutlier[] {
+	if (area <= 0 || days <= 0) return [];
+	const months = (days * 12) / 365;
+	return benchmarkGroups.flatMap((group) => {
+		// The Grundsteuer follows the Hebesatz of the town, which neither landlord nor tenant can
+		// change: a national average says nothing about it.
+		if (group.key === 'propertyTax') return [];
+		const amount = group.items.reduce((sum, item) => sum + (totals.get(item) ?? 0), 0);
+		if (amount <= 0) return [];
+		const perSqm = amount / area / months;
+		return perSqm >= group.reference * OUTLIER_FACTOR &&
+			perSqm - group.reference >= OUTLIER_MIN_CENTS
+			? [{ group, perSqm }]
+			: [];
+	});
+}

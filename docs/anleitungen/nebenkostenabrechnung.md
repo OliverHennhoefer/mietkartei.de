@@ -45,6 +45,7 @@ Dabei gilt:
 - **Personen über die Zeit:** Ändert sich die Personenzahl im Jahr, rechnet mietkartei mit Personentagen.
 - **CO₂-Kosten:** Bei Heizöl und Erdgas teilt mietkartei die CO₂-Kosten nach dem Stufenmodell des CO₂-Kostenaufteilungsgesetzes auf. Mehr dazu steht im Artikel [CO₂-Kosten aufteilen](https://mietkartei.de/ratgeber/co2-kosten-aufteilen/).
 - **Hinweise:** Fehlen Zählerstände, ist der Verbrauchsanteil der Heizkosten ungewöhnlich oder droht die Abrechnungsfrist abzulaufen, zeigt der Entwurf einen Hinweis mit einem Link zur Stelle, an der du es behebst.
+- **Vergleich mit dem Mieterbund:** Liegt eine Kostenart je m² und Monat bei mehr als dem Doppelten des Werts aus dem Betriebskostenspiegel des Deutschen Mieterbunds, nennt der Entwurf beide Werte, etwa „Hauswart: 0,54 € je m² und Monat, der Betriebskostenspiegel nennt 0,21 €“. Das ist kein Fehler, aber die Stelle, nach der Mieter zuerst fragen. Die Grundsteuer ist ausgenommen, sie hängt am Hebesatz der Gemeinde.
 
 Gibt es für das Objekt schon eine freigegebene Abrechnung aus einem früheren Zeitraum, steht unter den Belegen der **Vergleich mit dem Vorjahr**: die umlagefähigen Kosten je Kostenart in beiden Jahren und die Veränderung in Prozent. Große Sprünge sind die Stellen, nach denen Mieter zuerst fragen. Derselbe Vergleich steht im PDF für den Mieter, beschränkt auf die Kostenarten, die ihn betreffen.
 
@@ -52,7 +53,7 @@ Ein Entwurf rechnet bei jedem Öffnen neu. Fehlt ein Beleg, trägst du ihn nach 
 
 ## 4. Freigeben und zustellen
 
-Stimmt alles, klickst du **Freigeben**. Ab dann ändert sich die Abrechnung nicht mehr, und Nachzahlungen und Guthaben werden auf den Mietkonten gebucht. Für jeden Mietvertrag steht dann ein PDF mit Kostenaufstellung, Umlageschlüsseln, CO₂-Angaben und Vorauszahlungen bereit.
+Stimmt alles, klickst du **Freigeben**. Ab dann ändert sich die Abrechnung nicht mehr, und Nachzahlungen und Guthaben werden auf den Mietkonten gebucht. Für jeden Mietvertrag steht dann ein PDF mit Kostenaufstellung, Umlageschlüsseln, CO₂-Angaben und Vorauszahlungen bereit. Als Anlage hat es ein Prüfprotokoll: eine Seite, die zeigt, worauf die Abrechnung geprüft wurde, etwa Abrechnungszeitraum und Frist, Umlagefähigkeit, Heizkostenverordnung, CO₂-Aufteilung und Nutzungszeitraum.
 
 Die Freigabe verschickt nichts. Lade die PDFs herunter und stell sie deinen Mietern selbst zu, per Post, per E-Mail oder persönlich. Trag danach ein, wann die Abrechnung beim Mieter angekommen ist. Davon hängen zwei Fristen ab:
 
