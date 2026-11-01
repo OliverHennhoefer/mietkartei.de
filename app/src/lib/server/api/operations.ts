@@ -623,7 +623,7 @@ export const operations: Operation[] = [
 	},
 	{
 		name: 'list_bank_transactions',
-		description: `Lists imported bank transactions (Umsätze), newest first, by default the open ones still to assign. Positive amounts came in, negative ones went out. An open one carries suggestedLeaseId when a rule, the IBAN, a tenant's name or a unit's name points to a lease. Assign with assign_bank_transaction or assign_bank_transaction_as_expense. ${AMOUNTS}`,
+		description: `Lists imported bank transactions (Umsätze), newest first, by default the open ones still to assign; page with offset or narrow by booking date. Positive amounts came in, negative ones went out. An open one carries suggestedLeaseId when a rule, the IBAN, a tenant's name or a unit's name points to a lease. Assign with assign_bank_transaction or assign_bank_transaction_as_expense. ${AMOUNTS}`,
 		method: 'GET',
 		path: '/bank-transactions',
 		scope: 'read',
@@ -634,7 +634,14 @@ export const operations: Operation[] = [
 				enum: [...bankTransactionStatuses, 'all'],
 				description: 'unmatched (default, still open), matched, ignored or all.'
 			},
-			limit: { type: 'integer', minimum: 1, maximum: 200, description: 'At most; default 50.' }
+			from: { type: 'string', format: 'date', description: 'Booked on or after this day.' },
+			to: { type: 'string', format: 'date', description: 'Booked on or before this day.' },
+			limit: { type: 'integer', minimum: 1, maximum: 200, description: 'At most; default 50.' },
+			offset: {
+				type: 'integer',
+				minimum: 0,
+				description: 'How many to skip; when more is true, pass offset + limit for the next page.'
+			}
 		}),
 		async run({ db, caller }, input) {
 			const { accountId } = caller.user;
@@ -642,7 +649,10 @@ export const operations: Operation[] = [
 			const [listed, leases, rules, byIban] = await Promise.all([
 				listTransactions(db, accountId, {
 					status,
-					limit: (input.limit as number | undefined) ?? 50
+					from: (input.from as string | undefined) ?? null,
+					to: (input.to as string | undefined) ?? null,
+					limit: (input.limit as number | undefined) ?? 50,
+					offset: (input.offset as number | undefined) ?? 0
 				}),
 				listLeases(db, accountId),
 				listRules(db, accountId),
@@ -926,7 +936,6 @@ export const operations: Operation[] = [
 		),
 		async run({ db, caller }, input) {
 			const description = String(input.description);
-			if (!description) invalid('"description" must not be empty.');
 			const created = await createExpense(db, auditContextOf(caller), {
 				date: String(input.date),
 				amount: Number(input.amount),
@@ -1034,7 +1043,6 @@ export const operations: Operation[] = [
 		]),
 		async run({ db, caller }, input) {
 			const description = String(input.description);
-			if (!description) invalid('"description" must not be empty.');
 			const outcome = await assignExpense(db, auditContextOf(caller), String(input.id), {
 				category: input.category as ExpenseCategory,
 				scope: expenseScope(input),

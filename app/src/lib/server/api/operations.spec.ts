@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { today } from '../../dates';
 import type { ApiCaller } from '../api-keys';
 import { createAssociationStatement } from '../association-statements';
@@ -560,8 +561,24 @@ describe('write operations', () => {
 		});
 		const rent = transaction(80000, 'Erika Mustermann', 'Miete März');
 		const repair = transaction(-48790, 'Klempner Kaya', 'Rechnung 4711');
-		const deposit = transaction(60000, 'Unbekannt', 'Kaution Rate 1');
+		const deposit = {
+			...transaction(60000, 'Unbekannt', 'Kaution Rate 1'),
+			bookingDate: '2026-02-27'
+		};
 		await db.insert(bankTransactions).values([rent, repair, deposit]);
+
+		const idsOf = (page: unknown) =>
+			(page as { transactions: { id: string }[] }).transactions.map((row) => row.id);
+		const first = await run('list_bank_transactions', { limit: 2 });
+		expect(first).toMatchObject({ more: true });
+		const second = await run('list_bank_transactions', { limit: 2, offset: 2 });
+		expect(second).toMatchObject({ more: false });
+		expect(idsOf(second)).toEqual([deposit.id]);
+		expect(new Set([...idsOf(first), ...idsOf(second)]).size).toBe(3);
+		expect(idsOf(await run('list_bank_transactions', { to: '2026-02-28' }))).toEqual([deposit.id]);
+		expect(idsOf(await run('list_bank_transactions', { from: '2026-03-01' })).sort()).toEqual(
+			[rent.id, repair.id].sort()
+		);
 
 		const listed = (await run('list_bank_transactions')) as {
 			transactions: { id: string; suggestedLeaseId: string | null }[];
@@ -588,6 +605,15 @@ describe('write operations', () => {
 		await expect(
 			write('assign_bank_transaction', { id: deposit.id, leaseId: 'other' })
 		).rejects.toMatchObject({ status: 404 });
+		await expect(
+			write('assign_bank_transaction', { id: 'other', leaseId: ids.leaseId })
+		).rejects.toMatchObject({ status: 404 });
+		const nothing = transaction(0, 'Bank', 'Abschluss');
+		await db.insert(bankTransactions).values(nothing);
+		await expect(
+			write('assign_bank_transaction', { id: nothing.id, leaseId: ids.leaseId })
+		).rejects.toMatchObject({ status: 400 });
+		await db.delete(bankTransactions).where(eq(bankTransactions.id, nothing.id));
 		expect(
 			await write('assign_bank_transaction', {
 				id: deposit.id,
@@ -596,6 +622,15 @@ describe('write operations', () => {
 			})
 		).toMatchObject({ status: 'matched' });
 
+		const repairAs = (input: Record<string, unknown>) =>
+			write('assign_bank_transaction_as_expense', {
+				id: repair.id,
+				category: 'maintenance',
+				description: 'Rohrbruch Bad',
+				...input
+			});
+		await expect(repairAs({ propertyId: 'other' })).rejects.toMatchObject({ status: 404 });
+		await expect(repairAs({ serviceProviderId: 'other' })).rejects.toMatchObject({ status: 404 });
 		expect(
 			await write('assign_bank_transaction_as_expense', {
 				id: repair.id,
