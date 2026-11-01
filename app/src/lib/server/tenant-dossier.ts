@@ -3,7 +3,7 @@ import { today, type IsoDate, type IsoMonth } from '../dates';
 import { total } from '../domain/rents';
 import { periodLabel, type LeaseStatement } from '../domain/statement';
 import type { Database } from './db';
-import { chunkIds } from './db/batch';
+import { chunkIds, selectInChunks } from './db/batch';
 import {
 	auditLog,
 	depositTransactions,
@@ -133,8 +133,6 @@ export async function tenantDossier(
 			leases.flatMap((lease) => [lease.unitId, ...lease.extraUnits.map((unit) => unit.id)])
 		)
 	];
-	const inLeases = <T>(query: (ids: string[]) => Promise<T[]>) =>
-		Promise.all(groups.map(query)).then((rows) => rows.flat());
 
 	const [
 		balances,
@@ -150,13 +148,13 @@ export async function tenantDossier(
 		correctionRows
 	] = await Promise.all([
 		leaseIds.length ? listBalances(db, accountId, { asOf, leaseIds }) : Promise.resolve([]),
-		inLeases((ids) =>
+		selectInChunks(leaseIds, (ids) =>
 			db
 				.select()
 				.from(payments)
 				.where(and(eq(payments.accountId, accountId), inArray(payments.leaseId, ids)))
 		),
-		inLeases((ids) =>
+		selectInChunks(leaseIds, (ids) =>
 			db
 				.select()
 				.from(rentCharges)
@@ -168,7 +166,7 @@ export async function tenantDossier(
 					)
 				)
 		),
-		inLeases((ids) =>
+		selectInChunks(leaseIds, (ids) =>
 			db
 				.select()
 				.from(depositTransactions)
@@ -179,7 +177,7 @@ export async function tenantDossier(
 					)
 				)
 		),
-		inLeases((ids) =>
+		selectInChunks(leaseIds, (ids) =>
 			db
 				.select()
 				.from(paymentReminders)
@@ -187,7 +185,7 @@ export async function tenantDossier(
 					and(eq(paymentReminders.accountId, accountId), inArray(paymentReminders.leaseId, ids))
 				)
 		),
-		inLeases((ids) =>
+		selectInChunks(leaseIds, (ids) =>
 			db
 				.select()
 				.from(tasks)
@@ -195,20 +193,18 @@ export async function tenantDossier(
 					and(eq(tasks.accountId, accountId), eq(tasks.done, false), inArray(tasks.leaseId, ids))
 				)
 		),
-		Promise.all(
-			chunkIds(unitIds).map((ids) =>
-				db
-					.select()
-					.from(expenses)
-					.where(
-						and(
-							eq(expenses.accountId, accountId),
-							inArray(expenses.unitId, ids),
-							inArray(expenses.category, [...unitCostCategories])
-						)
+		selectInChunks(unitIds, (ids) =>
+			db
+				.select()
+				.from(expenses)
+				.where(
+					and(
+						eq(expenses.accountId, accountId),
+						inArray(expenses.unitId, ids),
+						inArray(expenses.category, [...unitCostCategories])
 					)
-			)
-		).then((rows) => rows.flat()),
+				)
+		),
 		// Documents filed under the tenant or under one of the leases; one query per group.
 		Promise.all(
 			(groups.length ? groups : [[]]).map((ids) =>
@@ -257,7 +253,7 @@ export async function tenantDossier(
 					.limit(HISTORY)
 			)
 		).then((rows) => rows.flat()),
-		inLeases((ids) =>
+		selectInChunks(leaseIds, (ids) =>
 			db
 				.select({
 					statementId: statementResults.statementId,

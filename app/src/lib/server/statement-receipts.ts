@@ -4,7 +4,7 @@ import { formatDate, today } from '../dates';
 import { periodLabel, type PropertyItem } from '../domain/statement';
 import { formatCents } from '../money';
 import type { Database } from './db';
-import { chunkIds } from './db/batch';
+import { selectInChunks } from './db/batch';
 import { documents } from './db/schema';
 import { renderReport, type Report } from './pdf';
 import { getStatement } from './statements';
@@ -27,21 +27,17 @@ async function receiptDocuments(
 	accountId: string,
 	itemIds: string[]
 ): Promise<ReceiptDocument[]> {
-	const rows = (
-		await Promise.all(
-			chunkIds(itemIds).map((group) =>
-				db
-					.select({
-						id: documents.id,
-						name: documents.name,
-						storageKey: documents.storageKey,
-						costItemId: documents.costItemId
-					})
-					.from(documents)
-					.where(and(eq(documents.accountId, accountId), inArray(documents.costItemId, group)))
-			)
-		)
-	).flat();
+	const rows = await selectInChunks(itemIds, (group) =>
+		db
+			.select({
+				id: documents.id,
+				name: documents.name,
+				storageKey: documents.storageKey,
+				costItemId: documents.costItemId
+			})
+			.from(documents)
+			.where(and(eq(documents.accountId, accountId), inArray(documents.costItemId, group)))
+	);
 	return rows.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : 1));
 }
 

@@ -11,7 +11,7 @@ import { pluralize } from '../../format';
 import { formatCents } from '../../money';
 import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
-import { chunk, chunkIds, rowsPerStatement, runBatch } from '../db/batch';
+import { chunk, rowsPerStatement, runBatch, selectInChunks } from '../db/batch';
 import { auditLog, bankImports, bankTransactions, payments } from '../db/schema';
 import { leaseLabel, listLeases } from '../leases';
 import { getBankAccount } from './accounts';
@@ -58,26 +58,21 @@ async function analyze(
 
 	const valid = results.flatMap((result, index) => (result.ok ? [{ index, row: result.row }] : []));
 	const fingerprinted = await fingerprintRows(valid.map((entry) => entry.row));
-	const existing = new Set(
-		(
-			await Promise.all(
-				chunkIds(fingerprinted.map((row) => row.fingerprint)).map((fingerprints) =>
-					db
-						.select({ fingerprint: bankTransactions.fingerprint })
-						.from(bankTransactions)
-						.where(
-							and(
-								eq(bankTransactions.accountId, accountId),
-								eq(bankTransactions.bankAccountId, bankAccountId),
-								inArray(bankTransactions.fingerprint, fingerprints)
-							)
-						)
+	const existingRows = await selectInChunks(
+		fingerprinted.map((row) => row.fingerprint),
+		(fingerprints) =>
+			db
+				.select({ fingerprint: bankTransactions.fingerprint })
+				.from(bankTransactions)
+				.where(
+					and(
+						eq(bankTransactions.accountId, accountId),
+						eq(bankTransactions.bankAccountId, bankAccountId),
+						inArray(bankTransactions.fingerprint, fingerprints)
+					)
 				)
-			)
-		)
-			.flat()
-			.map((row) => row.fingerprint)
 	);
+	const existing = new Set(existingRows.map((row) => row.fingerprint));
 	const [rules, leases] = await Promise.all([
 		listConfirmedRules(db, accountId),
 		listLeases(db, accountId)
@@ -292,8 +287,9 @@ async function anyStored(
 	bankAccountId: string,
 	rows: readonly { fingerprint: string }[]
 ): Promise<boolean> {
-	const found = await Promise.all(
-		chunkIds(rows.map((row) => row.fingerprint)).map((fingerprints) =>
+	const found = await selectInChunks(
+		rows.map((row) => row.fingerprint),
+		(fingerprints) =>
 			db
 				.select({ id: bankTransactions.id })
 				.from(bankTransactions)
@@ -305,7 +301,6 @@ async function anyStored(
 					)
 				)
 				.limit(1)
-		)
 	);
-	return found.some((group) => group.length > 0);
+	return found.length > 0;
 }
