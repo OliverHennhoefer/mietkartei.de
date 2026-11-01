@@ -482,6 +482,8 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 .topic-compare td:first-child { font-weight: 500; }
 .topic-compare td:nth-child(2) { color: var(--muted); }
 .topic-page .faq-group { margin-top: 96px; }
+.topic-guides { margin-top: 48px; color: var(--muted); font-size: var(--text-base); line-height: 1.8; }
+.topic-guides a { color: var(--foreground); text-decoration-color: var(--highlight); text-decoration-thickness: 3px; text-underline-offset: 4px; }
 .topic-note { margin-top: 24px; color: var(--muted); font-size: var(--text-xs); }
 
 @media (max-width: 900px) {
