@@ -12,10 +12,13 @@ import type { Actions, PageServerLoad } from './$types';
 // documents and the history across all the tenant's leases (see tenant-dossier.ts).
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const accountId = requireAccount(locals);
-	const tenant = await getTenant(locals.db, accountId, params.id);
+	// The leases are found by the tenant's id, so they are read alongside the tenant.
+	const [tenant, leases] = await Promise.all([
+		getTenant(locals.db, accountId, params.id),
+		listLeases(locals.db, accountId, { tenantId: params.id })
+	]);
 	if (!tenant) error(404, 'Diesen Mieter gibt es nicht.');
 	const date = today();
-	const leases = await listLeases(locals.db, accountId, { tenantId: tenant.id });
 	const [dossier, archiving, deletion] = await Promise.all([
 		tenantDossier(locals.db, accountId, tenant.id, leases, date),
 		tenantArchiving(locals.db, accountId, tenant.id, date),
