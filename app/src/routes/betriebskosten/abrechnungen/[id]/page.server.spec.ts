@@ -11,6 +11,8 @@ import {
 	seedUnit,
 	testDatabase
 } from '#lib/server/testing.ts';
+import { unzipSync } from 'fflate';
+import { GET as receiptsGET } from './belege/+server';
 import { GET } from './pdf/[leaseId]/+server';
 import { actions, load } from './+page.server';
 
@@ -56,7 +58,7 @@ describe('abrechnungen/[id]', () => {
 	it('shows the statement and answers 404 for one of another account', async () => {
 		expect(
 			await outcome(() => load(routeEvent(db, { params: { id: statementId } })))
-		).toMatchObject({ data: { view: expect.anything(), today: '2026-03-02' } });
+		).toMatchObject({ data: { view: expect.anything(), receipts: 0, today: '2026-03-02' } });
 		const other = await seedStatement(contextB);
 		expect(await outcome(() => load(routeEvent(db, { params: { id: other.id } })))).toMatchObject({
 			error: 404
@@ -90,6 +92,22 @@ describe('abrechnungen/[id]', () => {
 			redirect: expect.stringMatching(/^\/betriebskosten\/abrechnungen\//)
 		});
 		expect(corrected).not.toEqual({ redirect: `/betriebskosten/abrechnungen/${statementId}` });
+	});
+
+	it('downloads the Belegpaket of a draft, 404 for another account', async () => {
+		const receipts = (await outcome(() =>
+			receiptsGET(routeEvent(db, { params: { id: statementId } }))
+		)) as { data: Response };
+		expect(receipts.data.headers.get('content-type')).toBe('application/zip');
+		expect(receipts.data.headers.get('content-disposition')).toContain(
+			'attachment; filename="Belege Betriebskostenabrechnung 2025 Haus.zip"'
+		);
+		const files = unzipSync(new Uint8Array(await receipts.data.arrayBuffer()));
+		expect(Object.keys(files)).toEqual(['00 Belegübersicht.pdf']);
+		const other = await seedStatement(contextB);
+		expect(
+			await outcome(() => receiptsGET(routeEvent(db, { params: { id: other.id } })))
+		).toMatchObject({ error: 404 });
 	});
 
 	it('deletes a draft', async () => {

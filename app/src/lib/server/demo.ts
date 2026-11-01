@@ -1539,6 +1539,8 @@ export async function createDemoData(
 		['Heizung', 'Wartung der Heizung, Miete und Ablesung der Zähler', 'ista SE', 61000]
 	];
 	const gasCost = (year: number) => Math.round(byYear(GAS_KWH, year) * byYear(GAS_PRICE, year));
+	/** The Lindenstraße's gas bills by year; the GASAG Jahresabrechnung is stored as their receipt. */
+	const lindenGas = new Map<number, { id: string; kwh: number; co2Kg: number; co2Cost?: number }>();
 	for (const year of historyYears) {
 		const index = byYear(COST_INDEX, year);
 		for (const [category, description, supplier, base, key] of lindenBills) {
@@ -1574,9 +1576,15 @@ export async function createDemoData(
 						co2Cost: Math.round((co2Kg / 1000) * byYear(CO2_PRICE, year) * 1.19 * 100)
 					}
 				: { fuel: 'gas' as const, fuelKwh: kwh };
-		yearItem(lindenId, year, 'Heizung', `Erdgas ${year}`, 'GASAG', gasCost(year), {
+		const gasId = yearItem(lindenId, year, 'Heizung', `Erdgas ${year}`, 'GASAG', gasCost(year), {
 			invoiceDate: `${year + 1}-01-25`,
 			...co2
+		});
+		lindenGas.set(year, {
+			id: gasId,
+			kwh,
+			co2Kg,
+			co2Cost: 'co2Cost' in co2 ? co2.co2Cost : undefined
 		});
 		yearItem(
 			lindenId,
@@ -2677,7 +2685,8 @@ export async function createDemoData(
 		if (!split.ok) throw new Error(`CO₂-Kostenaufteilung: ${split.reason}`);
 
 		// Documents to open in the preview: Berger's signed Mietvertrag and Übergabeprotokoll, and
-		// the Grundsteuerbescheid of every past year as the receipt of the Lindenstraße's Beleg.
+		// the Grundsteuerbescheid and the gas bill of every past year as the receipts of the
+		// Lindenstraße's Belege, so each statement has a Belegpaket.
 		const landlord = addressLines(await landlordAddress(db, accountId));
 		const berger = ['Frau Lena Berger', 'Lindenstraße 12', '10969 Berlin'];
 		const moveIn = at(-7, '01-01');
@@ -2733,6 +2742,25 @@ export async function createDemoData(
 						[
 							`Die Grundsteuer für ${year} wird auf ${formatCents(grundsteuerOf(lindenId, year))} festgesetzt.`,
 							'Sie ist zu je einem Viertel am 15.02., 15.05., 15.08. und 15.11. fällig.'
+						]
+					)
+				}))
+			)),
+			...(await Promise.all(
+				[...lindenGas].map(async ([year, gas]) => ({
+					name: `Gas-Jahresabrechnung ${year} GASAG Lindenstraße 12.pdf`,
+					links: { propertyId: lindenId, costItemId: gas.id },
+					bytes: await letter(
+						['GASAG AG', 'Henriette-Herz-Platz 4', '10178 Berlin'],
+						landlord,
+						at(year + 1 - Y, '01-25'),
+						`Jahresabrechnung Erdgas ${year}, Lindenstraße 12, Zentralheizung`,
+						[
+							`Abrechnungszeitraum 01.01.${year} – 31.12.${year}. Verbrauch ${new Intl.NumberFormat('de-DE').format(gas.kwh)} kWh, Rechnungsbetrag ${formatCents(gasCost(year))} einschließlich Umsatzsteuer.`,
+							gas.co2Cost === undefined
+								? 'Die Angaben zum CO2-Ausstoß nach dem CO2-Kostenaufteilungsgesetz enthält die Rechnung erst ab dem Jahr 2023.'
+								: `CO2-Angaben nach § 3 CO2KostAufG: Emissionsfaktor Erdgas 0,201 kg CO2 je kWh, Ausstoß ${new Intl.NumberFormat('de-DE').format(gas.co2Kg)} kg, CO2-Kosten ${formatCents(gas.co2Cost)} einschließlich Umsatzsteuer.`,
+							'Ihre Abschläge haben wir verrechnet; der neue Abschlag steht im beiliegenden Plan.'
 						]
 					)
 				}))

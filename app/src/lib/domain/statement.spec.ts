@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Meter, Reading } from './consumption';
 import {
 	balanceLabel,
+	changeLabel,
 	computeStatement,
 	leaseLabel,
 	objectionDeadline,
@@ -1433,6 +1434,58 @@ describe('helpers', () => {
 		expect(personsOn(entries, '2025-06-30')).toBe(2);
 		expect(personsOn(entries, '2025-07-01')).toBe(3);
 		expect(personsOn([], '2025-01-01')).toBe(1);
+	});
+});
+
+describe('computeStatement Vorjahresvergleich', () => {
+	const previous = {
+		start: '2024-01-01',
+		end: '2024-12-31',
+		categories: [
+			{ name: 'Grundsteuer', total: 100000 },
+			{ name: 'Heizung', total: 330000 },
+			{ name: 'Hauswart', total: 90000 },
+			{ name: 'Aufzug', total: 40000 }
+		]
+	};
+
+	it('compares the allocable Kostenarten with the previous statement', () => {
+		const result = computeStatement({ ...scenario(), previous }, options);
+		// In the order of the items; Verwaltung is not allocable, the Aufzug only in 2024.
+		expect(result.property.comparison).toEqual({
+			previous: { start: '2024-01-01', end: '2024-12-31' },
+			rows: [
+				{ categoryName: 'Grundsteuer', previous: 100000, current: 120000 },
+				{ categoryName: 'Müllbeseitigung', previous: null, current: 60000 },
+				{ categoryName: 'Hauswart', previous: 90000, current: 90000 },
+				{ categoryName: 'Heizung', previous: 330000, current: 300000 },
+				{ categoryName: 'Aufzug', previous: 40000, current: null }
+			]
+		});
+		// A lease shows the Kostenarten of its own lines only: no Aufzug.
+		const eg = result.leases.find((lease) => lease.leaseId === 'l-eg')!;
+		expect(eg.comparison?.rows.map((row) => row.categoryName)).toEqual([
+			'Grundsteuer',
+			'Müllbeseitigung',
+			'Hauswart',
+			'Heizung'
+		]);
+	});
+
+	it('has no comparison without a previous statement', () => {
+		const result = computeStatement(scenario(), options);
+		expect(result.property.comparison).toBeNull();
+		expect(result.leases.every((lease) => lease.comparison === null)).toBe(true);
+	});
+
+	it('labels the change in whole percent', () => {
+		expect(changeLabel(100000, 120000)).toBe('+20\u00a0%');
+		expect(changeLabel(330000, 300000)).toBe('−9\u00a0%');
+		expect(changeLabel(90000, 90000)).toBe('±0\u00a0%');
+		expect(changeLabel(90000, 90100)).toBe('±0\u00a0%');
+		expect(changeLabel(null, 60000)).toBe('–');
+		expect(changeLabel(40000, null)).toBe('–');
+		expect(changeLabel(0, 100)).toBe('–');
 	});
 });
 
