@@ -135,6 +135,31 @@ class Case:
         t = next(lease for lease in self.leases if lease["id"] == self.data["sample"])["tenant"]
         return f'{t["firstName"]} {t["lastName"]}'
 
+    @staticmethod
+    def persons_from(lease: dict) -> list[tuple[str, int]]:
+        """(from, persons) for the lease, its later changes included."""
+        return [(lease["start"], lease["persons"])] + [
+            (change["from"], change["persons"]) for change in lease.get("personChanges") or []
+        ]
+
+    def person_days(self, lease: dict, first: str, last: str) -> int:
+        """Persons times days from first to last, each day with the persons valid on it."""
+        steps = self.persons_from(lease)
+        total = 0
+        for index, (start, persons) in enumerate(steps):
+            end = shift(steps[index + 1][0], -1) if index + 1 < len(steps) else last
+            start, end = max(start, first), min(end, last)
+            if start <= end:
+                total += persons * days(start, end)
+        return total
+
+    def persons_text(self, lease: dict) -> str:
+        steps = self.persons_from(lease)
+        text = f'{steps[0][1]} {"Person" if steps[0][1] == 1 else "Personen"}'
+        for start, persons in steps[1:]:
+            text += f', ab {day(start)} {persons} {"Person" if persons == 1 else "Personen"}'
+        return text
+
     def tenant(self, lease: dict) -> str:
         t = lease["tenant"]
         return f'{t["salutation"]} {t["lastName"]}'
@@ -152,11 +177,10 @@ class Case:
                         f' · {days(start, end)} Tage, die der Vermieter trägt</li>'
                     )
                     continue
-                persons = lease["persons"]
                 names.append(
                     f'<li><span class="swatch {self.colour[lease["id"]]}"></span>'
                     f'<b>{html.escape(self.tenant(lease))}</b> {day(start)} bis {day(end)}'
-                    f' · {persons} {"Person" if persons == 1 else "Personen"}'
+                    f' · {self.persons_text(lease)}'
                     f' · Vorauszahlung {euro(lease["operatingCostPrepayment"] + lease["heatingCostPrepayment"])} im Monat</li>'
                 )
             rows.append(
@@ -307,7 +331,7 @@ class Case:
             weights = []
             for unit in self.units:
                 weights.append(sum(
-                    (lease["persons"] if lease else VACANCY_PERSONS) * days(first, last)
+                    self.person_days(lease, first, last) if lease else VACANCY_PERSONS * days(first, last)
                     for lease, first, last in self.timeline(unit["id"])
                 ))
             return [("", weights, "Personentagen", allocated)]
