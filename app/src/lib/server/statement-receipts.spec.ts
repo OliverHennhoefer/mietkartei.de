@@ -95,4 +95,18 @@ describe('receiptPackage', () => {
 		expect(Object.keys(unzipSync(receipts.bytes))).toHaveLength(2);
 		expect(await receiptPackage(db, 'b', statementId, { storage })).toBeUndefined();
 	});
+
+	it('finds the documents of a statement with more items than D1 binds parameters', async () => {
+		const storage = memoryStorage();
+		const { statementId } = await seed(storage);
+		const view = (await getStatement(db, 'a', statementId))!;
+		const many = [
+			...Array.from({ length: 150 }, (_, index) => ({
+				...view.result.property.items[0],
+				itemId: `other-${index}`
+			})),
+			...view.result.property.items
+		];
+		expect(await receiptCount(db, 'a', many)).toBe(2);
+	});
 });

@@ -1,9 +1,10 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { zipSync, type Zippable } from 'fflate';
 import { formatDate, today } from '../dates';
 import { periodLabel, type PropertyItem } from '../domain/statement';
 import { formatCents } from '../money';
 import type { Database } from './db';
+import { chunkIds } from './db/batch';
 import { documents } from './db/schema';
 import { renderReport, type Report } from './pdf';
 import { getStatement } from './statements';
@@ -17,23 +18,31 @@ export const RECEIPTS_OVERVIEW = '00 Belegübersicht.pdf';
 
 type ReceiptDocument = { id: string; name: string; storageKey: string; costItemId: string | null };
 
-/** The documents attached to the given cost items, by name. */
+/**
+ * The documents attached to the given cost items, by name. The ids go in chunks, so a statement
+ * with many items stays within D1's limit of bound parameters.
+ */
 async function receiptDocuments(
 	db: Database,
 	accountId: string,
 	itemIds: string[]
 ): Promise<ReceiptDocument[]> {
-	if (itemIds.length === 0) return [];
-	return db
-		.select({
-			id: documents.id,
-			name: documents.name,
-			storageKey: documents.storageKey,
-			costItemId: documents.costItemId
-		})
-		.from(documents)
-		.where(and(eq(documents.accountId, accountId), inArray(documents.costItemId, itemIds)))
-		.orderBy(asc(documents.name), asc(documents.id));
+	const rows = (
+		await Promise.all(
+			chunkIds(itemIds).map((group) =>
+				db
+					.select({
+						id: documents.id,
+						name: documents.name,
+						storageKey: documents.storageKey,
+						costItemId: documents.costItemId
+					})
+					.from(documents)
+					.where(and(eq(documents.accountId, accountId), inArray(documents.costItemId, group)))
+			)
+		)
+	).flat();
+	return rows.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : 1));
 }
 
 const allocableIds = (items: readonly PropertyItem[]) =>
