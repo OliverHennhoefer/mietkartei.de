@@ -10,6 +10,7 @@ import {
 	today as todayInBerlin,
 	type IsoDate
 } from '../dates';
+import { trackedFrom } from '../domain/charges';
 import { co2Deadline } from '../domain/co2';
 import { consentDeadline, lastBaseRentChange, lawsuitDeadline } from '../domain/comparative-rent';
 import { depositInstalments } from '../domain/deposit';
@@ -37,7 +38,9 @@ import { leaseLabel, listLeases, type LeaseSummary } from './leases';
 // Fristen: deadlines that follow from the data, computed on every request and never stored. Each
 // row links to the page where the matter is handled. Rows that only inform (a date to know,
 // nothing the landlord has to do by then) disappear once the date has passed; rows that name
-// something to do stay and are marked overdue.
+// something to do stay and are marked overdue. A lease entered after it began is tracked from its
+// ledger start ("Mietkonto führen ab"): what fell due before that day, such as the deposit
+// instalments of a tenancy from 2015, was handled before the app and is not listed.
 
 export type DeadlineKind =
 	| 'statement'
@@ -246,6 +249,8 @@ export async function listDeadlines(
 	const deadlines: Deadline[] = [];
 	const push = (deadline: Omit<Deadline, 'overdue'>, actionable = true) => {
 		if (deadline.date < today && !actionable) return;
+		const lease = deadline.leaseId ? leaseById.get(deadline.leaseId) : undefined;
+		if (lease && deadline.date < trackedFrom(lease)) return;
 		deadlines.push({ ...deadline, overdue: deadline.date < today });
 	};
 
@@ -263,10 +268,7 @@ export async function listDeadlines(
 		if (lease.operatingCostModel !== 'prepayment' && lease.heatingCostModel !== 'prepayment') {
 			continue;
 		}
-		const start =
-			lease.ledgerStart && lease.ledgerStart > lease.startDate
-				? lease.ledgerStart
-				: lease.startDate;
+		const start = trackedFrom(lease);
 		let ranges = leasesByProperty.get(lease.property.id);
 		if (!ranges) leasesByProperty.set(lease.property.id, (ranges = []));
 		ranges.push({ start, end: lease.endDate ?? '9999-12-31' });
