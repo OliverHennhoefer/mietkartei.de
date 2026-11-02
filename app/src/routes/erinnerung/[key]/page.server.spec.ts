@@ -42,7 +42,7 @@ describe('erinnerung/[key]', () => {
 		});
 		expect(await db.select().from(notificationStates)).toHaveLength(1);
 		expect(await run(load)).toMatchObject({ data: { snoozedUntil: expect.any(String) } });
-		expect(await run(actions.done)).toEqual({ data: { done: true } });
+		expect(await run(actions.done)).toEqual({ redirect: '/aufgaben' });
 		const [task] = await db.select().from(tasks);
 		expect(task.done).toBe(true);
 		// Done, it is no longer an entry.

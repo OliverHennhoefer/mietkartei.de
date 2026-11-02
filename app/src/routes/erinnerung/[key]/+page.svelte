@@ -24,33 +24,29 @@
 	<p><a href={data.entry.href}>Öffnen</a></p>
 </section>
 
-{#if form && 'done' in form}
-	<Alert tone="success"><p>Die Aufgabe ist erledigt.</p></Alert>
-{:else}
-	{#if until}
-		<Alert tone="success">
-			<p>Bis zum {formatDate(until)} kommt dazu kein Hinweis.</p>
-		</Alert>
-	{/if}
-	{#if form && 'message' in form}
-		<p class="error" role="alert">{form.message}</p>
-	{/if}
-	<div class="form-actions">
-		{#each data.days as days (days)}
-			<form method="POST" action="?/snooze" use:enhance>
-				<input type="hidden" name="days" value={String(days)} />
-				<button type="submit" class="secondary">
-					{days === 7 ? 'In einer Woche' : days === 14 ? 'In zwei Wochen' : `In ${days} Tagen`}
-				</button>
-			</form>
-		{/each}
-		{#if data.canComplete}
-			<form method="POST" action="?/done" use:enhance>
-				<button type="submit">Erledigt</button>
-			</form>
-		{/if}
-	</div>
+{#if until}
+	<Alert tone="success">
+		<p>Bis zum {formatDate(until)} kommt dazu kein Hinweis.</p>
+	</Alert>
 {/if}
+{#if form && 'message' in form}
+	<p class="error" role="alert">{form.message}</p>
+{/if}
+<div class="form-actions">
+	{#each data.days as days (days)}
+		<form method="POST" action="?/snooze" use:enhance>
+			<input type="hidden" name="days" value={String(days)} />
+			<button type="submit" class="secondary">
+				{days === 7 ? 'In einer Woche' : days === 14 ? 'In zwei Wochen' : `In ${days} Tagen`}
+			</button>
+		</form>
+	{/each}
+	{#if data.canComplete}
+		<form method="POST" action="?/done" use:enhance>
+			<button type="submit">Erledigt</button>
+		</form>
+	{/if}
+</div>
 
 <style>
 	.card {

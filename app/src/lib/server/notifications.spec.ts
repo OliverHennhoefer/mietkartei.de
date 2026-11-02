@@ -416,6 +416,53 @@ describe('sendDueNotifications', () => {
 		expect(await db.select().from(notificationStates)).toHaveLength(1);
 	});
 
+	it('retries the Hinweise only an all-notices channel had, when it failed and an urgent-only one went through', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		await addChannel(
+			db,
+			contextA,
+			{ kind: 'webhook', url: 'https://hook.example.de/all', urgentOnly: false, details: false },
+			ORIGIN,
+			false
+		);
+		await addChannel(
+			db,
+			contextA,
+			{ kind: 'ntfy', url: 'https://ntfy.sh/haus', urgentOnly: true, details: false },
+			ORIGIN,
+			false
+		);
+		let hookUp = false;
+		const fetch = vi.fn(async (url: string) =>
+			url.startsWith('https://hook.example.de') && !hookUp
+				? new Response('down', { status: 503 })
+				: new Response('ok')
+		);
+		vi.stubGlobal('fetch', fetch);
+		await task('a', 'Dachrinne reinigen', '2026-10-20');
+		await task('a', 'Rauchmelder prüfen', '2026-11-06');
+		// The overdue task reaches ntfy; the new one had only the failed webhook.
+		expect(await sendDueNotifications(db, morning('2026-11-02'))).toBe(1);
+		const told = await db.select().from(notificationStates);
+		expect(told.map((state) => state.stage)).toEqual(['overdue']);
+		const [user] = await db
+			.select({ checkedOn: users.notificationsCheckedOn })
+			.from(users)
+			.where(eq(users.id, 'user-a'));
+		expect(user.checkedOn).toBe(null);
+		// An hour later only the new task goes out, on the webhook, and the day is done.
+		hookUp = true;
+		fetch.mockClear();
+		expect(await sendDueNotifications(db, new Date('2026-11-02T08:00:00Z'))).toBe(1);
+		expect(fetch).toHaveBeenCalledTimes(1);
+		const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+		expect(url).toBe('https://hook.example.de/all');
+		expect(JSON.parse(String(init.body))).toMatchObject({ summary: '1 neu' });
+		const states = await db.select().from(notificationStates);
+		expect(states.map((state) => state.stage).sort()).toEqual(['lead', 'overdue']);
+		expect(await sendDueNotifications(db, new Date('2026-11-02T09:00:00Z'))).toBe(0);
+	});
+
 	it('keeps the state of an entry still open long after its date, and drops those gone', async () => {
 		await addChannel(
 			db,

@@ -451,8 +451,9 @@ async function saveStates(
 
 /**
  * Sends the day's Hinweise to every user whose hour has come and who has a channel that is not
- * paused. A user whose channels all fail is tried again with the next run; otherwise the day is
- * done, and an urgent-only channel simply skips the rest. Returns the number of sends.
+ * paused. Hinweise that no channel could take are tried again with the next run; once none is
+ * left the day is done, and an urgent-only channel simply skips the rest. Returns the number of
+ * sends.
  */
 export async function sendDueNotifications(db: Database, now: Date = new Date()): Promise<number> {
 	const today = dayOf(now);
@@ -494,23 +495,29 @@ export async function sendDueNotifications(db: Database, now: Date = new Date())
 				loadStates(db, user.id)
 			]);
 			const notices = dueNotices(entries, states, today);
-			// Done for the day once a channel took its Hinweise, or none had any to take (an
-			// urgent-only channel and nothing urgent). Only failures leave it for the next run.
-			let attempted = 0;
-			let succeeded = 0;
+			// A notice is handled once a channel took it, or when no channel wants it (nothing
+			// urgent for an urgent-only channel). One whose channels all failed is left for the
+			// next run, which then sends only what is still open; the day is done when none is.
+			const wanted = new Set<string>();
+			const taken = new Set<string>();
 			for (const channel of channels) {
 				const own = channel.urgentOnly ? notices.filter((n) => isUrgent(n.stage)) : notices;
 				if (own.length === 0) continue;
-				attempted += 1;
+				for (const notice of own) wanted.add(notice.entry.key);
 				const relinked = own.map((notice) => ({
 					...notice,
 					entry: { ...notice.entry, url: `${channel.origin}${notice.entry.url}` }
 				}));
-				if (await deliverAndRecord(db, channel, user, relinked, now)) succeeded += 1;
+				if (await deliverAndRecord(db, channel, user, relinked, now)) {
+					sent += 1;
+					for (const notice of own) taken.add(notice.entry.key);
+				}
 			}
-			sent += succeeded;
-			if (attempted > 0 && succeeded === 0) continue;
-			await saveStates(db, user, notices, now);
+			const handled = notices.filter(
+				({ entry }) => taken.has(entry.key) || !wanted.has(entry.key)
+			);
+			if (handled.length > 0) await saveStates(db, user, handled, now);
+			if (handled.length < notices.length) continue;
 			// States of entries that are gone (a task deleted or done, a deadline handled) are of
 			// no use once their date lies long back; an entry still open keeps its state.
 			const current = new Set(entries.map((entry) => entry.key));
