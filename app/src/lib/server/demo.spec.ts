@@ -210,7 +210,6 @@ describe('createDemoData', () => {
 		expect(deadlines.map((deadline) => deadline.kind)).toContain('comparative_consent');
 		// The leases from before the booked history keep their books from its first month; nothing
 		// of theirs that fell due earlier shows up as a deadline.
-		const leaseRows = await db.select().from(leases).where(eq(leases.accountId, 'a'));
 		expect(leaseRows.filter((row) => row.ledgerStart !== null)).toHaveLength(5);
 		for (const deadline of deadlines.filter((row) => row.leaseId)) {
 			const lease = leaseRows.find((row) => row.id === deadline.leaseId)!;
