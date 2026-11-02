@@ -30,6 +30,7 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ### Behoben
 
+- Ein Mietvertrag, der schon vor mietkartei lief, zeigt keine jahrealten Fristen mehr als überfällig, etwa „Kaution: 1. Rate fällig, überfällig seit 3.900 Tagen“. Fristen zählen wie das Mietkonto erst ab „Mietkonto führen ab“; was davor fällig war, gilt als erledigt. Das gilt auch für Aufgaben, Benachrichtigungen, den Kalender und die Fristen-E-Mail.
 - Umlageschlüssel nach Personen: Ein Mietvertrag, der einen Stellplatz mit der Wohnung vermietet, zählt seine Personentage nur noch einmal. Bisher zählten sie für jede Einheit des Vertrags, sodass dieser Mieter zu viel und die anderen zu wenig trugen und der Rechenweg doppelt stand. Ein leerer Stellplatz zählt keine Personen mehr bei Leerstand. Bereits freigegebene Abrechnungen bleiben unverändert; eine Korrektur rechnet sie neu.
 - Umlageschlüssel nach Einheiten und nach Wohnfläche: Stellplätze zählen nur noch in einem Abrechnungskreis, in dem nur Stellplätze liegen. Bisher zählte jeder Stellplatz als volle Einheit, ein Mietvertrag über Wohnung und Stellplatz bekam zwei Anteile, und die Kosten eines leeren Stellplatzes blieben beim Vermieter. Eine eingetragene Garagenfläche zählt auch bei der CO₂-Kostenaufteilung nicht mehr zur Wohnfläche. Bereits freigegebene Abrechnungen bleiben unverändert; eine Korrektur rechnet sie neu.
 
