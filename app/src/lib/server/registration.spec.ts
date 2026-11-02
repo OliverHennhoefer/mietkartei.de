@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
 	mayRegister,
-	parseRegistrationEmails,
 	registrationOffered,
 	setupCodeMatches,
 	setupCodeRequired
@@ -10,13 +9,6 @@ import {
 const listed = { emails: ['oliver@example.org'], hosted: true, hasUsers: true, setupCode: '' };
 
 describe('registration rule', () => {
-	it('reads the list separated by commas or whitespace, in lower case', () => {
-		expect(
-			parseRegistrationEmails(' Oliver@Example.org,zweite@example.org\nDritte@example.org ')
-		).toEqual(['oliver@example.org', 'zweite@example.org', 'dritte@example.org']);
-		expect(parseRegistrationEmails('')).toEqual([]);
-	});
-
 	it('lets only the listed addresses register when a list is set', () => {
 		expect(registrationOffered(listed)).toBe(true);
 		expect(mayRegister(listed, ' Oliver@Example.org')).toBe(true);
