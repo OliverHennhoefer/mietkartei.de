@@ -56,13 +56,13 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
         run: |
-          if [ "$EVENT_NAME" != pull_request ]; then
-            echo "app=true" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only --no-renames HEAD^1 HEAD |
-            grep -q -E '^(app/|assets/brand/|\.dockerignore$|\.github/workflows/app\.yml$)'; then
-            echo "app=true" >> "$GITHUB_OUTPUT"
-          else
+          # Git matches the paths itself, so file names with umlauts, which its output would
+          # quote, count too. An error counts as a change and runs the app jobs.
+          if [ "$EVENT_NAME" = pull_request ] &&
+            git diff --quiet --no-renames HEAD^1 HEAD -- app assets/brand .dockerignore .github/workflows/app.yml; then
             echo "app=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "app=true" >> "$GITHUB_OUTPUT"
           fi
 
   check:
