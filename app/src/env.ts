@@ -13,7 +13,7 @@ export const variables = defineEnvVars({
 	},
 	REGISTRATION_EMAILS: {
 		description:
-			'Email addresses that may register, separated by commas. Set, only they can, each through ' +
+			'Email addresses that may register, separated by commas, semicolons or whitespace. Set, only they can, each through ' +
 			'a link mailed to it. Unset, a ' +
 			'self-hosted instance lets only the first person register, who takes over the existing ' +
 			'data, and the hosted variant lets nobody. Keep it a secret on the hosted variant.',
@@ -143,8 +143,9 @@ export const variables = defineEnvVars({
 	},
 	FREE_ACCOUNT_EMAILS: {
 		description:
-			'Email addresses whose accounts never pay, separated by commas: an account whose owner has ' +
-			'one of them is free, with no trial, notice or read-only state. A secret on the hosted variant.',
+			'Email addresses whose accounts never pay, separated by commas, semicolons or whitespace: an ' +
+			'account whose owner currently has one of them is free, with no trial, notice or read-only ' +
+			'state. A secret on the hosted variant.',
 		schema: (value) => value || ''
 	},
 	TRIAL_FINGERPRINT_KEY: {
