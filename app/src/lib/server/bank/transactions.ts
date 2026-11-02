@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { formatDate } from '../../dates';
 import { rememberStep, type LeaseHints } from '../../domain/bank-matching';
@@ -42,8 +42,14 @@ export type TransactionFilter = {
 	bankAccountId?: string | null;
 	/** Only this one transaction (the link from a payment or deposit movement), whatever its status. */
 	transactionId?: string | null;
+	/** Booked on or after this day. */
+	from?: string | null;
+	/** Booked on or before this day. */
+	to?: string | null;
 	/** How many rows the page shows at most; one more is fetched to know whether there are more. */
 	limit?: number;
+	/** How many rows of the order to skip, to page past the first. */
+	offset?: number;
 };
 
 const DEFAULT_LIMIT = 200;
@@ -64,15 +70,20 @@ export async function listTransactions(
 				eq(bankTransactions.accountId, accountId),
 				filter.status === 'all' ? undefined : eq(bankTransactions.status, filter.status),
 				filter.bankAccountId ? eq(bankTransactions.bankAccountId, filter.bankAccountId) : undefined,
-				filter.transactionId ? eq(bankTransactions.id, filter.transactionId) : undefined
+				filter.transactionId ? eq(bankTransactions.id, filter.transactionId) : undefined,
+				filter.from ? gte(bankTransactions.bookingDate, filter.from) : undefined,
+				filter.to ? lte(bankTransactions.bookingDate, filter.to) : undefined
 			)
 		)
 		.orderBy(
 			desc(bankTransactions.bookingDate),
 			desc(bankTransactions.createdAt),
-			asc(bankTransactions.occurrence)
+			asc(bankTransactions.occurrence),
+			// Rows alike in all of the above keep one order, so an offset never skips or repeats one.
+			asc(bankTransactions.id)
 		)
-		.limit(limit + 1);
+		.limit(limit + 1)
+		.offset(filter.offset ?? 0);
 	return {
 		rows: rows
 			.slice(0, limit)

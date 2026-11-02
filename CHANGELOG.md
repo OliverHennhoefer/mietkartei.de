@@ -12,6 +12,7 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ### Neu
 
+- KI-Assistenten tragen mehr ein: Ausgaben wie eine Handwerkerrechnung, Zählerstände und die Zuordnung offener Bankumsätze als Miete, Kaution oder Ausgabe. Dazu lesen sie die Bankumsätze mit dem Vorschlag von mietkartei, die Zähler eines Objekts und die Dienstleister. So reicht es, dem Assistenten eine Rechnung oder das Foto eines Zählers zu zeigen.
 - GiroCode auf Zahlungsschreiben: Nachzahlungen aus der Betriebskostenabrechnung, Zahlungserinnerungen und Mahnungen sowie ein Rest nach der Kautionsabrechnung tragen einen QR-Code für die Überweisung, wenn unter Einstellungen → Profil eine IBAN steht. Die Banking-App des Mieters übernimmt Empfänger, Betrag und Verwendungszweck; der Verwendungszweck nennt Einheit und Mieter, damit der Bankabgleich die Zahlung zuordnet.
 - Mieterwechsel im laufenden Vertrag: Tritt ein Mitmieter aus (etwa per Nachtrag) oder ein neuer ein, trägst du in der Übersicht des Mietvertrags unter „Vertragsparteien“ das Datum ein. Der Mieter bleibt mit seinem Austrittsdatum im Vertrag, so bleibt erkennbar, wer an einem früheren Tag Vertragspartei war; Briefe und Abrechnungen gehen an die heutigen Vertragsparteien.
 - Den Zugang einer freigegebenen Indexanpassung kannst du nachträglich korrigieren, wenn das Schreiben an einem anderen Tag ankommt als bei der Freigabe angenommen. Bei Wohnraum verschiebt sich die neue Miete dann auf den richtigen Monat (§ 557b Abs. 3 BGB), der Brief und die Sollstellungen werden neu berechnet.

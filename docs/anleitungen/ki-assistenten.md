@@ -12,6 +12,8 @@ mietkartei hat einen MCP-Server. Über ihn kann ein KI-Assistent wie Claude oder
 - „Welche Zahlen trage ich 2025 für die Lindenstraße in die Anlage V ein?“
 - „Welche Fristen stehen in den nächsten drei Monaten an?“
 - „Trag die Grundsteuer 2026 über 612,40 € für das Haus in der Lindenstraße ein.“
+- „Hier ist die Rechnung vom Klempner. Ordne den passenden Bankumsatz als Reparatur der Wohnung zu.“
+- „Auf dem Foto steht der Wasserzähler im Bad der Wohnung 3. Trag den Stand von heute ein.“
 
 MCP steht für Model Context Protocol, einen offenen Standard, über den KI-Assistenten mit anderen Programmen sprechen. Die Adresse des Servers ist `https://app.mietkartei.de/mcp`. Betreibst du mietkartei selbst, nimmst du stattdessen deine eigene Adresse mit `/mcp` am Ende.
 
@@ -71,14 +73,19 @@ Danach startest du den Client neu.
 
 Ein Schlüssel oder eine verbundene App hat dieselben Rechte wie du und sieht alle Daten deines Kontos, auch die persönlichen Daten deiner Mieter. Gib ihn nur Programmen, denen du vertraust.
 
-**Lesen** kann der Assistent Objekte und Einheiten, Mieter, Mietverträge mit Mietänderungen und Kaution, das Mietkonto jedes Vertrags, Salden und Rückstände, den Mahnstand mit Verzugszinsen, Belege, Kostenarten und Umlageschlüssel, Betriebskostenabrechnungen, Hausgeldabrechnungen von Eigentumswohnungen, Ausgaben, die Auswertung, die [Steuerübersicht](steuer.md) je Objekt und Jahr, Fristen und Aufgaben. Zu jeder gesetzlichen Frist nennt mietkartei die Rechtsgrundlage, und den Wortlaut der Paragraphen, die mietkartei anwendet (Mietrecht des BGB, Betriebskostenverordnung, Heizkostenverordnung, CO2-Kostenaufteilungsgesetz und einzelne Paragraphen des EStG), liest der Assistent in der aktuellen Fassung von [gesetze-im-internet.de](https://www.gesetze-im-internet.de/). So zitiert er das Gesetz statt aus dem Gedächtnis. Eine Rechtsberatung ersetzt das nicht.
+**Lesen** kann der Assistent Objekte und Einheiten, Mieter, Mietverträge mit Mietänderungen und Kaution, das Mietkonto jedes Vertrags, Salden und Rückstände, den Mahnstand mit Verzugszinsen, Belege, Kostenarten und Umlageschlüssel, Betriebskostenabrechnungen, Hausgeldabrechnungen von Eigentumswohnungen, Ausgaben, Bankumsätze mit dem Zuordnungsvorschlag, Zähler mit dem letzten Stand, Dienstleister, die Auswertung, die [Steuerübersicht](steuer.md) je Objekt und Jahr, Fristen und Aufgaben. Zu jeder gesetzlichen Frist nennt mietkartei die Rechtsgrundlage, und den Wortlaut der Paragraphen, die mietkartei anwendet (Mietrecht des BGB, Betriebskostenverordnung, Heizkostenverordnung, CO2-Kostenaufteilungsgesetz und einzelne Paragraphen des EStG), liest der Assistent in der aktuellen Fassung von [gesetze-im-internet.de](https://www.gesetze-im-internet.de/). So zitiert er das Gesetz statt aus dem Gedächtnis. Eine Rechtsberatung ersetzt das nicht.
 
-**Schreiben** darf der Assistent mit Schreibrechten nur vier Dinge, die etwas hinzufügen:
+**Schreiben** darf der Assistent mit Schreibrechten nur Dinge, die etwas hinzufügen:
 
 - eine Zahlung auf dem Mietkonto buchen,
 - eine Aufgabe anlegen,
 - eine Aufgabe erledigen,
-- einen Beleg der Betriebskosten erfassen, bei einer Eigentumswohnung mit den Zahlen der Hausgeldabrechnung.
+- einen Beleg der Betriebskosten erfassen, bei einer Eigentumswohnung mit den Zahlen der Hausgeldabrechnung,
+- eine Ausgabe erfassen, etwa eine Handwerkerrechnung, für eine Einheit, ein Objekt oder den ganzen Bestand,
+- einen Zählerstand eintragen,
+- einen offenen Bankumsatz einem Mietvertrag zuordnen (als Miete oder Kaution) oder als Ausgabe buchen.
+
+So reicht es, dem Assistenten eine Rechnung oder das Foto eines Zählers zu zeigen: Er liest Betrag, Datum und Zählerstand ab und trägt sie ein. Die Datei selbst legt er nicht in mietkartei ab, das machst du weiterhin unter **Dokumente** oder beim Beleg.
 
 Löschen oder ändern kann der Assistent nichts. Gute Clients fragen vor jedem Schreiben nach, ob sie das wirklich tun sollen. Jede Änderung steht unter deinem Namen im **Änderungsprotokoll**.
 
