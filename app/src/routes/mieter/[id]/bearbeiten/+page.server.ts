@@ -13,7 +13,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	]);
 	if (!tenant) error(404, 'Diesen Mieter gibt es nicht.');
 	// The unit's address for the form's hint, as if the tenant had no address of their own.
-	const leaseAddress = postalAddress({ street: null, postalCode: null, city: null }, leases);
+	const leaseAddress = postalAddress(
+		{ id: tenant.id, street: null, postalCode: null, city: null },
+		leases
+	);
 	return { tenant, leaseAddress: leaseAddress?.line ?? null };
 };
 
