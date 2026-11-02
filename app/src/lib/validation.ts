@@ -1,3 +1,4 @@
+import { normalizeFloor, normalizePostalCode, normalizeStreet, singleLine } from './domain/address';
 import { FormParser, type FieldErrors, type ParseResult } from './forms/fields';
 import { buildingUseLabels, propertyKindLabels, stateLabels } from './labels';
 import type { BuildingUse, PropertyKind } from './server/db/schema';
@@ -51,14 +52,14 @@ export function parseProperty(form: FormData): ParseResult<PropertyInput> {
 	const name = parser.raw('name');
 	if (!name) parser.fail('name', 'Bitte gib eine Bezeichnung an.');
 	else if (name.length > 100) parser.fail('name', 'Die Bezeichnung ist zu lang.');
-	const street = parser.raw('street');
+	const street = normalizeStreet(parser.raw('street'));
 	if (!street) parser.fail('street', 'Bitte gib Straße und Hausnummer an.');
 	else if (street.length > 200) parser.fail('street', 'Höchstens 200 Zeichen.');
-	const postalCode = parser.raw('postalCode');
+	const postalCode = normalizePostalCode(parser.raw('postalCode'));
 	if (!/^\d{5}$/.test(postalCode)) {
 		parser.fail('postalCode', 'Die Postleitzahl hat fünf Ziffern.');
 	}
-	const city = parser.raw('city');
+	const city = singleLine(parser.raw('city'));
 	if (!city) parser.fail('city', 'Bitte gib den Ort an.');
 	else if (city.length > 100) parser.fail('city', 'Höchstens 100 Zeichen.');
 
@@ -145,7 +146,8 @@ export function parseUnit(form: FormData): ParseResult<UnitInput> {
 		100_000,
 		'Bitte gib die Fläche als positive Zahl in m² an.'
 	);
-	const floor = parser.optionalText('floor', 50);
+	const typedFloor = parser.optionalText('floor', 50);
+	const floor = typedFloor && normalizeFloor(typedFloor);
 	const rooms = positiveNumber(
 		parser,
 		'rooms',

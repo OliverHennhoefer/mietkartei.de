@@ -1,14 +1,21 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { addMonthsToMonth, firstOfMonth, formatDate, monthOf, today } from '#lib/dates.ts';
-import { depositWarning, parseLease, parseOpeningBalance } from '#lib/forms/leases.ts';
+import {
+	depositWarning,
+	parseLease,
+	parseNewTenants,
+	parseOpeningBalance
+} from '#lib/forms/leases.ts';
 import { parseCents } from '#lib/money.ts';
 import { createLease, listUnitsWithProperty } from '#lib/server/leases.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import type { Actions, PageServerLoad } from './$types';
 
-// ?unitId= and ?tenantId= preselect the unit and the tenant (unit rows and tenant pages link
-// here); a tenant created through /mieter/neu?return=/vertraege/neu comes back the same way.
+// ?unitId= and ?tenantId= preselect the unit and the tenants (unit rows and tenant pages link
+// here); a tenant created through /mieter/neu?return=/vertraege/neu comes back the same way, and
+// /mieter/neu without a return sends the new tenant here with ?created=1, which names them in a
+// notice above the form.
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const accountId = requireAccount(locals);
 	const [units, tenants] = await Promise.all([
@@ -16,12 +23,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		listTenants(locals.db, accountId)
 	]);
 	// A new lease usually starts on the first of next month.
+	const tenantIds = url.searchParams.getAll('tenantId');
 	const defaults: Record<string, string> = {
 		unitId: url.searchParams.get('unitId') ?? '',
-		tenantIds: url.searchParams.get('tenantId') ?? '',
+		tenantIds: tenantIds.join(','),
 		startDate: firstOfMonth(addMonthsToMonth(monthOf(today()), 1))
 	};
-	return { units, tenants, defaults };
+	const created = url.searchParams.has('created')
+		? tenants.filter((tenant) => tenantIds.includes(tenant.id))
+		: [];
+	return { units, tenants, defaults, created };
 };
 
 /** The form as typed, for re-rendering after a refusal that is not a field error. */
@@ -48,11 +59,14 @@ export const actions: Actions = {
 	create: async ({ request, locals }) => {
 		const context = auditContext(locals);
 		const form = await request.formData();
-		const lease = parseLease(form);
+		// A name typed into the tenant select that matches nobody becomes a new tenant with the lease.
+		const lease = parseLease(form, { newTenants: true });
+		const created = parseNewTenants(form);
 		const opening = parseOpeningBalance(form);
-		if (!lease.ok || !opening.ok) {
+		if (!lease.ok || !created.ok || !opening.ok) {
 			const errors = {
 				...(lease.ok ? {} : lease.errors),
+				...(created.ok ? {} : created.errors),
 				...(opening.ok ? {} : opening.errors)
 			};
 			// The whole form, so a refused opening balance alone does not empty the other fields.
@@ -69,7 +83,13 @@ export const actions: Actions = {
 			if (input.endDate === null || start <= input.endDate) input.ledgerStart = start;
 		}
 
-		const result = await createLease(locals.db, context, input, opening.data.openingBalance);
+		const result = await createLease(
+			locals.db,
+			context,
+			input,
+			opening.data.openingBalance,
+			created.data.newTenants
+		);
 		if (!result.ok) {
 			const values = valuesOf(form);
 			const errors =

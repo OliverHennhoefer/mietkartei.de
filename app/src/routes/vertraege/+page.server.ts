@@ -2,7 +2,6 @@ import { today } from '#lib/dates.ts';
 import { personName } from '#lib/format.ts';
 import { leaseLabel, listLeases, listUnitsWithProperty } from '#lib/server/leases.ts';
 import { requireAccount } from '#lib/server/session.ts';
-import { listTenants } from '#lib/server/tenants.ts';
 import type { PageServerLoad } from './$types';
 
 export type LeaseStatus = 'active' | 'upcoming' | 'ended';
@@ -37,13 +36,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}))
 		.sort((a, b) => order[a.status] - order[b.status] || b.startDate.localeCompare(a.startDate));
 
-	let prerequisites = { units: true, tenants: true };
+	// A lease needs a unit; its tenants can be typed into the lease form and are created with it.
+	let prerequisites = { units: true };
 	if (leases.length === 0) {
-		const [units, tenants] = await Promise.all([
-			listUnitsWithProperty(locals.db, accountId),
-			listTenants(locals.db, accountId)
-		]);
-		prerequisites = { units: units.length > 0, tenants: tenants.length > 0 };
+		prerequisites = { units: (await listUnitsWithProperty(locals.db, accountId)).length > 0 };
 	}
 	return { leases: rows, prerequisites };
 };

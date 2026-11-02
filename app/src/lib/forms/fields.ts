@@ -147,7 +147,7 @@ export class FormParser<T> {
 	}
 
 	/** All values of a multi-select or checkbox group, at most `max` of them. */
-	ids(name: keyof T & string, max = 1000): string[] {
+	ids(name: keyof T & string, max = 1000, maxLength = 64): string[] {
 		const all = this.form.getAll(name);
 		if (all.length > max) {
 			this.values[name] = '';
@@ -155,7 +155,7 @@ export class FormParser<T> {
 			return [];
 		}
 		const values = all.filter(
-			(value): value is string => typeof value === 'string' && value.length <= 64
+			(value): value is string => typeof value === 'string' && value.length <= maxLength
 		);
 		this.values[name] = values.join(',');
 		return values;
