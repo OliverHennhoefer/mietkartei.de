@@ -266,11 +266,9 @@ test('restores the export of the deleted account into the empty account', async 
 	const restore = page.getByRole('region', { name: 'Export einspielen' });
 	await restore.getByLabel('Exportdatei (ZIP)').setInputFiles(exportFile);
 	await restore.getByRole('button', { name: 'Export einspielen' }).click();
-	// The restore writes every row and document of the old account; on workerd in CI that can take
-	// longer than the default five seconds.
-	await expect(restore.getByRole('status')).toContainText(
-		/Einträge und 1 von 1 Dokumenten übernommen/,
-		{ timeout: 20_000 }
+	// A refused restore shows its reason as an alert, which a failure then names.
+	await expect(restore.getByRole('status').or(restore.getByRole('alert'))).toContainText(
+		/Einträge und 1 von 1 Dokumenten übernommen/
 	);
 
 	// The lease, its document with every byte, and the log of the old account are back.
