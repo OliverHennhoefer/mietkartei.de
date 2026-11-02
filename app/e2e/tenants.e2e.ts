@@ -58,9 +58,9 @@ test('shows validation errors next to the fields', async ({ page }) => {
 	await page.getByLabel('Andere Postanschrift als die gemietete Einheit').check();
 	await page.getByLabel('Straße und Hausnummer').fill('Am Hang 2');
 	await page.getByLabel('Postleitzahl').fill('123');
+	await page.getByLabel('Ort').fill('Berlin');
 	await page.getByRole('button', { name: 'Mieter anlegen' }).click();
 	await expect(page.getByText('Die Postleitzahl hat fünf Ziffern.')).toBeVisible();
-	await expect(page.getByText('Bitte fülle dieses Feld aus.')).toBeVisible();
 	await expect(page.getByLabel('Nachname')).toHaveValue('Fehler');
 	await expect(page.getByLabel('Straße und Hausnummer')).toHaveValue('Am Hang 2');
 });

@@ -21,8 +21,8 @@
 			die Einheit zu, und von ihr kommt die Adresse für Schreiben.
 		</p>
 		<p>
-			{#if data.units.length > 0}Ziehen mehrere ein? Tipp die weiteren Namen unten bei Mieter ein.{/if}
-			<a href="/mieter/{data.created[0].id}">Später anlegen</a>
+			{#if data.units.length > 0}Ziehen mehrere ein? Tipp die weiteren Namen unten bei Mieter ein ·{/if}
+			<a href="/mieter/{data.created[0].id}">Mietvertrag später anlegen</a>
 		</p>
 	</Alert>
 {/if}
