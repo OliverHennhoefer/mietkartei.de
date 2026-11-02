@@ -434,7 +434,7 @@ describe('sendDueNotifications', () => {
 		);
 		let hookUp = false;
 		const fetch = vi.fn(async (url: string) =>
-			url.startsWith('https://hook.example.de') && !hookUp
+			url === 'https://hook.example.de/all' && !hookUp
 				? new Response('down', { status: 503 })
 				: new Response('ok')
 		);
