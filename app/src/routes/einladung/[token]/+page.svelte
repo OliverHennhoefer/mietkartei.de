@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
+	import PasswordField from '#lib/components/PasswordField.svelte';
 	import { MIN_PASSWORD_LENGTH } from '#lib/validation.ts';
 	import type { PageProps } from './$types';
 
@@ -50,30 +51,24 @@
 				/>
 				{#if errors?.name}<span class="error">{errors.name}</span>{/if}
 			</label>
-			<label>
-				Passwort
-				<input
-					name="password"
-					type="password"
-					autocomplete="new-password"
-					minlength={MIN_PASSWORD_LENGTH}
-					aria-invalid={errors?.password ? 'true' : undefined}
-					required
-				/>
-				<span class="muted">Mindestens {MIN_PASSWORD_LENGTH} Zeichen.</span>
-				{#if errors?.password}<span class="error">{errors.password}</span>{/if}
-			</label>
-			<label>
-				Passwort wiederholen
-				<input
-					name="passwordConfirm"
-					type="password"
-					autocomplete="new-password"
-					aria-invalid={errors?.passwordConfirm ? 'true' : undefined}
-					required
-				/>
-				{#if errors?.passwordConfirm}<span class="error">{errors.passwordConfirm}</span>{/if}
-			</label>
+			<PasswordField
+				label="Passwort"
+				note={`Mindestens ${MIN_PASSWORD_LENGTH} Zeichen.`}
+				error={errors?.password}
+				name="password"
+				autocomplete="new-password"
+				minlength={MIN_PASSWORD_LENGTH}
+				aria-invalid={errors?.password ? 'true' : undefined}
+				required
+			/>
+			<PasswordField
+				label="Passwort wiederholen"
+				error={errors?.passwordConfirm}
+				name="passwordConfirm"
+				autocomplete="new-password"
+				aria-invalid={errors?.passwordConfirm ? 'true' : undefined}
+				required
+			/>
 			<div class="form-actions">
 				<button type="submit">Konto anlegen</button>
 			</div>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
+	import PasswordField from '#lib/components/PasswordField.svelte';
 	import { LAUNCH } from '#lib/launch.ts';
 	import { MIN_PASSWORD_LENGTH } from '#lib/validation.ts';
 	import type { PageProps } from './$types';
@@ -60,36 +61,28 @@
 				{#if form?.errors?.email}<span class="error">{form.errors.email}</span>{/if}
 			</label>
 			{#if !data.restricted}
-				<label>
-					Passwort
-					<input
-						name="password"
-						type="password"
-						autocomplete="new-password"
-						minlength={MIN_PASSWORD_LENGTH}
-						aria-invalid={form?.errors?.password ? 'true' : undefined}
-						required
-					/>
-					<span class="muted">Mindestens {MIN_PASSWORD_LENGTH} Zeichen.</span>
-					{#if form?.errors?.password}<span class="error">{form.errors.password}</span>{/if}
-				</label>
+				<PasswordField
+					label="Passwort"
+					note={`Mindestens ${MIN_PASSWORD_LENGTH} Zeichen.`}
+					error={form?.errors?.password}
+					name="password"
+					autocomplete="new-password"
+					minlength={MIN_PASSWORD_LENGTH}
+					aria-invalid={form?.errors?.password ? 'true' : undefined}
+					required
+				/>
 			{/if}
 			{#if data.setupCode}
-				<label>
-					Einrichtungscode
-					<input
-						name="setupCode"
-						type="password"
-						autocomplete="off"
-						aria-invalid={form?.wrongSetupCode ? 'true' : undefined}
-						required
-					/>
-					<span class="muted"
-						>Den Code hast du beim Einrichten von mietkartei selbst festgelegt.</span
-					>
-					{#if form?.wrongSetupCode}<span class="error">Der Einrichtungscode stimmt nicht.</span
-						>{/if}
-				</label>
+				<PasswordField
+					label="Einrichtungscode"
+					subject="Code"
+					note="Den Code hast du beim Einrichten von mietkartei selbst festgelegt."
+					error={form?.wrongSetupCode ? 'Der Einrichtungscode stimmt nicht.' : undefined}
+					name="setupCode"
+					autocomplete="off"
+					aria-invalid={form?.wrongSetupCode ? 'true' : undefined}
+					required
+				/>
 			{/if}
 			{#if data.turnstileSiteKey}
 				<div class="cf-turnstile" data-sitekey={data.turnstileSiteKey} data-language="de"></div>

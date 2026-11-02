@@ -555,6 +555,66 @@ describe('deposit instalments (§ 551 Abs. 2 BGB)', () => {
 	});
 });
 
+describe('a lease entered after it began', () => {
+	it('lists nothing that fell due before its ledger start', async () => {
+		// A tenancy since 2015, entered with the ledger from October 2026: the instalments of 2015
+		// were paid long before the app, they are not years overdue.
+		await lease('a', { startDate: '2015-03-01', ledgerStart: '2026-10-01' });
+		expect(await list('deposit_instalment')).toEqual([]);
+		expect(await list()).toEqual([]);
+	});
+
+	it('keeps what falls due from the ledger start on', async () => {
+		// Ledger from February 2025: the first instalment (6.1.) was before, the others are kept.
+		await lease('a', { ledgerStart: '2025-02-01' });
+		expect((await list('deposit_instalment')).map(brief)).toEqual([
+			['2025-02-05', 'Kaution: 2. Rate fällig', true],
+			['2025-03-05', 'Kaution: 3. Rate fällig', true]
+		]);
+	});
+
+	it('lists nothing before a ledger start in the future', async () => {
+		// Entered with the ledger from next month: the reading at the end of October waits for it.
+		const { unitId, propertyId } = await lease('a', {
+			startDate: '2016-01-01',
+			endDate: '2026-10-31',
+			ledgerStart: '2026-11-01'
+		});
+		await db
+			.insert(meters)
+			.values({ accountId: 'a', propertyId, unitId, kind: 'heat', unit: 'kWh' });
+		expect(await list('meter_reading')).toEqual([]);
+		// The deposit settlement six months after the end is still the landlord's to do.
+		expect((await list('deposit_return')).map(brief)).toEqual([
+			['2027-04-30', 'Kaution abrechnen', false]
+		]);
+	});
+
+	it('still shows what lies ahead to know about, such as the next Staffel step', async () => {
+		// Tracked from February 2027: the step of January 2027 is still the next one to know.
+		const { leaseId } = await lease('a', {
+			startDate: '2020-01-01',
+			rentModel: 'graduated',
+			ledgerStart: '2027-02-01'
+		});
+		await db.insert(rentChanges).values(
+			['2027-01-01', '2028-01-01'].map((validFrom, index) => ({
+				accountId: 'a',
+				leaseId,
+				validFrom,
+				reason: 'graduated' as const,
+				status: 'approved' as const,
+				baseRent: 70000 + index * 2000,
+				operatingCostPrepayment: 0,
+				heatingCostPrepayment: 0
+			}))
+		);
+		expect((await list('graduated_step')).map(brief)).toEqual([
+			['2027-01-01', 'Nächste Mietstaffel', false]
+		]);
+	});
+});
+
 describe('next Staffel step', () => {
 	it('names the next approved step that lies ahead', async () => {
 		const { leaseId } = await lease('a', { rentModel: 'graduated' });
