@@ -463,6 +463,51 @@ describe('sendDueNotifications', () => {
 		expect(await sendDueNotifications(db, new Date('2026-11-02T09:00:00Z'))).toBe(0);
 	});
 
+	it('keeps Hinweise for a paused channel until it works again, without holding up the day', async () => {
+		const hook = await addChannel(
+			db,
+			contextA,
+			{ kind: 'webhook', url: 'https://hook.example.de/all', urgentOnly: false, details: false },
+			ORIGIN,
+			false
+		);
+		await addChannel(
+			db,
+			contextA,
+			{ kind: 'ntfy', url: 'https://ntfy.sh/haus', urgentOnly: true, details: false },
+			ORIGIN,
+			false
+		);
+		if (!hook.ok) throw new Error('not added');
+		await db
+			.update(notificationChannels)
+			.set({ failures: MAX_FAILURES })
+			.where(eq(notificationChannels.id, hook.id));
+		const fetch = vi.fn(async () => new Response('ok'));
+		vi.stubGlobal('fetch', fetch);
+		await task('a', 'Dachrinne reinigen', '2026-10-20');
+		await task('a', 'Rauchmelder prüfen', '2026-11-06');
+		// Only the overdue task goes out, on ntfy; the new one waits for the webhook.
+		expect(await sendDueNotifications(db, morning('2026-11-02'))).toBe(1);
+		expect((fetch.mock.calls as unknown as [string][]).map(([url]) => url)).toEqual([
+			'https://ntfy.sh'
+		]);
+		const told = await db.select().from(notificationStates);
+		expect(told.map((state) => state.stage)).toEqual(['overdue']);
+		expect(await sendDueNotifications(db, new Date('2026-11-02T08:00:00Z'))).toBe(0);
+		expect(fetch).toHaveBeenCalledTimes(1);
+		// Working again (as after a test that went through), the webhook hears of it next day.
+		await db
+			.update(notificationChannels)
+			.set({ failures: 0 })
+			.where(eq(notificationChannels.id, hook.id));
+		fetch.mockClear();
+		expect(await sendDueNotifications(db, morning('2026-11-03'))).toBe(1);
+		const [[url, init]] = fetch.mock.calls as unknown as [string, RequestInit][];
+		expect(url).toBe('https://hook.example.de/all');
+		expect(JSON.parse(String(init.body))).toMatchObject({ summary: '1 neu' });
+	});
+
 	it('keeps the state of an entry still open long after its date, and drops those gone', async () => {
 		await addChannel(
 			db,

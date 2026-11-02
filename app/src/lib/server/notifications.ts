@@ -479,16 +479,12 @@ export async function sendDueNotifications(db: Database, now: Date = new Date())
 	for (const user of candidates) {
 		if (!noticesDue(user, now)) continue;
 		try {
+			// Paused channels too: what only they would carry waits until they work again.
 			const channels = await db
 				.select()
 				.from(notificationChannels)
-				.where(
-					and(
-						eq(notificationChannels.userId, user.id),
-						lt(notificationChannels.failures, MAX_FAILURES)
-					)
-				);
-			if (channels.length === 0) continue;
+				.where(eq(notificationChannels.userId, user.id));
+			if (!channels.some((channel) => channel.failures < MAX_FAILURES)) continue;
 			// Relative links; each channel's lead to the address it was added at.
 			const [entries, states] = await Promise.all([
 				calendarEntries(db, user.accountId, '', today),
@@ -496,14 +492,18 @@ export async function sendDueNotifications(db: Database, now: Date = new Date())
 			]);
 			const notices = dueNotices(entries, states, today);
 			// A notice is handled once a channel took it, or when no channel wants it (nothing
-			// urgent for an urgent-only channel). One whose channels all failed is left for the
-			// next run, which then sends only what is still open; the day is done when none is.
+			// urgent for an urgent-only channel). One whose working channels all failed is left for
+			// the next run, which then sends only what is still open; the day is done when none
+			// is. One that only a paused channel wants keeps waiting without holding up the day.
 			const wanted = new Set<string>();
+			const tried = new Set<string>();
 			const taken = new Set<string>();
 			for (const channel of channels) {
 				const own = channel.urgentOnly ? notices.filter((n) => isUrgent(n.stage)) : notices;
 				if (own.length === 0) continue;
 				for (const notice of own) wanted.add(notice.entry.key);
+				if (channel.failures >= MAX_FAILURES) continue;
+				for (const notice of own) tried.add(notice.entry.key);
 				const relinked = own.map((notice) => ({
 					...notice,
 					entry: { ...notice.entry, url: `${channel.origin}${notice.entry.url}` }
@@ -515,7 +515,7 @@ export async function sendDueNotifications(db: Database, now: Date = new Date())
 			}
 			const handled = notices.filter(({ entry }) => taken.has(entry.key) || !wanted.has(entry.key));
 			if (handled.length > 0) await saveStates(db, user, handled, now);
-			if (handled.length < notices.length) continue;
+			if ([...tried].some((key) => !taken.has(key))) continue;
 			// States of entries that are gone (a task deleted or done, a deadline handled) are of
 			// no use once their date lies long back; an entry still open keeps its state.
 			const current = new Set(entries.map((entry) => entry.key));
