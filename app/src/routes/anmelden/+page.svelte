@@ -2,6 +2,7 @@
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import { resolve } from '$app/paths';
 	import LaunchNotice from '#lib/components/LaunchNotice.svelte';
+	import PasswordField from '#lib/components/PasswordField.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -47,10 +48,7 @@
 				required
 			/>
 		</label>
-		<label>
-			Passwort
-			<input name="password" type="password" autocomplete="current-password" required />
-		</label>
+		<PasswordField label="Passwort" name="password" autocomplete="current-password" required />
 		<div class="form-actions">
 			<button type="submit">Anmelden</button>
 			<a href="/passwort-vergessen" class="small">Passwort vergessen?</a>

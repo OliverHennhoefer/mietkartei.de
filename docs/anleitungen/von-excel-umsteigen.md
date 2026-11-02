@@ -39,7 +39,7 @@ Nach dem Hochladen schlägt mietkartei vor, welche Spalte welches Feld füllt. D
 
 ## 4. Anfangssaldo und Mietkonto
 
-Damit Rückstände von Anfang an stimmen, gibst du je Mietvertrag an, ab wann das Mietkonto in mietkartei läuft („Mietkonto ab“) und welcher Saldo zu diesem Tag offen war. Ältere Zahlungen musst du nicht übernehmen.
+Damit Rückstände von Anfang an stimmen, gibst du je Mietvertrag an, ab wann das Mietkonto in mietkartei läuft („Mietkonto ab“) und welcher Saldo zu diesem Tag offen war. Ältere Zahlungen musst du nicht übernehmen. Auch Fristen, die vor diesem Tag fällig waren, etwa die Kautionsraten eines Vertrags von 2015, zeigt mietkartei nicht als überfällig an.
 
 ## Danach
 

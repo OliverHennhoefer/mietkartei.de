@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import PasswordField from '#lib/components/PasswordField.svelte';
 	import { RESET_CONFIRMATION } from '#lib/forms/auth.ts';
 	import type { PageProps } from './$types';
 
@@ -11,18 +12,15 @@
 <!-- Deleting and leaving both ask for the password again. -->
 {#snippet passwordForm(action: 'delete' | 'leave', label: string)}
 	<form method="POST" action="?/{action}" class="form" use:enhance>
-		<label>
-			Passwort
-			<input
-				name="password"
-				type="password"
-				autocomplete="current-password"
-				maxlength="200"
-				aria-invalid={form?.errors?.password ? 'true' : undefined}
-				required
-			/>
-			{#if form?.errors?.password}<span class="error">{form.errors.password}</span>{/if}
-		</label>
+		<PasswordField
+			label="Passwort"
+			error={form?.errors?.password}
+			name="password"
+			autocomplete="current-password"
+			maxlength={200}
+			aria-invalid={form?.errors?.password ? 'true' : undefined}
+			required
+		/>
 		<div class="form-actions">
 			<button type="submit" class="danger">{label}</button>
 		</div>
@@ -91,20 +89,15 @@
 					<span class="error">{form.resetErrors.confirmation}</span>
 				{/if}
 			</label>
-			<label>
-				Passwort
-				<input
-					name="password"
-					type="password"
-					autocomplete="current-password"
-					maxlength="200"
-					aria-invalid={form?.resetErrors?.password ? 'true' : undefined}
-					required
-				/>
-				{#if form?.resetErrors?.password}
-					<span class="error">{form.resetErrors.password}</span>
-				{/if}
-			</label>
+			<PasswordField
+				label="Passwort"
+				error={form?.resetErrors?.password}
+				name="password"
+				autocomplete="current-password"
+				maxlength={200}
+				aria-invalid={form?.resetErrors?.password ? 'true' : undefined}
+				required
+			/>
 			<div class="form-actions">
 				<button type="submit" class="danger">Alle Daten löschen</button>
 			</div>

@@ -34,6 +34,17 @@ export type ChargeTerm = {
 };
 
 /**
+ * The first day the app keeps the lease's books: its ledger start when that is set and later than
+ * the start date, else the start date. Rent before it is not charged, and deadlines that fell due
+ * before it count as handled outside the app.
+ */
+export function trackedFrom(lease: { startDate: IsoDate; ledgerStart: IsoDate | null }): IsoDate {
+	return lease.ledgerStart && lease.ledgerStart > lease.startDate
+		? lease.ledgerStart
+		: lease.startDate;
+}
+
+/**
  * One charge per month from the ledger start to `untilMonth` (or the end of the lease, whichever
  * is earlier). The first and last month are prorated by days, as is a month with a rent change
  * in the middle. Months before the first approved change carry no known rent and are skipped;
@@ -52,8 +63,7 @@ export function expectedRentCharges(
 	if (!firstKnown) return [];
 
 	// A ledger start before the lease begins means nothing; the lease cannot owe rent earlier.
-	const start =
-		lease.ledgerStart && lease.ledgerStart > lease.startDate ? lease.ledgerStart : lease.startDate;
+	const start = trackedFrom(lease);
 	const term = { startDate: start, endDate: lease.endDate };
 	const endMonth = lease.endDate ? monthOf(lease.endDate) : untilMonth;
 	const lastMonth = endMonth < untilMonth ? endMonth : untilMonth;

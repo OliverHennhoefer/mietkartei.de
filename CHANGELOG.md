@@ -17,15 +17,18 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 - GiroCode auf Zahlungsschreiben: Nachzahlungen aus der Betriebskostenabrechnung, Zahlungserinnerungen und Mahnungen sowie ein Rest nach der Kautionsabrechnung tragen einen QR-Code für die Überweisung, wenn unter Einstellungen → Profil eine IBAN steht. Die Banking-App des Mieters übernimmt Empfänger, Betrag und Verwendungszweck; der Verwendungszweck nennt Einheit und Mieter, damit der Bankabgleich die Zahlung zuordnet.
 - Mieterwechsel im laufenden Vertrag: Tritt ein Mitmieter aus (etwa per Nachtrag) oder ein neuer ein, trägst du in der Übersicht des Mietvertrags unter „Vertragsparteien“ das Datum ein. Der Mieter bleibt mit seinem Austrittsdatum im Vertrag, so bleibt erkennbar, wer an einem früheren Tag Vertragspartei war; Briefe und Abrechnungen gehen an die heutigen Vertragsparteien.
 - Den Zugang einer freigegebenen Indexanpassung kannst du nachträglich korrigieren, wenn das Schreiben an einem anderen Tag ankommt als bei der Freigabe angenommen. Bei Wohnraum verschiebt sich die neue Miete dann auf den richtigen Monat (§ 557b Abs. 3 BGB), der Brief und die Sollstellungen werden neu berechnet.
+- Passwortfelder haben ein Auge: Ein Klick darauf zeigt das Eingegebene im Klartext, ein zweiter verbirgt es wieder. So prüfst du ein langes Passwort vor dem Absenden auf Tippfehler. Beim Absenden ist es wieder verborgen.
 
 ### Geändert
 
+- Die E-Mails zur Registrierung, zu Einladungen, zum Zurücksetzen des Passworts, zur neuen E-Mail-Adresse und zur Übergabe oder zum Ende eines Zugangs kommen im Aussehen von mietkartei: mit Wortmarke, einem Knopf für den Link, im hellen und dunklen Modus und auf dem Handy gut lesbar. Sie laden keine Bilder nach. Mail-Programme, die nur Text anzeigen, bekommen denselben Inhalt als Text.
 - Die wöchentliche Fristenübersicht per E-Mail stellst du jetzt unter Einstellungen → Benachrichtigungen ein statt unter Kalender.
 - Das Protokoll nennt beim Bearbeiten eines Mietvertrags die Mieter, die hinzugekommen oder ausgeschieden sind.
 - Fehlt zu einem Dokument die Datei im Speicher, nennt der Export es in `FEHLENDE-DOKUMENTE.txt` und das Protokoll zählt es, statt es stillschweigend auszulassen.
 
 ### Behoben
 
+- Ein Mietvertrag, der schon vor mietkartei lief, zeigt keine jahrealten Fristen mehr als überfällig, etwa „Kaution: 1. Rate fällig, überfällig seit 3.900 Tagen“. Fristen zählen wie das Mietkonto erst ab „Mietkonto führen ab“; was davor fällig war, gilt als erledigt. Das gilt auch für Aufgaben, Benachrichtigungen, den Kalender und die Fristen-E-Mail.
 - Umlageschlüssel nach Personen: Ein Mietvertrag, der einen Stellplatz mit der Wohnung vermietet, zählt seine Personentage nur noch einmal. Bisher zählten sie für jede Einheit des Vertrags, sodass dieser Mieter zu viel und die anderen zu wenig trugen und der Rechenweg doppelt stand. Ein leerer Stellplatz zählt keine Personen mehr bei Leerstand. Bereits freigegebene Abrechnungen bleiben unverändert; eine Korrektur rechnet sie neu.
 - Umlageschlüssel nach Einheiten und nach Wohnfläche: Stellplätze zählen nur noch in einem Abrechnungskreis, in dem nur Stellplätze liegen. Bisher zählte jeder Stellplatz als volle Einheit, ein Mietvertrag über Wohnung und Stellplatz bekam zwei Anteile, und die Kosten eines leeren Stellplatzes blieben beim Vermieter. Eine eingetragene Garagenfläche zählt auch bei der CO₂-Kostenaufteilung nicht mehr zur Wohnfläche. Bereits freigegebene Abrechnungen bleiben unverändert; eine Korrektur rechnet sie neu.
 

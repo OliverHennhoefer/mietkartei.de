@@ -46,6 +46,25 @@ describe('sendMail', () => {
 		});
 	});
 
+	it('posts the HTML part along when the mail has one', async () => {
+		env.MAIL_TRANSPORT = 'resend';
+		const fetch = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
+			Response.json({ id: 'm_1' })
+		);
+		vi.stubGlobal('fetch', fetch);
+		await sendMail(await testDatabase(), { ...mail, html: '<p>Hallo</p>' });
+		expect(JSON.parse(fetch.mock.calls[0][1].body as string)).toMatchObject({
+			text: 'Hallo',
+			html: '<p>Hallo</p>'
+		});
+	});
+
+	it('keeps only the text part in the outbox, where the end-to-end tests read the links', async () => {
+		const db = await testDatabase();
+		await sendMail(db, { ...mail, html: '<p>Hallo</p>' });
+		expect(await db.select().from(outbox)).toMatchObject([mail]);
+	});
+
 	it('throws when Resend refuses the mail', async () => {
 		env.MAIL_TRANSPORT = 'resend';
 		vi.stubGlobal('fetch', async () => new Response('invalid from', { status: 422 }));
