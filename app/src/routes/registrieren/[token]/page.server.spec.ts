@@ -6,6 +6,7 @@ import { outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
 import { actions, load } from './+page.server';
 
 const env = vi.hoisted(() => ({
+	FREE_ACCOUNT_EMAILS: '',
 	REGISTRATION_EMAILS: 'neu@example.org',
 	SETUP_CODE: '',
 	HOSTED: false,

@@ -13,7 +13,7 @@ export const variables = defineEnvVars({
 	},
 	REGISTRATION_EMAILS: {
 		description:
-			'Email addresses that may register, separated by commas, semicolons or whitespace. Set, only they can, each through ' +
+			'Email addresses that may register, besides those of FREE_ACCOUNT_EMAILS on the hosted variant, separated by commas, semicolons or whitespace. Set, only they can, each through ' +
 			'a link mailed to it. Unset, a ' +
 			'self-hosted instance lets only the first person register, who takes over the existing ' +
 			'data, and the hosted variant lets nobody. Keep it a secret on the hosted variant.',

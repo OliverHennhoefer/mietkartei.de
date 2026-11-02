@@ -1,5 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { createSession, hasUsers, signIn } from '#lib/server/auth.ts';
+import { registrationOffered, registrationRule } from '#lib/server/registration.ts';
 import { setSessionCookie } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -16,6 +17,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (locals.user) redirect(303, nextPath(url));
 	// A new instance has no users yet; the first one has to register.
 	if (!(await hasUsers(locals.db))) redirect(303, '/registrieren');
+	return { registration: registrationOffered(await registrationRule(locals.db)) };
 };
 
 export const actions: Actions = {
