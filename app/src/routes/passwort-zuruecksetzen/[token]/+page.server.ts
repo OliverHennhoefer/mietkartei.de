@@ -10,8 +10,10 @@ const INVALID_LINK =
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	// A used token is deleted, so unknown, expired and used links all end here.
-	if (!(await findPasswordReset(locals.db, params.token))) error(404, INVALID_LINK);
-	return {};
+	const reset = await findPasswordReset(locals.db, params.token);
+	if (!reset) error(404, INVALID_LINK);
+	// Shown as the username of the form, so a password manager stores the new password for it.
+	return { email: reset.email };
 };
 
 export const actions: Actions = {

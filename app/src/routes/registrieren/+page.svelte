@@ -73,16 +73,27 @@
 				/>
 			{/if}
 			{#if data.setupCode}
-				<PasswordField
-					label="Einrichtungscode"
-					subject="Code"
-					note="Den Code hast du beim Einrichten von mietkartei selbst festgelegt."
-					error={form?.wrongSetupCode ? 'Der Einrichtungscode stimmt nicht.' : undefined}
-					name="setupCode"
-					autocomplete="off"
-					aria-invalid={form?.wrongSetupCode ? 'true' : undefined}
-					required
-				/>
+				<!-- A text field: a second password field would let password managers store the code
+				as the password of the new account. -->
+				<label>
+					Einrichtungscode
+					<input
+						name="setupCode"
+						autocomplete="off"
+						autocapitalize="none"
+						spellcheck="false"
+						data-1p-ignore
+						data-lpignore="true"
+						data-bwignore
+						aria-invalid={form?.wrongSetupCode ? 'true' : undefined}
+						required
+					/>
+					<span class="muted"
+						>Den Code hast du beim Einrichten von mietkartei selbst festgelegt.</span
+					>
+					{#if form?.wrongSetupCode}<span class="error">Der Einrichtungscode stimmt nicht.</span
+						>{/if}
+				</label>
 			{/if}
 			{#if data.turnstileSiteKey}
 				<div class="cf-turnstile" data-sitekey={data.turnstileSiteKey} data-language="de"></div>

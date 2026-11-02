@@ -27,6 +27,10 @@
 			Wähle ein Passwort für dein Konto mit {data.email}. Danach bist du angemeldet.
 		</p>
 		<form method="POST" class="card" use:enhance>
+			<label>
+				E-Mail-Adresse
+				<input type="email" value={data.email} readonly autocomplete="username" />
+			</label>
 			<PasswordField
 				label="Passwort"
 				note={`Mindestens ${MIN_PASSWORD_LENGTH} Zeichen.`}

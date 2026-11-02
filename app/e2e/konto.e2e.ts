@@ -266,7 +266,8 @@ test('restores the export of the deleted account into the empty account', async 
 	const restore = page.getByRole('region', { name: 'Export einspielen' });
 	await restore.getByLabel('Exportdatei (ZIP)').setInputFiles(exportFile);
 	await restore.getByRole('button', { name: 'Export einspielen' }).click();
-	await expect(restore.getByRole('status')).toContainText(
+	// A refused restore shows its reason as an alert, which a failure then names.
+	await expect(restore.getByRole('status').or(restore.getByRole('alert'))).toContainText(
 		/Einträge und 1 von 1 Dokumenten übernommen/
 	);
 
