@@ -20,6 +20,7 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ### Geändert
 
+- Die E-Mails zur Registrierung, zu Einladungen, zum Zurücksetzen des Passworts, zur neuen E-Mail-Adresse und zur Übergabe oder zum Ende eines Zugangs kommen im Aussehen von mietkartei: mit Wortmarke, einem Knopf für den Link, im hellen und dunklen Modus und auf dem Handy gut lesbar. Sie laden keine Bilder nach. Mail-Programme, die nur Text anzeigen, bekommen denselben Inhalt als Text.
 - Die wöchentliche Fristenübersicht per E-Mail stellst du jetzt unter Einstellungen → Benachrichtigungen ein statt unter Kalender.
 - Das Protokoll nennt beim Bearbeiten eines Mietvertrags die Mieter, die hinzugekommen oder ausgeschieden sind.
 - Fehlt zu einem Dokument die Datei im Speicher, nennt der Export es in `FEHLENDE-DOKUMENTE.txt` und das Protokoll zählt es, statt es stillschweigend auszulassen.
