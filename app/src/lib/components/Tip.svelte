@@ -4,9 +4,9 @@
 	// positioned ancestor, the field, so it spans the field's width and stays on screen on phones.
 	// The button is named "Hinweis" alone: with the field title in its name it would match the
 	// field's label too. The help text is its description.
-	let { text }: { text: string } = $props();
-
-	const id = $props.id();
+	// Tab skips the button, so filling a form goes from field to field. The field's control names
+	// the bubble's `id` in its aria-describedby, so screen readers read the help with the field.
+	let { text, id }: { text: string; id: string } = $props();
 	// Pinned by a click or tap; shown while the mouse rests on it. Escape hides both (WCAG 1.4.13).
 	let open = $state(false);
 	let hover = $state(false);
@@ -34,6 +34,7 @@
 >
 	<button
 		type="button"
+		tabindex="-1"
 		aria-label="Hinweis"
 		aria-expanded={open}
 		aria-describedby={id}

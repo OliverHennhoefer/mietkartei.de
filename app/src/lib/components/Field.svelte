@@ -12,17 +12,36 @@
 		note,
 		children
 	}: { label: string; error?: string; hint?: string; note?: string; children: Snippet } = $props();
+
+	const tipId = $props.id();
+	let labelElement: HTMLLabelElement;
+
+	// The control comes in as children, so the hint is tied to it here: its aria-describedby names
+	// the hint, and Tab skips the (?) itself.
+	$effect(() => {
+		const control = labelElement.control;
+		if (!hint || !control) return;
+		const ids = (control.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean);
+		if (!ids.includes(tipId)) control.setAttribute('aria-describedby', [...ids, tipId].join(' '));
+		return () => {
+			const rest = (control.getAttribute('aria-describedby') ?? '')
+				.split(/\s+/)
+				.filter((id) => id && id !== tipId);
+			if (rest.length) control.setAttribute('aria-describedby', rest.join(' '));
+			else control.removeAttribute('aria-describedby');
+		};
+	});
 </script>
 
 <!-- The (?) is outside the label: a button inside it would take the label's click and name. -->
 <div class="field">
-	<label>
+	<label bind:this={labelElement}>
 		<span class="title">{label}</span>
 		{@render children()}
 		{#if error}<span class="error">{error}</span>{:else if note}<span class="note">{note}</span
 			>{/if}
 	</label>
-	{#if hint}<Tip text={hint} />{/if}
+	{#if hint}<Tip text={hint} id={tipId} />{/if}
 </div>
 
 <style>
