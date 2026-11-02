@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
+	import PasswordField from '#lib/components/PasswordField.svelte';
 	import { MIN_PASSWORD_LENGTH } from '#lib/validation.ts';
 	import type { PageProps } from './$types';
 
@@ -26,31 +27,24 @@
 			Wähle ein Passwort für dein Konto mit {data.email}. Danach bist du angemeldet.
 		</p>
 		<form method="POST" class="card" use:enhance>
-			<label>
-				Passwort
-				<input
-					name="password"
-					type="password"
-					autocomplete="new-password"
-					minlength={MIN_PASSWORD_LENGTH}
-					aria-invalid={form?.errors?.password ? 'true' : undefined}
-					required
-				/>
-				<span class="muted">Mindestens {MIN_PASSWORD_LENGTH} Zeichen.</span>
-				{#if form?.errors?.password}<span class="error">{form.errors.password}</span>{/if}
-			</label>
-			<label>
-				Passwort wiederholen
-				<input
-					name="passwordConfirm"
-					type="password"
-					autocomplete="new-password"
-					aria-invalid={form?.errors?.passwordConfirm ? 'true' : undefined}
-					required
-				/>
-				{#if form?.errors?.passwordConfirm}<span class="error">{form.errors.passwordConfirm}</span
-					>{/if}
-			</label>
+			<PasswordField
+				label="Passwort"
+				note={`Mindestens ${MIN_PASSWORD_LENGTH} Zeichen.`}
+				error={form?.errors?.password}
+				name="password"
+				autocomplete="new-password"
+				minlength={MIN_PASSWORD_LENGTH}
+				aria-invalid={form?.errors?.password ? 'true' : undefined}
+				required
+			/>
+			<PasswordField
+				label="Passwort wiederholen"
+				error={form?.errors?.passwordConfirm}
+				name="passwordConfirm"
+				autocomplete="new-password"
+				aria-invalid={form?.errors?.passwordConfirm ? 'true' : undefined}
+				required
+			/>
 			{#if form?.retry}
 				<p class="error" role="alert">
 					Gerade hat sich jemand anderes registriert. Bitte versuche es noch einmal.

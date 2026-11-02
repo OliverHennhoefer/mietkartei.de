@@ -4,6 +4,7 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import PasswordField from '#lib/components/PasswordField.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDateTime } from '#lib/dates.ts';
 	import { userRoleLabels } from '#lib/labels.ts';
@@ -186,15 +187,13 @@
 				{/each}
 			</select>
 		</Field>
-		<Field label="Dein Passwort">
-			<input
-				name="password"
-				type="password"
-				autocomplete="current-password"
-				maxlength="200"
-				required
-			/>
-		</Field>
+		<PasswordField
+			label="Dein Passwort"
+			name="password"
+			autocomplete="current-password"
+			maxlength={200}
+			required
+		/>
 		<div class="form-actions">
 			<button type="submit" class="danger">Konto übergeben</button>
 		</div>

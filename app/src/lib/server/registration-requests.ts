@@ -10,6 +10,7 @@ import type { Database } from './db';
 import { runBatch } from './db/batch';
 import { registrationRequests, users } from './db/schema';
 import type { Mail } from './mail';
+import { layoutMail } from './mail-layout';
 
 // Registration with a confirmed address (Registrierung bestätigen): the form takes only the
 // address and mails a link to it; the password is chosen on the page of the link, which creates
@@ -96,14 +97,17 @@ export async function completeRegistration(
 
 /** The mail with the link; `link` is the absolute URL of /registrieren/<token>. */
 export function registrationMail(to: string, link: string): Mail {
-	return {
+	return layoutMail({
 		to,
 		subject: 'Registrierung bestätigen | mietkartei',
-		text:
-			'Hallo,\n\n' +
-			'mit dieser E-Mail-Adresse wurde ein Konto bei mietkartei beantragt. Mit diesem Link ' +
-			'bestätigst du die Adresse, wählst dein Passwort und legst das Konto an; er gilt einen Tag:\n\n' +
-			`${link}\n\n` +
-			'Wenn du das nicht warst, kannst du diese E-Mail ignorieren; dann wird kein Konto angelegt.\n'
-	};
+		preview: 'Bestätige deine Adresse und lege dein Konto bei mietkartei an.',
+		heading: 'Willkommen bei mietkartei',
+		paragraphs: [
+			'Hallo,',
+			'mit dieser E-Mail-Adresse wurde ein Konto bei mietkartei beantragt. Über den Link ' +
+				'bestätigst du die Adresse, wählst dein Passwort und legst das Konto an.'
+		],
+		action: { label: 'Konto anlegen', url: link, validity: 'Der Link gilt einen Tag.' },
+		note: 'Wenn du das nicht warst, kannst du diese E-Mail ignorieren; dann wird kein Konto angelegt.'
+	});
 }

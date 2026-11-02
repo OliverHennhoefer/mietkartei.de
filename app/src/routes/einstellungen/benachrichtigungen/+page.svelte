@@ -4,6 +4,7 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import PasswordField from '#lib/components/PasswordField.svelte';
 	import { formatDate, formatDateTime } from '#lib/dates.ts';
 	import type { PageProps } from './$types';
 
@@ -210,9 +211,13 @@
 					required
 				/>
 			</Field>
-			<Field label="Zugangstoken (nur bei geschütztem Thema)">
-				<input name="token" type="password" autocomplete="off" maxlength="200" />
-			</Field>
+			<PasswordField
+				label="Zugangstoken (nur bei geschütztem Thema)"
+				subject="Token"
+				name="token"
+				autocomplete="off"
+				maxlength={200}
+			/>
 			<label class="inline">
 				<input type="checkbox" name="urgentOnly" checked />
 				Nur Dringendes

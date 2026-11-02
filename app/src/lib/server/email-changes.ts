@@ -12,6 +12,7 @@ import type { Database } from './db';
 import { runBatch } from './db/batch';
 import { emailChanges, passwordResets, sessions, users } from './db/schema';
 import type { Mail } from './mail';
+import { layoutMail } from './mail-layout';
 import { assertQuota } from './quotas';
 
 // Changing the email address (E-Mail-Adresse ändern): the new address counts only once the link
@@ -151,28 +152,35 @@ export async function confirmEmailChange(
 
 /** The mail to the new address; `link` is the absolute URL of /e-mail-bestaetigen/<token>. */
 export function emailChangeMail(to: string, link: string): Mail {
-	return {
+	return layoutMail({
 		to,
 		subject: 'Neue E-Mail-Adresse bestätigen | mietkartei',
-		text:
-			'Hallo,\n\n' +
-			'für einen Zugang zu mietkartei soll ab jetzt diese E-Mail-Adresse gelten. Mit diesem ' +
-			'Link bestätigst du sie; er gilt einen Tag:\n\n' +
-			`${link}\n\n` +
-			'Wenn du das nicht warst, kannst du diese E-Mail ignorieren; dann bleibt alles, wie es ist.\n'
-	};
+		preview: 'Bestätige die neue Adresse für deinen Zugang zu mietkartei.',
+		heading: 'Neue E-Mail-Adresse bestätigen',
+		paragraphs: [
+			'Hallo,',
+			'für einen Zugang zu mietkartei soll ab jetzt diese E-Mail-Adresse gelten. Über den Link ' +
+				'bestätigst du sie.'
+		],
+		action: { label: 'Adresse bestätigen', url: link, validity: 'Der Link gilt einen Tag.' },
+		note: 'Wenn du das nicht warst, kannst du diese E-Mail ignorieren; dann bleibt alles, wie es ist.'
+	});
 }
 
 /** The notice to the old address, which can stop the change by changing the password. */
 export function emailChangeNoticeMail(to: string, newEmail: string): Mail {
-	return {
+	return layoutMail({
 		to,
 		subject: 'Neue E-Mail-Adresse beantragt | mietkartei',
-		text:
-			'Hallo,\n\n' +
+		preview: `Die E-Mail-Adresse deines Zugangs soll auf ${newEmail} wechseln.`,
+		heading: 'Neue E-Mail-Adresse beantragt',
+		paragraphs: [
+			'Hallo,',
 			`für deinen Zugang zu mietkartei wurde beantragt, die E-Mail-Adresse auf ${newEmail} zu ` +
-			'ändern. Sie gilt erst, wenn jemand den Link in der E-Mail an diese Adresse öffnet.\n\n' +
+				'ändern. Sie gilt erst, wenn jemand den Link in der E-Mail an diese Adresse öffnet.'
+		],
+		note:
 			'Wenn du das nicht warst, ändere sofort dein Passwort oder setze es über „Passwort ' +
-			'vergessen?“ zurück; damit verfällt die beantragte Änderung.\n'
-	};
+			'vergessen?“ zurück; damit verfällt die beantragte Änderung.'
+	});
 }
