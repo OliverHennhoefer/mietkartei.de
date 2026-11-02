@@ -79,6 +79,7 @@ export function parseLease(
 	const heatingCostModel = parser.oneOf('heatingCostModel', heatingCostModels);
 
 	const baseRent = parser.money('baseRent');
+	const parkingRent = parseParkingRent(parser, baseRent);
 	const operatingCostPrepayment = parser.money('operatingCostPrepayment', { required: false }) ?? 0;
 	// A tenant with an own supply contract pays no heating prepayment to the landlord.
 	const heatingCostPrepayment =
@@ -138,6 +139,7 @@ export function parseLease(
 		operatingCostModel: operatingCostModel!,
 		heatingCostModel: heatingCostModel!,
 		baseRent: baseRent!,
+		parkingRent,
 		operatingCostPrepayment,
 		heatingCostPrepayment,
 		securityDeposit,
@@ -151,6 +153,24 @@ export function parseLease(
 		terminatedBy,
 		notes
 	}));
+}
+
+/**
+ * "davon Garage/Stellplatz": the part of the Kaltmiete for a garage or parking space rented with
+ * the unit, empty for none. It cannot exceed the Kaltmiete it is part of.
+ */
+export function parseParkingRent<T extends { parkingRent: number }>(
+	parser: FormParser<T>,
+	baseRent: number | null
+): number {
+	const parkingRent = parser.money('parkingRent', { required: false }) ?? 0;
+	if (baseRent !== null && parkingRent > baseRent) {
+		parser.fail(
+			'parkingRent',
+			'Der Anteil für Garage/Stellplatz ist Teil der Kaltmiete und kann nicht höher sein.'
+		);
+	}
+	return parkingRent;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import type { IsoDate } from '../dates';
+import { formatDate, type IsoDate } from '../dates';
 import { laterRowUpdates, type RentAmounts, type RentFieldUpdate } from '../domain/rents';
 import type { Database } from './db';
 import { chunkIds } from './db/batch';
@@ -15,6 +15,12 @@ export type LaterRows = {
 	statements: ReturnType<typeof updateStatements>;
 	count: number;
 	updates: RentFieldUpdate[];
+	/**
+	 * The first later row the updates would leave with a parking share above its Kaltmiete (a
+	 * share raised from an earlier date over a lower later rent), as a sentence; the caller
+	 * refuses the change then.
+	 */
+	conflict: string | undefined;
 };
 
 function updateStatements(db: Database, accountId: string, updates: RentFieldUpdate[]) {
@@ -42,8 +48,16 @@ export function laterRows(
 	excludeId?: string
 ): LaterRows {
 	const updates = laterRowUpdates(changes, validFrom, before, after, excludeId);
-	const count = new Set(updates.flatMap((update) => update.ids)).size;
-	return { statements: updateStatements(db, accountId, updates), count, updates };
+	const ids = new Set(updates.flatMap((update) => update.ids));
+	const result = { statements: updateStatements(db, accountId, updates), count: ids.size, updates };
+	const [first] = withLaterRows(changes, { ...result, conflict: undefined })
+		.filter((row) => ids.has(row.id) && row.parkingRent > row.baseRent)
+		.map((row) => row.validFrom)
+		.sort();
+	const conflict = first
+		? `Ab dem ${formatDate(first)} läge der Anteil für Garage/Stellplatz über der Kaltmiete. Passe zuerst diese spätere Mietänderung an.`
+		: undefined;
+	return { ...result, conflict };
 }
 
 /** The rows as they are once the statements of `later` ran, for the charges of the same batch. */
@@ -58,7 +72,12 @@ export function withLaterRows<T extends HistoryRow>(rows: readonly T[], later: L
 }
 
 /** No later rows to update, for a change that moves no field. */
-export const noLaterRows: LaterRows = { statements: [], count: 0, updates: [] };
+export const noLaterRows: LaterRows = {
+	statements: [],
+	count: 0,
+	updates: [],
+	conflict: undefined
+};
 
 /** The audit sentence's tail when later rows follow: " (gilt auch für 2 spätere Mietänderungen)". */
 export function laterRowsNote(rows: LaterRows): string {

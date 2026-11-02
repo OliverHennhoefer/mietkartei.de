@@ -83,6 +83,7 @@ export async function loadAnalysis(
 				period: rentCharges.period,
 				kind: rentCharges.kind,
 				baseRent: rentCharges.baseRent,
+				parkingRent: rentCharges.parkingRent,
 				amount: rentCharges.amount
 			})
 			.from(rentCharges)

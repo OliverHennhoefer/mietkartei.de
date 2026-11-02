@@ -5,6 +5,7 @@ const changes: RentChange[] = [
 	{
 		validFrom: '2026-01-15',
 		baseRent: 60000,
+		parkingRent: 0,
 		operatingCostPrepayment: 15000,
 		heatingCostPrepayment: 5000,
 		status: 'approved'
@@ -12,6 +13,7 @@ const changes: RentChange[] = [
 	{
 		validFrom: '2026-07-01',
 		baseRent: 63000,
+		parkingRent: 0,
 		operatingCostPrepayment: 15000,
 		heatingCostPrepayment: 5000,
 		status: 'approved'
@@ -19,6 +21,7 @@ const changes: RentChange[] = [
 	{
 		validFrom: '2026-09-01',
 		baseRent: 70000,
+		parkingRent: 0,
 		operatingCostPrepayment: 15000,
 		heatingCostPrepayment: 5000,
 		status: 'proposed'
@@ -41,6 +44,7 @@ describe('monthlyAmounts', () => {
 	it('returns the full rent for a full month', () => {
 		expect(monthlyAmounts(changes, term, '2026-03')).toEqual({
 			baseRent: 60000,
+			parkingRent: 0,
 			operatingCostPrepayment: 15000,
 			heatingCostPrepayment: 5000,
 			days: 31,
@@ -52,6 +56,7 @@ describe('monthlyAmounts', () => {
 		// 17 of 31 days: 600 × 17/31 = 329,03; 150 × 17/31 = 82,26; 50 × 17/31 = 27,42
 		expect(monthlyAmounts(changes, term, '2026-01')).toEqual({
 			baseRent: 32903,
+			parkingRent: 0,
 			operatingCostPrepayment: 8226,
 			heatingCostPrepayment: 2742,
 			days: 17,
@@ -92,6 +97,7 @@ describe('monthlyAmounts with an unchanged field', () => {
 			{
 				validFrom: '2026-01-01',
 				baseRent: 60000,
+				parkingRent: 0,
 				operatingCostPrepayment: 12345,
 				heatingCostPrepayment: 5001,
 				status: 'approved'
@@ -99,6 +105,7 @@ describe('monthlyAmounts with an unchanged field', () => {
 			{
 				validFrom: '2026-04-16',
 				baseRent: 63001,
+				parkingRent: 0,
 				operatingCostPrepayment: 12345,
 				heatingCostPrepayment: 5001,
 				status: 'approved'
@@ -107,6 +114,7 @@ describe('monthlyAmounts with an unchanged field', () => {
 		expect(monthlyAmounts(history, { startDate: '2026-01-01', endDate: null }, '2026-04')).toEqual({
 			// 60000 × 15/30 + 63001 × 15/30 = 30000 + 31500,5 = 61500,5 → 61501.
 			baseRent: 61501,
+			parkingRent: 0,
 			operatingCostPrepayment: 12345,
 			heatingCostPrepayment: 5001,
 			days: 30,
@@ -122,7 +130,15 @@ describe('laterRowUpdates', () => {
 		baseRent: number,
 		operatingCostPrepayment: number,
 		status: 'approved' | 'proposed' = 'approved'
-	) => ({ id, validFrom, baseRent, operatingCostPrepayment, heatingCostPrepayment: 5000, status });
+	) => ({
+		id,
+		validFrom,
+		baseRent,
+		parkingRent: 0,
+		operatingCostPrepayment,
+		heatingCostPrepayment: 5000,
+		status
+	});
 
 	it('carries a new prepayment into later rows that inherited the old one', () => {
 		// Staffel steps entered up front for 2027 and 2028 copied the prepayment of 150 €; a § 560
@@ -136,8 +152,18 @@ describe('laterRowUpdates', () => {
 			laterRowUpdates(
 				history,
 				'2026-06-01',
-				{ baseRent: 60000, operatingCostPrepayment: 15000, heatingCostPrepayment: 5000 },
-				{ baseRent: 60000, operatingCostPrepayment: 20000, heatingCostPrepayment: 5000 }
+				{
+					baseRent: 60000,
+					parkingRent: 0,
+					operatingCostPrepayment: 15000,
+					heatingCostPrepayment: 5000
+				},
+				{
+					baseRent: 60000,
+					parkingRent: 0,
+					operatingCostPrepayment: 20000,
+					heatingCostPrepayment: 5000
+				}
 			)
 		).toEqual([
 			{ field: 'operatingCostPrepayment', value: 20000, ids: ['step-2027', 'step-2028'] }
@@ -157,8 +183,18 @@ describe('laterRowUpdates', () => {
 			laterRowUpdates(
 				history,
 				'2026-06-01',
-				{ baseRent: 60000, operatingCostPrepayment: 15000, heatingCostPrepayment: 5000 },
-				{ baseRent: 60000, operatingCostPrepayment: 20000, heatingCostPrepayment: 5000 }
+				{
+					baseRent: 60000,
+					parkingRent: 0,
+					operatingCostPrepayment: 15000,
+					heatingCostPrepayment: 5000
+				},
+				{
+					baseRent: 60000,
+					parkingRent: 0,
+					operatingCostPrepayment: 20000,
+					heatingCostPrepayment: 5000
+				}
 			)
 		).toEqual([{ field: 'operatingCostPrepayment', value: 20000, ids: ['step-2027'] }]);
 	});
@@ -174,16 +210,36 @@ describe('laterRowUpdates', () => {
 			laterRowUpdates(
 				history,
 				'2027-01-01',
-				{ baseRent: 60000, operatingCostPrepayment: 15000, heatingCostPrepayment: 5000 },
-				{ baseRent: 62000, operatingCostPrepayment: 15000, heatingCostPrepayment: 5000 }
+				{
+					baseRent: 60000,
+					parkingRent: 0,
+					operatingCostPrepayment: 15000,
+					heatingCostPrepayment: 5000
+				},
+				{
+					baseRent: 62000,
+					parkingRent: 0,
+					operatingCostPrepayment: 15000,
+					heatingCostPrepayment: 5000
+				}
 			)
 		).toEqual([{ field: 'baseRent', value: 62000, ids: ['statement'] }]);
 		expect(
 			laterRowUpdates(
 				history,
 				'2025-01-01',
-				{ baseRent: 60000, operatingCostPrepayment: 15000, heatingCostPrepayment: 5000 },
-				{ baseRent: 61000, operatingCostPrepayment: 15000, heatingCostPrepayment: 5000 },
+				{
+					baseRent: 60000,
+					parkingRent: 0,
+					operatingCostPrepayment: 15000,
+					heatingCostPrepayment: 5000
+				},
+				{
+					baseRent: 61000,
+					parkingRent: 0,
+					operatingCostPrepayment: 15000,
+					heatingCostPrepayment: 5000
+				},
 				'statement'
 			)
 		).toEqual([]);

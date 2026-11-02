@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	formatArea,
 	formatNumber,
+	formatShareOf,
 	parseDecimal,
 	personName,
 	pluralize,
@@ -26,6 +27,15 @@ describe('format', () => {
 	it('joins first and last name', () => {
 		expect(personName({ firstName: 'Erika', lastName: 'Mustermann' })).toBe('Erika Mustermann');
 		expect(personName({ firstName: '', lastName: 'Mustermann' })).toBe('Mustermann');
+	});
+});
+
+describe('formatShareOf', () => {
+	it('writes a share as a fraction with its percentage', () => {
+		expect(formatShareOf(85, 1000)).toBe('85/1.000 (8,5\u00a0%)');
+		expect(formatShareOf(71.3, 1000)).toBe('71,3/1.000 (7,13\u00a0%)');
+		expect(formatShareOf(1, 3)).toBe('1/3 (33,33\u00a0%)');
+		expect(formatShareOf(5, 0)).toBe('5/0');
 	});
 });
 

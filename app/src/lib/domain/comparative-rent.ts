@@ -11,7 +11,7 @@ import { formatArea } from '../format';
 import { formatCents } from '../money';
 import type { ComparisonSource } from '../server/db/schema';
 import { greeting, formatPercent, type HistoryChange, type LetterTenant } from './index-rent';
-import { rentOn, total, type RentChange } from './rents';
+import { rentOn, total, unitRent, type RentChange } from './rents';
 
 // Mieterhöhung bis zur ortsüblichen Vergleichsmiete (§§ 558–558b BGB): the pure part. The rent
 // may rise once it has been unchanged for 15 months, the landlord may ask a year after the last
@@ -19,6 +19,11 @@ import { rentOn, total, type RentChange } from './rents';
 // nor above the Vergleichsmiete, and the tenant has until the end of the second month after
 // receiving the demand to consent; the new rent is due from the start of the third month.
 // rent-adjustments.ts stores the demand and the consent.
+//
+// A garage or parking space rented with the flat (parkingRent, part of the Kaltmiete) is not part
+// of the Vergleichsmiete per m² of the Mietspiegel. The demand raises the flat's share only: the
+// Kappungsgrenze and the Vergleichsmiete apply to the Kaltmiete without the parking share, which
+// stays as it is. The amounts the page shows and the demand enters are whole Kaltmieten.
 
 /** § 558 Abs. 3 BGB: 20 %, or 15 % where a Land ordinance names the Gemeinde. */
 export const cappingPercents = [20, 15] as const;
@@ -70,16 +75,16 @@ export function comparativeEffectiveFrom(deliveredOn: IsoDate, lastChange?: IsoD
 }
 
 /**
- * The Kaltmiete the Kappungsgrenze starts from: the rent three years before the new one is due,
- * or the first rent of a younger lease.
+ * The Kaltmiete the Kappungsgrenze starts from, without the parking share: the rent three years
+ * before the new one is due, or the first rent of a younger lease.
  */
 export function cappingBase(changes: readonly RentChange[], validFrom: IsoDate): number {
 	const before = rentOn(changes, addMonths(validFrom, -36));
-	if (before) return before.baseRent;
+	if (before) return unitRent(before);
 	const first = changes
 		.filter((change) => change.status === 'approved')
 		.sort((a, b) => a.validFrom.localeCompare(b.validFrom))[0];
-	return first?.baseRent ?? 0;
+	return first ? unitRent(first) : 0;
 }
 
 /** The most the Kaltmiete may reach under the Kappungsgrenze, rounded down to a cent. */
@@ -106,8 +111,11 @@ export type ComparativeSituation = {
 	validFrom: IsoDate;
 	/** The Kaltmiete valid on validFrom (or the latest one). */
 	currentBaseRent: number | undefined;
+	/** The part of it for a garage or parking space, which the demand keeps. */
+	parkingRent: number;
+	/** The Kaltmiete without the parking share three years before validFrom. */
 	capBase: number | undefined;
-	/** The most the Kaltmiete may reach per Kappungsgrenze. */
+	/** The most the Kaltmiete (with the parking share) may reach per Kappungsgrenze. */
 	caps: Record<CappingPercent, number> | undefined;
 	/** The demand waiting for the tenant's consent, if any. */
 	pending: HistoryChange | undefined;
@@ -125,10 +133,11 @@ export function comparativeSituation(
 	const demandFrom = lastChange ? addMonths(lastChange, 12) : undefined;
 	const validFrom = comparativeEffectiveFrom(deliveredOn, lastChange);
 	const current = rentOn(changes, validFrom) ?? rentOn(changes, '9999-12-31');
+	const parkingRent = current?.parkingRent ?? 0;
 	const capBase = current ? cappingBase(changes, validFrom) : undefined;
 	const caps =
 		capBase !== undefined
-			? { 20: cappedRent(capBase, 20), 15: cappedRent(capBase, 15) }
+			? { 20: cappedRent(capBase, 20) + parkingRent, 15: cappedRent(capBase, 15) + parkingRent }
 			: undefined;
 	const pending = changes.find((change) => change.status === 'proposed');
 
@@ -153,6 +162,7 @@ export function comparativeSituation(
 		demandFrom,
 		validFrom,
 		currentBaseRent: current?.baseRent,
+		parkingRent,
 		capBase,
 		caps,
 		pending,
@@ -193,18 +203,21 @@ export function demandProblem(
 			message: `Die neue Kaltmiete muss über der bisherigen von ${formatCents(current)} liegen.`
 		};
 	}
-	const cap = cappedRent(situation.capBase!, demand.cappingPercent);
+	const parking = situation.parkingRent;
+	const withParking = parking > 0 ? `, mit ${formatCents(parking)} für Garage/Stellplatz` : '';
+	const cap = cappedRent(situation.capBase!, demand.cappingPercent) + parking;
 	if (demand.baseRent > cap) {
+		const base = `${formatCents(situation.capBase!)}${parking > 0 ? ' für die Wohnung' : ''}`;
 		return {
 			field: 'baseRent',
-			message: `Die Kappungsgrenze von ${demand.cappingPercent} % erlaubt höchstens ${formatCents(cap)} (${formatCents(situation.capBase!)} drei Jahre vor dem ${formatDate(situation.validFrom)}, § 558 Abs. 3 BGB).`
+			message: `Die Kappungsgrenze von ${demand.cappingPercent} % erlaubt höchstens ${formatCents(cap)}${withParking} (${base} drei Jahre vor dem ${formatDate(situation.validFrom)}, § 558 Abs. 3 BGB).`
 		};
 	}
-	const limit = comparisonLimit(demand.comparativeRent, area);
+	const limit = comparisonLimit(demand.comparativeRent, area) + parking;
 	if (demand.baseRent > limit) {
 		return {
 			field: 'baseRent',
-			message: `Die Vergleichsmiete von ${formatCents(demand.comparativeRent)} je m² erlaubt bei ${formatArea(area)} höchstens ${formatCents(limit)}.`
+			message: `Die Vergleichsmiete von ${formatCents(demand.comparativeRent)} je m² erlaubt bei ${formatArea(area)} höchstens ${formatCents(limit)}${withParking}.`
 		};
 	}
 	return undefined;
@@ -233,21 +246,31 @@ export type ComparativeLetterContent = {
 export function comparativeLetterText(content: ComparativeLetterContent): string {
 	const { demand, oldRent, newRent, floorArea } = content;
 	const increase = newRent.baseRent - oldRent.baseRent;
-	const percent = Math.round((newRent.baseRent / content.capBase - 1) * 10_000) / 100;
+	const oldUnitRent = unitRent(oldRent);
+	const newUnitRent = unitRent(newRent);
+	const percent = Math.round((newUnitRent / content.capBase - 1) * 10_000) / 100;
 	const details = demand.comparisonDetails.trim().replace(/[.:]$/, '');
+	const parking = newRent.parkingRent;
 	const paragraphs = [
 		greeting(content.tenants),
 		`Wir bitten Sie, für Ihre Wohnung ${content.unitName} einer Erhöhung der Kaltmiete nach ` +
 			`§ 558 BGB von ${formatCents(oldRent.baseRent)} um ${formatCents(increase)} auf ` +
-			`${formatCents(newRent.baseRent)} im Monat zuzustimmen.`,
+			`${formatCents(newRent.baseRent)} im Monat zuzustimmen.` +
+			(parking > 0
+				? ` Davon entfallen wie bisher ${formatCents(parking)} auf die mitvermietete Garage ` +
+					`bzw. den Stellplatz; die Kaltmiete für die Wohnung steigt von ` +
+					`${formatCents(oldUnitRent)} auf ${formatCents(newUnitRent)}.`
+				: ''),
 		`Die ortsübliche Vergleichsmiete für Wohnungen dieser Art, Größe, Ausstattung, Beschaffenheit ` +
 			`und Lage beträgt ${formatCents(demand.comparativeRent)} je m². ` +
 			`${comparisonSourceSentences[demand.comparisonSource]}: ${details}. Bei ${formatArea(floorArea)} ` +
-			`Wohnfläche steigt die Kaltmiete von ${formatCents(perSquareMetre(oldRent.baseRent, floorArea))} ` +
-			`auf ${formatCents(perSquareMetre(newRent.baseRent, floorArea))} je m² und liegt damit nicht ` +
+			`Wohnfläche steigt die Kaltmiete${parking > 0 ? ' für die Wohnung' : ''} von ` +
+			`${formatCents(perSquareMetre(oldUnitRent, floorArea))} ` +
+			`auf ${formatCents(perSquareMetre(newUnitRent, floorArea))} je m² und liegt damit nicht ` +
 			'über der ortsüblichen Vergleichsmiete.',
 		`Die Kaltmiete ist seit dem ${formatDate(content.lastChange)} unverändert. Gegenüber der Miete ` +
-			`vor drei Jahren (${formatCents(content.capBase)}) steigt sie um ${formatPercent(percent)} und ` +
+			`${parking > 0 ? 'für die Wohnung ' : ''}vor drei Jahren (${formatCents(content.capBase)}) ` +
+			`steigt sie um ${formatPercent(percent)} und ` +
 			`bleibt innerhalb der Kappungsgrenze von ${demand.cappingPercent}\u00a0% (§ 558 Abs. 3 BGB).`,
 		`Bitte stimmen Sie der Erhöhung bis zum ${formatDate(consentDeadline(content.deliveredOn))} ` +
 			`in Textform zu. Die neue Miete ist dann ab dem ${formatDate(newRent.validFrom)} zu zahlen. ` +
@@ -261,12 +284,23 @@ export function comparativeLetterText(content: ComparativeLetterContent): string
 /** The rows of the old/new table under the demand: Kaltmiete, per m², Gesamtmiete. */
 export function comparativeLetterRows(content: ComparativeLetterContent): string[][] {
 	const { oldRent, newRent, floorArea } = content;
+	const parkingRows =
+		newRent.parkingRent > 0 || oldRent.parkingRent > 0
+			? [
+					[
+						'davon Garage/Stellplatz',
+						formatCents(oldRent.parkingRent),
+						formatCents(newRent.parkingRent)
+					]
+				]
+			: [];
 	return [
 		['Kaltmiete', formatCents(oldRent.baseRent), formatCents(newRent.baseRent)],
+		...parkingRows,
 		[
-			'Kaltmiete je m²',
-			formatCents(perSquareMetre(oldRent.baseRent, floorArea)),
-			formatCents(perSquareMetre(newRent.baseRent, floorArea))
+			parkingRows.length > 0 ? 'Kaltmiete der Wohnung je m²' : 'Kaltmiete je m²',
+			formatCents(perSquareMetre(unitRent(oldRent), floorArea)),
+			formatCents(perSquareMetre(unitRent(newRent), floorArea))
 		],
 		['Gesamtmiete', formatCents(total(oldRent)), formatCents(total(newRent))]
 	];

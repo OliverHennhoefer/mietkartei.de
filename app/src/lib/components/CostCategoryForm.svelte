@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Field from './Field.svelte';
 	import { enhance } from '$app/forms';
 	import type { FieldErrors } from '../forms/fields';
 	import type { CostCategory, CostCategoryInput } from '../server/operating-costs/categories';
@@ -28,28 +29,23 @@
 </script>
 
 <form method="POST" {action} class="card" use:enhance>
-	<label>
-		Bezeichnung
+	<Field label="Bezeichnung" error={errors?.name}>
 		<input
 			name="name"
 			defaultValue={value('name', category?.name ?? '')}
 			aria-invalid={errors?.name ? 'true' : undefined}
 			required
 		/>
-		{#if errors?.name}<span class="error">{errors.name}</span>{/if}
-	</label>
-	<label>
-		Nummer in § 2 BetrKV (optional)
+	</Field>
+	<Field label="Nummer in § 2 BetrKV (optional)" error={errors?.betrkvItem}>
 		<input
 			name="betrkvItem"
 			inputmode="numeric"
 			defaultValue={value('betrkvItem', category?.betrkvItem?.toString() ?? '')}
 			aria-invalid={errors?.betrkvItem ? 'true' : undefined}
 		/>
-		{#if errors?.betrkvItem}<span class="error">{errors.betrkvItem}</span>{/if}
-	</label>
-	<label>
-		Standard-Umlageschlüssel
+	</Field>
+	<Field label="Standard-Umlageschlüssel" error={errors?.allocationKeyId}>
 		<select name="allocationKeyId" aria-invalid={errors?.allocationKeyId ? 'true' : undefined}>
 			<option value="" selected={value('allocationKeyId', category?.allocationKeyId ?? '') === ''}>
 				Kein Standard
@@ -63,10 +59,8 @@
 				</option>
 			{/each}
 		</select>
-		{#if errors?.allocationKeyId}<span class="error">{errors.allocationKeyId}</span>{/if}
-	</label>
-	<label>
-		Standard-Abrechnungskreis
+	</Field>
+	<Field label="Standard-Abrechnungskreis" error={errors?.billingCircleId}>
 		<select name="billingCircleId" aria-invalid={errors?.billingCircleId ? 'true' : undefined}>
 			<option value="" selected={value('billingCircleId', category?.billingCircleId ?? '') === ''}>
 				Alle Einheiten des Objekts
@@ -80,18 +74,15 @@
 				</option>
 			{/each}
 		</select>
-		{#if errors?.billingCircleId}<span class="error">{errors.billingCircleId}</span>{/if}
-	</label>
-	<label>
-		Reihenfolge
+	</Field>
+	<Field label="Reihenfolge" error={errors?.sortOrder}>
 		<input
 			name="sortOrder"
 			inputmode="numeric"
 			defaultValue={value('sortOrder', String(category?.sortOrder ?? 20))}
 			aria-invalid={errors?.sortOrder ? 'true' : undefined}
 		/>
-		{#if errors?.sortOrder}<span class="error">{errors.sortOrder}</span>{/if}
-	</label>
+	</Field>
 	<div class="stack">
 		<label class="inline">
 			<input

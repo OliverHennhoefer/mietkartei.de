@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Field from '#lib/components/Field.svelte';
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
@@ -75,8 +76,10 @@
 			<Alert tone="danger"><p>{form.resetFailed}</p></Alert>
 		{/if}
 		<form method="POST" action="?/reset" class="form" use:enhance>
-			<label>
-				Tippe {RESET_CONFIRMATION} zur Bestätigung
+			<Field
+				label={`Tippe ${RESET_CONFIRMATION} zur Bestätigung`}
+				error={form?.resetErrors?.confirmation}
+			>
 				<input
 					name="confirmation"
 					autocomplete="off"
@@ -85,10 +88,7 @@
 					aria-invalid={form?.resetErrors?.confirmation ? 'true' : undefined}
 					required
 				/>
-				{#if form?.resetErrors?.confirmation}
-					<span class="error">{form.resetErrors.confirmation}</span>
-				{/if}
-			</label>
+			</Field>
 			<PasswordField
 				label="Passwort"
 				error={form?.resetErrors?.password}

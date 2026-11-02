@@ -70,6 +70,8 @@ export type TaxCharge = {
 	dueDate: string | null;
 	kind: RentChargeKind;
 	baseRent: number;
+	/** The part of baseRent for a garage or parking space rented with the unit. */
+	parkingRent: number;
 	operatingCostPrepayment: number;
 	heatingCostPrepayment: number;
 	amount: number;
@@ -128,6 +130,8 @@ export type TaxLeaseIncome = {
 	/** The charges of the year's months. */
 	charged: number;
 	baseRent: number;
+	/** The part of baseRent for a garage or parking space, on the line for parking. */
+	parkingRent: number;
 	prepayments: number;
 	settlements: number;
 	other: number;
@@ -222,6 +226,7 @@ function leaseIncome(input: TaxInput): TaxLeaseIncome[] {
 	const unitKind = new Map(input.units.map((unit) => [unit.id, unit.kind]));
 	return input.leases.flatMap((lease): TaxLeaseIncome[] => {
 		let baseRent = 0;
+		let parkingRent = 0;
 		let prepayments = 0;
 		let settlements = 0;
 		let other = 0;
@@ -229,6 +234,7 @@ function leaseIncome(input: TaxInput): TaxLeaseIncome[] {
 			if (charge.leaseId !== lease.id || !chargeInYear(charge, input.year)) continue;
 			if (charge.kind === 'rent') {
 				baseRent += charge.baseRent;
+				parkingRent += charge.parkingRent;
 				prepayments += charge.amount - charge.baseRent;
 			} else if (charge.kind === 'adjustment') {
 				other += charge.amount;
@@ -245,7 +251,7 @@ function leaseIncome(input: TaxInput): TaxLeaseIncome[] {
 		const kind = unitKind.get(lease.unitId) ?? 'apartment';
 		const row = { leaseId: lease.id, unitKind: kind, received, charged };
 		if (received === charged) {
-			return [{ ...row, baseRent, prepayments, settlements, other, prorated: false }];
+			return [{ ...row, baseRent, parkingRent, prepayments, settlements, other, prorated: false }];
 		}
 		if (charged === 0) {
 			// Money without a charge of the year: back rent, or a Guthaben paid out.
@@ -253,6 +259,7 @@ function leaseIncome(input: TaxInput): TaxLeaseIncome[] {
 				{
 					...row,
 					baseRent: received > 0 ? received : 0,
+					parkingRent: 0,
 					prepayments: 0,
 					settlements: received < 0 ? received : 0,
 					other: 0,
@@ -269,6 +276,7 @@ function leaseIncome(input: TaxInput): TaxLeaseIncome[] {
 			{
 				...row,
 				...split,
+				parkingRent: share(received, parkingRent, charged),
 				other: received - split.baseRent - split.prepayments - split.settlements,
 				prorated: true
 			}
@@ -291,14 +299,24 @@ export function taxOverview(input: TaxInput): TaxOverview {
 	// Income.
 	const leases = leaseIncome(input);
 	const kindLabel = { apartment: 'Wohnungen', commercial: 'Gewerbe', parking: 'Stellplätze' };
+	// A garage rented with a flat goes on the parking line with its share of the Kaltmiete.
+	const ownLine = (lease: TaxLeaseIncome) =>
+		lease.unitKind === 'parking' ? lease.baseRent : lease.baseRent - lease.parkingRent;
 	for (const kind of ['apartment', 'commercial', 'parking'] as const) {
 		const own = leases.filter((lease) => lease.unitKind === kind);
 		add(
 			rentLine(kind),
 			`Kaltmiete ${kindLabel[kind]}`,
-			own.reduce((sum, lease) => sum + lease.baseRent, 0)
+			own.reduce((sum, lease) => sum + ownLine(lease), 0)
 		);
 	}
+	add(
+		'parking',
+		'Mitvermietete Garagen und Stellplätze (Anteil der Kaltmiete)',
+		leases
+			.filter((lease) => lease.unitKind !== 'parking')
+			.reduce((sum, lease) => sum + lease.parkingRent, 0)
+	);
 	add(
 		'prepayments',
 		'Vorauszahlungen auf Betriebs- und Heizkosten',

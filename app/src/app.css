@@ -1091,6 +1091,17 @@ form.card,
 .form-wide {
 	grid-column: 1 / -1;
 }
+/* A field spans two rows of the grid, its title and its control (Field.svelte), so that the
+   controls of a row line up below titles of different length. The other items span two rows as
+   well, so they sit beside the fields instead of stretching the row of titles; a checkbox lines up
+   with the controls. */
+:is(form.card, .form) > :not(.field) {
+	grid-row: span 2;
+}
+:is(form.card, .form) > label.inline {
+	align-self: end;
+	min-height: 2.75rem;
+}
 label {
 	display: grid;
 	gap: 0.5rem;

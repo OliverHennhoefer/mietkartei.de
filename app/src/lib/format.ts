@@ -19,6 +19,15 @@ export function parseDecimal(input: string): number | null {
 	return Number.isFinite(parsed) ? parsed : null;
 }
 
+/**
+ * A share of a total as a Teilungserklärung writes it, with the percentage:
+ * `85, 1000` → `85/1.000 (8,5 %)`.
+ */
+export function formatShareOf(share: number, total: number): string {
+	const fraction = `${number.format(share)}/${number.format(total)}`;
+	return total > 0 ? `${fraction} (${number.format((share / total) * 100)}\u00a0%)` : fraction;
+}
+
 /** `72.5` → `72,5 m²`. */
 export function formatArea(squareMetres: number): string {
 	return `${number.format(squareMetres)}\u00a0m²`;
