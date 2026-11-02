@@ -166,6 +166,13 @@ describe('vertraege/neu', () => {
 		});
 		expect(await count()).toBe(before);
 
+		// A value that is neither an id nor a new tenant counts for nothing.
+		const bogus = { ...lease(), tenantIds: 'x'.repeat(100) };
+		expect(await run(newActions.create, { form: bogus })).toMatchObject({
+			fail: 400,
+			data: { errors: { tenantIds: expect.any(String) } }
+		});
+
 		const nameless = { ...lease(), tenantIds: 'new:|Berger' };
 		expect(await run(newActions.create, { form: nameless })).toMatchObject({
 			fail: 400,

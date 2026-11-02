@@ -60,7 +60,9 @@ export function parseLease(
 	const tenantIds = tenantValues.filter(
 		(value) => !value.startsWith(NEW_TENANT_PREFIX) && value.length <= 64
 	);
-	const typed = options.newTenants ? tenantValues.length - tenantIds.length : 0;
+	const typed = options.newTenants
+		? tenantValues.filter((value) => value.startsWith(NEW_TENANT_PREFIX)).length
+		: 0;
 	if (tenantIds.length + typed === 0) {
 		parser.fail('tenantIds', 'Bitte wähle mindestens einen Mieter aus.');
 	}
