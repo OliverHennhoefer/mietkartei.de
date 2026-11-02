@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import lockup from '../../../../assets/brand/lockup-highlight.svg';
 	import lockupWhite from '../../../../assets/brand/lockup-highlight-white.svg';
 </script>
@@ -11,7 +13,10 @@
 			<img src={lockup} alt="mietkartei" width="489" height="96" />
 		</picture>
 	</a>
-	<nav aria-label="Seitenlinks">
+	<nav class="website-links" aria-label="Seitenlinks">
+		{#if page.url.pathname !== resolve('/anmelden')}
+			<a class="website-sign-in" href={resolve('/anmelden')}>Anmelden</a>
+		{/if}
 		<a
 			class="website-github"
 			href="https://github.com/OliverHennhoefer/mietkartei.de"

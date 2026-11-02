@@ -105,6 +105,23 @@ body[data-md-color-scheme="slate"][data-md-color-primary] {
   display: block;
 }
 
+.mk-sign-in {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 8px;
+  color: var(--md-default-fg-color);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.mk-sign-in:hover {
+  border-color: var(--md-default-fg-color);
+}
+
 .mk-back {
   padding-top: 48px;
   font-size: 16px;
@@ -220,6 +237,32 @@ body[data-md-color-scheme="slate"][data-md-color-primary] {
 
   .mk-footer {
     background-size: calc(100% - 48px) 1px;
+  }
+}
+
+/* On phones the brand, the sign-in button and the GitHub icon share one row, as on the website. */
+@media (max-width: 480px) {
+  .mk-header {
+    gap: 12px;
+  }
+
+  .mk-brand img {
+    height: 36px;
+  }
+
+  .mk-header-links {
+    gap: 4px;
+  }
+
+  .mk-sign-in {
+    min-height: 36px;
+    padding: 0 12px;
+  }
+}
+
+@media (max-width: 380px) {
+  .mk-brand img {
+    height: 32px;
   }
 }
 

@@ -58,6 +58,9 @@ a { color: inherit; }
 .github { display: inline-flex; padding: 8px; margin-right: -8px; border-radius: 8px; color: var(--muted); transition: color 140ms; }
 .github:hover { color: var(--foreground); }
 .github svg { display: block; }
+/* The way into the hosted app, quiet beside the GitHub icon so the homepage's own buttons lead. */
+.sign-in { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border: 1px solid var(--line); border-radius: 8px; font-size: var(--text-sm); font-weight: 500; text-decoration: none; transition: border-color 140ms; }
+.sign-in:hover { border-color: var(--foreground); }
 
 main { flex: 1; }
 
@@ -330,7 +333,7 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-link, .documentation, .github, .plan-cta, .billing-switch label { transition: none; }
+  .app-link, .documentation, .github, .sign-in, .plan-cta, .billing-switch label { transition: none; }
 }
 
 @media (max-width: 1100px) {
@@ -349,6 +352,18 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
   .subpage { padding-block: 32px 64px; }
   .eyebrow { font-size: var(--text-xs); letter-spacing: .09em; margin-bottom: 18px; }
   .plan { padding: 28px 24px; }
+}
+
+/* On phones the brand, the sign-in button and the GitHub icon share one row, so all three get smaller. */
+@media (max-width: 480px) {
+  .header { gap: 12px; }
+  .brand img { height: 36px; }
+  .header-links { gap: 4px; }
+  .sign-in { min-height: 36px; padding: 0 12px; }
+}
+
+@media (max-width: 380px) {
+  .brand img { height: 32px; }
 }
 
 /* Reference cases (Rechenbeispiele): one step of a case at a time, bars as SVG rectangles. The
