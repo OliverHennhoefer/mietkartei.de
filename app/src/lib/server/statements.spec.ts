@@ -1498,6 +1498,12 @@ describe('checkRows', () => {
 			'Nutzungszeitraum',
 			'Vorauszahlungen'
 		]);
+
+		// A tenant with an own gas contract learns that the fuel is not part of the statement.
+		const own = { ...late, ownHeatingContract: true };
+		expect(Object.fromEntries(checkRows(own))['Heizkosten']).toBe(
+			'Eigener Liefervertrag des Mieters: Kosten für Gas oder Wärme sind nicht enthalten.'
+		);
 	});
 });
 
@@ -1516,6 +1522,15 @@ describe('statementLetter variants', () => {
 			'paragraph' in block ? [block.paragraph] : []
 		);
 	}
+
+	it('says that the gas of a tenant with an own supply contract is not part of the statement', () => {
+		const note = (statement: LeaseStatement) =>
+			paragraphsOf(statement).filter((paragraph) => paragraph.includes('eigenen Liefervertrag'));
+		expect(note(base)).toEqual([]);
+		expect(note({ ...base, ownHeatingContract: true })).toEqual([
+			'Ihre Heizung betreiben Sie mit einem eigenen Liefervertrag. Die Kosten für Gas oder Wärme rechnet Ihr Versorger direkt mit Ihnen ab; sie sind nicht Teil dieser Abrechnung.'
+		]);
+	});
 
 	it('greets tenants without Frau or Herr by full name and addresses them at their own street', () => {
 		const letter = statementLetter({

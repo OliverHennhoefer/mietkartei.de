@@ -17,7 +17,7 @@ import {
 	type IndexLease,
 	type IndexValueRow
 } from './index-rent';
-import { monthlyAmounts, rentOn, total, type LeaseTerm } from './rents';
+import { monthlyAmounts, rentOn, total, unitRent, type LeaseTerm } from './rents';
 
 // Prognose: the next twelve months from what is known today. The rent is what the leases owe
 // with every approved change (Staffel steps included); an Indexmiete that may rise is added from
@@ -172,7 +172,8 @@ function rentIncrease(
 	const threeYearsBefore =
 		rentOn(lease.changes, addMonths(from, -36)) ??
 		lease.changes.filter((change) => change.status === 'approved').sort(byValidFrom)[0];
-	const increase = Math.round(threeYearsBefore.baseRent * (1 + cappingLimit)) - current.baseRent;
+	// A garage rented with the flat keeps its share; only the flat's rent rises.
+	const increase = Math.round(unitRent(threeYearsBefore) * (1 + cappingLimit)) - unitRent(current);
 	return increase > 0 ? { ...base, kind: 'comparative', from, increase } : undefined;
 }
 
@@ -225,7 +226,7 @@ export function forecast(input: ForecastInput, options: { propertyId: string | n
 		if (!current) continue;
 		const currentPrepayment =
 			(lease.operatingCostModel === 'prepayment' ? current.operatingCostPrepayment : 0) +
-			(lease.heatingCostModel === 'prepayment' ? current.heatingCostPrepayment : 0);
+			(lease.heatingCostModel !== 'flat' ? current.heatingCostPrepayment : 0);
 		const yearlyCosts = Math.round((statement.costs * 365) / statement.days);
 		const yearlyPrepayments = currentPrepayment * 12;
 		settlements.push({

@@ -70,6 +70,7 @@ describe('parseLease', () => {
 				operatingCostModel: 'flat',
 				heatingCostModel: 'flat',
 				baseRent: 125000,
+				parkingRent: 0,
 				operatingCostPrepayment: 18050,
 				heatingCostPrepayment: 7000,
 				securityDeposit: 375000,
@@ -100,6 +101,7 @@ describe('parseLease', () => {
 				operatingCostModel: 'prepayment',
 				heatingCostModel: 'prepayment',
 				baseRent: 65000,
+				parkingRent: 0,
 				operatingCostPrepayment: 0,
 				heatingCostPrepayment: 0,
 				securityDeposit: 0,
@@ -114,6 +116,14 @@ describe('parseLease', () => {
 				notes: null
 			}
 		});
+	});
+
+	it('stores no heating prepayment for a tenant who pays the supplier directly', () => {
+		const result = parse({ heatingCostModel: 'tenant_contract', heatingCostPrepayment: '70' });
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data.heatingCostModel).toBe('tenant_contract');
+		expect(result.data.heatingCostPrepayment).toBe(0);
 	});
 
 	it('keeps the index base only for an indexed rent', () => {
@@ -165,6 +175,14 @@ describe('parseLease', () => {
 			tenantIds: `Höchstens ${MAX_LEASE_IDS} Einträge.`,
 			extraUnitIds: `Höchstens ${MAX_LEASE_IDS} Einträge.`
 		});
+	});
+
+	it('takes the share of a garage as part of the Kaltmiete, never above it', () => {
+		const result = parse({ parkingRent: '50' });
+		expect(result.ok && result.data.parkingRent).toBe(5000);
+		const empty = parse();
+		expect(empty.ok && empty.data.parkingRent).toBe(0);
+		expect(errorsOf({ parkingRent: '650,01' }).parkingRent).toContain('Teil der Kaltmiete');
 	});
 
 	it('rejects an end date before the start', () => {
@@ -276,6 +294,7 @@ const current: LeaseInput = {
 	operatingCostModel: 'prepayment',
 	heatingCostModel: 'prepayment',
 	baseRent: 60000,
+	parkingRent: 0,
 	operatingCostPrepayment: 15000,
 	heatingCostPrepayment: 5000,
 	securityDeposit: 180000,
@@ -320,6 +339,7 @@ describe('parseLeaseEdit', () => {
 			data: {
 				...current,
 				baseRent: 61000,
+				parkingRent: 0,
 				operatingCostPrepayment: 15500,
 				heatingCostPrepayment: 0,
 				securityDeposit: 183000,

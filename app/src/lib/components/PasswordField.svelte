@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { HTMLInputAttributes } from 'svelte/elements';
+	import FieldLabel from './FieldLabel.svelte';
 	import Icon from './Icon.svelte';
 
 	// A password input with an eye button that shows what was typed. The button sits outside the
@@ -40,40 +41,56 @@
 </script>
 
 <div class="password-field">
-	<label for="{id}-input">{label}</label>
-	<div class="password-control">
-		<input
-			bind:this={field}
-			{...input}
-			id="{id}-input"
-			type={shown ? 'text' : 'password'}
-			aria-describedby={describedBy}
-			autocapitalize="none"
-			spellcheck="false"
-		/>
-		<button
-			type="button"
-			class="password-toggle"
-			aria-controls="{id}-input"
-			title="{subject} {shown ? 'verbergen' : 'anzeigen'}"
-			onclick={() => (shown = !shown)}
-		>
-			<Icon name={shown ? 'eye-off' : 'eye'} />
-			<span class="sr-only">{subject} {shown ? 'verbergen' : 'anzeigen'}</span>
-		</button>
+	<label for="{id}-input"><FieldLabel {label} /></label>
+	<div class="password-below">
+		<div class="password-control">
+			<input
+				bind:this={field}
+				{...input}
+				id="{id}-input"
+				type={shown ? 'text' : 'password'}
+				aria-describedby={describedBy}
+				autocapitalize="none"
+				spellcheck="false"
+			/>
+			<button
+				type="button"
+				class="password-toggle"
+				aria-controls="{id}-input"
+				title="{subject} {shown ? 'verbergen' : 'anzeigen'}"
+				onclick={() => (shown = !shown)}
+			>
+				<Icon name={shown ? 'eye-off' : 'eye'} />
+				<span class="sr-only">{subject} {shown ? 'verbergen' : 'anzeigen'}</span>
+			</button>
+		</div>
+		{#if note}<span class="muted" id="{id}-note">{note}</span>{/if}
+		{#if error}<span class="error" id="{id}-error">{error}</span>{/if}
 	</div>
-	{#if note}<span class="muted" id="{id}-note">{note}</span>{/if}
-	{#if error}<span class="error" id="{id}-error">{error}</span>{/if}
 </div>
 
 <style>
-	/* Laid out like the other fields, whose label wraps the input. */
+	/* Laid out like Field: in the shared form grid it spans the row of titles and the row of
+	   controls, so its input lines up with the inputs beside it. */
 	.password-field {
 		display: grid;
 		gap: 0.5rem;
 		min-width: 0;
 		font-weight: 500;
 		font-size: var(--text-sm);
+	}
+	:global(:is(form.card, .form)) > .password-field {
+		grid-row: span 2;
+		grid-template-rows: subgrid;
+	}
+	.password-field > label {
+		align-self: end;
+	}
+	.password-below {
+		display: grid;
+		align-self: start;
+		gap: 0.5rem;
+		min-width: 0;
 	}
 	.password-control {
 		position: relative;

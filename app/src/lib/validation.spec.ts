@@ -151,7 +151,18 @@ describe('parseProperty', () => {
 		};
 		const half = parseProperty(form({ ...base, ownershipShare: '85' }));
 		expect(half.ok).toBe(false);
-		if (!half.ok) expect(Object.keys(half.errors)).toEqual(['ownershipShareTotal']);
+		if (!half.ok) {
+			expect(half.errors).toEqual({
+				ownershipShareTotal: 'Bitte gib auch den MEA der ganzen WEG an.'
+			});
+		}
+		const onlyTotal = parseProperty(form({ ...base, ownershipShareTotal: '1000' }));
+		expect(onlyTotal.ok).toBe(false);
+		if (!onlyTotal.ok) {
+			expect(onlyTotal.errors).toEqual({
+				ownershipShare: 'Bitte gib auch den MEA dieser Wohnung an.'
+			});
+		}
 		const larger = parseProperty(
 			form({ ...base, ownershipShare: '1200', ownershipShareTotal: '1000' })
 		);

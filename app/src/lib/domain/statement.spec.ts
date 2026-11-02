@@ -99,6 +99,7 @@ function lease(
 			{
 				validFrom: range.start,
 				baseRent: 60000,
+				parkingRent: 0,
 				operatingCostPrepayment: prepayments.operating,
 				heatingCostPrepayment: prepayments.heating,
 				status: 'approved'
@@ -815,6 +816,73 @@ describe('computeStatement warnings', () => {
 		const both = computeStatement(input, options);
 		expect(both.leases.map((l) => l.leaseId)).toEqual(['l-eg']);
 		expect(both.property.excludedTotal).toBe(80000);
+	});
+
+	it('bills the Wartung of an Etagenheizung with the operating costs of a tenant with an own gas contract', () => {
+		// Both flats heat with their own Etagenheizung and buy the gas themselves; the landlord
+		// only pays the yearly Wartung (§ 2 Nr. 4d BetrKV), 120 € per heater.
+		const input = small({
+			items: [
+				item('i-grundsteuer', 'Grundsteuer', 'c-grundsteuer', 'k-area', 100000),
+				item('i-wartung', 'Wartung Gasthermen', 'c-heizung', 'k-units', 24000)
+			]
+		});
+		for (const lease of input.leases) {
+			lease.heatingCostModel = 'tenant_contract';
+			lease.rentHistory[0].heatingCostPrepayment = 0;
+			lease.charges = charges(months(1, 12), 10000, 0);
+			lease.payments = paidInFull(lease.charges);
+		}
+		const result = computeStatement(input, options);
+		const eg = result.leases.find((l) => l.leaseId === 'l-eg')!;
+		expect(eg.ownHeatingContract).toBe(true);
+		expect(eg.excluded).toEqual([]);
+		expect(eg.lines.map((line) => [line.categoryName, line.amount, line.heating])).toEqual([
+			['Grundsteuer', 60000, false],
+			['Heizung', 12000, false]
+		]);
+		expect(eg.prepaymentsTotal).toBe(12 * 10000);
+		expect(eg.balance).toBe(60000 + 12000 - 120000);
+		// The Wartung is an operating cost: it raises the operating prepayment, not a heating one.
+		expect(suggestedPrepayments(eg)).toEqual({ operating: 6000, heating: null });
+		// The HeizKV does not apply to heaters the tenants supply themselves.
+		expect(findings(result)).toEqual([]);
+	});
+
+	it('follows the Betriebskostenpauschale for the heating lines of a tenant with an own contract', () => {
+		const input = small({
+			items: [item('i-wartung', 'Wartung Gasthermen', 'c-heizung', 'k-units', 24000)]
+		});
+		input.leases[1].operatingCostModel = 'flat';
+		input.leases[1].heatingCostModel = 'tenant_contract';
+		const result = computeStatement(input, options);
+		// Nothing to settle for OG: the Pauschale covers the Wartung, and no statement is made.
+		expect(result.leases.map((l) => l.leaseId)).toEqual(['l-eg']);
+		expect(result.property.excludedTotal).toBe(12000);
+	});
+
+	it('warns when a tenant with an own heating contract shares the fuel of the central heating', () => {
+		const input = small({
+			items: [item('i-heizung', 'Fernwärme', 'c-heizung', 'k-consumption', 60000)],
+			keys: [key('k-consumption', 'Wärme', 'consumption', { meterKind: 'heat' })]
+		});
+		input.leases[1].heatingCostModel = 'tenant_contract';
+		const result = computeStatement(input, options);
+		expect(findings(result)).toEqual([
+			{
+				code: 'own_heating_share',
+				blocking: false,
+				itemId: 'i-heizung',
+				leaseId: 'l-og',
+				href: '/betriebskosten/belege/i-heizung',
+				message:
+					'Beim Mietvertrag OG · Anna Alt zahlt der Mieter die Heizkosten direkt an den Versorger, er bekommt aber einen Anteil am Beleg „Fernwärme“ (240,00\u00a0€). Gehört die Wohnung nicht zur Zentralheizung, nimm sie über einen Abrechnungskreis aus diesem Beleg heraus; sonst stell die Heizkosten im Mietvertrag um.'
+			}
+		]);
+		// EG keeps its normal heating line; the HeizKV warning stays away, EG is centrally heated.
+		const eg = result.leases.find((l) => l.leaseId === 'l-eg')!;
+		expect(eg.lines[0]).toMatchObject({ heating: true, heizkv: true, amount: 36000 });
+		expect(eg.ownHeatingContract).toBe(false);
 	});
 
 	it('takes the amounts of a direct key from the cost item', () => {

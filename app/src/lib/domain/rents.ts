@@ -13,6 +13,8 @@ import { proRata } from '../money';
 
 export type RentAmounts = {
 	baseRent: number;
+	/** The part of baseRent for a parking space or garage rented with the unit. */
+	parkingRent: number;
 	operatingCostPrepayment: number;
 	heatingCostPrepayment: number;
 };
@@ -24,7 +26,12 @@ export type RentChange = RentAmounts & {
 
 export type LeaseTerm = { startDate: IsoDate; endDate: IsoDate | null };
 
-const zero: RentAmounts = { baseRent: 0, operatingCostPrepayment: 0, heatingCostPrepayment: 0 };
+const zero: RentAmounts = {
+	baseRent: 0,
+	parkingRent: 0,
+	operatingCostPrepayment: 0,
+	heatingCostPrepayment: 0
+};
 
 /** The approved change valid on the day: the latest validFrom on or before it. */
 export function rentOn(changes: readonly RentChange[], date: IsoDate): RentChange | undefined {
@@ -36,7 +43,15 @@ export function rentOn(changes: readonly RentChange[], date: IsoDate): RentChang
 	return current;
 }
 
-export function total(amounts: RentAmounts): number {
+/** The Kaltmiete without the parking share: what the dwelling itself costs. */
+export function unitRent(amounts: Pick<RentAmounts, 'baseRent' | 'parkingRent'>): number {
+	return Math.max(0, amounts.baseRent - amounts.parkingRent);
+}
+
+/** The total; parkingRent is part of baseRent and not added again. */
+export function total(
+	amounts: Pick<RentAmounts, 'baseRent' | 'operatingCostPrepayment' | 'heatingCostPrepayment'>
+): number {
 	return amounts.baseRent + amounts.operatingCostPrepayment + amounts.heatingCostPrepayment;
 }
 
@@ -89,6 +104,7 @@ export function monthlyAmounts(
 				);
 	return {
 		baseRent: sum('baseRent'),
+		parkingRent: sum('parkingRent'),
 		operatingCostPrepayment: sum('operatingCostPrepayment'),
 		heatingCostPrepayment: sum('heatingCostPrepayment'),
 		days,
@@ -99,12 +115,18 @@ export function monthlyAmounts(
 function sameAmounts(a: RentAmounts, b: RentAmounts): boolean {
 	return (
 		a.baseRent === b.baseRent &&
+		a.parkingRent === b.parkingRent &&
 		a.operatingCostPrepayment === b.operatingCostPrepayment &&
 		a.heatingCostPrepayment === b.heatingCostPrepayment
 	);
 }
 
-const rentFields = ['baseRent', 'operatingCostPrepayment', 'heatingCostPrepayment'] as const;
+const rentFields = [
+	'baseRent',
+	'parkingRent',
+	'operatingCostPrepayment',
+	'heatingCostPrepayment'
+] as const;
 
 export type RentFieldUpdate = { field: keyof RentAmounts; value: number; ids: string[] };
 

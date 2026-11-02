@@ -11,11 +11,13 @@ Der Mieter muss dabei sehen können, wie sein Anteil zustande kommt: die Gesamtk
 
 ## 1. Wohnung als Objekt anlegen
 
-Unter **Objekte → Objekt anlegen** wählst du als Art **Eigentumswohnung in einer WEG**. Dann kommen drei Felder dazu:
+Unter **Objekte → Objekt anlegen** wählst du als Art **Eigentumswohnung in einer WEG**. Dann kommt der Abschnitt **Wohnungseigentümergemeinschaft (WEG)** mit drei Feldern dazu:
 
 - **Verwalter:** wer die WEG verwaltet und die Hausgeldabrechnung schickt.
-- **Miteigentumsanteil der Wohnung:** der Anteil laut Teilungserklärung, zum Beispiel 85.
-- **Miteigentumsanteile der WEG:** alle Anteile zusammen, meist 1.000 oder 10.000.
+- **MEA dieser Wohnung:** der Miteigentumsanteil deiner Wohnung laut Teilungserklärung. Steht dort „85/1.000“, ist das die erste Zahl, also 85.
+- **MEA der ganzen WEG:** die zweite Zahl, die Summe der Anteile aller Wohnungen, meist 1000 oder 10000. Gib sie ohne Tausenderpunkt ein.
+
+Unter den Feldern steht dann, wie viel Prozent der WEG deine Wohnung hält, bei 85/1.000 also 8,5 %.
 
 Lege danach die Wohnung als Einheit an, mit Wohnfläche. Gehört ein Stellplatz dazu, legst du ihn als zweite Einheit an.
 

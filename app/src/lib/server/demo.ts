@@ -28,7 +28,7 @@ import {
 } from '../domain/deposit-settlement';
 import { defaultKeys, defaultRooms } from '../domain/handover';
 import { effectiveFrom } from '../domain/index-rent';
-import { monthlyAmounts, total, type RentChange } from '../domain/rents';
+import { monthlyAmounts, total, unitRent, type RentChange } from '../domain/rents';
 import { formatCents } from '../money';
 import type { UnitKind } from '../units';
 import { nthWorkingDay, type GermanState } from '../working-days';
@@ -233,6 +233,7 @@ function lease(unitId: string, tenantIds: string[], overrides: Partial<LeaseInpu
 		operatingCostModel: 'prepayment',
 		heatingCostModel: 'prepayment',
 		baseRent: 65000,
+		parkingRent: 0,
 		operatingCostPrepayment: 14000,
 		heatingCostPrepayment: 6000,
 		securityDeposit: 195000,
@@ -254,6 +255,7 @@ type DemoRentChange = {
 	validFrom: IsoDate;
 	reason: Exclude<RentChangeReason, 'initial'>;
 	baseRent?: number;
+	parkingRent?: number;
 	operatingCostPrepayment?: number;
 	heatingCostPrepayment?: number;
 	note?: string;
@@ -618,6 +620,7 @@ export async function createDemoData(
 				startDate: at(-21, '05-01'),
 				endDate: at(-8, '12-31'),
 				baseRent: 61000,
+				parkingRent: 3500,
 				operatingCostPrepayment: 15000,
 				heatingCostPrepayment: 8500,
 				securityDeposit: 165000,
@@ -628,9 +631,16 @@ export async function createDemoData(
 			}),
 			changes: [
 				{
+					validFrom: at(-14, '01-01'),
+					reason: 'manual',
+					baseRent: 61500,
+					parkingRent: 4000,
+					note: 'Stellplatzmiete nach Vereinbarung mit Familie Schulze auf 40 € erhöht.'
+				},
+				{
 					validFrom: at(-10, '04-01'),
 					reason: 'comparative',
-					baseRent: 68500,
+					baseRent: 69000,
 					comparison: { index: 'Berliner Mietspiegel', field: 'Feld E3' }
 				}
 			],
@@ -675,6 +685,7 @@ export async function createDemoData(
 				endDate: at(-6, '10-31'),
 				baseRent: 76000,
 				operatingCostPrepayment: 11000,
+				heatingCostModel: 'tenant_contract',
 				heatingCostPrepayment: 0,
 				securityDeposit: 228000,
 				persons: 1,
@@ -787,6 +798,7 @@ export async function createDemoData(
 				extraUnitIds: [unitId('Stellplatz 1')],
 				startDate: at(-7, '01-01'),
 				baseRent: 84800,
+				parkingRent: 5000,
 				operatingCostPrepayment: 16000,
 				heatingCostPrepayment: 9000,
 				securityDeposit: 254400,
@@ -863,6 +875,7 @@ export async function createDemoData(
 					baseRent: staffel(0),
 					operatingCostPrepayment: 12000,
 					// Gasetagenheizung: the tenants have their own gas contract.
+					heatingCostModel: 'tenant_contract',
 					heatingCostPrepayment: 0,
 					securityDeposit: 278700,
 					persons: 2,
@@ -911,6 +924,7 @@ export async function createDemoData(
 	const historyOf = (plan: (typeof plans)[number]): RentChange[] => {
 		let current = {
 			baseRent: plan.input.baseRent,
+			parkingRent: plan.input.parkingRent,
 			operatingCostPrepayment: plan.input.operatingCostPrepayment,
 			heatingCostPrepayment: plan.input.heatingCostPrepayment
 		};
@@ -920,6 +934,7 @@ export async function createDemoData(
 		for (const change of plan.changes) {
 			current = {
 				baseRent: change.baseRent ?? current.baseRent,
+				parkingRent: change.parkingRent ?? current.parkingRent,
 				operatingCostPrepayment: change.operatingCostPrepayment ?? current.operatingCostPrepayment,
 				heatingCostPrepayment: change.heatingCostPrepayment ?? current.heatingCostPrepayment
 			};
@@ -943,7 +958,7 @@ export async function createDemoData(
 		const raised = entry.changes.filter(
 			(change, index) => index < position - 1 && change.reason !== 'statement' && change.baseRent
 		);
-		const comparativeRent = Math.ceil(newRent.baseRent / floorArea / 10) * 10 + 20;
+		const comparativeRent = Math.ceil(unitRent(newRent) / floorArea / 10) * 10 + 20;
 		const year = deliveredOn.slice(0, 4);
 		const demand: ComparativeDemand = {
 			deliveredOn,
@@ -989,6 +1004,7 @@ export async function createDemoData(
 				leaseId: entry.id,
 				validFrom: change.validFrom,
 				baseRent: amounts.baseRent,
+				parkingRent: amounts.parkingRent,
 				operatingCostPrepayment: amounts.operatingCostPrepayment,
 				heatingCostPrepayment: amounts.heatingCostPrepayment,
 				reason: change.reason,
@@ -1949,11 +1965,18 @@ export async function createDemoData(
 			`Schornsteinfeger Gastherme ${year}`,
 			rosenheimId
 		);
+		// The tenants buy the gas themselves; the Wartung of their Etagenheizung is an operating
+		// cost (§ 2 Nr. 4d BetrKV) that the statement passes on with the Betriebskosten.
+		const wartung = Math.round(16500 * byYear(COST_INDEX, year));
+		yearItem(rosenheimId, year, 'Heizung', `Wartung Gastherme ${year}`, heating.name, wartung, {
+			allocationKeyId: keyId('Einheiten'),
+			invoiceDate: `${year}-10-05`
+		});
 		paidTo(
 			expense(
 				`${year}-10-05`,
-				Math.round(16500 * byYear(COST_INDEX, year)),
-				'maintenance',
+				wartung,
+				'operating_costs',
 				`Wartung Gastherme ${year}`,
 				rosenheimId,
 				'Wohnung 9'

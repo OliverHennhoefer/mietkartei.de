@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "4c142bfe-becf-44a9-af6e-854e9df909ac",
+  "id": "ecc1e109-7bcd-4ab3-8139-b6aec1732146",
   "prevId": "ebb6c54c-061d-4e9c-8604-c4cf602c2b03",
   "tables": {
     "accounts": {
@@ -4063,6 +4063,14 @@
           "notNull": true,
           "autoincrement": false
         },
+        "parking_rent": {
+          "name": "parking_rent",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
         "operating_cost_prepayment": {
           "name": "operating_cost_prepayment",
           "type": "integer",
@@ -4685,13 +4693,6 @@
         },
         "secret": {
           "name": "secret",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "label": {
-          "name": "label",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -6079,6 +6080,14 @@
           "notNull": true,
           "autoincrement": false
         },
+        "parking_rent": {
+          "name": "parking_rent",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
         "operating_cost_prepayment": {
           "name": "operating_cost_prepayment",
           "type": "integer",
@@ -6329,6 +6338,14 @@
         },
         "base_rent": {
           "name": "base_rent",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "parking_rent": {
+          "name": "parking_rent",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,

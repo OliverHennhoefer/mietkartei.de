@@ -90,6 +90,24 @@
 	const comparative = $derived(data.comparative);
 	const comparable = $derived(lease.kind === 'residential' && lease.rentModel === 'fixed');
 	const floorArea = $derived(lease.unit.floorArea);
+	/** With a garage rented with the flat, § 558 looks at the flat's share of the Kaltmiete. */
+	const rentDetails = $derived.by(() => {
+		const parking = comparative.parkingRent;
+		const details: string[] = [];
+		if (parking > 0) details.push(`davon ${formatCents(parking)} für Garage/Stellplatz`);
+		if (floorArea && comparative.currentBaseRent !== undefined) {
+			const perArea = perSquareMetre(comparative.currentBaseRent - parking, floorArea);
+			details.push(
+				`${formatCents(perArea)} je m²${parking > 0 ? ' für die Wohnung' : ''} bei ${formatArea(floorArea)}`
+			);
+		}
+		return details;
+	});
+	const capNote = $derived(
+		comparative.parkingRent > 0
+			? `für die Wohnung drei Jahre vor dem ${formatDate(comparative.validFrom)}; der Anteil für Garage/Stellplatz kommt unverändert hinzu`
+			: `drei Jahre vor dem ${formatDate(comparative.validFrom)}`
+	);
 	const demanded = $derived(
 		data.changes.find((change) => change.status === 'proposed' && change.reason === 'comparative')
 	);
@@ -197,7 +215,14 @@
 						{#if change === current}<Badge tone="info">Aktuell</Badge>{/if}
 						{#if change.status !== 'approved'}<Badge tone="warning">Vorschlag</Badge>{/if}
 					</td>
-					<td class="num"><Money cents={change.baseRent} /></td>
+					<td class="num">
+						<Money cents={change.baseRent} />
+						{#if change.parkingRent > 0}
+							<span class="muted small nowrap"
+								>davon <Money cents={change.parkingRent} /> Garage/Stellplatz</span
+							>
+						{/if}
+					</td>
 					<td class="num"><Money cents={change.operatingCostPrepayment} /></td>
 					<td class="num"><Money cents={change.heatingCostPrepayment} /></td>
 					<td class="num"><Money cents={total(change)} /></td>
@@ -415,11 +440,7 @@
 			<dt>Kaltmiete</dt>
 			<dd>
 				<Money cents={comparative.currentBaseRent} />
-				{#if floorArea}
-					({formatCents(perSquareMetre(comparative.currentBaseRent, floorArea))} je m² bei {formatArea(
-						floorArea
-					)})
-				{/if}
+				{#if rentDetails.length > 0}({rentDetails.join('; ')}){/if}
 			</dd>
 		{/if}
 		{#if comparative.lastChange && comparative.demandFrom}
@@ -435,9 +456,8 @@
 			<dd>
 				höchstens <Money cents={comparative.caps[20]} /> (20 %) oder <Money
 					cents={comparative.caps[15]}
-				/> (15 %), ausgehend von <Money cents={comparative.capBase} /> drei Jahre vor dem {formatDate(
-					comparative.validFrom
-				)}
+				/> (15 %), ausgehend von <Money cents={comparative.capBase} />
+				{capNote}
 			</dd>
 		{/if}
 	</dl>
@@ -516,7 +536,13 @@
 					required
 				/>
 			</Field>
-			<Field label="Neue Kaltmiete" error={demandErrors?.baseRent}>
+			<Field
+				label="Neue Kaltmiete"
+				error={demandErrors?.baseRent}
+				hint={comparative.parkingRent > 0
+					? `Mit den unveränderten ${formatCents(comparative.parkingRent)} für Garage/Stellplatz; nur die Miete der Wohnung steigt.`
+					: undefined}
+			>
 				<input
 					name="baseRent"
 					inputmode="decimal"
@@ -616,6 +642,21 @@
 			required
 		/>
 	</Field>
+	<Field
+		label="davon Garage/Stellplatz"
+		error={changeErrors?.parkingRent}
+		hint="Der Teil der Kaltmiete für eine mitvermietete Garage oder einen Stellplatz."
+	>
+		<input
+			name="parkingRent"
+			inputmode="decimal"
+			defaultValue={changeValues?.parkingRent ??
+				(data.changeDefaults.parkingRent > 0
+					? formatCentsPlain(data.changeDefaults.parkingRent)
+					: '')}
+			aria-invalid={changeErrors?.parkingRent ? 'true' : undefined}
+		/>
+	</Field>
 	<Field label="Betriebskostenvorauszahlung" error={changeErrors?.operatingCostPrepayment}>
 		<input
 			name="operatingCostPrepayment"
@@ -625,15 +666,18 @@
 			aria-invalid={changeErrors?.operatingCostPrepayment ? 'true' : undefined}
 		/>
 	</Field>
-	<Field label="Heizkostenvorauszahlung" error={changeErrors?.heatingCostPrepayment}>
-		<input
-			name="heatingCostPrepayment"
-			inputmode="decimal"
-			defaultValue={changeValues?.heatingCostPrepayment ??
-				formatCentsPlain(data.changeDefaults.heatingCostPrepayment)}
-			aria-invalid={changeErrors?.heatingCostPrepayment ? 'true' : undefined}
-		/>
-	</Field>
+	<!-- A tenant with an own supply contract pays no heating prepayment; the field stays away. -->
+	{#if lease.heatingCostModel !== 'tenant_contract'}
+		<Field label="Heizkostenvorauszahlung" error={changeErrors?.heatingCostPrepayment}>
+			<input
+				name="heatingCostPrepayment"
+				inputmode="decimal"
+				defaultValue={changeValues?.heatingCostPrepayment ??
+					formatCentsPlain(data.changeDefaults.heatingCostPrepayment)}
+				aria-invalid={changeErrors?.heatingCostPrepayment ? 'true' : undefined}
+			/>
+		</Field>
+	{/if}
 	<Field label="Grund" error={changeErrors?.reason}>
 		<select name="reason" aria-invalid={changeErrors?.reason ? 'true' : undefined} required>
 			{#each ['manual', 'statement'] as const as reason (reason)}
@@ -680,7 +724,14 @@
 				<dt>Grund</dt>
 				<dd>{rentChangeReasonLabels[editing.reason]}</dd>
 				<dt>Kaltmiete</dt>
-				<dd><Money cents={editing.baseRent} /></dd>
+				<dd>
+					<Money cents={editing.baseRent} />
+					{#if editing.parkingRent > 0}
+						<span class="muted">
+							(davon <Money cents={editing.parkingRent} /> für Garage/Stellplatz)</span
+						>
+					{/if}
+				</dd>
 				<dt>Betriebskosten</dt>
 				<dd><Money cents={editing.operatingCostPrepayment} /></dd>
 				<dt>Heizkosten</dt>

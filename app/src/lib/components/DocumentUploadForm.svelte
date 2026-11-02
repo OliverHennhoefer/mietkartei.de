@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Field from './Field.svelte';
 	import { enhance } from '$app/forms';
 	import type { Snippet } from 'svelte';
 	import type { DocumentLinkOptions } from '../domain/documents';
@@ -52,19 +53,16 @@
 			<span class="muted small">Höchstens 10 MB.</span>
 		{/if}
 	</label>
-	<label>
-		Name (optional)
+	<Field label="Name (optional)" error={errors?.name}>
 		<input
 			name="name"
 			defaultValue={values?.name ?? ''}
 			placeholder="sonst der Dateiname"
 			aria-invalid={errors?.name ? 'true' : undefined}
 		/>
-		{#if errors?.name}<span class="error">{errors.name}</span>{/if}
-	</label>
+	</Field>
 	{#each selects as select (select.name)}
-		<label>
-			{select.label}
+		<Field label={select.label} error={errors?.[select.name]}>
 			<select name={select.name} aria-invalid={errors?.[select.name] ? 'true' : undefined}>
 				<option value="">Keine Verknüpfung</option>
 				{#each select.options as option (option.id)}
@@ -73,8 +71,7 @@
 					</option>
 				{/each}
 			</select>
-			{#if errors?.[select.name]}<span class="error">{errors[select.name]}</span>{/if}
-		</label>
+		</Field>
 	{/each}
 	<div class="form-actions">
 		<button type="submit">Hochladen</button>

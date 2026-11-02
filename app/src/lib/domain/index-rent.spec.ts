@@ -30,6 +30,7 @@ function change(overrides: Partial<HistoryChange>): HistoryChange {
 	return {
 		validFrom: '2024-01-01',
 		baseRent: 60000,
+		parkingRent: 0,
 		operatingCostPrepayment: 15000,
 		heatingCostPrepayment: 5000,
 		reason: 'initial',

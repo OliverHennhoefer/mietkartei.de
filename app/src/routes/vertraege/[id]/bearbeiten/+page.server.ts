@@ -29,6 +29,7 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 		heatingCostModel: input.heatingCostModel,
 		rentDueDay: String(input.rentDueDay),
 		baseRent: formatCentsPlain(input.baseRent),
+		parkingRent: formatCentsPlain(input.parkingRent),
 		operatingCostPrepayment: formatCentsPlain(input.operatingCostPrepayment),
 		heatingCostPrepayment: formatCentsPlain(input.heatingCostPrepayment),
 		securityDeposit: formatCentsPlain(input.securityDeposit),
@@ -86,6 +87,10 @@ export const actions: Actions = {
 				.getAll('tenantIds')
 				.filter((id) => typeof id === 'string')
 				.join(',');
+			if (outcome.reason === 'parking-above-rent') {
+				const errors = { parkingRent: outcome.message };
+				return fail(400, { errors, values, depositWarning: depositWarning(result.data) });
+			}
 			const errors: Partial<Record<string, string>> =
 				outcome.reason === 'start-after-changes'
 					? {
@@ -106,7 +111,9 @@ export const actions: Actions = {
 											'So hätte der Vertrag an einem Tag keinen Mieter, oder ein Ein- oder Austritt läge außerhalb der Laufzeit. Passe zuerst die Daten unter „Vertragsparteien“ in der Übersicht an.'
 									}
 								: outcome.reason === 'archived'
-									? { tenantIds: 'Einer der Mieter ist archiviert. Hol ihn zuerst aus dem Archiv.' }
+									? {
+											tenantIds: 'Einer der Mieter ist archiviert. Hol ihn zuerst aus dem Archiv.'
+										}
 									: outcome.reason === 'unknown-unit'
 										? { unitId: 'Eine der Einheiten gibt es nicht.' }
 										: { tenantIds: 'Einen der Mieter gibt es nicht.' };

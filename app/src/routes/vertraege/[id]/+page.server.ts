@@ -60,6 +60,7 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 		deletion,
 		currentRent: {
 			baseRent: current.baseRent,
+			parkingRent: current.parkingRent,
 			operatingCostPrepayment: current.operatingCostPrepayment,
 			heatingCostPrepayment: current.heatingCostPrepayment,
 			total: current.baseRent + current.operatingCostPrepayment + current.heatingCostPrepayment

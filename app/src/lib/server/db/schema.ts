@@ -214,7 +214,13 @@ export type RentModel = (typeof rentModels)[number];
 export const operatingCostModels = ['prepayment', 'flat', 'inclusive'] as const;
 export type OperatingCostModel = (typeof operatingCostModels)[number];
 
-export const heatingCostModels = ['prepayment', 'flat'] as const;
+/**
+ * Heizkosten: Vorauszahlung, Pauschale, or tenant_contract: the tenant buys gas or heat directly
+ * from the supplier (e.g. for an Etagenheizung), so no heating prepayment is paid to the landlord
+ * and the landlord's remaining heating costs (Wartung, § 2 Nr. 4d BetrKV) follow the operating
+ * cost model.
+ */
+export const heatingCostModels = ['prepayment', 'flat', 'tenant_contract'] as const;
 export type HeatingCostModel = (typeof heatingCostModels)[number];
 
 export const terminatedByParties = ['tenant', 'landlord'] as const;
@@ -238,6 +244,8 @@ export const leases = sqliteTable(
 		/** ISO date (YYYY-MM-DD); null while the lease runs indefinitely. */
 		endDate: text('end_date'),
 		baseRent: integer('base_rent').notNull(),
+		/** The part of baseRent for a parking space or garage rented with the unit. */
+		parkingRent: integer('parking_rent').notNull().default(0),
 		operatingCostPrepayment: integer('operating_cost_prepayment').notNull().default(0),
 		heatingCostPrepayment: integer('heating_cost_prepayment').notNull().default(0),
 		securityDeposit: integer('security_deposit').notNull().default(0),
@@ -375,6 +383,8 @@ export const rentChanges = sqliteTable(
 			.references(() => leases.id, { onDelete: 'cascade' }),
 		validFrom: text('valid_from').notNull(),
 		baseRent: integer('base_rent').notNull(),
+		/** The part of baseRent for a parking space or garage, see leases.parkingRent. */
+		parkingRent: integer('parking_rent').notNull().default(0),
 		operatingCostPrepayment: integer('operating_cost_prepayment').notNull().default(0),
 		heatingCostPrepayment: integer('heating_cost_prepayment').notNull().default(0),
 		reason: text('reason', { enum: rentChangeReasons }).notNull(),
@@ -603,6 +613,8 @@ export const rentCharges = sqliteTable(
 		 */
 		dueDate: text('due_date'),
 		baseRent: integer('base_rent').notNull().default(0),
+		/** The part of baseRent for a parking space or garage, see leases.parkingRent. */
+		parkingRent: integer('parking_rent').notNull().default(0),
 		operatingCostPrepayment: integer('operating_cost_prepayment').notNull().default(0),
 		heatingCostPrepayment: integer('heating_cost_prepayment').notNull().default(0),
 		/** The total of the charge. */

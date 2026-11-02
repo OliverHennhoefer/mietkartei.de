@@ -47,7 +47,8 @@ export const operatingCostModelLabels: Record<OperatingCostModel, string> = {
 
 export const heatingCostModelLabels: Record<HeatingCostModel, string> = {
 	prepayment: 'Vorauszahlung (wird abgerechnet)',
-	flat: 'Pauschale (wird nicht abgerechnet)'
+	flat: 'Pauschale (wird nicht abgerechnet)',
+	tenant_contract: 'Mieter zahlt direkt an den Versorger (eigener Vertrag)'
 };
 
 export const terminatedByLabels: Record<TerminatedBy, string> = {

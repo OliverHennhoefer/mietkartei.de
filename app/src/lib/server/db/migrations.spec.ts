@@ -237,11 +237,11 @@ describe('0052_service_providers', () => {
 	});
 });
 
-describe('0056_push_channels', () => {
+describe('0057_push_channels', () => {
 	it('drops the ntfy channels with their history and keeps the others', () => {
 		const db = new Sqlite(':memory:');
 		db.pragma('foreign_keys = ON');
-		for (const file of files.filter((name) => name < '0056')) apply(db, file);
+		for (const file of files.filter((name) => name < '0057')) apply(db, file);
 		db.exec(`
 			insert into accounts (id, name) values ('a', 'A');
 			insert into users (id, account_id, email, password_hash) values ('u', 'a', 'a@example.org', 'x');
@@ -254,7 +254,7 @@ describe('0056_push_channels', () => {
 		`);
 		apply(
 			db,
-			files.find((name) => name.startsWith('0056'))!
+			files.find((name) => name.startsWith('0057'))!
 		);
 		expect(db.prepare('select id, label from notification_channels order by id').all()).toEqual([
 			{ id: 'hook', label: null },

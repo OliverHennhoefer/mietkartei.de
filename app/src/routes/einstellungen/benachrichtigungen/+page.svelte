@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Field from '#lib/components/Field.svelte';
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
@@ -102,14 +103,13 @@
 		({ update }) =>
 			update({ reset: false })}
 >
-	<label>
-		Uhrzeit
+	<Field label="Uhrzeit">
 		<select name="hour">
 			{#each hours as hour (hour)}
 				<option value={String(hour)} selected={data.hour === hour}>ab {hour} Uhr</option>
 			{/each}
 		</select>
-	</label>
+	</Field>
 	<label class="inline">
 		<input type="checkbox" name="weekends" checked={data.weekends} />
 		Auch am Wochenende
@@ -233,8 +233,7 @@
 				<a href="https://docs.mietkartei.de/anleitungen/benachrichtigungen/">Anleitung</a>
 			</p>
 			<input type="hidden" name="kind" value="webhook" />
-			<label>
-				Adresse
+			<Field label="Adresse">
 				<input
 					name="url"
 					type="url"
@@ -242,7 +241,7 @@
 					maxlength="500"
 					required
 				/>
-			</label>
+			</Field>
 			{#if data.allowHttp}
 				<p class="muted hint">Auch http geht, etwa für Home Assistant im eigenen Netz.</p>
 			{/if}

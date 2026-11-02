@@ -11,6 +11,7 @@ function change(validFrom: string, baseRent: number, extra: Partial<HistoryChang
 	return {
 		validFrom,
 		baseRent,
+		parkingRent: 0,
 		operatingCostPrepayment: 150_00,
 		heatingCostPrepayment: 50_00,
 		status: 'approved' as const,
