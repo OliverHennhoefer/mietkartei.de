@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import FieldLabel from './FieldLabel.svelte';
 	import Tip from './Tip.svelte';
 
 	// Title, input (passed as children) and the field's error below it. A hint is static help and
@@ -40,7 +41,7 @@
 <!-- The (?) is outside the label: a button inside it would take the label's click and name. -->
 <div class="field">
 	<label bind:this={labelElement}>
-		<span class="title">{label}</span>
+		<span class="title"><FieldLabel {label} /></span>
 		<span class="control">
 			{@render children()}
 			{#if error}<span class="error">{error}</span>{:else if note}<span class="note">{note}</span
