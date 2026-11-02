@@ -12,7 +12,10 @@ import type {
 	LeasePartyInput,
 	LeasePersonsInput
 } from '../server/leases';
-import { FormParser, type ParseResult } from './fields';
+import type { TenantInput } from '../server/tenants';
+import { NEW_TENANT_PREFIX, newTenantOf } from '../new-tenant';
+import { formDataOf, FormParser, type ParseResult } from './fields';
+import { parseTenant } from './tenants';
 
 // Parses the lease forms. Whether the unit and tenants belong to the account is checked by the
 // server module, not here.
@@ -20,14 +23,47 @@ import { FormParser, type ParseResult } from './fields';
 /** How many tenants, and how many extra units, one lease takes. */
 export const MAX_LEASE_IDS = 50;
 
-export function parseLease(form: FormData): ParseResult<LeaseInput> {
+/** `new:` with a first and a last name of at most 100 characters each. */
+const NEW_TENANT_VALUE_LENGTH = 4 + 100 + 1 + 100;
+
+/**
+ * The tenants typed into the lease form's select who do not exist yet, each with first and last
+ * name checked like the tenant form; their address stays empty, so letters go to the rented unit.
+ */
+export function parseNewTenants(form: FormData): ParseResult<{ newTenants: TenantInput[] }> {
+	const parser = new FormParser<{ newTenants: TenantInput[]; tenantIds?: undefined }>(form);
+	const newTenants: TenantInput[] = [];
+	for (const value of parser.ids('tenantIds', MAX_LEASE_IDS, NEW_TENANT_VALUE_LENGTH)) {
+		const name = newTenantOf(value);
+		if (!name) continue;
+		const tenant = parseTenant(formDataOf(name));
+		if (tenant.ok) newTenants.push(tenant.data);
+		else parser.fail('tenantIds', 'Bitte gib den neuen Mieter mit Vor- und Nachnamen an.');
+	}
+	return parser.result(() => ({ newTenants }));
+}
+
+/**
+ * The lease form. With `newTenants`, values for tenants still to create (see parseNewTenants)
+ * count as chosen tenants; they are never part of `tenantIds`.
+ */
+export function parseLease(
+	form: FormData,
+	options: { newTenants?: boolean } = {}
+): ParseResult<LeaseInput> {
 	const parser = new FormParser<LeaseInput>(form);
 
 	const unitId = parser.id('unitId');
 	// Bounded per lease, so that the lease_units and lease_tenants rows stay within the quotas.
 	const extraUnitIds = parser.ids('extraUnitIds', MAX_LEASE_IDS);
-	const tenantIds = parser.ids('tenantIds', MAX_LEASE_IDS);
-	if (tenantIds.length === 0) parser.fail('tenantIds', 'Bitte wähle mindestens einen Mieter aus.');
+	const tenantValues = parser.ids('tenantIds', MAX_LEASE_IDS, NEW_TENANT_VALUE_LENGTH);
+	const tenantIds = tenantValues.filter(
+		(value) => !value.startsWith(NEW_TENANT_PREFIX) && value.length <= 64
+	);
+	const typed = options.newTenants ? tenantValues.length - tenantIds.length : 0;
+	if (tenantIds.length + typed === 0) {
+		parser.fail('tenantIds', 'Bitte wähle mindestens einen Mieter aus.');
+	}
 
 	const startDate = parser.date('startDate');
 	const endDate = parser.date('endDate', { required: false });

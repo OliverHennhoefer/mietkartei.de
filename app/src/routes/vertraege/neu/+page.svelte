@@ -8,7 +8,6 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	const newTenantHref = $derived(`/mieter/neu?return=${encodeURIComponent(data.here)}`);
 	const createdNames = $derived(data.created.map((tenant) => personName(tenant)).join(' und '));
 </script>
 
@@ -22,9 +21,7 @@
 			die Einheit zu, und von ihr kommt die Adresse für Schreiben.
 		</p>
 		<p>
-			{#if data.units.length > 0}
-				<a href={newTenantHref}>Weiteren Mieter für diesen Vertrag anlegen</a> ·
-			{/if}
+			{#if data.units.length > 0}Ziehen mehrere ein? Tipp die weiteren Namen unten bei Mieter ein.{/if}
 			<a href="/mieter/{data.created[0].id}">Später anlegen</a>
 		</p>
 	</Alert>
@@ -36,13 +33,6 @@
 		text="Ein Mietvertrag gehört zu einer Einheit eines Objekts."
 	>
 		<CreateButton href="/objekte" label="Objekt und Einheit anlegen" />
-	</EmptyState>
-{:else if data.tenants.length === 0}
-	<EmptyState
-		title="Du hast noch keinen Mieter angelegt."
-		text="Lege zuerst den Mieter an; danach geht es hier weiter."
-	>
-		<CreateButton href={newTenantHref} label="Mieter anlegen" />
 	</EmptyState>
 {:else}
 	<LeaseForm

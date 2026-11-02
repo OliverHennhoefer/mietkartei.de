@@ -68,11 +68,11 @@ async function overview(id: string) {
 describe('vertraege', () => {
 	it('names what is missing before the first lease', async () => {
 		expect(await run(load)).toMatchObject({
-			data: { leases: [], prerequisites: { units: true, tenants: true } }
+			data: { leases: [], prerequisites: { units: true } }
 		});
 		const empty = await testDatabase();
 		expect(await outcome(() => load(routeEvent(empty)))).toMatchObject({
-			data: { prerequisites: { units: false, tenants: false } }
+			data: { prerequisites: { units: false } }
 		});
 	});
 
@@ -122,15 +122,54 @@ describe('vertraege/neu', () => {
 		});
 	});
 
-	it('names the tenants just created and keeps them for another new tenant', async () => {
+	it('names the tenants just created', async () => {
 		const partner = await seedTenant(db, 'a', { firstName: 'Max' });
 		const url = `/vertraege/neu?tenantId=${tenantId}&created=1&tenantId=${partner}`;
 		expect(await run(loadNew, { url })).toMatchObject({
 			data: {
 				defaults: { tenantIds: `${tenantId},${partner}` },
-				created: [{ id: tenantId }, { id: partner }],
-				here: `/vertraege/neu?tenantId=${tenantId}&created=1&tenantId=${partner}`
+				created: [{ id: tenantId }, { id: partner }]
 			}
+		});
+	});
+
+	it('creates the tenants typed into the lease form with the lease', async () => {
+		const id = idOf(
+			await run(newActions.create, {
+				form: {
+					...lease(),
+					tenantIds: [tenantId, 'new:Anna Maria|von Berg', 'new:Max|Mustermann']
+				}
+			})
+		);
+		const created = await getLease(db, 'a', id);
+		expect(
+			created?.tenants.map((tenant) => `${tenant.firstName}|${tenant.lastName}`).sort()
+		).toEqual(['Anna Maria|von Berg', 'Erika|Mustermann', 'Max|Mustermann']);
+		expect(
+			created?.tenants.every((tenant) => tenant.street === null && tenant.archivedAt === null)
+		).toBe(true);
+	});
+
+	it('creates a lease for typed tenants only and leaves none behind on a refusal', async () => {
+		const only = { ...lease(), tenantIds: 'new:Max|Mustermann' };
+		const first = await getLease(db, 'a', idOf(await run(newActions.create, { form: only })));
+		expect(first?.tenants.map((tenant) => tenant.firstName)).toEqual(['Max']);
+
+		// The unit is let from 2026-01-01 now: a second lease overlaps and creates no tenant.
+		const count = async () => (await db.select().from(tenants)).length;
+		const before = await count();
+		const refused = { ...lease(), tenantIds: 'new:Lena|Berger' };
+		expect(await run(newActions.create, { form: refused })).toMatchObject({
+			fail: 400,
+			data: { errors: { startDate: expect.any(String) }, values: { tenantIds: 'new:Lena|Berger' } }
+		});
+		expect(await count()).toBe(before);
+
+		const nameless = { ...lease(), tenantIds: 'new:|Berger' };
+		expect(await run(newActions.create, { form: nameless })).toMatchObject({
+			fail: 400,
+			data: { errors: { tenantIds: expect.any(String) } }
 		});
 	});
 

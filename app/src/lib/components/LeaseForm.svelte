@@ -7,7 +7,8 @@
 		rentModelLabels,
 		terminatedByLabels
 	} from '../labels';
-	import { personName } from '../format';
+	import { personName, splitPersonName } from '../format';
+	import { newTenantLabel, newTenantValue } from '../new-tenant';
 	import type {
 		HeatingCostModel,
 		LeaseKind,
@@ -67,6 +68,12 @@
 			label: `${unit.name} · ${property.name}`
 		}))
 	);
+	/** A name typed into the tenant select that matches nobody: created with the lease. */
+	function newTenantOption(text: string) {
+		const name = splitPersonName(text);
+		if (!name) return { note: 'Für einen neuen Mieter Vor- und Nachnamen eintippen.' };
+		return { value: newTenantValue(name), label: `„${personName(name)}“ als neuen Mieter anlegen` };
+	}
 	const invalid = (name: string) => (errors[name] ? 'true' : undefined);
 	// In the edit form the amounts are the ones at the start of the lease.
 	const atStart = (label: string) => (mode === 'edit' ? `${label} bei Vertragsbeginn` : label);
@@ -112,10 +119,14 @@
 		label="Mieter"
 		options={tenantOptions}
 		selected={(values.tenantIds ?? '').split(',').filter(Boolean)}
-		placeholder="Mieter suchen …"
+		placeholder={mode === 'create' ? 'Mieter suchen oder neu eintippen …' : 'Mieter suchen …'}
 		empty="Kein Mieter gefunden."
-		hint="Mehrere Mieter für Paare und WGs: einfach weitere auswählen."
+		hint={mode === 'create'
+			? 'Mehrere Mieter für Paare und WGs: einfach weitere auswählen. Wen es noch nicht gibt, tippst du mit Vor- und Nachnamen ein; er wird mit dem Vertrag angelegt.'
+			: 'Mehrere Mieter für Paare und WGs: einfach weitere auswählen.'}
 		error={errors.tenantIds}
+		create={mode === 'create' ? newTenantOption : undefined}
+		labelOf={mode === 'create' ? newTenantLabel : undefined}
 	/>
 
 	<Field label="Beginn" error={errors.startDate}>

@@ -12,6 +12,7 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ### Neu
 
+- Mieter direkt im Mietvertrag anlegen: Tippst du bei **Mieter** einen Namen ein, den es noch nicht gibt, bietet die Liste „… als neuen Mieter anlegen“ an. Der Mieter entsteht zusammen mit dem Vertrag; wird der Vertrag abgelehnt, bleibt auch kein Mieter zurück. Umgekehrt geht es nach **Mieter anlegen** gleich weiter zum Mietvertrag, und Mieter ohne Vertrag haben in der Liste und auf ihrer Seite einen Link dorthin.
 - KI-Assistenten tragen mehr ein: Ausgaben wie eine Handwerkerrechnung, Zählerstände und die Zuordnung offener Bankumsätze als Miete, Kaution oder Ausgabe. Dazu lesen sie die Bankumsätze mit dem Vorschlag von mietkartei, die Zähler eines Objekts und die Dienstleister. So reicht es, dem Assistenten eine Rechnung oder das Foto eines Zählers zu zeigen.
 - GiroCode auf Zahlungsschreiben: Nachzahlungen aus der Betriebskostenabrechnung, Zahlungserinnerungen und Mahnungen sowie ein Rest nach der Kautionsabrechnung tragen einen QR-Code für die Überweisung, wenn unter Einstellungen → Profil eine IBAN steht. Die Banking-App des Mieters übernimmt Empfänger, Betrag und Verwendungszweck; der Verwendungszweck nennt Einheit und Mieter, damit der Bankabgleich die Zahlung zuordnet.
 - Mieterwechsel im laufenden Vertrag: Tritt ein Mitmieter aus (etwa per Nachtrag) oder ein neuer ein, trägst du in der Übersicht des Mietvertrags unter „Vertragsparteien“ das Datum ein. Der Mieter bleibt mit seinem Austrittsdatum im Vertrag, so bleibt erkennbar, wer an einem früheren Tag Vertragspartei war; Briefe und Abrechnungen gehen an die heutigen Vertragsparteien.
@@ -19,6 +20,8 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ### Geändert
 
+- Die Adresse eines Mieters kommt aus dem Mietvertrag: Im Mieterformular trägst du keine Straße, Postleitzahl und Ort mehr ein, solange der Mieter in der gemieteten Einheit wohnt. Nur für eine andere Postanschrift setzt du den Haken und gibst sie vollständig an. Die Mieterseite zeigt die Adresse, an die Schreiben gehen.
+- Adressen und Etagen werden beim Speichern aufgeräumt: doppelte Leerzeichen, Tabs und Leerzeichen vor Kommas verschwinden, Hausnummern mit Zusatz wie „1e“ bleiben, wie sie sind. Etagen wie „4 og“, „4.OG“, „4. Stock“ oder „viertes OG“ heißen einheitlich „4. OG“, „eg“ und „Erdgeschoss“ heißen „EG“. Der Import erkennt eine Straße auch bei anderer Schreibweise („Karl-Liebknecht-Str.“ und „Karl Liebknecht Straße“).
 - Die wöchentliche Fristenübersicht per E-Mail stellst du jetzt unter Einstellungen → Benachrichtigungen ein statt unter Kalender.
 - Das Protokoll nennt beim Bearbeiten eines Mietvertrags die Mieter, die hinzugekommen oder ausgeschieden sind.
 - Fehlt zu einem Dokument die Datei im Speicher, nennt der Export es in `FEHLENDE-DOKUMENTE.txt` und das Protokoll zählt es, statt es stillschweigend auszulassen.
