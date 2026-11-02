@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Field from '#lib/components/Field.svelte';
 	import { enhance } from '$app/forms';
 	import { afterNavigate } from '$app/navigation';
 	import Alert from '#lib/components/Alert.svelte';
@@ -8,7 +9,7 @@
 	import Money from '#lib/components/Money.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { unitAmountsSummary } from '#lib/domain/operating-costs.ts';
-	import { formatNumber } from '#lib/format.ts';
+	import { formatNumber, formatShareOf } from '#lib/format.ts';
 	import { allocationKeyKindLabels, fuelLabels } from '#lib/labels.ts';
 	import { formatCentsPlain } from '#lib/money.ts';
 	import type { PageProps } from './$types';
@@ -79,8 +80,9 @@
 	{#if data.item.associationTotal !== null}
 		<dt>WEG</dt>
 		<dd>
-			Gesamt <Money cents={data.item.associationTotal} /> · {data.item.associationKey}
-			{formatNumber(data.item.associationKeyShare ?? 0)} von {formatNumber(
+			Gesamtkosten <Money cents={data.item.associationTotal} />, verteilt nach {data.item
+				.associationKey}; Anteil der Wohnung {formatShareOf(
+				data.item.associationKeyShare ?? 0,
 				data.item.associationKeyTotal ?? 0
 			)}
 		</dd>
@@ -168,16 +170,14 @@
 								{/if}
 							</label>
 						{/each}
-						<label>
-							Oder ganze Einheit in €
+						<Field label="Oder ganze Einheit in €" error={amountError(unit.id)}>
 							<input
 								name={fieldName(unit.id)}
 								inputmode="decimal"
 								defaultValue={amountValue(unit.id)}
 								aria-invalid={amountError(unit.id) ? 'true' : undefined}
 							/>
-							{#if amountError(unit.id)}<span class="error">{amountError(unit.id)}</span>{/if}
-						</label>
+						</Field>
 					</fieldset>
 				{/if}
 			{/each}
@@ -196,16 +196,14 @@
 {/if}
 {#if data.item.receipts.length === 0}
 	<form method="POST" action="?/upload" class="card" enctype="multipart/form-data" use:enhance>
-		<label>
-			Datei (höchstens 10 MB)
+		<Field label="Datei (höchstens 10 MB)" error={uploadForm?.errors.receipt}>
 			<input
 				type="file"
 				name="receipt"
 				aria-invalid={uploadForm?.errors.receipt ? 'true' : undefined}
 				required
 			/>
-			{#if uploadForm?.errors.receipt}<span class="error">{uploadForm.errors.receipt}</span>{/if}
-		</label>
+		</Field>
 		<div class="form-actions">
 			<button type="submit">Datei hochladen</button>
 		</div>

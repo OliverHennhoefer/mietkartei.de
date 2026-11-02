@@ -16,12 +16,16 @@ test('creates an Eigentumswohnung with Verwalter and MEA', async ({ page }) => {
 	await expect(page.getByLabel(/^Verwalter/)).toHaveCount(0);
 	await page.getByLabel('Objektart').selectOption({ label: 'Eigentumswohnung in einer WEG' });
 	await page.getByLabel(/^Verwalter/).fill('Hausverwaltung Meier');
-	await page.getByLabel('Miteigentumsanteil der Wohnung').fill('85');
-	await page.getByLabel('Miteigentumsanteile der WEG').fill('1000');
+	// A single flat has no other tenants a vacancy could shift costs to.
+	await expect(page.getByLabel('Personen bei Leerstand')).toHaveCount(0);
+	await page.getByLabel('MEA dieser Wohnung').fill('85');
+	await page.getByLabel('MEA der ganzen WEG').fill('1000');
 	await page.getByRole('button', { name: 'Objekt anlegen' }).click();
 
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText(name);
-	await expect(page.getByText('Eigentumswohnung in einer WEG, MEA 85 von 1.000')).toBeVisible();
+	await expect(
+		page.getByText('Eigentumswohnung in einer WEG, Miteigentumsanteil 85/1.000 (8,5 %)')
+	).toBeVisible();
 	await expect(page.getByText('Verwalter Hausverwaltung Meier')).toBeVisible();
 });
 
@@ -45,10 +49,12 @@ test('prints the cost of the WEG, its key and the share on the statement', async
 	await expect(page.getByLabel('Anteil der Wohnung')).toHaveValue('85');
 	await page.getByLabel('Betrag in €').fill('357,00');
 	await page.getByLabel('Gesamtkosten der WEG in €').fill('4.200,00');
-	await expect(page.getByText('85 von 1.000 ergeben 357,00 €.')).toBeVisible();
+	await expect(page.getByText('85/1.000 (8,5 %) von 4.200,00 € sind 357,00 €.')).toBeVisible();
 	await page.getByRole('button', { name: 'Speichern', exact: true }).click();
 	await expect(page).toHaveURL(/\/betriebskosten\/belege\/[0-9a-f-]+$/);
-	await expect(page.locator('dl.details')).toContainText('Gesamt 4.200,00 € · MEA 85 von 1.000');
+	await expect(page.locator('dl.details')).toContainText(
+		'Gesamtkosten 4.200,00 €, verteilt nach MEA; Anteil der Wohnung 85/1.000 (8,5 %)'
+	);
 
 	await page.goto('/betriebskosten');
 	await page.getByLabel('Objekt').selectOption({ value: propertyId });

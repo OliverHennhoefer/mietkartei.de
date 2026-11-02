@@ -8,7 +8,7 @@
 	import { page } from '$app/state';
 	import CreateButton from '#lib/components/CreateButton.svelte';
 	import { formatDate } from '#lib/dates.ts';
-	import { formatNumber } from '#lib/format.ts';
+	import { formatShareOf } from '#lib/format.ts';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import Tabs from '#lib/components/Tabs.svelte';
 	import type { LayoutProps } from './$types';
@@ -58,7 +58,7 @@
 		const parts = ['Eigentumswohnung in einer WEG'];
 		if (property.ownershipShare !== null && property.ownershipShareTotal !== null) {
 			parts.push(
-				`MEA ${formatNumber(property.ownershipShare)} von ${formatNumber(property.ownershipShareTotal)}`
+				`Miteigentumsanteil ${formatShareOf(property.ownershipShare, property.ownershipShareTotal)}`
 			);
 		}
 		if (property.associationManager) parts.push(`Verwalter ${property.associationManager}`);

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Field from '#lib/components/Field.svelte';
 	import CreateButton from '#lib/components/CreateButton.svelte';
 	import { enhance } from '$app/forms';
 	import Badge from '#lib/components/Badge.svelte';
@@ -101,8 +102,7 @@
 	</EmptyState>
 {:else}
 	<form method="POST" action="?/create" class="card" use:enhance>
-		<label>
-			Objekt
+		<Field label="Objekt" error={errors?.propertyId}>
 			<select name="propertyId" aria-invalid={errors?.propertyId ? 'true' : undefined} required>
 				{#each withCostItems as property (property.id)}
 					<option value={property.id} selected={values?.propertyId === property.id}>
@@ -110,10 +110,8 @@
 					</option>
 				{/each}
 			</select>
-			{#if errors?.propertyId}<span class="error">{errors.propertyId}</span>{/if}
-		</label>
-		<label>
-			Zeitraum von
+		</Field>
+		<Field label="Zeitraum von" error={errors?.periodStart}>
 			<input
 				type="date"
 				name="periodStart"
@@ -121,10 +119,8 @@
 				aria-invalid={errors?.periodStart ? 'true' : undefined}
 				required
 			/>
-			{#if errors?.periodStart}<span class="error">{errors.periodStart}</span>{/if}
-		</label>
-		<label>
-			Zeitraum bis
+		</Field>
+		<Field label="Zeitraum bis" error={errors?.periodEnd}>
 			<input
 				type="date"
 				name="periodEnd"
@@ -132,8 +128,7 @@
 				aria-invalid={errors?.periodEnd ? 'true' : undefined}
 				required
 			/>
-			{#if errors?.periodEnd}<span class="error">{errors.periodEnd}</span>{/if}
-		</label>
+		</Field>
 		<div class="form-actions">
 			<button type="submit">Entwurf erstellen</button>
 			<span class="muted small"

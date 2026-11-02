@@ -46,18 +46,15 @@
 			</Alert>
 		{/if}
 		<form method="POST" action="?/profile" class="card" use:enhance>
-			<label>
-				Name
+			<Field label="Name" error={profileErrors?.name}>
 				<input
 					name="name"
 					defaultValue={profileValues?.name ?? data.user.name ?? ''}
 					autocomplete="name"
 					aria-invalid={profileErrors?.name ? 'true' : undefined}
 				/>
-				{#if profileErrors?.name}<span class="error">{profileErrors.name}</span>{/if}
-			</label>
-			<label>
-				E-Mail-Adresse
+			</Field>
+			<Field label="E-Mail-Adresse" error={profileErrors?.email}>
 				<input
 					name="email"
 					type="email"
@@ -66,8 +63,7 @@
 					aria-invalid={profileErrors?.email ? 'true' : undefined}
 					required
 				/>
-				{#if profileErrors?.email}<span class="error">{profileErrors.email}</span>{/if}
-			</label>
+			</Field>
 			<PasswordField
 				label="Aktuelles Passwort (nur zum Ändern der E-Mail-Adresse)"
 				error={profileErrors?.currentPassword}
@@ -142,49 +138,36 @@
 			<Alert tone="success"><p>Der Absender wurde gespeichert.</p></Alert>
 		{/if}
 		<form method="POST" action="?/landlord" class="card" use:enhance>
-			<label>
-				Name des Vermieters
+			<Field label="Name des Vermieters" error={landlordErrors?.landlordName}>
 				<input
 					name="landlordName"
 					defaultValue={landlordValues.landlordName ?? ''}
 					aria-invalid={landlordErrors?.landlordName ? 'true' : undefined}
 				/>
-				{#if landlordErrors?.landlordName}
-					<span class="error">{landlordErrors.landlordName}</span>
-				{/if}
-			</label>
-			<label>
-				Straße und Hausnummer
+			</Field>
+			<Field label="Straße und Hausnummer" error={landlordErrors?.street}>
 				<input
 					name="street"
 					defaultValue={landlordValues.street ?? ''}
 					aria-invalid={landlordErrors?.street ? 'true' : undefined}
 				/>
-				{#if landlordErrors?.street}<span class="error">{landlordErrors.street}</span>{/if}
-			</label>
-			<label>
-				Postleitzahl
+			</Field>
+			<Field label="Postleitzahl" error={landlordErrors?.postalCode}>
 				<input
 					name="postalCode"
 					defaultValue={landlordValues.postalCode ?? ''}
 					inputmode="numeric"
 					aria-invalid={landlordErrors?.postalCode ? 'true' : undefined}
 				/>
-				{#if landlordErrors?.postalCode}
-					<span class="error">{landlordErrors.postalCode}</span>
-				{/if}
-			</label>
-			<label>
-				Ort
+			</Field>
+			<Field label="Ort" error={landlordErrors?.city}>
 				<input
 					name="city"
 					defaultValue={landlordValues.city ?? ''}
 					aria-invalid={landlordErrors?.city ? 'true' : undefined}
 				/>
-				{#if landlordErrors?.city}<span class="error">{landlordErrors.city}</span>{/if}
-			</label>
-			<label>
-				IBAN
+			</Field>
+			<Field label="IBAN" error={landlordErrors?.iban}>
 				<input
 					name="iban"
 					autocapitalize="characters"
@@ -192,8 +175,7 @@
 					defaultValue={landlordValues.iban ?? ''}
 					aria-invalid={landlordErrors?.iban ? 'true' : undefined}
 				/>
-				{#if landlordErrors?.iban}<span class="error">{landlordErrors.iban}</span>{/if}
-			</label>
+			</Field>
 			<Field
 				label="Bank"
 				error={landlordErrors?.bankName}
