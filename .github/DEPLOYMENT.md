@@ -138,6 +138,14 @@ Index rent proposals need the Verbraucherpreisindex. The app fetches it from the
 
 The page names Destatis as the source with the Datenlizenz Deutschland – Namensnennung – Version 2.0, as the license requires.
 
+### Mitteilungen (Web Push)
+
+The app shows Hinweise as notifications of the browser or of the app on the home screen (Web Push). The server encrypts every message for one browser (RFC 8291) and signs the request to the browser's push service with its VAPID key (RFC 8292). Without the key the settings offer no Mitteilungen; everything else works.
+
+1. Create the key and copy it to the clipboard (macOS): `openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -nocrypt | pbcopy`
+2. Add it under **Workers & Pages → mietkartei-app → Settings → Variables and Secrets** as type **Secret** named `VAPID_PRIVATE_KEY`, or pipe the same command into `npx wrangler secret put VAPID_PRIVATE_KEY` in `app/` after `npx wrangler login`. Line breaks may be lost when pasting; the app reads the key either way. Clear the clipboard afterwards (`pbcopy < /dev/null`).
+3. Never change the key: browsers subscribe with its public half, and every device subscribed with the old key stops receiving Mitteilungen until its owner turns them on again. The demo needs no key, as it sends nothing.
+
 ### Bankabruf (Enable Banking)
 
 The Bankabruf fetches the booked transactions of a bank account through [Enable Banking](https://enablebanking.com), which holds the PSD2 licence for account information. The landlord authorizes the access once at their bank; the app stores the session in `bank_connections` and fetches new transactions when someone opens **Bank → Umsätze**, at most every six hours per bank account, or at once with **Jetzt abrufen**. There is no scheduled job. Without `ENABLE_BANKING_APP_ID` and `ENABLE_BANKING_PRIVATE_KEY` the app shows nothing of it.

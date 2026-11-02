@@ -1,9 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { getDeadlineMail } from '#lib/server/deadline-mails.ts';
 import { notificationChannels } from '#lib/server/db/schema.ts';
 import { outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
 import { actions, load } from './+page.server';
+
+const env = vi.hoisted(() => ({ VAPID_PRIVATE_KEY: '' }));
 
 vi.mock('$app/env/private', () => ({
 	DEMO: false,
@@ -11,14 +13,47 @@ vi.mock('$app/env/private', () => ({
 	ORIGIN: '',
 	MAIL_TRANSPORT: 'outbox',
 	MAIL_API_KEY: '',
-	MAIL_FROM: ''
+	MAIL_FROM: '',
+	get VAPID_PRIVATE_KEY() {
+		return env.VAPID_PRIVATE_KEY;
+	}
 }));
 
 let db: Database;
 
 beforeEach(async () => {
 	db = await testDatabase();
+	env.VAPID_PRIVATE_KEY = '';
 });
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
+
+async function vapidPem(): Promise<string> {
+	const pair = (await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
+		'sign'
+	])) as CryptoKeyPair;
+	const der = await crypto.subtle.exportKey('pkcs8', pair.privateKey);
+	return `-----BEGIN PRIVATE KEY-----\n${btoa(String.fromCharCode(...new Uint8Array(der)))}\n-----END PRIVATE KEY-----`;
+}
+
+/** A browser's subscription, as the page reads it from the push manager. */
+async function subscription(endpoint = 'https://fcm.googleapis.com/fcm/send/device-1') {
+	const pair = (await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, [
+		'deriveBits'
+	])) as CryptoKeyPair;
+	const encode = (bytes: Uint8Array) =>
+		btoa(String.fromCharCode(...bytes))
+			.replaceAll('+', '-')
+			.replaceAll('/', '_')
+			.replace(/=+$/, '');
+	return {
+		endpoint,
+		p256dh: encode(new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey))),
+		auth: encode(crypto.getRandomValues(new Uint8Array(16)))
+	};
+}
 
 const url = 'https://mietkartei.example.de/einstellungen/benachrichtigungen';
 
@@ -78,7 +113,7 @@ describe('einstellungen/benachrichtigungen', () => {
 			'fetch',
 			vi.fn(async () => new Response('down', { status: 503 }))
 		);
-		await run(actions.add, { form: { kind: 'ntfy', url: 'https://ntfy.sh/haus' } });
+		await run(actions.add, { form: { kind: 'webhook', url: 'https://hooks.example.de/handy' } });
 		const [channel] = await db.select().from(notificationChannels);
 		expect(await run(actions.test, { form: { channelId: channel.id } })).toMatchObject({
 			fail: 502,
@@ -88,6 +123,60 @@ describe('einstellungen/benachrichtigungen', () => {
 			fail: 404
 		});
 		vi.unstubAllGlobals();
+	});
+
+	it('offers Mitteilungen only with the server key, and sends a test to a new device', async () => {
+		expect(await run(load)).toMatchObject({ data: { push: { key: null, offered: false } } });
+		const browser = await subscription();
+		expect(await run(actions.push, { form: browser })).toMatchObject({
+			fail: 400,
+			data: { refused: 'Mitteilungen sind auf diesem Server nicht eingerichtet.' }
+		});
+
+		env.VAPID_PRIVATE_KEY = await vapidPem();
+		const loaded = (await run(load)) as { data: { push: { key: string; offered: boolean } } };
+		expect(loaded.data.push.offered).toBe(true);
+		expect(loaded.data.push.key).toMatch(/^[\w-]{87}$/);
+
+		const fetch = vi.fn(async () => new Response('', { status: 201 }));
+		vi.stubGlobal('fetch', fetch);
+		expect(await run(actions.push, { form: { ...browser, urgentOnly: 'on' } })).toEqual({
+			data: { added: 'push', tested: true }
+		});
+		expect(fetch).toHaveBeenCalledOnce();
+		const [url] = fetch.mock.calls[0] as unknown as [string];
+		expect(url).toBe(browser.endpoint);
+		const [channel] = await db.select().from(notificationChannels);
+		expect(channel).toMatchObject({
+			kind: 'push',
+			url: browser.endpoint,
+			label: 'Gerät',
+			urgentOnly: true,
+			origin: 'https://mietkartei.example.de'
+		});
+		expect(JSON.parse(channel.secret ?? '')).toEqual({
+			p256dh: browser.p256dh,
+			auth: browser.auth
+		});
+
+		// The same browser again keeps its channel.
+		await run(actions.push, { form: browser });
+		expect(await db.select().from(notificationChannels)).toHaveLength(1);
+
+		// Only addresses of push services.
+		expect(
+			await run(actions.push, { form: { ...browser, endpoint: 'https://169.254.169.254/x' } })
+		).toMatchObject({ fail: 400 });
+	});
+
+	it('drops a device the push service no longer knows', async () => {
+		env.VAPID_PRIVATE_KEY = await vapidPem();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response('', { status: 410 }))
+		);
+		expect(await run(actions.push, { form: await subscription() })).toMatchObject({ fail: 502 });
+		expect(await db.select().from(notificationChannels)).toEqual([]);
 	});
 
 	it('turns the weekly Fristenübersicht on with the address of the app, and off again', async () => {

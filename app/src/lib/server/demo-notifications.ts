@@ -3,10 +3,10 @@ import type { Database } from './db';
 import { chunk, rowsPerStatement, runBatch } from './db/batch';
 import { notificationChannels, notificationDeliveries } from './db/schema';
 
-// The Benachrichtigungen of the public demo: the owner gets Hinweise by mail, the urgent ones on
-// the phone through ntfy and, for the last year, everything on a webhook to n8n, with a history
-// of sends that reaches back over the years like the rest of the demo. The demo sends nothing;
-// the addresses below lead nowhere.
+// The Benachrichtigungen of the public demo: the owner gets Hinweise by mail, the urgent ones as
+// Mitteilungen on their iPhone, since the spring everything as Mitteilungen on their laptop too,
+// and for the last year everything on a webhook to n8n, with a history of sends that reaches back
+// over the years like the rest of the demo. The demo sends nothing; the addresses lead nowhere.
 
 const ORIGIN = 'https://demo.mietkartei.de';
 
@@ -60,10 +60,32 @@ export async function createDemoNotifications(
 	const { accountId, userId } = context;
 	const since = addMonths(today, -40);
 	const webhookSince = addMonths(today, -12);
+	const laptopSince = addMonths(today, -7);
 	const channels = [
 		{ id: crypto.randomUUID(), kind: 'email' as const, since, urgentOnly: false },
-		{ id: crypto.randomUUID(), kind: 'ntfy' as const, since, urgentOnly: true },
-		{ id: crypto.randomUUID(), kind: 'webhook' as const, since: webhookSince, urgentOnly: false }
+		{
+			id: crypto.randomUUID(),
+			kind: 'push' as const,
+			since,
+			urgentOnly: true,
+			label: 'iPhone',
+			url: 'https://web.push.apple.com/demo-iphone'
+		},
+		{
+			id: crypto.randomUUID(),
+			kind: 'push' as const,
+			since: laptopSince,
+			urgentOnly: false,
+			label: 'Windows (Edge)',
+			url: 'https://wns2-par02p.notify.windows.com/w/?token=demo'
+		},
+		{
+			id: crypto.randomUUID(),
+			kind: 'webhook' as const,
+			since: webhookSince,
+			urgentOnly: false,
+			url: 'https://n8n.example.de/webhook/mietkartei'
+		}
 	];
 	const deliveries: (typeof notificationDeliveries.$inferInsert)[] = [];
 	const lastSent = new Map<string, Date>();
@@ -74,9 +96,9 @@ export async function createDemoNotifications(
 		sends.forEach((send, index) => {
 			const createdAt = at(send.date);
 			const row = { accountId, userId, channelId: channel.id, summary: send.summary };
-			// Once the phone's server was down; an hour later the Hinweis came through.
-			if (channel.kind === 'ntfy' && index === 3) {
-				deliveries.push({ ...row, error: 'Antwort 502', createdAt });
+			// Once Apple's push service was busy; an hour later the Hinweis came through.
+			if (channel.label === 'iPhone' && index === 3) {
+				deliveries.push({ ...row, error: 'Antwort 503', createdAt });
 				createdAt.setTime(createdAt.getTime() + 60 * 60 * 1000);
 			}
 			deliveries.push({ ...row, createdAt });
@@ -90,16 +112,12 @@ export async function createDemoNotifications(
 				accountId,
 				userId,
 				kind: channel.kind,
-				url:
-					channel.kind === 'ntfy'
-						? 'https://ntfy.sh/mietkartei-demo-k7q2'
-						: channel.kind === 'webhook'
-							? 'https://n8n.example.de/webhook/mietkartei'
-							: null,
+				url: channel.url ?? null,
 				secret: channel.kind === 'webhook' ? 'whsec_demo' : null,
+				label: channel.label ?? null,
 				origin: ORIGIN,
 				urgentOnly: channel.urgentOnly,
-				details: channel.kind !== 'ntfy',
+				details: channel.kind !== 'push',
 				lastSentAt: lastSent.get(channel.id) ?? null,
 				createdAt: at(addDays(channel.since, -1))
 			}))

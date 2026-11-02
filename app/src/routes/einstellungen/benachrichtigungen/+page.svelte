@@ -3,7 +3,7 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
-	import PasswordField from '#lib/components/PasswordField.svelte';
+	import PushCard from '#lib/components/PushCard.svelte';
 	import { formatDate, formatDateTime } from '#lib/dates.ts';
 	import type { PageProps } from './$types';
 
@@ -13,7 +13,16 @@
 	const secret = $derived(form && 'secret' in form ? form.secret : undefined);
 	let copied = $state(false);
 
-	const kindLabels: Record<string, string> = { email: 'E-Mail', ntfy: 'ntfy', webhook: 'Webhook' };
+	const kindLabels: Record<string, string> = {
+		email: 'E-Mail',
+		push: 'Mitteilung',
+		webhook: 'Webhook'
+	};
+	const pushEndpoints = $derived(
+		data.channels.flatMap((channel) =>
+			channel.kind === 'push' && channel.url ? [channel.url] : []
+		)
+	);
 	const hasEmail = $derived(data.channels.some((channel) => channel.kind === 'email'));
 	const full = $derived(data.channels.length >= data.maxChannels);
 	const channelName = (id: string) => {
@@ -51,6 +60,13 @@
 
 {#if refused}
 	<Alert tone="danger"><p>{refused}</p></Alert>
+{:else if form && 'added' in form && form.added === 'push'}
+	<Alert tone="success">
+		<p>
+			Mitteilungen auf diesem Gerät sind eingeschaltet. Eine Testmitteilung ist unterwegs und sollte
+			gleich erscheinen.
+		</p>
+	</Alert>
 {:else if form && 'tested' in form}
 	<Alert tone="success"><p>Der Test ist angekommen.</p></Alert>
 {:else if form && 'removed' in form}
@@ -131,7 +147,15 @@
 				{#each data.channels as channel (channel.id)}
 					<tr>
 						<td>{kindLabels[channel.kind]}</td>
-						<td class="target">{channel.kind === 'email' ? data.email : channel.url}</td>
+						<td class="target">
+							{#if channel.kind === 'email'}
+								{data.email}
+							{:else if channel.kind === 'push'}
+								{channel.label ?? 'Browser'}
+							{:else}
+								{channel.url}
+							{/if}
+						</td>
 						<td>
 							{channel.urgentOnly ? 'Nur Dringendes' : 'Alle Hinweise'}{channel.kind !== 'email' &&
 							channel.details
@@ -179,6 +203,10 @@
 {#if !full}
 	<h2>Kanal hinzufügen</h2>
 	<div class="channels">
+		{#if data.push.offered}
+			<PushCard publicKey={data.push.key} endpoints={pushEndpoints} />
+		{/if}
+
 		{#if !hasEmail}
 			<form method="POST" action="?/add" class="card" use:enhance>
 				<h3>E-Mail</h3>
@@ -193,47 +221,11 @@
 				</div>
 			</form>
 		{/if}
+	</div>
 
-		<form method="POST" action="?/add" class="card" use:enhance>
-			<h3>Push aufs Handy mit ntfy</h3>
-			<p class="muted">
-				Die kostenlose App ntfy (Android, iPhone) zeigt Hinweise als Mitteilung. Wähle dort ein
-				Thema mit einem Namen, den niemand errät, und trage seine Adresse hier ein. Ohne „mit Namen“
-				gehen nur Art, Datum und Link mit.
-			</p>
-			<input type="hidden" name="kind" value="ntfy" />
-			<label>
-				Adresse des Themas
-				<input
-					name="url"
-					type="url"
-					placeholder="https://ntfy.sh/mietkartei-7f3k9q"
-					maxlength="500"
-					required
-				/>
-			</label>
-			<PasswordField
-				label="Zugangstoken (nur bei geschütztem Thema)"
-				subject="Token"
-				name="token"
-				autocomplete="off"
-				maxlength={200}
-			/>
-			<label class="inline">
-				<input type="checkbox" name="urgentOnly" checked />
-				Nur Dringendes
-			</label>
-			<label class="inline">
-				<input type="checkbox" name="details" />
-				Mit Namen der Mieter
-			</label>
-			<div class="form-actions">
-				<button type="submit">ntfy hinzufügen</button>
-			</div>
-		</form>
-
-		<form method="POST" action="?/add" class="card" use:enhance>
-			<h3>Webhook</h3>
+	<details class="advanced" open={form && 'kind' in form && form.kind === 'webhook'}>
+		<summary>Für Technikfreunde: Webhook an n8n, Home Assistant und Co.</summary>
+		<form method="POST" action="?/add" class="card webhook" use:enhance>
 			<p class="muted">
 				mietkartei schickt jeden Hinweis als JSON an diese Adresse, signiert mit einem Schlüssel. So
 				verbindest du n8n, Make, Zapier, Home Assistant oder Slack, und über sie auch WhatsApp oder
@@ -266,7 +258,7 @@
 				<button type="submit">Webhook hinzufügen</button>
 			</div>
 		</form>
-	</div>
+	</details>
 {/if}
 
 {#if data.history.length > 0}
@@ -367,5 +359,20 @@
 	}
 	.key code {
 		word-break: break-all;
+	}
+	.advanced {
+		margin-top: 1.5rem;
+	}
+	.advanced summary {
+		cursor: pointer;
+	}
+	form.webhook {
+		grid-template-columns: 1fr;
+		gap: 1rem;
+		margin-top: 1rem;
+		max-width: 32rem;
+	}
+	form.webhook p {
+		margin: 0;
 	}
 </style>

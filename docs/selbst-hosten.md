@@ -108,6 +108,16 @@ Jedes [Release](https://github.com/OliverHennhoefer/mietkartei.de/releases) enth
 
 Damit mietkartei die Umsätze selbst bei deiner Bank abholt, legst du kostenlos eine eigene Anwendung bei [Enable Banking](https://enablebanking.com/cp/applications) an. Als Weiterleitungsadresse trägst du die Adresse deiner Installation mit `/bank/abruf` am Ende ein, etwa `https://mietkartei.example.de/bank/abruf` oder `https://mietkartei.dein-name.workers.dev/bank/abruf`. Mit Docker setzt du außerdem `ORIGIN` auf dieselbe Adresse. Ohne Vertrag läuft die Anwendung im eingeschränkten Modus und ruft nur Konten ab, die du im Control Panel von Enable Banking verknüpft hast. Das ist kostenlos und reicht für die eigenen Konten. Die Anwendungs-Id und den heruntergeladenen privaten Schlüssel übergibst du als `ENABLE_BANKING_APP_ID` und `ENABLE_BANKING_PRIVATE_KEY`.
 
+## Mitteilungen aufs Handy
+
+Damit mietkartei Hinweise als Mitteilung auf Handy und Computer zeigen kann, braucht deine Installation einen eigenen Schlüssel. Du erzeugst ihn einmal mit
+
+```sh
+openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -nocrypt
+```
+
+und übergibst die Ausgabe als `VAPID_PRIVATE_KEY`, mit Docker etwa in der `.env`-Datei (Zeilenumbrüche auch als `\n`), auf Cloudflare als Secret. Ändere den Schlüssel danach nicht mehr, sonst müssen alle Geräte die Mitteilungen neu einschalten. Browser erlauben Mitteilungen nur über `https`; im eigenen Netz über `http` bleiben dir E-Mail und Webhooks.
+
 ## Straßenkarte
 
 Ohne weitere Einstellung zeigt jedes Objekt eine kleine Deutschlandkarte mit einem Punkt an seiner Postleitzahl. Für eine Straßenkarte der Umgebung lädst du mit dem Programm [pmtiles](https://github.com/protomaps/go-pmtiles/releases) einen Ausschnitt Deutschlands aus den Kartendaten von OpenStreetMap, die [Protomaps](https://maps.protomaps.com/builds/) täglich baut. Er ist einige Gigabyte groß:

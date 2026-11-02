@@ -18,8 +18,7 @@ import {
 	MAX_FAILURES,
 	noticeMail,
 	noticesDue,
-	ntfyMessage,
-	ntfyTarget,
+	pushMessage,
 	removeChannel,
 	sendDueNotifications,
 	snooze,
@@ -32,7 +31,16 @@ import {
 } from './notifications';
 import { contextA, contextB, testDatabase } from './testing';
 
-vi.mock('$app/env/private', () => ({ MAIL_TRANSPORT: 'outbox', MAIL_API_KEY: '', MAIL_FROM: '' }));
+const env = vi.hoisted(() => ({ VAPID_PRIVATE_KEY: '' }));
+
+vi.mock('$app/env/private', () => ({
+	MAIL_TRANSPORT: 'outbox',
+	MAIL_API_KEY: '',
+	MAIL_FROM: '',
+	get VAPID_PRIVATE_KEY() {
+		return env.VAPID_PRIVATE_KEY;
+	}
+}));
 
 let db: Database;
 
@@ -149,15 +157,11 @@ describe('the messages', () => {
 	});
 
 	it('leave tenant names and task titles out of a push and a webhook unless asked for', () => {
-		const push = ntfyMessage('topic', notices, false, ORIGIN);
-		expect(push).toMatchObject({
-			topic: 'topic',
-			title: 'Fristen: 1 überfällig, 1 neu',
-			priority: 4
-		});
+		const push = pushMessage(notices, false, ORIGIN);
+		expect(push.title).toBe('Fristen: 1 überfällig, 1 neu');
 		// A task's title is free text and may name a tenant.
-		expect(push.message).toBe('01.11.2026: Aufgabe (überfällig)\n10.11.2026: Aufgabe');
-		expect(ntfyMessage('topic', notices, true, ORIGIN).message).toBe(
+		expect(push.body).toBe('01.11.2026: Aufgabe (überfällig)\n10.11.2026: Aufgabe');
+		expect(pushMessage(notices, true, ORIGIN).body).toBe(
 			'01.11.2026: Heizung warten (überfällig)\n10.11.2026: Rauchmelder prüfen, Müller · EG links'
 		);
 		// The app's own deadline titles name no one and always go along.
@@ -165,7 +169,7 @@ describe('the messages', () => {
 			entry: entry({ kind: 'statement', title: 'Betriebskostenabrechnung 2025' }),
 			stage: 'lead' as const
 		};
-		expect(ntfyMessage('topic', [statement], false, ORIGIN).message).toBe(
+		expect(pushMessage([statement], false, ORIGIN).body).toBe(
 			'10.11.2026: Betriebskostenabrechnung 2025'
 		);
 
@@ -187,15 +191,33 @@ describe('the messages', () => {
 		});
 	});
 
+	it('give a Mitteilung a path of the app, without names unless asked for', () => {
+		// The links of the entries already lead to the app the channel was added at.
+		expect(pushMessage(notices, false, ORIGIN)).toEqual({
+			title: 'Fristen: 1 überfällig, 1 neu',
+			body: '01.11.2026: Aufgabe (überfällig)\n10.11.2026: Aufgabe',
+			path: '/aufgaben',
+			tag: 'hinweise'
+		});
+		expect(pushMessage([notices[1]], true, ORIGIN)).toMatchObject({
+			body: '10.11.2026: Rauchmelder prüfen, Müller · EG links',
+			path: '/aufgaben?bearbeiten=1'
+		});
+		expect(pushMessage([], false, ORIGIN, true)).toMatchObject({
+			title: 'mietkartei: Test',
+			path: '/einstellungen/benachrichtigungen'
+		});
+	});
+
 	it('lists at most eight entries in a push and counts the rest', () => {
 		const many = Array.from({ length: 10 }, (_, i) => ({
 			entry: entry({ key: `task-${i}`, title: `Aufgabe ${i}` }),
 			stage: 'lead' as const
 		}));
-		const push = ntfyMessage('topic', many, false, ORIGIN);
-		expect(push.message.split('\n')).toHaveLength(9);
-		expect(push.message).toMatch(/\nund 2 weitere$/);
-		expect(push.click).toBe(`${ORIGIN}/aufgaben`);
+		const push = pushMessage(many, false, ORIGIN);
+		expect(push.body.split('\n')).toHaveLength(9);
+		expect(push.body).toMatch(/\nund 2 weitere$/);
+		expect(push.path).toBe('/aufgaben');
 	});
 
 	it('signs a webhook like the receivers expect', async () => {
@@ -218,30 +240,12 @@ describe('the messages', () => {
 });
 
 describe('channel addresses', () => {
-	it('reads the server and topic of an ntfy address', () => {
-		expect(ntfyTarget('https://ntfy.sh/mietkartei-x7')).toEqual({
-			server: 'https://ntfy.sh',
-			topic: 'mietkartei-x7'
-		});
-		expect(ntfyTarget('https://push.example.de/ntfy/haus')).toEqual({
-			server: 'https://push.example.de/ntfy',
-			topic: 'haus'
-		});
-		expect(ntfyTarget('https://ntfy.sh/')).toBeUndefined();
-		expect(ntfyTarget('https://ntfy.sh/a b')).toBeUndefined();
-	});
-
 	it('takes https, and http only where allowed', () => {
-		expect(validChannelUrl('webhook', 'https://n8n.example.de/webhook/x', false)).toBe(true);
-		expect(validChannelUrl('webhook', 'http://homeassistant.local:8123/api/webhook/x', false)).toBe(
-			false
-		);
-		expect(validChannelUrl('webhook', 'http://homeassistant.local:8123/api/webhook/x', true)).toBe(
-			true
-		);
-		expect(validChannelUrl('webhook', 'https://user:pw@example.de/', false)).toBe(false);
-		expect(validChannelUrl('webhook', 'ftp://example.de/', true)).toBe(false);
-		expect(validChannelUrl('ntfy', 'https://ntfy.sh/', false)).toBe(false);
+		expect(validChannelUrl('https://n8n.example.de/webhook/x', false)).toBe(true);
+		expect(validChannelUrl('http://homeassistant.local:8123/api/webhook/x', false)).toBe(false);
+		expect(validChannelUrl('http://homeassistant.local:8123/api/webhook/x', true)).toBe(true);
+		expect(validChannelUrl('https://user:pw@example.de/', false)).toBe(false);
+		expect(validChannelUrl('ftp://example.de/', true)).toBe(false);
 	});
 });
 
@@ -290,7 +294,7 @@ describe('channels', () => {
 			await addChannel(
 				db,
 				contextA,
-				{ kind: 'ntfy', url: 'http://ntfy.sh/x', urgentOnly: true, details: false },
+				{ kind: 'webhook', url: 'ftp://hooks.example.de/x', urgentOnly: true, details: false },
 				ORIGIN,
 				false
 			)
@@ -310,11 +314,54 @@ describe('channels', () => {
 		expect(await removeChannel(db, contextA, id)).toBe(true);
 	});
 
+	it('gives a browser to one person only and keeps its channel when it subscribes again', async () => {
+		const pair = (await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
+			'sign'
+		])) as CryptoKeyPair;
+		const der = new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey));
+		env.VAPID_PRIVATE_KEY = btoa(String.fromCharCode(...der));
+		const receiver = (await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, [
+			'deriveBits'
+		])) as CryptoKeyPair;
+		const encode = (bytes: Uint8Array) =>
+			btoa(String.fromCharCode(...bytes))
+				.replaceAll('+', '-')
+				.replaceAll('/', '_')
+				.replace(/=+$/, '');
+		const input = {
+			kind: 'push' as const,
+			subscription: {
+				endpoint: 'https://web.push.apple.com/shared-mac',
+				keys: {
+					p256dh: encode(new Uint8Array(await crypto.subtle.exportKey('raw', receiver.publicKey))),
+					auth: encode(new Uint8Array(16))
+				}
+			},
+			label: 'Mac (Safari)',
+			urgentOnly: false,
+			details: false
+		};
+		const first = await addChannel(db, contextB, input, ORIGIN, false);
+		const mine = await addChannel(db, contextA, input, ORIGIN, false);
+		const again = await addChannel(db, contextA, { ...input, label: 'iPhone' }, ORIGIN, false);
+		expect(first.ok && mine.ok && again.ok).toBe(true);
+		expect(again).toEqual(mine);
+		const channels = await db.select().from(notificationChannels);
+		expect(channels).toHaveLength(1);
+		expect(channels[0]).toMatchObject({ userId: 'user-a', label: 'iPhone' });
+
+		env.VAPID_PRIVATE_KEY = '';
+		expect(await addChannel(db, contextA, input, ORIGIN, false)).toEqual({
+			ok: false,
+			reason: 'push-off'
+		});
+	});
+
 	it('resumes a paused channel when a test goes through', async () => {
 		const added = await addChannel(
 			db,
 			contextA,
-			{ kind: 'ntfy', url: 'https://ntfy.sh/haus', urgentOnly: false, details: false },
+			{ kind: 'webhook', url: 'https://hooks.example.de/handy', urgentOnly: false, details: false },
 			ORIGIN,
 			false
 		);
@@ -329,21 +376,20 @@ describe('channels', () => {
 			await testChannel(db, contextA, added.id, { email: 'a@example.org', name: null })
 		).toEqual({ ok: true });
 		const [request] = fetch.mock.calls[0] as unknown as [string, RequestInit];
-		expect(request).toBe('https://ntfy.sh');
+		expect(request).toBe('https://hooks.example.de/handy');
 		const [channel] = await db.select().from(notificationChannels);
 		expect(channel).toMatchObject({ failures: 0, lastError: null });
 	});
 });
 
 describe('testChannel', () => {
-	it('sends the ntfy token and reports a test that did not go through', async () => {
+	it('signs the test and reports one that did not go through', async () => {
 		const added = await addChannel(
 			db,
 			contextA,
 			{
-				kind: 'ntfy',
-				url: 'https://ntfy.sh/haus',
-				token: ' tk_geheim ',
+				kind: 'webhook',
+				url: 'https://hooks.example.de/handy',
 				urgentOnly: false,
 				details: false
 			},
@@ -357,7 +403,10 @@ describe('testChannel', () => {
 			await testChannel(db, contextA, added.id, { email: 'a@example.org', name: null })
 		).toEqual({ ok: false, error: 'Antwort 401' });
 		const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
-		expect(new Headers(init.headers).get('authorization')).toBe('Bearer tk_geheim');
+		expect(new Headers(init.headers).get('x-mietkartei-signature')).toMatch(
+			/^t=\d+,v1=[0-9a-f]{64}$/
+		);
+		expect(JSON.parse(String(init.body))).toMatchObject({ event: 'test', notices: [] });
 		const [channel] = await db.select().from(notificationChannels);
 		expect(channel).toMatchObject({ failures: 1, lastError: 'Antwort 401' });
 	});
@@ -412,7 +461,7 @@ describe('sendDueNotifications', () => {
 		await addChannel(
 			db,
 			contextA,
-			{ kind: 'ntfy', url: 'https://ntfy.sh/haus', urgentOnly: false, details: false },
+			{ kind: 'webhook', url: 'https://hooks.example.de/handy', urgentOnly: false, details: false },
 			ORIGIN,
 			false
 		);
@@ -453,7 +502,7 @@ describe('sendDueNotifications', () => {
 		await addChannel(
 			db,
 			contextA,
-			{ kind: 'ntfy', url: 'https://ntfy.sh/haus', urgentOnly: true, details: false },
+			{ kind: 'webhook', url: 'https://hooks.example.de/handy', urgentOnly: true, details: false },
 			ORIGIN,
 			false
 		);
@@ -479,7 +528,7 @@ describe('sendDueNotifications', () => {
 		await addChannel(
 			db,
 			contextA,
-			{ kind: 'ntfy', url: 'https://ntfy.sh/haus', urgentOnly: true, details: false },
+			{ kind: 'webhook', url: 'https://hooks.example.de/handy', urgentOnly: true, details: false },
 			ORIGIN,
 			false
 		);
@@ -492,7 +541,7 @@ describe('sendDueNotifications', () => {
 		vi.stubGlobal('fetch', fetch);
 		await task('a', 'Dachrinne reinigen', '2026-10-20');
 		await task('a', 'Rauchmelder prüfen', '2026-11-06');
-		// The overdue task reaches ntfy; the new one had only the failed webhook.
+		// The overdue task reaches the urgent-only webhook; the new one had only the failed one.
 		expect(await sendDueNotifications(db, morning('2026-11-02'))).toBe(1);
 		const told = await db.select().from(notificationStates);
 		expect(told.map((state) => state.stage)).toEqual(['overdue']);
@@ -525,7 +574,7 @@ describe('sendDueNotifications', () => {
 		await addChannel(
 			db,
 			contextA,
-			{ kind: 'ntfy', url: 'https://ntfy.sh/haus', urgentOnly: true, details: false },
+			{ kind: 'webhook', url: 'https://hooks.example.de/handy', urgentOnly: true, details: false },
 			ORIGIN,
 			false
 		);
@@ -538,10 +587,10 @@ describe('sendDueNotifications', () => {
 		vi.stubGlobal('fetch', fetch);
 		await task('a', 'Dachrinne reinigen', '2026-10-20');
 		await task('a', 'Rauchmelder prüfen', '2026-11-06');
-		// Only the overdue task goes out, on ntfy; the new one waits for the webhook.
+		// Only the overdue task goes out, on the urgent-only webhook; the new one waits for the other.
 		expect(await sendDueNotifications(db, morning('2026-11-02'))).toBe(1);
 		expect((fetch.mock.calls as unknown as [string][]).map(([url]) => url)).toEqual([
-			'https://ntfy.sh'
+			'https://hooks.example.de/handy'
 		]);
 		const told = await db.select().from(notificationStates);
 		expect(told.map((state) => state.stage)).toEqual(['overdue']);
