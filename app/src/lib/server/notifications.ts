@@ -245,15 +245,35 @@ export async function webhookSignature(secret: string, body: string, now: Date):
 	return `t=${timestamp},v1=${hex}`;
 }
 
-/** The lines of a push: up to PUSH_ENTRIES entries, each with its date, then how many more. */
+/** The longest line of a push; a long task note is cut. */
+const PUSH_LINE = 160;
+
+/**
+ * Bytes the lines of a push may take in its JSON. An encrypted push holds 4096 bytes at most
+ * (one record of #lib/server/web-push.ts), and title, path and the JSON around them need the rest.
+ */
+const PUSH_BYTES = 3000;
+
+/**
+ * The lines of a push: up to PUSH_ENTRIES entries, each with its date, then how many more. Lines
+ * are cut to PUSH_LINE characters, and only as many go along as fit PUSH_BYTES, so a long note
+ * never keeps the whole push from being sent.
+ */
 function pushLines(notices: Notice[], details: boolean): string[] {
-	const shown = notices.slice(0, PUSH_ENTRIES);
-	const lines = shown.map(({ entry, stage }) => {
+	const lines: string[] = [];
+	let bytes = 0;
+	for (const { entry, stage } of notices.slice(0, PUSH_ENTRIES)) {
 		const mark = stage === 'overdue' ? ' (überfällig)' : '';
 		const detail = details && entry.description ? `, ${entry.description}` : '';
-		return `${formatDate(entry.date)}: ${outsideTitle(entry, details)}${mark}${detail}`;
-	});
-	if (notices.length > shown.length) lines.push(`und ${notices.length - shown.length} weitere`);
+		const full = `${formatDate(entry.date)}: ${outsideTitle(entry, details)}${mark}${detail}`;
+		const line = full.length > PUSH_LINE ? `${full.slice(0, PUSH_LINE - 1)}…` : full;
+		// As the line stands in the JSON, with its escapes and the line break before it.
+		const size = encoder.encode(JSON.stringify(line)).length;
+		if (bytes + size > PUSH_BYTES) break;
+		lines.push(line);
+		bytes += size;
+	}
+	if (notices.length > lines.length) lines.push(`und ${notices.length - lines.length} weitere`);
 	return lines;
 }
 

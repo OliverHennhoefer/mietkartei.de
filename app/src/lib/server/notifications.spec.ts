@@ -209,6 +209,25 @@ describe('the messages', () => {
 		});
 	});
 
+	it('keeps a push within one encrypted record, however long the notes are', () => {
+		const long = Array.from({ length: 8 }, (_, i) => ({
+			entry: entry({
+				key: `task-${i}`,
+				title: `Aufgabe ${i}`,
+				description: `„Müller“ ${'€'.repeat(500)}`
+			}),
+			stage: 'overdue' as const
+		}));
+		const push = pushMessage(long, true, ORIGIN);
+		const bytes = new TextEncoder().encode(JSON.stringify(push)).length;
+		// The record holds 4096 bytes: 16 for the tag and 1 for the delimiter go off.
+		expect(bytes).toBeLessThan(4096 - 17);
+		const lines = push.body.split('\n');
+		expect(lines[0]).toHaveLength(160);
+		expect(lines[0].endsWith('…')).toBe(true);
+		expect(lines.at(-1)).toMatch(/^und \d+ weitere$/);
+	});
+
 	it('lists at most eight entries in a push and counts the rest', () => {
 		const many = Array.from({ length: 10 }, (_, i) => ({
 			entry: entry({ key: `task-${i}`, title: `Aufgabe ${i}` }),
