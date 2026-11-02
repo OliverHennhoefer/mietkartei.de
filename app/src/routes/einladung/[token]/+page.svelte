@@ -37,10 +37,6 @@
 		</p>
 		<form method="POST" class="card" use:enhance>
 			<label>
-				E-Mail-Adresse
-				<input type="email" value={data.email} readonly autocomplete="username" />
-			</label>
-			<label>
 				Name
 				<input
 					name="name"
@@ -50,6 +46,10 @@
 					required
 				/>
 				{#if errors?.name}<span class="error">{errors.name}</span>{/if}
+			</label>
+			<label>
+				E-Mail-Adresse
+				<input type="email" value={data.email} readonly autocomplete="username" />
 			</label>
 			<PasswordField
 				label="Passwort"

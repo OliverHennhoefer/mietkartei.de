@@ -4,7 +4,7 @@
 	import { MIN_PASSWORD_LENGTH } from '#lib/validation.ts';
 	import type { PageProps } from './$types';
 
-	let { form }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 </script>
 
 <svelte:head>
@@ -18,6 +18,10 @@
 	</p>
 
 	<form method="POST" class="card" use:enhance>
+		<label>
+			E-Mail-Adresse
+			<input type="email" value={data.email} readonly autocomplete="username" />
+		</label>
 		<PasswordField
 			label="Neues Passwort"
 			note={`Mindestens ${MIN_PASSWORD_LENGTH} Zeichen.`}

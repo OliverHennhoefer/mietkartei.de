@@ -25,7 +25,7 @@ function reset(form: Record<string, string>, cookies = new Map<string, string>()
 describe('passwort-zuruecksetzen', () => {
 	it('opens for a valid link and answers 404 for any other', async () => {
 		expect(await outcome(() => load(routeEvent(db, { user: null, params: { token } })))).toEqual({
-			data: {}
+			data: { email: 'a@example.org' }
 		});
 		expect(
 			await outcome(() => load(routeEvent(db, { user: null, params: { token: 'x' } })))
