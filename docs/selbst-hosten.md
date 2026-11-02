@@ -51,7 +51,7 @@ Unter **Einstellungen → Konto → Demodaten anlegen** füllst du ein leeres Ko
 
 Neue Versionen von mietkartei holst du dir selbst, wann du willst:
 
-1. Lade vorher unter **Einstellungen → Export** eine Sicherung deiner Daten herunter. Solange mietkartei noch jung ist, kann ein Update Daten verändern.
+1. Lade vorher unter **Einstellungen → Export** eine Sicherung deiner Daten herunter. Updates behalten deine Daten; die Sicherung ist für den Fall, dass doch etwas schiefgeht.
 2. Öffne deine Kopie auf GitHub, gehe auf **Actions → Update → Run workflow** und bestätige mit **Run workflow**.
 3. Nach etwa einer Minute ist das Update in deiner Kopie. Cloudflare baut mietkartei dann neu, nach ein paar Minuten läuft die neue Version.
 
