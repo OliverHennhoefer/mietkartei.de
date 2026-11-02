@@ -5,10 +5,12 @@ import { notificationChannels } from '#lib/server/db/schema.ts';
 import { outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
 import { actions, load } from './+page.server';
 
-const env = vi.hoisted(() => ({ VAPID_PRIVATE_KEY: '' }));
+const env = vi.hoisted(() => ({ VAPID_PRIVATE_KEY: '', DEMO: false }));
 
 vi.mock('$app/env/private', () => ({
-	DEMO: false,
+	get DEMO() {
+		return env.DEMO;
+	},
 	HOSTED: true,
 	ORIGIN: '',
 	MAIL_TRANSPORT: 'outbox',
@@ -24,6 +26,7 @@ let db: Database;
 beforeEach(async () => {
 	db = await testDatabase();
 	env.VAPID_PRIVATE_KEY = '';
+	env.DEMO = false;
 });
 
 afterEach(() => {
@@ -177,6 +180,27 @@ describe('einstellungen/benachrichtigungen', () => {
 		);
 		expect(await run(actions.push, { form: await subscription() })).toMatchObject({ fail: 502 });
 		expect(await db.select().from(notificationChannels)).toEqual([]);
+	});
+
+	it('refuses a form without a subscription, a failed test and the demo', async () => {
+		env.VAPID_PRIVATE_KEY = await vapidPem();
+		expect(await run(actions.push, { form: {} })).toMatchObject({
+			fail: 400,
+			data: { refused: 'Der Browser hat keine gültige Anmeldung für Mitteilungen geliefert.' }
+		});
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response('', { status: 503 }))
+		);
+		expect(await run(actions.push, { form: await subscription() })).toMatchObject({
+			fail: 502,
+			data: { refused: 'Eingerichtet, aber die Testmitteilung ist nicht angekommen: Antwort 503' }
+		});
+		env.DEMO = true;
+		expect(await run(actions.push, { form: await subscription() })).toMatchObject({
+			fail: 400,
+			data: { refused: 'In der Demo werden keine Hinweise verschickt.' }
+		});
 	});
 
 	it('turns the weekly Fristenübersicht on with the address of the app, and off again', async () => {

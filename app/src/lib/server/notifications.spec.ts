@@ -15,6 +15,7 @@ import {
 	dueNotices,
 	findEntry,
 	getNotificationSettings,
+	MAX_CHANNELS,
 	MAX_FAILURES,
 	noticeMail,
 	noticesDue,
@@ -428,6 +429,140 @@ describe('testChannel', () => {
 		expect(JSON.parse(String(init.body))).toMatchObject({ event: 'test', notices: [] });
 		const [channel] = await db.select().from(notificationChannels);
 		expect(channel).toMatchObject({ failures: 1, lastError: 'Antwort 401' });
+	});
+});
+
+describe('push channels', () => {
+	const encode = (bytes: Uint8Array) =>
+		btoa(String.fromCharCode(...bytes))
+			.replaceAll('+', '-')
+			.replaceAll('/', '_')
+			.replace(/=+$/, '');
+
+	/** Sets a server key and returns the subscription of a new browser. */
+	async function setUp(endpoint = 'https://fcm.googleapis.com/fcm/send/phone') {
+		const pair = (await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
+			'sign'
+		])) as CryptoKeyPair;
+		const der = new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey));
+		env.VAPID_PRIVATE_KEY = btoa(String.fromCharCode(...der));
+		const receiver = (await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, [
+			'deriveBits'
+		])) as CryptoKeyPair;
+		return {
+			endpoint,
+			keys: {
+				p256dh: encode(new Uint8Array(await crypto.subtle.exportKey('raw', receiver.publicKey))),
+				auth: encode(new Uint8Array(16))
+			}
+		};
+	}
+
+	afterEach(() => {
+		env.VAPID_PRIVATE_KEY = '';
+	});
+
+	it('sends Hinweise by their urgency and signs with the address of the app', async () => {
+		const subscription = await setUp();
+		const added = await addChannel(
+			db,
+			contextA,
+			{ kind: 'push', subscription, urgentOnly: false, details: false },
+			ORIGIN,
+			false
+		);
+		expect(added).toMatchObject({ ok: true });
+		// Without a label the channel is the device's all the same.
+		const [row] = await db.select().from(notificationChannels);
+		expect(row.label).toBeNull();
+		const fetch = vi.fn(async () => new Response('', { status: 201 }));
+		vi.stubGlobal('fetch', fetch);
+		await task('a', 'Rauchmelder prüfen', '2026-11-06');
+
+		expect(await sendDueNotifications(db, morning('2026-11-02'))).toBe(1);
+		expect(await sendDueNotifications(db, morning('2026-11-09'))).toBe(1);
+		const headers = fetch.mock.calls.map(
+			(call) => (call as unknown as [string, RequestInit])[1].headers as Record<string, string>
+		);
+		expect(headers.map((header) => header.urgency)).toEqual(['normal', 'high']);
+		const token = headers[0].authorization.split(/[ ,]/)[1].slice(2);
+		const claims = JSON.parse(atob(token.split('.')[1].replaceAll('-', '+').replaceAll('_', '/')));
+		expect(claims.sub).toBe(ORIGIN);
+	});
+
+	it('names what is missing when the server or the channel cannot send', async () => {
+		const subscription = await setUp();
+		const recipient = { email: 'a@example.org', name: null };
+		const added = await addChannel(
+			db,
+			contextA,
+			{ kind: 'push', subscription, urgentOnly: false, details: false },
+			'http://localhost:3000',
+			false
+		);
+		if (!added.ok) throw new Error('not added');
+		const fetch = vi.fn(async () => new Response('', { status: 201 }));
+		vi.stubGlobal('fetch', fetch);
+
+		// An app on plain http names the project as its contact.
+		expect(await testChannel(db, contextA, added.id, recipient)).toEqual({ ok: true });
+		const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+		const token = (init.headers as Record<string, string>).authorization.split(/[ ,]/)[1].slice(2);
+		const claims = JSON.parse(atob(token.split('.')[1].replaceAll('-', '+').replaceAll('_', '/')));
+		expect(claims.sub).toBe('https://mietkartei.de');
+
+		await db
+			.update(notificationChannels)
+			.set({ secret: '{"p256dh":"broken"}' })
+			.where(eq(notificationChannels.id, added.id));
+		expect(await testChannel(db, contextA, added.id, recipient)).toEqual({
+			ok: false,
+			error: 'Die Mitteilung ist unvollständig eingerichtet.'
+		});
+		await db
+			.update(notificationChannels)
+			.set({ secret: 'not json' })
+			.where(eq(notificationChannels.id, added.id));
+		expect(await testChannel(db, contextA, added.id, recipient)).toMatchObject({
+			error: 'Die Mitteilung ist unvollständig eingerichtet.'
+		});
+
+		env.VAPID_PRIVATE_KEY = '';
+		expect(await testChannel(db, contextA, added.id, recipient)).toEqual({
+			ok: false,
+			error: 'Mitteilungen sind auf diesem Server nicht eingerichtet.'
+		});
+		expect(fetch).toHaveBeenCalledTimes(1);
+	});
+
+	it('keeps to the limit for a new device but lets a known one subscribe again', async () => {
+		const subscription = await setUp();
+		const input = { kind: 'push' as const, subscription, urgentOnly: false, details: false };
+		expect(await addChannel(db, contextA, input, ORIGIN, false)).toMatchObject({ ok: true });
+		for (let index = 1; index < MAX_CHANNELS; index += 1) {
+			const hook = { kind: 'webhook' as const, url: `https://hooks.example.de/${index}` };
+			await addChannel(db, contextA, { ...hook, urgentOnly: false, details: false }, ORIGIN, false);
+		}
+		expect(await db.select().from(notificationChannels)).toHaveLength(MAX_CHANNELS);
+		expect(await addChannel(db, contextA, input, ORIGIN, false)).toMatchObject({ ok: true });
+		const other = { ...subscription, endpoint: 'https://fcm.googleapis.com/fcm/send/laptop' };
+		expect(
+			await addChannel(db, contextA, { ...input, subscription: other }, ORIGIN, false)
+		).toEqual({ ok: false, reason: 'limit' });
+	});
+
+	it('refuses a webhook without its secret', async () => {
+		await db.insert(notificationChannels).values({
+			id: 'hook',
+			accountId: 'a',
+			userId: 'user-a',
+			kind: 'webhook',
+			url: 'https://hooks.example.de/x',
+			origin: ORIGIN
+		});
+		expect(await testChannel(db, contextA, 'hook', { email: 'a@example.org', name: null })).toEqual(
+			{ ok: false, error: 'Der Webhook ist unvollständig.' }
+		);
 	});
 });
 
