@@ -16,11 +16,6 @@
 
 	let { data, form }: PageProps = $props();
 
-	const address = $derived(
-		[data.tenant.street, [data.tenant.postalCode, data.tenant.city].filter(Boolean).join(' ')]
-			.filter(Boolean)
-			.join(', ')
-	);
 	const dossier = $derived(data.dossier);
 	const finances = $derived(dossier.finances);
 	const running = $derived(dossier.leases.filter((lease) => lease.active));
@@ -71,6 +66,18 @@
 	</Alert>
 {/if}
 
+{#if dossier.leases.length === 0 && !data.tenant.archivedAt}
+	<Alert tone="warning">
+		<p>
+			{personName(data.tenant)} ist noch keiner Einheit zugeordnet. Mit dem Mietvertrag kommen Einheit,
+			Miete, Mietkonto und die Adresse für Schreiben dazu.
+		</p>
+		<p>
+			<a href="/vertraege/neu?tenantId={data.tenant.id}">Jetzt Mietvertrag anlegen</a>
+		</p>
+	</Alert>
+{/if}
+
 {#if dossier.leases.length > 0}
 	<div class="stats" aria-label="Auf einen Blick">
 		<div class="stat">
@@ -114,7 +121,12 @@
 		{#if data.tenant.phone}<a href="tel:{data.tenant.phone}">{data.tenant.phone}</a>{:else}–{/if}
 	</dd>
 	<dt>Adresse</dt>
-	<dd>{address || 'wie die gemietete Einheit'}</dd>
+	<dd>
+		{#if data.address}
+			{data.address.line}
+			{#if data.address.lease}<span class="muted small"> · aus dem Mietvertrag</span>{/if}
+		{:else}–{/if}
+	</dd>
 	{#if data.tenant.notes}
 		<dt>Notizen</dt>
 		<dd class="notes">{data.tenant.notes}</dd>

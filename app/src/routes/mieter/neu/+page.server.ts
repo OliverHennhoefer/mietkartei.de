@@ -6,7 +6,8 @@ import { createTenant } from '#lib/server/tenants.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 // ?return=<path> brings the user back to where they came from (the lease form), with the new
-// tenant preselected through ?tenantId=.
+// tenant preselected through ?tenantId=. Without it the lease form comes next as well: every tenant
+// needs a lease, which assigns the unit and with it the address for letters.
 export const load: PageServerLoad = async ({ url }) => {
 	return { returnTo: returnPath(url.searchParams.get('return')) };
 };
@@ -22,6 +23,6 @@ export const actions: Actions = {
 		if (back) {
 			redirect(303, `${back}${back.includes('?') ? '&' : '?'}tenantId=${tenant.id}`);
 		}
-		redirect(303, `/mieter/${tenant.id}`);
+		redirect(303, `/vertraege/neu?tenantId=${tenant.id}&created=1`);
 	}
 };

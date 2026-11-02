@@ -5,7 +5,7 @@ import { listLeases } from '#lib/server/leases.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { deleteTenant, tenantDeletion } from '#lib/server/deletion.ts';
 import { tenantDossier } from '#lib/server/tenant-dossier.ts';
-import { getTenant } from '#lib/server/tenants.ts';
+import { getTenant, postalAddress } from '#lib/server/tenants.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 // The tenant as a dossier: the key figures first, then money, leases, letters, tasks,
@@ -25,7 +25,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		tenantDeletion(locals.db, accountId, tenant.id)
 	]);
 	if (!archiving) error(404, 'Diesen Mieter gibt es nicht.');
-	return { tenant, archiving, deletion, dossier };
+	return { tenant, archiving, deletion, dossier, address: postalAddress(tenant, leases) };
 };
 
 export const actions: Actions = {
