@@ -238,6 +238,8 @@ export const leases = sqliteTable(
 		/** ISO date (YYYY-MM-DD); null while the lease runs indefinitely. */
 		endDate: text('end_date'),
 		baseRent: integer('base_rent').notNull(),
+		/** The part of baseRent for a parking space or garage rented with the unit. */
+		parkingRent: integer('parking_rent').notNull().default(0),
 		operatingCostPrepayment: integer('operating_cost_prepayment').notNull().default(0),
 		heatingCostPrepayment: integer('heating_cost_prepayment').notNull().default(0),
 		securityDeposit: integer('security_deposit').notNull().default(0),
@@ -375,6 +377,8 @@ export const rentChanges = sqliteTable(
 			.references(() => leases.id, { onDelete: 'cascade' }),
 		validFrom: text('valid_from').notNull(),
 		baseRent: integer('base_rent').notNull(),
+		/** The part of baseRent for a parking space or garage, see leases.parkingRent. */
+		parkingRent: integer('parking_rent').notNull().default(0),
 		operatingCostPrepayment: integer('operating_cost_prepayment').notNull().default(0),
 		heatingCostPrepayment: integer('heating_cost_prepayment').notNull().default(0),
 		reason: text('reason', { enum: rentChangeReasons }).notNull(),
@@ -603,6 +607,8 @@ export const rentCharges = sqliteTable(
 		 */
 		dueDate: text('due_date'),
 		baseRent: integer('base_rent').notNull().default(0),
+		/** The part of baseRent for a parking space or garage, see leases.parkingRent. */
+		parkingRent: integer('parking_rent').notNull().default(0),
 		operatingCostPrepayment: integer('operating_cost_prepayment').notNull().default(0),
 		heatingCostPrepayment: integer('heating_cost_prepayment').notNull().default(0),
 		/** The total of the charge. */

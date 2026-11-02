@@ -16,7 +16,7 @@ Einnahmen und Ausgaben zählen in dem Jahr, in dem das Geld geflossen ist (§ 11
 
 ## Einnahmen
 
-- **Zeile 15, 18 und 26:** die Kaltmiete, je nach Art der Einheit des Mietvertrags für Wohnungen, Gewerbe oder Stellplätze.
+- **Zeile 15, 18 und 26:** die Kaltmiete, je nach Art der Einheit des Mietvertrags für Wohnungen, Gewerbe oder Stellplätze. Ist im Mietvertrag ein Anteil „davon Garage/Stellplatz“ eingetragen, steht dieser Anteil in Zeile 26 und der Rest bei der Wohnung oder dem Gewerbe.
 - **Zeile 20:** die Vorauszahlungen auf Betriebs- und Heizkosten.
 - **Zeile 21:** Nachzahlungen und Guthaben aus Betriebskostenabrechnungen.
 - **Zeile 29:** weitere Sollstellungen, die du im Mietkonto von Hand gebucht hast.

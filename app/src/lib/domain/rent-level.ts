@@ -1,11 +1,13 @@
 // The Kaltmiete per square metre a property earns, to set beside the average of its Gemeinde.
 // Only flats count: commercial units and parking spaces have other rents, and the Zensus average
-// is one of rented flats.
+// is one of rented flats. A garage rented with a flat is left out of its rent.
+
+import { unitRent } from './rents';
 
 export type RentedUnit = {
 	kind: 'residential' | 'commercial' | 'parking';
 	unit: { floorArea: number | null };
-	currentRent: { baseRent: number };
+	currentRent: { baseRent: number; parkingRent: number };
 };
 
 export type RentLevel = {
@@ -24,7 +26,7 @@ export function rentLevel(leases: readonly RentedUnit[]): RentLevel | null {
 	);
 	if (counted.length === 0) return null;
 	const area = counted.reduce((sum, lease) => sum + (lease.unit.floorArea ?? 0), 0);
-	const rent = counted.reduce((sum, lease) => sum + lease.currentRent.baseRent, 0);
+	const rent = counted.reduce((sum, lease) => sum + unitRent(lease.currentRent), 0);
 	return { perSquareMetre: Math.round(rent / area), area, count: counted.length };
 }
 

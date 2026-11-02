@@ -221,7 +221,14 @@
 <h2>Aktuelle Miete</h2>
 <dl class="details" aria-label="Aktuelle Miete">
 	<dt>Kaltmiete</dt>
-	<dd><Money cents={data.currentRent.baseRent} /></dd>
+	<dd>
+		<Money cents={data.currentRent.baseRent} />
+		{#if data.currentRent.parkingRent > 0}
+			<span class="muted">
+				(davon <Money cents={data.currentRent.parkingRent} /> für Garage/Stellplatz)
+			</span>
+		{/if}
+	</dd>
 	<dt>Betriebskostenvorauszahlung</dt>
 	<dd><Money cents={data.currentRent.operatingCostPrepayment} /></dd>
 	<dt>Heizkostenvorauszahlung</dt>

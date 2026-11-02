@@ -14,6 +14,8 @@ export type ExpectedCharge = {
 	 */
 	dueDate: IsoDate;
 	baseRent: number;
+	/** The part of baseRent for a parking space or garage. */
+	parkingRent: number;
 	operatingCostPrepayment: number;
 	heatingCostPrepayment: number;
 	/** The three parts added up. */
@@ -78,6 +80,7 @@ export function expectedRentCharges(
 			period,
 			dueDate: dueDate < start ? start : dueDate,
 			baseRent: amounts.baseRent,
+			parkingRent: amounts.parkingRent,
 			operatingCostPrepayment: amounts.operatingCostPrepayment,
 			heatingCostPrepayment: amounts.heatingCostPrepayment,
 			amount: total(amounts)
@@ -130,6 +133,7 @@ function sameCharge(a: ExpectedCharge, b: ExpectedCharge): boolean {
 	return (
 		a.dueDate === b.dueDate &&
 		a.baseRent === b.baseRent &&
+		a.parkingRent === b.parkingRent &&
 		a.operatingCostPrepayment === b.operatingCostPrepayment &&
 		a.heatingCostPrepayment === b.heatingCostPrepayment &&
 		a.amount === b.amount

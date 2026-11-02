@@ -23,6 +23,7 @@ function change(
 	return {
 		validFrom,
 		baseRent,
+		parkingRent: 0,
 		operatingCostPrepayment: 15000,
 		heatingCostPrepayment: 8000,
 		status: 'approved',
@@ -123,6 +124,59 @@ describe('limits of § 558', () => {
 		expect(check({ deliveredOn: '2026-06-01', comparativeRent: 850 })).toMatchObject({
 			message: expect.stringContaining('höchstens 680,00')
 		});
+	});
+});
+
+describe('§ 558 with a garage rented with the flat', () => {
+	// 650 € Kaltmiete, of which 50 € for the garage, since 2022; 600 € for the flat of 80 m².
+	const changes = [change('2022-01-01', 65000, { parkingRent: 5000 })];
+
+	it('caps and compares the rent of the flat only, the garage share added on top', () => {
+		const situation = comparativeSituation(flat, changes, '2026-03-10');
+		expect(situation).toMatchObject({ currentBaseRent: 65000, parkingRent: 5000, capBase: 60000 });
+		// 20 % on the flat's 600 €, plus the unchanged 50 €.
+		expect(situation.caps).toEqual({ 20: 77000, 15: 74000 });
+		const check = (baseRent: number, comparativeRent = 950) =>
+			demandProblem(flat, situation, { ...demand, baseRent, comparativeRent });
+		expect(check(77000)).toBeUndefined();
+		expect(check(77001)).toMatchObject({
+			message: expect.stringContaining(
+				'höchstens 770,00\u00a0€, mit 50,00\u00a0€ für Garage/Stellplatz'
+			)
+		});
+		// 8,50 € × 80 m² = 680 € for the flat: 730 € in all.
+		expect(check(73000, 850)).toBeUndefined();
+		expect(check(73001, 850)).toMatchObject({
+			message: expect.stringContaining('höchstens 730,00\u00a0€')
+		});
+	});
+
+	it('names the garage share in the letter and leaves it out per m²', () => {
+		const oldRent = changes[0];
+		const content = {
+			unitName: 'EG links',
+			floorArea: 80,
+			tenants: [{ salutation: 'Frau', firstName: 'Erika', lastName: 'Muster' }],
+			oldRent,
+			newRent: { ...oldRent, validFrom: '2026-06-01', baseRent: 77000 },
+			capBase: 60000,
+			lastChange: '2022-01-01',
+			deliveredOn: '2026-03-10',
+			demand
+		};
+		const text = comparativeLetterText(content).replaceAll('\u00a0', ' ');
+		expect(text).toContain('von 650,00 € um 120,00 € auf 770,00 € im Monat zuzustimmen');
+		expect(text).toContain('Davon entfallen wie bisher 50,00 € auf die mitvermietete Garage');
+		expect(text).toContain('Kaltmiete für die Wohnung von 7,50 € auf 9,00 € je m²');
+		expect(text).toContain('um 20,00 % und bleibt innerhalb der Kappungsgrenze');
+		expect(
+			comparativeLetterRows(content).map((row) => row.map((cell) => cell.replaceAll('\u00a0', ' ')))
+		).toEqual([
+			['Kaltmiete', '650,00 €', '770,00 €'],
+			['davon Garage/Stellplatz', '50,00 €', '50,00 €'],
+			['Kaltmiete der Wohnung je m²', '7,50 €', '9,00 €'],
+			['Gesamtmiete', '880,00 €', '1.000,00 €']
+		]);
 	});
 });
 

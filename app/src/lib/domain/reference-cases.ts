@@ -168,6 +168,7 @@ export function referenceInput(c: ReferenceCase): StatementInput {
 			{
 				validFrom: lease.start,
 				baseRent: lease.baseRent,
+				parkingRent: 0,
 				operatingCostPrepayment: lease.operatingCostPrepayment,
 				heatingCostPrepayment: lease.heatingCostPrepayment,
 				status: 'approved' as const

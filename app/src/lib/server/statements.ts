@@ -323,6 +323,7 @@ export async function loadStatementInput(
 			.map((row) => ({
 				validFrom: row.validFrom,
 				baseRent: row.baseRent,
+				parkingRent: row.parkingRent,
 				operatingCostPrepayment: row.operatingCostPrepayment,
 				heatingCostPrepayment: row.heatingCostPrepayment,
 				status: row.status

@@ -21,6 +21,7 @@ const changes: RentChange[] = [
 	{
 		validFrom: '2025-01-15',
 		baseRent: 60000,
+		parkingRent: 0,
 		operatingCostPrepayment: 15000,
 		heatingCostPrepayment: 5000,
 		status: 'approved'
@@ -28,6 +29,7 @@ const changes: RentChange[] = [
 	{
 		validFrom: '2025-04-01',
 		baseRent: 65000,
+		parkingRent: 0,
 		operatingCostPrepayment: 15000,
 		heatingCostPrepayment: 5000,
 		status: 'approved'
@@ -41,6 +43,7 @@ const january: ExpectedCharge = {
 	// The third working day is Mon 6 (Wed 1 is Neujahr), before the lease starts: due on the 15th.
 	dueDate: '2025-01-15',
 	baseRent: 32903,
+	parkingRent: 0,
 	operatingCostPrepayment: 8226,
 	heatingCostPrepayment: 2742,
 	amount: 43871
@@ -50,6 +53,7 @@ const full = (period: string, dueDate: string, baseRent: number): ExpectedCharge
 	period,
 	dueDate,
 	baseRent,
+	parkingRent: 0,
 	operatingCostPrepayment: 15000,
 	heatingCostPrepayment: 5000,
 	amount: baseRent + 20000
@@ -89,6 +93,7 @@ describe('expectedRentCharges', () => {
 				// The third working day, Wed 5, lies before the ledger start.
 				dueDate: '2025-03-10',
 				baseRent: 42581,
+				parkingRent: 0,
 				operatingCostPrepayment: 10645,
 				heatingCostPrepayment: 3548,
 				amount: 56774
@@ -119,6 +124,7 @@ describe('expectedRentCharges', () => {
 				period: '2025-05',
 				dueDate: '2025-05-06',
 				baseRent: 20968,
+				parkingRent: 0,
 				operatingCostPrepayment: 4839,
 				heatingCostPrepayment: 1613,
 				amount: 27420
@@ -196,7 +202,7 @@ describe('diffCharges', () => {
 	});
 
 	it('updates rows whose amounts or due date differ, keeping their id', () => {
-		const stale = stored({ ...february, baseRent: 55000, amount: 75000 }, 'feb');
+		const stale = stored({ ...february, baseRent: 55000, parkingRent: 0, amount: 75000 }, 'feb');
 		const lateDue = stored({ ...march, dueDate: '2025-03-03' }, 'mar');
 		expect(diffCharges([stale, lateDue], [february, march])).toEqual({
 			insert: [],

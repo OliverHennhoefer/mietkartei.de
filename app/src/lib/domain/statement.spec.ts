@@ -99,6 +99,7 @@ function lease(
 			{
 				validFrom: range.start,
 				baseRent: 60000,
+				parkingRent: 0,
 				operatingCostPrepayment: prepayments.operating,
 				heatingCostPrepayment: prepayments.heating,
 				status: 'approved'

@@ -37,6 +37,8 @@ export type AnalysisCharge = {
 	period: IsoMonth;
 	kind: RentChargeKind;
 	baseRent: number;
+	/** The part of baseRent for a garage or parking space, left out of the rent per m². */
+	parkingRent: number;
 	amount: number;
 };
 
@@ -263,14 +265,15 @@ export function analyse(input: AnalysisInput, options: AnalysisOptions): Analysi
 		row.baseRent += charge.baseRent;
 		const area = unitById.get(unitId)!.floorArea;
 		const withArea = charge.kind === 'rent' && area && area > 0 ? area : 0;
+		const areaRent = charge.baseRent - charge.parkingRent;
 		row.rentArea += withArea;
-		if (withArea) row.rentWithArea += charge.baseRent;
+		if (withArea) row.rentWithArea += areaRent;
 		const key = granularity === 'year' ? charge.period.slice(0, 4) : charge.period;
 		for (const bucket of bucketsOf(key, unitById.get(unitId)!.propertyId)) {
 			bucket.charged += charge.amount;
 			bucket.baseRent += charge.baseRent;
 			bucket.rentArea += withArea;
-			if (withArea) bucket.rentWithArea += charge.baseRent;
+			if (withArea) bucket.rentWithArea += areaRent;
 		}
 	}
 
