@@ -15,7 +15,7 @@ Unter **Objekte → Objekt anlegen** wählst du als Art **Eigentumswohnung in ei
 
 - **Verwalter:** wer die WEG verwaltet und die Hausgeldabrechnung schickt.
 - **MEA dieser Wohnung:** der Miteigentumsanteil deiner Wohnung laut Teilungserklärung. Steht dort „85/1.000“, ist das die erste Zahl, also 85.
-- **MEA der ganzen WEG:** die zweite Zahl, die Summe der Anteile aller Wohnungen, meist 1.000 oder 10.000.
+- **MEA der ganzen WEG:** die zweite Zahl, die Summe der Anteile aller Wohnungen, meist 1000 oder 10000. Gib sie ohne Tausenderpunkt ein.
 
 Unter den Feldern steht dann, wie viel Prozent der WEG deine Wohnung hält, bei 85/1.000 also 8,5 %.
 

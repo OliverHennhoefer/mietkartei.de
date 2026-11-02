@@ -434,7 +434,7 @@
 				<Field
 					label="Summe des Schlüssels in der WEG"
 					error={errors?.associationKeyTotal}
-					hint="Bei MEA die zweite Zahl des Bruchs, z. B. 1.000. Vorbelegt aus dem Objekt."
+					hint="Bei MEA die zweite Zahl des Bruchs, z. B. 1000. Vorbelegt aus dem Objekt."
 					note={associationHint ?? undefined}
 				>
 					<input

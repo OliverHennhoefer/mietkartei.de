@@ -169,13 +169,13 @@
 			<Field
 				label="MEA der ganzen WEG"
 				error={errors?.ownershipShareTotal}
-				hint="Die zweite Zahl des Bruchs: alle Anteile der WEG zusammen, meist 1.000 oder 10.000."
+				hint="Die zweite Zahl des Bruchs: alle Anteile der WEG zusammen, meist 1000 oder 10000 (ohne Punkt eingeben)."
 				note={percentage}
 			>
 				<input
 					name="ownershipShareTotal"
 					inputmode="decimal"
-					placeholder="z. B. 1.000"
+					placeholder="z. B. 1000"
 					defaultValue={shareTotal}
 					oninput={(event) => (shareTotal = event.currentTarget.value)}
 					aria-invalid={errors?.ownershipShareTotal ? 'true' : undefined}
