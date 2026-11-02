@@ -1,0 +1,71 @@
+name: Back up database
+
+# A weekly copy of the database of app.mietkartei.de, independent of D1 Time Travel (which only
+# reaches 30 days back): `wrangler d1 export` writes it as SQL, gzipped, to the R2 bucket
+# mietkartei-backups in the EU, which deletes each copy after 12 weeks. Runs on Sundays and by
+# hand under Actions; D1 answers no other queries while it exports, so it runs at night.
+# Restoring is described in .github/MIGRATIONS.md.
+
+"on":
+  schedule:
+    - cron: "41 2 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: app
+
+jobs:
+  backup:
+    name: Export the database to R2
+    # Copies of the repository, such as those of the Deploy to Cloudflare button, run none of this.
+    if: github.repository == 'OliverHennhoefer/mietkartei.de'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Created on the first run, with the rule that deletes copies older than 12 weeks.
+      - name: Create the backup bucket
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx wrangler r2 bucket info mietkartei-backups --jurisdiction eu || {
+            npx wrangler r2 bucket create mietkartei-backups --jurisdiction eu
+            npx wrangler r2 bucket lifecycle add mietkartei-backups expire-after-12-weeks --expire-days 84 --jurisdiction eu --force
+          }
+
+      - name: Export and upload
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          name="mietkartei-$(date -u +%Y-%m-%dT%H%MZ).sql.gz"
+          npx wrangler d1 export mietkartei --remote --output "$RUNNER_TEMP/backup.sql"
+          gzip -9 "$RUNNER_TEMP/backup.sql"
+          npx wrangler r2 object put "mietkartei-backups/$name" --file "$RUNNER_TEMP/backup.sql.gz" \
+            --content-type application/gzip --jurisdiction eu --remote
+          rm "$RUNNER_TEMP/backup.sql.gz"
+          echo "Uploaded $name to the R2 bucket mietkartei-backups." >> "$GITHUB_STEP_SUMMARY"
