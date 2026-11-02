@@ -675,6 +675,7 @@ export async function createDemoData(
 				endDate: at(-6, '10-31'),
 				baseRent: 76000,
 				operatingCostPrepayment: 11000,
+				heatingCostModel: 'tenant_contract',
 				heatingCostPrepayment: 0,
 				securityDeposit: 228000,
 				persons: 1,
@@ -863,6 +864,7 @@ export async function createDemoData(
 					baseRent: staffel(0),
 					operatingCostPrepayment: 12000,
 					// Gasetagenheizung: the tenants have their own gas contract.
+					heatingCostModel: 'tenant_contract',
 					heatingCostPrepayment: 0,
 					securityDeposit: 278700,
 					persons: 2,
@@ -1949,11 +1951,18 @@ export async function createDemoData(
 			`Schornsteinfeger Gastherme ${year}`,
 			rosenheimId
 		);
+		// The tenants buy the gas themselves; the Wartung of their Etagenheizung is an operating
+		// cost (§ 2 Nr. 4d BetrKV) that the statement passes on with the Betriebskosten.
+		const wartung = Math.round(16500 * byYear(COST_INDEX, year));
+		yearItem(rosenheimId, year, 'Heizung', `Wartung Gastherme ${year}`, heating.name, wartung, {
+			allocationKeyId: keyId('Einheiten'),
+			invoiceDate: `${year}-10-05`
+		});
 		paidTo(
 			expense(
 				`${year}-10-05`,
-				Math.round(16500 * byYear(COST_INDEX, year)),
-				'maintenance',
+				wartung,
+				'operating_costs',
 				`Wartung Gastherme ${year}`,
 				rosenheimId,
 				'Wohnung 9'

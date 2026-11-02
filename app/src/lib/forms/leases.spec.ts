@@ -116,6 +116,14 @@ describe('parseLease', () => {
 		});
 	});
 
+	it('stores no heating prepayment for a tenant who pays the supplier directly', () => {
+		const result = parse({ heatingCostModel: 'tenant_contract', heatingCostPrepayment: '70' });
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.data.heatingCostModel).toBe('tenant_contract');
+		expect(result.data.heatingCostPrepayment).toBe(0);
+	});
+
 	it('keeps the index base only for an indexed rent', () => {
 		const result = parse({ indexBaseMonth: '2025-12', indexBaseValue: '121,4' });
 		expect(result.ok).toBe(true);

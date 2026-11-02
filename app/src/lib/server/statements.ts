@@ -76,6 +76,10 @@ type Statement = BatchItem<'sqlite'>;
  */
 export const DUE_DAYS = 30;
 
+/** The letter's note for a tenant who buys gas or heat directly from the supplier. */
+const OWN_HEATING_CONTRACT =
+	'Ihre Heizung betreiben Sie mit einem eigenen Liefervertrag. Die Kosten für Gas oder Wärme rechnet Ihr Versorger direkt mit Ihnen ab; sie sind nicht Teil dieser Abrechnung.';
+
 export type StatementRow = typeof operatingCostStatements.$inferSelect;
 
 /**
@@ -1621,6 +1625,7 @@ export function statementLetter(statement: LeaseStatement): Letter {
 			...intro.map((paragraph) => ({ paragraph })),
 			{ table: costTable },
 			...co2.map((paragraph) => ({ paragraph })),
+			...(statement.ownHeatingContract ? [{ paragraph: OWN_HEATING_CONTRACT }] : []),
 			{ table: prepaymentTable },
 			...(unpaid ? [{ paragraph: unpaid }] : []),
 			{ paragraph: result },
@@ -1687,6 +1692,12 @@ export function checkRows(statement: LeaseStatement): string[][] {
 		rows.push([
 			'Heizkostenverordnung',
 			'Heiz- und Warmwasserkosten nach Verbrauch verteilt (§§\u00a07, 8 HeizkostenV).'
+		]);
+	}
+	if (statement.ownHeatingContract) {
+		rows.push([
+			'Heizkosten',
+			'Eigener Liefervertrag des Mieters: Kosten für Gas oder Wärme sind nicht enthalten.'
 		]);
 	}
 	const co2 = statement.lines.flatMap((line) => (line.co2 ? [line.co2] : []));

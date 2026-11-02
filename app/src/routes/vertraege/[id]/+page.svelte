@@ -129,7 +129,12 @@
 	<dt>Betriebskosten</dt>
 	<dd>{operatingCostModelLabels[lease.operatingCostModel]}</dd>
 	<dt>Heizkosten</dt>
-	<dd>{heatingCostModelLabels[lease.heatingCostModel]}</dd>
+	<dd>
+		{heatingCostModelLabels[lease.heatingCostModel]}
+		{#if lease.heatingCostModel === 'tenant_contract'}
+			· <a href="/vertraege/{lease.id}/co2">CO₂-Kosten aufteilen</a>
+		{/if}
+	</dd>
 	<dt>Fälligkeit</dt>
 	<dd>am {lease.rentDueDay}. Werktag des Monats</dd>
 	<dt>Mietkonto führen ab</dt>
@@ -224,8 +229,10 @@
 	<dd><Money cents={data.currentRent.baseRent} /></dd>
 	<dt>Betriebskostenvorauszahlung</dt>
 	<dd><Money cents={data.currentRent.operatingCostPrepayment} /></dd>
-	<dt>Heizkostenvorauszahlung</dt>
-	<dd><Money cents={data.currentRent.heatingCostPrepayment} /></dd>
+	{#if lease.heatingCostModel !== 'tenant_contract' || data.currentRent.heatingCostPrepayment !== 0}
+		<dt>Heizkostenvorauszahlung</dt>
+		<dd><Money cents={data.currentRent.heatingCostPrepayment} /></dd>
+	{/if}
 	<dt>Gesamtmiete</dt>
 	<dd><strong><Money cents={data.currentRent.total} /></strong></dd>
 </dl>

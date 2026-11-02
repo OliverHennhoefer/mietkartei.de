@@ -246,6 +246,7 @@ export type WarningCode =
 	| 'direct_by_days'
 	| 'no_weight'
 	| 'flat_lease'
+	| 'own_heating_share'
 	| 'prepayments_elsewhere'
 	| 'deadline_passed'
 	| 'unknown_key'
@@ -362,6 +363,11 @@ export type LeaseStatement = {
 	persons: PersonsPeriod[];
 	lines: CostLine[];
 	excluded: ExcludedLine[];
+	/**
+	 * The tenant buys gas or heat directly from the supplier (heating cost model tenant_contract),
+	 * so the letter says the fuel is not part of it. Absent in results frozen before it existed.
+	 */
+	ownHeatingContract?: boolean;
 	prepayments: PrepaymentMonth[];
 	costsTotal: number;
 	/** The paid prepayments (geleistete Vorauszahlungen). */
@@ -1242,9 +1248,15 @@ function componentsOf(
 	}
 }
 
-/** The lease is settled by a Pauschale for this kind of cost; the share stays with the landlord. */
+/**
+ * The lease is settled by a Pauschale for this kind of cost; the share stays with the landlord. A
+ * tenant with an own supply contract buys the heat themselves, so what heating cost remains with
+ * the landlord (Wartung der Etagenheizung, § 2 Nr. 4d BetrKV) is an operating cost like any other.
+ */
 function exclusionReason(lease: StatementLease, heating: boolean): string | undefined {
-	if (heating) return lease.heatingCostModel === 'prepayment' ? undefined : 'Heizkostenpauschale';
+	if (heating && lease.heatingCostModel !== 'tenant_contract') {
+		return lease.heatingCostModel === 'prepayment' ? undefined : 'Heizkostenpauschale';
+	}
 	if (lease.operatingCostModel === 'prepayment') return undefined;
 	return lease.operatingCostModel === 'flat' ? 'Betriebskostenpauschale' : 'Inklusivmiete';
 }
@@ -1322,7 +1334,7 @@ function prepaymentsOf(lease: StatementLease, range: DateRange, asOf: IsoDate): 
 		// A Pauschale is not a prepayment: it is never settled.
 		const operating =
 			lease.operatingCostModel === 'prepayment' ? amounts.operatingCostPrepayment : 0;
-		const heating = lease.heatingCostModel === 'prepayment' ? amounts.heatingCostPrepayment : 0;
+		const heating = lease.heatingCostModel !== 'flat' ? amounts.heatingCostPrepayment : 0;
 		const charged = operating + heating;
 		const paid = history ? charged : Math.min(charged, paidByMonth.get(period) ?? 0);
 		const [operatingCostPrepayment, heatingCostPrepayment] = distributeCents(paid, [
@@ -1583,9 +1595,15 @@ export function computeStatement(
 			summary.co2 = co2;
 		}
 
-		// Step 6: §§ 7, 8 HeizKV want 50–70 % of heating and hot water cost by consumption.
+		// Step 6: §§ 7, 8 HeizKV want 50–70 % of heating and hot water cost by consumption. Not
+		// when every occupant buys the heat themselves (Etagenheizungen with own gas contracts): the
+		// landlord supplies no heat, and the item is only the Wartung of their heaters.
+		const occupants = circleUnits.flatMap((unit) => occupancyIn(ctx, unit, range).leases);
+		const ownHeatingOnly =
+			occupants.length > 0 &&
+			occupants.every((occupant) => occupant.lease.heatingCostModel === 'tenant_contract');
 		let heizkv = false;
-		if (heating) {
+		if (heating && !ownHeatingOnly) {
 			const consumptionKey =
 				key.kind === 'consumption' || key.kind === 'mixed' || key.kind === 'direct';
 			const percent = key.consumptionPercent ?? 0;
@@ -1733,6 +1751,20 @@ export function computeStatement(
 		for (const [leaseId, part] of partsByLease) {
 			const accumulator = accumulators.get(leaseId);
 			if (!accumulator) continue;
+			const ownContract = accumulator.lease.heatingCostModel === 'tenant_contract';
+			// A tenant who buys the heat themselves has no share in the fuel of a central heating:
+			// their unit belongs outside the circle of this item.
+			const fuelBill = item.fuel !== null || key.kind === 'consumption' || key.kind === 'mixed';
+			if (heating && ownContract && fuelBill && part.amount !== 0) {
+				warn(ctx, {
+					code: 'own_heating_share',
+					blocking: false,
+					itemId: item.id,
+					leaseId,
+					href: `/betriebskosten/belege/${item.id}`,
+					message: `Beim Mietvertrag ${leaseLabel(accumulator.units, accumulator.lease.tenants)} zahlt der Mieter die Heizkosten direkt an den Versorger, er bekommt aber einen Anteil am Beleg „${item.description}“ (${formatCents(part.amount)}). Gehört die Wohnung nicht zur Zentralheizung, nimm sie über einen Abrechnungskreis aus diesem Beleg heraus; sonst stell die Heizkosten im Mietvertrag um.`
+				});
+			}
 			const reason = exclusionReason(accumulator.lease, heating);
 			if (reason) {
 				accumulator.excluded.push({
@@ -1756,8 +1788,9 @@ export function computeStatement(
 					? `${association.key} der WEG${ownKey ? `, dann ${key.name}` : ''}`
 					: key.name,
 				keyKind: key.kind,
-				heating,
-				heizkv,
+				// For an own supply contract the line is an operating cost (see exclusionReason).
+				heating: heating && !ownContract,
+				heizkv: heizkv && !ownContract,
 				itemTotal: total,
 				allocated,
 				keyTotal: association
@@ -1871,6 +1904,7 @@ export function computeStatement(
 			persons: personsPeriods(lease, range),
 			lines: accumulator.lines,
 			excluded: accumulator.excluded,
+			ownHeatingContract: lease.heatingCostModel === 'tenant_contract',
 			prepayments,
 			costsTotal,
 			prepaymentsTotal,

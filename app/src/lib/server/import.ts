@@ -282,7 +282,7 @@ export const importFields: Record<ImportKind, readonly ImportField[]> = {
 			label: 'Heizkosten-Modell',
 			required: false,
 			synonyms: ['heizkostenmodell', 'hk-modell', 'heizkosten-modell'],
-			hint: 'Vorauszahlung oder Pauschale; leer = Vorauszahlung'
+			hint: 'Vorauszahlung, Pauschale oder direkt (eigener Vertrag des Mieters); leer = Vorauszahlung'
 		},
 		{
 			name: 'ledgerStart',
@@ -696,7 +696,11 @@ const heatingCostModelWords: Record<string, HeatingCostModel> = {
 	vz: 'prepayment',
 	prepayment: 'prepayment',
 	pauschale: 'flat',
-	flat: 'flat'
+	flat: 'flat',
+	direkt: 'tenant_contract',
+	'eigener vertrag': 'tenant_contract',
+	'mieter direkt': 'tenant_contract',
+	tenant_contract: 'tenant_contract'
 };
 
 /** A German word for an enum, or the raw value, which the parser then rejects with its own message. */

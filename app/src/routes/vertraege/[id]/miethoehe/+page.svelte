@@ -625,15 +625,18 @@
 			aria-invalid={changeErrors?.operatingCostPrepayment ? 'true' : undefined}
 		/>
 	</Field>
-	<Field label="Heizkostenvorauszahlung" error={changeErrors?.heatingCostPrepayment}>
-		<input
-			name="heatingCostPrepayment"
-			inputmode="decimal"
-			defaultValue={changeValues?.heatingCostPrepayment ??
-				formatCentsPlain(data.changeDefaults.heatingCostPrepayment)}
-			aria-invalid={changeErrors?.heatingCostPrepayment ? 'true' : undefined}
-		/>
-	</Field>
+	<!-- A tenant with an own supply contract pays no heating prepayment; the field stays away. -->
+	{#if lease.heatingCostModel !== 'tenant_contract'}
+		<Field label="Heizkostenvorauszahlung" error={changeErrors?.heatingCostPrepayment}>
+			<input
+				name="heatingCostPrepayment"
+				inputmode="decimal"
+				defaultValue={changeValues?.heatingCostPrepayment ??
+					formatCentsPlain(data.changeDefaults.heatingCostPrepayment)}
+				aria-invalid={changeErrors?.heatingCostPrepayment ? 'true' : undefined}
+			/>
+		</Field>
+	{/if}
 	<Field label="Grund" error={changeErrors?.reason}>
 		<select name="reason" aria-invalid={changeErrors?.reason ? 'true' : undefined} required>
 			{#each ['manual', 'statement'] as const as reason (reason)}

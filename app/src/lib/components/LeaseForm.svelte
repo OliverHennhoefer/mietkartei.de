@@ -74,6 +74,9 @@
 		if (!name) return { note: 'Für einen neuen Mieter Vor- und Nachnamen eintippen.' };
 		return { value: newTenantValue(name), label: `„${personName(name)}“ als neuen Mieter anlegen` };
 	}
+	// Follows the select, so the heating prepayment field disappears for a tenant's own contract.
+	// svelte-ignore state_referenced_locally
+	let heatingCostModel = $state(values.heatingCostModel || 'prepayment');
 	const invalid = (name: string) => (errors[name] ? 'true' : undefined);
 	// In the edit form the amounts are the ones at the start of the lease.
 	const atStart = (label: string) => (mode === 'edit' ? `${label} bei Vertragsbeginn` : label);
@@ -182,10 +185,21 @@
 			{/each}
 		</select>
 	</Field>
-	<Field label="Heizkosten" error={errors.heatingCostModel}>
-		<select name="heatingCostModel" aria-invalid={invalid('heatingCostModel')} required>
+	<Field
+		label="Heizkosten"
+		error={errors.heatingCostModel}
+		hint={heatingCostModel === 'tenant_contract'
+			? 'Etwa bei einer Etagenheizung mit eigenem Gasvertrag: Der Mieter zahlt dir keine Heizkostenvorauszahlung. Wartung und Abgasmessung der Heizung legst du mit den Betriebskosten um.'
+			: undefined}
+	>
+		<select
+			name="heatingCostModel"
+			aria-invalid={invalid('heatingCostModel')}
+			required
+			bind:value={heatingCostModel}
+		>
 			{#each heatingCostModels as model (model)}
-				<option value={model} selected={(values.heatingCostModel || 'prepayment') === model}>
+				<option value={model}>
 					{heatingCostModelLabels[model]}
 				</option>
 			{/each}
@@ -219,15 +233,17 @@
 			aria-invalid={invalid('operatingCostPrepayment')}
 		/>
 	</Field>
-	<Field label={atStart('Heizkostenvorauszahlung')} error={errors.heatingCostPrepayment}>
-		<input
-			name="heatingCostPrepayment"
-			defaultValue={values.heatingCostPrepayment ?? ''}
-			inputmode="decimal"
-			placeholder="0,00"
-			aria-invalid={invalid('heatingCostPrepayment')}
-		/>
-	</Field>
+	{#if heatingCostModel !== 'tenant_contract'}
+		<Field label={atStart('Heizkostenvorauszahlung')} error={errors.heatingCostPrepayment}>
+			<input
+				name="heatingCostPrepayment"
+				defaultValue={values.heatingCostPrepayment ?? ''}
+				inputmode="decimal"
+				placeholder="0,00"
+				aria-invalid={invalid('heatingCostPrepayment')}
+			/>
+		</Field>
+	{/if}
 	<Field
 		label="Kaution"
 		error={errors.securityDeposit}
