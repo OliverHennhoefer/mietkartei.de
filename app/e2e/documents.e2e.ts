@@ -63,6 +63,8 @@ test('uploads a document, shows it on the lease, downloads, filters and deletes 
 
 	// The filter narrows the list to one lease.
 	await page.goto('/dokumente');
+	// The select sends the filter once the page is hydrated; a choice before that does nothing.
+	await page.waitForLoadState('networkidle');
 	const filter = page.getByRole('form', { name: 'Filter' });
 	await filter.getByLabel('Mietvertrag').selectOption(lease.leaseId);
 	await expect(page).toHaveURL(new RegExp(`leaseId=${lease.leaseId}`));
