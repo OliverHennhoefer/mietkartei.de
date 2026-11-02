@@ -183,6 +183,15 @@ export type WebhookPayload = {
 	}[];
 };
 
+/**
+ * The title a push or webhook shows. A task's title is the landlord's own text and may name a
+ * tenant ("Müller wegen Rückstand anrufen"), so without details it is only "Aufgabe"; the titles
+ * of deadlines are made by the app and name no one.
+ */
+function outsideTitle(entry: CalendarEntry, details: boolean): string {
+	return entry.kind === 'task' && !details ? 'Aufgabe' : entry.title;
+}
+
 export function webhookPayload(
 	notices: Notice[],
 	details: boolean,
@@ -200,7 +209,7 @@ export function webhookPayload(
 			stage,
 			urgent: isUrgent(stage),
 			date: entry.date,
-			title: entry.title,
+			title: outsideTitle(entry, details),
 			...(details && entry.description ? { detail: entry.description } : {}),
 			url: entry.url
 		}))
@@ -258,7 +267,7 @@ export function ntfyMessage(
 	const lines = shown.map(({ entry, stage }) => {
 		const mark = stage === 'overdue' ? ' (überfällig)' : '';
 		const detail = details && entry.description ? `, ${entry.description}` : '';
-		return `${formatDate(entry.date)}: ${entry.title}${mark}${detail}`;
+		return `${formatDate(entry.date)}: ${outsideTitle(entry, details)}${mark}${detail}`;
 	});
 	if (notices.length > shown.length) lines.push(`und ${notices.length - shown.length} weitere`);
 	const single = notices.length === 1 ? notices[0].entry.url : `${origin}/aufgaben`;

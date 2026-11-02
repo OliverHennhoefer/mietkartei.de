@@ -44,7 +44,7 @@ Unter **Kanal hinzufügen → E-Mail** schaltest du die Hinweise an deine Anmeld
 3. Trage in mietkartei unter **Kanal hinzufügen → ntfy** die Adresse ein, also `https://ntfy.sh/mietkartei-7f3k9q2w`.
 4. Klicke bei dem neuen Kanal auf **Test senden**. Auf dem Handy erscheint „mietkartei: Test“.
 
-Ohne das Häkchen **Mit Namen der Mieter** gehen nur Art der Frist, Datum und Link mit, keine Namen. Betreibst du einen eigenen ntfy-Server, trägst du dessen Adresse ein; für ein geschütztes Thema gibst du zusätzlich ein Zugangstoken an.
+Ohne das Häkchen **Mit Namen der Mieter** gehen nur Art der Frist, Datum und Link mit, keine Namen. Eigene Aufgaben heißen dann nur „Aufgabe“, weil in ihrem Titel ein Name stehen kann. Betreibst du einen eigenen ntfy-Server, trägst du dessen Adresse ein; für ein geschütztes Thema gibst du zusätzlich ein Zugangstoken an.
 
 ## Per Webhook
 
@@ -74,7 +74,7 @@ mietkartei schickt eine `POST`-Anfrage mit diesem Inhalt:
 
 - `stage` ist `lead` (mit Vorlauf), `soon` (drei Tage vorher) oder `overdue` (überfällig).
 - `kind` ist `task` für eigene Aufgaben, sonst die Art der Frist, etwa `statement`, `insurance_notice` oder `lease_end`.
-- `detail` mit Mietern und Einheit ist nur dabei, wenn du **Mit Namen der Mieter** wählst.
+- `detail` mit Mietern und Einheit ist nur dabei, wenn du **Mit Namen der Mieter** wählst. Ohne das Häkchen ist `title` bei eigenen Aufgaben nur `Aufgabe`, da du den Titel selbst schreibst und darin ein Name stehen kann.
 - **Test senden** schickt eine Anfrage mit `"event": "test"` und leerer Liste.
 
 Antwortet die Adresse nicht mit einem Status 2xx, zählt mietkartei das als Fehler. Kam der Hinweis auch über keinen anderen Kanal an, versucht mietkartei es in der nächsten Stunde noch einmal. Nach fünf Fehlern in Folge pausiert der Kanal; ein erfolgreicher Test schaltet ihn wieder ein. Unter **Verlauf** siehst du jede Zustellung mit Ergebnis.

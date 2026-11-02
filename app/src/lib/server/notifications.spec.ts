@@ -148,17 +148,26 @@ describe('the messages', () => {
 		expect(mail.text).toContain('Neu anstehend\n\n- 10.11.2026: Rauchmelder prüfen\n  Müller');
 	});
 
-	it('leave tenant names out of a push and a webhook unless asked for', () => {
+	it('leave tenant names and task titles out of a push and a webhook unless asked for', () => {
 		const push = ntfyMessage('topic', notices, false, ORIGIN);
 		expect(push).toMatchObject({
 			topic: 'topic',
 			title: 'Fristen: 1 überfällig, 1 neu',
 			priority: 4
 		});
-		expect(push.message).toBe(
-			'01.11.2026: Heizung warten (überfällig)\n10.11.2026: Rauchmelder prüfen'
+		// A task's title is free text and may name a tenant.
+		expect(push.message).toBe('01.11.2026: Aufgabe (überfällig)\n10.11.2026: Aufgabe');
+		expect(ntfyMessage('topic', notices, true, ORIGIN).message).toBe(
+			'01.11.2026: Heizung warten (überfällig)\n10.11.2026: Rauchmelder prüfen, Müller · EG links'
 		);
-		expect(ntfyMessage('topic', notices, true, ORIGIN).message).toContain('Müller');
+		// The app's own deadline titles name no one and always go along.
+		const statement = {
+			entry: entry({ kind: 'statement', title: 'Betriebskostenabrechnung 2025' }),
+			stage: 'lead' as const
+		};
+		expect(ntfyMessage('topic', [statement], false, ORIGIN).message).toBe(
+			'10.11.2026: Betriebskostenabrechnung 2025'
+		);
 
 		const now = new Date('2026-11-02T07:00:00Z');
 		const payload = webhookPayload(notices, false, now);
@@ -169,10 +178,13 @@ describe('the messages', () => {
 			stage: 'lead',
 			urgent: false,
 			date: '2026-11-10',
-			title: 'Rauchmelder prüfen',
+			title: 'Aufgabe',
 			url: `${ORIGIN}/aufgaben?bearbeiten=1`
 		});
-		expect(webhookPayload(notices, true, now).notices[1].detail).toBe('Müller · EG links');
+		expect(webhookPayload(notices, true, now).notices[1]).toMatchObject({
+			title: 'Rauchmelder prüfen',
+			detail: 'Müller · EG links'
+		});
 	});
 
 	it('lists at most eight entries in a push and counts the rest', () => {
@@ -388,7 +400,7 @@ describe('sendDueNotifications', () => {
 		const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
 		const payload = JSON.parse(String(init.body));
 		expect(payload).toMatchObject({ event: 'notices', summary: '1 überfällig' });
-		expect(payload.notices[0]).toMatchObject({ stage: 'overdue', title: 'Rauchmelder prüfen' });
+		expect(payload.notices[0]).toMatchObject({ stage: 'overdue', title: 'Aufgabe' });
 		expect(new Headers(init.headers).get('x-mietkartei-signature')).toMatch(/^t=\d+,v1=/);
 		expect(await db.select().from(outbox)).toHaveLength(2);
 		expect(await db.select().from(notificationDeliveries)).toHaveLength(3);
