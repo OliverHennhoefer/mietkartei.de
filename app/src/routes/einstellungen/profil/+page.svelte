@@ -3,6 +3,7 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
+	import PasswordField from '#lib/components/PasswordField.svelte';
 	import { MIN_PASSWORD_LENGTH } from '#lib/validation.ts';
 	import type { PageProps } from './$types';
 
@@ -67,18 +68,13 @@
 				/>
 				{#if profileErrors?.email}<span class="error">{profileErrors.email}</span>{/if}
 			</label>
-			<label>
-				Aktuelles Passwort (nur zum Ändern der E-Mail-Adresse)
-				<input
-					name="currentPassword"
-					type="password"
-					autocomplete="current-password"
-					aria-invalid={profileErrors?.currentPassword ? 'true' : undefined}
-				/>
-				{#if profileErrors?.currentPassword}
-					<span class="error">{profileErrors.currentPassword}</span>
-				{/if}
-			</label>
+			<PasswordField
+				label="Aktuelles Passwort (nur zum Ändern der E-Mail-Adresse)"
+				error={profileErrors?.currentPassword}
+				name="currentPassword"
+				autocomplete="current-password"
+				aria-invalid={profileErrors?.currentPassword ? 'true' : undefined}
+			/>
 			<div class="form-actions">
 				<button type="submit">Profil speichern</button>
 			</div>
@@ -93,45 +89,32 @@
 			</Alert>
 		{/if}
 		<form method="POST" action="?/password" class="card" use:enhance>
-			<label>
-				Aktuelles Passwort
-				<input
-					name="currentPassword"
-					type="password"
-					autocomplete="current-password"
-					aria-invalid={passwordErrors?.currentPassword ? 'true' : undefined}
-					required
-				/>
-				{#if passwordErrors?.currentPassword}
-					<span class="error">{passwordErrors.currentPassword}</span>
-				{/if}
-			</label>
-			<label>
-				Neues Passwort
-				<input
-					name="password"
-					type="password"
-					autocomplete="new-password"
-					minlength={MIN_PASSWORD_LENGTH}
-					aria-invalid={passwordErrors?.password ? 'true' : undefined}
-					required
-				/>
-				<span class="muted">Mindestens {MIN_PASSWORD_LENGTH} Zeichen.</span>
-				{#if passwordErrors?.password}<span class="error">{passwordErrors.password}</span>{/if}
-			</label>
-			<label>
-				Neues Passwort wiederholen
-				<input
-					name="passwordConfirm"
-					type="password"
-					autocomplete="new-password"
-					aria-invalid={passwordErrors?.passwordConfirm ? 'true' : undefined}
-					required
-				/>
-				{#if passwordErrors?.passwordConfirm}
-					<span class="error">{passwordErrors.passwordConfirm}</span>
-				{/if}
-			</label>
+			<PasswordField
+				label="Aktuelles Passwort"
+				error={passwordErrors?.currentPassword}
+				name="currentPassword"
+				autocomplete="current-password"
+				aria-invalid={passwordErrors?.currentPassword ? 'true' : undefined}
+				required
+			/>
+			<PasswordField
+				label="Neues Passwort"
+				note={`Mindestens ${MIN_PASSWORD_LENGTH} Zeichen.`}
+				error={passwordErrors?.password}
+				name="password"
+				autocomplete="new-password"
+				minlength={MIN_PASSWORD_LENGTH}
+				aria-invalid={passwordErrors?.password ? 'true' : undefined}
+				required
+			/>
+			<PasswordField
+				label="Neues Passwort wiederholen"
+				error={passwordErrors?.passwordConfirm}
+				name="passwordConfirm"
+				autocomplete="new-password"
+				aria-invalid={passwordErrors?.passwordConfirm ? 'true' : undefined}
+				required
+			/>
 			<div class="form-actions">
 				<button type="submit">Passwort ändern</button>
 			</div>

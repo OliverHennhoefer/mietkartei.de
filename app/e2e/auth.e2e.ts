@@ -28,6 +28,31 @@ test('rejects a wrong password', async ({ page }) => {
 	await expect(page).toHaveURL(/\/anmelden$/);
 });
 
+test('shows the typed password behind the eye button', async ({ page }) => {
+	await page.goto('/anmelden');
+	const password = page.getByLabel('Passwort');
+	await password.fill('geheim');
+	await expect(password).toHaveAttribute('type', 'password');
+
+	// The button is reached with the keyboard right after the field.
+	await password.press('Tab');
+	const show = page.getByRole('button', { name: 'Passwort anzeigen' });
+	await expect(show).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(password).toHaveAttribute('type', 'text');
+	await expect(password).toHaveValue('geheim');
+
+	await page.getByRole('button', { name: 'Passwort verbergen' }).click();
+	await expect(password).toHaveAttribute('type', 'password');
+
+	// Sending the form hides it again.
+	await show.click();
+	await page.getByLabel('E-Mail-Adresse').fill(owner.email);
+	await page.getByRole('button', { name: 'Anmelden' }).click();
+	await expect(page.getByRole('alert')).toBeVisible();
+	await expect(password).toHaveAttribute('type', 'password');
+});
+
 test('signs in and out', async ({ page }) => {
 	await page.goto('/anmelden');
 	await page.getByLabel('E-Mail-Adresse').fill(owner.email);
