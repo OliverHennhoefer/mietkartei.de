@@ -10,7 +10,8 @@
 		errors,
 		submitLabel,
 		cancelHref,
-		returnTo = null
+		returnTo = null,
+		leaseAddress = null
 	}: {
 		action: string;
 		values: Record<string, string>;
@@ -19,7 +20,16 @@
 		cancelHref: string;
 		/** Where to go after creating, carried as a hidden field (see /mieter/neu). */
 		returnTo?: string | null;
+		/** The address of the tenant's rented unit, when a lease exists, for the hint. */
+		leaseAddress?: string | null;
 	} = $props();
+
+	// A tenant usually lives in the rented unit: letters then go to the address of the lease's
+	// property, and nothing has to be typed. Only a different postal address shows the fields.
+	// svelte-ignore state_referenced_locally
+	let separate = $state(
+		values.separateAddress === 'on' || Boolean(values.street || values.postalCode || values.city)
+	);
 </script>
 
 <form method="POST" {action} class="card" use:enhance>
@@ -68,35 +78,52 @@
 			aria-invalid={errors.phone ? 'true' : undefined}
 		/>
 	</Field>
-	<Field
-		label="Straße und Hausnummer (optional)"
-		error={errors.street}
-		hint="Für Schreiben; leer, wenn der Mieter in der gemieteten Einheit wohnt."
-	>
-		<input
-			name="street"
-			defaultValue={values.street ?? ''}
-			autocomplete="off"
-			aria-invalid={errors.street ? 'true' : undefined}
-		/>
-	</Field>
-	<Field label="Postleitzahl (optional)" error={errors.postalCode}>
-		<input
-			name="postalCode"
-			defaultValue={values.postalCode ?? ''}
-			inputmode="numeric"
-			autocomplete="off"
-			aria-invalid={errors.postalCode ? 'true' : undefined}
-		/>
-	</Field>
-	<Field label="Ort (optional)" error={errors.city}>
-		<input
-			name="city"
-			defaultValue={values.city ?? ''}
-			autocomplete="off"
-			aria-invalid={errors.city ? 'true' : undefined}
-		/>
-	</Field>
+	<div class="form-wide address">
+		<input type="hidden" name="addressChoice" value="1" />
+		<label class="inline">
+			<input type="checkbox" name="separateAddress" bind:checked={separate} />
+			Andere Postanschrift als die gemietete Einheit
+		</label>
+		{#if !separate}
+			<p class="muted small">
+				{#if leaseAddress}
+					Schreiben gehen an {leaseAddress}, die Adresse aus dem Mietvertrag.
+				{:else}
+					Schreiben gehen an die Adresse der gemieteten Einheit; sie kommt aus dem Mietvertrag.
+				{/if}
+			</p>
+		{/if}
+	</div>
+	{#if separate}
+		<Field label="Straße und Hausnummer" error={errors.street}>
+			<input
+				name="street"
+				defaultValue={values.street ?? ''}
+				autocomplete="off"
+				aria-invalid={errors.street ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		<Field label="Postleitzahl" error={errors.postalCode}>
+			<input
+				name="postalCode"
+				defaultValue={values.postalCode ?? ''}
+				inputmode="numeric"
+				autocomplete="off"
+				aria-invalid={errors.postalCode ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		<Field label="Ort" error={errors.city}>
+			<input
+				name="city"
+				defaultValue={values.city ?? ''}
+				autocomplete="off"
+				aria-invalid={errors.city ? 'true' : undefined}
+				required
+			/>
+		</Field>
+	{/if}
 	<div class="form-wide">
 		<Field label="Notizen (optional)" error={errors.notes}>
 			<textarea name="notes" aria-invalid={errors.notes ? 'true' : undefined}
@@ -109,3 +136,9 @@
 		<a href={cancelHref} class="button secondary">Abbrechen</a>
 	</div>
 </form>
+
+<style>
+	.address p {
+		margin: 0.25rem 0 0;
+	}
+</style>

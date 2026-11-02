@@ -12,14 +12,28 @@ test('creates a tenant, edits it and finds it in the list', async ({ page }) => 
 	await page.getByLabel('Vorname').fill('Max');
 	await page.getByLabel('Nachname').fill(lastName);
 	await page.getByLabel('E-Mail-Adresse (optional)').fill('max@example.org');
-	await page.getByLabel('Postleitzahl (optional)').fill('10115');
-	await page.getByLabel('Ort (optional)').fill('Berlin');
+	// Without the switch the address comes from the lease; a different one needs all three fields.
+	await expect(page.getByLabel('Straße und Hausnummer')).toHaveCount(0);
+	await page.getByLabel('Andere Postanschrift als die gemietete Einheit').check();
+	await page.getByLabel('Straße und Hausnummer').fill('Am Hang 2');
+	await page.getByLabel('Postleitzahl').fill('10115');
+	await page.getByLabel('Ort').fill('Berlin');
 	await page.getByRole('button', { name: 'Mieter anlegen' }).click();
+
+	// The lease form comes next, with the new tenant named; „Später“ leads to the tenant.
+	await expect(page).toHaveURL(/\/vertraege\/neu\?tenantId=[^&]+&created=1$/);
+	await expect(page.getByText(`Max ${lastName} ist angelegt.`)).toBeVisible();
+	await page.getByRole('link', { name: 'Später anlegen' }).click();
 
 	await expect(page).toHaveURL(/\/mieter\/[^/]+$/);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Max ${lastName}`);
 	await expect(page.getByRole('link', { name: 'max@example.org' })).toBeVisible();
+	await expect(page.getByText('Am Hang 2, 10115 Berlin')).toBeVisible();
 	await expect(page.getByText('Dieser Mieter steht auf keinem Mietvertrag.')).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Jetzt Mietvertrag anlegen' })).toHaveAttribute(
+		'href',
+		/\/vertraege\/neu\?tenantId=[^&]+$/
+	);
 
 	await page.getByRole('link', { name: 'Bearbeiten' }).click();
 	await expect(page.getByLabel('Nachname')).toHaveValue(lastName);
@@ -34,17 +48,21 @@ test('creates a tenant, edits it and finds it in the list', async ({ page }) => 
 	const table = page.getByRole('table', { name: 'Mieter' });
 	const row = table.getByRole('row').filter({ hasText: lastName });
 	await expect(row).toContainText('max@example.org');
-	await expect(row).toContainText('keine');
+	await expect(row.getByRole('link', { name: 'Mietvertrag anlegen' })).toBeVisible();
 });
 
 test('shows validation errors next to the fields', async ({ page }) => {
 	await page.goto('/mieter/neu');
 	await page.getByLabel('Vorname').fill('Max');
 	await page.getByLabel('Nachname').fill('Fehler');
-	await page.getByLabel('Postleitzahl (optional)').fill('123');
+	await page.getByLabel('Andere Postanschrift als die gemietete Einheit').check();
+	await page.getByLabel('Straße und Hausnummer').fill('Am Hang 2');
+	await page.getByLabel('Postleitzahl').fill('123');
 	await page.getByRole('button', { name: 'Mieter anlegen' }).click();
 	await expect(page.getByText('Die Postleitzahl hat fünf Ziffern.')).toBeVisible();
+	await expect(page.getByText('Bitte fülle dieses Feld aus.')).toBeVisible();
 	await expect(page.getByLabel('Nachname')).toHaveValue('Fehler');
+	await expect(page.getByLabel('Straße und Hausnummer')).toHaveValue('Am Hang 2');
 });
 
 test('comes back to the lease form with the new tenant preselected', async ({ page }) => {
@@ -96,6 +114,7 @@ test('deletes a tenant without a lease', async ({ page }) => {
 	await page.getByLabel('Vorname').fill('Frida');
 	await page.getByLabel('Nachname').fill(lastName);
 	await page.getByRole('button', { name: 'Mieter anlegen' }).click();
+	await page.getByRole('link', { name: 'Später anlegen' }).click();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Frida ${lastName}`);
 
 	await page.getByRole('button', { name: 'Mieter löschen' }).click();
@@ -111,6 +130,7 @@ test('archives a tenant without a running lease and brings them back', async ({ 
 	await page.getByLabel('Vorname').fill('Anna');
 	await page.getByLabel('Nachname').fill(lastName);
 	await page.getByRole('button', { name: 'Mieter anlegen' }).click();
+	await page.getByRole('link', { name: 'Später anlegen' }).click();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Anna ${lastName}`);
 
 	await page.getByRole('button', { name: 'Mieter archivieren' }).click();

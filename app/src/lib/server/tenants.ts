@@ -4,6 +4,7 @@ import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import { tenants } from './db/schema';
+import { leaseLabel, type LeaseSummary } from './leases';
 import { assertQuota } from './quotas';
 
 // All queries take the account explicitly, so data of one account can never leak into another.
@@ -78,4 +79,33 @@ export async function updateTenant(
 		auditEntry(db, context, 'tenant', tenantId, 'update', `Mieter ${personName(input)} geändert`)
 	]);
 	return true;
+}
+
+type Address = { street: string | null; postalCode: string | null; city: string | null };
+
+function addressLine(address: Address): string {
+	return [address.street, [address.postalCode, address.city].filter(Boolean).join(' ')]
+		.filter(Boolean)
+		.join(', ');
+}
+
+/**
+ * Where letters reach the tenant: their own postal address, else the address of the property they
+ * rent (the running lease, before it begins the upcoming one, after the end the latest). Null for a
+ * tenant without address and without lease. `lease` names the lease the address comes from.
+ */
+export function postalAddress(
+	tenant: Address,
+	leases: readonly LeaseSummary[]
+): { line: string; lease: string | null } | null {
+	const own = addressLine(tenant);
+	if (own) return { line: own, lease: null };
+	const lease =
+		leases.find((candidate) => candidate.active) ??
+		leases
+			.filter((candidate) => candidate.upcoming)
+			.sort((a, b) => a.startDate.localeCompare(b.startDate))[0] ??
+		[...leases].sort((a, b) => b.startDate.localeCompare(a.startDate))[0];
+	if (!lease) return null;
+	return { line: addressLine(lease.property), lease: leaseLabel(lease) };
 }

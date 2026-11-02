@@ -118,7 +118,19 @@ describe('vertraege', () => {
 describe('vertraege/neu', () => {
 	it('preselects unit and tenant from the query', async () => {
 		expect(await run(loadNew, { url: `/x?unitId=${unitId}&tenantId=${tenantId}` })).toMatchObject({
-			data: { defaults: { unitId, tenantIds: tenantId }, units: [expect.anything()] }
+			data: { defaults: { unitId, tenantIds: tenantId }, units: [expect.anything()], created: [] }
+		});
+	});
+
+	it('names the tenants just created and keeps them for another new tenant', async () => {
+		const partner = await seedTenant(db, 'a', { firstName: 'Max' });
+		const url = `/vertraege/neu?tenantId=${tenantId}&created=1&tenantId=${partner}`;
+		expect(await run(loadNew, { url })).toMatchObject({
+			data: {
+				defaults: { tenantIds: `${tenantId},${partner}` },
+				created: [{ id: tenantId }, { id: partner }],
+				here: `/vertraege/neu?tenantId=${tenantId}&created=1&tenantId=${partner}`
+			}
 		});
 	});
 

@@ -181,6 +181,13 @@ describe('mieter', () => {
 		expect(row.reminder).toEqual({ level: 3, date: '2025-05-12' });
 	});
 
+	it('creates a tenant and goes on to the lease form with it preselected', async () => {
+		const result = await run(newActions.create, { form: tenant });
+		expect(result).toEqual({
+			redirect: expect.stringMatching(/^\/vertraege\/neu\?tenantId=[\w-]+&created=1$/)
+		});
+	});
+
 	it('creates a tenant and returns to a safe path with it preselected', async () => {
 		expect(await run(loadNew, { url: '/mieter/neu?return=/vertraege/neu' })).toEqual({
 			data: { returnTo: '/vertraege/neu' }
@@ -196,7 +203,7 @@ describe('mieter', () => {
 		});
 		expect(await run(newActions.create, { form: { ...tenant, return: '//evil.example' } })).toEqual(
 			{
-				redirect: expect.stringMatching(/^\/mieter\/[\w-]+$/)
+				redirect: expect.stringMatching(/^\/vertraege\/neu\?tenantId=[\w-]+&created=1$/)
 			}
 		);
 		expect(await run(newActions.create, { form: { ...tenant, postalCode: '1' } })).toMatchObject({
@@ -213,6 +220,46 @@ describe('mieter', () => {
 		expect(await run(tenantActions.restore, { params, form: {} })).toMatchObject({ error: 404 });
 		expect(await run(editActions.update, { params, form: tenant })).toMatchObject({ error: 404 });
 		expect(await run(tenantActions.delete, { params, form: {} })).toMatchObject({ error: 404 });
+	});
+
+	it('keeps the address empty for a tenant in the rented unit and needs all of a different one', async () => {
+		const inUnit = { ...tenant, addressChoice: '1', street: 'Alte Straße 1', city: 'Köln' };
+		const redirect = (await run(newActions.create, { form: inUnit })) as { redirect: string };
+		const id = /tenantId=([\w-]+)/.exec(redirect.redirect)![1];
+		expect(await getTenant(db, 'a', id)).toMatchObject({
+			street: null,
+			postalCode: null,
+			city: null
+		});
+
+		const partial = { ...tenant, addressChoice: '1', separateAddress: 'on', street: 'Am Hang 2' };
+		expect(await run(newActions.create, { form: partial })).toMatchObject({
+			fail: 400,
+			data: { errors: { postalCode: expect.any(String), city: expect.any(String) } }
+		});
+	});
+
+	it('shows the address of the rented unit for a tenant without one', async () => {
+		const params = { id: tenantId };
+		expect(await run(loadTenant, { params })).toMatchObject({ data: { address: null } });
+		expect(await run(loadEdit, { params })).toMatchObject({ data: { leaseAddress: null } });
+		const { unitId } = await seedUnit(db, 'a', { name: 'Wohnung 2' });
+		await seedLease(db, 'a', unitId, { tenantIds: [tenantId] });
+		expect(await run(loadTenant, { params })).toMatchObject({
+			data: { address: { line: 'Lindenstraße 4, 10115 Berlin', lease: 'Wohnung 2 · Haus' } }
+		});
+		expect(await run(loadEdit, { params })).toMatchObject({
+			data: { leaseAddress: 'Lindenstraße 4, 10115 Berlin' }
+		});
+		const elsewhere = await seedTenant(db, 'a', {
+			street: 'Am Hang 2',
+			postalCode: '50667',
+			city: 'Köln'
+		});
+		await seedLease(db, 'a', (await seedUnit(db, 'a')).unitId, { tenantIds: [elsewhere] });
+		expect(await run(loadTenant, { params: { id: elsewhere } })).toMatchObject({
+			data: { address: { line: 'Am Hang 2, 50667 Köln', lease: null } }
+		});
 	});
 
 	it('edits a tenant', async () => {

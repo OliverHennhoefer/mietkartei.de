@@ -7,8 +7,10 @@ import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import type { Actions, PageServerLoad } from './$types';
 
-// ?unitId= and ?tenantId= preselect the unit and the tenant (unit rows and tenant pages link
-// here); a tenant created through /mieter/neu?return=/vertraege/neu comes back the same way.
+// ?unitId= and ?tenantId= preselect the unit and the tenants (unit rows and tenant pages link
+// here); a tenant created through /mieter/neu?return=/vertraege/neu comes back the same way, and
+// /mieter/neu without a return sends the new tenant here with ?created=1, which names them in a
+// notice above the form.
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const accountId = requireAccount(locals);
 	const [units, tenants] = await Promise.all([
@@ -16,12 +18,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		listTenants(locals.db, accountId)
 	]);
 	// A new lease usually starts on the first of next month.
+	const tenantIds = url.searchParams.getAll('tenantId');
 	const defaults: Record<string, string> = {
 		unitId: url.searchParams.get('unitId') ?? '',
-		tenantIds: url.searchParams.get('tenantId') ?? '',
+		tenantIds: tenantIds.join(','),
 		startDate: firstOfMonth(addMonthsToMonth(monthOf(today()), 1))
 	};
-	return { units, tenants, defaults };
+	const created = url.searchParams.has('created')
+		? tenants.filter((tenant) => tenantIds.includes(tenant.id))
+		: [];
+	// This page with its preselection, for the links that create a tenant and come back.
+	const here = `/vertraege/neu${url.search}`;
+	return { units, tenants, defaults, created, here };
 };
 
 /** The form as typed, for re-rendering after a refusal that is not a field error. */
