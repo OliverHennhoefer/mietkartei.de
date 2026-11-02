@@ -33,6 +33,7 @@ import {
 	type UserRole
 } from './db/schema';
 import type { Mail } from './mail';
+import { layoutMail } from './mail-layout';
 import { assertQuota } from './quotas';
 
 // Invitations (Zugänge): the owner invites an address as a manager or a viewer; an account has
@@ -655,23 +656,28 @@ export function accessEndedMail(to: string, reason: 'removed' | 'account-deleted
 		reason === 'removed'
 			? 'Der Vermieter hat deinen Zugang zu seinem Konto in mietkartei entfernt.'
 			: 'Der Vermieter hat sein Konto in mietkartei gelöscht, und damit auch deinen Zugang.';
-	return {
+	return layoutMail({
 		to,
 		subject: 'Dein Zugang zu mietkartei wurde beendet',
-		text: `Hallo,\n\n${what} Du kannst dich nicht mehr anmelden.\n`
-	};
+		preview: what,
+		heading: 'Dein Zugang wurde beendet',
+		paragraphs: ['Hallo,', `${what} Du kannst dich nicht mehr anmelden.`]
+	});
 }
 
 /** The mail to the new owner after a handover. */
 export function ownershipMail(to: string, from: string | null): Mail {
-	return {
+	const handover = `${inviterName(from)} hat dir das Konto in mietkartei übergeben.`;
+	return layoutMail({
 		to,
 		subject: 'Du bist jetzt Vermieter in mietkartei',
-		text:
-			'Hallo,\n\n' +
-			`${inviterName(from)} hat dir das Konto in mietkartei übergeben. Du verwaltest jetzt die ` +
-			'Zugänge, die Bankverbindungen und das Abo des Kontos.\n'
-	};
+		preview: handover,
+		heading: 'Du bist jetzt Vermieter',
+		paragraphs: [
+			'Hallo,',
+			`${handover} Du verwaltest jetzt die Zugänge, die Bankverbindungen und das Abo des Kontos.`
+		]
+	});
 }
 
 /**
@@ -752,14 +758,14 @@ export function invitationMail(
 		role === 'viewer'
 			? 'lädt dich ein, die Daten in mietkartei mit Lesezugriff einzusehen'
 			: `lädt dich ein, in mietkartei ${userRolePhrases[role]} mitzuarbeiten`;
-	return {
+	const name = inviterName(inviter);
+	return layoutMail({
 		to,
 		subject: 'Einladung zu mietkartei',
-		text:
-			'Hallo,\n\n' +
-			`${inviterName(inviter)} ${invites}. ` +
-			'Mit diesem Link legst du dein Zugangskonto an; er gilt sieben Tage:\n\n' +
-			`${link}\n\n` +
-			'Wenn du die Einladung nicht erwartet hast, kannst du diese E-Mail ignorieren.\n'
-	};
+		preview: `${name} ${invites}.`,
+		heading: 'Du bist eingeladen',
+		paragraphs: ['Hallo,', `${name} ${invites}. Über den Link legst du dein Zugangskonto an.`],
+		action: { label: 'Einladung annehmen', url: link, validity: 'Der Link gilt sieben Tage.' },
+		note: 'Wenn du die Einladung nicht erwartet hast, kannst du diese E-Mail ignorieren.'
+	});
 }

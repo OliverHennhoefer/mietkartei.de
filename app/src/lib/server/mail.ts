@@ -2,9 +2,10 @@ import { MAIL_API_KEY, MAIL_FROM, MAIL_TRANSPORT } from '$app/env/private';
 import type { Database } from './db';
 import { outbox } from './db/schema';
 
-// Mails are plain text and German. The transport is chosen by MAIL_TRANSPORT, see env.ts.
+// Mails are German, with a plain text part and, for the account mails, an HTML part laid out by
+// mail-layout.ts. The transport is chosen by MAIL_TRANSPORT, see env.ts.
 
-export type Mail = { to: string; subject: string; text: string };
+export type Mail = { to: string; subject: string; text: string; html?: string };
 
 export async function sendMail(db: Database, mail: Mail): Promise<void> {
 	switch (MAIL_TRANSPORT) {
@@ -16,7 +17,8 @@ export async function sendMail(db: Database, mail: Mail): Promise<void> {
 					from: MAIL_FROM,
 					to: [mail.to],
 					subject: mail.subject,
-					text: mail.text
+					text: mail.text,
+					...(mail.html ? { html: mail.html } : {})
 				})
 			});
 			if (!response.ok) {
@@ -25,7 +27,8 @@ export async function sendMail(db: Database, mail: Mail): Promise<void> {
 			return;
 		}
 		case 'outbox':
-			await db.insert(outbox).values(mail);
+			// The end-to-end tests read the links from the text part.
+			await db.insert(outbox).values({ to: mail.to, subject: mail.subject, text: mail.text });
 			return;
 		case 'console':
 			// The links in the mails sign people in; the hosted variant must not log them.

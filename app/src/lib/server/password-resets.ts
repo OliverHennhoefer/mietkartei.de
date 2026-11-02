@@ -12,6 +12,7 @@ import type { Database } from './db';
 import { runBatch } from './db/batch';
 import { emailChanges, oauthCodes, passwordResets, sessions, users } from './db/schema';
 import type { Mail } from './mail';
+import { layoutMail } from './mail-layout';
 
 // Password resets (Passwort zurücksetzen): a link with a random token, valid for one hour. Only
 // the SHA-256 of the token is stored, as the row's id. Using the link sets the new password,
@@ -123,14 +124,16 @@ export async function resetPassword(
 
 /** The mail with the reset link; `link` is the absolute URL of /passwort-zuruecksetzen/<token>. */
 export function passwordResetMail(to: string, link: string): Mail {
-	return {
+	return layoutMail({
 		to,
 		subject: 'Passwort zurücksetzen | mietkartei',
-		text:
-			'Hallo,\n\n' +
-			'du hast ein neues Passwort für mietkartei angefordert. Mit diesem Link kannst du es ' +
-			'eine Stunde lang setzen:\n\n' +
-			`${link}\n\n` +
-			'Wenn du das nicht warst, kannst du diese E-Mail ignorieren; dein Passwort bleibt, wie es ist.\n'
-	};
+		preview: 'Über den Link setzt du ein neues Passwort für mietkartei.',
+		heading: 'Neues Passwort setzen',
+		paragraphs: [
+			'Hallo,',
+			'du hast ein neues Passwort für mietkartei angefordert. Über den Link setzt du es.'
+		],
+		action: { label: 'Passwort setzen', url: link, validity: 'Der Link gilt eine Stunde.' },
+		note: 'Wenn du das nicht warst, kannst du diese E-Mail ignorieren; dein Passwort bleibt, wie es ist.'
+	});
 }
