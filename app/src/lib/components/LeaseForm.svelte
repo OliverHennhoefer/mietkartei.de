@@ -18,6 +18,7 @@
 	} from '../server/db/schema';
 	import type { LeaseSummary, Property, Tenant, Unit } from '../server/leases';
 	import Field from './Field.svelte';
+	import FormSection from './FormSection.svelte';
 	import MultiSelect from './MultiSelect.svelte';
 
 	// The lease form, shared by /vertraege/neu (mode create: units and amounts included) and
@@ -75,305 +76,329 @@
 		return { value: newTenantValue(name), label: `„${personName(name)}“ als neuen Mieter anlegen` };
 	}
 	const invalid = (name: string) => (errors[name] ? 'true' : undefined);
-	// In the edit form the amounts are the ones at the start of the lease.
-	const atStart = (label: string) => (mode === 'edit' ? `${label} bei Vertragsbeginn` : label);
+	// The index section shows while the rent model is an indexed rent.
+	// svelte-ignore state_referenced_locally
+	let rentModel = $state(values.rentModel || 'fixed');
 </script>
 
 <form method="POST" {action} class="card" use:enhance>
-	{#if mode === 'create'}
-		<Field label="Einheit" error={errors.unitId}>
-			<select name="unitId" aria-invalid={invalid('unitId')} required>
-				<option value="" selected={!values.unitId}>Bitte wählen</option>
-				{#each units as { unit, property } (unit.id)}
-					<option value={unit.id} selected={values.unitId === unit.id}>
-						{unit.name} · {property.name}
-					</option>
-				{/each}
-			</select>
-		</Field>
+	<FormSection
+		title="Mieter und Laufzeit"
+		description="Wer die Einheit mietet, ab wann und nach welchem Modell."
+	>
+		{#if mode === 'create'}
+			<div class="form-wide">
+				<Field label="Einheit" error={errors.unitId}>
+					<select name="unitId" aria-invalid={invalid('unitId')} required>
+						<option value="" selected={!values.unitId}>Bitte wählen</option>
+						{#each units as { unit, property } (unit.id)}
+							<option value={unit.id} selected={values.unitId === unit.id}>
+								{unit.name} · {property.name}
+							</option>
+						{/each}
+					</select>
+				</Field>
+			</div>
+			<MultiSelect
+				name="extraUnitIds"
+				label="Weitere Einheiten (optional)"
+				options={unitOptions}
+				selected={(values.extraUnitIds ?? '').split(',').filter(Boolean)}
+				placeholder="Einheit suchen …"
+				empty="Keine Einheit gefunden."
+				hint="Ein Stellplatz, der mit der Wohnung vermietet wird, gehört in denselben Mietvertrag: eine Miete, eine Zahlung, ein Mietkonto."
+				error={errors.extraUnitIds}
+			/>
+		{:else if lease}
+			<div class="form-wide">
+				<p>
+					<strong>Einheiten:</strong>
+					{lease.unit.name} · {lease.property.name}{#each lease.extraUnits as unit (unit.id)}, {unit.name}{/each}
+				</p>
+				<p class="muted small">
+					Die Einheiten eines laufenden Vertrags lassen sich nicht ändern. Beende den Vertrag und
+					lege einen neuen an.
+				</p>
+			</div>
+		{/if}
 		<MultiSelect
-			name="extraUnitIds"
-			label="Weitere Einheiten (optional)"
-			options={unitOptions}
-			selected={(values.extraUnitIds ?? '').split(',').filter(Boolean)}
-			placeholder="Einheit suchen …"
-			empty="Keine Einheit gefunden."
-			hint="Ein Stellplatz, der mit der Wohnung vermietet wird, gehört in denselben Mietvertrag: eine Miete, eine Zahlung, ein Mietkonto."
-			error={errors.extraUnitIds}
+			name="tenantIds"
+			label="Mieter"
+			options={tenantOptions}
+			selected={(values.tenantIds ?? '').split(',').filter(Boolean)}
+			placeholder={mode === 'create' ? 'Mieter suchen oder neu eintippen …' : 'Mieter suchen …'}
+			empty="Kein Mieter gefunden."
+			hint={mode === 'create'
+				? 'Mehrere Mieter für Paare und WGs: einfach weitere auswählen. Wen es noch nicht gibt, tippst du mit Vor- und Nachnamen ein; er wird mit dem Vertrag angelegt.'
+				: 'Mehrere Mieter für Paare und WGs: einfach weitere auswählen.'}
+			error={errors.tenantIds}
+			create={mode === 'create' ? newTenantOption : undefined}
+			labelOf={mode === 'create' ? newTenantLabel : undefined}
 		/>
-	{:else if lease}
-		<div class="form-wide">
-			<p>
-				<strong>Einheiten:</strong>
-				{lease.unit.name} · {lease.property.name}{#each lease.extraUnits as unit (unit.id)}, {unit.name}{/each}
-			</p>
-			<p class="muted small">
-				Die Einheiten eines laufenden Vertrags lassen sich nicht ändern. Beende den Vertrag und lege
-				einen neuen an.
-			</p>
-		</div>
-	{/if}
-
-	<MultiSelect
-		name="tenantIds"
-		label="Mieter"
-		options={tenantOptions}
-		selected={(values.tenantIds ?? '').split(',').filter(Boolean)}
-		placeholder={mode === 'create' ? 'Mieter suchen oder neu eintippen …' : 'Mieter suchen …'}
-		empty="Kein Mieter gefunden."
-		hint={mode === 'create'
-			? 'Mehrere Mieter für Paare und WGs: einfach weitere auswählen. Wen es noch nicht gibt, tippst du mit Vor- und Nachnamen ein; er wird mit dem Vertrag angelegt.'
-			: 'Mehrere Mieter für Paare und WGs: einfach weitere auswählen.'}
-		error={errors.tenantIds}
-		create={mode === 'create' ? newTenantOption : undefined}
-		labelOf={mode === 'create' ? newTenantLabel : undefined}
-	/>
-
-	<Field label="Beginn" error={errors.startDate}>
-		<input
-			name="startDate"
-			type="date"
-			defaultValue={values.startDate ?? ''}
-			aria-invalid={invalid('startDate')}
-			required
-		/>
-	</Field>
-	<Field
-		label="Vertragsende (optional)"
-		error={errors.endDate}
-		hint="Leer bei unbefristeten Verträgen."
-	>
-		<input
-			name="endDate"
-			type="date"
-			defaultValue={values.endDate ?? ''}
-			aria-invalid={invalid('endDate')}
-		/>
-	</Field>
-
-	<Field
-		label="Art des Mietverhältnisses"
-		error={errors.kind}
-		hint="Vorbelegt mit Wohnraum; für einen Stellplatz oder ein Gewerbe bitte anpassen. Die Regeln zu Kaution, Staffel und Index gelten nur für Wohnraum, die Kündigungsfristen richten sich nach der Art."
-	>
-		<select name="kind" aria-invalid={invalid('kind')} required>
-			{#each leaseKinds as kind (kind)}
-				<option value={kind} selected={(values.kind || 'residential') === kind}>
-					{leaseKindLabels[kind]}
-				</option>
-			{/each}
-		</select>
-	</Field>
-	<Field label="Mietmodell" error={errors.rentModel}>
-		<select name="rentModel" aria-invalid={invalid('rentModel')} required>
-			{#each rentModels as model (model)}
-				<option value={model} selected={(values.rentModel || 'fixed') === model}>
-					{rentModelLabels[model]}
-				</option>
-			{/each}
-		</select>
-	</Field>
-	<Field label="Betriebskosten" error={errors.operatingCostModel}>
-		<select name="operatingCostModel" aria-invalid={invalid('operatingCostModel')} required>
-			{#each operatingCostModels as model (model)}
-				<option value={model} selected={(values.operatingCostModel || 'prepayment') === model}>
-					{operatingCostModelLabels[model]}
-				</option>
-			{/each}
-		</select>
-	</Field>
-	<Field label="Heizkosten" error={errors.heatingCostModel}>
-		<select name="heatingCostModel" aria-invalid={invalid('heatingCostModel')} required>
-			{#each heatingCostModels as model (model)}
-				<option value={model} selected={(values.heatingCostModel || 'prepayment') === model}>
-					{heatingCostModelLabels[model]}
-				</option>
-			{/each}
-		</select>
-	</Field>
-
-	{#if mode === 'edit' && lease}
-		<p class="form-wide muted small">
-			Die Beträge und die Personenzahl hier gelten ab Vertragsbeginn. Spätere Änderungen der Miete
-			pflegst du im Reiter <a href="/vertraege/{lease.id}/miethoehe">Miethöhe</a>, den Personenstand
-			in der Übersicht. Eine Korrektur gilt auch für spätere Mietänderungen, die den bisherigen
-			Betrag übernommen hatten.
-		</p>
-	{/if}
-	<Field label={atStart('Kaltmiete')} error={errors.baseRent}>
-		<input
-			name="baseRent"
-			defaultValue={values.baseRent ?? ''}
-			inputmode="decimal"
-			placeholder="650,00"
-			aria-invalid={invalid('baseRent')}
-			required
-		/>
-	</Field>
-	<Field label={atStart('Betriebskostenvorauszahlung')} error={errors.operatingCostPrepayment}>
-		<input
-			name="operatingCostPrepayment"
-			defaultValue={values.operatingCostPrepayment ?? ''}
-			inputmode="decimal"
-			placeholder="0,00"
-			aria-invalid={invalid('operatingCostPrepayment')}
-		/>
-	</Field>
-	<Field label={atStart('Heizkostenvorauszahlung')} error={errors.heatingCostPrepayment}>
-		<input
-			name="heatingCostPrepayment"
-			defaultValue={values.heatingCostPrepayment ?? ''}
-			inputmode="decimal"
-			placeholder="0,00"
-			aria-invalid={invalid('heatingCostPrepayment')}
-		/>
-	</Field>
-	<Field
-		label="Kaution"
-		error={errors.securityDeposit}
-		hint="Bei Wohnraum höchstens drei Nettokaltmieten (§ 551 BGB)."
-		note={depositWarning}
-	>
-		<input
-			name="securityDeposit"
-			defaultValue={values.securityDeposit ?? ''}
-			inputmode="decimal"
-			placeholder="0,00"
-			aria-invalid={invalid('securityDeposit')}
-		/>
-	</Field>
-	<Field
-		label="Personen bei Einzug"
-		error={errors.persons}
-		hint="Für den Umlageschlüssel nach Personen."
-	>
-		<input
-			name="persons"
-			type="number"
-			min="0"
-			max="20"
-			defaultValue={values.persons || '1'}
-			aria-invalid={invalid('persons')}
-		/>
-	</Field>
-
-	<Field
-		label="Fälligkeit (Werktag des Monats)"
-		error={errors.rentDueDay}
-		hint="Die Miete ist am n-ten Werktag fällig, nach § 556b BGB am dritten. Samstage und bundesweite Feiertage zählen nicht."
-	>
-		<input
-			name="rentDueDay"
-			type="number"
-			min="1"
-			max="20"
-			defaultValue={values.rentDueDay || '3'}
-			aria-invalid={invalid('rentDueDay')}
-		/>
-	</Field>
-	<Field
-		label="Mietkonto führen ab (optional)"
-		error={errors.ledgerStart}
-		hint={mode === 'create'
-			? 'Für Verträge, die schon länger laufen: Sollstellungen und Fristen ab diesem Tag. Was davor fällig war, etwa die Kautionsraten, gilt als erledigt. Leer = der erste Tag des laufenden Monats, wenn der Vertrag vor diesem Monat begonnen hat.'
-			: 'Sollstellungen und Fristen ab diesem Tag; was davor fällig war, gilt als erledigt. Leer = ab Vertragsbeginn.'}
-	>
-		<input
-			name="ledgerStart"
-			type="date"
-			defaultValue={values.ledgerStart ?? ''}
-			aria-invalid={invalid('ledgerStart')}
-		/>
-	</Field>
-	{#if mode === 'create'}
+		<Field label="Beginn" error={errors.startDate}>
+			<input
+				name="startDate"
+				type="date"
+				defaultValue={values.startDate ?? ''}
+				aria-invalid={invalid('startDate')}
+				required
+			/>
+		</Field>
 		<Field
-			label="Anfangssaldo (optional)"
-			error={errors.openingBalance}
-			hint="Der Stand des Mietkontos am Tag „Mietkonto führen ab“, ohne Vorzeichen."
+			label="Vertragsende (optional)"
+			error={errors.endDate}
+			hint="Leer bei unbefristeten Verträgen."
 		>
 			<input
-				name="openingBalance"
-				defaultValue={values.openingBalance ?? ''}
-				inputmode="decimal"
-				placeholder="0,00"
-				aria-invalid={invalid('openingBalance')}
-			/>
-		</Field>
-		<Field label="Anfangssaldo ist" error={errors.openingBalanceSide}>
-			<select name="openingBalanceSide">
-				<option value="arrears" selected={values.openingBalanceSide !== 'credit'}
-					>Rückstand (Soll)</option
-				>
-				<option value="credit" selected={values.openingBalanceSide === 'credit'}
-					>Guthaben (Haben)</option
-				>
-			</select>
-		</Field>
-	{/if}
-
-	<Field
-		label="Basismonat des Index (optional)"
-		error={errors.indexBaseMonth}
-		hint="Nur bei Indexmiete: der Monat des Verbraucherpreisindex, auf dem die Miete beruht."
-	>
-		<input
-			name="indexBaseMonth"
-			type="month"
-			defaultValue={values.indexBaseMonth ?? ''}
-			aria-invalid={invalid('indexBaseMonth')}
-		/>
-	</Field>
-	<Field
-		label="Indexwert (optional)"
-		error={errors.indexBaseValue}
-		hint="Nur bei Indexmiete, z. B. 121,4."
-	>
-		<input
-			name="indexBaseValue"
-			defaultValue={values.indexBaseValue ?? ''}
-			inputmode="decimal"
-			aria-invalid={invalid('indexBaseValue')}
-		/>
-	</Field>
-	<Field
-		label="Basisjahr des Index"
-		error={errors.indexBaseYear}
-		hint="Nur bei Indexmiete: das Basisjahr (= 100), auf das sich der Indexwert bezieht."
-	>
-		<input
-			name="indexBaseYear"
-			defaultValue={values.indexBaseYear ?? '2020'}
-			inputmode="numeric"
-			aria-invalid={invalid('indexBaseYear')}
-		/>
-	</Field>
-
-	{#if mode === 'edit'}
-		<Field label="Kündigung erhalten am (optional)" error={errors.terminatedAt}>
-			<input
-				name="terminatedAt"
+				name="endDate"
 				type="date"
-				defaultValue={values.terminatedAt ?? ''}
-				aria-invalid={invalid('terminatedAt')}
+				defaultValue={values.endDate ?? ''}
+				aria-invalid={invalid('endDate')}
 			/>
 		</Field>
-		<Field label="Gekündigt durch (optional)" error={errors.terminatedBy}>
-			<select name="terminatedBy" aria-invalid={invalid('terminatedBy')}>
-				<option value="" selected={!values.terminatedBy}>Keine Kündigung</option>
-				{#each terminatedByParties as party (party)}
-					<option value={party} selected={values.terminatedBy === party}>
-						{terminatedByLabels[party]}
+		<Field
+			label="Art des Mietverhältnisses"
+			error={errors.kind}
+			hint="Vorbelegt mit Wohnraum; für einen Stellplatz oder ein Gewerbe bitte anpassen. Die Regeln zu Kaution, Staffel und Index gelten nur für Wohnraum, die Kündigungsfristen richten sich nach der Art."
+		>
+			<select name="kind" aria-invalid={invalid('kind')} required>
+				{#each leaseKinds as kind (kind)}
+					<option value={kind} selected={(values.kind || 'residential') === kind}>
+						{leaseKindLabels[kind]}
 					</option>
 				{/each}
 			</select>
 		</Field>
+		<Field label="Mietmodell" error={errors.rentModel}>
+			<select name="rentModel" bind:value={rentModel} aria-invalid={invalid('rentModel')} required>
+				{#each rentModels as model (model)}
+					<option value={model}>
+						{rentModelLabels[model]}
+					</option>
+				{/each}
+			</select>
+		</Field>
+		<Field
+			label="Personen bei Einzug"
+			error={errors.persons}
+			hint="Für den Umlageschlüssel nach Personen."
+		>
+			<input
+				name="persons"
+				type="number"
+				min="0"
+				max="20"
+				defaultValue={values.persons || '1'}
+				aria-invalid={invalid('persons')}
+			/>
+		</Field>
+	</FormSection>
+
+	<FormSection title="Miete">
+		{#snippet about()}
+			{#if mode === 'edit' && lease}
+				Die Beträge bei Vertragsbeginn. Spätere Änderungen pflegst du im Reiter
+				<a href="/vertraege/{lease.id}/miethoehe">Miethöhe</a>; eine Korrektur hier gilt auch für
+				spätere Mietänderungen, die den bisherigen Betrag übernommen hatten.
+			{:else}
+				Die Beträge zu Beginn des Vertrags. Spätere Änderungen pflegst du im Reiter Miethöhe.
+			{/if}
+		{/snippet}
+		<Field label="Kaltmiete" error={errors.baseRent}>
+			<input
+				name="baseRent"
+				defaultValue={values.baseRent ?? ''}
+				inputmode="decimal"
+				placeholder="650,00"
+				aria-invalid={invalid('baseRent')}
+				required
+			/>
+		</Field>
+		<Field
+			label="Kaution"
+			error={errors.securityDeposit}
+			hint="Bei Wohnraum höchstens drei Nettokaltmieten (§ 551 BGB)."
+			note={depositWarning}
+		>
+			<input
+				name="securityDeposit"
+				defaultValue={values.securityDeposit ?? ''}
+				inputmode="decimal"
+				placeholder="0,00"
+				aria-invalid={invalid('securityDeposit')}
+			/>
+		</Field>
+		<Field label="Betriebskosten" error={errors.operatingCostModel}>
+			<select name="operatingCostModel" aria-invalid={invalid('operatingCostModel')} required>
+				{#each operatingCostModels as model (model)}
+					<option value={model} selected={(values.operatingCostModel || 'prepayment') === model}>
+						{operatingCostModelLabels[model]}
+					</option>
+				{/each}
+			</select>
+		</Field>
+		<Field label="Betriebskostenvorauszahlung" error={errors.operatingCostPrepayment}>
+			<input
+				name="operatingCostPrepayment"
+				defaultValue={values.operatingCostPrepayment ?? ''}
+				inputmode="decimal"
+				placeholder="0,00"
+				aria-invalid={invalid('operatingCostPrepayment')}
+			/>
+		</Field>
+		<Field label="Heizkosten" error={errors.heatingCostModel}>
+			<select name="heatingCostModel" aria-invalid={invalid('heatingCostModel')} required>
+				{#each heatingCostModels as model (model)}
+					<option value={model} selected={(values.heatingCostModel || 'prepayment') === model}>
+						{heatingCostModelLabels[model]}
+					</option>
+				{/each}
+			</select>
+		</Field>
+		<Field label="Heizkostenvorauszahlung" error={errors.heatingCostPrepayment}>
+			<input
+				name="heatingCostPrepayment"
+				defaultValue={values.heatingCostPrepayment ?? ''}
+				inputmode="decimal"
+				placeholder="0,00"
+				aria-invalid={invalid('heatingCostPrepayment')}
+			/>
+		</Field>
+	</FormSection>
+
+	<FormSection
+		title="Mietkonto"
+		description="Wann die Miete fällig ist und ab wann mietkartei Soll und Zahlungen führt."
+	>
+		<Field
+			label="Fälligkeit (Werktag des Monats)"
+			error={errors.rentDueDay}
+			hint="Die Miete ist am n-ten Werktag fällig, nach § 556b BGB am dritten. Samstage und bundesweite Feiertage zählen nicht."
+		>
+			<input
+				name="rentDueDay"
+				type="number"
+				min="1"
+				max="20"
+				defaultValue={values.rentDueDay || '3'}
+				aria-invalid={invalid('rentDueDay')}
+			/>
+		</Field>
+		<Field
+			label="Mietkonto führen ab (optional)"
+			error={errors.ledgerStart}
+			hint={mode === 'create'
+				? 'Für Verträge, die schon länger laufen: Sollstellungen und Fristen ab diesem Tag. Was davor fällig war, etwa die Kautionsraten, gilt als erledigt. Leer = der erste Tag des laufenden Monats, wenn der Vertrag vor diesem Monat begonnen hat.'
+				: 'Sollstellungen und Fristen ab diesem Tag; was davor fällig war, gilt als erledigt. Leer = ab Vertragsbeginn.'}
+		>
+			<input
+				name="ledgerStart"
+				type="date"
+				defaultValue={values.ledgerStart ?? ''}
+				aria-invalid={invalid('ledgerStart')}
+			/>
+		</Field>
+		{#if mode === 'create'}
+			<Field
+				label="Anfangssaldo (optional)"
+				error={errors.openingBalance}
+				hint="Der Stand des Mietkontos am Tag „Mietkonto führen ab“, ohne Vorzeichen."
+			>
+				<input
+					name="openingBalance"
+					defaultValue={values.openingBalance ?? ''}
+					inputmode="decimal"
+					placeholder="0,00"
+					aria-invalid={invalid('openingBalance')}
+				/>
+			</Field>
+			<Field label="Anfangssaldo ist" error={errors.openingBalanceSide}>
+				<select name="openingBalanceSide">
+					<option value="arrears" selected={values.openingBalanceSide !== 'credit'}
+						>Rückstand (Soll)</option
+					>
+					<option value="credit" selected={values.openingBalanceSide === 'credit'}
+						>Guthaben (Haben)</option
+					>
+				</select>
+			</Field>
+		{/if}
+	</FormSection>
+
+	{#if rentModel === 'indexed'}
+		<FormSection
+			title="Indexmiete"
+			description="Der Verbraucherpreisindex, auf dem die Miete beruht (§ 557b BGB)."
+		>
+			<Field
+				label="Basismonat des Index"
+				error={errors.indexBaseMonth}
+				hint="Der Monat des Verbraucherpreisindex, auf dem die Miete beruht."
+			>
+				<input
+					name="indexBaseMonth"
+					type="month"
+					defaultValue={values.indexBaseMonth ?? ''}
+					aria-invalid={invalid('indexBaseMonth')}
+				/>
+			</Field>
+			<Field
+				label="Indexwert"
+				error={errors.indexBaseValue}
+				hint="Der Indexwert dieses Monats, z. B. 121,4."
+			>
+				<input
+					name="indexBaseValue"
+					defaultValue={values.indexBaseValue ?? ''}
+					inputmode="decimal"
+					aria-invalid={invalid('indexBaseValue')}
+				/>
+			</Field>
+			<Field
+				label="Basisjahr des Index"
+				error={errors.indexBaseYear}
+				hint="Das Basisjahr (= 100), auf das sich der Indexwert bezieht."
+			>
+				<input
+					name="indexBaseYear"
+					defaultValue={values.indexBaseYear ?? '2020'}
+					inputmode="numeric"
+					aria-invalid={invalid('indexBaseYear')}
+				/>
+			</Field>
+		</FormSection>
 	{/if}
 
-	<div class="form-wide">
-		<Field label="Notizen (optional)" error={errors.notes}>
-			<textarea name="notes" aria-invalid={invalid('notes')}>{values.notes ?? ''}</textarea>
-		</Field>
-	</div>
+	{#if mode === 'edit'}
+		<FormSection title="Kündigung" description="Erst ausfüllen, wenn eine Kündigung vorliegt.">
+			<Field label="Kündigung erhalten am (optional)" error={errors.terminatedAt}>
+				<input
+					name="terminatedAt"
+					type="date"
+					defaultValue={values.terminatedAt ?? ''}
+					aria-invalid={invalid('terminatedAt')}
+				/>
+			</Field>
+			<Field label="Gekündigt durch (optional)" error={errors.terminatedBy}>
+				<select name="terminatedBy" aria-invalid={invalid('terminatedBy')}>
+					<option value="" selected={!values.terminatedBy}>Keine Kündigung</option>
+					{#each terminatedByParties as party (party)}
+						<option value={party} selected={values.terminatedBy === party}>
+							{terminatedByLabels[party]}
+						</option>
+					{/each}
+				</select>
+			</Field>
+		</FormSection>
+	{/if}
+
+	<FormSection title="Notizen">
+		<div class="form-wide">
+			<Field label="Notizen (optional)" error={errors.notes}>
+				<textarea name="notes" aria-invalid={invalid('notes')}>{values.notes ?? ''}</textarea>
+			</Field>
+		</div>
+	</FormSection>
 
 	<div class="form-actions">
 		<button type="submit">{submitLabel}</button>

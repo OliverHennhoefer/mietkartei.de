@@ -5,6 +5,7 @@
 	import { formatCentsPlain } from '../money';
 	import type { AssociationStatement } from '../server/association-statements';
 	import Field from './Field.svelte';
+	import FormSection from './FormSection.svelte';
 
 	// The form of a Hausgeldabrechnung, for creating (the Hausgeld tab) and editing (its page).
 	// The amounts are the unit's share as the Verwalter printed it.
@@ -34,115 +35,137 @@
 </script>
 
 <form method="POST" {action} class="card" use:enhance>
-	<Field label="Wirtschaftsjahr von" error={errors?.periodStart}>
-		<input
-			type="date"
-			name="periodStart"
-			defaultValue={value('periodStart', statement?.periodStart ?? `${defaultYear}-01-01`)}
-			aria-invalid={errors?.periodStart ? 'true' : undefined}
-			required
-		/>
-	</Field>
-	<Field label="Wirtschaftsjahr bis" error={errors?.periodEnd}>
-		<input
-			type="date"
-			name="periodEnd"
-			defaultValue={value('periodEnd', statement?.periodEnd ?? `${defaultYear}-12-31`)}
-			aria-invalid={errors?.periodEnd ? 'true' : undefined}
-			required
-		/>
-	</Field>
-	<Field
-		label="Umlagefähige Kosten in €"
-		error={errors?.allocableCosts}
-		hint="Der Anteil der Wohnung an den umlagefähigen Kosten, meist als Summe ausgewiesen."
+	<FormSection
+		title="Wirtschaftsjahr"
+		description="Der Zeitraum, den die Hausgeldabrechnung des Verwalters abdeckt."
 	>
-		<input
-			name="allocableCosts"
-			inputmode="decimal"
-			defaultValue={value(
-				'allocableCosts',
-				statement ? formatCentsPlain(statement.allocableCosts) : ''
-			)}
-			aria-invalid={errors?.allocableCosts ? 'true' : undefined}
-		/>
-	</Field>
-	<Field
-		label="Nicht umlagefähige Kosten in €"
-		error={errors?.nonAllocableCosts}
-		hint="Etwa Verwaltervergütung, Instandhaltung, Bankgebühren."
-	>
-		<input
-			name="nonAllocableCosts"
-			inputmode="decimal"
-			defaultValue={value(
-				'nonAllocableCosts',
-				statement ? formatCentsPlain(statement.nonAllocableCosts) : ''
-			)}
-			aria-invalid={errors?.nonAllocableCosts ? 'true' : undefined}
-		/>
-	</Field>
-	<Field label="Zuführung zur Erhaltungsrücklage in €" error={errors?.reserveContribution}>
-		<input
-			name="reserveContribution"
-			inputmode="decimal"
-			defaultValue={value(
-				'reserveContribution',
-				statement ? formatCentsPlain(statement.reserveContribution) : ''
-			)}
-			aria-invalid={errors?.reserveContribution ? 'true' : undefined}
-		/>
-	</Field>
-	<Field
-		label="Entnahme aus der Rücklage in € (optional)"
-		error={errors?.reserveWithdrawal}
-		hint="Dein Anteil an dem, was der Verwalter im Jahr aus der Erhaltungsrücklage für Reparaturen und Instandhaltung ausgegeben hat. Für die Steuer zählt dieser Betrag, nicht die Zuführung."
-	>
-		<input
-			name="reserveWithdrawal"
-			inputmode="decimal"
-			defaultValue={value(
-				'reserveWithdrawal',
-				statement?.reserveWithdrawal ? formatCentsPlain(statement.reserveWithdrawal) : ''
-			)}
-			aria-invalid={errors?.reserveWithdrawal ? 'true' : undefined}
-		/>
-	</Field>
-	<Field
-		label="Hausgeld laut Wirtschaftsplan in €"
-		error={errors?.feesDue}
-		hint="Die Vorauszahlungen des Jahres, die du hättest zahlen sollen (Soll)."
-	>
-		<input
-			name="feesDue"
-			inputmode="decimal"
-			defaultValue={value('feesDue', statement ? formatCentsPlain(statement.feesDue) : '')}
-			aria-invalid={errors?.feesDue ? 'true' : undefined}
-		/>
-	</Field>
-	<Field
-		label="Ergebnis laut Verwalter in € (optional)"
-		error={errors?.statedBalance}
-		hint="Die Abrechnungsspitze: Kosten abzüglich Hausgeld laut Wirtschaftsplan."
-	>
-		<input
-			name="statedBalance"
-			inputmode="decimal"
-			defaultValue={money('statedBalance', statement?.statedBalance)}
-			aria-invalid={errors?.statedBalance ? 'true' : undefined}
-		/>
-	</Field>
-	<Field label="Ergebnis ist" error={errors?.balanceKind}>
-		<select name="balanceKind">
-			<option value="due" selected={balanceKind === 'due'}>Nachzahlung</option>
-			<option value="credit" selected={balanceKind === 'credit'}>Guthaben</option>
-		</select>
-	</Field>
-	<div class="form-wide">
-		<Field label="Notiz (optional)" error={errors?.note}>
-			<textarea name="note" defaultValue={value('note', statement?.note ?? '')}></textarea>
+		<Field label="Wirtschaftsjahr von" error={errors?.periodStart}>
+			<input
+				type="date"
+				name="periodStart"
+				defaultValue={value('periodStart', statement?.periodStart ?? `${defaultYear}-01-01`)}
+				aria-invalid={errors?.periodStart ? 'true' : undefined}
+				required
+			/>
 		</Field>
-	</div>
+		<Field label="Wirtschaftsjahr bis" error={errors?.periodEnd}>
+			<input
+				type="date"
+				name="periodEnd"
+				defaultValue={value('periodEnd', statement?.periodEnd ?? `${defaultYear}-12-31`)}
+				aria-invalid={errors?.periodEnd ? 'true' : undefined}
+				required
+			/>
+		</Field>
+	</FormSection>
+	<FormSection
+		title="Kosten"
+		description="Der Anteil dieser Wohnung, wie ihn der Verwalter in der Abrechnung ausweist."
+	>
+		<Field
+			label="Umlagefähige Kosten in €"
+			error={errors?.allocableCosts}
+			hint="Der Anteil der Wohnung an den umlagefähigen Kosten, meist als Summe ausgewiesen."
+		>
+			<input
+				name="allocableCosts"
+				inputmode="decimal"
+				defaultValue={value(
+					'allocableCosts',
+					statement ? formatCentsPlain(statement.allocableCosts) : ''
+				)}
+				aria-invalid={errors?.allocableCosts ? 'true' : undefined}
+			/>
+		</Field>
+		<Field
+			label="Nicht umlagefähige Kosten in €"
+			error={errors?.nonAllocableCosts}
+			hint="Etwa Verwaltervergütung, Instandhaltung, Bankgebühren."
+		>
+			<input
+				name="nonAllocableCosts"
+				inputmode="decimal"
+				defaultValue={value(
+					'nonAllocableCosts',
+					statement ? formatCentsPlain(statement.nonAllocableCosts) : ''
+				)}
+				aria-invalid={errors?.nonAllocableCosts ? 'true' : undefined}
+			/>
+		</Field>
+	</FormSection>
+	<FormSection
+		title="Erhaltungsrücklage"
+		description="Was in die Rücklage der WEG floss und was aus ihr ausgegeben wurde."
+	>
+		<Field label="Zuführung zur Erhaltungsrücklage in €" error={errors?.reserveContribution}>
+			<input
+				name="reserveContribution"
+				inputmode="decimal"
+				defaultValue={value(
+					'reserveContribution',
+					statement ? formatCentsPlain(statement.reserveContribution) : ''
+				)}
+				aria-invalid={errors?.reserveContribution ? 'true' : undefined}
+			/>
+		</Field>
+		<Field
+			label="Entnahme aus der Rücklage in € (optional)"
+			error={errors?.reserveWithdrawal}
+			hint="Dein Anteil an dem, was der Verwalter im Jahr aus der Erhaltungsrücklage für Reparaturen und Instandhaltung ausgegeben hat. Für die Steuer zählt dieser Betrag, nicht die Zuführung."
+		>
+			<input
+				name="reserveWithdrawal"
+				inputmode="decimal"
+				defaultValue={value(
+					'reserveWithdrawal',
+					statement?.reserveWithdrawal ? formatCentsPlain(statement.reserveWithdrawal) : ''
+				)}
+				aria-invalid={errors?.reserveWithdrawal ? 'true' : undefined}
+			/>
+		</Field>
+	</FormSection>
+	<FormSection
+		title="Ergebnis"
+		description="Hausgeld laut Wirtschaftsplan und die Abrechnungsspitze, die der Verwalter errechnet hat."
+	>
+		<Field
+			label="Hausgeld laut Wirtschaftsplan in €"
+			error={errors?.feesDue}
+			hint="Die Vorauszahlungen des Jahres, die du hättest zahlen sollen (Soll)."
+		>
+			<input
+				name="feesDue"
+				inputmode="decimal"
+				defaultValue={value('feesDue', statement ? formatCentsPlain(statement.feesDue) : '')}
+				aria-invalid={errors?.feesDue ? 'true' : undefined}
+			/>
+		</Field>
+		<Field
+			label="Ergebnis laut Verwalter in € (optional)"
+			error={errors?.statedBalance}
+			hint="Die Abrechnungsspitze: Kosten abzüglich Hausgeld laut Wirtschaftsplan."
+		>
+			<input
+				name="statedBalance"
+				inputmode="decimal"
+				defaultValue={money('statedBalance', statement?.statedBalance)}
+				aria-invalid={errors?.statedBalance ? 'true' : undefined}
+			/>
+		</Field>
+		<Field label="Ergebnis ist" error={errors?.balanceKind}>
+			<select name="balanceKind">
+				<option value="due" selected={balanceKind === 'due'}>Nachzahlung</option>
+				<option value="credit" selected={balanceKind === 'credit'}>Guthaben</option>
+			</select>
+		</Field>
+	</FormSection>
+	<FormSection title="Notiz">
+		<div class="form-wide">
+			<Field label="Notiz (optional)" error={errors?.note}>
+				<textarea name="note" defaultValue={value('note', statement?.note ?? '')}></textarea>
+			</Field>
+		</div>
+	</FormSection>
 	<div class="form-actions">
 		<button type="submit">{submitLabel}</button>
 	</div>

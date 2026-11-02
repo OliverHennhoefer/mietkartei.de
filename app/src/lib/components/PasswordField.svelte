@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { HTMLInputAttributes } from 'svelte/elements';
+	import FieldLabel from './FieldLabel.svelte';
 	import Icon from './Icon.svelte';
 
 	// A password input with an eye button that shows what was typed. The button sits outside the
@@ -40,7 +41,7 @@
 </script>
 
 <div class="password-field">
-	<label for="{id}-input">{label}</label>
+	<label for="{id}-input"><FieldLabel {label} /></label>
 	<div class="password-below">
 		<div class="password-control">
 			<input

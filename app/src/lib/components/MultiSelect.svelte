@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { matchOptions, searchKey, type MultiSelectOption } from '../multi-select';
+	import FieldLabel from './FieldLabel.svelte';
 	import Tip from './Tip.svelte';
 
 	// A searchable multi select: the chosen values are pills with a remove button, the search field
@@ -115,7 +116,7 @@
 
 <div class="multi-select form-wide" {onfocusout}>
 	<div class="title">
-		<label for={inputId}>{label}</label>
+		<label for={inputId}><FieldLabel {label} /></label>
 		{#if hint}<Tip text={hint} id={tipId} />{/if}
 	</div>
 	<!-- A click on the free space of the box goes to the search field; the keyboard reaches it directly. -->

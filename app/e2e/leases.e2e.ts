@@ -97,7 +97,7 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	);
 	await deposit.focus();
 	await page.keyboard.press('Tab');
-	await expect(page.locator('input[name="persons"]')).toBeFocused();
+	await expect(page.locator('select[name="operatingCostModel"]')).toBeFocused();
 	// The start defaults to the first of next month.
 	await expect(page.locator('input[name="startDate"]')).toHaveValue(/^\d{4}-\d{2}-01$/);
 	await page.getByLabel('Beginn', { exact: true }).fill('2025-01-01');
