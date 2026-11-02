@@ -1,8 +1,16 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { users } from '#lib/server/db/schema.ts';
 import { outcome, PASSWORD, routeEvent, setPassword, testDatabase } from '#lib/server/testing.ts';
 import { actions, load } from './+page.server';
+
+const env = vi.hoisted(() => ({
+	REGISTRATION_EMAILS: '',
+	FREE_ACCOUNT_EMAILS: '',
+	SETUP_CODE: '',
+	HOSTED: false
+}));
+vi.mock('$app/env/private', () => env);
 
 let db: Database;
 
@@ -18,7 +26,9 @@ function signIn(form: Record<string, string>, cookies = new Map<string, string>(
 describe('load', () => {
 	it('sends signed-in users home and a new instance to the registration', async () => {
 		expect(await outcome(() => load(routeEvent(db)))).toEqual({ redirect: '/' });
-		expect(await outcome(() => load(routeEvent(db, { user: null })))).toEqual({ data: undefined });
+		expect(await outcome(() => load(routeEvent(db, { user: null })))).toEqual({
+			data: { registration: false }
+		});
 		const next = '/oauth/authorize?client_id=x';
 		const url = `/anmelden?weiter=${encodeURIComponent(next)}`;
 		expect(await outcome(() => load(routeEvent(db, { url })))).toEqual({ redirect: next });
@@ -32,6 +42,17 @@ describe('load', () => {
 		expect(await outcome(() => load(routeEvent(db, { user: null })))).toEqual({
 			redirect: '/registrieren'
 		});
+	});
+
+	it('links to the registration while addresses may register', async () => {
+		Object.assign(env, { HOSTED: true, FREE_ACCOUNT_EMAILS: 'familie@example.org' });
+		try {
+			expect(await outcome(() => load(routeEvent(db, { user: null })))).toEqual({
+				data: { registration: true }
+			});
+		} finally {
+			Object.assign(env, { HOSTED: false, FREE_ACCOUNT_EMAILS: '' });
+		}
 	});
 });
 
