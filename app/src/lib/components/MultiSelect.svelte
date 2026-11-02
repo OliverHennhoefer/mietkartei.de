@@ -36,6 +36,7 @@
 	const id = $props.id();
 	const inputId = `${id}-input`;
 	const listId = `${id}-list`;
+	const tipId = `${id}-tip`;
 
 	// The initial selection only: afterwards the field holds the state.
 	let chosen = $state(
@@ -115,7 +116,7 @@
 <div class="multi-select form-wide" {onfocusout}>
 	<div class="title">
 		<label for={inputId}>{label}</label>
-		{#if hint}<Tip text={hint} />{/if}
+		{#if hint}<Tip text={hint} id={tipId} />{/if}
 	</div>
 	<!-- A click on the free space of the box goes to the search field; the keyboard reaches it directly. -->
 	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -149,6 +150,7 @@
 			autocomplete="off"
 			aria-expanded={open}
 			aria-controls={listId}
+			aria-describedby={hint ? tipId : undefined}
 			aria-autocomplete="list"
 			aria-activedescendant={open && matches.length ? `${id}-option-${activeIndex}` : undefined}
 			aria-invalid={error ? 'true' : undefined}
