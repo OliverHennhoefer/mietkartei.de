@@ -1,9 +1,10 @@
 <script lang="ts">
+	import Field from './Field.svelte';
 	import { enhance } from '$app/forms';
 	import { formatDate, today } from '../dates';
 	import { behgHint, co2KgFromKwh } from '../domain/co2';
 	import { CIRCLE_FROM_CATEGORY, defaultCostPeriod } from '../domain/operating-costs';
-	import { formatNumber, parseDecimal } from '../format';
+	import { formatShareOf, parseDecimal } from '../format';
 	import type { FieldErrors } from '../forms/fields';
 	import type { CostItemForm } from '../forms/operating-costs';
 	import { fuelLabels } from '../labels';
@@ -234,7 +235,7 @@
 		const share = Math.round((total * keyShare) / keyTotal);
 		const amount = parseCents(read('amount', item ? formatCentsPlain(item.amount) : ''));
 		const differs = amount !== undefined && Math.abs(amount - share) > 100;
-		return `${formatNumber(keyShare)} von ${formatNumber(keyTotal)} ergeben ${formatCents(share)}${differs ? `; eingetragen sind ${formatCents(amount)}` : ''}.`;
+		return `${formatShareOf(keyShare, keyTotal)} von ${formatCents(total)} sind ${formatCents(share)}${differs ? `; eingetragen sind ${formatCents(amount)}` : ''}.`;
 	});
 	const keyChoice = $derived(value('allocationKeyId', item?.allocationKeyId ?? ''));
 	const circleChoice = $derived(
@@ -254,8 +255,7 @@
 	{#if prefill?.insurancePolicyId}
 		<input type="hidden" name="insurancePolicyId" value={prefill.insurancePolicyId} />
 	{/if}
-	<label>
-		Objekt
+	<Field label="Objekt" error={errors?.propertyId}>
 		<select
 			name="propertyId"
 			bind:value={propertyId}
@@ -266,10 +266,8 @@
 				<option value={property.id}>{property.name}</option>
 			{/each}
 		</select>
-		{#if errors?.propertyId}<span class="error">{errors.propertyId}</span>{/if}
-	</label>
-	<label>
-		Kostenart
+	</Field>
+	<Field label="Kostenart" error={errors?.categoryId}>
 		<select
 			name="categoryId"
 			bind:value={categoryId}
@@ -283,8 +281,7 @@
 				</option>
 			{/each}
 		</select>
-		{#if errors?.categoryId}<span class="error">{errors.categoryId}</span>{/if}
-	</label>
+	</Field>
 	{#if lastItem}
 		<p class="form-wide last muted small">
 			<span>
@@ -294,18 +291,15 @@
 			<button type="button" class="secondary small" onclick={copyLast}>Übernehmen</button>
 		</p>
 	{/if}
-	<label>
-		Umlageschlüssel
+	<Field label="Umlageschlüssel" error={errors?.allocationKeyId}>
 		<select name="allocationKeyId" aria-invalid={errors?.allocationKeyId ? 'true' : undefined}>
 			<option value="" selected={keyChoice === ''}>Standard der Kostenart</option>
 			{#each propertyKeys as key (key.id)}
 				<option value={key.id} selected={keyChoice === key.id}>{key.name}</option>
 			{/each}
 		</select>
-		{#if errors?.allocationKeyId}<span class="error">{errors.allocationKeyId}</span>{/if}
-	</label>
-	<label>
-		Abrechnungskreis
+	</Field>
+	<Field label="Abrechnungskreis" error={errors?.billingCircleId}>
 		<select name="billingCircleId" aria-invalid={errors?.billingCircleId ? 'true' : undefined}>
 			<option value={CIRCLE_FROM_CATEGORY} selected={circleChoice === CIRCLE_FROM_CATEGORY}>
 				Standard der Kostenart
@@ -317,8 +311,7 @@
 				</option>
 			{/each}
 		</select>
-		{#if errors?.billingCircleId}<span class="error">{errors.billingCircleId}</span>{/if}
-	</label>
+	</Field>
 	<label class="form-wide">
 		Beschreibung
 		<input
@@ -332,8 +325,7 @@
 		/>
 		{#if errors?.description}<span class="error">{errors.description}</span>{/if}
 	</label>
-	<label>
-		Lieferant (optional)
+	<Field label="Lieferant (optional)" error={errors?.supplier}>
 		<input
 			name="supplier"
 			defaultValue={value('supplier', item?.supplier ?? prefill?.supplier ?? '')}
@@ -341,20 +333,22 @@
 			autocomplete="off"
 			aria-invalid={errors?.supplier ? 'true' : undefined}
 		/>
-		{#if errors?.supplier}<span class="error">{errors.supplier}</span>{/if}
-	</label>
-	<label>
-		Rechnungsdatum
+	</Field>
+	<Field label="Rechnungsdatum" error={errors?.invoiceDate}>
 		<input
 			type="date"
 			name="invoiceDate"
 			defaultValue={value('invoiceDate', item?.invoiceDate ?? today())}
 			aria-invalid={errors?.invoiceDate ? 'true' : undefined}
 		/>
-		{#if errors?.invoiceDate}<span class="error">{errors.invoiceDate}</span>{/if}
-	</label>
-	<label>
-		Zeitraum von
+	</Field>
+	<Field
+		label="Zeitraum von"
+		error={errors?.periodStart}
+		note={periodDefaulted
+			? 'Vorbelegt mit dem Vorjahr, für die Abrechnung des letzten Jahres.'
+			: undefined}
+	>
 		<input
 			type="date"
 			name="periodStart"
@@ -365,15 +359,8 @@
 			aria-invalid={errors?.periodStart ? 'true' : undefined}
 			required
 		/>
-		{#if errors?.periodStart}<span class="error">{errors.periodStart}</span
-			>{:else if periodDefaulted}
-			<span class="hint muted"
-				>Vorbelegt mit dem Vorjahr, für die Abrechnung des letzten Jahres.</span
-			>
-		{/if}
-	</label>
-	<label>
-		Zeitraum bis
+	</Field>
+	<Field label="Zeitraum bis" error={errors?.periodEnd}>
 		<input
 			type="date"
 			name="periodEnd"
@@ -381,10 +368,8 @@
 			aria-invalid={errors?.periodEnd ? 'true' : undefined}
 			required
 		/>
-		{#if errors?.periodEnd}<span class="error">{errors.periodEnd}</span>{/if}
-	</label>
-	<label>
-		Betrag in €
+	</Field>
+	<Field label="Betrag in €" error={errors?.amount}>
 		<input
 			name="amount"
 			inputmode="decimal"
@@ -399,8 +384,7 @@
 			aria-invalid={errors?.amount ? 'true' : undefined}
 			required
 		/>
-		{#if errors?.amount}<span class="error">{errors.amount}</span>{/if}
-	</label>
+	</Field>
 	<label class="inline">
 		<input type="checkbox" name="allocable" bind:checked={allocable} />
 		umlagefähig
@@ -415,8 +399,7 @@
 				den Mieter zeigt dann alle drei Werte, damit er den Anteil nachrechnen kann.
 			</p>
 			<div class="form">
-				<label>
-					Gesamtkosten der WEG in €
+				<Field label="Gesamtkosten der WEG in €" error={errors?.associationTotal}>
 					<input
 						name="associationTotal"
 						inputmode="decimal"
@@ -426,32 +409,20 @@
 						)}
 						aria-invalid={errors?.associationTotal ? 'true' : undefined}
 					/>
-					{#if errors?.associationTotal}<span class="error">{errors.associationTotal}</span>{/if}
-				</label>
-				<label>
-					Schlüssel der WEG
+				</Field>
+				<Field label="Schlüssel der WEG" error={errors?.associationKey}>
 					<input
 						name="associationKey"
 						defaultValue={associationValue('associationKey')}
 						placeholder="z. B. MEA, Wohnfläche, Einheiten"
 						aria-invalid={errors?.associationKey ? 'true' : undefined}
 					/>
-					{#if errors?.associationKey}<span class="error">{errors.associationKey}</span>{/if}
-				</label>
-				<label>
-					Summe des Schlüssels in der WEG
-					<input
-						name="associationKeyTotal"
-						inputmode="decimal"
-						defaultValue={associationValue('associationKeyTotal')}
-						placeholder="z. B. 1000"
-						aria-invalid={errors?.associationKeyTotal ? 'true' : undefined}
-					/>
-					{#if errors?.associationKeyTotal}<span class="error">{errors.associationKeyTotal}</span
-						>{/if}
-				</label>
-				<label>
-					Anteil der Wohnung
+				</Field>
+				<Field
+					label="Anteil der Wohnung"
+					error={errors?.associationKeyShare}
+					hint="Bei MEA die erste Zahl des Bruchs, z. B. 85. Vorbelegt aus dem Objekt."
+				>
 					<input
 						name="associationKeyShare"
 						inputmode="decimal"
@@ -459,9 +430,21 @@
 						placeholder="z. B. 85"
 						aria-invalid={errors?.associationKeyShare ? 'true' : undefined}
 					/>
-					{#if errors?.associationKeyShare}<span class="error">{errors.associationKeyShare}</span
-						>{:else if associationHint}<span class="muted small">{associationHint}</span>{/if}
-				</label>
+				</Field>
+				<Field
+					label="Summe des Schlüssels in der WEG"
+					error={errors?.associationKeyTotal}
+					hint="Bei MEA die zweite Zahl des Bruchs, z. B. 1000. Vorbelegt aus dem Objekt."
+					note={associationHint ?? undefined}
+				>
+					<input
+						name="associationKeyTotal"
+						inputmode="decimal"
+						defaultValue={associationValue('associationKeyTotal')}
+						placeholder="z. B. 1000"
+						aria-invalid={errors?.associationKeyTotal ? 'true' : undefined}
+					/>
+				</Field>
 			</div>
 		</fieldset>
 	{/if}
@@ -474,8 +457,7 @@
 			CO₂-Menge leer lassen; sie wird aus den kWh berechnet.
 		</p>
 		<div class="form">
-			<label>
-				Brennstoff
+			<Field label="Brennstoff" error={errors?.fuel}>
 				<select name="fuel" aria-invalid={errors?.fuel ? 'true' : undefined}>
 					<option value="" selected={fuelChoice === ''}>keiner</option>
 					{#each fuels as candidate (candidate)}
@@ -484,40 +466,31 @@
 						>
 					{/each}
 				</select>
-				{#if errors?.fuel}<span class="error">{errors.fuel}</span>{/if}
-			</label>
-			<label>
-				Energiemenge in kWh
+			</Field>
+			<Field label="Energiemenge in kWh" error={errors?.fuelKwh}>
 				<input
 					name="fuelKwh"
 					inputmode="decimal"
 					defaultValue={value('fuelKwh', item?.fuelKwh?.toString() ?? '')}
 					aria-invalid={errors?.fuelKwh ? 'true' : undefined}
 				/>
-				{#if errors?.fuelKwh}<span class="error">{errors.fuelKwh}</span>{/if}
-			</label>
-			<label>
-				CO₂-Menge in kg
+			</Field>
+			<Field label="CO₂-Menge in kg" error={errors?.co2Kg}>
 				<input
 					name="co2Kg"
 					inputmode="decimal"
 					defaultValue={value('co2Kg', item?.co2Kg?.toString() ?? '')}
 					aria-invalid={errors?.co2Kg ? 'true' : undefined}
 				/>
-				{#if errors?.co2Kg}<span class="error">{errors.co2Kg}</span>{/if}
-			</label>
-			<label>
-				CO₂-Kosten in €
+			</Field>
+			<Field label="CO₂-Kosten in €" error={errors?.co2Cost} note={costHint ?? undefined}>
 				<input
 					name="co2Cost"
 					inputmode="decimal"
 					defaultValue={value('co2Cost', item?.co2Cost ? formatCentsPlain(item.co2Cost) : '')}
 					aria-invalid={errors?.co2Cost ? 'true' : undefined}
 				/>
-				{#if errors?.co2Cost}<span class="error">{errors.co2Cost}</span>{:else if costHint}<span
-						class="muted small">{costHint}</span
-					>{/if}
-			</label>
+			</Field>
 		</div>
 	</fieldset>
 

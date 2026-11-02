@@ -73,9 +73,9 @@ export function parseProperty(form: FormData): ParseResult<PropertyInput> {
 	});
 	if (condominium) {
 		if (ownershipShare !== null && ownershipShareTotal === null) {
-			parser.fail('ownershipShareTotal', 'Bitte gib auch die Miteigentumsanteile der WEG an.');
+			parser.fail('ownershipShareTotal', 'Bitte gib auch den MEA der ganzen WEG an.');
 		} else if (ownershipShare === null && ownershipShareTotal !== null) {
-			parser.fail('ownershipShare', 'Bitte gib auch den Miteigentumsanteil der Wohnung an.');
+			parser.fail('ownershipShare', 'Bitte gib auch den MEA dieser Wohnung an.');
 		} else if (ownershipShare !== null && ownershipShareTotal !== null) {
 			if (ownershipShare <= 0) parser.fail('ownershipShare', 'Der Anteil muss über 0 liegen.');
 			else if (ownershipShare > ownershipShareTotal) {

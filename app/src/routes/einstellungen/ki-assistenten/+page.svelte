@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Field from '#lib/components/Field.svelte';
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
@@ -212,8 +213,7 @@
 	</p>
 {/if}
 <form method="POST" action="?/create" class="card" use:enhance>
-	<label>
-		Name
+	<Field label="Name" error={errors?.name}>
 		<input
 			name="name"
 			placeholder="z. B. Claude auf dem Laptop"
@@ -222,11 +222,9 @@
 			maxlength="100"
 			required
 		/>
-		{#if errors?.name}<span class="error">{errors.name}</span>{/if}
-	</label>
+	</Field>
 	{#if data.scopes.length > 1}
-		<label>
-			Rechte
+		<Field label="Rechte" error={errors?.scope}>
 			<select name="scope">
 				{#each data.scopes as scope (scope)}
 					<option value={scope} selected={(values?.scope ?? 'read') === scope}>
@@ -234,11 +232,9 @@
 					</option>
 				{/each}
 			</select>
-			{#if errors?.scope}<span class="error">{errors.scope}</span>{/if}
-		</label>
+		</Field>
 	{/if}
-	<label>
-		Gültig für
+	<Field label="Gültig für" error={errors?.lifetimeDays}>
 		<select name="lifetimeDays">
 			{#each data.lifetimes as days (days)}
 				<option
@@ -249,8 +245,7 @@
 				</option>
 			{/each}
 		</select>
-		{#if errors?.lifetimeDays}<span class="error">{errors.lifetimeDays}</span>{/if}
-	</label>
+	</Field>
 	<div class="form-actions">
 		<button type="submit">Schlüssel anlegen</button>
 	</div>

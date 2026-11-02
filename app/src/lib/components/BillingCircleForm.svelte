@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Field from './Field.svelte';
 	import { enhance } from '$app/forms';
 	import type { FieldErrors } from '../forms/fields';
 	import type { BillingCircleInput } from '../server/operating-costs/circles';
@@ -29,8 +30,7 @@
 </script>
 
 <form method="POST" {action} class="card" use:enhance>
-	<label>
-		Bezeichnung
+	<Field label="Bezeichnung" error={errors?.name}>
 		<input
 			name="name"
 			defaultValue={values?.name ?? circle?.name ?? ''}
@@ -38,8 +38,7 @@
 			aria-invalid={errors?.name ? 'true' : undefined}
 			required
 		/>
-		{#if errors?.name}<span class="error">{errors.name}</span>{/if}
-	</label>
+	</Field>
 	<fieldset class="units form-wide">
 		<legend>Einheiten im Abrechnungskreis</legend>
 		{#if units.length === 0}

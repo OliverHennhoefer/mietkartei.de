@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Field from '#lib/components/Field.svelte';
 	import { enhance } from '$app/forms';
 	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
@@ -256,8 +257,7 @@
 <h2 id="zaehler-anlegen">Zähler anlegen</h2>
 <form method="POST" action={actionOn('createMeter')} class="card" use:enhance>
 	<input type="hidden" name="filterUnit" value={data.filterUnit?.id ?? ''} />
-	<label>
-		Einheit
+	<Field label="Einheit" error={meterForm?.errors.unitId}>
 		<select name="unitId" aria-invalid={meterForm?.errors.unitId ? 'true' : undefined}>
 			<option value="" selected={meterValue('unitId', data.filterUnit?.id ?? '') === ''}>
 				Gebäude (keine Einheit)
@@ -271,10 +271,8 @@
 				</option>
 			{/each}
 		</select>
-		{#if meterForm?.errors.unitId}<span class="error">{meterForm.errors.unitId}</span>{/if}
-	</label>
-	<label>
-		Art
+	</Field>
+	<Field label="Art" error={meterForm?.errors.kind}>
 		<select
 			name="kind"
 			bind:value={newMeterKind}
@@ -285,20 +283,15 @@
 				<option value={kind}>{meterKindLabels[kind]}</option>
 			{/each}
 		</select>
-		{#if meterForm?.errors.kind}<span class="error">{meterForm.errors.kind}</span>{/if}
-	</label>
-	<label>
-		Zählernummer (optional)
+	</Field>
+	<Field label="Zählernummer (optional)" error={meterForm?.errors.serialNumber}>
 		<input
 			name="serialNumber"
 			defaultValue={meterValue('serialNumber')}
 			aria-invalid={meterForm?.errors.serialNumber ? 'true' : undefined}
 		/>
-		{#if meterForm?.errors.serialNumber}<span class="error">{meterForm.errors.serialNumber}</span
-			>{/if}
-	</label>
-	<label>
-		Einheit der Messung
+	</Field>
+	<Field label="Einheit der Messung" error={meterForm?.errors.unit}>
 		{#key newMeterKind}
 			<input
 				name="unit"
@@ -307,29 +300,23 @@
 				required
 			/>
 		{/key}
-		{#if meterForm?.errors.unit}<span class="error">{meterForm.errors.unit}</span>{/if}
-	</label>
-	<label>
-		Standort (optional)
+	</Field>
+	<Field label="Standort (optional)" error={meterForm?.errors.location}>
 		<input
 			name="location"
 			defaultValue={meterValue('location')}
 			placeholder="z. B. Keller, Flur"
 			aria-invalid={meterForm?.errors.location ? 'true' : undefined}
 		/>
-		{#if meterForm?.errors.location}<span class="error">{meterForm.errors.location}</span>{/if}
-	</label>
-	<label>
-		Eingebaut am (optional)
+	</Field>
+	<Field label="Eingebaut am (optional)" error={meterForm?.errors.installedAt}>
 		<input
 			type="date"
 			name="installedAt"
 			defaultValue={meterValue('installedAt')}
 			aria-invalid={meterForm?.errors.installedAt ? 'true' : undefined}
 		/>
-		{#if meterForm?.errors.installedAt}<span class="error">{meterForm.errors.installedAt}</span
-			>{/if}
-	</label>
+	</Field>
 	<div class="form-actions">
 		<button type="submit">Zähler anlegen</button>
 	</div>
@@ -340,8 +327,7 @@
 	values: Record<string, string>,
 	errors: Partial<Record<string, string>> | undefined
 )}
-	<label>
-		Abgelesen am
+	<Field label="Abgelesen am" error={errors?.readAt}>
 		<input
 			type="date"
 			name="readAt"
@@ -349,10 +335,8 @@
 			aria-invalid={errors?.readAt ? 'true' : undefined}
 			required
 		/>
-		{#if errors?.readAt}<span class="error">{errors.readAt}</span>{/if}
-	</label>
-	<label>
-		Stand in {unit}
+	</Field>
+	<Field label={`Stand in ${unit}`} error={errors?.value}>
 		<input
 			name="value"
 			inputmode="decimal"
@@ -360,17 +344,14 @@
 			aria-invalid={errors?.value ? 'true' : undefined}
 			required
 		/>
-		{#if errors?.value}<span class="error">{errors.value}</span>{/if}
-	</label>
-	<label>
-		Notiz (optional)
+	</Field>
+	<Field label="Notiz (optional)" error={errors?.note}>
 		<input
 			name="note"
 			defaultValue={values.note ?? ''}
 			aria-invalid={errors?.note ? 'true' : undefined}
 		/>
-		{#if errors?.note}<span class="error">{errors.note}</span>{/if}
-	</label>
+	</Field>
 	<label class="inline">
 		<input type="checkbox" name="estimated" checked={values.estimated === 'on'} />
 		geschätzt (§ 9a HeizKV)
