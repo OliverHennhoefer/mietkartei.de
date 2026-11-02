@@ -701,8 +701,9 @@ export async function recordConsent(
 	}
 	const amounts = withBaseRent(before, input.baseRent);
 	const approved: HistoryChange = { ...change, ...amounts, status: 'approved' };
+	// The agreed Kaltmiete only rises and the parking share stays: no later row can end up with a
+	// share above its Kaltmiete.
 	const later = laterRows(db, context.accountId, others, validFrom, amountsOf(before), amounts);
-	if (later.conflict) return refuse(later.conflict);
 	await runBatch(db, [
 		db
 			.update(rentChanges)

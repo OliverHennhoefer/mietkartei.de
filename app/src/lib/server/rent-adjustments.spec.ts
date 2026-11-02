@@ -598,6 +598,23 @@ describe('manualChange', () => {
 		expect(later).toMatchObject({ baseRent: 40000, parkingRent: 5000 });
 	});
 
+	it('refuses to delete a change whose Kaltmiete later rows need for their parking share', async () => {
+		// 800 € from 2025, and from mid-2025 a parking share of 700 € within them.
+		const raised = await manualChange(db, contextA, leaseId, { ...input, baseRent: 80000 });
+		await manualChange(db, contextA, leaseId, {
+			...input,
+			validFrom: '2025-07-01',
+			baseRent: 80000,
+			parkingRent: 70000
+		});
+		if (!raised?.ok) throw new Error('setup failed');
+		expect(await removeChange(db, contextA, leaseId, raised.id)).toMatchObject({
+			ok: false,
+			message: expect.stringContaining('Ab dem 01.07.2025 läge der Anteil')
+		});
+		expect(await listRentChanges(db, 'a', leaseId)).toHaveLength(3);
+	});
+
 	it('refuses a change before the lease began', async () => {
 		expect(
 			await manualChange(db, contextA, leaseId, { ...input, validFrom: '2023-12-01' })
@@ -622,6 +639,40 @@ describe('addGraduatedStep', () => {
 		);
 		if (!lease.ok) throw new Error('setup failed');
 		graduatedId = lease.id;
+	});
+
+	it('keeps the parking share and refuses a step that would undercut it', async () => {
+		await manualChange(db, contextA, graduatedId, {
+			validFrom: '2026-06-01',
+			baseRent: 60000,
+			parkingRent: 55000,
+			operatingCostPrepayment: 15000,
+			heatingCostPrepayment: 5000,
+			reason: 'manual',
+			note: null
+		});
+		// The row of June 2026 inherited 600 €; a step to 500 € before it would leave 550 € garage.
+		expect(
+			await addGraduatedStep(db, contextA, graduatedId, {
+				validFrom: '2026-01-01',
+				baseRent: 50000
+			})
+		).toMatchObject({ ok: false, message: expect.stringContaining('Ab dem 01.06.2026') });
+		// From June 2026 on, the step itself must hold the 550 €.
+		expect(
+			await addGraduatedStep(db, contextA, graduatedId, {
+				validFrom: '2027-06-01',
+				baseRent: 50000
+			})
+		).toMatchObject({ ok: false, message: expect.stringContaining('enthält 550,00') });
+		expect(
+			await addGraduatedStep(db, contextA, graduatedId, {
+				validFrom: '2027-06-01',
+				baseRent: 62000
+			})
+		).toMatchObject({ ok: true });
+		const steps = await listRentChanges(db, 'a', graduatedId);
+		expect(steps.at(-1)).toMatchObject({ baseRent: 62000, parkingRent: 55000 });
 	});
 
 	it('needs a year between steps on a residential lease and keeps the prepayments', async () => {

@@ -1,7 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { formatDate, type IsoDate } from '../dates';
 import { laterRowUpdates, type RentAmounts, type RentFieldUpdate } from '../domain/rents';
-import { formatCents } from '../money';
 import type { Database } from './db';
 import { chunkIds } from './db/batch';
 import { rentChanges } from './db/schema';
@@ -51,11 +50,12 @@ export function laterRows(
 	const updates = laterRowUpdates(changes, validFrom, before, after, excludeId);
 	const ids = new Set(updates.flatMap((update) => update.ids));
 	const result = { statements: updateStatements(db, accountId, updates), count: ids.size, updates };
-	const invalid = withLaterRows(changes, { ...result, conflict: undefined })
+	const [first] = withLaterRows(changes, { ...result, conflict: undefined })
 		.filter((row) => ids.has(row.id) && row.parkingRent > row.baseRent)
-		.sort((a, b) => a.validFrom.localeCompare(b.validFrom))[0];
-	const conflict = invalid
-		? `Ab dem ${formatDate(invalid.validFrom)} läge der Anteil für Garage/Stellplatz von ${formatCents(invalid.parkingRent)} über der Kaltmiete von ${formatCents(invalid.baseRent)}. Passe zuerst diese spätere Mietänderung an.`
+		.map((row) => row.validFrom)
+		.sort();
+	const conflict = first
+		? `Ab dem ${formatDate(first)} läge der Anteil für Garage/Stellplatz über der Kaltmiete. Passe zuerst diese spätere Mietänderung an.`
 		: undefined;
 	return { ...result, conflict };
 }

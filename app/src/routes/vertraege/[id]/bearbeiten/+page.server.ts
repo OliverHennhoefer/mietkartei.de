@@ -29,7 +29,7 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 		heatingCostModel: input.heatingCostModel,
 		rentDueDay: String(input.rentDueDay),
 		baseRent: formatCentsPlain(input.baseRent),
-		parkingRent: input.parkingRent > 0 ? formatCentsPlain(input.parkingRent) : '',
+		parkingRent: formatCentsPlain(input.parkingRent),
 		operatingCostPrepayment: formatCentsPlain(input.operatingCostPrepayment),
 		heatingCostPrepayment: formatCentsPlain(input.heatingCostPrepayment),
 		securityDeposit: formatCentsPlain(input.securityDeposit),
@@ -87,34 +87,36 @@ export const actions: Actions = {
 				.getAll('tenantIds')
 				.filter((id) => typeof id === 'string')
 				.join(',');
+			if (outcome.reason === 'parking-above-rent') {
+				const errors = { parkingRent: outcome.message };
+				return fail(400, { errors, values, depositWarning: depositWarning(result.data) });
+			}
 			const errors: Partial<Record<string, string>> =
-				outcome.reason === 'parking-above-rent'
-					? { parkingRent: outcome.message }
-					: outcome.reason === 'start-after-changes'
+				outcome.reason === 'start-after-changes'
+					? {
+							startDate: `Am ${formatDate(outcome.date)} beginnt schon eine spätere Mietänderung oder ein Eintrag im Personenstand. Der Beginn muss davor liegen; lösche oder verschiebe die späteren Einträge zuerst.`
+						}
+					: outcome.reason === 'overlap'
 						? {
-								startDate: `Am ${formatDate(outcome.date)} beginnt schon eine spätere Mietänderung oder ein Eintrag im Personenstand. Der Beginn muss davor liegen; lösche oder verschiebe die späteren Einträge zuerst.`
+								startDate: `Die Einheit ist in diesem Zeitraum schon an einen anderen Vertrag vermietet (ab ${formatDate(outcome.date)}). Zwei Verträge einer Einheit zur selben Zeit würden sich ihre Betriebskosten teilen; beende den anderen Vertrag vorher oder ändere die Daten.`
 							}
-						: outcome.reason === 'overlap'
+						: outcome.reason === 'settled-property'
 							? {
-									startDate: `Die Einheit ist in diesem Zeitraum schon an einen anderen Vertrag vermietet (ab ${formatDate(outcome.date)}). Zwei Verträge einer Einheit zur selben Zeit würden sich ihre Betriebskosten teilen; beende den anderen Vertrag vorher oder ändere die Daten.`
+									unitId:
+										'Für dieses Objekt gibt es schon eine Betriebskostenabrechnung mit diesem Vertrag. Der Vertrag muss dort eine Einheit behalten; lege für die neue Einheit einen neuen Vertrag an.'
 								}
-							: outcome.reason === 'settled-property'
+							: outcome.reason === 'party-dates'
 								? {
-										unitId:
-											'Für dieses Objekt gibt es schon eine Betriebskostenabrechnung mit diesem Vertrag. Der Vertrag muss dort eine Einheit behalten; lege für die neue Einheit einen neuen Vertrag an.'
+										tenantIds:
+											'So hätte der Vertrag an einem Tag keinen Mieter, oder ein Ein- oder Austritt läge außerhalb der Laufzeit. Passe zuerst die Daten unter „Vertragsparteien“ in der Übersicht an.'
 									}
-								: outcome.reason === 'party-dates'
+								: outcome.reason === 'archived'
 									? {
-											tenantIds:
-												'So hätte der Vertrag an einem Tag keinen Mieter, oder ein Ein- oder Austritt läge außerhalb der Laufzeit. Passe zuerst die Daten unter „Vertragsparteien“ in der Übersicht an.'
+											tenantIds: 'Einer der Mieter ist archiviert. Hol ihn zuerst aus dem Archiv.'
 										}
-									: outcome.reason === 'archived'
-										? {
-												tenantIds: 'Einer der Mieter ist archiviert. Hol ihn zuerst aus dem Archiv.'
-											}
-										: outcome.reason === 'unknown-unit'
-											? { unitId: 'Eine der Einheiten gibt es nicht.' }
-											: { tenantIds: 'Einen der Mieter gibt es nicht.' };
+									: outcome.reason === 'unknown-unit'
+										? { unitId: 'Eine der Einheiten gibt es nicht.' }
+										: { tenantIds: 'Einen der Mieter gibt es nicht.' };
 			return fail(400, { errors, values, depositWarning: depositWarning(result.data) });
 		}
 		redirect(303, `/vertraege/${lease.id}`);
