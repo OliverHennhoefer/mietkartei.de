@@ -3,7 +3,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { weekday } from '../dates';
 import { validateSession } from './auth';
 import type { Database } from './db';
-import { accounts, outbox, properties, users } from './db/schema';
+import {
+	accounts,
+	notificationChannels,
+	notificationDeliveries,
+	outbox,
+	properties,
+	users
+} from './db/schema';
 import {
 	DEMO_LIFETIME,
 	DEMO_STARTS_PER_HOUR,
@@ -43,6 +50,25 @@ describe('startDemo', () => {
 		const [user] = await db.select().from(users).where(eq(users.id, session!.user.id));
 		expect(user.deadlineMailOrigin).toBe('https://demo.mietkartei.de');
 		expect(weekday(user.deadlineMailSentOn!)).toBe(1);
+		// Hinweise by mail, the urgent ones by ntfy, and a history of sends over several years.
+		const channels = await db
+			.select()
+			.from(notificationChannels)
+			.where(eq(notificationChannels.userId, session!.user.id))
+			.orderBy(notificationChannels.kind);
+		expect(channels.map((channel) => [channel.kind, channel.urgentOnly])).toEqual([
+			['email', false],
+			['ntfy', true],
+			['webhook', false]
+		]);
+		const sends = await db
+			.select()
+			.from(notificationDeliveries)
+			.where(eq(notificationDeliveries.userId, session!.user.id))
+			.orderBy(notificationDeliveries.createdAt);
+		expect(Date.now() - sends[0].createdAt.getTime()).toBeGreaterThan(3 * 365 * 86_400_000);
+		expect(sends.some((send) => send.error !== null)).toBe(true);
+		expect(sends.at(-1)!.createdAt.getTime()).toBeLessThan(Date.now());
 	});
 
 	it('deletes expired demo accounts first', async () => {

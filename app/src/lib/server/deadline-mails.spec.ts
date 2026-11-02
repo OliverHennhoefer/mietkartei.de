@@ -50,7 +50,11 @@ describe('the week of a Fristenübersicht', () => {
 describe('digestMail', () => {
 	const entry = (date: string, summary: string, description?: string) => ({
 		uid: summary,
+		key: summary,
+		kind: 'task' as const,
 		date,
+		title: summary,
+		overdue: false,
 		summary,
 		description,
 		url: `https://app.example.org/aufgaben?bearbeiten=${summary}`
@@ -75,7 +79,7 @@ describe('digestMail', () => {
 				'Bis zum 15.11.2026\n\n- 10.11.2026: Rauchmelder prüfen\n'
 		);
 		expect(mail.text).toContain(
-			'Abbestellen kannst du sie unter https://app.example.org/einstellungen/kalender.'
+			'Abbestellen kannst du sie unter https://app.example.org/einstellungen/benachrichtigungen.'
 		);
 	});
 

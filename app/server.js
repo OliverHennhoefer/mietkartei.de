@@ -29,7 +29,7 @@ const server = http.createServer((req, res) => {
 const host = process.env.HOST || '0.0.0.0';
 const port = Number(process.env.PORT || 3000);
 
-// The scheduled jobs (the weekly Fristenübersicht), started once an hour through the app's own
+// The scheduled jobs (the weekly Fristenübersicht, the Hinweise), started once an hour through the app's own
 // /api/jobs with a token only this process knows; see src/lib/server/jobs.ts.
 const JOB_INTERVAL_MS = 60 * 60 * 1000;
 globalThis.__mietkartei_job_token = randomBytes(32).toString('hex');

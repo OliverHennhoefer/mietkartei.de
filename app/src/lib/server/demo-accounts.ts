@@ -7,6 +7,7 @@ import { weekStart } from './deadline-mails';
 import type { Database } from './db';
 import { accounts, outbox, users } from './db/schema';
 import { createDemoData } from './demo';
+import { createDemoNotifications } from './demo-notifications';
 import { createReferenceData } from './reference-demo';
 import type { ReferenceCase } from '../domain/reference-cases';
 import type { Storage } from './storage';
@@ -83,6 +84,7 @@ export async function startDemo(
 		home = `/betriebskosten/abrechnungen/${statementId}`;
 	} else {
 		const created = await createDemoData(db, { accountId, userId }, options);
+		await createDemoNotifications(db, { accountId, userId }, today());
 		if (created.ok && options?.start === 'statement') {
 			home = `/betriebskosten/abrechnungen/${created.statementId}`;
 		}

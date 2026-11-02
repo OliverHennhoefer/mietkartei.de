@@ -271,6 +271,7 @@ export const auditEntityLabels: Record<string, string> = {
 	association_statement: 'Hausgeldabrechnung',
 	tax_year: 'Steuerjahr',
 	calendar_feed: 'Kalender-Link',
+	notification_channel: 'Benachrichtigung',
 	meter_reading: 'Zählerstand',
 	statement: 'Betriebskostenabrechnung',
 	document: 'Dokument',

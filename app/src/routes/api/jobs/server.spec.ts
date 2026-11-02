@@ -3,6 +3,7 @@ import type { Database } from '#lib/server/db/index.ts';
 import { setDeadlineMail } from '#lib/server/deadline-mails.ts';
 import { tasks } from '#lib/server/db/schema.ts';
 import { isJobRequest } from '#lib/server/jobs.ts';
+import { addChannel } from '#lib/server/notifications.ts';
 import { outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
 import { POST } from './+server';
 
@@ -64,10 +65,17 @@ describe('POST /api/jobs', () => {
 		vi.setSystemTime(new Date('2026-11-02T07:00:00Z'));
 		const deadlineMails = async () =>
 			((await post(`Bearer ${token}`)) as { data: Response }).data.json();
+		await addChannel(
+			db,
+			{ accountId: 'a', userId: 'user-a' },
+			{ kind: 'email', urgentOnly: false, details: false },
+			'https://app.example.org',
+			false
+		);
 		env.DEMO = true;
-		expect(await deadlineMails()).toEqual({ deadlineMails: 0 });
+		expect(await deadlineMails()).toEqual({ deadlineMails: 0, notifications: 0 });
 		env.DEMO = false;
-		expect(await deadlineMails()).toEqual({ deadlineMails: 1 });
-		expect(await deadlineMails()).toEqual({ deadlineMails: 0 });
+		expect(await deadlineMails()).toEqual({ deadlineMails: 1, notifications: 1 });
+		expect(await deadlineMails()).toEqual({ deadlineMails: 0, notifications: 0 });
 	});
 });

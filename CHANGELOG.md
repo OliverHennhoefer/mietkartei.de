@@ -19,6 +19,7 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ### Geändert
 
+- Die wöchentliche Fristenübersicht per E-Mail stellst du jetzt unter Einstellungen → Benachrichtigungen ein statt unter Kalender.
 - Das Protokoll nennt beim Bearbeiten eines Mietvertrags die Mieter, die hinzugekommen oder ausgeschieden sind.
 - Fehlt zu einem Dokument die Datei im Speicher, nennt der Export es in `FEHLENDE-DOKUMENTE.txt` und das Protokoll zählt es, statt es stillschweigend auszulassen.
 

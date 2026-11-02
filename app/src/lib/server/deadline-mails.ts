@@ -65,7 +65,7 @@ export function digestMail(
 		...section('Überfällig', overdue),
 		...section(`Bis zum ${formatDate(until)}`, upcoming),
 		`Alle Fristen und Aufgaben: ${origin}/aufgaben`,
-		`Die Übersicht kommt jeden Montag. Abbestellen kannst du sie unter ${origin}/einstellungen/kalender.`
+		`Die Übersicht kommt jeden Montag. Abbestellen kannst du sie unter ${origin}/einstellungen/benachrichtigungen.`
 	];
 	return {
 		to: recipient.email,
