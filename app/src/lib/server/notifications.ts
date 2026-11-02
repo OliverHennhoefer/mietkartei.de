@@ -513,9 +513,7 @@ export async function sendDueNotifications(db: Database, now: Date = new Date())
 					for (const notice of own) taken.add(notice.entry.key);
 				}
 			}
-			const handled = notices.filter(
-				({ entry }) => taken.has(entry.key) || !wanted.has(entry.key)
-			);
+			const handled = notices.filter(({ entry }) => taken.has(entry.key) || !wanted.has(entry.key));
 			if (handled.length > 0) await saveStates(db, user, handled, now);
 			if (handled.length < notices.length) continue;
 			// States of entries that are gone (a task deleted or done, a deadline handled) are of
