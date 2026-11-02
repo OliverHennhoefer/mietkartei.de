@@ -174,6 +174,7 @@ export async function manualChange(
 		amountsOf(before),
 		amountsOf(input)
 	);
+	if (later.conflict) return refuse(later.conflict);
 	const summary =
 		(input.reason === 'statement'
 			? `Vorauszahlungen ab ${formatDate(input.validFrom)} nach Abrechnung angepasst, Gesamtmiete ${formatCents(total(input))}`
@@ -244,6 +245,7 @@ export async function addGraduatedStep(
 		amountsOf(before),
 		after
 	);
+	if (later.conflict) return refuse(later.conflict);
 	const history = [
 		...withLaterRows(changes, later),
 		{ ...after, validFrom: input.validFrom, status: 'approved' as const }
@@ -393,6 +395,7 @@ export async function approveChange(
 	const amounts = withBaseRent(before, change.baseRent);
 	const approved: HistoryChange = { ...change, ...amounts, validFrom, status: 'approved' };
 	const later = laterRows(db, context.accountId, others, validFrom, amountsOf(before), amounts);
+	if (later.conflict) return refuse(later.conflict);
 	const figures = letterFigures([...others, approved], lease, approved);
 	if (!figures)
 		return refuse('Für dieses Schreiben fehlen der Bezugsindex oder die bisherige Miete.');
@@ -495,6 +498,7 @@ export async function correctDelivery(
 		amountsOf(change),
 		amountsOf(previous)
 	);
+	if (removed.conflict) return refuse(removed.conflict);
 	const without = withLaterRows(others, removed);
 	const before = rentOn(without, validFrom);
 	if (!before || validFrom <= lease.startDate) {
@@ -510,6 +514,7 @@ export async function correctDelivery(
 	const amounts = withBaseRent(before, change.baseRent);
 	const moved: HistoryChange = { ...change, ...amounts, validFrom };
 	const later = laterRows(db, context.accountId, without, validFrom, amountsOf(before), amounts);
+	if (later.conflict) return refuse(later.conflict);
 	const figures = letterFigures([...without, moved], lease, moved);
 	if (!figures) {
 		return refuse('Für dieses Schreiben fehlen der Bezugsindex oder die bisherige Miete.');
@@ -697,6 +702,7 @@ export async function recordConsent(
 	const amounts = withBaseRent(before, input.baseRent);
 	const approved: HistoryChange = { ...change, ...amounts, status: 'approved' };
 	const later = laterRows(db, context.accountId, others, validFrom, amountsOf(before), amounts);
+	if (later.conflict) return refuse(later.conflict);
 	await runBatch(db, [
 		db
 			.update(rentChanges)
@@ -764,6 +770,7 @@ export async function removeChange(
 				amountsOf(previous)
 			)
 		: noLaterRows;
+	if (later.conflict) return refuse(later.conflict);
 	await runBatch(db, [
 		db
 			.delete(rentChanges)

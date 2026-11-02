@@ -568,6 +568,36 @@ describe('manualChange', () => {
 		});
 	});
 
+	it('refuses a parking share that later rows would carry above their Kaltmiete', async () => {
+		// 600 € with 50 € garage from the start, a later Kaltmiete of 400 € inherits the 50 €.
+		await updateLease(db, contextA, leaseId, {
+			...leaseInputOf((await getLease(db, 'a', leaseId))!),
+			parkingRent: 5000
+		});
+		await manualChange(db, contextA, leaseId, { ...input, baseRent: 40000, parkingRent: 5000 });
+		const lease = (await getLease(db, 'a', leaseId))!;
+		const refused = await updateLease(db, contextA, leaseId, {
+			...leaseInputOf(lease),
+			parkingRent: 50000
+		});
+		expect(refused).toMatchObject({
+			ok: false,
+			reason: 'parking-above-rent',
+			message: expect.stringContaining('Ab dem 01.01.2025 läge der Anteil')
+		});
+		expect(
+			await manualChange(db, contextA, leaseId, {
+				...input,
+				validFrom: '2024-06-01',
+				baseRent: 60000,
+				parkingRent: 45000
+			})
+		).toMatchObject({ ok: false, message: expect.stringContaining('über der Kaltmiete') });
+		const [initial, later] = await listRentChanges(db, 'a', leaseId);
+		expect(initial).toMatchObject({ baseRent: 60000, parkingRent: 5000 });
+		expect(later).toMatchObject({ baseRent: 40000, parkingRent: 5000 });
+	});
+
 	it('refuses a change before the lease began', async () => {
 		expect(
 			await manualChange(db, contextA, leaseId, { ...input, validFrom: '2023-12-01' })

@@ -268,14 +268,19 @@ export type LeaseError =
 	| 'archived'
 	| 'missing'
 	| 'start-after-changes'
+	| 'parking-above-rent'
 	| 'settled-property'
 	| 'party-dates'
 	| 'overlap';
 
 /** A refused lease; an overlap names the start of the other lease. */
 export type LeaseRefusal =
-	| { ok: false; reason: Exclude<LeaseError, 'overlap' | 'start-after-changes'> }
-	| { ok: false; reason: 'overlap' | 'start-after-changes'; date: IsoDate };
+	| {
+			ok: false;
+			reason: Exclude<LeaseError, 'overlap' | 'start-after-changes' | 'parking-above-rent'>;
+	  }
+	| { ok: false; reason: 'overlap' | 'start-after-changes'; date: IsoDate }
+	| { ok: false; reason: 'parking-above-rent'; message: string };
 
 /** Whether two terms share a day; an open end runs on indefinitely. */
 export function termsOverlap(
@@ -327,7 +332,9 @@ async function checkReferences(
 	accountId: string,
 	input: LeaseInput,
 	kept: { unitIds: string[]; tenantIds: string[] } = { unitIds: [], tenantIds: [] }
-): Promise<Exclude<LeaseError, 'overlap' | 'start-after-changes'> | undefined> {
+): Promise<
+	Exclude<LeaseError, 'overlap' | 'start-after-changes' | 'parking-above-rent'> | undefined
+> {
 	// The form does not cap the number of ids, so they go in groups (D1 binds at most 100).
 	const unitIds = [...new Set([input.unitId, ...input.extraUnitIds])];
 	const unitRows = await selectInChunks(unitIds, (ids) =>
@@ -638,6 +645,7 @@ export async function updateLease(
 	const later = initial
 		? laterRows(db, accountId, changes, input.startDate, initial, amounts, initial.id)
 		: noLaterRows;
+	if (later.conflict) return { ok: false, reason: 'parking-above-rent', message: later.conflict };
 	const history = withLaterRows(changes, later).map((change) =>
 		change.reason === 'initial' ? { ...change, validFrom: input.startDate, ...amounts } : change
 	);

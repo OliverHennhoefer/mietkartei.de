@@ -88,29 +88,33 @@ export const actions: Actions = {
 				.filter((id) => typeof id === 'string')
 				.join(',');
 			const errors: Partial<Record<string, string>> =
-				outcome.reason === 'start-after-changes'
-					? {
-							startDate: `Am ${formatDate(outcome.date)} beginnt schon eine spätere Mietänderung oder ein Eintrag im Personenstand. Der Beginn muss davor liegen; lösche oder verschiebe die späteren Einträge zuerst.`
-						}
-					: outcome.reason === 'overlap'
+				outcome.reason === 'parking-above-rent'
+					? { parkingRent: outcome.message }
+					: outcome.reason === 'start-after-changes'
 						? {
-								startDate: `Die Einheit ist in diesem Zeitraum schon an einen anderen Vertrag vermietet (ab ${formatDate(outcome.date)}). Zwei Verträge einer Einheit zur selben Zeit würden sich ihre Betriebskosten teilen; beende den anderen Vertrag vorher oder ändere die Daten.`
+								startDate: `Am ${formatDate(outcome.date)} beginnt schon eine spätere Mietänderung oder ein Eintrag im Personenstand. Der Beginn muss davor liegen; lösche oder verschiebe die späteren Einträge zuerst.`
 							}
-						: outcome.reason === 'settled-property'
+						: outcome.reason === 'overlap'
 							? {
-									unitId:
-										'Für dieses Objekt gibt es schon eine Betriebskostenabrechnung mit diesem Vertrag. Der Vertrag muss dort eine Einheit behalten; lege für die neue Einheit einen neuen Vertrag an.'
+									startDate: `Die Einheit ist in diesem Zeitraum schon an einen anderen Vertrag vermietet (ab ${formatDate(outcome.date)}). Zwei Verträge einer Einheit zur selben Zeit würden sich ihre Betriebskosten teilen; beende den anderen Vertrag vorher oder ändere die Daten.`
 								}
-							: outcome.reason === 'party-dates'
+							: outcome.reason === 'settled-property'
 								? {
-										tenantIds:
-											'So hätte der Vertrag an einem Tag keinen Mieter, oder ein Ein- oder Austritt läge außerhalb der Laufzeit. Passe zuerst die Daten unter „Vertragsparteien“ in der Übersicht an.'
+										unitId:
+											'Für dieses Objekt gibt es schon eine Betriebskostenabrechnung mit diesem Vertrag. Der Vertrag muss dort eine Einheit behalten; lege für die neue Einheit einen neuen Vertrag an.'
 									}
-								: outcome.reason === 'archived'
-									? { tenantIds: 'Einer der Mieter ist archiviert. Hol ihn zuerst aus dem Archiv.' }
-									: outcome.reason === 'unknown-unit'
-										? { unitId: 'Eine der Einheiten gibt es nicht.' }
-										: { tenantIds: 'Einen der Mieter gibt es nicht.' };
+								: outcome.reason === 'party-dates'
+									? {
+											tenantIds:
+												'So hätte der Vertrag an einem Tag keinen Mieter, oder ein Ein- oder Austritt läge außerhalb der Laufzeit. Passe zuerst die Daten unter „Vertragsparteien“ in der Übersicht an.'
+										}
+									: outcome.reason === 'archived'
+										? {
+												tenantIds: 'Einer der Mieter ist archiviert. Hol ihn zuerst aus dem Archiv.'
+											}
+										: outcome.reason === 'unknown-unit'
+											? { unitId: 'Eine der Einheiten gibt es nicht.' }
+											: { tenantIds: 'Einen der Mieter gibt es nicht.' };
 			return fail(400, { errors, values, depositWarning: depositWarning(result.data) });
 		}
 		redirect(303, `/vertraege/${lease.id}`);
