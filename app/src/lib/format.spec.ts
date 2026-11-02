@@ -5,7 +5,8 @@ import {
 	formatShareOf,
 	parseDecimal,
 	personName,
-	pluralize
+	pluralize,
+	splitPersonName
 } from './format';
 
 describe('format', () => {
@@ -45,5 +46,33 @@ describe('parseDecimal', () => {
 		expect(parseDecimal(' 12 ')).toBe(12);
 		expect(parseDecimal('')).toBeNull();
 		expect(parseDecimal('zwölf')).toBeNull();
+	});
+});
+
+describe('splitPersonName', () => {
+	it('splits a typed name into first and last name', () => {
+		expect(splitPersonName('Max Mustermann')).toEqual({ firstName: 'Max', lastName: 'Mustermann' });
+		expect(splitPersonName('  Anna  Lena   Schulz ')).toEqual({
+			firstName: 'Anna Lena',
+			lastName: 'Schulz'
+		});
+		expect(splitPersonName('Anna Maria von Berg')).toEqual({
+			firstName: 'Anna Maria',
+			lastName: 'von Berg'
+		});
+		expect(splitPersonName('Ludwig van Beethoven')).toEqual({
+			firstName: 'Ludwig',
+			lastName: 'van Beethoven'
+		});
+		expect(splitPersonName('Müller Lüdenscheidt, Hans')).toEqual({
+			firstName: 'Hans',
+			lastName: 'Müller Lüdenscheidt'
+		});
+	});
+
+	it('refuses a single word or an empty side of the comma', () => {
+		expect(splitPersonName('Mustermann')).toBeNull();
+		expect(splitPersonName('Mustermann,')).toBeNull();
+		expect(splitPersonName('  ')).toBeNull();
 	});
 });

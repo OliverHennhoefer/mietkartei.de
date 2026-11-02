@@ -30,16 +30,14 @@
 {#if data.leases.length === 0}
 	<EmptyState
 		title="Du hast noch keine Mietverträge angelegt."
-		text="Ein Mietvertrag braucht eine Einheit und einen Mieter. Lege zuerst an, was noch fehlt."
+		text={data.prerequisites.units
+			? 'Die Mieter kannst du direkt im Vertrag eintippen; wen es noch nicht gibt, wird mit angelegt.'
+			: 'Ein Mietvertrag gehört zu einer Einheit. Lege zuerst das Objekt mit seinen Einheiten an.'}
 	>
-		{#if !data.prerequisites.units}
-			<CreateButton href="/objekte" label="Objekt und Einheit anlegen" secondary />
-		{/if}
-		{#if !data.prerequisites.tenants}
-			<CreateButton href="/mieter/neu?return=/vertraege/neu" label="Mieter anlegen" secondary />
-		{/if}
-		{#if data.prerequisites.units && data.prerequisites.tenants}
+		{#if data.prerequisites.units}
 			<CreateButton href="/vertraege/neu" label="Mietvertrag anlegen" />
+		{:else}
+			<CreateButton href="/objekte" label="Objekt und Einheit anlegen" secondary />
 		{/if}
 	</EmptyState>
 {:else}

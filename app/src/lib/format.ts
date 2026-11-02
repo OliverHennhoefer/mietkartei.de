@@ -42,3 +42,50 @@ export function pluralize(count: number, singular: string, plural: string): stri
 export function personName(person: { firstName: string; lastName: string }): string {
 	return `${person.firstName} ${person.lastName}`.trim();
 }
+
+/** Words that begin a last name: „Anna von Berg“, „Ludwig van Beethoven“. */
+const nameParticles = new Set([
+	'von',
+	'vom',
+	'van',
+	'zu',
+	'zum',
+	'zur',
+	'de',
+	'der',
+	'den',
+	'del',
+	'della',
+	'di',
+	'da',
+	'du',
+	'dos',
+	'le',
+	'la',
+	'ten',
+	'ter'
+]);
+
+/**
+ * A name typed in one field, split into first and last name: „Max Mustermann“, „Anna Maria von
+ * Berg“ (first „Anna Maria“, last „von Berg“) or „Mustermann, Max“. Null for a single word, which
+ * leaves the last name unclear.
+ */
+export function splitPersonName(text: string): { firstName: string; lastName: string } | null {
+	const name = text.replace(/\s+/g, ' ').trim();
+	const comma = name.indexOf(',');
+	if (comma >= 0) {
+		const lastName = name.slice(0, comma).trim();
+		const firstName = name
+			.slice(comma + 1)
+			.replace(/,/g, ' ')
+			.replace(/\s+/g, ' ')
+			.trim();
+		return lastName && firstName ? { firstName, lastName } : null;
+	}
+	const words = name.split(' ');
+	if (words.length < 2) return null;
+	let index = words.length - 1;
+	while (index > 1 && nameParticles.has(words[index - 1].toLowerCase())) index--;
+	return { firstName: words.slice(0, index).join(' '), lastName: words.slice(index).join(' ') };
+}
