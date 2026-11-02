@@ -6,6 +6,7 @@ import { actions, load } from './+page.server';
 
 const env = vi.hoisted(() => ({
 	REGISTRATION_EMAILS: '',
+	FREE_ACCOUNT_EMAILS: '',
 	SETUP_CODE: '',
 	HOSTED: false,
 	ORIGIN: '',
@@ -27,6 +28,7 @@ beforeEach(async () => {
 	db = await testDatabase();
 	Object.assign(env, {
 		REGISTRATION_EMAILS: '',
+		FREE_ACCOUNT_EMAILS: '',
 		SETUP_CODE: '',
 		ORIGIN: '',
 		TURNSTILE_SITE_KEY: '',
@@ -110,6 +112,26 @@ describe('the first person on a self-hosted instance', () => {
 		} finally {
 			env.HOSTED = false;
 		}
+	});
+});
+
+describe('with FREE_ACCOUNT_EMAILS on the hosted variant', () => {
+	beforeEach(() => {
+		Object.assign(env, { HOSTED: true, FREE_ACCOUNT_EMAILS: 'familie@example.org' });
+	});
+
+	afterEach(() => {
+		Object.assign(env, { HOSTED: false, FREE_ACCOUNT_EMAILS: '' });
+	});
+
+	it('mails a link to a free address that REGISTRATION_EMAILS does not list', async () => {
+		expect(await register({ email: 'Familie@example.org' })).toEqual({ data: { sent: true } });
+		const [mail] = await db.select().from(outbox);
+		expect(mail.to).toBe('familie@example.org');
+		expect(await register({ email: 'fremd@example.org' })).toEqual({
+			fail: 403,
+			data: { notListed: true, values: { email: 'fremd@example.org' } }
+		});
 	});
 });
 

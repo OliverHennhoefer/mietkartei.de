@@ -1,10 +1,11 @@
-import { HOSTED, REGISTRATION_EMAILS, SETUP_CODE } from '$app/env/private';
+import { FREE_ACCOUNT_EMAILS, HOSTED, REGISTRATION_EMAILS, SETUP_CODE } from '$app/env/private';
 import type { Database } from './db';
 import { hasUsers } from './auth';
 import { parseEmailList } from './email-list';
 
 // Who may create an account. With REGISTRATION_EMAILS set, exactly the listed addresses may, each
-// once. Without it, a self-hosted instance lets only its first person register, who takes over the
+// once. On the hosted variant the addresses of FREE_ACCOUNT_EMAILS may as well: an address whose
+// account is free is meant to have one, so it needs no second entry. Without it, a self-hosted instance lets only its first person register, who takes over the
 // existing data; the hosted variant (HOSTED) lets nobody, so no stranger can win the race for the
 // first account of an empty database. A self-hosted instance that is public from the start, such as
 // one on workers.dev, closes that race with SETUP_CODE, which the first person must enter.
@@ -29,9 +30,15 @@ export function mayRegister(rule: RegistrationRule, email: string): boolean {
 	return !rule.hosted && !rule.hasUsers;
 }
 
+/** The addresses that may register: REGISTRATION_EMAILS, on the hosted variant with the free ones. */
+export function registrationEmails(registration: string, free: string, hosted: boolean): string[] {
+	const emails = parseEmailList(registration);
+	return hosted ? [...new Set([...emails, ...parseEmailList(free)])] : emails;
+}
+
 export async function registrationRule(db: Database): Promise<RegistrationRule> {
 	return {
-		emails: parseEmailList(REGISTRATION_EMAILS),
+		emails: registrationEmails(REGISTRATION_EMAILS, FREE_ACCOUNT_EMAILS, HOSTED),
 		hosted: HOSTED,
 		hasUsers: await hasUsers(db),
 		setupCode: SETUP_CODE

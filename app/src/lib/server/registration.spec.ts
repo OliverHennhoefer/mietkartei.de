@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	mayRegister,
+	registrationEmails,
 	registrationOffered,
 	setupCodeMatches,
 	setupCodeRequired
@@ -9,6 +10,14 @@ import {
 const listed = { emails: ['oliver@example.org'], hosted: true, hasUsers: true, setupCode: '' };
 
 describe('registration rule', () => {
+	it('lets the free addresses register on the hosted variant only', () => {
+		expect(
+			registrationEmails('oliver@example.org', 'Mama@example.org oliver@example.org', true)
+		).toEqual(['oliver@example.org', 'mama@example.org']);
+		expect(registrationEmails('', 'mama@example.org', true)).toEqual(['mama@example.org']);
+		expect(registrationEmails('', 'mama@example.org', false)).toEqual([]);
+	});
+
 	it('lets only the listed addresses register when a list is set', () => {
 		expect(registrationOffered(listed)).toBe(true);
 		expect(mayRegister(listed, ' Oliver@Example.org')).toBe(true);

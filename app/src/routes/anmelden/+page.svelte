@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance, type SubmitFunction } from '$app/forms';
+	import { resolve } from '$app/paths';
 	import LaunchNotice from '#lib/components/LaunchNotice.svelte';
 	import type { PageProps } from './$types';
 
@@ -55,4 +56,7 @@
 			<a href="/passwort-vergessen" class="small">Passwort vergessen?</a>
 		</div>
 	</form>
+	{#if data.registration}
+		<p class="muted">Noch kein Konto? <a href={resolve('/registrieren')}>Konto erstellen</a></p>
+	{/if}
 </div>
