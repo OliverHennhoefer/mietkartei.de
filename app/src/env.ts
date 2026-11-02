@@ -125,6 +125,15 @@ export const variables = defineEnvVars({
 		description: 'Base URL of the Enable Banking API; the tests point it at a fake.',
 		schema: (value) => value || 'https://api.enablebanking.com'
 	},
+	VAPID_PRIVATE_KEY: {
+		description:
+			'The key the server signs its push Mitteilungen with (VAPID), a P-256 key as PKCS#8 PEM ' +
+			'("-----BEGIN PRIVATE KEY-----"); line breaks may be written as \\n. Unset, the app offers ' +
+			'no Mitteilungen on phones and computers. Create one with "openssl ecparam -name ' +
+			'prime256v1 -genkey -noout | openssl pkcs8 -topk8 -nocrypt" and never change it: every ' +
+			'device subscribed with the old key has to be connected again. A secret.',
+		schema: (value) => value || ''
+	},
 	STRIPE_WEBHOOK_SECRET: {
 		description:
 			'Signing secret of the Stripe webhook endpoint /api/webhooks/stripe (whsec_…). A secret ' +

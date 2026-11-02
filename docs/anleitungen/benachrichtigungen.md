@@ -1,6 +1,6 @@
 ---
 title: Benachrichtigungen einrichten
-description: "Wie mietkartei dich von selbst an Fristen und Aufgaben erinnert: per E-Mail, als Push aufs Handy mit ntfy oder per Webhook an n8n, Make, Zapier, Home Assistant und darüber auch an WhatsApp oder Telegram."
+description: "Wie mietkartei dich von selbst an Fristen und Aufgaben erinnert: per E-Mail, als Mitteilung auf Handy und Computer oder per Webhook an n8n, Make, Zapier, Home Assistant und darüber auch an WhatsApp oder Telegram."
 ---
 
 # Benachrichtigungen einrichten
@@ -35,20 +35,33 @@ Jeder Hinweis per E-Mail hat einen Link **Später erinnern**. Darüber verschieb
 
 Unter **Kanal hinzufügen → E-Mail** schaltest du die Hinweise an deine Anmeldeadresse ein. Die E-Mail nennt Mieter und Einheit und verlinkt direkt auf die Stelle in mietkartei. Die wöchentliche Übersicht am Montag gibt es weiterhin, unabhängig davon.
 
-## Push aufs Handy mit ntfy
+## Als Mitteilung auf Handy und Computer
 
-[ntfy](https://ntfy.sh/) ist eine kostenlose Open-Source-App für Android und iPhone, die Nachrichten als Mitteilung anzeigt.
+mietkartei kann Hinweise selbst als Mitteilung anzeigen, wie eine App. Du brauchst dafür keine weitere App und kein Konto. Richte die Mitteilungen auf jedem Gerät ein, auf dem du sie haben willst.
 
-1. Installiere die App ntfy und tippe auf **+**, um ein Thema zu abonnieren.
-2. Wähle einen Namen, den niemand errät, etwa `mietkartei-7f3k9q2w`. Wer den Namen kennt, kann auf ntfy.sh mitlesen.
-3. Trage in mietkartei unter **Kanal hinzufügen → ntfy** die Adresse ein, also `https://ntfy.sh/mietkartei-7f3k9q2w`.
-4. Klicke bei dem neuen Kanal auf **Test senden**. Auf dem Handy erscheint „mietkartei: Test“.
+**Android, Windows, Mac und Linux:**
 
-Ohne das Häkchen **Mit Namen der Mieter** gehen nur Art der Frist, Datum und Link mit, keine Namen. Eigene Aufgaben heißen dann nur „Aufgabe“, weil in ihrem Titel ein Name stehen kann. Betreibst du einen eigenen ntfy-Server, trägst du dessen Adresse ein; für ein geschütztes Thema gibst du zusätzlich ein Zugangstoken an.
+1. Öffne mietkartei im Browser und gehe zu **Einstellungen → Benachrichtigungen**.
+2. Tippe bei **Mitteilungen auf diesem Gerät** auf **Mitteilungen einschalten** und erlaube sie, wenn der Browser fragt.
+3. Gleich darauf erscheint „mietkartei: Test“. Fertig.
+
+**iPhone und iPad:** Apple erlaubt Mitteilungen nur, wenn mietkartei auf dem Home-Bildschirm liegt.
+
+1. Öffne mietkartei in Safari und tippe unten auf **Teilen** (das Quadrat mit dem Pfeil).
+2. Wähle **Zum Home-Bildschirm** und tippe auf **Hinzufügen**.
+3. Öffne mietkartei über das neue Symbol, melde dich an und schalte unter **Einstellungen → Benachrichtigungen** die Mitteilungen ein, wie oben.
+
+Auf Android und am Computer kannst du mietkartei ebenso als App installieren: im Menü des Browsers über **App installieren** oder **Zum Startbildschirm hinzufügen**. Nötig ist das dort nicht.
+
+Kommen keine Mitteilungen mehr, hast du sie vielleicht in den Einstellungen des Browsers oder des Handys abgeschaltet. Erlaube sie dort wieder und schalte sie in mietkartei neu ein. Meldet ein Gerät die Mitteilungen ab, etwa weil du mietkartei vom Home-Bildschirm gelöscht hast, entfernt mietkartei den Kanal von selbst.
+
+## Was mitgeht
+
+Ohne das Häkchen **Mit Namen der Mieter** gehen bei Mitteilungen und Webhooks nur Art der Frist, Datum und Link mit, keine Namen. Eigene Aufgaben heißen dann nur „Aufgabe“, weil in ihrem Titel ein Name stehen kann.
 
 ## Per Webhook
 
-Ein Webhook schickt jeden Hinweis als JSON an eine Adresse deiner Wahl. So verbindest du mietkartei mit [n8n](https://n8n.io/), Make, Zapier, Home Assistant oder Slack, und über diese Dienste auch mit WhatsApp oder Telegram.
+Der Webhook ist für Technikfreunde gedacht und steht in mietkartei zugeklappt unter **Für Technikfreunde: Webhook an n8n, Home Assistant und Co.** Ein Webhook schickt jeden Hinweis als JSON an eine Adresse deiner Wahl. So verbindest du mietkartei mit [n8n](https://n8n.io/), Make, Zapier, Home Assistant oder Slack, und über diese Dienste auch mit WhatsApp oder Telegram.
 
 mietkartei schickt eine `POST`-Anfrage mit diesem Inhalt:
 
@@ -114,4 +127,4 @@ Lege in Home Assistant eine Automation mit dem Auslöser **Webhook** an und trag
 
 ## Datenschutz
 
-E-Mails gehen wie alle Mails von mietkartei über den Versanddienst der Instanz. ntfy.sh und die Dienste hinter einem Webhook sind eigene Anbieter, die du selbst wählst. Deshalb gehen dorthin ohne dein Häkchen keine Namen von Mietern, nur die Art der Frist, das Datum und ein Link. Wer dem Link folgt, muss sich bei mietkartei anmelden.
+E-Mails gehen wie alle Mails von mietkartei über den Versanddienst der Instanz. Mitteilungen laufen über den Zustelldienst deines Browsers (Apple, Google, Mozilla oder Microsoft). mietkartei verschlüsselt jede Mitteilung für dein Gerät, sodass der Zustelldienst ihren Inhalt nicht lesen kann. Die Dienste hinter einem Webhook sind eigene Anbieter, die du selbst wählst. Deshalb gehen dorthin ohne dein Häkchen keine Namen von Mietern, nur die Art der Frist, das Datum und ein Link. Wer dem Link folgt, muss sich bei mietkartei anmelden.

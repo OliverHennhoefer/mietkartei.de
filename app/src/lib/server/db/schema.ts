@@ -1592,13 +1592,14 @@ export const calendarFeeds = sqliteTable(
 	(table) => [index('calendar_feeds_account_id_idx').on(table.accountId)]
 );
 
-export const notificationChannelKinds = ['email', 'ntfy', 'webhook'] as const;
+export const notificationChannelKinds = ['email', 'push', 'webhook'] as const;
 export type NotificationChannelKind = (typeof notificationChannelKinds)[number];
 
 /**
- * Where a user's Hinweise go: their own address by mail, a topic on an ntfy server, or a webhook.
- * The webhook's signing secret is needed to sign every request, so it is stored as it is, like
- * the secrets a payment provider shows for its webhooks; ntfy keeps an optional access token here.
+ * Where a user's Hinweise go: their own address by mail, the Mitteilungen of a browser (push), or
+ * a webhook. The webhook's signing secret is needed to sign every request, so it is stored as it
+ * is, like the secrets a payment provider shows for its webhooks; push keeps the browser's keys
+ * here as JSON (p256dh, auth).
  */
 export const notificationChannels = sqliteTable(
 	'notification_channels',
@@ -1609,9 +1610,11 @@ export const notificationChannels = sqliteTable(
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
 		kind: text('kind', { enum: notificationChannelKinds }).notNull(),
-		/** The topic address (ntfy) or the address posted to (webhook); none for mail. */
+		/** The address posted to (webhook) or the browser's address at its push service (push). */
 		url: text('url'),
 		secret: text('secret'),
+		/** The device of a push channel, e.g. "iPhone" or "Windows (Chrome)". */
+		label: text('label'),
 		/** The address of the app the links lead to, taken when the channel was added. */
 		origin: text('origin').notNull(),
 		/** Only the urgent Hinweise: shortly before a statutory deadline and overdue. */

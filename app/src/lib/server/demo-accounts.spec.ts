@@ -50,16 +50,22 @@ describe('startDemo', () => {
 		const [user] = await db.select().from(users).where(eq(users.id, session!.user.id));
 		expect(user.deadlineMailOrigin).toBe('https://demo.mietkartei.de');
 		expect(weekday(user.deadlineMailSentOn!)).toBe(1);
-		// Hinweise by mail, the urgent ones by ntfy, and a history of sends over several years.
+		// Hinweise by mail, the urgent ones as Mitteilungen on the iPhone, and a history of sends
+		// over several years.
 		const channels = await db
 			.select()
 			.from(notificationChannels)
 			.where(eq(notificationChannels.userId, session!.user.id))
-			.orderBy(notificationChannels.kind);
+			.orderBy(notificationChannels.kind, notificationChannels.label);
 		expect(channels.map((channel) => [channel.kind, channel.urgentOnly])).toEqual([
 			['email', false],
-			['ntfy', true],
+			['push', false],
+			['push', true],
 			['webhook', false]
+		]);
+		expect(channels.filter((channel) => channel.kind === 'push').map((c) => c.label)).toEqual([
+			'Windows (Edge)',
+			'iPhone'
 		]);
 		const sends = await db
 			.select()

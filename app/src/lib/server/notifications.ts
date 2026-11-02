@@ -1,4 +1,5 @@
-import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
+import { VAPID_PRIVATE_KEY } from '$app/env/private';
 import { addDays, daysBetween, dayOf, formatDate, weekday, type IsoDate } from '../dates';
 import { auditEntry, type AuditContext } from './audit';
 import { generateToken } from './auth';
@@ -15,13 +16,22 @@ import {
 } from './db/schema';
 import type { DeadlineKind } from './deadlines';
 import { sendMail, type Mail } from './mail';
+import {
+	PushGoneError,
+	sendPush,
+	validPushEndpoint,
+	validSubscriptionKeys,
+	vapidKeys,
+	type PushMessage,
+	type PushSubscriptionKeys
+} from './web-push';
 
 // Hinweise: the app tells a user about a deadline or task by itself, at most three times per
 // entry: some time ahead (lead), shortly before a statutory deadline (soon) and once it is overdue.
 // What was told is remembered per user and entry, so a stage is never told twice, and everything
 // of a day goes out together, at the hour the user chose and, if they wish, not at weekends. The
-// channels are the user's own mail address, an ntfy topic and webhooks. The job runs every hour,
-// started like the Fristenübersicht (see jobs.ts).
+// channels are the user's own mail address, the Mitteilungen of their browsers (push) and
+// webhooks. The job runs every hour, started like the Fristenübersicht (see jobs.ts).
 
 /** Failed sends in a row after which a channel is paused until a test goes through. */
 export const MAX_FAILURES = 5;
@@ -71,7 +81,7 @@ export const stageLabels: Record<NotificationStage, string> = {
 
 export const channelKindLabels: Record<NotificationChannelKind, string> = {
 	email: 'E-Mail',
-	ntfy: 'ntfy',
+	push: 'Mitteilung',
 	webhook: 'Webhook'
 };
 
@@ -235,51 +245,90 @@ export async function webhookSignature(secret: string, body: string, now: Date):
 	return `t=${timestamp},v1=${hex}`;
 }
 
-/** The server and the topic of an ntfy address such as https://ntfy.sh/mietkartei-x7. */
-export function ntfyTarget(url: string): { server: string; topic: string } | undefined {
-	const parsed = URL.canParse(url) ? new URL(url) : undefined;
-	if (!parsed) return undefined;
-	const parts = parsed.pathname.split('/').filter(Boolean);
-	const topic = parts.pop();
-	if (!topic || !/^[-\w]{1,64}$/.test(topic)) return undefined;
-	const base = parts.length > 0 ? `/${parts.join('/')}` : '';
-	return { server: `${parsed.origin}${base}`, topic };
+/** The longest line of a push; a long task note is cut. */
+const PUSH_LINE = 160;
+
+/**
+ * Bytes the lines of a push may take in its JSON. An encrypted push holds 4096 bytes at most
+ * (one record of #lib/server/web-push.ts), and title, path and the JSON around them need the rest.
+ */
+const PUSH_BYTES = 3000;
+
+/**
+ * The lines of a push: up to PUSH_ENTRIES entries, each with its date, then how many more. Lines
+ * are cut to PUSH_LINE characters, and only as many go along as fit PUSH_BYTES, so a long note
+ * never keeps the whole push from being sent.
+ */
+function pushLines(notices: Notice[], details: boolean): string[] {
+	const lines: string[] = [];
+	let bytes = 0;
+	for (const { entry, stage } of notices.slice(0, PUSH_ENTRIES)) {
+		const mark = stage === 'overdue' ? ' (überfällig)' : '';
+		const detail = details && entry.description ? `, ${entry.description}` : '';
+		const full = `${formatDate(entry.date)}: ${outsideTitle(entry, details)}${mark}${detail}`;
+		const line = full.length > PUSH_LINE ? `${full.slice(0, PUSH_LINE - 1)}…` : full;
+		// As the line stands in the JSON, with its escapes and the line break before it.
+		const size = encoder.encode(JSON.stringify(line)).length;
+		if (bytes + size > PUSH_BYTES) break;
+		lines.push(line);
+		bytes += size;
+	}
+	if (notices.length > lines.length) lines.push(`und ${notices.length - lines.length} weitere`);
+	return lines;
 }
 
-/** The JSON an ntfy server publishes (docs.ntfy.sh, "Publish as JSON"). */
-export function ntfyMessage(
-	topic: string,
+/**
+ * The Mitteilung of a browser. Its link is a path of the app the channel was added at: the
+ * service worker opens nothing else.
+ */
+export function pushMessage(
 	notices: Notice[],
 	details: boolean,
 	origin: string,
 	test = false
-) {
+): PushMessage {
 	if (test) {
 		return {
-			topic,
 			title: 'mietkartei: Test',
-			message: 'Hinweise zu Fristen und Aufgaben kommen hier an.',
-			tags: ['calendar'],
-			click: `${origin}/einstellungen/benachrichtigungen`
+			body: 'Hinweise zu Fristen und Aufgaben kommen hier an.',
+			path: '/einstellungen/benachrichtigungen',
+			tag: 'test'
 		};
 	}
-	const shown = notices.slice(0, PUSH_ENTRIES);
-	const lines = shown.map(({ entry, stage }) => {
-		const mark = stage === 'overdue' ? ' (überfällig)' : '';
-		const detail = details && entry.description ? `, ${entry.description}` : '';
-		return `${formatDate(entry.date)}: ${outsideTitle(entry, details)}${mark}${detail}`;
-	});
-	if (notices.length > shown.length) lines.push(`und ${notices.length - shown.length} weitere`);
-	const single = notices.length === 1 ? notices[0].entry.url : `${origin}/aufgaben`;
+	const single = notices.length === 1 ? notices[0].entry.url : '/aufgaben';
 	return {
-		topic,
 		title: `Fristen: ${noticeSummary(notices)}`,
-		message: lines.join('\n'),
-		tags: [notices.some((notice) => isUrgent(notice.stage)) ? 'warning' : 'calendar'],
-		priority: notices.some((notice) => isUrgent(notice.stage)) ? 4 : 3,
-		click: single,
-		actions: [{ action: 'view', label: 'Öffnen', url: single, clear: true }]
+		body: pushLines(notices, details).join('\n'),
+		path: single.startsWith(origin) ? single.slice(origin.length) || '/' : single,
+		tag: 'hinweise'
 	};
+}
+
+/** The keys a push channel keeps in `secret`, or undefined when they are broken. */
+function subscriptionKeys(secret: string | null): PushSubscriptionKeys | undefined {
+	try {
+		const keys = JSON.parse(secret ?? '') as PushSubscriptionKeys;
+		return typeof keys?.p256dh === 'string' &&
+			typeof keys.auth === 'string' &&
+			validSubscriptionKeys(keys)
+			? { p256dh: keys.p256dh, auth: keys.auth }
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/** Whether the instance can send Mitteilungen: only with its VAPID key. */
+export async function pushKey(): Promise<string | undefined> {
+	return (await vapidKeys(VAPID_PRIVATE_KEY))?.publicKey;
+}
+
+/**
+ * Who the push services may contact about the sends (the VAPID `sub`): the app's own address
+ * where it is public over https, the project's otherwise.
+ */
+function pushSubject(origin: string): string {
+	return origin.startsWith('https://') ? origin : 'https://mietkartei.de';
 }
 
 export type Channel = typeof notificationChannels.$inferSelect;
@@ -306,29 +355,34 @@ async function deliver(
 		);
 		return;
 	}
+	if (channel.kind === 'push') {
+		const vapid = await vapidKeys(VAPID_PRIVATE_KEY);
+		if (!vapid) throw new Error('Mitteilungen sind auf diesem Server nicht eingerichtet.');
+		const keys = subscriptionKeys(channel.secret);
+		if (!channel.url || !keys) throw new Error('Die Mitteilung ist unvollständig eingerichtet.');
+		await sendPush(
+			{ endpoint: channel.url, keys },
+			pushMessage(notices, channel.details, channel.origin, test),
+			vapid,
+			{
+				subject: pushSubject(channel.origin),
+				urgent: test || notices.some((notice) => isUrgent(notice.stage))
+			}
+		);
+		return;
+	}
 	const headers: Record<string, string> = {
 		'content-type': 'application/json',
 		'user-agent': 'mietkartei'
 	};
-	let url: string;
-	let body: string;
-	if (channel.kind === 'ntfy') {
-		const target = channel.url ? ntfyTarget(channel.url) : undefined;
-		if (!target) throw new Error('Die ntfy-Adresse ist ungültig.');
-		url = target.server;
-		body = JSON.stringify(
-			ntfyMessage(target.topic, notices, channel.details, channel.origin, test)
-		);
-		if (channel.secret) headers.authorization = `Bearer ${channel.secret}`;
-	} else {
-		if (!channel.url || !channel.secret) throw new Error('Der Webhook ist unvollständig.');
-		url = channel.url;
-		body = JSON.stringify(webhookPayload(notices, channel.details, now, test ? 'test' : 'notices'));
-		headers['x-mietkartei-signature'] = await webhookSignature(channel.secret, body, now);
-	}
+	if (!channel.url || !channel.secret) throw new Error('Der Webhook ist unvollständig.');
+	const body = JSON.stringify(
+		webhookPayload(notices, channel.details, now, test ? 'test' : 'notices')
+	);
+	headers['x-mietkartei-signature'] = await webhookSignature(channel.secret, body, now);
 	let response: Response;
 	try {
-		response = await fetch(url, {
+		response = await fetch(channel.url, {
 			method: 'POST',
 			headers,
 			body,
@@ -359,6 +413,12 @@ async function deliverAndRecord(
 	try {
 		await deliver(channel, recipient, notices, db, now, test);
 	} catch (error) {
+		// The browser unsubscribed or the app was removed from the device: nothing will ever
+		// arrive there again, so the channel goes, with its history.
+		if (error instanceof PushGoneError) {
+			await db.delete(notificationChannels).where(eq(notificationChannels.id, channel.id));
+			return false;
+		}
 		const message = (error instanceof Error ? error.message : String(error)).slice(0, 200);
 		await runBatch(db, [
 			db
@@ -616,28 +676,27 @@ export async function setNotificationTiming(
 
 export type ChannelInput = {
 	kind: NotificationChannelKind;
+	/** The address of a webhook. */
 	url?: string;
-	token?: string;
+	/** The browser's subscription, for push. */
+	subscription?: { endpoint: string; keys: PushSubscriptionKeys };
+	/** The device of a push channel. */
+	label?: string;
 	urgentOnly: boolean;
 	details: boolean;
 };
 
-export type ChannelError = 'limit' | 'email-exists' | 'url';
+export type ChannelError = 'limit' | 'email-exists' | 'url' | 'push-off';
 
 /**
- * Checks the address of an ntfy topic or a webhook: https, or http as well where the instance is
- * self-hosted and may post into its own network (Home Assistant, n8n at home).
+ * Checks the address of a webhook: https, or http as well where the instance is self-hosted and
+ * may post into its own network (Home Assistant, n8n at home).
  */
-export function validChannelUrl(
-	kind: NotificationChannelKind,
-	url: string,
-	allowHttp: boolean
-): boolean {
+export function validChannelUrl(url: string, allowHttp: boolean): boolean {
 	if (url.length > 500 || !URL.canParse(url)) return false;
 	const parsed = new URL(url);
 	if (parsed.protocol !== 'https:' && !(allowHttp && parsed.protocol === 'http:')) return false;
-	if (parsed.username || parsed.password) return false;
-	return kind !== 'ntfy' || ntfyTarget(url) !== undefined;
+	return !parsed.username && !parsed.password;
 }
 
 /**
@@ -657,20 +716,15 @@ export async function addChannel(
 		.select({ kind: notificationChannels.kind })
 		.from(notificationChannels)
 		.where(eq(notificationChannels.userId, userId));
+	// A browser that subscribes again keeps its channel, even when the user has the most.
+	if (input.kind === 'push') return addPushChannel(db, context, input, origin, existing.length);
 	if (existing.length >= MAX_CHANNELS) return { ok: false, reason: 'limit' };
 	if (input.kind === 'email' && existing.some((channel) => channel.kind === 'email')) {
 		return { ok: false, reason: 'email-exists' };
 	}
 	const url = input.kind === 'email' ? null : (input.url ?? '').trim();
-	if (url !== null && !validChannelUrl(input.kind, url, allowHttp)) {
-		return { ok: false, reason: 'url' };
-	}
-	const secret =
-		input.kind === 'webhook'
-			? `whsec_${generateToken()}`
-			: input.kind === 'ntfy' && input.token?.trim()
-				? input.token.trim()
-				: null;
+	if (url !== null && !validChannelUrl(url, allowHttp)) return { ok: false, reason: 'url' };
+	const secret = input.kind === 'webhook' ? `whsec_${generateToken()}` : null;
 	const id = crypto.randomUUID();
 	await runBatch(db, [
 		db.insert(notificationChannels).values({
@@ -694,6 +748,89 @@ export async function addChannel(
 		)
 	]);
 	return input.kind === 'webhook' && secret ? { ok: true, id, secret } : { ok: true, id };
+}
+
+/**
+ * Adds the Mitteilungen of a browser. A browser that subscribes again (after the app was added
+ * to the home screen, say) keeps its channel with the new keys. The same browser can only belong
+ * to one person: someone else's channel at that address goes, so a shared computer does not keep
+ * showing the Hinweise of whoever used it before.
+ */
+async function addPushChannel(
+	db: Database,
+	context: AuditContext,
+	input: ChannelInput,
+	origin: string,
+	channels: number
+): Promise<{ ok: true; id: string } | { ok: false; reason: ChannelError }> {
+	const { accountId, userId } = context;
+	if (!userId) throw new Error('A channel belongs to a user.');
+	if (!(await pushKey())) return { ok: false, reason: 'push-off' };
+	const subscription = input.subscription;
+	if (
+		!subscription ||
+		!validPushEndpoint(subscription.endpoint) ||
+		!validSubscriptionKeys(subscription.keys)
+	) {
+		return { ok: false, reason: 'url' };
+	}
+	const secret = JSON.stringify({ p256dh: subscription.keys.p256dh, auth: subscription.keys.auth });
+	const label = (input.label ?? '').trim().slice(0, 60) || null;
+	const [same] = await db
+		.select({ id: notificationChannels.id })
+		.from(notificationChannels)
+		.where(
+			and(
+				eq(notificationChannels.userId, userId),
+				eq(notificationChannels.kind, 'push'),
+				eq(notificationChannels.url, subscription.endpoint)
+			)
+		);
+	const others = db
+		.delete(notificationChannels)
+		.where(
+			and(
+				eq(notificationChannels.kind, 'push'),
+				eq(notificationChannels.url, subscription.endpoint),
+				ne(notificationChannels.userId, userId)
+			)
+		);
+	if (same) {
+		await runBatch(db, [
+			db
+				.update(notificationChannels)
+				.set({ secret, label, origin, failures: 0, lastError: null })
+				.where(eq(notificationChannels.id, same.id)),
+			others
+		]);
+		return { ok: true, id: same.id };
+	}
+	if (channels >= MAX_CHANNELS) return { ok: false, reason: 'limit' };
+	const id = crypto.randomUUID();
+	await runBatch(db, [
+		others,
+		db.insert(notificationChannels).values({
+			id,
+			accountId,
+			userId,
+			kind: 'push',
+			url: subscription.endpoint,
+			secret,
+			label,
+			origin,
+			urgentOnly: input.urgentOnly,
+			details: input.details
+		}),
+		auditEntry(
+			db,
+			context,
+			'notification_channel',
+			id,
+			'create',
+			`Hinweise per Mitteilung eingeschaltet${label ? ` (${label})` : ''}`
+		)
+	]);
+	return { ok: true, id };
 }
 
 export async function removeChannel(
@@ -748,7 +885,8 @@ export async function testChannel(
 		.select({ lastError: notificationChannels.lastError })
 		.from(notificationChannels)
 		.where(eq(notificationChannels.id, channel.id));
-	return { ok, error: after?.lastError ?? undefined };
+	// A push channel whose device unsubscribed is gone by now.
+	return { ok, error: after ? (after.lastError ?? undefined) : 'Auf diesem Gerät abgemeldet.' };
 }
 
 // Snoozing, from the link in a Hinweis.

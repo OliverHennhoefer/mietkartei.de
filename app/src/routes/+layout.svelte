@@ -1,4 +1,5 @@
 <script lang="ts">
+	import appleTouchIcon from '../../../assets/brand/apple-touch-icon.png?no-inline';
 	import favicon from '../../../assets/brand/favicon.svg';
 	import { untrack, type Component } from 'svelte';
 	import Icon, { type IconName } from '#lib/components/Icon.svelte';
@@ -256,6 +257,9 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} type="image/svg+xml" />
+	<!-- Added to the home screen, the app opens in a window of its own (manifest.webmanifest). -->
+	<link rel="manifest" href="/manifest.webmanifest" />
+	<link rel="apple-touch-icon" href={appleTouchIcon} />
 	{#if data.theme === 'system'}
 		<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
 		<meta name="theme-color" content="#242529" media="(prefers-color-scheme: dark)" />

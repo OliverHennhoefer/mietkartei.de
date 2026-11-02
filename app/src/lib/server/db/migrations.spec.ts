@@ -236,3 +236,30 @@ describe('0052_service_providers', () => {
 		expect(() => db.exec(`update expenses set service_provider_id = 'x'`)).toThrow();
 	});
 });
+
+describe('0057_push_channels', () => {
+	it('drops the ntfy channels with their history and keeps the others', () => {
+		const db = new Sqlite(':memory:');
+		db.pragma('foreign_keys = ON');
+		for (const file of files.filter((name) => name < '0057')) apply(db, file);
+		db.exec(`
+			insert into accounts (id, name) values ('a', 'A');
+			insert into users (id, account_id, email, password_hash) values ('u', 'a', 'a@example.org', 'x');
+			insert into notification_channels (id, account_id, user_id, kind, url, origin)
+				values ('mail', 'a', 'u', 'email', null, 'https://app.example.org'),
+					('phone', 'a', 'u', 'ntfy', 'https://ntfy.sh/haus', 'https://app.example.org'),
+					('hook', 'a', 'u', 'webhook', 'https://n8n.example.de/x', 'https://app.example.org');
+			insert into notification_deliveries (id, account_id, user_id, channel_id, summary)
+				values ('d1', 'a', 'u', 'mail', '1 neu'), ('d2', 'a', 'u', 'phone', '1 neu');
+		`);
+		apply(
+			db,
+			files.find((name) => name.startsWith('0057'))!
+		);
+		expect(db.prepare('select id, label from notification_channels order by id').all()).toEqual([
+			{ id: 'hook', label: null },
+			{ id: 'mail', label: null }
+		]);
+		expect(db.prepare('select id from notification_deliveries').all()).toEqual([{ id: 'd1' }]);
+	});
+});

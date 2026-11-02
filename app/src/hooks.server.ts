@@ -22,6 +22,8 @@ const publicPaths = new Set([
 	'/api/jobs',
 	'/health',
 	'/robots.txt',
+	// Fetched by the browser without the session cookie when the app is added to the home screen.
+	'/manifest.webmanifest',
 	// Checks the request before anything else and sends visitors to sign in with a way back.
 	'/oauth/authorize'
 ]);
@@ -70,7 +72,14 @@ function isApiPath(pathname: string): boolean {
 
 function isPublic(pathname: string): boolean {
 	// The demo has no sign-in: visitors start a demo account instead.
-	if (DEMO) return pathname === '/demo' || pathname === '/health' || pathname === '/robots.txt';
+	if (DEMO) {
+		return (
+			pathname === '/demo' ||
+			pathname === '/health' ||
+			pathname === '/robots.txt' ||
+			pathname === '/manifest.webmanifest'
+		);
+	}
 	if (publicPaths.has(pathname)) return true;
 	if (publicPrefixes.some((prefix) => pathname.startsWith(prefix))) return true;
 	// Test-only endpoints, e.g. the seed. Only enabled by the end-to-end test server.
