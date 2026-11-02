@@ -49,6 +49,18 @@ describe('erinnerung/[key]', () => {
 		expect(await run(load)).toMatchObject({ error: 404 });
 	});
 
+	it('lets a viewer snooze, but not mark a task done', async () => {
+		const viewer = { id: 'viewer-a', email: 'v@example.org', accountId: 'a', name: null };
+		expect(await run(load, { user: { ...viewer, role: 'viewer' } })).toMatchObject({
+			data: { canComplete: false }
+		});
+		expect(await run(actions.done, { user: { ...viewer, role: 'viewer' } })).toMatchObject({
+			fail: 400
+		});
+		const [task] = await db.select().from(tasks);
+		expect(task.done).toBe(false);
+	});
+
 	it('knows only the entries of the own account', async () => {
 		expect(
 			await run(load, {

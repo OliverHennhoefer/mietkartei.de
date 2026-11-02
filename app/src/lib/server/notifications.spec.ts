@@ -175,6 +175,17 @@ describe('the messages', () => {
 		expect(webhookPayload(notices, true, now).notices[1].detail).toBe('Müller · EG links');
 	});
 
+	it('lists at most eight entries in a push and counts the rest', () => {
+		const many = Array.from({ length: 10 }, (_, i) => ({
+			entry: entry({ key: `task-${i}`, title: `Aufgabe ${i}` }),
+			stage: 'lead' as const
+		}));
+		const push = ntfyMessage('topic', many, false, ORIGIN);
+		expect(push.message.split('\n')).toHaveLength(9);
+		expect(push.message).toMatch(/\nund 2 weitere$/);
+		expect(push.click).toBe(`${ORIGIN}/aufgaben`);
+	});
+
 	it('signs a webhook like the receivers expect', async () => {
 		const now = new Date('2026-11-02T07:00:00Z');
 		const signature = await webhookSignature('whsec_test', '{"a":1}', now);
@@ -309,6 +320,34 @@ describe('channels', () => {
 		expect(request).toBe('https://ntfy.sh');
 		const [channel] = await db.select().from(notificationChannels);
 		expect(channel).toMatchObject({ failures: 0, lastError: null });
+	});
+});
+
+describe('testChannel', () => {
+	it('sends the ntfy token and reports a test that did not go through', async () => {
+		const added = await addChannel(
+			db,
+			contextA,
+			{
+				kind: 'ntfy',
+				url: 'https://ntfy.sh/haus',
+				token: ' tk_geheim ',
+				urgentOnly: false,
+				details: false
+			},
+			ORIGIN,
+			false
+		);
+		if (!added.ok) throw new Error('not added');
+		const fetch = vi.fn(async () => new Response('nope', { status: 401 }));
+		vi.stubGlobal('fetch', fetch);
+		expect(
+			await testChannel(db, contextA, added.id, { email: 'a@example.org', name: null })
+		).toEqual({ ok: false, error: 'Antwort 401' });
+		const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+		expect(new Headers(init.headers).get('authorization')).toBe('Bearer tk_geheim');
+		const [channel] = await db.select().from(notificationChannels);
+		expect(channel).toMatchObject({ failures: 1, lastError: 'Antwort 401' });
 	});
 });
 

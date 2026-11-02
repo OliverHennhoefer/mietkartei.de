@@ -73,6 +73,23 @@ describe('einstellungen/benachrichtigungen', () => {
 		});
 	});
 
+	it('says when a test did not go through or the channel is gone', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response('down', { status: 503 }))
+		);
+		await run(actions.add, { form: { kind: 'ntfy', url: 'https://ntfy.sh/haus' } });
+		const [channel] = await db.select().from(notificationChannels);
+		expect(await run(actions.test, { form: { channelId: channel.id } })).toMatchObject({
+			fail: 502,
+			data: { refused: 'Der Test ist nicht angekommen: Antwort 503' }
+		});
+		expect(await run(actions.test, { form: { channelId: 'nonsense' } })).toMatchObject({
+			fail: 404
+		});
+		vi.unstubAllGlobals();
+	});
+
 	it('turns the weekly Fristenübersicht on with the address of the app, and off again', async () => {
 		expect(await run(load)).toMatchObject({ data: { deadlineMail: { on: false, sentOn: null } } });
 		expect(await run(actions.mail, { form: { on: 'true' } })).toEqual({
