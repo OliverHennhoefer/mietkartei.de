@@ -1,6 +1,7 @@
 import { HOSTED, REGISTRATION_EMAILS, SETUP_CODE } from '$app/env/private';
 import type { Database } from './db';
 import { hasUsers } from './auth';
+import { parseEmailList } from './email-list';
 
 // Who may create an account. With REGISTRATION_EMAILS set, exactly the listed addresses may, each
 // once. Without it, a self-hosted instance lets only its first person register, who takes over the
@@ -17,14 +18,6 @@ export type RegistrationRule = {
 	setupCode: string;
 };
 
-/** The addresses of REGISTRATION_EMAILS, separated by commas or whitespace. */
-export function parseRegistrationEmails(value: string): string[] {
-	return value
-		.split(/[\s,]+/)
-		.map((email) => email.trim().toLowerCase())
-		.filter(Boolean);
-}
-
 /** Whether the form is offered at all; the address is checked on submit. */
 export function registrationOffered(rule: RegistrationRule): boolean {
 	return rule.emails.length > 0 || (!rule.hosted && !rule.hasUsers);
@@ -38,7 +31,7 @@ export function mayRegister(rule: RegistrationRule, email: string): boolean {
 
 export async function registrationRule(db: Database): Promise<RegistrationRule> {
 	return {
-		emails: parseRegistrationEmails(REGISTRATION_EMAILS),
+		emails: parseEmailList(REGISTRATION_EMAILS),
 		hosted: HOSTED,
 		hasUsers: await hasUsers(db),
 		setupCode: SETUP_CODE

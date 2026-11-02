@@ -99,6 +99,12 @@ describe('isFreeEmail', () => {
 		expect(isFreeEmail('mama@example.org', '')).toBe(false);
 		expect(isFreeEmail(null, 'mama@example.org')).toBe(false);
 	});
+
+	it('reads the list like REGISTRATION_EMAILS: commas, semicolons, spaces or line breaks', () => {
+		expect(isFreeEmail('mama@example.org', 'papa@example.org mama@example.org')).toBe(true);
+		expect(isFreeEmail('mama@example.org', 'papa@example.org\nMama@Example.org')).toBe(true);
+		expect(isFreeEmail('mama@example.org', 'papa@example.org; mama@example.org')).toBe(true);
+	});
 });
 
 describe('noticeFor', () => {
