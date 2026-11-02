@@ -11,6 +11,7 @@ function input(overrides: Partial<AnalysisInput> = {}): AnalysisInput {
 			period: `2026-${String(month).padStart(2, '0')}`,
 			kind: 'rent' as const,
 			baseRent,
+			parkingRent: 0,
 			amount: baseRent + 20000
 		}));
 	return {
@@ -36,7 +37,14 @@ function input(overrides: Partial<AnalysisInput> = {}): AnalysisInput {
 		],
 		charges: [
 			...rent('l-eg', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 60000),
-			{ leaseId: 'l-og-old', period: '2025-12', kind: 'rent', baseRent: 40000, amount: 60000 },
+			{
+				leaseId: 'l-og-old',
+				period: '2025-12',
+				kind: 'rent',
+				baseRent: 40000,
+				parkingRent: 0,
+				amount: 60000
+			},
 			...rent('l-og', [7, 8, 9, 10, 11, 12], 50000)
 		],
 		payments: [
@@ -156,8 +164,22 @@ describe('analyse', () => {
 				}
 			],
 			charges: [
-				{ leaseId: 'l-eg', period: '2025-12', kind: 'rent', baseRent: 60000, amount: 80000 },
-				{ leaseId: 'l-eg', period: '2026-01', kind: 'rent', baseRent: 29032, amount: 38710 }
+				{
+					leaseId: 'l-eg',
+					period: '2025-12',
+					kind: 'rent',
+					baseRent: 60000,
+					parkingRent: 0,
+					amount: 80000
+				},
+				{
+					leaseId: 'l-eg',
+					period: '2026-01',
+					kind: 'rent',
+					baseRent: 29032,
+					parkingRent: 0,
+					amount: 38710
+				}
 			]
 		});
 		const eg = analyse(data, year).units.find((unit) => unit.id === 'eg')!;
@@ -296,6 +318,7 @@ describe('analyse with overlapping and partial data', () => {
 						period: '2026-03',
 						kind: 'adjustment' as const,
 						baseRent: 0,
+						parkingRent: 0,
 						amount: 5000
 					}
 				],

@@ -22,12 +22,21 @@ describe('parseManualChange', () => {
 			data: {
 				validFrom: '2027-01-01',
 				baseRent: 65000,
+				parkingRent: 0,
 				operatingCostPrepayment: 15000,
 				heatingCostPrepayment: 5000,
 				reason: 'manual',
 				note: null
 			}
 		});
+	});
+
+	it('takes the parking share as part of the Kaltmiete, never above it', () => {
+		const result = parseManualChange(formDataOf({ ...change, parkingRent: '50,00' }), free);
+		expect(result.ok && result.data.parkingRent).toBe(5000);
+		const above = parseManualChange(formDataOf({ ...change, parkingRent: '700' }), free);
+		expect(above.ok).toBe(false);
+		if (!above.ok) expect(above.errors.parkingRent).toContain('Teil der Kaltmiete');
 	});
 
 	it('requires a note when the base rent of a restricted lease changes', () => {

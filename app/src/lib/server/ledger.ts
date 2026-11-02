@@ -86,6 +86,7 @@ function historyRows(db: Database, accountId: string, leaseIds?: string[]) {
 			leaseId: rentChanges.leaseId,
 			validFrom: rentChanges.validFrom,
 			baseRent: rentChanges.baseRent,
+			parkingRent: rentChanges.parkingRent,
 			operatingCostPrepayment: rentChanges.operatingCostPrepayment,
 			heatingCostPrepayment: rentChanges.heatingCostPrepayment,
 			status: rentChanges.status
@@ -107,6 +108,7 @@ const rentRowColumns = {
 	period: rentCharges.period,
 	dueDate: rentCharges.dueDate,
 	baseRent: rentCharges.baseRent,
+	parkingRent: rentCharges.parkingRent,
 	operatingCostPrepayment: rentCharges.operatingCostPrepayment,
 	heatingCostPrepayment: rentCharges.heatingCostPrepayment,
 	amount: rentCharges.amount
@@ -259,6 +261,7 @@ async function syncStatementsFrom(
 				.set({
 					dueDate: charge.dueDate,
 					baseRent: charge.baseRent,
+					parkingRent: charge.parkingRent,
 					operatingCostPrepayment: charge.operatingCostPrepayment,
 					heatingCostPrepayment: charge.heatingCostPrepayment,
 					amount: charge.amount

@@ -25,6 +25,7 @@ function rents(leaseId: string, year = 2025): TaxCharge[] {
 		dueDate: `${year}-${String(index + 1).padStart(2, '0')}-03`,
 		kind: 'rent' as const,
 		baseRent: 600_00,
+		parkingRent: 0,
 		operatingCostPrepayment: 150_00,
 		heatingCostPrepayment: 50_00,
 		amount: 800_00
@@ -98,7 +99,7 @@ describe('taxOverview', () => {
 				charges: [
 					...rents('l1'),
 					{ ...rents('l2')[0], period: '2025-03' },
-					{ ...rents('l3')[0], baseRent: 50_00, amount: 50_00, period: '2025-05' },
+					{ ...rents('l3')[0], baseRent: 50_00, parkingRent: 0, amount: 50_00, period: '2025-05' },
 					{ ...rents('l1')[0], period: '2024-12' }
 				],
 				payments: [
@@ -117,14 +118,37 @@ describe('taxOverview', () => {
 		expect(overview.leases.every((lease) => !lease.prorated)).toBe(true);
 	});
 
+	it('puts the share of a garage rented with the flat on the line for parking', () => {
+		const overview = taxOverview(
+			input({ charges: rents('l1').map((charge) => ({ ...charge, parkingRent: 50_00 })) })
+		);
+		expect(line(overview, 'apartments')).toMatchObject({ line: 15, amount: 6_600_00 });
+		expect(line(overview, 'parking')).toMatchObject({ line: 26, amount: 600_00 });
+		expect(overview.incomeTotal).toBe(9_600_00);
+		// The lease still shows its whole Kaltmiete.
+		expect(overview.leases[0]).toMatchObject({ baseRent: 7_200_00, parkingRent: 600_00 });
+	});
+
 	it('counts statement results as Umlagen and manual charges as other income', () => {
 		const overview = taxOverview(
 			input({
 				charges: [
 					...rents('l1'),
-					{ ...rents('l1')[0], kind: 'statement_balance', baseRent: 0, amount: 120_00 },
-					{ ...rents('l1')[0], kind: 'co2_reimbursement', baseRent: 0, amount: -20_00 },
-					{ ...rents('l1')[0], kind: 'adjustment', baseRent: 0, amount: 5_00 }
+					{
+						...rents('l1')[0],
+						kind: 'statement_balance',
+						baseRent: 0,
+						parkingRent: 0,
+						amount: 120_00
+					},
+					{
+						...rents('l1')[0],
+						kind: 'co2_reimbursement',
+						baseRent: 0,
+						parkingRent: 0,
+						amount: -20_00
+					},
+					{ ...rents('l1')[0], kind: 'adjustment', baseRent: 0, parkingRent: 0, amount: 5_00 }
 				],
 				payments: [...input().payments, { leaseId: 'l1', date: '2025-07-01', amount: 105_00 }]
 			})

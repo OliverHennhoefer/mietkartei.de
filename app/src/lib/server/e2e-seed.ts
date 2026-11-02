@@ -122,6 +122,7 @@ async function seedLease(
 		operatingCostModel: 'prepayment',
 		heatingCostModel: 'prepayment',
 		baseRent: 60000,
+		parkingRent: 0,
 		operatingCostPrepayment: 15000,
 		heatingCostPrepayment: 5000,
 		securityDeposit: 180000,

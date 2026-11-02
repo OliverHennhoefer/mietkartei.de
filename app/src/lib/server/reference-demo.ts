@@ -111,6 +111,7 @@ export async function createReferenceData(
 			operatingCostModel: 'prepayment',
 			heatingCostModel: 'prepayment',
 			baseRent: lease.baseRent,
+			parkingRent: 0,
 			operatingCostPrepayment: lease.operatingCostPrepayment,
 			heatingCostPrepayment: lease.heatingCostPrepayment,
 			securityDeposit: 0,
@@ -133,6 +134,7 @@ export async function createReferenceData(
 			{
 				validFrom: lease.start,
 				baseRent: lease.baseRent,
+				parkingRent: 0,
 				operatingCostPrepayment: lease.operatingCostPrepayment,
 				heatingCostPrepayment: lease.heatingCostPrepayment,
 				status: 'approved' as const

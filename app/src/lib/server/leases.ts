@@ -61,6 +61,8 @@ export type LeaseInput = {
 	operatingCostModel: OperatingCostModel;
 	heatingCostModel: HeatingCostModel;
 	baseRent: number;
+	/** The part of baseRent for a parking space or garage rented with the unit. */
+	parkingRent: number;
 	operatingCostPrepayment: number;
 	heatingCostPrepayment: number;
 	securityDeposit: number;
@@ -97,7 +99,12 @@ export type LeaseSummary = Lease & {
 	parties: LeaseParty[];
 	extraUnits: Unit[];
 	/** The rent valid today, or the initial rent before the lease starts. */
-	currentRent: { baseRent: number; operatingCostPrepayment: number; heatingCostPrepayment: number };
+	currentRent: {
+		baseRent: number;
+		parkingRent: number;
+		operatingCostPrepayment: number;
+		heatingCostPrepayment: number;
+	};
 	active: boolean;
 	/** Starts after today; a lease neither active nor upcoming has ended. */
 	upcoming: boolean;
@@ -184,6 +191,7 @@ async function decorate(db: Database, accountId: string, rows: Lease[]): Promise
 		const current = rentOn(history, date) ??
 			rentOn(history, lease.startDate) ?? {
 				baseRent: lease.baseRent,
+				parkingRent: lease.parkingRent,
 				operatingCostPrepayment: lease.operatingCostPrepayment,
 				heatingCostPrepayment: lease.heatingCostPrepayment
 			};
@@ -197,6 +205,7 @@ async function decorate(db: Database, accountId: string, rows: Lease[]): Promise
 				extraUnits: extraRows.filter((row) => row.leaseId === lease.id).map((row) => row.unit),
 				currentRent: {
 					baseRent: current.baseRent,
+					parkingRent: current.parkingRent,
 					operatingCostPrepayment: current.operatingCostPrepayment,
 					heatingCostPrepayment: current.heatingCostPrepayment
 				},
@@ -260,14 +269,19 @@ export type LeaseError =
 	| 'archived'
 	| 'missing'
 	| 'start-after-changes'
+	| 'parking-above-rent'
 	| 'settled-property'
 	| 'party-dates'
 	| 'overlap';
 
 /** A refused lease; an overlap names the start of the other lease. */
 export type LeaseRefusal =
-	| { ok: false; reason: Exclude<LeaseError, 'overlap' | 'start-after-changes'> }
-	| { ok: false; reason: 'overlap' | 'start-after-changes'; date: IsoDate };
+	| {
+			ok: false;
+			reason: Exclude<LeaseError, 'overlap' | 'start-after-changes' | 'parking-above-rent'>;
+	  }
+	| { ok: false; reason: 'overlap' | 'start-after-changes'; date: IsoDate }
+	| { ok: false; reason: 'parking-above-rent'; message: string };
 
 /** Whether two terms share a day; an open end runs on indefinitely. */
 export function termsOverlap(
@@ -319,7 +333,9 @@ async function checkReferences(
 	accountId: string,
 	input: LeaseInput,
 	kept: { unitIds: string[]; tenantIds: string[] } = { unitIds: [], tenantIds: [] }
-): Promise<Exclude<LeaseError, 'overlap' | 'start-after-changes'> | undefined> {
+): Promise<
+	Exclude<LeaseError, 'overlap' | 'start-after-changes' | 'parking-above-rent'> | undefined
+> {
 	// The form does not cap the number of ids, so they go in groups (D1 binds at most 100).
 	const unitIds = [...new Set([input.unitId, ...input.extraUnitIds])];
 	const unitRows = await selectInChunks(unitIds, (ids) =>
@@ -354,6 +370,7 @@ function leaseColumns(input: LeaseInput) {
 		operatingCostModel: input.operatingCostModel,
 		heatingCostModel: input.heatingCostModel,
 		baseRent: input.baseRent,
+		parkingRent: input.parkingRent,
 		operatingCostPrepayment: input.operatingCostPrepayment,
 		heatingCostPrepayment: input.heatingCostPrepayment,
 		securityDeposit: input.securityDeposit,
@@ -397,6 +414,7 @@ export function newLeaseStatements(
 		leaseId: id,
 		validFrom: input.startDate,
 		baseRent: input.baseRent,
+		parkingRent: input.parkingRent,
 		operatingCostPrepayment: input.operatingCostPrepayment,
 		heatingCostPrepayment: input.heatingCostPrepayment,
 		reason: 'initial' as const,
@@ -461,6 +479,7 @@ function initialHistory(input: LeaseInput): RentHistoryEntry[] {
 		{
 			validFrom: input.startDate,
 			baseRent: input.baseRent,
+			parkingRent: input.parkingRent,
 			operatingCostPrepayment: input.operatingCostPrepayment,
 			heatingCostPrepayment: input.heatingCostPrepayment,
 			status: 'approved'
@@ -642,12 +661,14 @@ export async function updateLease(
 
 	const amounts = {
 		baseRent: input.baseRent,
+		parkingRent: input.parkingRent,
 		operatingCostPrepayment: input.operatingCostPrepayment,
 		heatingCostPrepayment: input.heatingCostPrepayment
 	};
 	const later = initial
 		? laterRows(db, accountId, changes, input.startDate, initial, amounts, initial.id)
 		: noLaterRows;
+	if (later.conflict) return { ok: false, reason: 'parking-above-rent', message: later.conflict };
 	const history = withLaterRows(changes, later).map((change) =>
 		change.reason === 'initial' ? { ...change, validFrom: input.startDate, ...amounts } : change
 	);
@@ -773,6 +794,9 @@ function updateSummary(
 	if (existing.baseRent !== input.baseRent) {
 		changed.push(`Kaltmiete bei Vertragsbeginn ${formatCents(input.baseRent)}`);
 	}
+	if (existing.parkingRent !== input.parkingRent) {
+		changed.push(`davon Garage/Stellplatz ${formatCents(input.parkingRent)}`);
+	}
 	if (existing.operatingCostPrepayment !== input.operatingCostPrepayment) {
 		changed.push(`Betriebskostenvorauszahlung ${formatCents(input.operatingCostPrepayment)}`);
 	}
@@ -820,6 +844,7 @@ export function leaseInputOf(lease: LeaseSummary): LeaseInput {
 		operatingCostModel: lease.operatingCostModel,
 		heatingCostModel: lease.heatingCostModel,
 		baseRent: lease.baseRent,
+		parkingRent: lease.parkingRent,
 		operatingCostPrepayment: lease.operatingCostPrepayment,
 		heatingCostPrepayment: lease.heatingCostPrepayment,
 		securityDeposit: lease.securityDeposit,

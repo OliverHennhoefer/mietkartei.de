@@ -92,6 +92,7 @@ export async function loadTaxOverview(
 						dueDate: rentCharges.dueDate,
 						kind: rentCharges.kind,
 						baseRent: rentCharges.baseRent,
+						parkingRent: rentCharges.parkingRent,
 						operatingCostPrepayment: rentCharges.operatingCostPrepayment,
 						heatingCostPrepayment: rentCharges.heatingCostPrepayment,
 						amount: rentCharges.amount

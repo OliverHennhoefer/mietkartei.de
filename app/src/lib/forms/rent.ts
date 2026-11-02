@@ -8,6 +8,7 @@ import type {
 	ManualChangeInput
 } from '../server/rent-adjustments';
 import { FormParser, type ParseResult } from './fields';
+import { parseParkingRent } from './leases';
 
 // Parsers of the rent feature: the manual change, a Staffel step, the approval of an index
 // proposal, and a § 558 demand with the tenant's consent. Whether the lease allows the change is checked by the server module.
@@ -29,6 +30,7 @@ export function parseManualChange(
 	const parser = new FormParser<ManualChangeInput>(form);
 	const validFrom = parser.date('validFrom');
 	const baseRent = parser.money('baseRent');
+	const parkingRent = parseParkingRent(parser, baseRent);
 	const operatingCostPrepayment = parser.money('operatingCostPrepayment', { required: false }) ?? 0;
 	const heatingCostPrepayment = parser.money('heatingCostPrepayment', { required: false }) ?? 0;
 	const reason = parser.oneOf('reason', ['manual', 'statement'] as const);
@@ -48,6 +50,7 @@ export function parseManualChange(
 	return parser.result(() => ({
 		validFrom: validFrom!,
 		baseRent: baseRent!,
+		parkingRent,
 		operatingCostPrepayment,
 		heatingCostPrepayment,
 		reason: reason!,
