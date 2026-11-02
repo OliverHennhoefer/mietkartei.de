@@ -673,6 +673,28 @@ button.account-card[aria-expanded='true'] {
 .website-github svg {
 	display: block;
 }
+.website-links {
+	display: inline-flex;
+	align-items: center;
+	gap: 12px;
+}
+/* The way to the sign-in page, as on the website; left out on the sign-in page itself. */
+.website-sign-in {
+	display: inline-flex;
+	align-items: center;
+	min-height: 40px;
+	padding: 0 16px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	color: var(--color-text);
+	font-size: var(--text-sm);
+	font-weight: 500;
+	text-decoration: none;
+	transition: border-color 140ms;
+}
+.website-sign-in:hover {
+	border-color: var(--color-text);
+}
 .website-footer {
 	border-top: 1px solid var(--color-border);
 	padding-top: clamp(14px, 2.2vh, 20px);
@@ -726,6 +748,27 @@ button.account-card[aria-expanded='true'] {
 	}
 	.website-brand img {
 		height: 44px;
+	}
+}
+/* On phones the brand, the sign-in button and the GitHub icon share one row, as on the website. */
+@media (max-width: 480px) {
+	.website-header {
+		gap: 12px;
+	}
+	.website-brand img {
+		height: 36px;
+	}
+	.website-links {
+		gap: 4px;
+	}
+	.website-sign-in {
+		min-height: 36px;
+		padding: 0 12px;
+	}
+}
+@media (max-width: 380px) {
+	.website-brand img {
+		height: 32px;
 	}
 }
 
