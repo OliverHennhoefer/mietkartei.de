@@ -8,12 +8,9 @@ name: App
       - assets/brand/**
       - .dockerignore
       - .github/workflows/app.yml
+  # Every pull request, so the required check "App checks" always reports; the changes job
+  # skips the app jobs when the pull request touches none of the paths above.
   pull_request:
-    paths:
-      - app/**
-      - assets/brand/**
-      - .dockerignore
-      - .github/workflows/app.yml
   release:
     types: [published]
   workflow_dispatch:
@@ -33,10 +30,45 @@ env:
   NODE_VERSION: "26"
 
 jobs:
-  check:
-    name: Lint, type check and unit tests
+  changes:
+    name: Detect app changes
     # Copies of the repository, such as those of the Deploy to Cloudflare button, run none of this.
     if: github.repository == 'OliverHennhoefer/mietkartei.de'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      app: ${{ steps.changes.outputs.app }}
+    steps:
+      # A pull request checks out its merge commit, whose first parent is the base branch.
+      - name: Check out repository
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      # Pushes, releases and manual runs only start for the app, so they always run its jobs.
+      - name: Detect changed paths
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" != pull_request ]; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only --no-renames HEAD^1 HEAD |
+            grep -q -E '^(app/|assets/brand/|\.dockerignore$|\.github/workflows/app\.yml$)'; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "app=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  check:
+    name: Lint, type check and unit tests
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # The Codecov upload signs in with a GitHub OIDC token instead of a stored secret.
@@ -123,8 +155,8 @@ jobs:
 
   e2e:
     name: End-to-end tests (${{ matrix.target }})
-    # Copies of the repository, such as those of the Deploy to Cloudflare button, run none of this.
-    if: github.repository == 'OliverHennhoefer/mietkartei.de'
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -168,8 +200,8 @@ jobs:
 
   docker:
     name: Docker image
-    # Copies of the repository, such as those of the Deploy to Cloudflare button, run none of this.
-    if: github.repository == 'OliverHennhoefer/mietkartei.de'
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -200,6 +232,32 @@ jobs:
           done
           docker logs mietkartei
           exit 1
+
+  # The required check for main: green when every app job passed, or when the pull request
+  # needed none of them. Without it a red unit or end-to-end test would not block a merge.
+  gate:
+    name: App checks
+    needs: [changes, check, e2e, docker]
+    if: always() && github.repository == 'OliverHennhoefer/mietkartei.de'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Check that every app job passed or was not needed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            case "$result" in
+              success | skipped) ;;
+              *)
+                echo "::error::An app job ended with '$result'."
+                exit 1
+                ;;
+            esac
+          done
 
   deploy:
     name: Deploy app
