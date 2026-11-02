@@ -136,6 +136,8 @@
 											>{tenant.moveIn.unit}<span class="muted small">{tenant.moveIn.property}</span
 											></a
 										>
+									{:else if tenant.withoutLease}
+										<a href="/vertraege/neu?tenantId={tenant.id}">Mietvertrag anlegen</a>
 									{:else}
 										<span class="muted">keine</span>
 									{/if}

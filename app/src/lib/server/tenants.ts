@@ -1,9 +1,11 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
+import { today, type IsoDate } from '../dates';
 import { personName } from '../format';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import { tenants } from './db/schema';
+import { leaseLabel, type LeaseSummary } from './leases';
 import { assertQuota } from './quotas';
 
 // All queries take the account explicitly, so data of one account can never leak into another.
@@ -78,4 +80,43 @@ export async function updateTenant(
 		auditEntry(db, context, 'tenant', tenantId, 'update', `Mieter ${personName(input)} geändert`)
 	]);
 	return true;
+}
+
+type Address = { street: string | null; postalCode: string | null; city: string | null };
+
+function addressLine(address: Address): string {
+	return [address.street, [address.postalCode, address.city].filter(Boolean).join(' ')]
+		.filter(Boolean)
+		.join(', ');
+}
+
+/**
+ * Where letters reach the tenant: their own postal address, else the address of the property they
+ * rent. That is the lease the tenant is a party to today, before it begins the next one, after
+ * all ended the latest; a lease they left (or join later) counts by their own days on it, not by
+ * the lease's. Null for a tenant without address and without lease. `lease` names the lease the
+ * address comes from.
+ */
+export function postalAddress(
+	tenant: Address & { id: string },
+	leases: readonly LeaseSummary[],
+	date: IsoDate = today()
+): { line: string; lease: string | null } | null {
+	const own = addressLine(tenant);
+	if (own) return { line: own, lease: null };
+	const spans = leases.flatMap((lease) => {
+		const party = lease.parties.find((entry) => entry.tenant.id === tenant.id);
+		if (!party) return [];
+		const from =
+			party.joinedOn && party.joinedOn > lease.startDate ? party.joinedOn : lease.startDate;
+		const ends = [lease.endDate, party.leftOn].filter((day): day is IsoDate => day !== null);
+		const to = ends.length > 0 ? ends.sort()[0] : null;
+		return [{ lease, from, to }];
+	});
+	const span =
+		spans.find(({ from, to }) => from <= date && (to === null || to >= date)) ??
+		spans.filter(({ from }) => from > date).sort((a, b) => a.from.localeCompare(b.from))[0] ??
+		spans.sort((a, b) => (b.to ?? b.from).localeCompare(a.to ?? a.from))[0];
+	if (!span) return null;
+	return { line: addressLine(span.lease.property), lease: leaseLabel(span.lease) };
 }

@@ -5,6 +5,7 @@ import { formDataOf } from '../forms/fields';
 import { parseLease, parseOpeningBalance } from '../forms/leases';
 import { parsePayment } from '../forms/ledger';
 import { parseTenant } from '../forms/tenants';
+import { normalizePostalCode, streetKey } from '../domain/address';
 import { formatCents } from '../money';
 import type { UnitKind } from '../units';
 import { parseProperty, parseUnit, type PropertyInput, type UnitInput } from '../validation';
@@ -611,17 +612,6 @@ function norm(value: string): string {
 	return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-/**
- * Streets compare like names, without spaces and with „Str.“, „Str“ and „Strasse“ read as
- * „Straße“, so „Lindenstr. 4“ is the same street as „Lindenstraße 4“.
- */
-function normStreet(value: string): string {
-	return norm(value)
-		.replace(/strasse/g, 'straße')
-		.replace(/str\.?(?=\s|\d|$)/g, 'straße')
-		.replace(/\s/g, '');
-}
-
 function labelsOf(kind: ImportKind): Record<string, string> {
 	return Object.fromEntries(importFields[kind].map((field) => [field.name, field.label]));
 }
@@ -768,8 +758,9 @@ function matchProperty(
 	}
 	const atAddress = named.filter(
 		(property) =>
-			normStreet(property.street) === normStreet(values.street) &&
-			(!values.postalCode || property.postalCode.trim() === values.postalCode.trim()) &&
+			streetKey(property.street) === streetKey(values.street) &&
+			(!values.postalCode ||
+				normalizePostalCode(property.postalCode) === normalizePostalCode(values.postalCode)) &&
 			(!values.city || norm(property.city) === norm(values.city))
 	);
 	if (atAddress.length > 1) {
@@ -834,8 +825,8 @@ function sameTenant(a: TenantIdentity, b: TenantIdentity): boolean {
 	}
 	if (a.email && b.email) return normEmail(a.email) === normEmail(b.email);
 	return (
-		normStreet(a.street ?? '') === normStreet(b.street ?? '') &&
-		(a.postalCode ?? '').trim() === (b.postalCode ?? '').trim() &&
+		streetKey(a.street ?? '') === streetKey(b.street ?? '') &&
+		normalizePostalCode(a.postalCode ?? '') === normalizePostalCode(b.postalCode ?? '') &&
 		norm(a.city ?? '') === norm(b.city ?? '')
 	);
 }
@@ -926,7 +917,7 @@ function planProperties(rows: DataRow[], context: ImportContext): ImportPlan {
 			}
 			property = { id: existing.id };
 		} else {
-			const key = `${norm(values.propertyName)}|${normStreet(values.street)}`;
+			const key = `${norm(values.propertyName)}|${streetKey(values.street)}`;
 			if (!newProperties.has(key)) {
 				const parsed = parseProperty(
 					formDataOf({

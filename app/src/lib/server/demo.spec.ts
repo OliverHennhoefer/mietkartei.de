@@ -66,11 +66,18 @@ describe('createDemoData', () => {
 		expect(await rows(units)).toHaveLength(6);
 		// Every flat changed tenants in the history; the former tenants are archived with the
 		// address they moved to, their deposits paid back. Nowak has given notice, and Krüger's
-		// lease for the same flat starts the day after his ends.
+		// lease for the same flat starts the day after his ends. Clara Brandt is new and still waits
+		// for her lease, with letters to her current flat.
 		const tenantRows = await db.select().from(tenants).where(eq(tenants.accountId, 'a'));
-		expect(tenantRows).toHaveLength(14);
+		expect(tenantRows).toHaveLength(15);
 		const former = tenantRows.filter((row) => row.archivedAt);
 		expect(former).toHaveLength(7);
+		const leaseTenantIds = new Set(
+			(await listLeases(db, 'a')).flatMap((lease) => lease.parties.map((party) => party.tenant.id))
+		);
+		expect(
+			tenantRows.filter((row) => !leaseTenantIds.has(row.id)).map((row) => row.lastName)
+		).toEqual(['Brandt']);
 		// On the Weber lease Jonas Albrecht took Sophie Weber's place by a Nachtrag.
 		const weber = (await listLeases(db, 'a')).find((lease) => lease.unit.name === 'Wohnung 9')!;
 		expect(

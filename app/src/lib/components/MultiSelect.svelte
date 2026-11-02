@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { matchOptions, type MultiSelectOption } from '../multi-select';
+	import { matchOptions, searchKey, type MultiSelectOption } from '../multi-select';
 	import Tip from './Tip.svelte';
 
 	// A searchable multi select: the chosen values are pills with a remove button, the search field
 	// opens a list of the remaining options. Each chosen value is submitted as a hidden input under
-	// `name`, the same as a group of checkboxes.
+	// `name`, the same as a group of checkboxes. With `create`, a search that matches no option by
+	// its full label offers a new value made from the typed text (e.g. a new tenant); `labelOf`
+	// names such a value in its pill.
 	let {
 		name,
 		label,
@@ -14,7 +16,9 @@
 		placeholder = 'Suchen …',
 		empty = 'Keine Treffer.',
 		hint,
-		error
+		error,
+		create,
+		labelOf
 	}: {
 		name: string;
 		label: string;
@@ -24,15 +28,23 @@
 		empty?: string;
 		hint?: string;
 		error?: string;
+		/** The option for a new value from the typed text, or a note why there is none. */
+		create?: (text: string) => MultiSelectOption | { note: string } | null;
+		labelOf?: (value: string) => string | undefined;
 	} = $props();
 
 	const id = $props.id();
 	const inputId = `${id}-input`;
 	const listId = `${id}-list`;
+	const tipId = `${id}-tip`;
 
 	// The initial selection only: afterwards the field holds the state.
 	let chosen = $state(
-		untrack(() => selected.filter((value) => options.some((o) => o.value === value)))
+		untrack(() =>
+			selected.filter(
+				(value) => options.some((o) => o.value === value) || labelOf?.(value) !== undefined
+			)
+		)
 	);
 	let query = $state('');
 	let open = $state(false);
@@ -41,7 +53,20 @@
 	let list = $state<HTMLUListElement>();
 
 	const byValue = $derived(new Map(options.map((option) => [option.value, option])));
-	const matches = $derived(matchOptions(options, chosen, query));
+	// The typed text as a new value: not when an option has exactly that label or it is chosen.
+	const offer = $derived.by(() => {
+		const text = query.replace(/\s+/g, ' ').trim();
+		if (!create || !text) return null;
+		if (options.some((option) => searchKey(option.label) === searchKey(text))) return null;
+		const made = create(text);
+		if (made && 'value' in made && chosen.includes(made.value)) return null;
+		return made;
+	});
+	const matches = $derived([
+		...matchOptions(options, chosen, query),
+		...(offer && 'value' in offer ? [offer] : [])
+	]);
+	const pillLabel = (value: string) => byValue.get(value)?.label ?? labelOf?.(value) ?? value;
 	const activeIndex = $derived(Math.min(active, matches.length - 1));
 
 	// Keeps the active option visible when the arrow keys move past the visible rows.
@@ -91,7 +116,7 @@
 <div class="multi-select form-wide" {onfocusout}>
 	<div class="title">
 		<label for={inputId}>{label}</label>
-		{#if hint}<Tip text={hint} />{/if}
+		{#if hint}<Tip text={hint} id={tipId} />{/if}
 	</div>
 	<!-- A click on the free space of the box goes to the search field; the keyboard reaches it directly. -->
 	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -103,12 +128,11 @@
 		}}
 	>
 		{#each chosen as value (value)}
-			{@const option = byValue.get(value)}
 			<span class="pill">
-				{option?.label ?? value}
+				{pillLabel(value)}
 				<button
 					type="button"
-					aria-label="{option?.label ?? value} entfernen"
+					aria-label="{pillLabel(value)} entfernen"
 					onclick={() => remove(value)}
 				>
 					<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
@@ -126,6 +150,7 @@
 			autocomplete="off"
 			aria-expanded={open}
 			aria-controls={listId}
+			aria-describedby={hint ? tipId : undefined}
 			aria-autocomplete="list"
 			aria-activedescendant={open && matches.length ? `${id}-option-${activeIndex}` : undefined}
 			aria-invalid={error ? 'true' : undefined}
@@ -162,6 +187,9 @@
 					{options.length && matches.length === 0 && !query ? 'Alle gewählt.' : empty}
 				</li>
 			{/each}
+			{#if offer && 'note' in offer}
+				<li class="none muted small" role="presentation">{offer.note}</li>
+			{/if}
 		</ul>
 	{/if}
 	{#if error}<span class="error">{error}</span>{/if}

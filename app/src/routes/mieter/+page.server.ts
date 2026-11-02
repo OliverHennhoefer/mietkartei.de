@@ -78,6 +78,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			openSince,
 			reminder,
 			reminders: letters,
+			/** On no lease at all yet: the row offers to create one. */
+			withoutLease: own.length === 0,
 			/** The start of the earliest lease that has begun. */
 			since:
 				own

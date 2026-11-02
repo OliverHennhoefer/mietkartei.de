@@ -25,6 +25,38 @@ async function seedUnitAndTenant(page: Page) {
 	};
 }
 
+test('creates the tenants typed into the lease form with the lease', async ({ page }) => {
+	const { unitId } = await seedUnitAndTenant(page);
+	const s = suffix();
+	await page.goto(`/vertraege/neu?unitId=${unitId}`);
+	await page.waitForLoadState('networkidle');
+	const picker = page.getByRole('combobox', { name: 'Mieter', exact: true });
+
+	// One word leaves the last name open; first and last name offer the new tenant.
+	await picker.fill(`Neu${s}`);
+	await expect(
+		page.getByText('Für einen neuen Mieter Vor- und Nachnamen eintippen.')
+	).toBeVisible();
+	await picker.fill(`Lena Neu${s}`);
+	await page.getByRole('option', { name: `„Lena Neu${s}“ als neuen Mieter anlegen` }).click();
+	await expect(page.getByRole('button', { name: `Lena Neu${s} (neu) entfernen` })).toBeVisible();
+	await picker.fill(`Neu${s}, Tom`);
+	await picker.press('Enter');
+	await expect(page.getByRole('button', { name: `Tom Neu${s} (neu) entfernen` })).toBeVisible();
+
+	await page.getByLabel('Beginn', { exact: true }).fill('2025-01-01');
+	await page.locator('input[name="baseRent"]').fill('600,00');
+	await page.locator('input[name="operatingCostPrepayment"]').fill('150,00');
+	await page.getByRole('button', { name: 'Mietvertrag anlegen' }).click();
+
+	await expect(page).toHaveURL(/\/vertraege\/(?!neu)[^/?]+$/);
+	await expect(page.getByRole('main')).toContainText(`Lena Neu${s}`);
+	await expect(page.getByRole('main')).toContainText(`Tom Neu${s}`);
+	await page.goto('/mieter');
+	const row = page.getByRole('table', { name: 'Mieter' }).getByRole('row', { name: `Tom Neu${s}` });
+	await expect(row.getByRole('link').nth(1)).toHaveAttribute('href', /\/vertraege\/[^/]+$/);
+});
+
 test('creates a lease with an opening balance, keeps its history and ends it', async ({ page }) => {
 	const { unitId, tenantId, label, tenantName } = await seedUnitAndTenant(page);
 	page.on('dialog', (dialog) => dialog.accept());
@@ -58,6 +90,14 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	await expect(tip).toBeVisible();
 	await page.keyboard.press('Escape');
 	await expect(tip).toBeHidden();
+	// Tab goes from field to field past the (?); the field itself carries the help text.
+	const deposit = page.locator('input[name="securityDeposit"]');
+	await expect(deposit).toHaveAccessibleDescription(
+		'Bei Wohnraum höchstens drei Nettokaltmieten (§ 551 BGB).'
+	);
+	await deposit.focus();
+	await page.keyboard.press('Tab');
+	await expect(page.locator('input[name="persons"]')).toBeFocused();
 	// The start defaults to the first of next month.
 	await expect(page.locator('input[name="startDate"]')).toHaveValue(/^\d{4}-\d{2}-01$/);
 	await page.getByLabel('Beginn', { exact: true }).fill('2025-01-01');

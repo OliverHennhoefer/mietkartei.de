@@ -56,11 +56,12 @@ export async function findPasswordReset(
 	db: Database,
 	token: string,
 	now = Date.now()
-): Promise<{ id: string; userId: string } | undefined> {
+): Promise<{ id: string; userId: string; email: string } | undefined> {
 	const id = await hashToken(token);
 	const [row] = await db
-		.select({ id: passwordResets.id, userId: passwordResets.userId })
+		.select({ id: passwordResets.id, userId: passwordResets.userId, email: users.email })
 		.from(passwordResets)
+		.innerJoin(users, eq(passwordResets.userId, users.id))
 		.where(and(eq(passwordResets.id, id), gt(passwordResets.expiresAt, new Date(now))));
 	return row;
 }

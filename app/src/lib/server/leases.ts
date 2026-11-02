@@ -44,6 +44,7 @@ import {
 	type TerminatedBy
 } from './db/schema';
 import { assertQuota } from './quotas';
+import type { TenantInput } from './tenants';
 
 // Leases: the main unit, extra units (parking), tenants, the initial rent and persons, the
 // persons history and the end of the lease. The rent history after creation is the business of
@@ -506,17 +507,28 @@ export async function newChargeLeases(
 /**
  * Creates the lease with its tenants, extra units, the initial rent and persons, and its rent
  * charges up to this month, atomically. A non-zero opening balance (Anfangssaldo) is posted in
- * the same batch, due at the ledger start.
+ * the same batch, due at the ledger start. `newTenants` are tenants typed into the lease form
+ * who do not exist yet: they are created in the same batch and become parties next to
+ * `input.tenantIds`, so a refused lease leaves no tenant behind.
  */
 export async function createLease(
 	db: Database,
 	context: AuditContext,
-	input: LeaseInput,
-	openingBalance: number | null = null
+	leaseInput: LeaseInput,
+	openingBalance: number | null = null,
+	newTenants: readonly TenantInput[] = []
 ): Promise<{ ok: true; id: string } | LeaseRefusal> {
 	await assertQuota(db, context.accountId, 'leases');
-	const reason = await checkReferences(db, context.accountId, input);
+	if (newTenants.length > 0) {
+		await assertQuota(db, context.accountId, 'tenants', newTenants.length);
+	}
+	const reason = await checkReferences(db, context.accountId, leaseInput);
 	if (reason) return { ok: false, reason };
+	const created = newTenants.map((tenant) => ({ ...tenant, id: crypto.randomUUID() }));
+	const input = {
+		...leaseInput,
+		tenantIds: [...leaseInput.tenantIds, ...created.map((tenant) => tenant.id)]
+	};
 	const overlap = await overlappingLease(db, context.accountId, {
 		unitIds: [input.unitId, ...input.extraUnitIds],
 		startDate: input.startDate,
@@ -532,6 +544,17 @@ export async function createLease(
 		{ otherCharges: openingBalance ? 1 : 0 }
 	);
 	await runBatch(db, [
+		...created.flatMap((tenant) => [
+			db.insert(tenants).values({ ...tenant, accountId: context.accountId }),
+			auditEntry(
+				db,
+				context,
+				'tenant',
+				tenant.id,
+				'create',
+				`Mieter ${personName(tenant)} angelegt`
+			)
+		]),
 		...newLeaseStatements(db, context, [{ id, input }]),
 		...(openingBalance
 			? chargeStatements(db, context, crypto.randomUUID(), {

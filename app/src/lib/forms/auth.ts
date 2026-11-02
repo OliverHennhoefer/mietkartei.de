@@ -1,3 +1,4 @@
+import { normalizePostalCode, normalizeStreet, singleLine } from '../domain/address';
 import type { LandlordInput } from '../server/accounts';
 import type { MemberRole } from '../server/db/schema';
 import { MIN_PASSWORD_LENGTH } from '../validation';
@@ -119,12 +120,12 @@ export function parseProfile(form: FormData, currentEmail: string): ParseResult<
 export function parseLandlord(form: FormData): ParseResult<LandlordInput> {
 	const parser = new FormParser<LandlordInput>(form);
 	const landlordName = parser.optionalText('landlordName', 200);
-	const street = parser.optionalText('street', 200);
-	const postalCode = parser.optionalText('postalCode', 10);
+	const street = normalizeStreet(parser.optionalText('street', 200) ?? '') || null;
+	const postalCode = normalizePostalCode(parser.optionalText('postalCode', 10) ?? '') || null;
 	if (postalCode && !/^\d{5}$/.test(postalCode)) {
 		parser.fail('postalCode', 'Die Postleitzahl hat fünf Ziffern.');
 	}
-	const city = parser.optionalText('city', 200);
+	const city = singleLine(parser.optionalText('city', 200) ?? '') || null;
 	const iban = parser.iban('iban', { required: false });
 	const bankName = parser.optionalText('bankName', 200);
 	return parser.result(() => ({ landlordName, street, postalCode, city, iban, bankName }));

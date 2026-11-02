@@ -98,4 +98,34 @@ describe('parseTenant', () => {
 			notes: 'Höchstens 2000 Zeichen.'
 		});
 	});
+
+	it('drops the address of a tenant in the rented unit and needs all of a different one', () => {
+		const inUnit = parse({ addressChoice: '1' });
+		expect(inUnit).toMatchObject({
+			ok: true,
+			data: { street: null, postalCode: null, city: null }
+		});
+
+		const separate = parse({ addressChoice: '1', separateAddress: 'on' });
+		expect(separate).toMatchObject({
+			ok: true,
+			data: { street: 'Lindenstraße 4', postalCode: '10115', city: 'Berlin' }
+		});
+
+		const missing = parse({
+			addressChoice: '1',
+			separateAddress: 'on',
+			street: '',
+			postalCode: '',
+			city: ''
+		});
+		expect(missing.ok).toBe(false);
+		if (missing.ok) return;
+		expect(missing.errors).toEqual({
+			street: 'Bitte fülle dieses Feld aus.',
+			postalCode: 'Bitte fülle dieses Feld aus.',
+			city: 'Bitte fülle dieses Feld aus.'
+		});
+		expect(missing.values.separateAddress).toBe('on');
+	});
 });

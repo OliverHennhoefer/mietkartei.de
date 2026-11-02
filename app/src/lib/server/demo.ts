@@ -457,7 +457,8 @@ export async function createDemoData(
 	const unitId = (name: string) => unitRows.find((row) => row.name === name)!.id;
 	const unitOf = (id: string) => unitRows.find((row) => row.id === id)!;
 
-	// Tenants. Those who moved out are archived, with the address they moved to.
+	// Tenants. Those who moved out are archived, with the address they moved to; the current ones
+	// get letters at the rented unit, and one new tenant still waits for her lease.
 	const tenantInputs = {
 		schmidt: tenant('Herr', 'Armin', 'Schmidt', 'armin.schmidt@example.org', '0170 2345678'),
 		kraus: tenant('Frau', 'Helga', 'Kraus', null, '030 6912345', [
@@ -500,7 +501,16 @@ export async function createDemoData(
 			'München'
 		]),
 		albrecht: tenant('Herr', 'Jonas', 'Albrecht', 'jonas.albrecht@example.org'),
-		krueger: tenant('Frau', 'Miriam', 'Krüger', 'miriam.krueger@example.org', '0160 3318274')
+		krueger: tenant('Frau', 'Miriam', 'Krüger', 'miriam.krueger@example.org', '0160 3318274'),
+		// Just entered, the lease still to come: she gets letters at her current flat until then.
+		brandt: {
+			...tenant('Frau', 'Clara', 'Brandt', 'clara.brandt@example.org', '0172 5540318', [
+				'Kantstraße 92',
+				'10627',
+				'Berlin'
+			]),
+			notes: 'Hat die Selbstauskunft abgegeben; der Mietvertrag folgt nach der Unterschrift.'
+		}
 	};
 	const archived: Partial<Record<keyof typeof tenantInputs, IsoDate>> = {
 		kraus: at(-4, '12-01'),
