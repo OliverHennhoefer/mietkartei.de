@@ -911,6 +911,20 @@ function daysText(occupant: Occupant, rangeDays: number): string {
 	return `${occupant.days} von ${rangeDays} Tagen`;
 }
 
+/**
+ * Whether the unit counts under the area and the units key of its circle. A parking space is no
+ * Einheit and has no Wohnfläche next to flats and commercial units, so it counts only in a circle
+ * of parking spaces alone (a Tiefgarage); a lease that rents one with its flat counts once.
+ */
+function countsByAreaAndUnits(unit: StatementUnit, circleUnits: StatementUnit[]): boolean {
+	return unit.kind !== 'parking' || circleUnits.every((other) => other.kind === 'parking');
+}
+
+/** The floor area the area key weighs the unit with; see countsByAreaAndUnits. */
+function weighedArea(unit: StatementUnit, circleUnits: StatementUnit[]): number {
+	return countsByAreaAndUnits(unit, circleUnits) ? (unit.floorArea ?? 0) : 0;
+}
+
 function areaComponent(
 	ctx: Context,
 	amount: number,
@@ -927,7 +941,7 @@ function areaComponent(
 				message: `Für die Einheit ${unit.name} fehlt die Wohnfläche; ohne sie bekämen die anderen Einheiten ihren Anteil nach Fläche. Trag die Fläche ein, bevor du die Abrechnung freigibst.`
 			});
 		}
-		return unit.floorArea ?? 0;
+		return weighedArea(unit, circleUnits);
 	});
 	const total = weights.reduce((sum, weight) => sum + weight, 0);
 	return {
@@ -959,7 +973,10 @@ function consumptionComponent(
 	// § 9a Abs. 2 HeizKV: when estimates cover more than a quarter of the area, the cost is split
 	// by the fixed-cost key (the floor area) alone.
 	const area = (filter: (index: number) => boolean) =>
-		circleUnits.reduce((sum, unit, index) => sum + (filter(index) ? (unit.floorArea ?? 0) : 0), 0);
+		circleUnits.reduce(
+			(sum, unit, index) => sum + (filter(index) ? weighedArea(unit, circleUnits) : 0),
+			0
+		);
 	const estimatedArea = area((index) => usages[index].estimated);
 	const totalArea = area(() => true);
 	if (totalArea > 0 && estimatedArea / totalArea > ESTIMATED_AREA_LIMIT) {
@@ -1042,17 +1059,24 @@ function componentsOf(
 				}
 			];
 		}
-		case 'units':
+		case 'units': {
+			// Parking spaces count only in a circle of their own (countsByAreaAndUnits), so a lease
+			// with a flat and a parking space has one share, not two.
+			const weights: number[] = circleUnits.map((unit) =>
+				countsByAreaAndUnits(unit, circleUnits) ? 1 : 0
+			);
+			const total = weights.reduce((sum, weight) => sum + weight, 0);
 			return [
 				{
 					amount: allocated,
 					label: '',
-					keyTotal: `${circleUnits.length} Einheiten`,
-					weights: circleUnits.map(() => 1),
-					unitShare: () => `1 von ${circleUnits.length} Einheiten`,
+					keyTotal: `${total} Einheiten`,
+					weights,
+					unitShare: (index) => `${weights[index]} von ${total} Einheiten`,
 					splitBy: 'days'
 				}
 			];
+		}
 		case 'consumption':
 			return [
 				consumptionComponent(
@@ -1505,7 +1529,9 @@ export function computeStatement(
 		let co2: Co2Disclosure | undefined;
 		if (item.fuel && item.co2Kg !== null && item.co2Cost !== null) {
 			const co2Units = circleUnitsOf(item);
-			const area = co2Units.reduce((sum, unit) => sum + (unit.floorArea ?? 0), 0);
+			// The Wohnfläche: a garage's area next to the flats would lower the kg per m² and so the
+			// landlord's tier (countsByAreaAndUnits).
+			const area = co2Units.reduce((sum, unit) => sum + weighedArea(unit, co2Units), 0);
 			// One unit without its area understates the building's area and so overstates the kg
 			// per m²: a higher tier would take too much from the tenants. Parking has no area.
 			const missingArea = co2Units.filter(

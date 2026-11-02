@@ -20,6 +20,7 @@ GitHub uses the issue and pull request templates from the default branch `main`.
 | `workflows/release.yml` | Attaches the source archive, checksum and SLSA provenance to a published release |
 | `workflows/municipalities.yml` | Monthly update of the bundled Gemeinde table from Destatis |
 | `workflows/registry-cleanup.yml` | Weekly deletion of stale image versions in GHCR |
+| `workflows/backup.yml` | Weekly export of the app database to the R2 bucket `mietkartei-backups` |
 | `HOMEPAGE.md` | Preview, build and deployment of the homepage |
 | `DOCUMENTATION.md` | Preview, build and deployment of the documentation |
 | `DEPLOYMENT.md` | Cloudflare access, domains and hosting migration |
@@ -77,9 +78,9 @@ After relevant changes on `main`, the workflow deploys the homepage and the docu
 
 ## Protecting the default branch
 
-Pull requests are required for `main`, including for administrators. With the current single maintainer, no additional approval is required. Before merging, the check "Check websites" must pass against the current state of `main`, and all review conversations must be resolved. GitHub Actions is set as the source of the required check. Direct pushes, force pushes and deleting `main` stay blocked.
+Pull requests are required for `main`, including for administrators. With the current single maintainer, no additional approval is required. Before merging, the checks "Check websites" and "App checks" must pass against the current state of `main`, and all review conversations must be resolved. GitHub Actions is set as the source of both required checks. Direct pushes, force pushes and deleting `main` stay blocked.
 
-The required check runs on every pull request without a path filter, so contributions without website changes are not blocked by a missing status. Application tests will be added together with the application code.
+Both required checks run on every pull request without a path filter, so contributions that change neither the websites nor the app are not blocked by a missing status. "App checks" in [app.yml](workflows/app.yml) collects the app jobs: it passes when lint, type check, unit tests, both end-to-end runs and the Docker image passed, or when the pull request changes no app files and the jobs were skipped. A new required job of the app workflow goes into its `needs`.
 
 ## Publishing a release
 

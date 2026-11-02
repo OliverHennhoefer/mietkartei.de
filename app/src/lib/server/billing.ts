@@ -13,6 +13,7 @@ import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import { accounts, stripeEvents, users, type SubscriptionStatus } from './db/schema';
+import { parseEmailList } from './email-list';
 import { cancelSubscription, getSubscription, listSubscriptions, StripeError } from './stripe';
 
 // Subscriptions through Stripe. The hosted variant configures the keys; self-hosting leaves them
@@ -48,9 +49,8 @@ export type BillingState = 'free' | 'trialing' | 'active' | 'past_due' | 'cancel
 
 /** Whether an owner's address is in FREE_ACCOUNT_EMAILS. */
 export function isFreeEmail(email: string | null | undefined, list = FREE_ACCOUNT_EMAILS): boolean {
-	if (!email || !list) return false;
-	const address = email.trim().toLowerCase();
-	return list.split(',').some((entry) => entry.trim().toLowerCase() === address);
+	if (!email) return false;
+	return parseEmailList(list).includes(email.trim().toLowerCase());
 }
 
 /** When the free trial ends: the stored date, else 30 days after the account was created. */

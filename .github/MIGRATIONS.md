@@ -46,6 +46,17 @@ Add a focused test to `migrations.spec.ts` for every migration that moves data, 
 
   A restore replaces the whole database, including what users entered after that time. Deploy the previous app version afterwards, as `d1_migrations` is restored as well and the next deploy applies the migration again.
 
+  Beyond those 30 days, the workflow **Back up database** ([backup.yml](workflows/backup.yml)) exports the database every Sunday as gzipped SQL to the R2 bucket `mietkartei-backups` (EU), which keeps each copy for 12 weeks. To restore one into a new, empty D1 database:
+
+  ```sh
+  npx wrangler r2 object get mietkartei-backups/<file> --file backup.sql.gz --jurisdiction eu --remote
+  gunzip backup.sql.gz
+  npx wrangler d1 create mietkartei-restore --jurisdiction eu
+  npx wrangler d1 execute mietkartei-restore --remote --file backup.sql
+  ```
+
+  Then point `database_id` in `app/wrangler.jsonc` at the restored database and deploy.
+
 - **Self-hosted on Cloudflare:** the same command with the copy's database name, in the copy's repository.
 
 - **Docker:** before the app applies new migrations, it writes a snapshot of the database to `backups/mietkartei-before-<first new migration>.db` next to the database file (in the image: `/data/backups/`) and keeps the last three. To restore, stop the container, copy the snapshot over `mietkartei.db`, remove `mietkartei.db-wal` and `mietkartei.db-shm`, and start the previous image version. See [SELF_HOSTING.md](SELF_HOSTING.md#backups) for regular backups.
