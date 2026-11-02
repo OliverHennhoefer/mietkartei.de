@@ -226,7 +226,7 @@ export function forecast(input: ForecastInput, options: { propertyId: string | n
 		if (!current) continue;
 		const currentPrepayment =
 			(lease.operatingCostModel === 'prepayment' ? current.operatingCostPrepayment : 0) +
-			(lease.heatingCostModel === 'prepayment' ? current.heatingCostPrepayment : 0);
+			(lease.heatingCostModel !== 'flat' ? current.heatingCostPrepayment : 0);
 		const yearlyCosts = Math.round((statement.costs * 365) / statement.days);
 		const yearlyPrepayments = currentPrepayment * 12;
 		settlements.push({

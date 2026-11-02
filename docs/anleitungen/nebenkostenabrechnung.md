@@ -17,6 +17,8 @@ Die Abrechnung braucht drei Dinge, die du einmal anlegst und danach jedes Jahr w
 - **Mietverträge** mit Beginn, gegebenenfalls Ende, Personenzahl und monatlicher Vorauszahlung auf Betriebs- und Heizkosten, unter **Mietverträge**.
 - **Zähler und Zählerstände**, falls du Kosten nach Verbrauch verteilst, im Objekt unter **Zähler**.
 
+Heizt ein Mieter mit einer Etagenheizung und hat einen eigenen Gas- oder Wärmevertrag, wählst du im Mietvertrag bei **Heizkosten** „Mieter zahlt direkt an den Versorger“. Der Vertrag hat dann keine Heizkostenvorauszahlung, und die Abrechnung sagt dem Mieter, dass Gas und Wärme nicht enthalten sind. Die Wartung der Therme erfasst du unter der Kostenart Heizung (§ 2 Nr. 4d Betriebskostenverordnung); sie wird mit den Betriebskosten abgerechnet. Hängen andere Wohnungen an einer Zentralheizung, nimmst du die Wohnung über einen Abrechnungskreis aus deren Brennstoffkosten heraus; sonst weist der Entwurf darauf hin. Den Anteil des Vermieters an den CO₂-Kosten aus dem Gasvertrag des Mieters teilst du im Mietvertrag unter **CO₂** auf.
+
 Die gezahlten Vorauszahlungen liest mietkartei aus dem Mietkonto. Wenn du deine [Kontoauszüge importierst](kontoauszuege-importieren.md), stimmen sie ohne weitere Arbeit.
 
 ## 1. Umlageschlüssel prüfen

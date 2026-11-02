@@ -79,6 +79,9 @@
 	// The index section shows while the rent model is an indexed rent.
 	// svelte-ignore state_referenced_locally
 	let rentModel = $state(values.rentModel || 'fixed');
+	// Follows the select, so the heating prepayment field disappears for a tenant's own contract.
+	// svelte-ignore state_referenced_locally
+	let heatingCostModel = $state(values.heatingCostModel || 'prepayment');
 </script>
 
 <form method="POST" {action} class="card" use:enhance>
@@ -259,24 +262,37 @@
 				aria-invalid={invalid('operatingCostPrepayment')}
 			/>
 		</Field>
-		<Field label="Heizkosten" error={errors.heatingCostModel}>
-			<select name="heatingCostModel" aria-invalid={invalid('heatingCostModel')} required>
+		<Field
+			label="Heizkosten"
+			error={errors.heatingCostModel}
+			hint={heatingCostModel === 'tenant_contract'
+				? 'Etwa bei einer Etagenheizung mit eigenem Gasvertrag: Der Mieter zahlt dir keine Heizkostenvorauszahlung. Wartung und Abgasmessung der Heizung legst du mit den Betriebskosten um.'
+				: undefined}
+		>
+			<select
+				name="heatingCostModel"
+				bind:value={heatingCostModel}
+				aria-invalid={invalid('heatingCostModel')}
+				required
+			>
 				{#each heatingCostModels as model (model)}
-					<option value={model} selected={(values.heatingCostModel || 'prepayment') === model}>
+					<option value={model}>
 						{heatingCostModelLabels[model]}
 					</option>
 				{/each}
 			</select>
 		</Field>
-		<Field label="Heizkostenvorauszahlung" error={errors.heatingCostPrepayment}>
-			<input
-				name="heatingCostPrepayment"
-				defaultValue={values.heatingCostPrepayment ?? ''}
-				inputmode="decimal"
-				placeholder="0,00"
-				aria-invalid={invalid('heatingCostPrepayment')}
-			/>
-		</Field>
+		{#if heatingCostModel !== 'tenant_contract'}
+			<Field label="Heizkostenvorauszahlung" error={errors.heatingCostPrepayment}>
+				<input
+					name="heatingCostPrepayment"
+					defaultValue={values.heatingCostPrepayment ?? ''}
+					inputmode="decimal"
+					placeholder="0,00"
+					aria-invalid={invalid('heatingCostPrepayment')}
+				/>
+			</Field>
+		{/if}
 	</FormSection>
 
 	<FormSection

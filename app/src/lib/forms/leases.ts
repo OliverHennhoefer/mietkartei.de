@@ -81,7 +81,11 @@ export function parseLease(
 	const baseRent = parser.money('baseRent');
 	const parkingRent = parseParkingRent(parser, baseRent);
 	const operatingCostPrepayment = parser.money('operatingCostPrepayment', { required: false }) ?? 0;
-	const heatingCostPrepayment = parser.money('heatingCostPrepayment', { required: false }) ?? 0;
+	// A tenant with an own supply contract pays no heating prepayment to the landlord.
+	const heatingCostPrepayment =
+		heatingCostModel === 'tenant_contract'
+			? 0
+			: (parser.money('heatingCostPrepayment', { required: false }) ?? 0);
 	const securityDeposit = parser.money('securityDeposit', { required: false }) ?? 0;
 
 	const persons =

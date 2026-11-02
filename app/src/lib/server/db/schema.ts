@@ -214,7 +214,13 @@ export type RentModel = (typeof rentModels)[number];
 export const operatingCostModels = ['prepayment', 'flat', 'inclusive'] as const;
 export type OperatingCostModel = (typeof operatingCostModels)[number];
 
-export const heatingCostModels = ['prepayment', 'flat'] as const;
+/**
+ * Heizkosten: Vorauszahlung, Pauschale, or tenant_contract: the tenant buys gas or heat directly
+ * from the supplier (e.g. for an Etagenheizung), so no heating prepayment is paid to the landlord
+ * and the landlord's remaining heating costs (Wartung, § 2 Nr. 4d BetrKV) follow the operating
+ * cost model.
+ */
+export const heatingCostModels = ['prepayment', 'flat', 'tenant_contract'] as const;
 export type HeatingCostModel = (typeof heatingCostModels)[number];
 
 export const terminatedByParties = ['tenant', 'landlord'] as const;

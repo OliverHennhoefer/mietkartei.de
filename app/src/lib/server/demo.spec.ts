@@ -8,6 +8,7 @@ import {
 	auditLog,
 	co2CostSplits,
 	serviceProviders,
+	statementResults,
 	costItems,
 	depositSettlements,
 	depositTransactions,
@@ -26,6 +27,7 @@ import {
 	tenants,
 	units
 } from './db/schema';
+import type { LeaseStatement } from '../domain/statement';
 import { createDemoData, isEmptyAccount } from './demo';
 import { addDays, today } from '../dates';
 import { listDeadlines } from './deadlines';
@@ -188,6 +190,22 @@ describe('createDemoData', () => {
 			.where(eq(operatingCostStatements.accountId, 'a'));
 		expect(statements).toHaveLength(21);
 		expect(statements.every((row) => row.status === 'approved')).toBe(true);
+		// The tenants of the Etagenheizung in Rosenheim buy their gas themselves: their statements
+		// say so and pass on only the Wartung, as an operating cost.
+		const ownHeating = (
+			await db.select().from(statementResults).where(eq(statementResults.accountId, 'a'))
+		)
+			.map((row) => JSON.parse(row.result) as LeaseStatement)
+			.filter((result) => result.ownHeatingContract);
+		expect(ownHeating.length).toBeGreaterThanOrEqual(6);
+		for (const result of ownHeating) {
+			expect(result.excluded).toEqual([]);
+			expect(result.lines.some((line) => line.heating)).toBe(false);
+			expect(result.lines.map((line) => line.description)).toContainEqual(
+				expect.stringMatching(/^Wartung Gastherme \d{4}$/)
+			);
+			expect(result.warnings.filter((warning) => warning.code === 'own_heating_share')).toEqual([]);
+		}
 		expect(
 			await db.select().from(associationStatements).where(eq(associationStatements.accountId, 'a'))
 		).toHaveLength(16);

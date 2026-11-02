@@ -266,7 +266,8 @@ export async function listDeadlines(
 	const leasesByProperty = new Map<string, { start: IsoDate; end: IsoDate }[]>();
 	for (const lease of allLeases) {
 		if (lease.kind !== 'residential') continue;
-		// A lease with Pauschale or Inklusivmiete for both cost groups gets no statement.
+		// A lease with Pauschale or Inklusivmiete for both cost groups gets no statement, nor one
+		// with a Pauschale whose tenant buys the heat themselves.
 		if (lease.operatingCostModel !== 'prepayment' && lease.heatingCostModel !== 'prepayment') {
 			continue;
 		}
