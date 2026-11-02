@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Field from '#lib/components/Field.svelte';
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
@@ -11,8 +12,7 @@
 <!-- Deleting and leaving both ask for the password again. -->
 {#snippet passwordForm(action: 'delete' | 'leave', label: string)}
 	<form method="POST" action="?/{action}" class="form" use:enhance>
-		<label>
-			Passwort
+		<Field label="Passwort" error={form?.errors?.password}>
 			<input
 				name="password"
 				type="password"
@@ -21,8 +21,7 @@
 				aria-invalid={form?.errors?.password ? 'true' : undefined}
 				required
 			/>
-			{#if form?.errors?.password}<span class="error">{form.errors.password}</span>{/if}
-		</label>
+		</Field>
 		<div class="form-actions">
 			<button type="submit" class="danger">{label}</button>
 		</div>
@@ -77,8 +76,10 @@
 			<Alert tone="danger"><p>{form.resetFailed}</p></Alert>
 		{/if}
 		<form method="POST" action="?/reset" class="form" use:enhance>
-			<label>
-				Tippe {RESET_CONFIRMATION} zur Bestätigung
+			<Field
+				label={`Tippe ${RESET_CONFIRMATION} zur Bestätigung`}
+				error={form?.resetErrors?.confirmation}
+			>
 				<input
 					name="confirmation"
 					autocomplete="off"
@@ -87,12 +88,8 @@
 					aria-invalid={form?.resetErrors?.confirmation ? 'true' : undefined}
 					required
 				/>
-				{#if form?.resetErrors?.confirmation}
-					<span class="error">{form.resetErrors.confirmation}</span>
-				{/if}
-			</label>
-			<label>
-				Passwort
+			</Field>
+			<Field label="Passwort" error={form?.resetErrors?.password}>
 				<input
 					name="password"
 					type="password"
@@ -101,10 +98,7 @@
 					aria-invalid={form?.resetErrors?.password ? 'true' : undefined}
 					required
 				/>
-				{#if form?.resetErrors?.password}
-					<span class="error">{form.resetErrors.password}</span>
-				{/if}
-			</label>
+			</Field>
 			<div class="form-actions">
 				<button type="submit" class="danger">Alle Daten löschen</button>
 			</div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Field from '#lib/components/Field.svelte';
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
@@ -147,8 +148,7 @@
 	<p>Alle Plätze sind belegt. Entferne einen Zugang oder ziehe eine Einladung zurück.</p>
 {:else}
 	<form method="POST" action="?/invite" class="card" use:enhance>
-		<label>
-			E-Mail-Adresse
+		<Field label="E-Mail-Adresse" error={errors?.email}>
 			<input
 				name="email"
 				type="email"
@@ -156,10 +156,8 @@
 				aria-invalid={errors?.email ? 'true' : undefined}
 				required
 			/>
-			{#if errors?.email}<span class="error">{errors.email}</span>{/if}
-		</label>
-		<label>
-			Rolle
+		</Field>
+		<Field label="Rolle">
 			<select name="role">
 				{#each memberRoles as role (role)}
 					<option value={role} selected={role === (values?.role ?? 'manager')}
@@ -167,7 +165,7 @@
 					>
 				{/each}
 			</select>
-		</label>
+		</Field>
 		<div class="form-actions">
 			<button type="submit">Einladen</button>
 		</div>
@@ -181,16 +179,14 @@
 		Abo; du arbeitest als Mitverwalter weiter. Das Abo bleibt, wie es ist.
 	</p>
 	<form method="POST" action="?/transfer" class="card" use:enhance>
-		<label>
-			Neuer Vermieter
+		<Field label="Neuer Vermieter">
 			<select name="userId" required>
 				{#each data.users.filter((user) => user.id !== data.userId) as user (user.id)}
 					<option value={user.id}>{user.name ?? user.email}</option>
 				{/each}
 			</select>
-		</label>
-		<label>
-			Dein Passwort
+		</Field>
+		<Field label="Dein Passwort">
 			<input
 				name="password"
 				type="password"
@@ -198,7 +194,7 @@
 				maxlength="200"
 				required
 			/>
-		</label>
+		</Field>
 		<div class="form-actions">
 			<button type="submit" class="danger">Konto übergeben</button>
 		</div>
