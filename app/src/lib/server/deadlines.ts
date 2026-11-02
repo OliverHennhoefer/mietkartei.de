@@ -249,7 +249,9 @@ export async function listDeadlines(
 	const deadlines: Deadline[] = [];
 	const push = (deadline: Omit<Deadline, 'overdue'>, actionable = true) => {
 		if (deadline.date < today && !actionable) return;
-		const lease = deadline.leaseId ? leaseById.get(deadline.leaseId) : undefined;
+		// Something to do that fell due before the lease's tracking start was done before the app.
+		// Rows to know about stay, as they only show dates ahead.
+		const lease = actionable && deadline.leaseId ? leaseById.get(deadline.leaseId) : undefined;
 		if (lease && deadline.date < trackedFrom(lease)) return;
 		deadlines.push({ ...deadline, overdue: deadline.date < today });
 	};

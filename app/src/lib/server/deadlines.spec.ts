@@ -589,6 +589,30 @@ describe('a lease entered after it began', () => {
 			['2027-04-30', 'Kaution abrechnen', false]
 		]);
 	});
+
+	it('still shows what lies ahead to know about, such as the next Staffel step', async () => {
+		// Tracked from February 2027: the step of January 2027 is still the next one to know.
+		const { leaseId } = await lease('a', {
+			startDate: '2020-01-01',
+			rentModel: 'graduated',
+			ledgerStart: '2027-02-01'
+		});
+		await db.insert(rentChanges).values(
+			['2027-01-01', '2028-01-01'].map((validFrom, index) => ({
+				accountId: 'a',
+				leaseId,
+				validFrom,
+				reason: 'graduated' as const,
+				status: 'approved' as const,
+				baseRent: 70000 + index * 2000,
+				operatingCostPrepayment: 0,
+				heatingCostPrepayment: 0
+			}))
+		);
+		expect((await list('graduated_step')).map(brief)).toEqual([
+			['2027-01-01', 'Nächste Mietstaffel', false]
+		]);
+	});
 });
 
 describe('next Staffel step', () => {
