@@ -1091,6 +1091,50 @@ form.card,
 .form-wide {
 	grid-column: 1 / -1;
 }
+/* A longer form in titled sections (FormSection.svelte): the title on the left, the fields in up
+   to two columns on the right; on a narrow form the title sits above the fields. */
+form.card:has(> .form-section) {
+	display: block;
+	container-type: inline-size;
+}
+.form-section {
+	display: grid;
+	grid-template-columns: minmax(0, 14rem) minmax(0, 1fr);
+	gap: 1rem 2.5rem;
+	padding-block: 1.75rem;
+	border-top: 1px solid var(--color-border);
+}
+.form-section:first-of-type {
+	padding-top: 0.25rem;
+	border-top: 0;
+}
+.form-section-head h3 {
+	margin: 0;
+}
+.form-section-head p {
+	margin: 0.35rem 0 0;
+	color: var(--color-muted);
+	font-size: var(--text-sm);
+	line-height: 1.5;
+}
+.form-section > .form {
+	grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
+	align-content: start;
+	max-width: 44rem;
+}
+form.card:has(> .form-section) > .form-actions {
+	padding-top: 1.5rem;
+	border-top: 1px solid var(--color-border);
+}
+form.card:has(> .form-section) > .form-actions ~ .form-actions {
+	padding-top: 0;
+	border-top: 0;
+}
+@container (max-width: 46rem) {
+	.form-section {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
 /* A field spans two rows of the grid, its title and its control (Field.svelte), so that the
    controls of a row line up below titles of different length. The other items span two rows as
    well, so they sit beside the fields instead of stretching the row of titles; a checkbox lines up

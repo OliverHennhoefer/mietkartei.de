@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Field from './Field.svelte';
+	import FormSection from './FormSection.svelte';
 	import { enhance } from '$app/forms';
 	import { formatDate, today } from '../dates';
 	import { behgHint, co2KgFromKwh } from '../domain/co2';
@@ -255,250 +256,259 @@
 	{#if prefill?.insurancePolicyId}
 		<input type="hidden" name="insurancePolicyId" value={prefill.insurancePolicyId} />
 	{/if}
-	<Field label="Objekt" error={errors?.propertyId}>
-		<select
-			name="propertyId"
-			bind:value={propertyId}
-			aria-invalid={errors?.propertyId ? 'true' : undefined}
-			required
-		>
-			{#each properties as property (property.id)}
-				<option value={property.id}>{property.name}</option>
-			{/each}
-		</select>
-	</Field>
-	<Field label="Kostenart" error={errors?.categoryId}>
-		<select
-			name="categoryId"
-			bind:value={categoryId}
-			onchange={categoryChanged}
-			aria-invalid={errors?.categoryId ? 'true' : undefined}
-			required
-		>
-			{#each categories as category (category.id)}
-				<option value={category.id}>
-					{category.betrkvItem ? `${category.betrkvItem} ` : ''}{category.name}
-				</option>
-			{/each}
-		</select>
-	</Field>
-	{#if lastItem}
-		<p class="form-wide last muted small">
-			<span>
-				Letzter Beleg dieser Kostenart: {lastItem.supplier ?? lastItem.description} ·
-				{formatCents(lastItem.amount)} · bis {formatDate(lastItem.periodEnd)}
-			</span>
-			<button type="button" class="secondary small" onclick={copyLast}>Übernehmen</button>
-		</p>
-	{/if}
-	<Field label="Umlageschlüssel" error={errors?.allocationKeyId}>
-		<select name="allocationKeyId" aria-invalid={errors?.allocationKeyId ? 'true' : undefined}>
-			<option value="" selected={keyChoice === ''}>Standard der Kostenart</option>
-			{#each propertyKeys as key (key.id)}
-				<option value={key.id} selected={keyChoice === key.id}>{key.name}</option>
-			{/each}
-		</select>
-	</Field>
-	<Field label="Abrechnungskreis" error={errors?.billingCircleId}>
-		<select name="billingCircleId" aria-invalid={errors?.billingCircleId ? 'true' : undefined}>
-			<option value={CIRCLE_FROM_CATEGORY} selected={circleChoice === CIRCLE_FROM_CATEGORY}>
-				Standard der Kostenart
-			</option>
-			<option value="" selected={circleChoice === ''}>Alle Einheiten des Objekts</option>
-			{#each propertyCircles as circle (circle.id)}
-				<option value={circle.id} selected={circleChoice === circle.id}>
-					{circle.propertyName} – {circle.name}
-				</option>
-			{/each}
-		</select>
-	</Field>
-	<label class="form-wide">
-		Beschreibung
-		<input
-			name="description"
-			defaultValue={value('description', item?.description ?? prefill?.description ?? '')}
-			list={history?.descriptions.length ? 'cost-item-descriptions' : undefined}
-			autocomplete="off"
-			placeholder="z. B. Grundsteuer 2025"
-			aria-invalid={errors?.description ? 'true' : undefined}
-			required
-		/>
-		{#if errors?.description}<span class="error">{errors.description}</span>{/if}
-	</label>
-	<Field label="Lieferant (optional)" error={errors?.supplier}>
-		<input
-			name="supplier"
-			defaultValue={value('supplier', item?.supplier ?? prefill?.supplier ?? '')}
-			list={history?.suppliers.length ? 'cost-item-suppliers' : undefined}
-			autocomplete="off"
-			aria-invalid={errors?.supplier ? 'true' : undefined}
-		/>
-	</Field>
-	<Field label="Rechnungsdatum" error={errors?.invoiceDate}>
-		<input
-			type="date"
-			name="invoiceDate"
-			defaultValue={value('invoiceDate', item?.invoiceDate ?? today())}
-			aria-invalid={errors?.invoiceDate ? 'true' : undefined}
-		/>
-	</Field>
-	<Field
-		label="Zeitraum von"
-		error={errors?.periodStart}
-		note={periodDefaulted
-			? 'Vorbelegt mit dem Vorjahr, für die Abrechnung des letzten Jahres.'
-			: undefined}
+	<FormSection
+		title="Kostenart"
+		description="Wofür die Kosten anfallen und wie sie auf die Einheiten verteilt werden."
 	>
-		<input
-			type="date"
-			name="periodStart"
-			defaultValue={value(
-				'periodStart',
-				item?.periodStart ?? prefill?.periodStart ?? period.periodStart
-			)}
-			aria-invalid={errors?.periodStart ? 'true' : undefined}
-			required
-		/>
-	</Field>
-	<Field label="Zeitraum bis" error={errors?.periodEnd}>
-		<input
-			type="date"
-			name="periodEnd"
-			defaultValue={value('periodEnd', item?.periodEnd ?? prefill?.periodEnd ?? period.periodEnd)}
-			aria-invalid={errors?.periodEnd ? 'true' : undefined}
-			required
-		/>
-	</Field>
-	<Field label="Betrag in €" error={errors?.amount}>
-		<input
-			name="amount"
-			inputmode="decimal"
-			defaultValue={value(
-				'amount',
-				item
-					? formatCentsPlain(item.amount)
-					: prefill?.amount !== undefined
-						? formatCentsPlain(prefill.amount)
-						: ''
-			)}
-			aria-invalid={errors?.amount ? 'true' : undefined}
-			required
-		/>
-	</Field>
-	<label class="inline">
-		<input type="checkbox" name="allocable" bind:checked={allocable} />
-		umlagefähig
-	</label>
-
-	{#if condominium}
-		<fieldset class="fuel form-wide">
-			<legend>Aus der Hausgeldabrechnung (WEG)</legend>
-			<p class="muted small">
-				Die Gesamtkosten der WEG und der Schlüssel, mit dem der Verwalter sie verteilt hat. Als
-				Betrag oben trägst du den Anteil der Wohnung laut Hausgeldabrechnung ein. Die Abrechnung an
-				den Mieter zeigt dann alle drei Werte, damit er den Anteil nachrechnen kann.
+		<Field label="Objekt" error={errors?.propertyId}>
+			<select
+				name="propertyId"
+				bind:value={propertyId}
+				aria-invalid={errors?.propertyId ? 'true' : undefined}
+				required
+			>
+				{#each properties as property (property.id)}
+					<option value={property.id}>{property.name}</option>
+				{/each}
+			</select>
+		</Field>
+		<Field label="Kostenart" error={errors?.categoryId}>
+			<select
+				name="categoryId"
+				bind:value={categoryId}
+				onchange={categoryChanged}
+				aria-invalid={errors?.categoryId ? 'true' : undefined}
+				required
+			>
+				{#each categories as category (category.id)}
+					<option value={category.id}>
+						{category.betrkvItem ? `${category.betrkvItem} ` : ''}{category.name}
+					</option>
+				{/each}
+			</select>
+		</Field>
+		{#if lastItem}
+			<p class="form-wide last muted small">
+				<span>
+					Letzter Beleg dieser Kostenart: {lastItem.supplier ?? lastItem.description} ·
+					{formatCents(lastItem.amount)} · bis {formatDate(lastItem.periodEnd)}
+				</span>
+				<button type="button" class="secondary small" onclick={copyLast}>Übernehmen</button>
 			</p>
-			<div class="form">
-				<Field label="Gesamtkosten der WEG in €" error={errors?.associationTotal}>
-					<input
-						name="associationTotal"
-						inputmode="decimal"
-						defaultValue={value(
-							'associationTotal',
-							item?.associationTotal != null ? formatCentsPlain(item.associationTotal) : ''
-						)}
-						aria-invalid={errors?.associationTotal ? 'true' : undefined}
-					/>
-				</Field>
-				<Field label="Schlüssel der WEG" error={errors?.associationKey}>
-					<input
-						name="associationKey"
-						defaultValue={associationValue('associationKey')}
-						placeholder="z. B. MEA, Wohnfläche, Einheiten"
-						aria-invalid={errors?.associationKey ? 'true' : undefined}
-					/>
-				</Field>
-				<Field
-					label="Anteil der Wohnung"
-					error={errors?.associationKeyShare}
-					hint="Bei MEA die erste Zahl des Bruchs, z. B. 85. Vorbelegt aus dem Objekt."
-				>
-					<input
-						name="associationKeyShare"
-						inputmode="decimal"
-						defaultValue={associationValue('associationKeyShare')}
-						placeholder="z. B. 85"
-						aria-invalid={errors?.associationKeyShare ? 'true' : undefined}
-					/>
-				</Field>
-				<Field
-					label="Summe des Schlüssels in der WEG"
-					error={errors?.associationKeyTotal}
-					hint="Bei MEA die zweite Zahl des Bruchs, z. B. 1000. Vorbelegt aus dem Objekt."
-					note={associationHint ?? undefined}
-				>
-					<input
-						name="associationKeyTotal"
-						inputmode="decimal"
-						defaultValue={associationValue('associationKeyTotal')}
-						placeholder="z. B. 1000"
-						aria-invalid={errors?.associationKeyTotal ? 'true' : undefined}
-					/>
-				</Field>
-			</div>
-		</fieldset>
-	{/if}
+		{/if}
+		<Field label="Umlageschlüssel" error={errors?.allocationKeyId}>
+			<select name="allocationKeyId" aria-invalid={errors?.allocationKeyId ? 'true' : undefined}>
+				<option value="" selected={keyChoice === ''}>Standard der Kostenart</option>
+				{#each propertyKeys as key (key.id)}
+					<option value={key.id} selected={keyChoice === key.id}>{key.name}</option>
+				{/each}
+			</select>
+		</Field>
+		<Field label="Abrechnungskreis" error={errors?.billingCircleId}>
+			<select name="billingCircleId" aria-invalid={errors?.billingCircleId ? 'true' : undefined}>
+				<option value={CIRCLE_FROM_CATEGORY} selected={circleChoice === CIRCLE_FROM_CATEGORY}>
+					Standard der Kostenart
+				</option>
+				<option value="" selected={circleChoice === ''}>Alle Einheiten des Objekts</option>
+				{#each propertyCircles as circle (circle.id)}
+					<option value={circle.id} selected={circleChoice === circle.id}>
+						{circle.propertyName} – {circle.name}
+					</option>
+				{/each}
+			</select>
+		</Field>
+	</FormSection>
 
-	<fieldset class="fuel form-wide">
-		<legend>Brennstoffrechnung (für die CO₂-Kostenaufteilung)</legend>
-		<p class="muted small">
-			Nur für die Rechnung des Energieversorgers einer Zentralheizung: kWh, CO₂-Menge und
-			CO₂-Kosten, wie sie auf der Rechnung stehen. Bei Erdgas, Heizöl und Flüssiggas kannst du die
-			CO₂-Menge leer lassen; sie wird aus den kWh berechnet.
-		</p>
-		<div class="form">
-			<Field label="Brennstoff" error={errors?.fuel}>
-				<select name="fuel" aria-invalid={errors?.fuel ? 'true' : undefined}>
-					<option value="" selected={fuelChoice === ''}>keiner</option>
-					{#each fuels as candidate (candidate)}
-						<option value={candidate} selected={fuelChoice === candidate}
-							>{fuelLabels[candidate]}</option
-						>
-					{/each}
-				</select>
-			</Field>
-			<Field label="Energiemenge in kWh" error={errors?.fuelKwh}>
+	<FormSection
+		title="Rechnung"
+		description="Die Angaben, wie sie auf der Rechnung oder dem Bescheid stehen."
+	>
+		<div class="form-wide">
+			<Field label="Beschreibung" error={errors?.description}>
 				<input
-					name="fuelKwh"
-					inputmode="decimal"
-					defaultValue={value('fuelKwh', item?.fuelKwh?.toString() ?? '')}
-					aria-invalid={errors?.fuelKwh ? 'true' : undefined}
-				/>
-			</Field>
-			<Field label="CO₂-Menge in kg" error={errors?.co2Kg}>
-				<input
-					name="co2Kg"
-					inputmode="decimal"
-					defaultValue={value('co2Kg', item?.co2Kg?.toString() ?? '')}
-					aria-invalid={errors?.co2Kg ? 'true' : undefined}
-				/>
-			</Field>
-			<Field label="CO₂-Kosten in €" error={errors?.co2Cost} note={costHint ?? undefined}>
-				<input
-					name="co2Cost"
-					inputmode="decimal"
-					defaultValue={value('co2Cost', item?.co2Cost ? formatCentsPlain(item.co2Cost) : '')}
-					aria-invalid={errors?.co2Cost ? 'true' : undefined}
+					name="description"
+					defaultValue={value('description', item?.description ?? prefill?.description ?? '')}
+					list={history?.descriptions.length ? 'cost-item-descriptions' : undefined}
+					autocomplete="off"
+					placeholder="z. B. Grundsteuer 2025"
+					aria-invalid={errors?.description ? 'true' : undefined}
+					required
 				/>
 			</Field>
 		</div>
-	</fieldset>
+		<Field label="Lieferant (optional)" error={errors?.supplier}>
+			<input
+				name="supplier"
+				defaultValue={value('supplier', item?.supplier ?? prefill?.supplier ?? '')}
+				list={history?.suppliers.length ? 'cost-item-suppliers' : undefined}
+				autocomplete="off"
+				aria-invalid={errors?.supplier ? 'true' : undefined}
+			/>
+		</Field>
+		<Field label="Rechnungsdatum" error={errors?.invoiceDate}>
+			<input
+				type="date"
+				name="invoiceDate"
+				defaultValue={value('invoiceDate', item?.invoiceDate ?? today())}
+				aria-invalid={errors?.invoiceDate ? 'true' : undefined}
+			/>
+		</Field>
+		<Field label="Betrag in €" error={errors?.amount}>
+			<input
+				name="amount"
+				inputmode="decimal"
+				defaultValue={value(
+					'amount',
+					item
+						? formatCentsPlain(item.amount)
+						: prefill?.amount !== undefined
+							? formatCentsPlain(prefill.amount)
+							: ''
+				)}
+				aria-invalid={errors?.amount ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		<label class="inline">
+			<input type="checkbox" name="allocable" bind:checked={allocable} />
+			umlagefähig
+		</label>
+	</FormSection>
 
-	<label class="form-wide">
-		Beleg als Datei (optional, höchstens 10 MB)
-		<input type="file" name="receipt" aria-invalid={errors?.receipt ? 'true' : undefined} />
-		{#if errors?.receipt}<span class="error">{errors.receipt}</span>{/if}
-	</label>
+	<FormSection
+		title="Zeitraum"
+		description="Für welchen Zeitraum die Kosten gelten; die Abrechnung verteilt sie anteilig auf die Monate."
+	>
+		<Field
+			label="Zeitraum von"
+			error={errors?.periodStart}
+			note={periodDefaulted
+				? 'Vorbelegt mit dem Vorjahr, für die Abrechnung des letzten Jahres.'
+				: undefined}
+		>
+			<input
+				type="date"
+				name="periodStart"
+				defaultValue={value(
+					'periodStart',
+					item?.periodStart ?? prefill?.periodStart ?? period.periodStart
+				)}
+				aria-invalid={errors?.periodStart ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		<Field label="Zeitraum bis" error={errors?.periodEnd}>
+			<input
+				type="date"
+				name="periodEnd"
+				defaultValue={value('periodEnd', item?.periodEnd ?? prefill?.periodEnd ?? period.periodEnd)}
+				aria-invalid={errors?.periodEnd ? 'true' : undefined}
+				required
+			/>
+		</Field>
+	</FormSection>
+
+	{#if condominium}
+		<FormSection
+			title="Aus der Hausgeldabrechnung (WEG)"
+			description="Die Gesamtkosten der WEG und der Schlüssel, mit dem der Verwalter sie verteilt hat. Als Betrag oben trägst du den Anteil der Wohnung laut Hausgeldabrechnung ein. Die Abrechnung an den Mieter zeigt dann alle drei Werte, damit er den Anteil nachrechnen kann."
+		>
+			<Field label="Gesamtkosten der WEG in €" error={errors?.associationTotal}>
+				<input
+					name="associationTotal"
+					inputmode="decimal"
+					defaultValue={value(
+						'associationTotal',
+						item?.associationTotal != null ? formatCentsPlain(item.associationTotal) : ''
+					)}
+					aria-invalid={errors?.associationTotal ? 'true' : undefined}
+				/>
+			</Field>
+			<Field label="Schlüssel der WEG" error={errors?.associationKey}>
+				<input
+					name="associationKey"
+					defaultValue={associationValue('associationKey')}
+					placeholder="z. B. MEA, Wohnfläche, Einheiten"
+					aria-invalid={errors?.associationKey ? 'true' : undefined}
+				/>
+			</Field>
+			<Field
+				label="Anteil der Wohnung"
+				error={errors?.associationKeyShare}
+				hint="Bei MEA die erste Zahl des Bruchs, z. B. 85. Vorbelegt aus dem Objekt."
+			>
+				<input
+					name="associationKeyShare"
+					inputmode="decimal"
+					defaultValue={associationValue('associationKeyShare')}
+					placeholder="z. B. 85"
+					aria-invalid={errors?.associationKeyShare ? 'true' : undefined}
+				/>
+			</Field>
+			<Field
+				label="Summe des Schlüssels in der WEG"
+				error={errors?.associationKeyTotal}
+				hint="Bei MEA die zweite Zahl des Bruchs, z. B. 1000. Vorbelegt aus dem Objekt."
+				note={associationHint ?? undefined}
+			>
+				<input
+					name="associationKeyTotal"
+					inputmode="decimal"
+					defaultValue={associationValue('associationKeyTotal')}
+					placeholder="z. B. 1000"
+					aria-invalid={errors?.associationKeyTotal ? 'true' : undefined}
+				/>
+			</Field>
+		</FormSection>
+	{/if}
+
+	<FormSection
+		title="Brennstoffrechnung"
+		description="Für die CO₂-Kostenaufteilung, nur bei der Rechnung des Energieversorgers einer Zentralheizung: kWh, CO₂-Menge und CO₂-Kosten, wie sie auf der Rechnung stehen. Bei Erdgas, Heizöl und Flüssiggas kannst du die CO₂-Menge leer lassen; sie wird aus den kWh berechnet."
+	>
+		<Field label="Brennstoff" error={errors?.fuel}>
+			<select name="fuel" aria-invalid={errors?.fuel ? 'true' : undefined}>
+				<option value="" selected={fuelChoice === ''}>keiner</option>
+				{#each fuels as candidate (candidate)}
+					<option value={candidate} selected={fuelChoice === candidate}
+						>{fuelLabels[candidate]}</option
+					>
+				{/each}
+			</select>
+		</Field>
+		<Field label="Energiemenge in kWh" error={errors?.fuelKwh}>
+			<input
+				name="fuelKwh"
+				inputmode="decimal"
+				defaultValue={value('fuelKwh', item?.fuelKwh?.toString() ?? '')}
+				aria-invalid={errors?.fuelKwh ? 'true' : undefined}
+			/>
+		</Field>
+		<Field label="CO₂-Menge in kg" error={errors?.co2Kg}>
+			<input
+				name="co2Kg"
+				inputmode="decimal"
+				defaultValue={value('co2Kg', item?.co2Kg?.toString() ?? '')}
+				aria-invalid={errors?.co2Kg ? 'true' : undefined}
+			/>
+		</Field>
+		<Field label="CO₂-Kosten in €" error={errors?.co2Cost} note={costHint ?? undefined}>
+			<input
+				name="co2Cost"
+				inputmode="decimal"
+				defaultValue={value('co2Cost', item?.co2Cost ? formatCentsPlain(item.co2Cost) : '')}
+				aria-invalid={errors?.co2Cost ? 'true' : undefined}
+			/>
+		</Field>
+	</FormSection>
+
+	<FormSection title="Datei">
+		<div class="form-wide">
+			<Field label="Beleg als Datei (optional)" error={errors?.receipt} note="Höchstens 10 MB.">
+				<input type="file" name="receipt" aria-invalid={errors?.receipt ? 'true' : undefined} />
+			</Field>
+		</div>
+	</FormSection>
 
 	{#if history}
 		<datalist id="cost-item-descriptions">
@@ -526,19 +536,5 @@
 		align-items: center;
 		gap: 0.25rem 0.75rem;
 		margin: 0;
-	}
-	.fuel {
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius);
-		padding: 0.75rem 1rem 1rem;
-		margin: 0;
-	}
-	.fuel legend {
-		font-weight: 500;
-		font-size: var(--text-base);
-		padding: 0 0.25rem;
-	}
-	.fuel p {
-		margin: 0 0 0.75rem;
 	}
 </style>

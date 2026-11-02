@@ -197,7 +197,7 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 	await page.getByLabel('Lieferant (optional)').fill('Stadt Berlin');
 	await page.getByLabel('Rechnungsdatum').fill('2025-02-15');
 	await page.getByLabel('Betrag in €').fill('1.200,00');
-	await page.getByLabel('Beleg als Datei (optional, höchstens 10 MB)').setInputFiles({
+	await page.getByLabel('Beleg als Datei (optional)').setInputFiles({
 		name: 'grundsteuer.txt',
 		mimeType: 'text/plain',
 		buffer: Buffer.from('Grundsteuerbescheid 2025: 1.200,00 €')
