@@ -91,7 +91,7 @@
 			selected={(values.extraUnitIds ?? '').split(',').filter(Boolean)}
 			placeholder="Einheit suchen …"
 			empty="Keine Einheit gefunden."
-			hint="Ein Stellplatz, der mit der Wohnung vermietet wird, gehört in denselben Mietvertrag: eine Miete, eine Zahlung, ein Mietkonto."
+			hint="Eine Garage oder ein Stellplatz, die mit der Wohnung vermietet werden, gehören in denselben Mietvertrag: eine Miete, eine Zahlung, ein Mietkonto. Ihren Anteil an der Kaltmiete trägst du unten bei „davon Garage/Stellplatz“ ein."
 			error={errors.extraUnitIds}
 		/>
 	{:else if lease}
@@ -197,6 +197,19 @@
 			placeholder="650,00"
 			aria-invalid={invalid('baseRent')}
 			required
+		/>
+	</Field>
+	<Field
+		label={atStart('davon Garage/Stellplatz (optional)')}
+		error={errors.parkingRent}
+		hint="Der Teil der Kaltmiete für eine mitvermietete Garage oder einen Stellplatz. Er zählt nicht zur Kaltmiete je m² für den Mietspiegel und steht in der Steuerübersicht bei den Garagen."
+	>
+		<input
+			name="parkingRent"
+			defaultValue={values.parkingRent ?? ''}
+			inputmode="decimal"
+			placeholder="0,00"
+			aria-invalid={invalid('parkingRent')}
 		/>
 	</Field>
 	<Field label={atStart('Betriebskostenvorauszahlung')} error={errors.operatingCostPrepayment}>

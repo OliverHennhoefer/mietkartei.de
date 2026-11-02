@@ -75,6 +75,7 @@ export const load: PageServerLoad = async ({ locals, params, parent, url }) => {
 		/** The amounts valid on changeFrom, to prefill the change form. */
 		changeDefaults: {
 			baseRent: rentThen.baseRent,
+			parkingRent: rentThen.parkingRent,
 			operatingCostPrepayment: prepaymentCents ?? rentThen.operatingCostPrepayment,
 			heatingCostPrepayment: heatingCents ?? rentThen.heatingCostPrepayment
 		},

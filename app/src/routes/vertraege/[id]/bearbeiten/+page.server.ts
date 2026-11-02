@@ -29,6 +29,7 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 		heatingCostModel: input.heatingCostModel,
 		rentDueDay: String(input.rentDueDay),
 		baseRent: formatCentsPlain(input.baseRent),
+		parkingRent: input.parkingRent > 0 ? formatCentsPlain(input.parkingRent) : '',
 		operatingCostPrepayment: formatCentsPlain(input.operatingCostPrepayment),
 		heatingCostPrepayment: formatCentsPlain(input.heatingCostPrepayment),
 		securityDeposit: formatCentsPlain(input.securityDeposit),

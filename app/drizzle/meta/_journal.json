@@ -393,6 +393,13 @@
       "when": 1793558137150,
       "tag": "0055_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "6",
+      "when": 1793645132538,
+      "tag": "0056_parking_rent",
+      "breakpoints": true
     }
   ]
 }

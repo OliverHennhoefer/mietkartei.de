@@ -81,6 +81,7 @@ function sameDayRefusal(validFrom: IsoDate): AdjustmentResult {
 export type ManualChangeInput = {
 	validFrom: IsoDate;
 	baseRent: number;
+	parkingRent: number;
 	operatingCostPrepayment: number;
 	heatingCostPrepayment: number;
 	reason: 'manual' | 'statement';
@@ -90,9 +91,26 @@ export type ManualChangeInput = {
 function amountsOf(rent: RentAmounts): RentAmounts {
 	return {
 		baseRent: rent.baseRent,
+		parkingRent: rent.parkingRent,
 		operatingCostPrepayment: rent.operatingCostPrepayment,
 		heatingCostPrepayment: rent.heatingCostPrepayment
 	};
+}
+
+/**
+ * The amounts of `rent` with a new Kaltmiete. The parking share stays; an index that fell below it
+ * would leave none for the flat, so it is cut to the Kaltmiete then.
+ */
+function withBaseRent(rent: RentAmounts, baseRent: number): RentAmounts {
+	return { ...amountsOf(rent), baseRent, parkingRent: Math.min(rent.parkingRent, baseRent) };
+}
+
+/** A Kaltmiete below the parking share it keeps, as a refusal; undefined when it holds it. */
+function belowParkingRent(baseRent: number, parkingRent: number): AdjustmentResult | undefined {
+	if (baseRent >= parkingRent) return undefined;
+	return refuse(
+		`Die Kaltmiete enthält ${formatCents(parkingRent)} für Garage/Stellplatz und kann nicht niedriger sein. Ändere den Anteil zuerst über „Änderung ab Datum“.`
+	);
 }
 
 /**
@@ -122,9 +140,16 @@ export async function manualChange(
 	if (hasApprovedOn(changes, input.validFrom)) return sameDayRefusal(input.validFrom);
 	const before = rentOn(changes, input.validFrom);
 	if (!before) return refuse('Dem Mietvertrag fehlt die Miete bei Vertragsbeginn.');
-	if (input.reason === 'statement' && input.baseRent !== before.baseRent) {
+	if (
+		input.reason === 'statement' &&
+		(input.baseRent !== before.baseRent || input.parkingRent !== before.parkingRent)
+	) {
 		return refuse(
-			`Eine Anpassung nach Abrechnung (§ 560 BGB) ändert nur die Vorauszahlungen. Am ${formatDate(input.validFrom)} gilt eine Kaltmiete von ${formatCents(before.baseRent)}; trage sie so ein oder wähle als Grund „Änderung“.`
+			`Eine Anpassung nach Abrechnung (§ 560 BGB) ändert nur die Vorauszahlungen. Am ${formatDate(input.validFrom)} gilt eine Kaltmiete von ${formatCents(before.baseRent)}` +
+				(before.parkingRent > 0
+					? `, davon ${formatCents(before.parkingRent)} für Garage/Stellplatz`
+					: '') +
+				'; trage sie so ein oder wähle als Grund „Änderung“.'
 		);
 	}
 
@@ -207,7 +232,9 @@ export async function addGraduatedStep(
 	}
 	const before = rentOn(changes, input.validFrom);
 	if (!before) return refuse('Dem Mietvertrag fehlt die Miete bei Vertragsbeginn.');
-	const after = { ...amountsOf(before), baseRent: input.baseRent };
+	const belowParking = belowParkingRent(input.baseRent, before.parkingRent);
+	if (belowParking) return belowParking;
+	const after = withBaseRent(before, input.baseRent);
 	const id = crypto.randomUUID();
 	const later = laterRows(
 		db,
@@ -280,6 +307,7 @@ export async function proposeIndexChange(
 			leaseId,
 			validFrom: situation.provisionalFrom,
 			baseRent: proposal.newBaseRent,
+			parkingRent: Math.min(current.parkingRent, proposal.newBaseRent),
 			operatingCostPrepayment: current.operatingCostPrepayment,
 			heatingCostPrepayment: current.heatingCostPrepayment,
 			reason: 'indexed',
@@ -362,7 +390,7 @@ export async function approveChange(
 			`Die Kaltmiete oder der Bezugsindex zum ${formatDate(validFrom)} hat sich seit dem Vorschlag geändert. Lösche den Vorschlag und lass ihn neu berechnen.`
 		);
 	}
-	const amounts = { ...amountsOf(before), baseRent: change.baseRent };
+	const amounts = withBaseRent(before, change.baseRent);
 	const approved: HistoryChange = { ...change, ...amounts, validFrom, status: 'approved' };
 	const later = laterRows(db, context.accountId, others, validFrom, amountsOf(before), amounts);
 	const figures = letterFigures([...others, approved], lease, approved);
@@ -479,7 +507,7 @@ export async function correctDelivery(
 			`Die Miete muss mindestens ein Jahr unverändert bleiben (§ 557b Abs. 2 BGB); die neue Miete kann frühestens am ${formatDate(waitingUntil)} gelten.`
 		);
 	}
-	const amounts = { ...amountsOf(before), baseRent: change.baseRent };
+	const amounts = withBaseRent(before, change.baseRent);
 	const moved: HistoryChange = { ...change, ...amounts, validFrom };
 	const later = laterRows(db, context.accountId, without, validFrom, amountsOf(before), amounts);
 	const figures = letterFigures([...without, moved], lease, moved);
@@ -542,8 +570,7 @@ export async function demandComparativeIncrease(
 	if (hasApprovedOn(changes, validFrom)) return sameDayRefusal(validFrom);
 	const before = rentOn(changes, validFrom)!;
 	const newRent = {
-		...amountsOf(before),
-		baseRent: demand.baseRent,
+		...withBaseRent(before, demand.baseRent),
 		validFrom,
 		status: 'proposed' as const
 	};
@@ -667,7 +694,7 @@ export async function recordConsent(
 			`Das Verlangen passt nicht mehr zur Miethistorie: ${stale} Lösche es und stelle es neu.`
 		);
 	}
-	const amounts = { ...amountsOf(before), baseRent: input.baseRent };
+	const amounts = withBaseRent(before, input.baseRent);
 	const approved: HistoryChange = { ...change, ...amounts, status: 'approved' };
 	const later = laterRows(db, context.accountId, others, validFrom, amountsOf(before), amounts);
 	await runBatch(db, [

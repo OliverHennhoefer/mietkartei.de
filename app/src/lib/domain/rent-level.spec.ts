@@ -4,8 +4,9 @@ import { deviation, rentLevel, type RentedUnit } from './rent-level.ts';
 const lease = (
 	baseRent: number,
 	floorArea: number | null,
-	kind: RentedUnit['kind'] = 'residential'
-): RentedUnit => ({ kind, unit: { floorArea }, currentRent: { baseRent } });
+	kind: RentedUnit['kind'] = 'residential',
+	parkingRent = 0
+): RentedUnit => ({ kind, unit: { floorArea }, currentRent: { baseRent, parkingRent } });
 
 describe('rentLevel', () => {
 	it('averages the Kaltmiete of flats over their floor area', () => {
@@ -31,6 +32,10 @@ describe('rentLevel', () => {
 });
 
 describe('deviation', () => {
+	it('leaves the share of a garage rented with a flat out of its rent', () => {
+		expect(rentLevel([lease(650_00, 80, 'residential', 50_00)])?.perSquareMetre).toBe(7_50);
+	});
+
 	it('gives the difference to the average in percent', () => {
 		expect(deviation(10_00, 8_00)).toBe(25);
 		expect(deviation(7_00, 7_50)).toBe(-6.7);

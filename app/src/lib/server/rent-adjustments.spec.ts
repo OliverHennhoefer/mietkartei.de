@@ -103,6 +103,7 @@ describe('proposeIndexChange and approveChange', () => {
 			id: changeId,
 			validFrom: effectiveFrom(today()),
 			baseRent: 63096,
+			parkingRent: 0,
 			operatingCostPrepayment: 15000,
 			heatingCostPrepayment: 5000,
 			reason: 'indexed',
@@ -189,6 +190,7 @@ describe('proposeIndexChange and approveChange', () => {
 		await manualChange(db, contextA, lease.id, {
 			validFrom: nextMonth,
 			baseRent: 65000,
+			parkingRent: 0,
 			operatingCostPrepayment: 15000,
 			heatingCostPrepayment: 5000,
 			reason: 'manual',
@@ -268,6 +270,7 @@ describe('approveChange within the waiting period', () => {
 		await manualChange(db, contextA, leaseId, {
 			validFrom: '2026-06-01',
 			baseRent: 61000,
+			parkingRent: 0,
 			operatingCostPrepayment: 15000,
 			heatingCostPrepayment: 5000,
 			reason: 'manual',
@@ -307,6 +310,7 @@ describe('correctDelivery', () => {
 		await manualChange(db, contextA, leaseId, {
 			validFrom: '2026-12-15',
 			baseRent: 63096,
+			parkingRent: 0,
 			operatingCostPrepayment: 16000,
 			heatingCostPrepayment: 5000,
 			reason: 'statement',
@@ -338,6 +342,7 @@ describe('correctDelivery', () => {
 		await manualChange(db, contextA, leaseId, {
 			validFrom: '2026-12-15',
 			baseRent: 63096,
+			parkingRent: 0,
 			operatingCostPrepayment: 16000,
 			heatingCostPrepayment: 5000,
 			reason: 'manual',
@@ -389,6 +394,7 @@ describe('correctDelivery', () => {
 		await manualChange(db, contextA, leaseId, {
 			validFrom: '2027-01-01',
 			baseRent: 63096,
+			parkingRent: 0,
 			operatingCostPrepayment: 16000,
 			heatingCostPrepayment: 5000,
 			reason: 'statement',
@@ -402,6 +408,7 @@ describe('correctDelivery', () => {
 		await manualChange(db, contextA, leaseId, {
 			validFrom: '2026-03-01',
 			baseRent: 61000,
+			parkingRent: 0,
 			operatingCostPrepayment: 15000,
 			heatingCostPrepayment: 5000,
 			reason: 'manual',
@@ -458,6 +465,7 @@ describe('manualChange', () => {
 	const input = {
 		validFrom: '2025-01-01',
 		baseRent: 62000,
+		parkingRent: 0,
 		operatingCostPrepayment: 15000,
 		heatingCostPrepayment: 5000,
 		reason: 'manual' as const,
@@ -478,7 +486,11 @@ describe('manualChange', () => {
 			createdBy: 'user-a'
 		});
 		// The backdated change reaches the ledger at once: 620 + 150 + 50.
-		expect(await chargeOf(leaseId, '2025-03')).toMatchObject({ baseRent: 62000, amount: 82000 });
+		expect(await chargeOf(leaseId, '2025-03')).toMatchObject({
+			baseRent: 62000,
+			parkingRent: 0,
+			amount: 82000
+		});
 		expect((await summaries('a')).at(-1)).toBe('update: Miete ab 01.01.2025 auf 820,00 € geändert');
 	});
 
@@ -487,6 +499,7 @@ describe('manualChange', () => {
 		await manualChange(db, contextA, leaseId, {
 			...input,
 			baseRent: 60000,
+			parkingRent: 0,
 			operatingCostPrepayment: 17000
 		});
 		// A § 560 change changes only the prepayments: a different Kaltmiete is refused.
@@ -495,6 +508,7 @@ describe('manualChange', () => {
 				...input,
 				validFrom: '2025-06-01',
 				baseRent: 70000,
+				parkingRent: 0,
 				operatingCostPrepayment: 23000,
 				reason: 'statement'
 			})
@@ -507,6 +521,7 @@ describe('manualChange', () => {
 			...input,
 			validFrom: '2025-06-01',
 			baseRent: 60000,
+			parkingRent: 0,
 			operatingCostPrepayment: 25000,
 			reason: 'statement'
 		});
@@ -527,6 +542,30 @@ describe('manualChange', () => {
 		});
 		expect(await manualChange(db, contextA, foreignLeaseId, input)).toBeUndefined();
 		expect(await listRentChanges(db, 'b', foreignLeaseId)).toHaveLength(1);
+	});
+
+	it('keeps the parking share of the Kaltmiete in the history and the charges', async () => {
+		const result = await manualChange(db, contextA, leaseId, { ...input, parkingRent: 5000 });
+		expect(result?.ok).toBe(true);
+		const [, change] = await listRentChanges(db, 'a', leaseId);
+		expect(change).toMatchObject({ baseRent: 62000, parkingRent: 5000 });
+		expect(await chargeOf(leaseId, '2025-03')).toMatchObject({
+			baseRent: 62000,
+			parkingRent: 5000,
+			amount: 82000
+		});
+		// A § 560 change cannot move the parking share either.
+		expect(
+			await manualChange(db, contextA, leaseId, {
+				...input,
+				validFrom: '2025-06-01',
+				parkingRent: 6000,
+				reason: 'statement'
+			})
+		).toMatchObject({
+			ok: false,
+			message: expect.stringContaining('davon 50,00\u00a0€ für Garage/Stellplatz')
+		});
 	});
 
 	it('refuses a change before the lease began', async () => {
@@ -575,6 +614,7 @@ describe('addGraduatedStep', () => {
 		expect(change).toMatchObject({
 			validFrom: '2026-01-01',
 			baseRent: 62000,
+			parkingRent: 0,
 			operatingCostPrepayment: 15000,
 			heatingCostPrepayment: 5000,
 			reason: 'graduated',
@@ -637,6 +677,7 @@ describe('removeChange', () => {
 		const manual = await manualChange(db, contextA, leaseId, {
 			validFrom: '2025-01-01',
 			baseRent: 62000,
+			parkingRent: 0,
 			operatingCostPrepayment: 15000,
 			heatingCostPrepayment: 5000,
 			reason: 'manual',
@@ -667,6 +708,7 @@ describe('removeChange', () => {
 		const manual = await manualChange(db, contextA, leaseId, {
 			validFrom: '2025-01-01',
 			baseRent: 62000,
+			parkingRent: 0,
 			operatingCostPrepayment: 15000,
 			heatingCostPrepayment: 5000,
 			reason: 'manual',
@@ -794,6 +836,50 @@ describe('rentLetter', () => {
 	});
 });
 
+describe('a § 558 demand on a lease with a garage', () => {
+	it('raises the rent of the flat within the cap and keeps the garage share', async () => {
+		// 650 € from 2024-01-01, of which 50 € for the garage: 20 % on the flat's 600 € allow
+		// 720 €, plus the garage 770 €.
+		const { unitId: flat } = await seedUnit(db, 'a', { name: 'OG' });
+		const lease = await createLeaseWithoutCharges(
+			db,
+			contextA,
+			leaseInput(flat, { startDate: '2024-01-01', baseRent: 65000, parkingRent: 5000 })
+		);
+		if (!lease.ok) throw new Error('setup failed');
+		const demand = {
+			deliveredOn: '2026-03-10',
+			baseRent: 77001,
+			comparativeRent: 1150,
+			cappingPercent: 20 as const,
+			comparisonSource: 'rent_index' as const,
+			comparisonDetails: 'Mietspiegel 2026, Feld C2'
+		};
+		expect(await demandComparativeIncrease(db, contextA, lease.id, demand)).toMatchObject({
+			ok: false,
+			message: expect.stringContaining('höchstens 770,00')
+		});
+		const result = await demandComparativeIncrease(db, contextA, lease.id, {
+			...demand,
+			baseRent: 77000
+		});
+		if (!result?.ok) throw new Error(JSON.stringify(result));
+		expect(
+			await recordConsent(db, contextA, lease.id, result.id, {
+				consentedOn: '2026-04-01',
+				baseRent: 77000
+			})
+		).toMatchObject({ ok: true });
+		const [, approved] = await listRentChanges(db, 'a', lease.id);
+		expect(approved).toMatchObject({ status: 'approved', baseRent: 77000, parkingRent: 5000 });
+		expect(approved.letterTable?.[1]).toEqual([
+			'davon Garage/Stellplatz',
+			'50,00\u00a0€',
+			'50,00\u00a0€'
+		]);
+	});
+});
+
 describe('a § 558 demand and the consent', () => {
 	let fixedId: string;
 	// A fixed residential lease from 2024-01-01 at 600 € on 64 m²: a demand received on
@@ -863,6 +949,7 @@ describe('a § 558 demand and the consent', () => {
 		expect(demanded).toMatchObject({
 			status: 'approved',
 			baseRent: 70000,
+			parkingRent: 0,
 			operatingCostPrepayment: 15000,
 			consentedOn: '2026-04-02'
 		});
@@ -903,6 +990,7 @@ describe('a § 558 demand and the consent', () => {
 			leaseId: fixedId,
 			validFrom: '2025-04-01',
 			baseRent: 62000,
+			parkingRent: 0,
 			operatingCostPrepayment: 15000,
 			heatingCostPrepayment: 5000,
 			reason: 'manual',
@@ -965,6 +1053,7 @@ describe('later rows follow a change of a field', () => {
 		const result = await manualChange(db, contextA, graduatedId, {
 			validFrom: '2026-06-01',
 			baseRent: 60000,
+			parkingRent: 0,
 			operatingCostPrepayment: 20000,
 			heatingCostPrepayment: 5000,
 			reason: 'statement',
@@ -982,6 +1071,7 @@ describe('later rows follow a change of a field', () => {
 		await ensureCharges(db, 'a', [graduatedId], '2027-02');
 		expect(await chargeOf(graduatedId, '2027-02')).toMatchObject({
 			baseRent: 62000,
+			parkingRent: 0,
 			operatingCostPrepayment: 20000,
 			amount: 87000
 		});
@@ -997,6 +1087,7 @@ describe('later rows follow a change of a field', () => {
 			await manualChange(db, contextA, graduatedId, {
 				validFrom: '2026-03-01',
 				baseRent: 60000,
+				parkingRent: 0,
 				operatingCostPrepayment: 20000,
 				heatingCostPrepayment: 5000,
 				reason: 'statement',
@@ -1015,6 +1106,7 @@ describe('later rows follow a change of a field', () => {
 		await manualChange(db, contextA, graduatedId, {
 			validFrom: '2027-03-01',
 			baseRent: 60000,
+			parkingRent: 0,
 			operatingCostPrepayment: 20000,
 			heatingCostPrepayment: 5000,
 			reason: 'statement',
@@ -1040,6 +1132,7 @@ describe('later rows follow a change of a field', () => {
 		await manualChange(db, contextA, leaseId, {
 			validFrom: '2026-11-01',
 			baseRent: 60000,
+			parkingRent: 0,
 			operatingCostPrepayment: 17000,
 			heatingCostPrepayment: 5000,
 			reason: 'statement',
@@ -1048,6 +1141,7 @@ describe('later rows follow a change of a field', () => {
 		await manualChange(db, contextA, leaseId, {
 			validFrom: '2027-02-01',
 			baseRent: 60000,
+			parkingRent: 0,
 			operatingCostPrepayment: 19000,
 			heatingCostPrepayment: 5000,
 			reason: 'statement',
@@ -1073,6 +1167,7 @@ describe('later rows follow a change of a field', () => {
 		const first = await manualChange(db, contextA, graduatedId, {
 			validFrom: '2026-06-01',
 			baseRent: 60000,
+			parkingRent: 0,
 			operatingCostPrepayment: 20000,
 			heatingCostPrepayment: 5000,
 			reason: 'statement',
@@ -1082,6 +1177,7 @@ describe('later rows follow a change of a field', () => {
 		await manualChange(db, contextA, graduatedId, {
 			validFrom: '2026-09-01',
 			baseRent: 60000,
+			parkingRent: 0,
 			operatingCostPrepayment: 20000,
 			heatingCostPrepayment: 6000,
 			reason: 'manual',
@@ -1119,6 +1215,7 @@ describe('a refused charge sync', () => {
 			manualChange(db, contextA, leaseId, {
 				validFrom: '2025-03-01',
 				baseRent: 65000,
+				parkingRent: 0,
 				operatingCostPrepayment: 15000,
 				heatingCostPrepayment: 5000,
 				reason: 'manual',
@@ -1134,6 +1231,7 @@ describe('a refused charge sync', () => {
 		const added = await manualChange(db, contextA, leaseId, {
 			validFrom: '2025-03-01',
 			baseRent: 65000,
+			parkingRent: 0,
 			operatingCostPrepayment: 15000,
 			heatingCostPrepayment: 5000,
 			reason: 'manual',
