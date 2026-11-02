@@ -85,6 +85,15 @@
 			</Alert>
 		{/if}
 		<form method="POST" action="?/password" class="card" use:enhance>
+			<!-- The account the new password belongs to, for password managers. -->
+			<input
+				type="email"
+				value={data.user.email}
+				autocomplete="username"
+				hidden
+				readonly
+				tabindex="-1"
+			/>
 			<PasswordField
 				label="Aktuelles Passwort"
 				error={passwordErrors?.currentPassword}

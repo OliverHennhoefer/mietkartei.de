@@ -85,7 +85,10 @@ describe('requestPasswordReset', () => {
 describe('findPasswordReset', () => {
 	it('finds a valid token and ignores an expired or unknown one', async () => {
 		const request = await requestPasswordReset(db, 'a@example.org', now);
-		expect(await findPasswordReset(db, request!.token, now)).toMatchObject({ userId: 'user-a' });
+		expect(await findPasswordReset(db, request!.token, now)).toMatchObject({
+			userId: 'user-a',
+			email: 'a@example.org'
+		});
 		expect(
 			await findPasswordReset(db, request!.token, now + PASSWORD_RESET_LIFETIME)
 		).toBeUndefined();
