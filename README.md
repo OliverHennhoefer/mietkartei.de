@@ -34,7 +34,7 @@ Open Source, nachvollziehbar gerechnet, ohne Einarbeitung und direkt mit Claude 
 - **Dokumente:** Verträge, Belege und Schreiben direkt am Objekt oder Vertrag ablegen.
 - **Aufgaben und Fristen:** Kündigungsfristen, Mieterhöhungen und Abrechnungstermine im Blick, auch im eigenen Kalender.
 - **Zugänge:** Mitverwalter mit vollen Rechten oder Steuerberater mit Lesezugriff einladen.
-- **KI-Assistenten:** Claude, ChatGPT und andere MCP-Clients beantworten Fragen wie „Wer ist im Rückstand?“, siehe [Anleitung](https://docs.mietkartei.de/anleitungen/ki-assistenten/).
+- **KI-Assistenten:** Claude und ChatGPT beantworten Fragen wie „Wer ist im Rückstand?“. (siehe [Anleitung](https://docs.mietkartei.de/anleitungen/ki-assistenten/))
 - **Kein Lock-in:** Offener Code, Datenübernahme per CSV, vollständiger Export und Änderungsprotokoll.
 - **Kein Datengeschäft:** Keine Werbung. Selbst betrieben kostenlos, gehostet 5 € im Monat oder 50 € im Jahr, egal wie viele Wohnungen.
 
