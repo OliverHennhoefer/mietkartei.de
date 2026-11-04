@@ -88,10 +88,10 @@ describe('dismissHints and restoreHints', () => {
 
 	it('takes more keys than one statement may bind', async () => {
 		const keys = await Promise.all(
-			Array.from({ length: 50 }, (_, index) => hintKey('x', String(index)))
+			Array.from({ length: 250 }, (_, index) => hintKey('x', String(index)))
 		);
 		await dismissHints(db, ownerA, keys);
-		expect(await db.select().from(dismissedHints)).toHaveLength(50);
+		expect(await db.select().from(dismissedHints)).toHaveLength(250);
 		await restoreHints(db, ownerA.id, keys);
 		expect(await db.select().from(dismissedHints)).toHaveLength(0);
 	});

@@ -25,22 +25,38 @@
 	const hidden = $derived(hints.filter(closed));
 	const back = $derived(page.url.pathname + page.url.search);
 
-	/** Sends the form with fetch and changes the list at once; a failure puts it back. */
-	async function send(event: SubmitEvent, keys: string[], dismissed: boolean) {
+	// One post after the other, so that "wieder anzeigen" right after an x reaches the server
+	// after the x and the stored state is the last click.
+	let queue = Promise.resolve();
+
+	/**
+	 * Changes the list at once and sends the form with fetch. A failed post puts its Hinweise back,
+	 * unless a later click changed them again.
+	 */
+	function send(event: SubmitEvent, keys: string[], dismissed: boolean) {
 		event.preventDefault();
 		const form = event.currentTarget as HTMLFormElement;
-		const before = { ...changed };
+		// Read now: the form of an x leaves the page with its Hinweis.
+		const action = form.action;
+		const body = new FormData(form);
+		const before = Object.fromEntries(keys.map((key) => [key, changed[key]]));
 		for (const key of keys) changed[key] = dismissed;
-		try {
-			const response = await fetch(form.action, {
-				method: 'POST',
-				body: new FormData(form),
-				headers: { accept: 'application/json' }
-			});
-			if (!response.ok) throw new Error(`HTTP ${response.status}`);
-		} catch {
-			changed = before;
-		}
+		queue = queue.then(async () => {
+			try {
+				const response = await fetch(action, {
+					method: 'POST',
+					body,
+					headers: { accept: 'application/json' }
+				});
+				if (!response.ok) throw new Error(`HTTP ${response.status}`);
+			} catch {
+				for (const key of keys) {
+					if (changed[key] !== dismissed) continue;
+					if (before[key] === undefined) delete changed[key];
+					else changed[key] = before[key];
+				}
+			}
+		});
 	}
 </script>
 

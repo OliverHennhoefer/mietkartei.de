@@ -49,6 +49,18 @@ describe('POST /hinweise', () => {
 		expect(await keys()).toEqual([]);
 	});
 
+	it('shows many closed Hinweise again in one post', async () => {
+		const many = await Promise.all(
+			Array.from({ length: 120 }, (_, index) => hintKey('x', String(index)))
+		);
+		await outcome(() => POST(routeEvent(db, { url: '/hinweise', form: { key: many } })));
+		expect(await keys()).toHaveLength(120);
+		await outcome(() =>
+			POST(routeEvent(db, { url: '/hinweise', form: { key: many, restore: '1' } }))
+		);
+		expect(await keys()).toEqual([]);
+	});
+
 	it('returns only to a page of the app', async () => {
 		for (const back of ['https://example.org/', '//example.org/', '/\\example.org']) {
 			const result = await outcome(() =>

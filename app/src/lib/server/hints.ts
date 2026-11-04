@@ -9,8 +9,11 @@ import { dismissedHints } from './db/schema';
 // that user. A Hinweis is known by where it stands and its text, so it shows again once its text
 // changes, e.g. with another amount. Hinweise that block an approval cannot be closed.
 
-/** Keys one post may close or show again; a page has far fewer Hinweise. */
-export const MAX_HINT_KEYS = 50;
+/**
+ * Keys one post may close or show again: "wieder anzeigen" sends every closed Hinweis of a box at
+ * once, and a Nebenkostenabrechnung has a few, rarely dozens. The statements are chunked for D1.
+ */
+export const MAX_HINT_KEYS = 1000;
 
 const KEY = /^[0-9a-f]{64}$/;
 
