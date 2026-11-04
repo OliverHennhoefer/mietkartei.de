@@ -78,7 +78,8 @@ import { assertQuota, type QuotaKind } from './quotas';
 import { renderLetter } from './pdf';
 import { postCharge } from './ledger';
 import { createReminder, reminderLetter, updateReminderText } from './reminders';
-import { approveStatement, DUE_DAYS } from './statements';
+import { dismissHints, hintKey, statementHintScope } from './hints';
+import { approveStatement, DUE_DAYS, getStatement } from './statements';
 import type { Storage } from './storage';
 import type { TenantInput } from './tenants';
 
@@ -2846,6 +2847,18 @@ export async function createDemoData(
 			db.delete(properties).where(inArray(properties.id, propertyIds))
 		]);
 		throw error;
+	}
+
+	// The landlord read the Hinweise of an early Abrechnung back then and closed one with its x, so
+	// that Abrechnung offers to show it again; last year's still show theirs.
+	const userId = context.userId;
+	for (const draft of userId ? drafts.filter((draft) => draft.year < historyYears.at(-2)!) : []) {
+		const view = await getStatement(db, accountId, draft.id);
+		const hint = view?.result.property.warnings.find((warning) => !warning.blocking);
+		if (!view || !hint) continue;
+		const scope = statementHintScope(view.property.id, view.statement.periodStart);
+		await dismissHints(db, { id: userId!, accountId }, [await hintKey(scope, hint.message)]);
+		break;
 	}
 
 	const statementId = drafts.filter((draft) => draft.propertyId === lindenId).at(-1)!.id;

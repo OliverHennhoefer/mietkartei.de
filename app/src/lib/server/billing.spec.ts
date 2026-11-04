@@ -164,6 +164,7 @@ describe('refusesWrite', () => {
 		expect(refusesWrite('expired', 'POST', '/abo/', true)).toBe(false);
 		expect(refusesWrite('expired', 'POST', '/abmelden', true)).toBe(false);
 		expect(refusesWrite('expired', 'POST', '/api/webhooks/stripe', true)).toBe(false);
+		expect(refusesWrite('expired', 'POST', '/hinweise', true)).toBe(false);
 	});
 
 	it('lets read-only accounts delete the account and secure their sign-in', () => {

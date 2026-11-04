@@ -9,13 +9,28 @@ import {
 	listAssociationStatements
 } from '#lib/server/association-statements.ts';
 import { formValues } from '#lib/forms/operating-costs.ts';
-import { auditContext, requireAccount } from '#lib/server/session.ts';
+import { withDismissals } from '#lib/server/hints.ts';
+import { auditContext, requireAccount, requireUser } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, parent }) => {
 	const accountId = requireAccount(locals);
 	const { property } = await parent();
-	return { statements: await listAssociationStatements(locals.db, accountId, property.id) };
+	const userId = requireUser(locals).id;
+	const statements = await listAssociationStatements(locals.db, accountId, property.id);
+	return {
+		statements: await Promise.all(
+			statements.map(async (statement) => ({
+				...statement,
+				findings: await withDismissals(
+					locals.db,
+					userId,
+					`hausgeld:${statement.id}`,
+					statement.findings
+				)
+			}))
+		)
+	};
 };
 
 export const actions: Actions = {

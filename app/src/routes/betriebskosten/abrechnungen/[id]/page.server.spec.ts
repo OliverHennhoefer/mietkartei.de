@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
+import { dismissHints } from '#lib/server/hints.ts';
 import { createStatement } from '#lib/server/statements.ts';
 import {
 	contextA,
 	contextB,
 	outcome,
+	ownerA,
 	routeEvent,
 	seedCostItem,
 	seedLease,
@@ -15,6 +17,8 @@ import { unzipSync } from 'fflate';
 import { GET as receiptsGET } from './belege/+server';
 import { GET } from './pdf/[leaseId]/+server';
 import { actions, load } from './+page.server';
+
+type Hint = { key: string; code: string; blocking: boolean; dismissed: boolean };
 
 let db: Database;
 let statementId: string;
@@ -66,6 +70,19 @@ describe('abrechnungen/[id]', () => {
 		for (const action of ['approve', 'delete', 'correct', 'deliver'] as const) {
 			expect(await act(action, {}, other.id), action).toMatchObject({ error: 404 });
 		}
+	});
+
+	it('marks the Hinweise the user closed', async () => {
+		// Past the deadline of § 556 Abs. 3 BGB, which the draft names as a Hinweis.
+		vi.setSystemTime(new Date('2027-02-01T10:00:00Z'));
+		const hints = async () => {
+			const loaded = await outcome(() => load(routeEvent(db, { params: { id: statementId } })));
+			return (loaded as { data: { hints: Hint[] } }).data.hints;
+		};
+		const [late] = await hints();
+		expect(late).toMatchObject({ code: 'deadline_passed', blocking: false, dismissed: false });
+		await dismissHints(db, ownerA, [late.key]);
+		expect(await hints()).toMatchObject([{ code: 'deadline_passed', dismissed: true }]);
 	});
 
 	it('approves, prints, delivers and corrects a statement', async () => {

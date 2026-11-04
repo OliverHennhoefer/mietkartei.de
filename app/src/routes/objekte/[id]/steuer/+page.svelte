@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
 	import Field from '#lib/components/Field.svelte';
+	import Hints from '#lib/components/Hints.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PreviewLink from '#lib/components/PreviewLink.svelte';
@@ -78,9 +79,7 @@
 	</p>
 </Alert>
 
-{#each tax.findings as finding (finding.code)}
-	<Alert tone="warning"><p>{finding.message}</p></Alert>
-{/each}
+<Hints hints={data.hints} />
 
 <dl class="card details" aria-label="Ergebnis {data.year}">
 	<dt>Summe der Einnahmen (Zeile 32)</dt>

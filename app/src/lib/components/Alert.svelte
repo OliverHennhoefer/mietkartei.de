@@ -41,19 +41,12 @@
 	.alert :global(p) {
 		margin: 0;
 	}
-	.warning {
-		border-left: 3px solid var(--color-text);
-	}
 	.danger {
 		border-color: var(--color-danger-border);
-		border-left: 3px solid var(--color-danger);
 		background: var(--color-danger-subtle);
 	}
 	.danger :global(.icon) {
 		color: var(--color-danger);
-	}
-	.success {
-		border-left: 3px solid var(--color-success);
 	}
 	.success :global(.icon) {
 		color: var(--color-success);

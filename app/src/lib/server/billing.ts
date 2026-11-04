@@ -139,8 +139,11 @@ export function noticeFor(
 	}
 }
 
-/** Paths that still accept every POST while the account is read-only. */
-const writablePaths = new Set(['/abo', '/abmelden', '/api/webhooks/stripe']);
+/**
+ * Paths that still accept every POST while the account is read-only; closing a Hinweis changes
+ * only what the user sees.
+ */
+const writablePaths = new Set(['/abo', '/abmelden', '/api/webhooks/stripe', '/hinweise']);
 
 /**
  * The pages of reset and address confirmation links, which secure the sign-in as well, and of

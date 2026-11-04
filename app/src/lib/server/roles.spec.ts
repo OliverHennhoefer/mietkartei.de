@@ -20,6 +20,7 @@ describe('refusesViewer', () => {
 		expect(refusesViewer('POST', '/einstellungen/kalender', 'create')).toBe(false);
 		expect(refusesViewer('POST', '/einstellungen/ki-assistenten', 'create')).toBe(false);
 		expect(refusesViewer('POST', '/abmelden')).toBe(false);
+		expect(refusesViewer('POST', '/hinweise')).toBe(false);
 		expect(refusesViewer('POST', '/passwort-zuruecksetzen/token')).toBe(false);
 	});
 });

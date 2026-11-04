@@ -1,7 +1,8 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { today } from '#lib/dates.ts';
 import { parseDepreciation, parseLoanInterest } from '#lib/forms/tax.ts';
-import { auditContext, requireAccount } from '#lib/server/session.ts';
+import { withDismissals } from '#lib/server/hints.ts';
+import { auditContext, requireAccount, requireUser } from '#lib/server/session.ts';
 import { loadTaxOverview, saveDepreciation, saveLoanInterest } from '#lib/server/tax.ts';
 import { taxYearOf } from './year';
 import type { Actions, PageServerLoad } from './$types';
@@ -13,7 +14,14 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 	const accountId = requireAccount(locals);
 	const { property } = await parent();
 	const year = taxYearOf(url.searchParams.get('jahr'), today());
-	return { year, tax: await loadTaxOverview(locals.db, accountId, property, year) };
+	const tax = await loadTaxOverview(locals.db, accountId, property, year);
+	const hints = await withDismissals(
+		locals.db,
+		requireUser(locals).id,
+		`steuer:${property.id}:${year}`,
+		tax.findings
+	);
+	return { year, tax, hints };
 };
 
 export const actions: Actions = {
