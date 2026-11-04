@@ -4,7 +4,8 @@
 	import Badge from './Badge.svelte';
 	import Icon from './Icon.svelte';
 
-	// The Hinweise of a check (Nebenkostenabrechnung, Hausgeld, Steuer) in one box. Each has an x
+	// The Hinweise of a check (Nebenkostenabrechnung, Hausgeld, Steuer) in one box, a note rather
+	// than a status: they stand on the page and are not news. Each has an x
 	// that hides it for the signed-in user right away and remembers that (routes/hinweise); closed
 	// ones can be shown again. A Hinweis that blocks an approval has no x.
 	type Hint = {
@@ -85,7 +86,7 @@
 {/snippet}
 
 {#if shown.length > 0}
-	<Alert tone="warning">
+	<Alert tone="warning" role="note">
 		<p><strong>{title}</strong></p>
 		<ul class="hints">
 			{#each shown as hint (hint.key)}
