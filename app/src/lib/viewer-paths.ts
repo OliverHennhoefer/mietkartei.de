@@ -3,7 +3,8 @@
 
 /**
  * Paths that accept every POST of a viewer: signing out, their own display settings, Hinweise and
- * calendar link, API keys and connecting an app, which gets read access only.
+ * calendar link, API keys, connecting an app, which gets read access only, and closing a Hinweis
+ * on a page, which hides it only for them.
  */
 export const viewerPaths = new Set([
 	'/abmelden',
@@ -11,6 +12,7 @@ export const viewerPaths = new Set([
 	'/einstellungen/darstellung',
 	'/einstellungen/kalender',
 	'/einstellungen/ki-assistenten',
+	'/hinweise',
 	'/oauth/authorize'
 ]);
 

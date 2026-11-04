@@ -108,7 +108,7 @@ test('reconciles a Hausgeldabrechnung against the Hausgeld paid', async ({ page 
 	await page.getByLabel('Ergebnis ist').selectOption({ label: 'Guthaben' });
 	await page.getByRole('button', { name: 'Hausgeldabrechnung erfassen' }).click();
 
-	const statement = page.getByRole('list', { name: 'Hausgeldabrechnungen' }).getByRole('listitem');
+	const statement = page.getByRole('list', { name: 'Hausgeldabrechnungen' }).locator(':scope > li');
 	await expect(statement).toContainText('Wirtschaftsjahr 01.01.2025 – 31.12.2025');
 	await expect(statement).toContainText('Kosten gesamt 2.800,00 €');
 	await expect(statement).toContainText('Guthaben 200,00 € (laut Verwalter)');
@@ -116,6 +116,17 @@ test('reconciles a Hausgeldabrechnung against the Hausgeld paid', async ({ page 
 	await expect(statement).toContainText('Nachzahlung 50,00 €');
 	await expect(statement).toContainText('es fehlen 250,00 €');
 	await expect(statement).toContainText('1.800,00 € fehlen noch in der Nebenkostenabrechnung');
+
+	// A checked Hinweis is closed with its x and stays closed; "wieder anzeigen" brings it back.
+	const missing = statement.getByRole('listitem').filter({ hasText: 'fehlen noch' });
+	await missing.getByRole('button', { name: 'Hinweis ausblenden' }).click();
+	await expect(missing).toHaveCount(0);
+	await expect(statement).toContainText('Ein Hinweis ausgeblendet');
+	await page.reload();
+	await expect(statement).toContainText('es fehlen 250,00 €');
+	await expect(missing).toHaveCount(0);
+	await statement.getByRole('button', { name: 'wieder anzeigen' }).click();
+	await expect(missing).toHaveCount(1);
 
 	// A second statement for the same year is refused.
 	await page.getByLabel('Wirtschaftsjahr von').fill('2025-01-01');

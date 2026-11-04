@@ -1661,6 +1661,29 @@ export const notificationStates = sqliteTable(
 	]
 );
 
+/**
+ * A Hinweis a user closed with its x, e.g. a Kostenart above the Betriebskostenspiegel in a
+ * Nebenkostenabrechnung. `key` is the SHA-256 of where the Hinweis stands and its text, so a
+ * Hinweis whose text changes (another amount) shows again. Only the user's own view; the others
+ * of the account still see it.
+ */
+export const dismissedHints = sqliteTable(
+	'dismissed_hints',
+	{
+		id: id(),
+		accountId: accountId(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		key: text('key').notNull(),
+		createdAt: createdAt()
+	},
+	(table) => [
+		uniqueIndex('dismissed_hints_user_key_unique').on(table.userId, table.key),
+		index('dismissed_hints_account_id_idx').on(table.accountId)
+	]
+);
+
 /** One send to a channel, for the history on the settings page. */
 export const notificationDeliveries = sqliteTable(
 	'notification_deliveries',

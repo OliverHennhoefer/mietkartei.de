@@ -1,6 +1,6 @@
 <script lang="ts">
-	import Alert from '#lib/components/Alert.svelte';
 	import AssociationStatementForm from '#lib/components/AssociationStatementForm.svelte';
+	import Hints from '#lib/components/Hints.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import { formatDate, today } from '#lib/dates.ts';
 	import { balanceText } from '#lib/domain/association.ts';
@@ -80,9 +80,7 @@
 					<dt>Mit dem gezahlten Hausgeld</dt>
 					<dd>{balanceText(statement.settlement)}</dd>
 				</dl>
-				{#each statement.findings as finding (finding.code)}
-					<Alert tone="warning"><p>{finding.message}</p></Alert>
-				{/each}
+				<Hints hints={statement.findings} />
 			</li>
 		{/each}
 	</ul>

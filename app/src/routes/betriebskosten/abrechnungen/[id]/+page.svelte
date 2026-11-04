@@ -3,6 +3,7 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
+	import Hints from '#lib/components/Hints.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PreviewLink from '#lib/components/PreviewLink.svelte';
@@ -138,23 +139,7 @@
 	>
 {/if}
 
-{#if property.warnings.length > 0}
-	<Alert tone="warning">
-		<p><strong>Hinweise</strong></p>
-		<ul class="warnings">
-			{#each property.warnings as warning (warning.code + (warning.unitId ?? '') + (warning.leaseId ?? '') + (warning.meterId ?? '') + (warning.itemId ?? ''))}
-				<li>
-					{#if warning.blocking}<Badge tone="danger">blockiert die Freigabe</Badge>{/if}
-					{#if warning.href}
-						<a href={warning.href}>{warning.message}</a>
-					{:else}
-						{warning.message}
-					{/if}
-				</li>
-			{/each}
-		</ul>
-	</Alert>
-{/if}
+<Hints hints={data.hints} />
 
 <div class="stats">
 	<div class="stat">
@@ -537,13 +522,6 @@
 <style>
 	.toolbar {
 		margin-bottom: 1rem;
-	}
-	.warnings {
-		margin: 0.25rem 0 0;
-		padding-left: 1.25rem;
-	}
-	.warnings li {
-		margin: 0.25rem 0;
 	}
 	.lease {
 		margin: 1.5rem 0;

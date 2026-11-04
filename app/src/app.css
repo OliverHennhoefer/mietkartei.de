@@ -1804,9 +1804,10 @@ dl.details dd {
 
 /*
  * Viewers (Lesezugriff): forms that write keep showing the values they hold, but lose their
- * buttons and take no input; links to create or edit pages are hidden.
+ * buttons and take no input; links to create or edit pages are hidden. Forms of class own-view
+ * change only the viewer's own view (closing a Hinweis) and stay.
  */
-.read-only form[method='POST' i] :is(button, input[type='submit']),
+.read-only form[method='POST' i]:not(.own-view) :is(button, input[type='submit']),
 .read-only a[href$='/neu'],
 .read-only a[href$='/bearbeiten'] {
 	display: none !important;

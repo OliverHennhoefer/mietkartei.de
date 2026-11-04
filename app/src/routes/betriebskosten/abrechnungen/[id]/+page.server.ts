@@ -1,7 +1,8 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { today } from '#lib/dates.ts';
 import { parseApproval, parseDelivered } from '#lib/forms/statements.ts';
-import { auditContext, requireAccount } from '#lib/server/session.ts';
+import { statementHintScope, withDismissals } from '#lib/server/hints.ts';
+import { auditContext, requireAccount, requireUser } from '#lib/server/session.ts';
 import { receiptCount } from '#lib/server/statement-receipts.ts';
 import {
 	approveStatement,
@@ -18,7 +19,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const view = await getStatement(locals.db, accountId, params.id);
 	if (!view) error(404, 'Diese Abrechnung gibt es nicht.');
 	const receipts = await receiptCount(locals.db, accountId, view.result.property.items);
-	return { view, receipts, today: today() };
+	// Closed Hinweise stay closed in a correction of the same year as long as their text holds.
+	const hints = await withDismissals(
+		locals.db,
+		requireUser(locals).id,
+		statementHintScope(view.property.id, view.statement.periodStart),
+		view.result.property.warnings
+	);
+	return { view, receipts, hints, today: today() };
 };
 
 /** Every action answers 404 for a statement of another account before it reads the form. */

@@ -29,6 +29,8 @@ import {
 } from './db/schema';
 import type { LeaseStatement } from '../domain/statement';
 import { createDemoData, isEmptyAccount } from './demo';
+import { statementHintScope, withDismissals } from './hints';
+import { getStatement } from './statements';
 import { addDays, today } from '../dates';
 import { listDeadlines } from './deadlines';
 import { addressKey } from './geocoding';
@@ -206,6 +208,26 @@ describe('createDemoData', () => {
 			);
 			expect(result.warnings.filter((warning) => warning.code === 'own_heating_share')).toEqual([]);
 		}
+		// One Hinweis of an early statement was closed back then; last year's still show theirs.
+		const hintsOf = async (id: string) => {
+			const view = (await getStatement(db, 'a', id))!;
+			return withDismissals(
+				db,
+				contextA.userId,
+				statementHintScope(view.property.id, view.statement.periodStart),
+				view.result.property.warnings
+			);
+		};
+		const byYear = [...statements].sort((a, b) => a.periodStart.localeCompare(b.periodStart));
+		const closed = [];
+		for (const statement of byYear) {
+			for (const hint of await hintsOf(statement.id)) if (hint.dismissed) closed.push(statement);
+		}
+		expect(closed).toHaveLength(1);
+		expect(closed[0].periodStart < byYear.at(-1)!.periodStart).toBe(true);
+		expect(
+			(await hintsOf(result.ok ? result.statementId : '')).some((hint) => !hint.dismissed)
+		).toBe(true);
 		expect(
 			await db.select().from(associationStatements).where(eq(associationStatements.accountId, 'a'))
 		).toHaveLength(16);
