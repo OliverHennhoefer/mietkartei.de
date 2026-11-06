@@ -47,6 +47,9 @@
 			</li>
 		{/each}
 	</ul>
+	{#if data.units.some((unit) => unit.occupancies.length > 0)}
+		<p><a href="/mieter?objekt={data.property.id}">Mieter dieses Objekts</a></p>
+	{/if}
 {/if}
 
 <h2 id="einheit-anlegen">Einheit anlegen</h2>

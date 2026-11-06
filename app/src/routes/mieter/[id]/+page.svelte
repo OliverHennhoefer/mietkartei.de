@@ -127,6 +127,10 @@
 			{#if data.address.lease}<span class="muted small"> · aus dem Mietvertrag</span>{/if}
 		{:else}–{/if}
 	</dd>
+	{#if data.tenant.birthDate}
+		<dt>Geburtsdatum</dt>
+		<dd>{formatDate(data.tenant.birthDate)}</dd>
+	{/if}
 	{#if data.tenant.notes}
 		<dt>Notizen</dt>
 		<dd class="notes">{data.tenant.notes}</dd>

@@ -246,14 +246,15 @@ describe('planImport: properties and units', () => {
 describe('planImport: tenants', () => {
 	it('validates every row like the tenant form and skips duplicates', () => {
 		const csv = [
-			'Anrede;Vorname;Nachname;E-Mail;PLZ',
-			'Frau;Lena;Importmann;lena@example.org;',
-			';Jonas;Beispiel;;10115',
-			';;Ohnevorname;;',
-			';Kurt;Falschmail;kurt(at)example.org;',
-			';Lena;Importmann;;',
-			';Erika;Mustermann;;',
-			';Max;Plz;;123'
+			'Anrede;Vorname;Nachname;Geburtsdatum;E-Mail;PLZ',
+			'Frau;Lena;Importmann;14.03.1980;lena@example.org;',
+			';Jonas;Beispiel;;;10115',
+			';;Ohnevorname;;;',
+			';Kurt;Falschmail;;kurt(at)example.org;',
+			';Lena;Importmann;;;',
+			';Erika;Mustermann;;;',
+			';Max;Plz;;;123',
+			';Kai;Datum;31.02.1980;;'
 		].join('\n');
 		const context: ImportContext = {
 			...emptyImportContext,
@@ -266,6 +267,7 @@ describe('planImport: tenants', () => {
 				salutation: 'Frau',
 				firstName: 'Lena',
 				lastName: 'Importmann',
+				birthDate: '1980-03-14',
 				email: 'lena@example.org',
 				phone: null,
 				street: null,
@@ -277,6 +279,7 @@ describe('planImport: tenants', () => {
 				salutation: null,
 				firstName: 'Jonas',
 				lastName: 'Beispiel',
+				birthDate: null,
 				email: null,
 				phone: null,
 				street: null,
@@ -290,7 +293,8 @@ describe('planImport: tenants', () => {
 			[5, 'E-Mail: Bitte gib eine gültige E-Mail-Adresse an.'],
 			[6, 'Der Mieter „Lena Importmann“ steht doppelt in der Datei.'],
 			[7, 'Den Mieter „Erika Mustermann“ gibt es schon.'],
-			[8, 'PLZ: Die Postleitzahl hat fünf Ziffern.']
+			[8, 'PLZ: Die Postleitzahl hat fünf Ziffern.'],
+			[9, 'Geburtsdatum: Bitte gib ein gültiges Datum an.']
 		]);
 	});
 

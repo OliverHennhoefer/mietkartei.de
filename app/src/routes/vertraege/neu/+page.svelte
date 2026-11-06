@@ -5,9 +5,14 @@
 	import LeaseForm from '#lib/components/LeaseForm.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import { personName } from '#lib/format.ts';
+	import { FreshForm } from '#lib/fresh-form.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+	// "Speichern und nächsten Mietvertrag" comes back here; the next lease starts empty.
+	const fresh = new FreshForm();
+	const savedText = (saved: { label: string; tenants: string[] }) =>
+		`Der Mietvertrag ${saved.label}${saved.tenants.length > 0 ? ` mit ${saved.tenants.join(' und ')}` : ''} ist angelegt.`;
 	const createdNames = $derived(data.created.map((tenant) => personName(tenant)).join(' und '));
 </script>
 
@@ -22,7 +27,17 @@
 		</p>
 		<p>
 			{#if data.units.length > 0}Ziehen mehrere ein? Tipp die weiteren Namen unten bei Mieter ein ·{/if}
-			<a href="/mieter/{data.created[0].id}">Mietvertrag später anlegen</a>
+			<a href="/mieter/{data.created[0].id}">Mietvertrag später anlegen</a> ·
+			<a href="/mieter/neu">Nächsten Mieter anlegen</a>
+		</p>
+	</Alert>
+{/if}
+
+{#if data.saved && !form}
+	<Alert tone="success">
+		<p>
+			{savedText(data.saved)}
+			<a href="/vertraege/{data.saved.id}">Mietvertrag ansehen</a>
 		</p>
 	</Alert>
 {/if}
@@ -35,15 +50,18 @@
 		<CreateButton href="/objekte" label="Objekt und Einheit anlegen" />
 	</EmptyState>
 {:else}
-	<LeaseForm
-		mode="create"
-		action="?/create"
-		values={form?.values ?? data.defaults}
-		errors={form?.errors ?? {}}
-		depositWarning={form?.depositWarning}
-		units={data.units}
-		tenants={data.tenants}
-		submitLabel="Mietvertrag anlegen"
-		cancelHref={data.created.length > 0 ? `/mieter/${data.created[0].id}` : '/vertraege'}
-	/>
+	{#key fresh.visit}
+		<LeaseForm
+			mode="create"
+			action="?/create"
+			values={form?.values ?? data.defaults}
+			errors={form?.errors ?? {}}
+			depositWarning={form?.depositWarning}
+			units={data.units}
+			tenants={data.tenants}
+			submitLabel="Mietvertrag anlegen"
+			nextLabel="Speichern und nächsten Mietvertrag"
+			cancelHref={data.created.length > 0 ? `/mieter/${data.created[0].id}` : '/vertraege'}
+		/>
+	{/key}
 {/if}

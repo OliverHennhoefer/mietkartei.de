@@ -35,6 +35,7 @@
 		lease,
 		depositWarning,
 		submitLabel,
+		nextLabel = null,
 		cancelHref
 	}: {
 		mode: 'create' | 'edit';
@@ -46,6 +47,8 @@
 		lease?: LeaseSummary;
 		depositWarning?: string;
 		submitLabel: string;
+		/** A second button that saves and starts the next one (name="next"), when set. */
+		nextLabel?: string | null;
 		cancelHref: string;
 	} = $props();
 
@@ -212,7 +215,7 @@
 				name="baseRent"
 				defaultValue={values.baseRent ?? ''}
 				inputmode="decimal"
-				placeholder="650,00"
+				placeholder="650"
 				aria-invalid={invalid('baseRent')}
 				required
 			/>
@@ -226,7 +229,7 @@
 				name="parkingRent"
 				defaultValue={values.parkingRent ?? ''}
 				inputmode="decimal"
-				placeholder="0,00"
+				placeholder="0"
 				aria-invalid={invalid('parkingRent')}
 			/>
 		</Field>
@@ -240,7 +243,7 @@
 				name="securityDeposit"
 				defaultValue={values.securityDeposit ?? ''}
 				inputmode="decimal"
-				placeholder="0,00"
+				placeholder="0"
 				aria-invalid={invalid('securityDeposit')}
 			/>
 		</Field>
@@ -258,7 +261,7 @@
 				name="operatingCostPrepayment"
 				defaultValue={values.operatingCostPrepayment ?? ''}
 				inputmode="decimal"
-				placeholder="0,00"
+				placeholder="0"
 				aria-invalid={invalid('operatingCostPrepayment')}
 			/>
 		</Field>
@@ -288,7 +291,7 @@
 					name="heatingCostPrepayment"
 					defaultValue={values.heatingCostPrepayment ?? ''}
 					inputmode="decimal"
-					placeholder="0,00"
+					placeholder="0"
 					aria-invalid={invalid('heatingCostPrepayment')}
 				/>
 			</Field>
@@ -337,7 +340,7 @@
 					name="openingBalance"
 					defaultValue={values.openingBalance ?? ''}
 					inputmode="decimal"
-					placeholder="0,00"
+					placeholder="0"
 					aria-invalid={invalid('openingBalance')}
 				/>
 			</Field>
@@ -431,6 +434,9 @@
 
 	<div class="form-actions">
 		<button type="submit">{submitLabel}</button>
+		{#if nextLabel}
+			<button type="submit" name="next" value="1" class="secondary">{nextLabel}</button>
+		{/if}
 		<a href={cancelHref} class="button secondary">Abbrechen</a>
 	</div>
 </form>

@@ -6,6 +6,7 @@ const complete = {
 	salutation: 'Frau',
 	firstName: ' Erika ',
 	lastName: 'Mustermann',
+	birthDate: '1980-03-14',
 	email: 'Erika.Mustermann@Example.org',
 	phone: '030 1234567',
 	street: 'Lindenstraße 4',
@@ -26,6 +27,7 @@ describe('parseTenant', () => {
 				salutation: 'Frau',
 				firstName: 'Erika',
 				lastName: 'Mustermann',
+				birthDate: '1980-03-14',
 				email: 'erika.mustermann@example.org',
 				phone: '030 1234567',
 				street: 'Lindenstraße 4',
@@ -44,6 +46,7 @@ describe('parseTenant', () => {
 				salutation: null,
 				firstName: 'Max',
 				lastName: 'Mustermann',
+				birthDate: null,
 				email: null,
 				phone: null,
 				street: null,
@@ -70,6 +73,17 @@ describe('parseTenant', () => {
 			firstName: 'Höchstens 100 Zeichen.',
 			lastName: 'Höchstens 100 Zeichen.'
 		});
+	});
+
+	it('takes a valid birth date up to today only', () => {
+		const future = parse({ birthDate: '2099-01-01' });
+		expect(future.ok).toBe(false);
+		if (future.ok) return;
+		expect(future.errors).toEqual({ birthDate: 'Das Datum liegt in der Zukunft.' });
+		const invalid = parse({ birthDate: '14.03.1980' });
+		expect(invalid.ok).toBe(false);
+		if (invalid.ok) return;
+		expect(invalid.errors).toEqual({ birthDate: 'Bitte gib ein gültiges Datum an.' });
 	});
 
 	it('rejects an invalid email address and a postal code without five digits', () => {

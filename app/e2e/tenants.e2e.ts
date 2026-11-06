@@ -51,6 +51,51 @@ test('creates a tenant, edits it and finds it in the list', async ({ page }) => 
 	await expect(row.getByRole('link', { name: 'Mietvertrag anlegen' })).toBeVisible();
 });
 
+test('saves a tenant with a birth date and starts the next one empty', async ({ page }) => {
+	const lastName = `Serie-${suffix()}`;
+	await page.goto('/mieter/neu');
+	await page.getByLabel('Vorname').fill('Ina');
+	await page.getByLabel('Nachname').fill(lastName);
+	await page.getByLabel('Geburtsdatum (optional)').fill('1980-03-14');
+	await page.getByRole('button', { name: 'Speichern und nächsten Mieter' }).click();
+
+	await expect(page).toHaveURL(/\/mieter\/neu\?angelegt=[^&]+$/);
+	const notice = page.getByRole('status').filter({ hasText: `Ina ${lastName} ist angelegt.` });
+	await expect(notice).toBeVisible();
+	await expect(page.getByLabel('Vorname')).toHaveValue('');
+	await expect(page.getByLabel('Nachname')).toHaveValue('');
+	await expect(page.getByLabel('Geburtsdatum (optional)')).toHaveValue('');
+
+	await notice.getByRole('link', { name: 'Mietvertrag anlegen' }).click();
+	await expect(page).toHaveURL(/\/vertraege\/neu\?tenantId=[^&]+$/);
+	await page.goto('/mieter');
+	await page.getByRole('searchbox', { name: 'Mieter durchsuchen' }).fill(lastName);
+	await page.getByRole('link', { name: `Ina ${lastName}` }).click();
+	await expect(page.getByText('14.03.1980')).toBeVisible();
+});
+
+test('shows the tenants of one property under its heading', async ({ page }) => {
+	const s = suffix();
+	await seedLease(page.request, {
+		property: { name: `Filterhaus A ${s}` },
+		tenant: { lastName: `Filter-A-${s}` }
+	});
+	await seedLease(page.request, {
+		property: { name: `Filterhaus B ${s}` },
+		tenant: { lastName: `Filter-B-${s}` }
+	});
+	await page.goto('/mieter');
+	const table = page.getByRole('table', { name: 'Mieter' });
+	// Both owe their first rent, so they stand under the group of tenants who need something.
+	await expect(table.getByRole('columnheader', { name: 'Rückstand oder Umzug' })).toBeVisible();
+
+	await page.getByLabel('Objekt').selectOption({ label: `Filterhaus A ${s}` });
+	await expect(page).toHaveURL(/\/mieter\?objekt=[^&]+$/);
+	await expect(page.getByRole('heading', { name: `Mieter in Filterhaus A ${s}` })).toBeVisible();
+	await expect(table).toContainText(`Filter-A-${s}`);
+	await expect(table).not.toContainText(`Filter-B-${s}`);
+});
+
 test('shows validation errors next to the fields', async ({ page }) => {
 	await page.goto('/mieter/neu');
 	await page.getByLabel('Vorname').fill('Max');

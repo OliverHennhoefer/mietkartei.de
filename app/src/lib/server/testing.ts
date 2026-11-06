@@ -111,6 +111,7 @@ export function tenantInput(overrides: Partial<TenantInput> = {}): TenantInput {
 		salutation: null,
 		firstName: 'Erika',
 		lastName: 'Mustermann',
+		birthDate: null,
 		email: null,
 		phone: null,
 		street: null,

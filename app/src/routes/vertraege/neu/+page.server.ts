@@ -6,8 +6,9 @@ import {
 	parseNewTenants,
 	parseOpeningBalance
 } from '#lib/forms/leases.ts';
+import { personName } from '#lib/format.ts';
 import { parseCents } from '#lib/money.ts';
-import { createLease, listUnitsWithProperty } from '#lib/server/leases.ts';
+import { createLease, getLease, leaseLabel, listUnitsWithProperty } from '#lib/server/leases.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -15,7 +16,8 @@ import type { Actions, PageServerLoad } from './$types';
 // ?unitId= and ?tenantId= preselect the unit and the tenants (unit rows and tenant pages link
 // here); a tenant created through /mieter/neu?return=/vertraege/neu comes back the same way, and
 // /mieter/neu without a return sends the new tenant here with ?created=1, which names them in a
-// notice above the form.
+// notice above the form. "Speichern und nächsten Mietvertrag" comes back here with
+// ?angelegt=<lease id>, which names the lease just saved; the form starts empty again.
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const accountId = requireAccount(locals);
 	const [units, tenants] = await Promise.all([
@@ -32,7 +34,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const created = url.searchParams.has('created')
 		? tenants.filter((tenant) => tenantIds.includes(tenant.id))
 		: [];
-	return { units, tenants, defaults, created };
+	const savedId = url.searchParams.get('angelegt');
+	const saved = savedId ? await getLease(locals.db, accountId, savedId) : undefined;
+	return {
+		units,
+		tenants,
+		defaults,
+		created,
+		saved: saved
+			? { id: saved.id, label: leaseLabel(saved), tenants: saved.tenants.map(personName) }
+			: null
+	};
 };
 
 /** The form as typed, for re-rendering after a refusal that is not a field error. */
@@ -108,6 +120,7 @@ export const actions: Actions = {
 			return fail(400, { errors, values, depositWarning: warningFor(values) });
 		}
 
+		if (form.get('next') === '1') redirect(303, `/vertraege/neu?angelegt=${result.id}`);
 		redirect(303, `/vertraege/${result.id}`);
 	}
 };

@@ -11,6 +11,7 @@
 		salutation: data.tenant.salutation ?? '',
 		firstName: data.tenant.firstName,
 		lastName: data.tenant.lastName,
+		birthDate: data.tenant.birthDate ?? '',
 		email: data.tenant.email ?? '',
 		phone: data.tenant.phone ?? '',
 		street: data.tenant.street ?? '',

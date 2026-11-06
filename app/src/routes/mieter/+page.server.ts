@@ -19,7 +19,10 @@ import type { PageServerLoad } from './$types';
 //
 // Each tenant carries what matters today: the Warmmiete, the Rückstand with the letters about it,
 // since when they rent, a notice given and a lease about to begin; the page shows it on the row.
-export const load: PageServerLoad = async ({ locals }) => {
+//
+// ?objekt=<id> keeps the tenants of one property: those with a running or coming lease there.
+// properties lists every property with such a tenant, for the filter and the group headings.
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const accountId = requireAccount(locals);
 	const date = today();
 	const [tenants, leases, balances, reminders] = await Promise.all([
@@ -67,6 +70,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
 		return {
 			...tenant,
+			propertyIds: [
+				...new Set([...active, ...(moveIn ? [moveIn] : [])].map((lease) => lease.property.id))
+			],
 			activeLeases: active.map((lease) => ({
 				id: lease.id,
 				label: leaseLabel(lease),
@@ -134,8 +140,24 @@ export const load: PageServerLoad = async ({ locals }) => {
 		...active.filter((tenant) => !attention.has(tenant))
 	];
 
+	const properties = [
+		...new Map(
+			leases
+				.filter((lease) => lease.active || lease.upcoming)
+				.map((lease) => [lease.property.id, lease.property])
+		).values()
+	]
+		.sort(byProperty)
+		.map(({ id, name }) => ({ id, name }));
+	const requested = url.searchParams.get('objekt');
+	const propertyId = properties.some((property) => property.id === requested) ? requested : null;
+
 	return {
-		tenants: sorted,
-		archived: rows.filter((tenant) => tenant.archivedAt)
+		tenants: propertyId
+			? sorted.filter((tenant) => tenant.propertyIds.includes(propertyId))
+			: sorted,
+		archived: rows.filter((tenant) => tenant.archivedAt),
+		properties,
+		propertyId
 	};
 };

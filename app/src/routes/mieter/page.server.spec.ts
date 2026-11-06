@@ -7,6 +7,7 @@ import { getTenant } from '#lib/server/tenants.ts';
 import {
 	contextA,
 	outcome,
+	ownerA,
 	routeEvent,
 	seedLease,
 	seedTenant,
@@ -80,6 +81,51 @@ describe('mieter', () => {
 			...lindenwegRows,
 			[tenantId, null]
 		]);
+	});
+
+	it('keeps the tenants of one property and lists the properties with tenants', async () => {
+		const lindenweg = await seedUnit(db, 'a', { propertyName: 'Lindenweg' });
+		const ahornstrasse = await seedUnit(db, 'a', { propertyName: 'Ahornstraße' });
+		const anna = await seedTenant(db, 'a', { firstName: 'Anna', lastName: 'Zeller' });
+		const bernd = await seedTenant(db, 'a', { firstName: 'Bernd', lastName: 'Adler' });
+		const clara = await seedTenant(db, 'a', { firstName: 'Clara', lastName: 'Brandt' });
+		await seedLease(db, 'a', lindenweg.unitId, { tenantIds: [anna], startDate: today() });
+		await seedLease(db, 'a', ahornstrasse.unitId, { tenantIds: [bernd], startDate: today() });
+		// Moving in later: she counts for the property already.
+		const later = await seedUnit(db, 'a', { propertyName: 'Lindenweg' });
+		await seedLease(db, 'a', later.unitId, {
+			tenantIds: [clara],
+			startDate: addMonths(today(), 2)
+		});
+
+		type Data = {
+			tenants: { id: string }[];
+			properties: { id: string; name: string }[];
+			propertyId: string | null;
+		};
+		const all = ((await run(load)) as { data: Data }).data;
+		expect(all.propertyId).toBeNull();
+		expect(all.properties.map((property) => property.name)).toEqual([
+			'Ahornstraße',
+			'Lindenweg',
+			'Lindenweg'
+		]);
+		expect(all.tenants.map((row) => row.id)).toContain(tenantId);
+
+		const one = (
+			(await run(load, { url: `/mieter?objekt=${lindenweg.propertyId}` })) as { data: Data }
+		).data;
+		expect(one.propertyId).toBe(lindenweg.propertyId);
+		expect(one.tenants.map((row) => row.id)).toEqual([anna]);
+		const coming = (
+			(await run(load, { url: `/mieter?objekt=${later.propertyId}` })) as { data: Data }
+		).data;
+		expect(coming.tenants.map((row) => row.id)).toEqual([clara]);
+
+		// An unknown property shows everyone.
+		const unknown = ((await run(load, { url: '/mieter?objekt=nope' })) as { data: Data }).data;
+		expect(unknown.propertyId).toBeNull();
+		expect(unknown.tenants).toHaveLength(all.tenants.length);
 	});
 
 	it('puts the Rückstände and then the coming moves first, with the figures of each tenant', async () => {
@@ -188,9 +234,36 @@ describe('mieter', () => {
 		});
 	});
 
+	it('saves a tenant and starts the next one, naming the tenant just saved', async () => {
+		const result = await run(newActions.create, { form: { ...tenant, next: '1' } });
+		expect(result).toEqual({ redirect: expect.stringMatching(/^\/mieter\/neu\?angelegt=[\w-]+$/) });
+		const url = (result as { redirect: string }).redirect;
+		expect(await run(loadNew, { url })).toMatchObject({
+			data: { returnTo: null, created: { firstName: 'Max', lastName: 'Müller' } }
+		});
+		// Another account's tenant names nothing.
+		const otherAccount = { ...ownerA, id: 'user-b', accountId: 'b' };
+		expect(await run(loadNew, { url, user: otherAccount })).toMatchObject({
+			data: { created: null }
+		});
+	});
+
+	it('keeps the birth date of a tenant through create and edit', async () => {
+		const result = await run(newActions.create, { form: { ...tenant, birthDate: '1980-03-14' } });
+		const id = new URL(
+			(result as { redirect: string }).redirect,
+			'http://localhost'
+		).searchParams.get('tenantId')!;
+		expect(await getTenant(db, 'a', id)).toMatchObject({ birthDate: '1980-03-14' });
+		await run(editActions.update, { params: { id }, form: { ...tenant, birthDate: '1980-03-15' } });
+		expect(await getTenant(db, 'a', id)).toMatchObject({ birthDate: '1980-03-15' });
+		await run(editActions.update, { params: { id }, form: tenant });
+		expect(await getTenant(db, 'a', id)).toMatchObject({ birthDate: null });
+	});
+
 	it('creates a tenant and returns to a safe path with it preselected', async () => {
 		expect(await run(loadNew, { url: '/mieter/neu?return=/vertraege/neu' })).toEqual({
-			data: { returnTo: '/vertraege/neu' }
+			data: { returnTo: '/vertraege/neu', created: null }
 		});
 		expect(await run(loadNew, { url: '/mieter/neu?return=https://evil.example' })).toMatchObject({
 			data: { returnTo: null }
