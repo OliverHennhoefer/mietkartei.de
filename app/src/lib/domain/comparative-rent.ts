@@ -23,7 +23,8 @@ import { rentOn, total, unitRent, type RentChange } from './rents';
 // A garage or parking space rented with the flat (parkingRent, part of the Kaltmiete) is not part
 // of the Vergleichsmiete per m² of the Mietspiegel. The demand raises the flat's share only: the
 // Kappungsgrenze and the Vergleichsmiete apply to the Kaltmiete without the parking share, which
-// stays as it is. The amounts the page shows and the demand enters are whole Kaltmieten.
+// stays as it is. The demand and the consent enter the Kaltmiete of the flat, without the parking
+// share; the stored change and the letter carry the whole Kaltmiete.
 
 /** § 558 Abs. 3 BGB: 20 %, or 15 % where a Land ordinance names the Gemeinde. */
 export const cappingPercents = [20, 15] as const;
@@ -115,7 +116,7 @@ export type ComparativeSituation = {
 	parkingRent: number;
 	/** The Kaltmiete without the parking share three years before validFrom. */
 	capBase: number | undefined;
-	/** The most the Kaltmiete (with the parking share) may reach per Kappungsgrenze. */
+	/** The most the Kaltmiete of the flat (without the parking share) may reach per Kappungsgrenze. */
 	caps: Record<CappingPercent, number> | undefined;
 	/** The demand waiting for the tenant's consent, if any. */
 	pending: HistoryChange | undefined;
@@ -137,7 +138,7 @@ export function comparativeSituation(
 	const capBase = current ? cappingBase(changes, validFrom) : undefined;
 	const caps =
 		capBase !== undefined
-			? { 20: cappedRent(capBase, 20) + parkingRent, 15: cappedRent(capBase, 15) + parkingRent }
+			? { 20: cappedRent(capBase, 20), 15: cappedRent(capBase, 15) }
 			: undefined;
 	const pending = changes.find((change) => change.status === 'proposed');
 
@@ -172,6 +173,7 @@ export function comparativeSituation(
 
 export type ComparativeDemand = {
 	deliveredOn: IsoDate;
+	/** The new Kaltmiete of the flat, without a garage rented with it (which keeps its rent). */
 	baseRent: number;
 	/** Cents per m². */
 	comparativeRent: number;
@@ -189,8 +191,10 @@ export function demandProblem(
 	situation: ComparativeSituation,
 	demand: ComparativeDemand
 ): { field: keyof ComparativeDemand; message: string } | undefined {
-	const current = situation.currentBaseRent!;
+	const parking = situation.parkingRent;
+	const current = situation.currentBaseRent! - parking;
 	const area = lease.floorArea!;
+	const flat = parking > 0 ? ' für die Wohnung' : '';
 	if (situation.demandFrom && demand.deliveredOn < situation.demandFrom) {
 		return {
 			field: 'deliveredOn',
@@ -200,24 +204,21 @@ export function demandProblem(
 	if (demand.baseRent <= current) {
 		return {
 			field: 'baseRent',
-			message: `Die neue Kaltmiete muss über der bisherigen von ${formatCents(current)} liegen.`
+			message: `Die neue Kaltmiete${flat} muss über der bisherigen von ${formatCents(current)} liegen.`
 		};
 	}
-	const parking = situation.parkingRent;
-	const withParking = parking > 0 ? `, mit ${formatCents(parking)} für Garage/Stellplatz` : '';
-	const cap = cappedRent(situation.capBase!, demand.cappingPercent) + parking;
+	const cap = cappedRent(situation.capBase!, demand.cappingPercent);
 	if (demand.baseRent > cap) {
-		const base = `${formatCents(situation.capBase!)}${parking > 0 ? ' für die Wohnung' : ''}`;
 		return {
 			field: 'baseRent',
-			message: `Die Kappungsgrenze von ${demand.cappingPercent} % erlaubt höchstens ${formatCents(cap)}${withParking} (${base} drei Jahre vor dem ${formatDate(situation.validFrom)}, § 558 Abs. 3 BGB).`
+			message: `Die Kappungsgrenze von ${demand.cappingPercent} % erlaubt${flat} höchstens ${formatCents(cap)} (${formatCents(situation.capBase!)} drei Jahre vor dem ${formatDate(situation.validFrom)}, § 558 Abs. 3 BGB).`
 		};
 	}
-	const limit = comparisonLimit(demand.comparativeRent, area) + parking;
+	const limit = comparisonLimit(demand.comparativeRent, area);
 	if (demand.baseRent > limit) {
 		return {
 			field: 'baseRent',
-			message: `Die Vergleichsmiete von ${formatCents(demand.comparativeRent)} je m² erlaubt bei ${formatArea(area)} höchstens ${formatCents(limit)}${withParking}.`
+			message: `Die Vergleichsmiete von ${formatCents(demand.comparativeRent)} je m² erlaubt bei ${formatArea(area)} höchstens ${formatCents(limit)}${flat}.`
 		};
 	}
 	return undefined;

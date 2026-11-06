@@ -94,18 +94,16 @@
 	const rentDetails = $derived.by(() => {
 		const parking = comparative.parkingRent;
 		const details: string[] = [];
-		if (parking > 0) details.push(`davon ${formatCents(parking)} für Garage/Stellplatz`);
+		if (parking > 0) details.push(`zzgl. ${formatCents(parking)} für Garage/Stellplatz`);
 		if (floorArea && comparative.currentBaseRent !== undefined) {
 			const perArea = perSquareMetre(comparative.currentBaseRent - parking, floorArea);
-			details.push(
-				`${formatCents(perArea)} je m²${parking > 0 ? ' für die Wohnung' : ''} bei ${formatArea(floorArea)}`
-			);
+			details.push(`${formatCents(perArea)} je m² bei ${formatArea(floorArea)}`);
 		}
 		return details;
 	});
 	const capNote = $derived(
 		comparative.parkingRent > 0
-			? `für die Wohnung drei Jahre vor dem ${formatDate(comparative.validFrom)}; der Anteil für Garage/Stellplatz kommt unverändert hinzu`
+			? `für die Wohnung drei Jahre vor dem ${formatDate(comparative.validFrom)}; die Miete für Garage/Stellplatz bleibt unverändert`
 			: `drei Jahre vor dem ${formatDate(comparative.validFrom)}`
 	);
 	const demanded = $derived(
@@ -316,6 +314,7 @@
 			<p>
 				<strong>Vorschlag:</strong> Kaltmiete <Money cents={pending.baseRent} />
 				{#if current}statt <Money cents={current.baseRent} />{/if}
+				{#if pending.parkingRent > 0}(einschließlich <Money cents={pending.parkingRent} /> für Garage/Stellplatz){/if}
 				{#if pending.indexMonth && pending.indexValue !== null}
 					nach dem Index {formatIndexValue(pending.indexValue)} ({formatMonth(pending.indexMonth)}).
 				{/if}
@@ -393,7 +392,10 @@
 			{#each steps as step (step.id)}
 				<li class="card">
 					<span>ab {formatDate(step.validFrom)}</span>
-					<span>Kaltmiete <Money cents={step.baseRent} /></span>
+					<span
+						>Kaltmiete <Money cents={step.baseRent - step.parkingRent} />{#if step.parkingRent > 0}
+							zzgl. <Money cents={step.parkingRent} /> Garage/Stellplatz{/if}</span
+					>
 				</li>
 			{/each}
 		</ul>
@@ -408,7 +410,13 @@
 				required
 			/>
 		</Field>
-		<Field label="Neue Kaltmiete" error={stepErrors?.baseRent}>
+		<Field
+			label="Neue Kaltmiete"
+			error={stepErrors?.baseRent}
+			hint={data.changeDefaults.parkingRent > 0
+				? `Ohne die ${formatCents(data.changeDefaults.parkingRent)} für Garage/Stellplatz; die bleiben unverändert.`
+				: undefined}
+		>
 			<input
 				name="baseRent"
 				inputmode="decimal"
@@ -439,7 +447,7 @@
 		{#if comparative.currentBaseRent !== undefined}
 			<dt>Kaltmiete</dt>
 			<dd>
-				<Money cents={comparative.currentBaseRent} />
+				<Money cents={comparative.currentBaseRent - comparative.parkingRent} />
 				{#if rentDetails.length > 0}({rentDetails.join('; ')}){/if}
 			</dd>
 		{/if}
@@ -465,10 +473,15 @@
 	{#if demanded}
 		<div class="card stack proposal">
 			<p>
-				<strong>Verlangt:</strong> Kaltmiete <Money cents={demanded.baseRent} />
+				<strong>Verlangt:</strong> Kaltmiete <Money
+					cents={demanded.baseRent - demanded.parkingRent}
+				/>
 				{#if comparative.currentBaseRent !== undefined}statt <Money
-						cents={comparative.currentBaseRent}
+						cents={comparative.currentBaseRent - comparative.parkingRent}
 					/>{/if}
+				{#if demanded.parkingRent > 0}(Garage/Stellplatz unverändert <Money
+						cents={demanded.parkingRent}
+					/>){/if}
 				ab {formatDate(demanded.validFrom)}.
 				{#if demanded.deliveredOn}
 					Zugegangen am {formatDate(demanded.deliveredOn)}; der Mieter kann bis zum {formatDate(
@@ -500,12 +513,15 @@
 				<Field
 					label="Vereinbarte Kaltmiete"
 					error={consentErrors?.baseRent}
-					hint="Bei einer Teilzustimmung der niedrigere Betrag."
+					hint={demanded.parkingRent > 0
+						? 'Für die Wohnung, ohne Garage/Stellplatz. Bei einer Teilzustimmung der niedrigere Betrag.'
+						: 'Bei einer Teilzustimmung der niedrigere Betrag.'}
 				>
 					<input
 						name="baseRent"
 						inputmode="decimal"
-						defaultValue={consentValues?.baseRent ?? formatCentsPlain(demanded.baseRent)}
+						defaultValue={consentValues?.baseRent ??
+							formatCentsPlain(demanded.baseRent - demanded.parkingRent)}
 						aria-invalid={consentErrors?.baseRent ? 'true' : undefined}
 						required
 					/>
@@ -540,7 +556,7 @@
 				label="Neue Kaltmiete"
 				error={demandErrors?.baseRent}
 				hint={comparative.parkingRent > 0
-					? `Mit den unveränderten ${formatCents(comparative.parkingRent)} für Garage/Stellplatz; nur die Miete der Wohnung steigt.`
+					? `Für die Wohnung, ohne die ${formatCents(comparative.parkingRent)} für Garage/Stellplatz; die bleiben unverändert.`
 					: undefined}
 			>
 				<input
