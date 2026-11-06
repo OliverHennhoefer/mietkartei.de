@@ -16,7 +16,8 @@
 		suggestedPrepayments,
 		type LeaseStatement
 	} from '#lib/domain/statement.ts';
-	import { formatArea, personName, pluralize } from '#lib/format.ts';
+	import { leaseTenantName } from '#lib/domain/addressee.ts';
+	import { formatArea, pluralize } from '#lib/format.ts';
 	import { allocationKeyKindLabels, statementStatusLabels } from '#lib/labels.ts';
 	import { formatCents } from '#lib/money.ts';
 	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
@@ -36,7 +37,7 @@
 
 	const leaseResult = (leaseId: string) => view.leaseResults.find((row) => row.leaseId === leaseId);
 	const unitNames = (lease: LeaseStatement) => lease.units.map((unit) => unit.name).join(' + ');
-	const tenantNames = (lease: LeaseStatement) => lease.tenants.map(personName).join(', ');
+	const tenantNames = (lease: LeaseStatement) => leaseTenantName(lease.tenants);
 	const leaseArea = (lease: LeaseStatement) =>
 		lease.units.reduce((sum, unit) => sum + (unit.floorArea ?? 0), 0);
 	/** § 560 Abs. 4 BGB: a twelfth of the year's costs, operating and heating cost apart. */

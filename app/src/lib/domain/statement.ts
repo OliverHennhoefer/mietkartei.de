@@ -13,7 +13,8 @@ import {
 	type IsoDate,
 	type IsoMonth
 } from '../dates';
-import { formatArea, formatNumber, personName } from '../format';
+import { leaseTenantName } from './addressee';
+import { formatArea, formatNumber } from '../format';
 import { meterKindLabels } from '../labels';
 import { distributeCents, formatCents, proRata } from '../money';
 import type {
@@ -368,6 +369,11 @@ export type LeaseStatement = {
 	 * so the letter says the fuel is not part of it. Absent in results frozen before it existed.
 	 */
 	ownHeatingContract?: boolean;
+	/**
+	 * The letter names one tenant, the family or the main tenant (domain/addressee.ts), who comes
+	 * first in tenants. Absent in results frozen before it existed: their letters name every tenant.
+	 */
+	namesOneTenant?: boolean;
 	prepayments: PrepaymentMonth[];
 	costsTotal: number;
 	/** The paid prepayments (geleistete Vorauszahlungen). */
@@ -573,7 +579,7 @@ export function suggestedPrepayments(lease: LeaseStatement): {
 
 /** The lease's label in the statement: unit names, then the tenants. */
 export function leaseLabel(units: { name: string }[], tenants: StatementTenant[]): string {
-	const names = tenants.map(personName).join(', ');
+	const names = leaseTenantName(tenants);
 	const unitNames = units.map((unit) => unit.name).join(' + ');
 	return names ? `${unitNames} · ${names}` : unitNames;
 }
@@ -1905,6 +1911,7 @@ export function computeStatement(
 			lines: accumulator.lines,
 			excluded: accumulator.excluded,
 			ownHeatingContract: lease.heatingCostModel === 'tenant_contract',
+			namesOneTenant: true,
 			prepayments,
 			costsTotal,
 			prepaymentsTotal,
@@ -1926,7 +1933,7 @@ export function computeStatement(
 			leaseId: lease.id,
 			label,
 			units: units.map((unit) => unit.name).join(' + '),
-			tenants: lease.tenants.map(personName).join(', '),
+			tenants: leaseTenantName(lease.tenants),
 			costsTotal,
 			prepaymentsTotal,
 			balance

@@ -31,17 +31,26 @@ const NEW_TENANT_VALUE_LENGTH = 4 + 100 + 1 + 100;
  * The tenants typed into the lease form's select who do not exist yet, each with first and last
  * name checked like the tenant form; their address stays empty, so letters go to the rented unit.
  */
-export function parseNewTenants(form: FormData): ParseResult<{ newTenants: TenantInput[] }> {
-	const parser = new FormParser<{ newTenants: TenantInput[]; tenantIds?: undefined }>(form);
+export function parseNewTenants(
+	form: FormData
+): ParseResult<{ newTenants: TenantInput[]; newTenantFirst: boolean }> {
+	const parser = new FormParser<{
+		newTenants: TenantInput[];
+		newTenantFirst: boolean;
+		tenantIds?: undefined;
+	}>(form);
 	const newTenants: TenantInput[] = [];
-	for (const value of parser.ids('tenantIds', MAX_LEASE_IDS, NEW_TENANT_VALUE_LENGTH)) {
+	const values = parser.ids('tenantIds', MAX_LEASE_IDS, NEW_TENANT_VALUE_LENGTH);
+	// The first tenant of the form is the main tenant, also when it is a new one.
+	const newTenantFirst = (values[0] ?? '').startsWith(NEW_TENANT_PREFIX);
+	for (const value of values) {
 		const name = newTenantOf(value);
 		if (!name) continue;
 		const tenant = parseTenant(formDataOf(name));
 		if (tenant.ok) newTenants.push(tenant.data);
 		else parser.fail('tenantIds', 'Bitte gib den neuen Mieter mit Vor- und Nachnamen an.');
 	}
-	return parser.result(() => ({ newTenants }));
+	return parser.result(() => ({ newTenants, newTenantFirst }));
 }
 
 /**

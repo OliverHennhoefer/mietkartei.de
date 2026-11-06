@@ -4,7 +4,8 @@
 	import DeleteSection from '#lib/components/DeleteSection.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate } from '#lib/dates.ts';
-	import { formatArea, formatNumber, personName } from '#lib/format.ts';
+	import { leaseTenantName } from '#lib/domain/addressee.ts';
+	import { formatArea, formatNumber } from '#lib/format.ts';
 	import { unitKindLabels } from '#lib/units.ts';
 	import { byDate, bySeverity, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
@@ -14,7 +15,7 @@
 	const vacant = $derived(!data.leases.some((lease) => lease.active));
 	const base = $derived(`/objekte/${data.property.id}/einheiten/${data.unit.id}`);
 	const sort = new TableSort<PageProps['data']['leases'][number]>({
-		tenants: byText((lease) => lease.tenants.map(personName).join(', ')),
+		tenants: byText((lease) => leaseTenantName(lease.tenants)),
 		period: byDate((lease) => lease.startDate),
 		role: byText((lease) => (lease.main ? 'Haupteinheit' : 'Mitvermietet')),
 		status: bySeverity((lease) => (lease.active ? 2 : lease.upcoming ? 1 : 0))
@@ -75,7 +76,7 @@
 						<td>
 							<a href="/vertraege/{lease.id}">
 								{lease.tenants.length > 0
-									? lease.tenants.map(personName).join(', ')
+									? leaseTenantName(lease.tenants)
 									: 'Mietvertrag ohne Mieter'}
 							</a>
 						</td>

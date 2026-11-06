@@ -2,7 +2,8 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import { formatIndexValue, formatPercent } from '#lib/domain/index-rent.ts';
 	import { deviation } from '#lib/domain/rent-level.ts';
-	import { formatArea, formatNumber, personName, pluralize } from '#lib/format.ts';
+	import { leaseTenantName } from '#lib/domain/addressee.ts';
+	import { formatArea, formatNumber, pluralize } from '#lib/format.ts';
 	import { stateLabels } from '#lib/labels.ts';
 	import { formatCents } from '#lib/money.ts';
 	import type { PageProps } from './$types';
@@ -101,7 +102,7 @@
 					<a href="/vertraege/{lease.id}/miethoehe"><strong>{lease.unitName}</strong></a>
 					<span class="muted">
 						· {lease.tenants.length > 0
-							? lease.tenants.map(personName).join(', ')
+							? leaseTenantName(lease.tenants)
 							: 'Mietvertrag ohne Mieter'}
 					</span>
 				</div>

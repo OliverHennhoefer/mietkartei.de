@@ -277,6 +277,11 @@ export const leases = sqliteTable(
 		/** The base year (= 100) of indexBaseValue; a proposal needs VPI values of the same year. */
 		indexBaseYear: text('index_base_year').notNull().default('2020'),
 		notes: text('notes'),
+		/**
+		 * The tenant the lease names (letters, lists) unless all tenants share a last name, see
+		 * domain/addressee.ts. Null, or one no longer a party: the first party by name.
+		 */
+		mainTenantId: text('main_tenant_id'),
 		createdAt: createdAt()
 	},
 	(table) => [

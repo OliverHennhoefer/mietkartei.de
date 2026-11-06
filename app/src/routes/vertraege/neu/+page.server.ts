@@ -96,7 +96,8 @@ export const actions: Actions = {
 			context,
 			input,
 			opening.data.openingBalance,
-			created.data.newTenants
+			created.data.newTenants,
+			created.data.newTenantFirst
 		);
 		if (!result.ok) {
 			const values = valuesOf(form);

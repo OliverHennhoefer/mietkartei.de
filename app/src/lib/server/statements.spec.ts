@@ -1548,13 +1548,22 @@ describe('statementLetter variants', () => {
 			],
 			landlord: { ...base.landlord, city: 'Potsdam' }
 		});
-		expect(letter.recipient).toEqual([
-			'Kim Klein',
-			'Frau Anna Alt',
-			'Neue Str. 1',
-			'20095 Hamburg'
-		]);
+		// Kim Klein is the main tenant and the only one the letter names.
+		expect(letter.recipient).toEqual(['Kim Klein', 'Neue Str. 1', '20095 Hamburg']);
 		expect(letter.date.startsWith('Potsdam, ')).toBe(true);
+		expect(letter.blocks![0]).toEqual({ paragraph: 'Guten Tag Kim Klein,' });
+	});
+
+	it('names every tenant in a statement frozen before the letter named one', () => {
+		const letter = statementLetter({
+			...base,
+			namesOneTenant: undefined,
+			tenants: [
+				{ ...base.tenants[0], salutation: null, firstName: 'Kim', lastName: 'Klein' },
+				{ ...base.tenants[0] }
+			]
+		});
+		expect(letter.recipient.slice(0, 2)).toEqual(['Kim Klein', 'Frau Anna Alt']);
 		expect(letter.blocks![0]).toEqual({ paragraph: 'Guten Tag Kim Klein, Frau Alt,' });
 	});
 

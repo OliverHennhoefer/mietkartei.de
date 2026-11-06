@@ -1,4 +1,5 @@
 import { and, asc, eq, gte, inArray, isNull, lte, or } from 'drizzle-orm';
+import { mainFirst } from '../domain/addressee';
 import { isPartyOn } from '../domain/lease-parties';
 import type { Database } from './db';
 import { leaseTenants, leaseUnits, leases, properties, tenants, units } from './db/schema';
@@ -143,7 +144,10 @@ export async function updateUnit(
 	return true;
 }
 
-/** The tenants of each lease on the date, sorted by name; one query per 90 leases. */
+/**
+ * The tenants of each lease on the date, the main tenant first and the others by name; one query
+ * per 90 leases.
+ */
 async function tenantsOfLeases(
 	db: Database,
 	accountId: string,
@@ -154,18 +158,28 @@ async function tenantsOfLeases(
 		db
 			.select({
 				leaseId: leaseTenants.leaseId,
+				mainTenantId: leases.mainTenantId,
 				tenant: tenants,
 				joinedOn: leaseTenants.joinedOn,
 				leftOn: leaseTenants.leftOn
 			})
 			.from(leaseTenants)
 			.innerJoin(tenants, eq(leaseTenants.tenantId, tenants.id))
+			.innerJoin(leases, eq(leaseTenants.leaseId, leases.id))
 			.where(and(eq(tenants.accountId, accountId), inArray(leaseTenants.leaseId, ids)))
 			.orderBy(asc(tenants.lastName), asc(tenants.firstName))
 	);
 	const byLease = new Map<string, Tenant[]>(leaseIds.map((id) => [id, []]));
 	// The parties on the day: a co-tenant who left no longer occupies the unit.
 	for (const row of rows) if (isPartyOn(row, date)) byLease.get(row.leaseId)?.push(row.tenant);
+	const mainTenantIds = new Map(rows.map((row) => [row.leaseId, row.mainTenantId]));
+	for (const [leaseId, parties] of byLease) {
+		const mainTenantId = mainTenantIds.get(leaseId) ?? null;
+		byLease.set(
+			leaseId,
+			mainFirst(parties, mainTenantId, (tenant) => tenant.id)
+		);
+	}
 	return byLease;
 }
 

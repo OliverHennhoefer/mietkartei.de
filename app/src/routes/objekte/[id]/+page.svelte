@@ -2,7 +2,8 @@
 	import { enhance } from '$app/forms';
 	import Badge from '#lib/components/Badge.svelte';
 	import PortfolioUnitFields from '#lib/components/PortfolioUnitFields.svelte';
-	import { formatArea, formatNumber, personName } from '#lib/format.ts';
+	import { leaseTenantName } from '#lib/domain/addressee.ts';
+	import { formatArea, formatNumber } from '#lib/format.ts';
 	import { unitKindLabels } from '#lib/units.ts';
 	import type { PageProps } from './$types';
 
@@ -37,7 +38,7 @@
 						{#each unit.occupancies as occupancy (occupancy.leaseId)}
 							<a href="/vertraege/{occupancy.leaseId}">
 								{occupancy.tenants.length > 0
-									? occupancy.tenants.map(personName).join(', ')
+									? leaseTenantName(occupancy.tenants)
 									: 'Mietvertrag ohne Mieter'}
 							</a>
 							{#if !occupancy.main}<span class="muted small">(mitvermietet)</span>{/if}

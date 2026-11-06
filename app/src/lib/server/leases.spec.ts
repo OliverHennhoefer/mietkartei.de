@@ -40,6 +40,7 @@ import {
 	leaseInput,
 	seedTenant,
 	seedUnit,
+	tenantInput,
 	testDatabase
 } from './testing';
 
@@ -170,6 +171,40 @@ describe('createLease', () => {
 			[result.id, 'create'],
 			[result.id, 'post']
 		]);
+	});
+});
+
+describe('the main tenant', () => {
+	it('is the first tenant of the form, also a new one, and changes with the edit', async () => {
+		const { unitId } = await seedUnit(db, 'a');
+		const adler = await seedTenant(db, 'a', { firstName: 'Abe', lastName: 'Adler' });
+		const zander = await seedTenant(db, 'a', { firstName: 'Zoe', lastName: 'Zander' });
+		const created = await createLease(
+			db,
+			contextA,
+			leaseInput(unitId, { tenantIds: [zander, adler] })
+		);
+		if (!created.ok) throw new Error('setup failed');
+		const names = async (id: string) =>
+			(await getLease(db, 'a', id))!.tenants.map((tenant) => tenant.lastName);
+		expect(await names(created.id)).toEqual(['Zander', 'Adler']);
+
+		await updateLease(db, contextA, created.id, leaseInput(unitId, { tenantIds: [adler, zander] }));
+		expect(await names(created.id)).toEqual(['Adler', 'Zander']);
+
+		// A new tenant typed first into the form is the main tenant of the new lease.
+		const { unitId: other } = await seedUnit(db, 'a', { name: 'OG' });
+		const typed = { ...tenantInput(), firstName: 'Mia', lastName: 'Neu' };
+		const withNew = await createLease(
+			db,
+			contextA,
+			leaseInput(other, { tenantIds: [adler] }),
+			null,
+			[typed],
+			true
+		);
+		if (!withNew.ok) throw new Error('setup failed');
+		expect(await names(withNew.id)).toEqual(['Neu', 'Adler']);
 	});
 });
 
@@ -646,7 +681,8 @@ describe('listLeases with many leases', () => {
 			const leases = await listLeases(db, 'a');
 			expect(leases).toHaveLength(120);
 			expect(leases.every((lease) => lease.currentRent.baseRent === 60000)).toBe(true);
-			expect(leases[119].tenants.map((tenant) => tenant.lastName)).toEqual(['Adler', 'Zander']);
+			// The main tenant (the first of the form) first, the others by name.
+			expect(leases[119].tenants.map((tenant) => tenant.lastName)).toEqual(['Zander', 'Adler']);
 		} finally {
 			client.prepare = prepare;
 		}

@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { addDays, formatDate, monthOf, today, type IsoDate } from '../dates';
+import { mainFirst } from '../domain/addressee';
 import { currentParties, isPartyOn, partiesOn } from '../domain/lease-parties';
 import { rentOn, type RentChange as RentHistoryEntry } from '../domain/rents';
 import { personName } from '../format';
@@ -53,6 +54,7 @@ import type { TenantInput } from './tenants';
 export type LeaseInput = {
 	unitId: string;
 	extraUnitIds: string[];
+	/** The first is the main tenant, whom the letters name (domain/addressee.ts). */
 	tenantIds: string[];
 	startDate: string;
 	endDate: string | null;
@@ -184,9 +186,13 @@ async function decorate(db: Database, accountId: string, rows: Lease[]): Promise
 		const property = unit && propertyById.get(unit.propertyId);
 		if (!unit || !property) return [];
 		const history: RentHistoryEntry[] = changeRows.filter((row) => row.leaseId === lease.id);
-		const parties = tenantRows
-			.filter((row) => row.leaseId === lease.id)
-			.map(({ tenant, joinedOn, leftOn }) => ({ tenant, joinedOn, leftOn }));
+		const parties = mainFirst(
+			tenantRows
+				.filter((row) => row.leaseId === lease.id)
+				.map(({ tenant, joinedOn, leftOn }) => ({ tenant, joinedOn, leftOn })),
+			lease.mainTenantId,
+			(party) => party.tenant.id
+		);
 
 		const current = rentOn(history, date) ??
 			rentOn(history, lease.startDate) ?? {
@@ -363,6 +369,8 @@ async function checkReferences(
 function leaseColumns(input: LeaseInput) {
 	return {
 		unitId: input.unitId,
+		// The first tenant of the form is the main tenant (domain/addressee.ts).
+		mainTenantId: input.tenantIds[0] ?? null,
 		startDate: input.startDate,
 		endDate: input.endDate,
 		kind: input.kind,
@@ -509,14 +517,16 @@ export async function newChargeLeases(
  * charges up to this month, atomically. A non-zero opening balance (Anfangssaldo) is posted in
  * the same batch, due at the ledger start. `newTenants` are tenants typed into the lease form
  * who do not exist yet: they are created in the same batch and become parties next to
- * `input.tenantIds`, so a refused lease leaves no tenant behind.
+ * `input.tenantIds`, so a refused lease leaves no tenant behind. With `newTenantFirst`, the first
+ * of them is the main tenant, as the first typed into the form.
  */
 export async function createLease(
 	db: Database,
 	context: AuditContext,
 	leaseInput: LeaseInput,
 	openingBalance: number | null = null,
-	newTenants: readonly TenantInput[] = []
+	newTenants: readonly TenantInput[] = [],
+	newTenantFirst = false
 ): Promise<{ ok: true; id: string } | LeaseRefusal> {
 	await assertQuota(db, context.accountId, 'leases');
 	if (newTenants.length > 0) {
@@ -525,9 +535,12 @@ export async function createLease(
 	const reason = await checkReferences(db, context.accountId, leaseInput);
 	if (reason) return { ok: false, reason };
 	const created = newTenants.map((tenant) => ({ ...tenant, id: crypto.randomUUID() }));
+	const createdIds = created.map((tenant) => tenant.id);
 	const input = {
 		...leaseInput,
-		tenantIds: [...leaseInput.tenantIds, ...created.map((tenant) => tenant.id)]
+		tenantIds: newTenantFirst
+			? [...createdIds, ...leaseInput.tenantIds]
+			: [...leaseInput.tenantIds, ...createdIds]
 	};
 	const overlap = await overlappingLease(db, context.accountId, {
 		unitIds: [input.unitId, ...input.extraUnitIds],

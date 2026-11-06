@@ -1,6 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { overlap } from '#lib/dates.ts';
-import { personName } from '#lib/format.ts';
+import { leaseTenantName } from '#lib/domain/addressee.ts';
 import { yearOf } from '#lib/domain/operating-costs.ts';
 import { documentErrorMessage } from '#lib/forms/documents.ts';
 import { costItemMessages, parseReceipt, parseUnitAmounts } from '#lib/forms/operating-costs.ts';
@@ -78,7 +78,7 @@ async function splitUnits(
 				? []
 				: leases.map(({ lease, range }) => ({
 						id: lease.id,
-						tenants: lease.tenants.map(personName).join(', '),
+						tenants: leaseTenantName(lease.tenants),
 						start: range.start,
 						end: range.end
 					}))

@@ -1,7 +1,8 @@
 import { addDays, formatDate, type IsoDate } from '../dates';
 import { formatCents } from '../money';
 import type { ReminderLevel } from '../server/db/schema';
-import { greeting, type LetterTenant } from './index-rent';
+import { greeting } from './addressee';
+import type { LetterTenant } from './index-rent';
 
 // Zahlungserinnerung and Mahnung: which due charges are still open, which level the next letter
 // has and what it says. Rent is due on a calendar date, so the tenant is in default without a

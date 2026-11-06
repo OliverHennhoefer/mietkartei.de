@@ -18,7 +18,7 @@ import { nextCancellation } from '../domain/insurance';
 import { leaseEndDeadlines } from '../domain/lease-end';
 import { objectionDeadline, periodLabel, statementDeadline } from '../domain/statement';
 import { insuranceKindLabels } from '../labels';
-import { personName } from '../format';
+import { leaseTenantName } from '../domain/addressee';
 import { formatCents } from '../money';
 import type { Database } from './db';
 import {
@@ -103,7 +103,7 @@ export type DeadlineFilter = {
 const READING_TOLERANCE_DAYS = 3;
 
 function leaseDetail(lease: LeaseSummary): string {
-	const names = lease.tenants.map(personName).join(', ');
+	const names = leaseTenantName(lease.tenants);
 	return names ? `${names} · ${leaseLabel(lease)}` : leaseLabel(lease);
 }
 

@@ -1,3 +1,4 @@
+import { addresseeLine, greeting as addresseeGreeting, mainFirst } from '../domain/addressee';
 import { giroCode, paymentPurpose } from '../domain/girocode';
 import { and, asc, desc, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
 import { currentParties } from '../domain/lease-parties';
@@ -310,7 +311,11 @@ export async function loadStatementInput(
 		// The statement goes to the parties of today, not to a co-tenant who left the lease.
 		tenants: currentParties(
 			lease,
-			tenantRows.filter((row) => row.leaseId === lease.id)
+			mainFirst(
+				tenantRows.filter((row) => row.leaseId === lease.id),
+				lease.mainTenantId,
+				(row) => row.tenant.id
+			)
 		).map((tenant) => ({
 			salutation: tenant.salutation,
 			firstName: tenant.firstName,
@@ -1412,6 +1417,7 @@ function lines(...parts: (string | null | undefined)[]): string[] {
 }
 
 function greeting(statement: LeaseStatement): string {
+	if (statement.namesOneTenant) return addresseeGreeting(statement.tenants);
 	const names = statement.tenants.map((tenant) => {
 		const salutation = tenant.salutation === 'Frau' || tenant.salutation === 'Herr';
 		return salutation ? `${tenant.salutation} ${tenant.lastName}` : personName(tenant);
@@ -1441,7 +1447,9 @@ export function statementLetter(statement: LeaseStatement): Letter {
 	const periodText = `${formatDate(statement.period.start)} bis ${formatDate(statement.period.end)}`;
 	const addressTenant = statement.tenants.find((tenant) => tenant.street || tenant.city);
 	const recipient = lines(
-		...statement.tenants.map((tenant) => lines(tenant.salutation, personName(tenant)).join(' ')),
+		...(statement.namesOneTenant
+			? [addresseeLine(statement.tenants)]
+			: statement.tenants.map((tenant) => lines(tenant.salutation, personName(tenant)).join(' '))),
 		addressTenant?.street ?? property.street,
 		addressTenant
 			? lines(addressTenant.postalCode, addressTenant.city).join(' ')

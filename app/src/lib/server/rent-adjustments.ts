@@ -21,9 +21,9 @@ import {
 	type CappingPercent,
 	type ComparativeDemand
 } from '../domain/comparative-rent';
+import { addresseeLine } from '../domain/addressee';
 import { letterText as editedLetterText, type LetterTextResult } from '../domain/letters';
 import { rentOn, total, unitRent, type RentAmounts } from '../domain/rents';
-import { personName } from '../format';
 import { formatCents } from '../money';
 import { addressLines, landlordAddress, type LandlordAddress } from './accounts';
 import { auditEntry, type AuditContext } from './audit';
@@ -793,11 +793,13 @@ export async function removeChange(
 
 // The letter
 
-/** The tenants' address for the window of the letter: the first tenant with one, else the unit's. */
+/**
+ * The window of the letter: the family or the main tenant (domain/addressee.ts), and the address
+ * of the first tenant with one (the main tenant first), else the unit's.
+ */
 export function recipientLines(lease: LeaseSummary): string[] {
-	const lines = lease.tenants.map((tenant) =>
-		[tenant.salutation, personName(tenant)].filter(Boolean).join(' ')
-	);
+	const name = addresseeLine(lease.tenants);
+	const lines = name ? [name] : [];
 	const withAddress = lease.tenants.find((tenant) => tenant.street && tenant.city);
 	const street = withAddress?.street ?? lease.property.street;
 	const postalCode = withAddress?.postalCode ?? lease.property.postalCode;

@@ -1,0 +1,1 @@
+ALTER TABLE `leases` ADD `main_tenant_id` text;
