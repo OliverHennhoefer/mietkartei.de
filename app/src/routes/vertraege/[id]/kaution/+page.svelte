@@ -274,7 +274,7 @@
 				name="interest"
 				bind:value={interestInput}
 				inputmode="decimal"
-				placeholder="0,00"
+				placeholder="0"
 				aria-invalid={settleErrors.interest ? 'true' : undefined}
 			/>
 		</Field>
@@ -295,7 +295,7 @@
 							name="amount{row}"
 							bind:value={amountInputs[row - 1]}
 							inputmode="decimal"
-							placeholder="0,00"
+							placeholder="0"
 							aria-invalid={settleErrors[`amount${row}`] ? 'true' : undefined}
 						/>
 					</Field>
@@ -364,7 +364,7 @@
 			name="amount"
 			defaultValue={values.amount ?? ''}
 			inputmode="decimal"
-			placeholder="600,00"
+			placeholder="600"
 			aria-invalid={errors.amount ? 'true' : undefined}
 			required
 		/>

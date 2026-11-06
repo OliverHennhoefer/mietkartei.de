@@ -17,10 +17,14 @@ describe('parseCents', () => {
 		expect(parseCents('1234.56')).toBe(123456);
 		expect(parseCents('1,234.56')).toBe(123456);
 		expect(parseCents('1.234.567')).toBe(123456700);
+		expect(parseCents('1.200')).toBe(120000);
 		expect(parseCents('1234')).toBe(123400);
 		expect(parseCents(' 12,5 € ')).toBe(1250);
 		expect(parseCents('-12,50')).toBe(-1250);
 		expect(parseCents('0')).toBe(0);
+		expect(parseCents('600 €')).toBe(60000);
+		expect(parseCents('600,-')).toBe(60000);
+		expect(parseCents('1.200,– €')).toBe(120000);
 	});
 
 	it('rejects garbage', () => {
@@ -29,6 +33,7 @@ describe('parseCents', () => {
 		expect(parseCents('1,2,3')).toBeUndefined();
 		expect(parseCents('12,345')).toBeUndefined();
 		expect(parseCents('--1')).toBeUndefined();
+		expect(parseCents(',-')).toBeUndefined();
 		// Beyond what a number holds exactly.
 		expect(parseCents('99999999999999999')).toBeUndefined();
 	});
