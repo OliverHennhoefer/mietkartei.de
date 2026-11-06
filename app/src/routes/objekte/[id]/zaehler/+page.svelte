@@ -8,12 +8,15 @@
 	import { formatDate, today } from '#lib/dates.ts';
 	import { defaultMeterUnit } from '#lib/domain/operating-costs.ts';
 	import { formatNumber } from '#lib/format.ts';
+	import { FreshForm } from '#lib/fresh-form.svelte.ts';
 	import { meterKindLabels } from '#lib/labels.ts';
 	import type { MeterKind } from '#lib/server/db/schema.ts';
 	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+	// The create forms start empty again once their entry is saved.
+	const fresh = new FreshForm();
 
 	// The kinds come from the labels: schema.ts is server-only code.
 	const meterKinds = Object.keys(meterKindLabels) as MeterKind[];
@@ -208,18 +211,20 @@
 		{/if}
 
 		<h4 class="no-margin">Zählerstand erfassen</h4>
-		<form method="POST" action={actionOn('createReading', meter.id)} class="form" use:enhance>
-			<input type="hidden" name="meterId" value={meter.id} />
-			<input type="hidden" name="filterUnit" value={data.filterUnit?.id ?? ''} />
-			{@render readingFields(
-				meter.unit,
-				readingForm?.values ?? { readAt: today() },
-				readingForm?.errors
-			)}
-			<div class="form-actions">
-				<button type="submit">Zählerstand erfassen</button>
-			</div>
-		</form>
+		{#key fresh.visit}
+			<form method="POST" action={actionOn('createReading', meter.id)} class="form" use:enhance>
+				<input type="hidden" name="meterId" value={meter.id} />
+				<input type="hidden" name="filterUnit" value={data.filterUnit?.id ?? ''} />
+				{@render readingFields(
+					meter.unit,
+					readingForm?.values ?? { readAt: today() },
+					readingForm?.errors
+				)}
+				<div class="form-actions">
+					<button type="submit">Zählerstand erfassen</button>
+				</div>
+			</form>
+		{/key}
 
 		<div class="row between">
 			<form method="POST" action={actionOn('removeMeter', meter.id)} class="row" use:enhance>
@@ -255,72 +260,74 @@
 {/if}
 
 <h2 id="zaehler-anlegen">Zähler anlegen</h2>
-<form method="POST" action={actionOn('createMeter')} class="card" use:enhance>
-	<input type="hidden" name="filterUnit" value={data.filterUnit?.id ?? ''} />
-	<Field label="Einheit" error={meterForm?.errors.unitId}>
-		<select name="unitId" aria-invalid={meterForm?.errors.unitId ? 'true' : undefined}>
-			<option value="" selected={meterValue('unitId', data.filterUnit?.id ?? '') === ''}>
-				Gebäude (keine Einheit)
-			</option>
-			{#each data.units as unit (unit.id)}
-				<option
-					value={unit.id}
-					selected={meterValue('unitId', data.filterUnit?.id ?? '') === unit.id}
-				>
-					{unit.name}
+{#key fresh.visit}
+	<form method="POST" action={actionOn('createMeter')} class="card" use:enhance>
+		<input type="hidden" name="filterUnit" value={data.filterUnit?.id ?? ''} />
+		<Field label="Einheit" error={meterForm?.errors.unitId}>
+			<select name="unitId" aria-invalid={meterForm?.errors.unitId ? 'true' : undefined}>
+				<option value="" selected={meterValue('unitId', data.filterUnit?.id ?? '') === ''}>
+					Gebäude (keine Einheit)
 				</option>
-			{/each}
-		</select>
-	</Field>
-	<Field label="Art" error={meterForm?.errors.kind}>
-		<select
-			name="kind"
-			bind:value={newMeterKind}
-			aria-invalid={meterForm?.errors.kind ? 'true' : undefined}
-			required
-		>
-			{#each meterKinds as kind (kind)}
-				<option value={kind}>{meterKindLabels[kind]}</option>
-			{/each}
-		</select>
-	</Field>
-	<Field label="Zählernummer (optional)" error={meterForm?.errors.serialNumber}>
-		<input
-			name="serialNumber"
-			defaultValue={meterValue('serialNumber')}
-			aria-invalid={meterForm?.errors.serialNumber ? 'true' : undefined}
-		/>
-	</Field>
-	<Field label="Einheit der Messung" error={meterForm?.errors.unit}>
-		{#key newMeterKind}
-			<input
-				name="unit"
-				defaultValue={meterForm?.values.unit ?? defaultMeterUnit(newMeterKind)}
-				aria-invalid={meterForm?.errors.unit ? 'true' : undefined}
+				{#each data.units as unit (unit.id)}
+					<option
+						value={unit.id}
+						selected={meterValue('unitId', data.filterUnit?.id ?? '') === unit.id}
+					>
+						{unit.name}
+					</option>
+				{/each}
+			</select>
+		</Field>
+		<Field label="Art" error={meterForm?.errors.kind}>
+			<select
+				name="kind"
+				bind:value={newMeterKind}
+				aria-invalid={meterForm?.errors.kind ? 'true' : undefined}
 				required
+			>
+				{#each meterKinds as kind (kind)}
+					<option value={kind}>{meterKindLabels[kind]}</option>
+				{/each}
+			</select>
+		</Field>
+		<Field label="Zählernummer (optional)" error={meterForm?.errors.serialNumber}>
+			<input
+				name="serialNumber"
+				defaultValue={meterValue('serialNumber')}
+				aria-invalid={meterForm?.errors.serialNumber ? 'true' : undefined}
 			/>
-		{/key}
-	</Field>
-	<Field label="Standort (optional)" error={meterForm?.errors.location}>
-		<input
-			name="location"
-			defaultValue={meterValue('location')}
-			placeholder="z. B. Keller, Flur"
-			aria-invalid={meterForm?.errors.location ? 'true' : undefined}
-		/>
-	</Field>
-	<Field label="Eingebaut am (optional)" error={meterForm?.errors.installedAt}>
-		<input
-			type="date"
-			name="installedAt"
-			defaultValue={meterValue('installedAt')}
-			aria-invalid={meterForm?.errors.installedAt ? 'true' : undefined}
-		/>
-	</Field>
-	<div class="form-actions">
-		<button type="submit">Zähler anlegen</button>
-	</div>
-</form>
+		</Field>
+		<Field label="Einheit der Messung" error={meterForm?.errors.unit}>
+			{#key newMeterKind}
+				<input
+					name="unit"
+					defaultValue={meterForm?.values.unit ?? defaultMeterUnit(newMeterKind)}
+					aria-invalid={meterForm?.errors.unit ? 'true' : undefined}
+					required
+				/>
+			{/key}
+		</Field>
+		<Field label="Standort (optional)" error={meterForm?.errors.location}>
+			<input
+				name="location"
+				defaultValue={meterValue('location')}
+				placeholder="z. B. Keller, Flur"
+				aria-invalid={meterForm?.errors.location ? 'true' : undefined}
+			/>
+		</Field>
+		<Field label="Eingebaut am (optional)" error={meterForm?.errors.installedAt}>
+			<input
+				type="date"
+				name="installedAt"
+				defaultValue={meterValue('installedAt')}
+				aria-invalid={meterForm?.errors.installedAt ? 'true' : undefined}
+			/>
+		</Field>
+		<div class="form-actions">
+			<button type="submit">Zähler anlegen</button>
+		</div>
+	</form>
+{/key}
 
 {#snippet readingFields(
 	unit: string,

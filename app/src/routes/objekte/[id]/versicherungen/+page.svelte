@@ -4,9 +4,12 @@
 	import Money from '#lib/components/Money.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { insuranceKindLabels } from '#lib/labels.ts';
+	import { FreshForm } from '#lib/fresh-form.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+	// The create form below starts empty again once its entry is saved.
+	const fresh = new FreshForm();
 
 	const receiptHref = (policyId: string, start: string) =>
 		`/betriebskosten/belege/neu?versicherung=${policyId}&von=${start}`;
@@ -61,12 +64,14 @@
 {/if}
 
 <h2 id="versicherung-anlegen">Versicherung anlegen</h2>
-<InsurancePolicyForm
-	action="?/create"
-	submitLabel="Versicherung anlegen"
-	errors={form?.errors}
-	values={form?.values}
-/>
+{#key fresh.visit}
+	<InsurancePolicyForm
+		action="?/create"
+		submitLabel="Versicherung anlegen"
+		errors={form?.errors}
+		values={form?.values}
+	/>
+{/key}
 
 <style>
 	.policy {

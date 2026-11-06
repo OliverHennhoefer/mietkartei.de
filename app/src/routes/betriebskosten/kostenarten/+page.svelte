@@ -2,9 +2,12 @@
 	import CostCategoryForm from '#lib/components/CostCategoryForm.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
+	import { FreshForm } from '#lib/fresh-form.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+	// The create form below starts empty again once its entry is saved.
+	const fresh = new FreshForm();
 
 	const keyName = (id: string | null) => data.keys.find((key) => key.id === id)?.name ?? '–';
 	const circleName = (id: string | null) => {
@@ -60,11 +63,13 @@
 </div>
 
 <h2 id="kostenart-anlegen">Kostenart anlegen</h2>
-<CostCategoryForm
-	action="?/create"
-	submitLabel="Kostenart anlegen"
-	keys={data.keys}
-	circles={data.circles}
-	errors={form?.errors}
-	values={form?.values}
-/>
+{#key fresh.visit}
+	<CostCategoryForm
+		action="?/create"
+		submitLabel="Kostenart anlegen"
+		keys={data.keys}
+		circles={data.circles}
+		errors={form?.errors}
+		values={form?.values}
+	/>
+{/key}
