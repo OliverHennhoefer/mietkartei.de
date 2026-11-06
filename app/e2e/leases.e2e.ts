@@ -57,6 +57,27 @@ test('creates the tenants typed into the lease form with the lease', async ({ pa
 	await expect(row.getByRole('link').nth(1)).toHaveAttribute('href', /\/vertraege\/[^/]+$/);
 });
 
+test('saves a lease in whole euros and starts the next one empty', async ({ page }) => {
+	const first = await seedUnitAndTenant(page);
+	await seedUnitAndTenant(page);
+	await page.goto(`/vertraege/neu?unitId=${first.unitId}&tenantId=${first.tenantId}`);
+	await page.getByLabel('Beginn', { exact: true }).fill('2025-01-01');
+	// Whole euros are enough; the placeholder shows no cents.
+	const baseRent = page.locator('input[name="baseRent"]');
+	await expect(baseRent).toHaveAttribute('placeholder', '650');
+	await baseRent.fill('600');
+	await page.getByRole('button', { name: 'Speichern und nächsten Mietvertrag' }).click();
+
+	await expect(page).toHaveURL(/\/vertraege\/neu\?angelegt=[^&]+$/);
+	const notice = page.getByRole('status').filter({ hasText: 'ist angelegt' });
+	await expect(notice).toContainText(`Der Mietvertrag ${first.label} mit ${first.tenantName}`);
+	await expect(baseRent).toHaveValue('');
+	await expect(page.locator('select[name="unitId"]')).toHaveValue('');
+
+	await notice.getByRole('link', { name: 'Mietvertrag ansehen' }).click();
+	await expect(page.getByLabel('Aktuelle Miete')).toContainText(/600,00\s€/);
+});
+
 test('creates a lease with an opening balance, keeps its history and ends it', async ({ page }) => {
 	const { unitId, tenantId, label, tenantName } = await seedUnitAndTenant(page);
 	page.on('dialog', (dialog) => dialog.accept());

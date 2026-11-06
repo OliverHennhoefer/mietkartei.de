@@ -1,9 +1,9 @@
 <script lang="ts">
 	import CreateButton from '#lib/components/CreateButton.svelte';
-	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import CostItemForm from '#lib/components/CostItemForm.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
+	import { FreshForm } from '#lib/fresh-form.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -11,12 +11,8 @@
 	// The prefill query stays in the URL when the form comes back with errors.
 	const action = $derived(`${page.url.search ? `${page.url.search}&` : '?'}/create`);
 
-	// "Speichern und nächsten Beleg" redirects back here, which keeps the page and the typed
-	// values; a new form for every navigation starts the next item empty.
-	let visit = $state(0);
-	afterNavigate(({ type }) => {
-		if (type !== 'enter') visit += 1;
-	});
+	// "Speichern und nächsten Beleg" redirects back here; the next item starts empty.
+	const fresh = new FreshForm();
 </script>
 
 <div class="toolbar">
@@ -35,7 +31,7 @@
 		die Einstellungen der Kostenart. Mit „Speichern und nächsten Beleg“ bleiben Objekt und Zeitraum
 		für den nächsten Beleg erhalten.
 	</p>
-	{#key visit}
+	{#key fresh.visit}
 		<CostItemForm
 			{action}
 			properties={data.properties}

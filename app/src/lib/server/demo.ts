@@ -213,6 +213,7 @@ function tenant(
 		salutation,
 		firstName,
 		lastName,
+		birthDate: null,
 		email,
 		phone,
 		street: address?.[0] ?? null,
@@ -522,10 +523,28 @@ export async function createDemoData(
 		fischer: at(-5, '01-15'),
 		sophieWeber: at(-3, '04-15')
 	};
+	// Most tenants gave their birth date with the Selbstauskunft; the oldest leases lack it.
+	const birthDates: Partial<Record<keyof typeof tenantInputs, IsoDate>> = {
+		schmidt: '1958-04-23',
+		hartmann: '1979-11-02',
+		dieterSchulze: '1949-06-17',
+		monikaSchulze: '1952-01-30',
+		lorenz: '1986-09-12',
+		fischer: '1983-03-05',
+		yilmaz: '1990-07-28',
+		berger: '1995-02-14',
+		nowak: '1988-12-09',
+		weber: '1972-05-19',
+		sophieWeber: '1999-10-03',
+		albrecht: '1993-08-21',
+		krueger: '1991-04-07',
+		brandt: '1997-06-25'
+	};
 	const tenantRows = Object.entries(tenantInputs).map(([key, input]) => ({
 		id: crypto.randomUUID(),
 		accountId,
 		...input,
+		birthDate: birthDates[key as keyof typeof tenantInputs] ?? null,
 		archivedAt: archived[key as keyof typeof tenantInputs] ?? null
 	}));
 	const tenantIds = Object.fromEntries(

@@ -190,6 +190,8 @@ export const tenants = sqliteTable(
 		salutation: text('salutation'),
 		firstName: text('first_name').notNull(),
 		lastName: text('last_name').notNull(),
+		/** ISO date, optional: e.g. for a Wohnberechtigungsschein or the Mieterselbstauskunft. */
+		birthDate: text('birth_date'),
 		email: text('email'),
 		phone: text('phone'),
 		/** Postal address for letters; usually the rented unit, so optional. */

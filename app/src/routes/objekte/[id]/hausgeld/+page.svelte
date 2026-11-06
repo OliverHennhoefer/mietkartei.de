@@ -4,9 +4,12 @@
 	import Money from '#lib/components/Money.svelte';
 	import { formatDate, today } from '#lib/dates.ts';
 	import { balanceText } from '#lib/domain/association.ts';
+	import { FreshForm } from '#lib/fresh-form.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+	// The create form below starts empty again once its entry is saved.
+	const fresh = new FreshForm();
 
 	// The Hausgeldabrechnung most often entered is last year's.
 	const defaultYear = Number(today().slice(0, 4)) - 1;
@@ -87,13 +90,15 @@
 {/if}
 
 <h2 id="hausgeldabrechnung-erfassen">Hausgeldabrechnung erfassen</h2>
-<AssociationStatementForm
-	action="?/create"
-	submitLabel="Hausgeldabrechnung erfassen"
-	{defaultYear}
-	errors={form?.errors}
-	values={form?.values}
-/>
+{#key fresh.visit}
+	<AssociationStatementForm
+		action="?/create"
+		submitLabel="Hausgeldabrechnung erfassen"
+		{defaultYear}
+		errors={form?.errors}
+		values={form?.values}
+	/>
+{/key}
 
 <style>
 	.statement {

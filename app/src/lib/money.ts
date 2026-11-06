@@ -28,11 +28,12 @@ export function formatCentsSigned(cents: number): string {
 }
 
 /**
- * Parses a German or English decimal amount into cents: `1.234,56`, `1234,56`, `1234.56`, `1234`
- * and `-12,5` all work; `€` and whitespace are ignored. Returns undefined for anything else.
+ * Parses a German or English decimal amount into cents: `1.234,56`, `1234,56`, `1234.56`, `1234`, `1.200`,
+ * `-12,5` and the whole euros of `600,-` all work; `€` and whitespace are ignored. Returns
+ * undefined for anything else.
  */
 export function parseCents(input: string): number | undefined {
-	let value = input.replace(/[€\s]/g, '');
+	let value = input.replace(/[€\s]/g, '').replace(/,[-–]{1,2}$/, '');
 	if (!value) return undefined;
 	const negative = value.startsWith('-');
 	if (negative || value.startsWith('+')) value = value.slice(1);
@@ -47,8 +48,9 @@ export function parseCents(input: string): number | undefined {
 	} else if (lastComma >= 0) {
 		if (value.indexOf(',') !== lastComma) return undefined;
 		value = value.replace(',', '.');
-	} else if (lastDot >= 0 && value.indexOf('.') !== lastDot) {
-		// Several dots can only be thousands separators: 1.234.567
+	} else if (lastDot >= 0 && (value.indexOf('.') !== lastDot || /^\d{1,3}\.\d{3}$/.test(value))) {
+		// Several dots, or one before three digits, can only be thousands separators: 1.234.567 and
+		// 1.200 (an amount has at most two decimals).
 		value = value.replaceAll('.', '');
 	}
 

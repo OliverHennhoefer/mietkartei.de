@@ -7,6 +7,7 @@ import { createPayment, listLedger } from '#lib/server/ledger.ts';
 import {
 	contextA,
 	outcome,
+	ownerA,
 	routeEvent,
 	seedLease,
 	seedTenant,
@@ -131,6 +132,27 @@ describe('vertraege/neu', () => {
 				created: [{ id: tenantId }, { id: partner }]
 			}
 		});
+	});
+
+	it('saves a lease and starts the next one, naming the lease just saved', async () => {
+		const saved = await run(newActions.create, { form: { ...lease(), next: '1' } });
+		expect(saved).toEqual({
+			redirect: expect.stringMatching(/^\/vertraege\/neu\?angelegt=[\w-]+$/)
+		});
+		const url = (saved as { redirect: string }).redirect;
+		const id = new URL(url, 'http://localhost').searchParams.get('angelegt')!;
+		expect(await run(loadNew, { url })).toMatchObject({
+			data: {
+				saved: { id, label: expect.any(String), tenants: ['Erika Mustermann'] },
+				defaults: { unitId: '', tenantIds: '' }
+			}
+		});
+		// Another account's lease, or none, names nothing.
+		const otherAccount = { ...ownerA, id: 'user-b', accountId: 'b' };
+		expect(await run(loadNew, { url, user: otherAccount })).toMatchObject({
+			data: { saved: null }
+		});
+		expect(await run(loadNew)).toMatchObject({ data: { saved: null } });
 	});
 
 	it('creates the tenants typed into the lease form with the lease', async () => {

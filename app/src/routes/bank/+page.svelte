@@ -394,7 +394,7 @@
 												name="splitAmount"
 												inputmode="decimal"
 												defaultValue={rowValue(transaction, 'splitAmount')}
-												placeholder="0,00"
+												placeholder="0"
 											/>
 											{#if formId === transaction.id && errors?.splitAmount}
 												<span class="error">{errors.splitAmount}</span>

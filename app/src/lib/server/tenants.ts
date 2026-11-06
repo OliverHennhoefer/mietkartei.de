@@ -15,6 +15,8 @@ export type TenantInput = {
 	salutation: string | null;
 	firstName: string;
 	lastName: string;
+	/** ISO date or null. */
+	birthDate: string | null;
 	email: string | null;
 	phone: string | null;
 	street: string | null;

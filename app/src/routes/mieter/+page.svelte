@@ -48,6 +48,16 @@
 		)
 	});
 	const sortedTenants = $derived(sort.rows(filteredTenants));
+	const filterProperty = $derived(
+		data.properties.find((property) => property.id === data.propertyId)
+	);
+	/** The heading of a group of rows in the list's own order: who needs something, then by property. */
+	function groupLabel(groupId: string | null): string {
+		if (groupId === 'attention') return 'Rückstand oder Umzug';
+		if (groupId === null) return 'Ohne laufenden Mietvertrag';
+		return data.properties.find((property) => property.id === groupId)?.name ?? '';
+	}
+	const groupColumns = 6;
 	function address(tenant: {
 		street: string | null;
 		postalCode: string | null;
@@ -79,8 +89,25 @@
 	{:else}
 		<div class="list-toolbar">
 			<h2>
-				Deine Mieter <span class="result-count" aria-live="polite">{filteredTenants.length}</span>
+				{filterProperty ? `Mieter in ${filterProperty.name}` : 'Deine Mieter'}
+				<span class="result-count" aria-live="polite">{filteredTenants.length}</span>
 			</h2>
+			{#if data.properties.length > 1}
+				<form method="GET" class="property-filter" data-sveltekit-keepfocus data-sveltekit-noscroll>
+					<label class="inline">
+						Objekt
+						<select name="objekt" onchange={(event) => event.currentTarget.form?.requestSubmit()}>
+							<option value="" selected={!data.propertyId}>alle Objekte</option>
+							{#each data.properties as property (property.id)}
+								<option value={property.id} selected={data.propertyId === property.id}>
+									{property.name}
+								</option>
+							{/each}
+						</select>
+					</label>
+					<noscript><button type="submit" class="secondary small">Anzeigen</button></noscript>
+				</form>
+			{/if}
 			<label class="list-search"
 				><span class="sr-only">Mieter durchsuchen</span><Icon name="search" size={16} /><input
 					type="search"
@@ -113,11 +140,12 @@
 					</thead>
 					<tbody>
 						{#each sortedTenants as tenant, row (tenant.id)}
-							<tr
-								class:group-start={!sort.active &&
-									row > 0 &&
-									tenant.groupId !== sortedTenants[row - 1].groupId}
-							>
+							{#if !sort.active && (row === 0 || tenant.groupId !== sortedTenants[row - 1].groupId)}
+								<tr class="group-heading">
+									<th colspan={groupColumns} scope="colgroup">{groupLabel(tenant.groupId)}</th>
+								</tr>
+							{/if}
+							<tr>
 								<td>
 									<a href="/mieter/{tenant.id}"><strong>{personName(tenant)}</strong></a>
 									{#if tenant.email || tenant.phone}<span class="muted small contact"
@@ -214,18 +242,29 @@
 {/if}
 
 <style>
-	/* A slightly stronger line where the next property's tenants begin. On a phone the rows are
-	   cards whose bottom border already draws 1px, so the group start only adds 1px on top. */
-	.group-start td {
-		border-top: 2px solid var(--color-border);
+	/* The heading of each group: the tenants who need something, then one per property. */
+	.table tbody .group-heading th {
+		padding-top: 1.5rem;
+		padding-bottom: 0.5rem;
+		color: var(--color-text);
+		font-size: var(--text-sm);
+		font-weight: 600;
+		text-align: left;
+	}
+	.table tbody .group-heading:hover {
+		background: none;
 	}
 	@media (max-width: 40rem) {
-		.group-start {
-			border-top: 1px solid var(--color-border);
+		.table tbody .group-heading {
+			padding-top: 1.25rem;
+			padding-bottom: 0.4rem;
 		}
-		.group-start td {
-			border-top: 0;
+		.table tbody .group-heading th {
+			padding: 0;
 		}
+	}
+	.property-filter {
+		margin: 0;
 	}
 	.contact,
 	.lease,

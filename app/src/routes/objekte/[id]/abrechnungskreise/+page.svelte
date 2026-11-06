@@ -1,8 +1,11 @@
 <script lang="ts">
 	import BillingCircleForm from '#lib/components/BillingCircleForm.svelte';
+	import { FreshForm } from '#lib/fresh-form.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+	// The create form below starts empty again once its entry is saved.
+	const fresh = new FreshForm();
 
 	const unitName = (unitId: string) => data.units.find((unit) => unit.id === unitId)?.name ?? '?';
 </script>
@@ -36,10 +39,12 @@
 {/if}
 
 <h2 id="abrechnungskreis-anlegen">Abrechnungskreis anlegen</h2>
-<BillingCircleForm
-	action="?/create"
-	submitLabel="Abrechnungskreis anlegen"
-	units={data.units}
-	errors={form?.errors}
-	values={form?.values}
-/>
+{#key fresh.visit}
+	<BillingCircleForm
+		action="?/create"
+		submitLabel="Abrechnungskreis anlegen"
+		units={data.units}
+		errors={form?.errors}
+		values={form?.values}
+	/>
+{/key}

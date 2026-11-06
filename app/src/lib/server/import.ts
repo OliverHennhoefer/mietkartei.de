@@ -155,6 +155,13 @@ export const importFields: Record<ImportKind, readonly ImportField[]> = {
 			synonyms: ['nachname', 'name', 'familienname', 'nachnamen']
 		},
 		{
+			name: 'birthDate',
+			label: 'Geburtsdatum',
+			required: false,
+			synonyms: ['geburtsdatum', 'geboren', 'geboren am', 'geb.', 'geb', 'geburtstag'],
+			hint: 'z. B. 14.03.1980'
+		},
+		{
 			name: 'email',
 			label: 'E-Mail',
 			required: false,
@@ -965,7 +972,9 @@ function planTenants(rows: DataRow[], context: ImportContext): ImportPlan {
 			result.reason = 'Die Zeile ist leer.';
 			continue;
 		}
-		const parsed = parseTenant(formDataOf(values));
+		const parsed = parseTenant(
+			formDataOf({ ...values, birthDate: isoDate(values.birthDate ?? '') })
+		);
 		if (!parsed.ok) {
 			result.reason = firstError(parsed.errors, tenantLabels);
 			continue;

@@ -10,6 +10,7 @@
 		values,
 		errors,
 		submitLabel,
+		nextLabel = null,
 		cancelHref,
 		returnTo = null,
 		leaseAddress = null
@@ -18,6 +19,8 @@
 		values: Record<string, string>;
 		errors: Partial<Record<string, string>>;
 		submitLabel: string;
+		/** A second button that saves and starts the next tenant (name="next"), when set. */
+		nextLabel?: string | null;
 		cancelHref: string;
 		/** Where to go after creating, carried as a hidden field (see /mieter/neu). */
 		returnTo?: string | null;
@@ -63,6 +66,15 @@
 				autocomplete="off"
 				aria-invalid={errors.lastName ? 'true' : undefined}
 				required
+			/>
+		</Field>
+		<Field label="Geburtsdatum (optional)" error={errors.birthDate}>
+			<input
+				name="birthDate"
+				type="date"
+				defaultValue={values.birthDate ?? ''}
+				autocomplete="off"
+				aria-invalid={errors.birthDate ? 'true' : undefined}
 			/>
 		</Field>
 	</FormSection>
@@ -145,6 +157,9 @@
 	</FormSection>
 	<div class="form-actions">
 		<button type="submit">{submitLabel}</button>
+		{#if nextLabel}
+			<button type="submit" name="next" value="1" class="secondary">{nextLabel}</button>
+		{/if}
 		<a href={cancelHref} class="button secondary">Abbrechen</a>
 	</div>
 </form>

@@ -1,5 +1,6 @@
 import type { TenantInput } from '../server/tenants';
 import { normalizePostalCode, normalizeStreet, singleLine } from '../domain/address';
+import { today } from '../dates';
 import { FormParser, type ParseResult } from './fields';
 
 // Parses the tenant form. The CSV import builds one FormData per row and uses the same parser,
@@ -15,6 +16,8 @@ export function parseTenant(form: FormData): ParseResult<TenantInput> {
 	const salutation = parser.optionalText('salutation', 50);
 	const firstName = parser.text('firstName', { max: 100 });
 	const lastName = parser.text('lastName', { max: 100 });
+	const birthDate = parser.date('birthDate', { required: false });
+	if (birthDate && birthDate > today()) parser.fail('birthDate', 'Das Datum liegt in der Zukunft.');
 	const email = parser.raw('email') ? parser.email('email') : null;
 	const phone = parser.optionalText('phone', 50);
 	const chosen = form.has('addressChoice');
@@ -39,6 +42,7 @@ export function parseTenant(form: FormData): ParseResult<TenantInput> {
 		salutation,
 		firstName,
 		lastName,
+		birthDate,
 		email,
 		phone,
 		street,

@@ -414,6 +414,13 @@
       "when": 1793804700446,
       "tag": "0058_dismissed_hints",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "6",
+      "when": 1793966735696,
+      "tag": "0059_tenant_birth_date",
+      "breakpoints": true
     }
   ]
 }

@@ -246,7 +246,7 @@
 			<input
 				name="amount"
 				inputmode="decimal"
-				placeholder="0,00"
+				placeholder="0"
 				defaultValue={values.amount ?? ''}
 				aria-invalid={errors?.amount ? 'true' : undefined}
 				required
