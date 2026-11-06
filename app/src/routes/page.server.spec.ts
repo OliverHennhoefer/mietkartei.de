@@ -327,6 +327,7 @@ describe('layout', () => {
 				name: null,
 				role: 'owner',
 				theme: 'system',
+				amountInput: 'comma',
 				billingEnabled: false,
 				demo: false,
 				prelaunch: false,

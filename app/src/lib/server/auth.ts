@@ -2,6 +2,7 @@ import { and, count, eq, ne } from 'drizzle-orm';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
+import type { AmountInput } from '../money';
 import {
 	accounts,
 	apiKeys,
@@ -182,6 +183,8 @@ export type SessionUser = {
 	accountId: string;
 	name: string | null;
 	role: UserRole;
+	/** How the user types amounts (domain: lib/money.ts). */
+	amountInput: AmountInput;
 };
 
 /**
@@ -204,7 +207,8 @@ export async function validateSession(
 				email: users.email,
 				accountId: users.accountId,
 				name: users.name,
-				role: users.role
+				role: users.role,
+				amountInput: users.amountInput
 			}
 		})
 		.from(sessions)

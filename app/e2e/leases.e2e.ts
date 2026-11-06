@@ -102,6 +102,57 @@ test('takes the rent of a garage apart from the Kaltmiete and shows both', async
 	await expect(page.locator('input[name="parkingRent"]')).toHaveValue('50,00');
 });
 
+test('reads amounts like DATEV for a user who chose it', async ({ page }) => {
+	const setAmounts = async (label: string) => {
+		await page.goto('/einstellungen/darstellung');
+		// Hydration resets the radios to the saved choice; a click before that is undone.
+		await page.waitForLoadState('networkidle');
+		await page.getByLabel(label).check();
+		await page.getByRole('button', { name: 'Speichern' }).click();
+		await expect(page.getByText('Gespeichert.')).toBeVisible();
+	};
+	const { unitId, tenantId } = await seedUnitAndTenant(page);
+	await setAmounts('Wie DATEV: 600 = 6,00 €');
+	try {
+		await page.goto(`/vertraege/neu?unitId=${unitId}&tenantId=${tenantId}`);
+		await page.waitForLoadState('networkidle');
+		await page.getByLabel('Beginn', { exact: true }).fill('2025-01-01');
+		await page.locator('input[name="baseRent"]').fill('60000');
+		// With a comma, an amount reads as usual.
+		await page.locator('input[name="operatingCostPrepayment"]').fill('150,00');
+		await page.getByRole('button', { name: 'Mietvertrag anlegen' }).click();
+		await expect(page).toHaveURL(/\/vertraege\/(?!neu)[^/?]+$/);
+		const rent = page.getByLabel('Aktuelle Miete');
+		await expect(rent).toContainText(/Kaltmiete\s*600,00\s€/);
+		await expect(rent).toContainText(/Gesamtmiete\s*750,00\s€/);
+	} finally {
+		await setAmounts('Mit Komma: 600 = 600,00 €');
+	}
+});
+
+test('names the family or the main tenant of a lease with several tenants', async ({ page }) => {
+	const { unitId, tenantId } = await seedUnitAndTenant(page);
+	const s = suffix();
+	await page.goto(`/vertraege/neu?unitId=${unitId}&tenantId=${tenantId}`);
+	await page.waitForLoadState('networkidle');
+	const picker = page.getByRole('combobox', { name: 'Mieter', exact: true });
+	await picker.fill(`Lena Zweit${s}`);
+	await page.getByRole('option', { name: `„Lena Zweit${s}“ als neuen Mieter anlegen` }).click();
+	await page.getByLabel('Beginn', { exact: true }).fill('2025-01-01');
+	await page.locator('input[name="baseRent"]').fill('600');
+	await page.getByRole('button', { name: 'Mietvertrag anlegen' }).click();
+	await expect(page).toHaveURL(/\/vertraege\/(?!neu)[^/?]+$/);
+
+	const parties = page.getByRole('table', { name: 'Vertragsparteien' });
+	await expect(parties.getByRole('row', { name: /Erika Vertrag-/ })).toContainText('Hauptmieter');
+	await expect(parties.getByRole('row', { name: new RegExp(`Lena Zweit${s}`) })).not.toContainText(
+		'Hauptmieter'
+	);
+	await expect(page.getByRole('main')).toContainText(
+		/Briefe und Abrechnungen nennen Erika Vertrag-/
+	);
+});
+
 test('creates a lease with an opening balance, keeps its history and ends it', async ({ page }) => {
 	const { unitId, tenantId, label, tenantName } = await seedUnitAndTenant(page);
 	page.on('dialog', (dialog) => dialog.accept());

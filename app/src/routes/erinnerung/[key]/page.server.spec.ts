@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { notificationStates, tasks } from '#lib/server/db/schema.ts';
-import { outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
+import { outcome, ownerA, routeEvent, testDatabase } from '#lib/server/testing.ts';
 import { actions, load } from './+page.server';
 
 let db: Database;
@@ -50,7 +50,7 @@ describe('erinnerung/[key]', () => {
 	});
 
 	it('lets a viewer snooze, but not mark a task done', async () => {
-		const viewer = { id: 'viewer-a', email: 'v@example.org', accountId: 'a', name: null };
+		const viewer = { ...ownerA, id: 'viewer-a', email: 'v@example.org' };
 		expect(await run(load, { user: { ...viewer, role: 'viewer' } })).toMatchObject({
 			data: { canComplete: false }
 		});
@@ -64,7 +64,7 @@ describe('erinnerung/[key]', () => {
 	it('knows only the entries of the own account', async () => {
 		expect(
 			await run(load, {
-				user: { id: 'user-b', email: 'b@example.org', accountId: 'b', name: null, role: 'owner' }
+				user: { ...ownerA, id: 'user-b', email: 'b@example.org', accountId: 'b' }
 			})
 		).toMatchObject({ error: 404 });
 		expect(

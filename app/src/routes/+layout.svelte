@@ -6,6 +6,7 @@
 	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
 	import WebsiteFooter from '#lib/components/WebsiteFooter.svelte';
 	import WebsiteHeader from '#lib/components/WebsiteHeader.svelte';
+	import { AMOUNT_INPUT_FIELD } from '#lib/forms/fields.ts';
 	import { settingsSectionOf, settingsSections } from '#lib/settings.ts';
 	import { viewerWritesOn } from '#lib/viewer-paths.ts';
 	import { goto, preloadData } from '$app/navigation';
@@ -111,6 +112,15 @@
 	// the settings or signing in as someone else without a full page load.
 	$effect(() => {
 		document.documentElement.dataset.theme = data.theme;
+	});
+
+	// A user who types amounts like DATEV: every form tells its action so (forms/fields.ts). The
+	// formdata event does not bubble, hence the capture on the document.
+	$effect(() => {
+		if (data.amountInput !== 'datev') return;
+		const mark = (event: FormDataEvent) => event.formData.set(AMOUNT_INPUT_FIELD, 'datev');
+		document.addEventListener('formdata', mark, true);
+		return () => document.removeEventListener('formdata', mark, true);
 	});
 
 	$effect(() => {

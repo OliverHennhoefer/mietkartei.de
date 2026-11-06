@@ -23,12 +23,14 @@
 	import { formatArea } from '#lib/format.ts';
 	import { rentOn, total } from '#lib/domain/rents.ts';
 	import { comparisonSourceLabels, rentChangeReasonLabels, rentModelLabels } from '#lib/labels.ts';
-	import { formatCents, formatCentsPlain, parseCents } from '#lib/money.ts';
+	import { formatCents, formatCentsPlain, parseAmount } from '#lib/money.ts';
 	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	// The "Miethöhe" tab under /vertraege/[id]: the heading and tab bar come from the layout.
 	let { data, form }: PageProps = $props();
+	/** An amount as the user types them (Einstellungen › Darstellung). */
+	const amountOf = (input: string) => parseAmount(input, page.data.amountInput ?? 'comma');
 
 	const lease = $derived(data.lease);
 	const current = $derived(rentOn(data.changes, data.today));
@@ -135,7 +137,7 @@
 	let stepFrom = $state(untrack(() => stepValues?.validFrom ?? data.nextStepAllowed ?? ''));
 	let stepRent = $state(untrack(() => stepValues?.baseRent ?? ''));
 	const stepMessage = $derived.by(() => {
-		const rent = parseCents(stepRent);
+		const rent = amountOf(stepRent);
 		return isIsoDate(stepFrom) && rent !== undefined
 			? `Staffel ab ${formatDate(stepFrom)} mit Kaltmiete ${formatCents(rent)} anlegen? Die Sollstellungen werden neu berechnet.`
 			: 'Staffel anlegen? Die Sollstellungen werden neu berechnet.';

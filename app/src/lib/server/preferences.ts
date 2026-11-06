@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import type { AmountInput } from '../money.ts';
 import type { Database } from './db/index.ts';
 import { users, type Theme } from './db/schema.ts';
 
@@ -23,4 +24,12 @@ export async function setShowPropertyMaps(
 
 export async function setTheme(db: Database, userId: string, theme: Theme): Promise<void> {
 	await db.update(users).set({ theme }).where(eq(users.id, userId));
+}
+
+export async function setAmountInput(
+	db: Database,
+	userId: string,
+	amountInput: AmountInput
+): Promise<void> {
+	await db.update(users).set({ amountInput }).where(eq(users.id, userId));
 }

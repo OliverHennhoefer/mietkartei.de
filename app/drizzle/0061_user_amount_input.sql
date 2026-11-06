@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `amount_input` text DEFAULT 'comma' NOT NULL;

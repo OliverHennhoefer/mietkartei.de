@@ -12,6 +12,7 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ### Neu
 
+- Beträge wie DATEV eingeben: Unter Einstellungen › Darstellung stellst du **Beträge eingeben** auf „Wie DATEV“. Dann sind die letzten zwei Ziffern die Cent, „600“ heißt 6,00 € und „60000“ 600,00 €. Mit Komma oder Punkt getippte Beträge liest mietkartei weiter wie gewohnt. Die Einstellung gilt nur für dich.
 - Mieter je Objekt: Die Mieterliste hat eine Auswahl **Objekt** und zeigt dann nur die Mieter, die dort mieten oder bald einziehen. Ohne Auswahl stehen die Mieter unter der Überschrift ihres Objekts, die mit Rückstand oder Umzug vorneweg. Auf der Seite eines Objekts führt „Mieter dieses Objekts“ zur gefilterten Liste.
 - Mehrere Mieter und Mietverträge hintereinander anlegen: **Speichern und nächsten Mieter** und **Speichern und nächsten Mietvertrag** speichern und öffnen gleich ein leeres Formular, darüber steht, was gerade angelegt wurde. Nach **Mieter anlegen** führt der Hinweis über dem Mietvertrag auch zu „Nächsten Mieter anlegen“.
 - Geburtsdatum beim Mieter: Das Mieterformular hat ein optionales Feld **Geburtsdatum**, die Mieterseite zeigt es an. Die Datenübernahme liest es aus einer Spalte „Geburtsdatum“, etwa im Format 14.03.1980. Bestehende Mieter bleiben unverändert, bis du es einträgst.

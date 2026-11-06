@@ -11,6 +11,11 @@
 		{ value: 'light', label: 'Hell' },
 		{ value: 'dark', label: 'Dunkel' }
 	] as const;
+
+	const amountOptions = [
+		{ value: 'comma', label: 'Mit Komma: 600 = 600,00 €' },
+		{ value: 'datev', label: 'Wie DATEV: 600 = 6,00 €' }
+	] as const;
 </script>
 
 <PageHeader title="Darstellung" />
@@ -37,6 +42,26 @@
 	</fieldset>
 	<p class="muted hint">
 		„Wie das Gerät“ folgt dem hellen oder dunklen Modus deines Computers oder Handys.
+	</p>
+	<fieldset class="themes">
+		<legend>Beträge eingeben</legend>
+		{#each amountOptions as option (option.value)}
+			<label class="inline">
+				<input
+					type="radio"
+					name="amounts"
+					value={option.value}
+					checked={data.amountInput === option.value}
+				/>
+				{option.label}
+			</label>
+		{/each}
+	</fieldset>
+	<p class="muted hint">
+		Wie DATEV tippst du Beträge ohne Komma, die letzten zwei Ziffern sind die Cent: 60000 für 600,00
+		€. Mit Komma oder Punkt („600,50“, „1.200“) liest mietkartei den Betrag wie gewohnt. Die
+		Einstellung gilt nur für dich und braucht JavaScript im Browser; ohne JavaScript gelten Beträge
+		mit Komma.
 	</p>
 	<label class="inline">
 		<input type="checkbox" name="showPropertyMaps" checked={data.showPropertyMaps} />

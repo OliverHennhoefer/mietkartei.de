@@ -189,7 +189,8 @@ export async function authenticateApiKey(
 				email: users.email,
 				accountId: users.accountId,
 				name: users.name,
-				role: users.role
+				role: users.role,
+				amountInput: users.amountInput
 			}
 		})
 		.from(apiKeys)

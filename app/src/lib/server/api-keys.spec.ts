@@ -88,7 +88,14 @@ describe('authenticateApiKey', () => {
 	it('returns the user and scope behind a valid key', async () => {
 		const { key, id } = await create();
 		expect(await authenticateApiKey(db, key)).toEqual({
-			user: { id: 'user-a', email: 'a@example.org', accountId: 'a', name: null, role: 'owner' },
+			user: {
+				id: 'user-a',
+				email: 'a@example.org',
+				accountId: 'a',
+				name: null,
+				role: 'owner',
+				amountInput: 'comma'
+			},
 			scope: 'read',
 			keyId: id
 		});

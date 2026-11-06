@@ -1,5 +1,5 @@
 import type { IsoDate } from '../dates';
-import { parseCents } from '../money';
+import { parseAmount } from '../money';
 import {
 	heatingCostModels,
 	leaseKinds,
@@ -15,7 +15,13 @@ import type {
 } from '../server/leases';
 import type { TenantInput } from '../server/tenants';
 import { NEW_TENANT_PREFIX, newTenantOf } from '../new-tenant';
-import { formDataOf, FormParser, type ParseResult } from './fields';
+import {
+	AMOUNT_INPUT_FIELD,
+	amountInputOf,
+	formDataOf,
+	FormParser,
+	type ParseResult
+} from './fields';
 import { parseTenant } from './tenants';
 
 // Parses the lease forms. Whether the unit and tenants belong to the account is checked by the
@@ -203,10 +209,12 @@ export function typedDepositWarning(
 	values: Record<string, string>,
 	kind: LeaseInput['kind']
 ): string | undefined {
-	const unitRent = parseCents(values.baseRent ?? '');
-	const securityDeposit = parseCents(values.securityDeposit ?? '');
+	const style = amountInputOf(values[AMOUNT_INPUT_FIELD]);
+	const amount = (name: string) => parseAmount(values[name] ?? '', style);
+	const unitRent = amount('baseRent');
+	const securityDeposit = amount('securityDeposit');
 	if (unitRent === undefined || securityDeposit === undefined) return undefined;
-	const baseRent = unitRent + (parseCents(values.parkingRent ?? '') ?? 0);
+	const baseRent = unitRent + (amount('parkingRent') ?? 0);
 	return depositWarning({ kind, baseRent, securityDeposit });
 }
 

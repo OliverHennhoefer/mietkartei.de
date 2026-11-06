@@ -206,7 +206,8 @@ export const ownerA: SessionUser = {
 	email: 'a@example.org',
 	accountId: 'a',
 	name: null,
-	role: 'owner'
+	role: 'owner',
+	amountInput: 'comma'
 };
 
 /** A manager (Mitverwalter) of account `a`; the user row exists only when a test inserts it. */
