@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { untrack } from 'svelte';
 	import Alert from '#lib/components/Alert.svelte';
+	import Badge from '#lib/components/Badge.svelte';
 	import LeaseStatus from '#lib/components/LeaseStatus.svelte';
 	import Balance from '#lib/components/Balance.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
@@ -11,6 +12,7 @@
 	import Money from '#lib/components/Money.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate, formatMonth, isIsoDate } from '#lib/dates.ts';
+	import { leaseTenantName } from '#lib/domain/addressee.ts';
 	import { formatIndexValue } from '#lib/domain/index-rent.ts';
 	import { proposedEndDate } from '#lib/domain/lease-end.ts';
 	import { personName } from '#lib/format.ts';
@@ -167,7 +169,12 @@
 		<tbody>
 			{#each parties as party (party.tenant.id)}
 				<tr>
-					<td><a href="/mieter/{party.tenant.id}">{personName(party.tenant)}</a></td>
+					<td>
+						<a href="/mieter/{party.tenant.id}">{personName(party.tenant)}</a>
+						{#if lease.parties.length > 1 && party.tenant.id === lease.tenants[0]?.id}<Badge
+								tone="info">Hauptmieter</Badge
+							>{/if}
+					</td>
 					<td>{party.joinedOn ? formatDate(party.joinedOn) : 'bei Vertragsbeginn'}</td>
 					<td>{party.leftOn ? formatDate(party.leftOn) : '–'}</td>
 					<td class="actions">
@@ -183,8 +190,12 @@
 	</table>
 </div>
 <p class="muted small">
+	{#if lease.parties.length > 1}
+		Briefe und Abrechnungen nennen {leaseTenantName(lease.tenants)}: die Familie, wenn alle Mieter
+		denselben Nachnamen haben, sonst nur den Hauptmieter.
+	{/if}
 	{#if changedParties}
-		Briefe und Abrechnungen gehen an die Mieter, die heute Vertragspartei sind.
+		Sie gehen an die Mieter, die heute Vertragspartei sind.
 	{/if}
 	Tritt ein Mieter aus dem Vertrag aus oder ein neuer ein (Nachtrag zum Mietvertrag), trag hier das Datum
 	ein; so bleibt erkennbar, wer an einem früheren Tag Vertragspartei war.

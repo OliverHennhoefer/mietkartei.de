@@ -17,7 +17,7 @@ Was in welche Datei gehört:
 
 - **Objekte und Einheiten:** eine Zeile je Einheit mit Objekt, Straße, PLZ, Ort, Einheit, Art und Fläche. Zeilen mit demselben Objekt und derselben Straße werden zu einem Objekt.
 - **Mieter:** eine Zeile je Mieter mit Anrede, Vorname, Nachname, E-Mail, Telefon und Adresse.
-- **Mietverträge:** eine Zeile je Vertrag mit Objekt, Einheit, Mieter, Beginn, Ende, Kaltmiete, Betriebs- und Heizkostenvorauszahlung, Kaution, Personen, „Mietkonto ab“ und Anfangssaldo. Mehrere Mieter eines Vertrags trennst du mit „;“.
+- **Mietverträge:** eine Zeile je Vertrag mit Objekt, Einheit, Mieter, Beginn, Ende, Kaltmiete, Betriebs- und Heizkostenvorauszahlung, Kaution, Personen, „Mietkonto ab“ und Anfangssaldo. Mehrere Mieter eines Vertrags trennst du mit „;“; der erste ist der Hauptmieter, den die Briefe nennen.
 - **Zahlungen:** eine Zeile je Zahlung mit Objekt, Einheit, Datum, Betrag und Verwendungszweck.
 
 Die Spaltennamen müssen nicht genau so heißen. Du ordnest sie beim Import zu.

@@ -1,5 +1,11 @@
 import { themes, type Theme } from '#lib/server/db/schema.ts';
-import { setShowPropertyMaps, setTheme, showsPropertyMaps } from '#lib/server/preferences.ts';
+import { amountInputs, type AmountInput } from '#lib/money.ts';
+import {
+	setAmountInput,
+	setShowPropertyMaps,
+	setTheme,
+	showsPropertyMaps
+} from '#lib/server/preferences.ts';
 import { requireUser } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -7,7 +13,11 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const user = requireUser(locals);
-	return { theme: locals.theme, showPropertyMaps: await showsPropertyMaps(locals.db, user.id) };
+	return {
+		theme: locals.theme,
+		amountInput: user.amountInput,
+		showPropertyMaps: await showsPropertyMaps(locals.db, user.id)
+	};
 };
 
 export const actions: Actions = {
@@ -19,6 +29,13 @@ export const actions: Actions = {
 			await setTheme(locals.db, user.id, theme as Theme);
 			// The page rendered after a post without JavaScript reads it in the same request.
 			locals.theme = theme as Theme;
+		}
+		// Not "amountInput": the layout adds that field to every form of a DATEV user.
+		const amounts = form.get('amounts');
+		if (amountInputs.includes(amounts as AmountInput)) {
+			await setAmountInput(locals.db, user.id, amounts as AmountInput);
+			// The page rendered after a post without JavaScript reads it in the same request.
+			locals.user = { ...user, amountInput: amounts as AmountInput };
 		}
 		await setShowPropertyMaps(locals.db, user.id, form.get('showPropertyMaps') === 'on');
 		return { saved: true };

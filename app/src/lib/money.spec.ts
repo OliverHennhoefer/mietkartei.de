@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { distributeCents, formatCents, formatCentsSigned, parseCents, proRata } from './money';
+import {
+	distributeCents,
+	formatCents,
+	formatCentsSigned,
+	parseAmount,
+	parseCents,
+	proRata
+} from './money';
 
 describe('formatCents', () => {
 	it('formats German currency', () => {
@@ -36,6 +43,28 @@ describe('parseCents', () => {
 		expect(parseCents(',-')).toBeUndefined();
 		// Beyond what a number holds exactly.
 		expect(parseCents('99999999999999999')).toBeUndefined();
+	});
+});
+
+describe('parseAmount', () => {
+	it('reads digits without a separator as cents like DATEV', () => {
+		expect(parseAmount('600', 'datev')).toBe(600);
+		expect(parseAmount('60000', 'datev')).toBe(60000);
+		expect(parseAmount(' 1250 € ', 'datev')).toBe(1250);
+		expect(parseAmount('-4500', 'datev')).toBe(-4500);
+		expect(parseAmount('+5', 'datev')).toBe(5);
+		expect(parseAmount('9'.repeat(20), 'datev')).toBeUndefined();
+	});
+
+	it('reads an amount with a comma or dot as usual, also like DATEV', () => {
+		expect(parseAmount('600,50', 'datev')).toBe(60050);
+		expect(parseAmount('1.200', 'datev')).toBe(120000);
+		expect(parseAmount('600,-', 'datev')).toBe(60000);
+		expect(parseAmount('abc', 'datev')).toBeUndefined();
+	});
+
+	it('reads whole euros with the comma style', () => {
+		expect(parseAmount('600', 'comma')).toBe(60000);
 	});
 });
 

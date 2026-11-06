@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import Field from './Field.svelte';
 	import FormSection from './FormSection.svelte';
 	import { enhance } from '$app/forms';
@@ -9,7 +10,7 @@
 	import type { FieldErrors } from '../forms/fields';
 	import type { CostItemForm } from '../forms/operating-costs';
 	import { fuelLabels } from '../labels';
-	import { formatCents, formatCentsPlain, parseCents } from '../money';
+	import { formatCents, formatCentsPlain, parseAmount } from '../money';
 	import type { Fuel, PropertyKind } from '../server/db/schema';
 	import type { CostItemHistory, CostItemSummary } from '../server/operating-costs/cost-items';
 
@@ -65,6 +66,8 @@
 		/** Show "Speichern und nächsten Beleg" (creating only). */
 		withNext?: boolean;
 	} = $props();
+	/** An amount as the user types them (Einstellungen › Darstellung). */
+	const amountOf = (input: string) => parseAmount(input, page.data.amountInput ?? 'comma');
 
 	const value = (name: string, fallback: string) => values?.[name] ?? fallback;
 	// Without a year from the list, the period is last year's: most receipts entered now, such as
@@ -220,7 +223,7 @@
 	/** What the key of the WEG gives the property, next to the amount entered from the Verwalter. */
 	const associationHint = $derived.by(() => {
 		const read = (name: string, fallback: string) => typed?.[name] ?? value(name, fallback);
-		const total = parseCents(
+		const total = amountOf(
 			read(
 				'associationTotal',
 				item?.associationTotal != null ? formatCentsPlain(item.associationTotal) : ''
@@ -234,7 +237,7 @@
 		);
 		if (total === undefined || !keyTotal || keyShare === null) return null;
 		const share = Math.round((total * keyShare) / keyTotal);
-		const amount = parseCents(read('amount', item ? formatCentsPlain(item.amount) : ''));
+		const amount = amountOf(read('amount', item ? formatCentsPlain(item.amount) : ''));
 		const differs = amount !== undefined && Math.abs(amount - share) > 100;
 		return `${formatShareOf(keyShare, keyTotal)} von ${formatCents(total)} sind ${formatCents(share)}${differs ? `; eingetragen sind ${formatCents(amount)}` : ''}.`;
 	});

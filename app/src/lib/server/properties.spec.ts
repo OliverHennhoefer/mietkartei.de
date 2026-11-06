@@ -288,9 +288,10 @@ describe('unitsWithOccupancy', () => {
 			startDate: '2025-01-01',
 			endDate: null
 		});
+		// The main tenant, the first of the lease form, first.
 		expect(eg.occupancies[0].tenants.map((tenant) => tenant.lastName)).toEqual([
-			'Beispiel',
-			'Mustermann'
+			'Mustermann',
+			'Beispiel'
 		]);
 		expect(og.occupancies).toEqual([]);
 		expect(stellplatz.occupancies).toMatchObject([{ leaseId, main: false }]);

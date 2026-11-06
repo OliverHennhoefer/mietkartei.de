@@ -22,7 +22,8 @@ import {
 	updateTask,
 	type TaskError
 } from '#lib/server/tasks.ts';
-import { personName, pluralize } from '#lib/format.ts';
+import { leaseTenantName } from '#lib/domain/addressee.ts';
+import { pluralize } from '#lib/format.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import { taskTemplates } from '#lib/task-templates.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -161,9 +162,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				title: `Rückstände bei ${pluralize(arrears.length, 'Mietvertrag', 'Mietverträgen')}`,
 				detail: arrears
 					.map((balance) => leases.find((lease) => lease.id === balance.leaseId))
-					.map((lease) =>
-						lease ? lease.tenants.map(personName).join(', ') || leaseLabel(lease) : ''
-					)
+					.map((lease) => (lease ? leaseTenantName(lease.tenants) || leaseLabel(lease) : ''))
 					.filter(Boolean)
 					.join(' · '),
 				amount: arrears.reduce((sum, balance) => sum + balance.overdue, 0),

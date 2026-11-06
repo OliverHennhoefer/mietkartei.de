@@ -1,5 +1,5 @@
 import type { IsoDate } from '../dates';
-import { parseCents } from '../money';
+import { parseAmount } from '../money';
 import {
 	heatingCostModels,
 	leaseKinds,
@@ -15,7 +15,13 @@ import type {
 } from '../server/leases';
 import type { TenantInput } from '../server/tenants';
 import { NEW_TENANT_PREFIX, newTenantOf } from '../new-tenant';
-import { formDataOf, FormParser, type ParseResult } from './fields';
+import {
+	AMOUNT_INPUT_FIELD,
+	amountInputOf,
+	formDataOf,
+	FormParser,
+	type ParseResult
+} from './fields';
 import { parseTenant } from './tenants';
 
 // Parses the lease forms. Whether the unit and tenants belong to the account is checked by the
@@ -31,17 +37,26 @@ const NEW_TENANT_VALUE_LENGTH = 4 + 100 + 1 + 100;
  * The tenants typed into the lease form's select who do not exist yet, each with first and last
  * name checked like the tenant form; their address stays empty, so letters go to the rented unit.
  */
-export function parseNewTenants(form: FormData): ParseResult<{ newTenants: TenantInput[] }> {
-	const parser = new FormParser<{ newTenants: TenantInput[]; tenantIds?: undefined }>(form);
+export function parseNewTenants(
+	form: FormData
+): ParseResult<{ newTenants: TenantInput[]; newTenantFirst: boolean }> {
+	const parser = new FormParser<{
+		newTenants: TenantInput[];
+		newTenantFirst: boolean;
+		tenantIds?: undefined;
+	}>(form);
 	const newTenants: TenantInput[] = [];
-	for (const value of parser.ids('tenantIds', MAX_LEASE_IDS, NEW_TENANT_VALUE_LENGTH)) {
+	const values = parser.ids('tenantIds', MAX_LEASE_IDS, NEW_TENANT_VALUE_LENGTH);
+	// The first tenant of the form is the main tenant, also when it is a new one.
+	const newTenantFirst = (values[0] ?? '').startsWith(NEW_TENANT_PREFIX);
+	for (const value of values) {
 		const name = newTenantOf(value);
 		if (!name) continue;
 		const tenant = parseTenant(formDataOf(name));
 		if (tenant.ok) newTenants.push(tenant.data);
 		else parser.fail('tenantIds', 'Bitte gib den neuen Mieter mit Vor- und Nachnamen an.');
 	}
-	return parser.result(() => ({ newTenants }));
+	return parser.result(() => ({ newTenants, newTenantFirst }));
 }
 
 /**
@@ -194,10 +209,12 @@ export function typedDepositWarning(
 	values: Record<string, string>,
 	kind: LeaseInput['kind']
 ): string | undefined {
-	const unitRent = parseCents(values.baseRent ?? '');
-	const securityDeposit = parseCents(values.securityDeposit ?? '');
+	const style = amountInputOf(values[AMOUNT_INPUT_FIELD]);
+	const amount = (name: string) => parseAmount(values[name] ?? '', style);
+	const unitRent = amount('baseRent');
+	const securityDeposit = amount('securityDeposit');
 	if (unitRent === undefined || securityDeposit === undefined) return undefined;
-	const baseRent = unitRent + (parseCents(values.parkingRent ?? '') ?? 0);
+	const baseRent = unitRent + (amount('parkingRent') ?? 0);
 	return depositWarning({ kind, baseRent, securityDeposit });
 }
 

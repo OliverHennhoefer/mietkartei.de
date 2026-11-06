@@ -27,6 +27,7 @@ import {
 	tenants,
 	units
 } from './db/schema';
+import { leaseTenantName } from '../domain/addressee';
 import type { LeaseStatement } from '../domain/statement';
 import { createDemoData, isEmptyAccount } from './demo';
 import { statementHintScope, withDismissals } from './hints';
@@ -87,11 +88,17 @@ describe('createDemoData', () => {
 		expect(
 			weber.parties.map((party) => [party.tenant.firstName, !!party.joinedOn, !!party.leftOn])
 		).toEqual([
-			['Jonas', true, false],
 			['Julia', false, false],
+			['Jonas', true, false],
 			['Sophie', false, true]
 		]);
-		expect(weber.tenants.map((tenant) => tenant.firstName)).toEqual(['Jonas', 'Julia']);
+		// Julia Weber is the main tenant; the letters name only her, the last names differ now.
+		expect(weber.tenants.map((tenant) => tenant.firstName)).toEqual(['Julia', 'Jonas']);
+		expect(leaseTenantName(weber.tenants)).toBe('Julia Weber');
+		const schulze = (await listLeases(db, 'a')).find((lease) =>
+			lease.tenants.some((tenant) => tenant.lastName === 'Schulze')
+		)!;
+		expect(leaseTenantName(schulze.tenants)).toBe('Familie Schulze');
 		expect(former.every((row) => row.city)).toBe(true);
 		const deposits = await db
 			.select()

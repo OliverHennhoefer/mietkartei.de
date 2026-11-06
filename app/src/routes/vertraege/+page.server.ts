@@ -1,5 +1,5 @@
 import { today } from '#lib/dates.ts';
-import { personName } from '#lib/format.ts';
+import { leaseTenantName } from '#lib/domain/addressee.ts';
 import { leaseLabel, listLeases, listUnitsWithProperty } from '#lib/server/leases.ts';
 import { requireAccount } from '#lib/server/session.ts';
 import type { PageServerLoad } from './$types';
@@ -25,7 +25,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			id: lease.id,
 			label: leaseLabel(lease),
 			extraUnits: lease.extraUnits.map((unit) => unit.name),
-			tenants: lease.tenants.map(personName).join(', '),
+			tenants: leaseTenantName(lease.tenants),
 			startDate: lease.startDate,
 			endDate: lease.endDate,
 			total:

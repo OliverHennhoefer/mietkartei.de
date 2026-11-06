@@ -12,6 +12,7 @@ import {
 import { formatCents, proRata } from '../money';
 import type { RentChangeReason } from '../server/db/schema';
 import { rentOn, total, type RentChange } from './rents';
+import { greeting } from './addressee';
 
 // Index rent (§ 557b BGB) and graduated rent (§ 557a BGB): the pure part of the rent feature.
 // The reference index, the proposal, the waiting periods and the letter text are computed here
@@ -252,20 +253,6 @@ export type LetterTenant = {
 	firstName: string;
 	lastName: string;
 };
-
-/**
- * "Guten Tag Frau Muster, Herr Beispiel," or "Guten Tag Erika Muster,": the letters to tenants
- * address the tenants formally ("Sie"); "Guten Tag" keeps the greeting plain rather than the
- * stiff "Sehr geehrte".
- */
-export function greeting(tenants: readonly LetterTenant[]): string {
-	const names = tenants.map((tenant) => {
-		const salutation = (tenant.salutation ?? '').trim();
-		if (salutation === 'Frau' || salutation === 'Herr') return `${salutation} ${tenant.lastName}`;
-		return `${tenant.firstName} ${tenant.lastName}`.trim();
-	});
-	return names.length > 0 ? `Guten Tag ${names.join(', ')},` : 'Guten Tag,';
-}
 
 export type LetterFigures = {
 	reference: IndexPoint;

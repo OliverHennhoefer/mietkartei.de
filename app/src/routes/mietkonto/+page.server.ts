@@ -13,7 +13,7 @@ import { createPayment, listBalances, listLedger } from '#lib/server/ledger.ts';
 import { listRemindersByLease } from '#lib/server/reminders.ts';
 import type { ReminderLevel } from '#lib/server/db/schema.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
-import { personName } from '#lib/format.ts';
+import { leaseTenantName } from '#lib/domain/addressee.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 // Every lease of the account with its balance. listBalances syncs the rent charges of all leases
@@ -69,7 +69,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			leaseId: lease.id,
 			label: leaseLabel(lease),
 			place: leasePlace(lease),
-			tenants: lease.tenants.map(personName).join(', '),
+			tenants: leaseTenantName(lease.tenants),
 			status: lease.active ? 'active' : lease.upcoming ? 'upcoming' : 'ended',
 			balance: owed,
 			overdue: balance?.overdue ?? 0,

@@ -1351,16 +1351,26 @@ describe('recipientLines', () => {
 			property: { street, postalCode: '10115', city: 'Berlin' }
 		}) as unknown as LeaseSummary;
 
-	it('names every tenant and takes the address of the property', () => {
+	it('names the family of tenants with one last name and takes the address of the property', () => {
 		expect(
 			recipientLines(leaseWith([tenant(), tenant({ salutation: null, firstName: 'Max' })]))
-		).toEqual(['Frau Erika Muster', 'Max Muster', 'Lindenstraße 4', '10115 Berlin']);
+		).toEqual(['Familie Muster', 'Lindenstraße 4', '10115 Berlin']);
+	});
+
+	it('names only the main tenant when the last names differ', () => {
+		expect(
+			recipientLines(leaseWith([tenant(), tenant({ salutation: 'Herr', lastName: 'Beispiel' })]))
+		).toEqual(['Frau Erika Muster', 'Lindenstraße 4', '10115 Berlin']);
 	});
 
 	it('takes the address of the first tenant who has one, e.g. after moving out', () => {
-		const moved = tenant({ street: 'Neuer Weg 1', postalCode: '20095', city: 'Hamburg' });
+		const moved = tenant({
+			lastName: 'Beispiel',
+			street: 'Neuer Weg 1',
+			postalCode: '20095',
+			city: 'Hamburg'
+		});
 		expect(recipientLines(leaseWith([tenant(), moved]))).toEqual([
-			'Frau Erika Muster',
 			'Frau Erika Muster',
 			'Neuer Weg 1',
 			'20095 Hamburg'

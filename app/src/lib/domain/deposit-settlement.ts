@@ -1,6 +1,7 @@
 import { formatDate, type IsoDate } from '../dates';
 import { formatCents } from '../money';
-import { greeting, type LetterTenant } from './index-rent';
+import { greeting } from './addressee';
+import type { LetterTenant } from './index-rent';
 
 // Kautionsabrechnung: after the lease ended, the landlord settles the deposit. Interest up to the
 // day is added (§ 551 Abs. 3 BGB), Einbehalte for damage or a Betriebskostenabrechnung still to

@@ -273,6 +273,13 @@ describe('typedDepositWarning', () => {
 		);
 	});
 
+	it('reads the amounts as typed like DATEV when the form says so', () => {
+		const values = { baseRent: '65000', securityDeposit: '200000', amountInput: 'datev' };
+		expect(typedDepositWarning(values, 'residential')).toBe(
+			'Die Kaution übersteigt drei Nettokaltmieten (§ 551 BGB).'
+		);
+	});
+
 	it('gives no hint while the Kaltmiete or the deposit is missing', () => {
 		expect(typedDepositWarning({ securityDeposit: '5000' }, 'residential')).toBeUndefined();
 		expect(typedDepositWarning({ baseRent: '650' }, 'residential')).toBeUndefined();

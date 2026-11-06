@@ -61,6 +61,27 @@ export function parseCents(input: string): number | undefined {
 	return negative ? -cents : cents;
 }
 
+/** How the user types amounts: with a decimal comma, or like DATEV with the cents as the last two digits. */
+export const amountInputs = ['comma', 'datev'] as const;
+export type AmountInput = (typeof amountInputs)[number];
+
+/**
+ * An amount typed in the user's way. Like DATEV, digits without a comma or dot are cents
+ * (`600` = 6,00 €, `60000` = 600,00 €); with a separator the amount reads as in parseCents.
+ */
+export function parseAmount(input: string, style: AmountInput): number | undefined {
+	if (style === 'datev') {
+		const digits = input.replace(/[€\s]/g, '');
+		const match = /^([-+]?)(\d+)$/.exec(digits);
+		if (match) {
+			const cents = Number(match[2]);
+			if (!Number.isSafeInteger(cents)) return undefined;
+			return match[1] === '-' ? -cents : cents;
+		}
+	}
+	return parseCents(input);
+}
+
 /**
  * Splits `total` cents over `weights` so that the parts sum to `total` exactly. Uses the largest
  * remainder method; ties go to the earlier index, so the same input always gives the same output.

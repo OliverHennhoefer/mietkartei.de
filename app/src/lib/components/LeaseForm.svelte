@@ -135,8 +135,8 @@
 			placeholder={mode === 'create' ? 'Mieter suchen oder neu eintippen …' : 'Mieter suchen …'}
 			empty="Kein Mieter gefunden."
 			hint={mode === 'create'
-				? 'Mehrere Mieter für Paare und WGs: einfach weitere auswählen. Wen es noch nicht gibt, tippst du mit Vor- und Nachnamen ein; er wird mit dem Vertrag angelegt.'
-				: 'Mehrere Mieter für Paare und WGs: einfach weitere auswählen.'}
+				? 'Der erste Mieter ist der Hauptmieter: Briefe, Abrechnungen und Listen nennen nur ihn, oder „Familie …“, wenn alle denselben Nachnamen haben. Weitere wählst du einfach dazu. Wen es noch nicht gibt, tippst du mit Vor- und Nachnamen ein; er wird mit dem Vertrag angelegt.'
+				: 'Der erste Mieter ist der Hauptmieter: Briefe, Abrechnungen und Listen nennen nur ihn, oder „Familie …“, wenn alle denselben Nachnamen haben. Weitere wählst du einfach dazu.'}
 			error={errors.tenantIds}
 			create={mode === 'create' ? newTenantOption : undefined}
 			labelOf={mode === 'create' ? newTenantLabel : undefined}

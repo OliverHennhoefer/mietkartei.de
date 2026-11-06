@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FormParser, formDataOf, isValidIban } from './fields';
+import { AMOUNT_INPUT_FIELD, amountInputOf, FormParser, formDataOf, isValidIban } from './fields';
 
 type Sample = {
 	name: string;
@@ -208,5 +208,18 @@ describe('file and iban', () => {
 		const wrong = new FormParser<{ iban: string | null }>(formDataOf({ iban: 'DE00 1234' }));
 		expect(wrong.iban('iban')).toBeNull();
 		expect(wrong.errors.iban).toMatch(/IBAN/);
+	});
+});
+
+describe('amounts typed like DATEV', () => {
+	it('reads the amounts of a form the layout marked, and keeps the mark with the values', () => {
+		const marked = new FormParser<{ rent: number }>(
+			formDataOf({ rent: '65000', [AMOUNT_INPUT_FIELD]: 'datev' })
+		);
+		expect(marked.money('rent')).toBe(65000);
+		expect(marked.values).toEqual({ rent: '65000', [AMOUNT_INPUT_FIELD]: 'datev' });
+		const plain = new FormParser<{ rent: number }>(formDataOf({ rent: '650' }));
+		expect(plain.money('rent')).toBe(65000);
+		expect(amountInputOf('roman')).toBe('comma');
 	});
 });

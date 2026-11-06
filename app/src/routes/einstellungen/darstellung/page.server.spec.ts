@@ -19,19 +19,25 @@ function run(handler: (event: never) => unknown, options: Parameters<typeof rout
 describe('einstellungen/darstellung', () => {
 	it('hides and shows the maps of the property list', async () => {
 		await seedUnit(db, 'a');
-		expect(await run(load)).toEqual({ data: { theme: 'system', showPropertyMaps: true } });
+		expect(await run(load)).toEqual({
+			data: { theme: 'system', amountInput: 'comma', showPropertyMaps: true }
+		});
 		expect(await run(loadProperties)).toMatchObject({
 			data: { showMaps: true, properties: [{ position: [expect.any(Number), expect.any(Number)] }] }
 		});
 
 		expect(await run(actions.default, { form: {} })).toEqual({ data: { saved: true } });
-		expect(await run(load)).toEqual({ data: { theme: 'system', showPropertyMaps: false } });
+		expect(await run(load)).toEqual({
+			data: { theme: 'system', amountInput: 'comma', showPropertyMaps: false }
+		});
 		expect(await run(loadProperties)).toMatchObject({
 			data: { showMaps: false, properties: [{ position: null }] }
 		});
 
 		await run(actions.default, { form: { showPropertyMaps: 'on' } });
-		expect(await run(load)).toEqual({ data: { theme: 'system', showPropertyMaps: true } });
+		expect(await run(load)).toEqual({
+			data: { theme: 'system', amountInput: 'comma', showPropertyMaps: true }
+		});
 	});
 
 	it('saves the colour scheme and ignores unknown ones', async () => {
@@ -53,5 +59,28 @@ describe('einstellungen/darstellung', () => {
 		expect(await theme()).toBe('dark');
 		await run(actions.default, { form: { theme: 'light' } });
 		expect(await theme()).toBe('light');
+	});
+
+	it('saves how the user types amounts and ignores unknown ways', async () => {
+		const stored = async () =>
+			(
+				await db
+					.select({ amountInput: users.amountInput })
+					.from(users)
+					.where(eq(users.id, ownerA.id))
+			)[0]?.amountInput;
+		await seedUnit(db, 'a');
+		expect(await stored()).toBe('comma');
+
+		const event = routeEvent(db, { form: { amounts: 'datev' } }) as { locals: App.Locals };
+		await outcome(() => actions.default(event as never));
+		expect(await stored()).toBe('datev');
+		expect(event.locals.user?.amountInput).toBe('datev');
+		expect(ownerA.amountInput).toBe('comma');
+
+		await run(actions.default, { form: { amounts: 'roman' } });
+		expect(await stored()).toBe('datev');
+		await run(actions.default, { form: { amounts: 'comma' } });
+		expect(await stored()).toBe('comma');
 	});
 });

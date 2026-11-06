@@ -173,6 +173,16 @@ describe('vertraege/neu', () => {
 		).toBe(true);
 	});
 
+	it('makes a tenant typed first into the form the main tenant', async () => {
+		const id = idOf(
+			await run(newActions.create, {
+				form: { ...lease(), tenantIds: ['new:Lena|Berger', tenantId] }
+			})
+		);
+		const created = await getLease(db, 'a', id);
+		expect(created?.tenants.map((tenant) => tenant.lastName)).toEqual(['Berger', 'Mustermann']);
+	});
+
 	it('creates a lease for typed tenants only and leaves none behind on a refusal', async () => {
 		const only = { ...lease(), tenantIds: 'new:Max|Mustermann' };
 		const first = await getLease(db, 'a', idOf(await run(newActions.create, { form: only })));

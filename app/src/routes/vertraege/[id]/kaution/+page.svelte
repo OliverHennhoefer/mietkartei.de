@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -13,12 +14,14 @@
 	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { depositTransactionKindLabels } from '#lib/labels.ts';
-	import { formatCents, formatCentsPlain, parseCents } from '#lib/money.ts';
+	import { formatCents, formatCentsPlain, parseAmount } from '#lib/money.ts';
 	import { byDate, byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import { untrack } from 'svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+	/** An amount as the user types them (Einstellungen › Darstellung). */
+	const amountOf = (input: string) => parseAmount(input, page.data.amountInput ?? 'comma');
 
 	const lease = $derived(data.lease);
 	// A refused edit belongs to the edit dialog, a refused settlement to its form, everything else
@@ -65,7 +68,7 @@
 		);
 		offsetArrears = settleValues.offsetArrears === 'on';
 	});
-	const cents = (input: string) => (input.trim() ? (parseCents(input) ?? 0) : 0);
+	const cents = (input: string) => (input.trim() ? (amountOf(input) ?? 0) : 0);
 	const preview = $derived.by(() => {
 		const available = data.summary.held + cents(interestInput);
 		const deducted = amountInputs.slice(0, rows).reduce((sum, input) => sum + cents(input), 0);

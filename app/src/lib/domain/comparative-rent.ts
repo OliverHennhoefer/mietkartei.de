@@ -10,7 +10,8 @@ import {
 import { formatArea } from '../format';
 import { formatCents } from '../money';
 import type { ComparisonSource } from '../server/db/schema';
-import { greeting, formatPercent, type HistoryChange, type LetterTenant } from './index-rent';
+import { greeting } from './addressee';
+import { formatPercent, type HistoryChange, type LetterTenant } from './index-rent';
 import { rentOn, total, unitRent, type RentChange } from './rents';
 
 // Mieterhöhung bis zur ortsüblichen Vergleichsmiete (§§ 558–558b BGB): the pure part. The rent

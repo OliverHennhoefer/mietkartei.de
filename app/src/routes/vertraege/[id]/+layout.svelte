@@ -8,13 +8,13 @@
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import Tabs from '#lib/components/Tabs.svelte';
 	import { formatDate } from '#lib/dates.ts';
-	import { personName } from '#lib/format.ts';
+	import { leaseTenantName } from '#lib/domain/addressee.ts';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
 
 	const lead = $derived.by(() => {
-		const names = data.lease.tenants.map(personName).join(', ');
+		const names = leaseTenantName(data.lease.tenants);
 		const period =
 			`seit ${formatDate(data.lease.startDate)}` +
 			(data.lease.endDate ? ` bis ${formatDate(data.lease.endDate)}` : '');

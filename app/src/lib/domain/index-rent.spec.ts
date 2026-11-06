@@ -3,7 +3,6 @@ import {
 	effectiveFrom,
 	formatIndexValue,
 	formatPercent,
-	greeting,
 	indexLetterRows,
 	indexLetterText,
 	indexProposal,
@@ -348,21 +347,6 @@ describe('index rent with an unordered or incomplete history', () => {
 	});
 });
 
-describe('greeting', () => {
-	it('addresses the tenants by salutation with a plain "Guten Tag"', () => {
-		expect(greeting([{ salutation: 'Frau', firstName: 'Erika', lastName: 'Muster' }])).toBe(
-			'Guten Tag Frau Muster,'
-		);
-		expect(
-			greeting([
-				{ salutation: 'Herr', firstName: 'Max', lastName: 'Beispiel' },
-				{ salutation: null, firstName: 'Kim', lastName: 'Test' }
-			])
-		).toBe('Guten Tag Herr Beispiel, Kim Test,');
-		expect(greeting([])).toBe('Guten Tag,');
-	});
-});
-
 describe('letterFigures and indexLetterText', () => {
 	const approved = change({
 		validFrom: '2026-12-01',
@@ -428,7 +412,7 @@ describe('letterFigures and indexLetterText', () => {
 			figures
 		});
 		const paragraphs = text.split('\n\n');
-		expect(paragraphs[0]).toBe('Guten Tag Frau Muster, Herr Muster,');
+		expect(paragraphs[0]).toBe('Guten Tag Familie Muster,');
 		expect(paragraphs[1]).toMatch(/^Ihr Mietvertrag für Wohnung EG links/);
 	});
 });

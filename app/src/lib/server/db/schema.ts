@@ -9,6 +9,7 @@ import {
 	text,
 	uniqueIndex
 } from 'drizzle-orm/sqlite-core';
+import { amountInputs } from '../../money';
 import { unitKinds } from '../../units';
 import { germanStates, type GermanState } from '../../working-days';
 
@@ -277,6 +278,11 @@ export const leases = sqliteTable(
 		/** The base year (= 100) of indexBaseValue; a proposal needs VPI values of the same year. */
 		indexBaseYear: text('index_base_year').notNull().default('2020'),
 		notes: text('notes'),
+		/**
+		 * The tenant the lease names (letters, lists) unless all tenants share a last name, see
+		 * domain/addressee.ts. Null, or one no longer a party: the first party by name.
+		 */
+		mainTenantId: text('main_tenant_id'),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -1550,6 +1556,8 @@ export const users = sqliteTable(
 		showPropertyMaps: bool('show_property_maps', true),
 		/** Light or dark colours, or whatever the device is set to. */
 		theme: text('theme', { enum: themes }).notNull().default('system'),
+		/** How the user types amounts: with a comma, or like DATEV (600 = 6,00 €). */
+		amountInput: text('amount_input', { enum: amountInputs }).notNull().default('comma'),
 		/**
 		 * The weekly Fristenübersicht by mail: the address of the app its links lead to, taken when
 		 * the user turned it on; null while it is off.

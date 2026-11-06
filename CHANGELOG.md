@@ -12,6 +12,7 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ### Neu
 
+- Beträge wie DATEV eingeben: Unter Einstellungen › Darstellung stellst du **Beträge eingeben** auf „Wie DATEV“. Dann sind die letzten zwei Ziffern die Cent, „600“ heißt 6,00 € und „60000“ 600,00 €. Mit Komma oder Punkt getippte Beträge liest mietkartei weiter wie gewohnt. Die Einstellung gilt nur für dich.
 - Mieter je Objekt: Die Mieterliste hat eine Auswahl **Objekt** und zeigt dann nur die Mieter, die dort mieten oder bald einziehen. Ohne Auswahl stehen die Mieter unter der Überschrift ihres Objekts, die mit Rückstand oder Umzug vorneweg. Auf der Seite eines Objekts führt „Mieter dieses Objekts“ zur gefilterten Liste.
 - Mehrere Mieter und Mietverträge hintereinander anlegen: **Speichern und nächsten Mieter** und **Speichern und nächsten Mietvertrag** speichern und öffnen gleich ein leeres Formular, darüber steht, was gerade angelegt wurde. Nach **Mieter anlegen** führt der Hinweis über dem Mietvertrag auch zu „Nächsten Mieter anlegen“.
 - Geburtsdatum beim Mieter: Das Mieterformular hat ein optionales Feld **Geburtsdatum**, die Mieterseite zeigt es an. Die Datenübernahme liest es aus einer Spalte „Geburtsdatum“, etwa im Format 14.03.1980. Bestehende Mieter bleiben unverändert, bis du es einträgst.
@@ -27,6 +28,7 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ### Geändert
 
+- Ein Mieter je Mietvertrag: Hat ein Vertrag mehrere Mieter, nennen Briefe, Abrechnungen und Listen nur noch einen, „Familie Muster“, wenn alle denselben Nachnamen haben, sonst den Hauptmieter. Hauptmieter ist der erste Mieter im Vertragsformular; die Vertragsseite zeigt ihn unter „Vertragsparteien“, die weiteren Mieter bleiben im Vertrag hinterlegt. In bestehenden Verträgen ist es der erste nach dem Nachnamen, bis du die Reihenfolge im Vertrag änderst. Bei der Datenübernahme ist es der erste in der Spalte „Mieter“. Bereits freigegebene Abrechnungen bleiben unverändert.
 - Beträge ohne Cent: In Betragsfeldern reicht „600“, auch „600,-“, „600 €“ und „1.200“ werden verstanden. Die Beispielwerte in den Feldern zeigen keine Cent mehr.
 - Hinweise lassen sich wegklicken: In der Nebenkostenabrechnung, in der Hausgeldabrechnung und in der Steuerübersicht hat jeder Hinweis ein x. Ein Klick blendet ihn sofort aus, auch nach dem Neuladen und nur für dich. Ändert sich der Hinweis, etwa mit einem anderen Betrag, erscheint er wieder; „wieder anzeigen“ holt ausgeblendete Hinweise zurück. Hinweise, die eine Freigabe blockieren, bleiben stehen. PDF und CSV enthalten weiter alle Hinweise. Die Hinweiskästen haben keinen farbigen Streifen am linken Rand mehr.
 - Längere Formulare sind in Abschnitte gegliedert: links steht, worum es geht, rechts stehen die Felder in zwei Spalten, auf dem Handy untereinander. So bei Mietvertrag, Objekt, Einheit, Mieter, Beleg, Versicherung und Hausgeldabrechnung. Indexmiete-Felder erscheinen im Mietvertrag nur noch beim Mietmodell Indexmiete, und „optional“ steht als kleine Marke neben dem Feldnamen.

@@ -1,5 +1,16 @@
 import { isIsoDate, isIsoMonth } from '../dates';
-import { parseCents } from '../money';
+import { parseAmount, type AmountInput } from '../money';
+
+/**
+ * The field the app's layout adds to every form a user who types amounts like DATEV submits, see
+ * src/routes/+layout.svelte; without JavaScript amounts read with a comma.
+ */
+export const AMOUNT_INPUT_FIELD = 'amountInput';
+
+/** How the amounts of a form were typed, from its AMOUNT_INPUT_FIELD. */
+export function amountInputOf(value: unknown): AmountInput {
+	return value === 'datev' ? 'datev' : 'comma';
+}
 
 // Helpers for parsing FormData in server actions. A parse function builds on FormParser and
 // returns a ParseResult, which the action hands back to the form on failure.
@@ -60,7 +71,10 @@ export class FormParser<T> {
 			if (required) this.fail(name, 'Bitte gib einen Betrag an.');
 			return null;
 		}
-		const cents = parseCents(value);
+		const style = amountInputOf(this.form.get(AMOUNT_INPUT_FIELD));
+		// Kept with the values, so a hint computed from them after a refusal reads them alike.
+		if (style === 'datev') this.values[AMOUNT_INPUT_FIELD] = style;
+		const cents = parseAmount(value, style);
 		if (cents === undefined) this.fail(name, 'Bitte gib einen Betrag an, z. B. 650,00.');
 		else if (cents < min) this.fail(name, `Der Betrag darf nicht unter ${min / 100} € liegen.`);
 		else if (cents > max) this.fail(name, 'Der Betrag ist zu hoch.');

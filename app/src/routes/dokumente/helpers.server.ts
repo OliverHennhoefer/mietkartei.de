@@ -1,6 +1,7 @@
 import { error, fail, redirect, type ActionFailure } from '@sveltejs/kit';
 import { asc, eq } from 'drizzle-orm';
 import type { DocumentLinkIds, DocumentLinkOptions } from '#lib/domain/documents.ts';
+import { leaseTenantName } from '#lib/domain/addressee.ts';
 import { personName } from '#lib/format.ts';
 import {
 	documentErrorMessage,
@@ -76,7 +77,7 @@ export async function loadDocumentLinkOptions(
 			propertyId: property.id
 		})),
 		leases: leaseRows.map((lease) => {
-			const names = lease.tenants.map(personName).join(', ');
+			const names = leaseTenantName(lease.tenants);
 			return { id: lease.id, label: names ? `${leaseLabel(lease)} · ${names}` : leaseLabel(lease) };
 		}),
 		tenants: tenantRows.map((tenant) => ({ id: tenant.id, label: personName(tenant) })),
