@@ -85,6 +85,8 @@ test('shows the tenants of one property under its heading', async ({ page }) => 
 		tenant: { lastName: `Filter-B-${s}` }
 	});
 	await page.goto('/mieter');
+	// The select submits its form once the page is hydrated.
+	await page.waitForLoadState('networkidle');
 	const table = page.getByRole('table', { name: 'Mieter' });
 	// Both owe their first rent, so they stand under the group of tenants who need something.
 	await expect(table.getByRole('columnheader', { name: 'Rückstand oder Umzug' })).toBeVisible();
