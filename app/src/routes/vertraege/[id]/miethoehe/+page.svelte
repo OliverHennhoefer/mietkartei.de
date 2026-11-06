@@ -216,10 +216,10 @@
 						{#if change.status !== 'approved'}<Badge tone="warning">Vorschlag</Badge>{/if}
 					</td>
 					<td class="num">
-						<Money cents={change.baseRent} />
+						<Money cents={change.baseRent - change.parkingRent} />
 						{#if change.parkingRent > 0}
 							<span class="muted small nowrap"
-								>davon <Money cents={change.parkingRent} /> Garage/Stellplatz</span
+								>zzgl. <Money cents={change.parkingRent} /> Garage/Stellplatz</span
 							>
 						{/if}
 					</td>
@@ -633,19 +633,26 @@
 			required
 		/>
 	</Field>
-	<Field label="Kaltmiete" error={changeErrors?.baseRent}>
+	<Field
+		label="Kaltmiete"
+		error={changeErrors?.baseRent}
+		hint={data.changeDefaults.parkingRent > 0
+			? 'Ohne Garage/Stellplatz; deren Miete steht im nächsten Feld.'
+			: undefined}
+	>
 		<input
 			name="baseRent"
 			inputmode="decimal"
-			defaultValue={changeValues?.baseRent ?? formatCentsPlain(data.changeDefaults.baseRent)}
+			defaultValue={changeValues?.baseRent ??
+				formatCentsPlain(data.changeDefaults.baseRent - data.changeDefaults.parkingRent)}
 			aria-invalid={changeErrors?.baseRent ? 'true' : undefined}
 			required
 		/>
 	</Field>
 	<Field
-		label="davon Garage/Stellplatz"
+		label="Miete Garage/Stellplatz"
 		error={changeErrors?.parkingRent}
-		hint="Der Teil der Kaltmiete für eine mitvermietete Garage oder einen Stellplatz."
+		hint="Die Miete für eine mitvermietete Garage oder einen Stellplatz, zusätzlich zur Kaltmiete."
 	>
 		<input
 			name="parkingRent"
@@ -724,14 +731,11 @@
 				<dt>Grund</dt>
 				<dd>{rentChangeReasonLabels[editing.reason]}</dd>
 				<dt>Kaltmiete</dt>
-				<dd>
-					<Money cents={editing.baseRent} />
-					{#if editing.parkingRent > 0}
-						<span class="muted">
-							(davon <Money cents={editing.parkingRent} /> für Garage/Stellplatz)</span
-						>
-					{/if}
-				</dd>
+				<dd><Money cents={editing.baseRent - editing.parkingRent} /></dd>
+				{#if editing.parkingRent > 0}
+					<dt>Garage/Stellplatz</dt>
+					<dd><Money cents={editing.parkingRent} /></dd>
+				{/if}
 				<dt>Betriebskosten</dt>
 				<dd><Money cents={editing.operatingCostPrepayment} /></dd>
 				<dt>Heizkosten</dt>

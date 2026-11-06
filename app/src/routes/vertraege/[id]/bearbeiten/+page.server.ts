@@ -1,6 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { formatDate } from '#lib/dates.ts';
-import { depositWarning, parseLeaseEdit } from '#lib/forms/leases.ts';
+import { depositWarning, formRentOf, parseLeaseEdit } from '#lib/forms/leases.ts';
 import { formatCentsPlain, parseCents } from '#lib/money.ts';
 import { getLease, leaseInputOf, updateLease } from '#lib/server/leases.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
@@ -28,7 +28,7 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 		operatingCostModel: input.operatingCostModel,
 		heatingCostModel: input.heatingCostModel,
 		rentDueDay: String(input.rentDueDay),
-		baseRent: formatCentsPlain(input.baseRent),
+		baseRent: formatCentsPlain(formRentOf(input)),
 		parkingRent: formatCentsPlain(input.parkingRent),
 		operatingCostPrepayment: formatCentsPlain(input.operatingCostPrepayment),
 		heatingCostPrepayment: formatCentsPlain(input.heatingCostPrepayment),
@@ -50,9 +50,12 @@ function warningFor(
 	values: Record<string, string>,
 	kind: 'residential' | 'commercial' | 'parking'
 ) {
-	const baseRent = parseCents(values.baseRent ?? '');
+	// The Kaltmiete of the lease includes a garage rented with it, typed in a field of its own.
+	const unitRent = parseCents(values.baseRent ?? '');
+	const parkingRent = parseCents(values.parkingRent ?? '') ?? 0;
 	const securityDeposit = parseCents(values.securityDeposit ?? '');
-	if (baseRent === undefined || securityDeposit === undefined) return undefined;
+	if (unitRent === undefined || securityDeposit === undefined) return undefined;
+	const baseRent = unitRent + parkingRent;
 	return depositWarning({ kind, baseRent, securityDeposit });
 }
 

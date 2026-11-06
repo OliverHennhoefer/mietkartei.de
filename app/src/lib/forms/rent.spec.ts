@@ -31,12 +31,9 @@ describe('parseManualChange', () => {
 		});
 	});
 
-	it('takes the parking share as part of the Kaltmiete, never above it', () => {
+	it('adds the rent of a garage to the Kaltmiete typed without it', () => {
 		const result = parseManualChange(formDataOf({ ...change, parkingRent: '50,00' }), free);
-		expect(result.ok && result.data.parkingRent).toBe(5000);
-		const above = parseManualChange(formDataOf({ ...change, parkingRent: '700' }), free);
-		expect(above.ok).toBe(false);
-		if (!above.ok) expect(above.errors.parkingRent).toContain('Teil der Kaltmiete');
+		expect(result.ok && result.data).toMatchObject({ baseRent: 70000, parkingRent: 5000 });
 	});
 
 	it('requires a note when the base rent of a restricted lease changes', () => {
