@@ -121,6 +121,16 @@ describe('mieter', () => {
 			(await run(load, { url: `/mieter?objekt=${later.propertyId}` })) as { data: Data }
 		).data;
 		expect(coming.tenants.map((row) => row.id)).toEqual([clara]);
+		// A second coming lease elsewhere counts as well, not only the earliest move-in.
+		const elsewhere = await seedUnit(db, 'a', { propertyName: 'Birkenallee' });
+		await seedLease(db, 'a', elsewhere.unitId, {
+			tenantIds: [clara],
+			startDate: addMonths(today(), 4)
+		});
+		const second = (
+			(await run(load, { url: `/mieter?objekt=${elsewhere.propertyId}` })) as { data: Data }
+		).data;
+		expect(second.tenants.map((row) => row.id)).toEqual([clara]);
 
 		// An unknown property shows everyone.
 		const unknown = ((await run(load, { url: '/mieter?objekt=nope' })) as { data: Data }).data;

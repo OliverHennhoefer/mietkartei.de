@@ -70,8 +70,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
 		return {
 			...tenant,
+			/** Every property with a running or coming lease of the tenant, for the filter. */
 			propertyIds: [
-				...new Set([...active, ...(moveIn ? [moveIn] : [])].map((lease) => lease.property.id))
+				...new Set(
+					own.filter((lease) => lease.active || lease.upcoming).map((lease) => lease.property.id)
+				)
 			],
 			activeLeases: active.map((lease) => ({
 				id: lease.id,
