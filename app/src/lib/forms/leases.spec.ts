@@ -3,12 +3,14 @@ import type { LeaseInput } from '../server/leases';
 import { formDataOf } from './fields';
 import {
 	depositWarning,
+	formRentOf,
 	MAX_LEASE_IDS,
 	parseLease,
 	parseLeaseEdit,
 	parseLeaseEnd,
 	parseLeasePersons,
-	parseOpeningBalance
+	parseOpeningBalance,
+	typedDepositWarning
 } from './leases';
 
 /** A plain residential lease with every optional field left empty. */
@@ -177,12 +179,14 @@ describe('parseLease', () => {
 		});
 	});
 
-	it('takes the share of a garage as part of the Kaltmiete, never above it', () => {
-		const result = parse({ parkingRent: '50' });
-		expect(result.ok && result.data.parkingRent).toBe(5000);
+	it('adds the rent of a garage to the Kaltmiete typed without it', () => {
+		const result = parse({ baseRent: '650', parkingRent: '50' });
+		expect(result.ok && result.data).toMatchObject({ baseRent: 70000, parkingRent: 5000 });
 		const empty = parse();
 		expect(empty.ok && empty.data.parkingRent).toBe(0);
-		expect(errorsOf({ parkingRent: '650,01' }).parkingRent).toContain('Teil der Kaltmiete');
+		// The garage alone may cost more than the flat.
+		expect(parse({ baseRent: '40', parkingRent: '60' }).ok).toBe(true);
+		expect(formRentOf({ baseRent: 70000, parkingRent: 5000 })).toBe(65000);
 	});
 
 	it('rejects an end date before the start', () => {
@@ -257,6 +261,24 @@ describe('parseLease', () => {
 
 	it('limits the notes', () => {
 		expect(errorsOf({ notes: 'n'.repeat(2001) })).toEqual({ notes: 'Höchstens 2000 Zeichen.' });
+	});
+});
+
+describe('typedDepositWarning', () => {
+	it('adds a garage typed apart to the Kaltmiete it compares with', () => {
+		const values = { baseRent: '650', parkingRent: '100', securityDeposit: '2200' };
+		expect(typedDepositWarning(values, 'residential')).toBeUndefined();
+		expect(typedDepositWarning({ ...values, parkingRent: '' }, 'residential')).toBe(
+			'Die Kaution übersteigt drei Nettokaltmieten (§ 551 BGB).'
+		);
+	});
+
+	it('gives no hint while the Kaltmiete or the deposit is missing', () => {
+		expect(typedDepositWarning({ securityDeposit: '5000' }, 'residential')).toBeUndefined();
+		expect(typedDepositWarning({ baseRent: '650' }, 'residential')).toBeUndefined();
+		expect(
+			typedDepositWarning({ baseRent: '650', securityDeposit: '5000' }, 'residential')
+		).toBeDefined();
 	});
 });
 

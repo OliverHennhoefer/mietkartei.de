@@ -641,7 +641,7 @@ describe('addGraduatedStep', () => {
 		graduatedId = lease.id;
 	});
 
-	it('keeps the parking share and refuses a step that would undercut it', async () => {
+	it('keeps the parking share, adds it to the Kaltmiete of the step and refuses an undercut', async () => {
 		await manualChange(db, contextA, graduatedId, {
 			validFrom: '2026-06-01',
 			baseRent: 60000,
@@ -658,17 +658,11 @@ describe('addGraduatedStep', () => {
 				baseRent: 50000
 			})
 		).toMatchObject({ ok: false, message: expect.stringContaining('Ab dem 01.06.2026') });
-		// From June 2026 on, the step itself must hold the 550 €.
+		// From June 2026 on, the step is typed for the unit and the 550 € garage come on top.
 		expect(
 			await addGraduatedStep(db, contextA, graduatedId, {
 				validFrom: '2027-06-01',
-				baseRent: 50000
-			})
-		).toMatchObject({ ok: false, message: expect.stringContaining('enthält 550,00') });
-		expect(
-			await addGraduatedStep(db, contextA, graduatedId, {
-				validFrom: '2027-06-01',
-				baseRent: 62000
+				baseRent: 7000
 			})
 		).toMatchObject({ ok: true });
 		const steps = await listRentChanges(db, 'a', graduatedId);
@@ -920,7 +914,7 @@ describe('rentLetter', () => {
 describe('a § 558 demand on a lease with a garage', () => {
 	it('raises the rent of the flat within the cap and keeps the garage share', async () => {
 		// 650 € from 2024-01-01, of which 50 € for the garage: 20 % on the flat's 600 € allow
-		// 720 €, plus the garage 770 €.
+		// 720 € for the flat, typed without the garage; with it 770 €.
 		const { unitId: flat } = await seedUnit(db, 'a', { name: 'OG' });
 		const lease = await createLeaseWithoutCharges(
 			db,
@@ -930,7 +924,7 @@ describe('a § 558 demand on a lease with a garage', () => {
 		if (!lease.ok) throw new Error('setup failed');
 		const demand = {
 			deliveredOn: '2026-03-10',
-			baseRent: 77001,
+			baseRent: 72001,
 			comparativeRent: 1150,
 			cappingPercent: 20 as const,
 			comparisonSource: 'rent_index' as const,
@@ -938,21 +932,33 @@ describe('a § 558 demand on a lease with a garage', () => {
 		};
 		expect(await demandComparativeIncrease(db, contextA, lease.id, demand)).toMatchObject({
 			ok: false,
-			message: expect.stringContaining('höchstens 770,00')
+			message: expect.stringContaining('erlaubt für die Wohnung höchstens 720,00')
 		});
 		const result = await demandComparativeIncrease(db, contextA, lease.id, {
 			...demand,
-			baseRent: 77000
+			baseRent: 72000
 		});
 		if (!result?.ok) throw new Error(JSON.stringify(result));
+		const [, demanded] = await listRentChanges(db, 'a', lease.id);
+		expect(demanded).toMatchObject({ status: 'proposed', baseRent: 77000, parkingRent: 5000 });
 		expect(
 			await recordConsent(db, contextA, lease.id, result.id, {
 				consentedOn: '2026-04-01',
-				baseRent: 77000
+				baseRent: 72001
+			})
+		).toEqual({
+			ok: false,
+			message:
+				'Die vereinbarte Kaltmiete für die Wohnung muss über der bisherigen von 600,00\u00a0€ und höchstens bei den verlangten 720,00\u00a0€ liegen.'
+		});
+		expect(
+			await recordConsent(db, contextA, lease.id, result.id, {
+				consentedOn: '2026-04-01',
+				baseRent: 70000
 			})
 		).toMatchObject({ ok: true });
 		const [, approved] = await listRentChanges(db, 'a', lease.id);
-		expect(approved).toMatchObject({ status: 'approved', baseRent: 77000, parkingRent: 5000 });
+		expect(approved).toMatchObject({ status: 'approved', baseRent: 75000, parkingRent: 5000 });
 		expect(approved.letterTable?.[1]).toEqual([
 			'davon Garage/Stellplatz',
 			'50,00\u00a0€',

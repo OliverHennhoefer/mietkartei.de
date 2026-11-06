@@ -131,23 +131,25 @@ describe('§ 558 with a garage rented with the flat', () => {
 	// 650 € Kaltmiete, of which 50 € for the garage, since 2022; 600 € for the flat of 80 m².
 	const changes = [change('2022-01-01', 65000, { parkingRent: 5000 })];
 
-	it('caps and compares the rent of the flat only, the garage share added on top', () => {
+	it('caps and compares the rent of the flat only, typed without the garage', () => {
 		const situation = comparativeSituation(flat, changes, '2026-03-10');
 		expect(situation).toMatchObject({ currentBaseRent: 65000, parkingRent: 5000, capBase: 60000 });
-		// 20 % on the flat's 600 €, plus the unchanged 50 €.
-		expect(situation.caps).toEqual({ 20: 77000, 15: 74000 });
+		// 20 % on the flat's 600 €; the 50 € for the garage stay as they are.
+		expect(situation.caps).toEqual({ 20: 72000, 15: 69000 });
 		const check = (baseRent: number, comparativeRent = 950) =>
 			demandProblem(flat, situation, { ...demand, baseRent, comparativeRent });
-		expect(check(77000)).toBeUndefined();
-		expect(check(77001)).toMatchObject({
-			message: expect.stringContaining(
-				'höchstens 770,00\u00a0€, mit 50,00\u00a0€ für Garage/Stellplatz'
-			)
+		expect(check(60000)).toMatchObject({
+			message:
+				'Die neue Kaltmiete für die Wohnung muss über der bisherigen von 600,00\u00a0€ liegen.'
 		});
-		// 8,50 € × 80 m² = 680 € for the flat: 730 € in all.
-		expect(check(73000, 850)).toBeUndefined();
-		expect(check(73001, 850)).toMatchObject({
-			message: expect.stringContaining('höchstens 730,00\u00a0€')
+		expect(check(72000)).toBeUndefined();
+		expect(check(72001)).toMatchObject({
+			message: expect.stringContaining('erlaubt für die Wohnung höchstens 720,00\u00a0€ (600,00')
+		});
+		// 8,50 € × 80 m² = 680 € for the flat.
+		expect(check(68000, 850)).toBeUndefined();
+		expect(check(68001, 850)).toMatchObject({
+			message: expect.stringContaining('höchstens 680,00\u00a0€ für die Wohnung')
 		});
 	});
 

@@ -1,13 +1,12 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { addMonthsToMonth, firstOfMonth, formatDate, monthOf, today } from '#lib/dates.ts';
 import {
-	depositWarning,
 	parseLease,
 	parseNewTenants,
-	parseOpeningBalance
+	parseOpeningBalance,
+	typedDepositWarning
 } from '#lib/forms/leases.ts';
 import { personName } from '#lib/format.ts';
-import { parseCents } from '#lib/money.ts';
 import { createLease, getLease, leaseLabel, listUnitsWithProperty } from '#lib/server/leases.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { listTenants } from '#lib/server/tenants.ts';
@@ -59,12 +58,9 @@ function valuesOf(form: FormData): Record<string, string> {
 
 /** The § 551 hint for the values as typed, also when other fields failed. */
 function warningFor(values: Record<string, string>): string | undefined {
-	const baseRent = parseCents(values.baseRent ?? '');
-	const securityDeposit = parseCents(values.securityDeposit ?? '');
-	if (baseRent === undefined || securityDeposit === undefined) return undefined;
 	const kind =
 		values.kind === 'commercial' || values.kind === 'parking' ? values.kind : 'residential';
-	return depositWarning({ kind, baseRent, securityDeposit });
+	return typedDepositWarning(values, kind);
 }
 
 export const actions: Actions = {

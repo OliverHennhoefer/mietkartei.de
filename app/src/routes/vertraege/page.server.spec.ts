@@ -264,6 +264,15 @@ describe('vertraege/neu', () => {
 			fail: 400,
 			data: { depositWarning: undefined }
 		});
+		// The garage counts towards the Kaltmiete of the lease: 3 × (650 + 100) covers 2.200.
+		expect(await failed({ securityDeposit: '2200', parkingRent: '100' })).toMatchObject({
+			fail: 400,
+			data: { depositWarning: undefined }
+		});
+		expect(await failed({ securityDeposit: '2200' })).toMatchObject({
+			fail: 400,
+			data: { depositWarning: expect.stringContaining('551') }
+		});
 	});
 
 	it('refuses a unit or tenant of another account', async () => {
@@ -631,5 +640,30 @@ describe('vertraege/[id]', () => {
 				form: { ...form, persons: 'viele', baseRent: '' }
 			})
 		).toMatchObject({ fail: 400, data: { depositWarning: undefined } });
+		// The garage typed apart counts towards the Kaltmiete of the lease.
+		expect(
+			await run(editActions.update, {
+				params: { id },
+				form: {
+					...form,
+					persons: 'viele',
+					baseRent: '650',
+					parkingRent: '100',
+					securityDeposit: '2200'
+				}
+			})
+		).toMatchObject({ fail: 400, data: { depositWarning: undefined } });
+		expect(
+			await run(editActions.update, {
+				params: { id },
+				form: {
+					...form,
+					persons: 'viele',
+					baseRent: '650',
+					parkingRent: '',
+					securityDeposit: '2200'
+				}
+			})
+		).toMatchObject({ fail: 400, data: { depositWarning: expect.stringContaining('551') } });
 	});
 });

@@ -78,6 +78,30 @@ test('saves a lease in whole euros and starts the next one empty', async ({ page
 	await expect(page.getByLabel('Aktuelle Miete')).toContainText(/600,00\s€/);
 });
 
+test('takes the rent of a garage apart from the Kaltmiete and shows both', async ({ page }) => {
+	const { unitId, tenantId } = await seedUnitAndTenant(page);
+	await page.goto(`/vertraege/neu?unitId=${unitId}&tenantId=${tenantId}`);
+	await page.getByLabel('Beginn', { exact: true }).fill('2025-01-01');
+	await page.locator('input[name="baseRent"]').fill('600');
+	await page.locator('input[name="parkingRent"]').fill('50');
+	await page.locator('input[name="operatingCostPrepayment"]').fill('150');
+	await page.getByRole('button', { name: 'Mietvertrag anlegen' }).click();
+
+	await expect(page).toHaveURL(/\/vertraege\/(?!neu)[^/?]+$/);
+	const rent = page.getByLabel('Aktuelle Miete');
+	await expect(rent).toContainText(/Kaltmiete\s*600,00\s€/);
+	await expect(rent).toContainText(/Garage\/Stellplatz\s*50,00\s€/);
+	await expect(rent).toContainText(/Gesamtmiete\s*800,00\s€/);
+
+	await page.getByRole('link', { name: 'Miethöhe und Änderungen' }).click();
+	await expect(page.getByRole('table', { name: 'Mietänderungen' })).toContainText(
+		/600,00\s€\s*zzgl. 50,00\s€ Garage\/Stellplatz/
+	);
+	await page.goto(page.url().replace(/\/miethoehe$/, '/bearbeiten'));
+	await expect(page.locator('input[name="baseRent"]')).toHaveValue('600,00');
+	await expect(page.locator('input[name="parkingRent"]')).toHaveValue('50,00');
+});
+
 test('creates a lease with an opening balance, keeps its history and ends it', async ({ page }) => {
 	const { unitId, tenantId, label, tenantName } = await seedUnitAndTenant(page);
 	page.on('dialog', (dialog) => dialog.accept());

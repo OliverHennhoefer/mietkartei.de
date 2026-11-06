@@ -1,4 +1,5 @@
 import type { IsoDate } from '../dates';
+import { parseCents } from '../money';
 import {
 	heatingCostModels,
 	leaseKinds,
@@ -78,8 +79,7 @@ export function parseLease(
 	const operatingCostModel = parser.oneOf('operatingCostModel', operatingCostModels);
 	const heatingCostModel = parser.oneOf('heatingCostModel', heatingCostModels);
 
-	const baseRent = parser.money('baseRent');
-	const parkingRent = parseParkingRent(parser, baseRent);
+	const { baseRent, parkingRent } = parseRentAmounts(parser);
 	const operatingCostPrepayment = parser.money('operatingCostPrepayment', { required: false }) ?? 0;
 	// A tenant with an own supply contract pays no heating prepayment to the landlord.
 	const heatingCostPrepayment =
@@ -156,21 +156,22 @@ export function parseLease(
 }
 
 /**
- * "davon Garage/Stellplatz": the part of the Kaltmiete for a garage or parking space rented with
- * the unit, empty for none. It cannot exceed the Kaltmiete it is part of.
+ * The form asks for the Kaltmiete of the unit (field baseRent) and the rent of a garage or parking
+ * space rented with it (field parkingRent, empty for none) as two amounts, so a Kaltmiete is never
+ * typed with the garage in it. Stored, baseRent is their sum and parkingRent the garage's part of
+ * it (see RentAmounts); the edit forms prefill baseRent with the difference (formRentOf).
  */
-export function parseParkingRent<T extends { parkingRent: number }>(
-	parser: FormParser<T>,
-	baseRent: number | null
-): number {
+export function parseRentAmounts<T extends { baseRent: number; parkingRent: number }>(
+	parser: FormParser<T>
+): { baseRent: number | null; parkingRent: number } {
+	const unitRent = parser.money('baseRent');
 	const parkingRent = parser.money('parkingRent', { required: false }) ?? 0;
-	if (baseRent !== null && parkingRent > baseRent) {
-		parser.fail(
-			'parkingRent',
-			'Der Anteil für Garage/Stellplatz ist Teil der Kaltmiete und kann nicht höher sein.'
-		);
-	}
-	return parkingRent;
+	return { baseRent: unitRent === null ? null : unitRent + parkingRent, parkingRent };
+}
+
+/** The Kaltmiete of the unit for the baseRent field of a form: the stored sum less the garage. */
+export function formRentOf(amounts: { baseRent: number; parkingRent: number }): number {
+	return amounts.baseRent - amounts.parkingRent;
 }
 
 /**
@@ -183,6 +184,21 @@ export function depositWarning(
 	if (input.kind !== 'residential') return undefined;
 	if (input.securityDeposit <= 3 * input.baseRent) return undefined;
 	return 'Die Kaution übersteigt drei Nettokaltmieten (§ 551 BGB).';
+}
+
+/**
+ * The § 551 hint for the lease form as typed, also when other fields failed. The Kaltmiete it
+ * compares with includes a garage rented with the unit, typed in a field of its own.
+ */
+export function typedDepositWarning(
+	values: Record<string, string>,
+	kind: LeaseInput['kind']
+): string | undefined {
+	const unitRent = parseCents(values.baseRent ?? '');
+	const securityDeposit = parseCents(values.securityDeposit ?? '');
+	if (unitRent === undefined || securityDeposit === undefined) return undefined;
+	const baseRent = unitRent + (parseCents(values.parkingRent ?? '') ?? 0);
+	return depositWarning({ kind, baseRent, securityDeposit });
 }
 
 /**

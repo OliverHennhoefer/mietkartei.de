@@ -225,15 +225,13 @@
 
 <h2>Aktuelle Miete</h2>
 <dl class="details" aria-label="Aktuelle Miete">
+	<!-- The Kaltmiete without a garage rented with the unit; the garage stands on its own line. -->
 	<dt>Kaltmiete</dt>
-	<dd>
-		<Money cents={data.currentRent.baseRent} />
-		{#if data.currentRent.parkingRent > 0}
-			<span class="muted">
-				(davon <Money cents={data.currentRent.parkingRent} /> für Garage/Stellplatz)
-			</span>
-		{/if}
-	</dd>
+	<dd><Money cents={data.currentRent.baseRent - data.currentRent.parkingRent} /></dd>
+	{#if data.currentRent.parkingRent > 0}
+		<dt>Garage/Stellplatz</dt>
+		<dd><Money cents={data.currentRent.parkingRent} /></dd>
+	{/if}
 	<dt>Betriebskostenvorauszahlung</dt>
 	<dd><Money cents={data.currentRent.operatingCostPrepayment} /></dd>
 	{#if lease.heatingCostModel !== 'tenant_contract' || data.currentRent.heatingCostPrepayment !== 0}

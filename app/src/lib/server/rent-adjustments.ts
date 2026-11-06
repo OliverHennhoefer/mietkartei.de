@@ -22,7 +22,7 @@ import {
 	type ComparativeDemand
 } from '../domain/comparative-rent';
 import { letterText as editedLetterText, type LetterTextResult } from '../domain/letters';
-import { rentOn, total, type RentAmounts } from '../domain/rents';
+import { rentOn, total, unitRent, type RentAmounts } from '../domain/rents';
 import { personName } from '../format';
 import { formatCents } from '../money';
 import { addressLines, landlordAddress, type LandlordAddress } from './accounts';
@@ -103,14 +103,6 @@ function amountsOf(rent: RentAmounts): RentAmounts {
  */
 function withBaseRent(rent: RentAmounts, baseRent: number): RentAmounts {
 	return { ...amountsOf(rent), baseRent, parkingRent: Math.min(rent.parkingRent, baseRent) };
-}
-
-/** A Kaltmiete below the parking share it keeps, as a refusal; undefined when it holds it. */
-function belowParkingRent(baseRent: number, parkingRent: number): AdjustmentResult | undefined {
-	if (baseRent >= parkingRent) return undefined;
-	return refuse(
-		`Die Kaltmiete enthält ${formatCents(parkingRent)} für Garage/Stellplatz und kann nicht niedriger sein. Ändere den Anteil zuerst über „Änderung ab Datum“.`
-	);
 }
 
 /**
@@ -201,7 +193,11 @@ export async function manualChange(
 	return { ok: true, id };
 }
 
-export type GraduatedStepInput = { validFrom: IsoDate; baseRent: number };
+export type GraduatedStepInput = {
+	validFrom: IsoDate;
+	/** The Kaltmiete of the unit; a garage rented with it keeps its rent and is added. */
+	baseRent: number;
+};
 
 /**
  * A step of a graduated rent (§ 557a BGB), approved at once. The prepayments stay as they are on
@@ -233,9 +229,7 @@ export async function addGraduatedStep(
 	}
 	const before = rentOn(changes, input.validFrom);
 	if (!before) return refuse('Dem Mietvertrag fehlt die Miete bei Vertragsbeginn.');
-	const belowParking = belowParkingRent(input.baseRent, before.parkingRent);
-	if (belowParking) return belowParking;
-	const after = withBaseRent(before, input.baseRent);
+	const after = withBaseRent(before, input.baseRent + before.parkingRent);
 	const id = crypto.randomUUID();
 	const later = laterRows(
 		db,
@@ -269,7 +263,7 @@ export async function addGraduatedStep(
 			'lease',
 			leaseId,
 			'update',
-			`Staffel ab ${formatDate(input.validFrom)}: Kaltmiete ${formatCents(input.baseRent)}` +
+			`Staffel ab ${formatDate(input.validFrom)}: Kaltmiete ${formatCents(after.baseRent)}` +
 				laterRowsNote(later)
 		),
 		...(await leaseChargeStatements(db, context.accountId, leaseId, { changes: history }))
@@ -575,7 +569,7 @@ export async function demandComparativeIncrease(
 	if (hasApprovedOn(changes, validFrom)) return sameDayRefusal(validFrom);
 	const before = rentOn(changes, validFrom)!;
 	const newRent = {
-		...withBaseRent(before, demand.baseRent),
+		...withBaseRent(before, demand.baseRent + before.parkingRent),
 		validFrom,
 		status: 'proposed' as const
 	};
@@ -615,7 +609,7 @@ export async function demandComparativeIncrease(
 			'lease',
 			leaseId,
 			'create',
-			`Mieterhöhung nach § 558 BGB auf ${formatCents(demand.baseRent)} Kaltmiete ab ${formatDate(validFrom)} verlangt (Zugang am ${formatDate(demand.deliveredOn)})`
+			`Mieterhöhung nach § 558 BGB auf ${formatCents(newRent.baseRent)} Kaltmiete ab ${formatDate(validFrom)} verlangt (Zugang am ${formatDate(demand.deliveredOn)})`
 		),
 		// A demand is not part of the history yet; the charges are only brought up to date.
 		...(await leaseChargeStatements(db, context.accountId, leaseId))
@@ -625,7 +619,10 @@ export async function demandComparativeIncrease(
 
 export type ConsentInput = {
 	consentedOn: IsoDate;
-	/** The Kaltmiete the tenant agreed to; a partial consent agrees to less than demanded. */
+	/**
+	 * The Kaltmiete of the flat the tenant agreed to, without a garage rented with it (which keeps
+	 * its rent); a partial consent agrees to less than demanded.
+	 */
 	baseRent: number;
 };
 
@@ -688,9 +685,11 @@ export async function recordConsent(
 	const others = changes.filter((other) => other.id !== change.id);
 	const before = rentOn(others, validFrom);
 	if (!before) return refuse('Dem Mietvertrag fehlt die Miete bei Vertragsbeginn.');
-	if (input.baseRent > change.baseRent || input.baseRent <= before.baseRent) {
+	const agreed = input.baseRent + before.parkingRent;
+	if (agreed > change.baseRent || agreed <= before.baseRent) {
+		const flat = before.parkingRent > 0 ? ' für die Wohnung' : '';
 		return refuse(
-			`Die vereinbarte Kaltmiete muss über der bisherigen von ${formatCents(before.baseRent)} und höchstens bei den verlangten ${formatCents(change.baseRent)} liegen.`
+			`Die vereinbarte Kaltmiete${flat} muss über der bisherigen von ${formatCents(unitRent(before))} und höchstens bei den verlangten ${formatCents(change.baseRent - before.parkingRent)} liegen.`
 		);
 	}
 	const stale = staleDemand(lease, others, change, input.baseRent);
@@ -699,7 +698,7 @@ export async function recordConsent(
 			`Das Verlangen passt nicht mehr zur Miethistorie: ${stale} Lösche es und stelle es neu.`
 		);
 	}
-	const amounts = withBaseRent(before, input.baseRent);
+	const amounts = withBaseRent(before, agreed);
 	const approved: HistoryChange = { ...change, ...amounts, status: 'approved' };
 	// The agreed Kaltmiete only rises and the parking share stays: no later row can end up with a
 	// share above its Kaltmiete.
@@ -716,7 +715,7 @@ export async function recordConsent(
 			'lease',
 			leaseId,
 			'approve',
-			`Zustimmung zur Mieterhöhung vom ${formatDate(input.consentedOn)}: Kaltmiete ${formatCents(input.baseRent)} ab ${formatDate(validFrom)}` +
+			`Zustimmung zur Mieterhöhung vom ${formatDate(input.consentedOn)}: Kaltmiete ${formatCents(agreed)} ab ${formatDate(validFrom)}` +
 				laterRowsNote(later)
 		),
 		...(await leaseChargeStatements(db, context.accountId, leaseId, {

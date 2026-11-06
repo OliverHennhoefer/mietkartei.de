@@ -112,7 +112,7 @@
 				selected={(values.extraUnitIds ?? '').split(',').filter(Boolean)}
 				placeholder="Einheit suchen …"
 				empty="Keine Einheit gefunden."
-				hint="Eine Garage oder ein Stellplatz, die mit der Wohnung vermietet werden, gehören in denselben Mietvertrag: eine Miete, eine Zahlung, ein Mietkonto. Ihren Anteil an der Kaltmiete trägst du unten bei „davon Garage/Stellplatz“ ein."
+				hint="Eine Garage oder ein Stellplatz, die mit der Wohnung vermietet werden, gehören in denselben Mietvertrag: eine Miete, eine Zahlung, ein Mietkonto. Ihre Miete trägst du unten bei „Miete Garage/Stellplatz“ ein."
 				error={errors.extraUnitIds}
 			/>
 		{:else if lease}
@@ -210,7 +210,11 @@
 				Die Beträge zu Beginn des Vertrags. Spätere Änderungen pflegst du im Reiter Miethöhe.
 			{/if}
 		{/snippet}
-		<Field label="Kaltmiete" error={errors.baseRent}>
+		<Field
+			label="Kaltmiete"
+			error={errors.baseRent}
+			hint="Ohne eine mitvermietete Garage oder einen Stellplatz; deren Miete steht im nächsten Feld."
+		>
 			<input
 				name="baseRent"
 				defaultValue={values.baseRent ?? ''}
@@ -221,9 +225,9 @@
 			/>
 		</Field>
 		<Field
-			label="davon Garage/Stellplatz (optional)"
+			label="Miete Garage/Stellplatz (optional)"
 			error={errors.parkingRent}
-			hint="Der Teil der Kaltmiete für eine mitvermietete Garage oder einen Stellplatz. Er zählt nicht zur Kaltmiete je m² für den Mietspiegel und steht in der Steuerübersicht bei den Garagen."
+			hint="Die Miete für eine Garage oder einen Stellplatz, die mit der Einheit vermietet werden. Sie kommt zur Kaltmiete hinzu, zählt nicht zur Kaltmiete je m² für den Mietspiegel und steht in der Steuerübersicht bei den Garagen."
 		>
 			<input
 				name="parkingRent"
