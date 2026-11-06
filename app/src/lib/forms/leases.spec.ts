@@ -9,7 +9,8 @@ import {
 	parseLeaseEdit,
 	parseLeaseEnd,
 	parseLeasePersons,
-	parseOpeningBalance
+	parseOpeningBalance,
+	typedDepositWarning
 } from './leases';
 
 /** A plain residential lease with every optional field left empty. */
@@ -260,6 +261,24 @@ describe('parseLease', () => {
 
 	it('limits the notes', () => {
 		expect(errorsOf({ notes: 'n'.repeat(2001) })).toEqual({ notes: 'Höchstens 2000 Zeichen.' });
+	});
+});
+
+describe('typedDepositWarning', () => {
+	it('adds a garage typed apart to the Kaltmiete it compares with', () => {
+		const values = { baseRent: '650', parkingRent: '100', securityDeposit: '2200' };
+		expect(typedDepositWarning(values, 'residential')).toBeUndefined();
+		expect(typedDepositWarning({ ...values, parkingRent: '' }, 'residential')).toBe(
+			'Die Kaution übersteigt drei Nettokaltmieten (§ 551 BGB).'
+		);
+	});
+
+	it('gives no hint while the Kaltmiete or the deposit is missing', () => {
+		expect(typedDepositWarning({ securityDeposit: '5000' }, 'residential')).toBeUndefined();
+		expect(typedDepositWarning({ baseRent: '650' }, 'residential')).toBeUndefined();
+		expect(
+			typedDepositWarning({ baseRent: '650', securityDeposit: '5000' }, 'residential')
+		).toBeDefined();
 	});
 });
 

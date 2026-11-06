@@ -1,4 +1,5 @@
 import type { IsoDate } from '../dates';
+import { parseCents } from '../money';
 import {
 	heatingCostModels,
 	leaseKinds,
@@ -183,6 +184,21 @@ export function depositWarning(
 	if (input.kind !== 'residential') return undefined;
 	if (input.securityDeposit <= 3 * input.baseRent) return undefined;
 	return 'Die Kaution übersteigt drei Nettokaltmieten (§ 551 BGB).';
+}
+
+/**
+ * The § 551 hint for the lease form as typed, also when other fields failed. The Kaltmiete it
+ * compares with includes a garage rented with the unit, typed in a field of its own.
+ */
+export function typedDepositWarning(
+	values: Record<string, string>,
+	kind: LeaseInput['kind']
+): string | undefined {
+	const unitRent = parseCents(values.baseRent ?? '');
+	const securityDeposit = parseCents(values.securityDeposit ?? '');
+	if (unitRent === undefined || securityDeposit === undefined) return undefined;
+	const baseRent = unitRent + (parseCents(values.parkingRent ?? '') ?? 0);
+	return depositWarning({ kind, baseRent, securityDeposit });
 }
 
 /**

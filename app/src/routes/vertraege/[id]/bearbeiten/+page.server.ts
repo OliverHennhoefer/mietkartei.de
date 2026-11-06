@@ -1,7 +1,12 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { formatDate } from '#lib/dates.ts';
-import { depositWarning, formRentOf, parseLeaseEdit } from '#lib/forms/leases.ts';
-import { formatCentsPlain, parseCents } from '#lib/money.ts';
+import {
+	depositWarning,
+	formRentOf,
+	parseLeaseEdit,
+	typedDepositWarning
+} from '#lib/forms/leases.ts';
+import { formatCentsPlain } from '#lib/money.ts';
 import { getLease, leaseInputOf, updateLease } from '#lib/server/leases.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import { listTenants } from '#lib/server/tenants.ts';
@@ -45,20 +50,6 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 	return { tenants, defaults, depositWarning: depositWarning(input) };
 };
 
-/** The § 551 hint for the values as typed. */
-function warningFor(
-	values: Record<string, string>,
-	kind: 'residential' | 'commercial' | 'parking'
-) {
-	// The Kaltmiete of the lease includes a garage rented with it, typed in a field of its own.
-	const unitRent = parseCents(values.baseRent ?? '');
-	const parkingRent = parseCents(values.parkingRent ?? '') ?? 0;
-	const securityDeposit = parseCents(values.securityDeposit ?? '');
-	if (unitRent === undefined || securityDeposit === undefined) return undefined;
-	const baseRent = unitRent + parkingRent;
-	return depositWarning({ kind, baseRent, securityDeposit });
-}
-
 function kindOf(value: string | undefined, fallback: 'residential' | 'commercial' | 'parking') {
 	return value === 'residential' || value === 'commercial' || value === 'parking'
 		? value
@@ -77,7 +68,7 @@ export const actions: Actions = {
 			return fail(400, {
 				errors: result.errors,
 				values,
-				depositWarning: warningFor(values, kindOf(values.kind, lease.kind))
+				depositWarning: typedDepositWarning(values, kindOf(values.kind, lease.kind))
 			});
 		}
 		const outcome = await updateLease(locals.db, context, lease.id, result.data);
