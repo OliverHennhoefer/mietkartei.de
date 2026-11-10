@@ -77,6 +77,11 @@ jobs:
           print(f'Build docs: {documentation}; build homepage: {homepage}')
           PY
 
+      # On every pull request, whatever it changes: a renamed page of the app breaks an address
+      # in the docs just as a new guide is missing from llms.txt. Needs no build.
+      - name: Check references between the texts and the repository
+        run: python3 scripts/check_references.py
+
       - name: Set up Python
         if: steps.changes.outputs.docs == 'true' || steps.changes.outputs.homepage == 'true'
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0

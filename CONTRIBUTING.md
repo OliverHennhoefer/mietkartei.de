@@ -54,7 +54,9 @@ python scripts/prepare_docs_assets.py
 zensical build --clean --strict
 ```
 
-Der GitHub-Actions-Ablauf **Websites** meldet für jeden Pull Request die Pflichtprüfung **Check websites** und baut bei relevanten Änderungen die Dokumentation beziehungsweise die Startseite. Änderungen an den gemeinsamen Markenressourcen betreffen beide Seiten. Ebenso meldet der Ablauf **App** für jeden Pull Request die Pflichtprüfung **App checks**: Sie ist grün, wenn Lint, Typprüfung, Unit-Tests, beide End-to-End-Läufe und das Docker-Image durchgelaufen sind, oder wenn der Pull Request nichts an der App ändert. Pull Requests veröffentlichen keine Dateien. Die [Deployment-Anleitung](.github/DEPLOYMENT.md) beschreibt die Veröffentlichung aus `main`.
+Ob die Adressen der App und der Dokumentation in den Texten noch auf eine Seite führen, jede Seite der Dokumentation in beiden `llms.txt` steht und kein Hinweiskasten leer bleibt, prüft `python3 scripts/check_references.py`. Das Skript braucht nur Python 3.11 und git.
+
+Der GitHub-Actions-Ablauf **Websites** meldet für jeden Pull Request die Pflichtprüfung **Check websites**, führt dabei `scripts/check_references.py` aus und baut bei relevanten Änderungen die Dokumentation beziehungsweise die Startseite. Änderungen an den gemeinsamen Markenressourcen betreffen beide Seiten. Ebenso meldet der Ablauf **App** für jeden Pull Request die Pflichtprüfung **App checks**: Sie ist grün, wenn Lint, Typprüfung, Unit-Tests, beide End-to-End-Läufe und das Docker-Image durchgelaufen sind, oder wenn der Pull Request nichts an der App ändert. Pull Requests veröffentlichen keine Dateien. Die [Deployment-Anleitung](.github/DEPLOYMENT.md) beschreibt die Veröffentlichung aus `main`.
 
 Prüfe außerdem passend zu deinem Beitrag:
 

@@ -33,6 +33,8 @@ GitHub uses the issue and pull request templates from the default branch `main`.
 | `release.yml` | Categories for automatically generated release notes |
 | `RELEASE_TEMPLATE.md` | Template for a release description, used manually |
 
+Every file in `.github/` needs a row in this table. [`scripts/check_references.py`](../scripts/check_references.py) fails in the check **Check websites** when one is missing.
+
 [CONTRIBUTING.md](../CONTRIBUTING.md), [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md), [SECURITY.md](../SECURITY.md) and [SUPPORT.md](../SUPPORT.md) describe contributing, conduct, security reports and support.
 
 ## Languages
@@ -76,7 +78,7 @@ These repository settings complement the workflow (Settings → Code security):
 
 ## Deploying the websites
 
-The workflow [websites.yml](workflows/websites.yml) reports the required check **Check websites** for every pull request. It checks changed files for whitespace errors and builds the affected websites. Changes to the shared brand assets or the workflow file affect both sites. Before the Zensical build, the selected symbols, wordmark combinations and favicon are copied from the shared brand assets.
+The workflow [websites.yml](workflows/websites.yml) reports the required check **Check websites** for every pull request. It checks changed files for whitespace errors, runs [`scripts/check_references.py`](../scripts/check_references.py) and builds the affected websites. The script needs no build and runs whatever the pull request changes: it fails when an address of the app or the documentation in the texts leads to no page, when a page of the documentation is missing from one of the two `llms.txt`, when a note box has no text, when a file in `docs/` would be published by accident, and when a file in `.github/` is missing from the table above. Changes to the shared brand assets or the workflow file affect both sites. Before the Zensical build, the selected symbols, wordmark combinations and favicon are copied from the shared brand assets.
 
 After relevant changes on `main`, the workflow deploys the homepage and the documentation as separate Cloudflare Workers in the shared GitHub environment **production**. The environment holds the deployment token and the restriction to `main`. A manual run on `main` deploys both sites. The [deployment guide](DEPLOYMENT.md) describes secrets, domains and the migration from GitHub Pages and Cloudflare Workers Builds. The [documentation guide](DOCUMENTATION.md) describes the local preview and the Zensical build.
 
