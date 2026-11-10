@@ -29,7 +29,7 @@ Open **Settings → Environments** and set up **production**. Under **Deployment
 
 When migrating from **website-production** and **documentation**, **production** including its secret and branch rule must exist before the merge. GitHub does not show stored secret values again; use the original token value. After the merge, check that both deployment jobs in **production** succeed. The previous environments, including **github-pages**, can then be removed. Deleting an environment also deletes its secrets and protection rules.
 
-The required check **Check websites** builds the homepage and the documentation when relevant files change.
+The required check **Check websites** runs `scripts/check_references.py` on every pull request and builds the homepage and the documentation when relevant files change.
 
 ### 3. Turn off automatic Cloudflare builds
 
