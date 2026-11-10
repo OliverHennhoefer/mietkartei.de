@@ -79,7 +79,7 @@ mietkartei schickt eine `POST`-Anfrage mit diesem Inhalt:
       "urgent": true,
       "date": "2026-12-31",
       "title": "Betriebskostenabrechnung 2025",
-      "url": "https://app.mietkartei.de/betriebskosten/abrechnungen"
+      "url": "https://app.mietkartei.de/betriebskosten"
     }
   ]
 }

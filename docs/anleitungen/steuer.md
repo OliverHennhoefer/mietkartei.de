@@ -8,7 +8,8 @@ description: "Wie mietkartei die Einnahmen und Werbungskosten eines Objekts nach
 Unter **Objekte → Objekt → Steuer** stellt mietkartei für ein Kalenderjahr zusammen, was das Objekt eingebracht und gekostet hat, sortiert nach den Zeilen der Anlage V. Die Zeilennummern folgen dem Vordruck 2025; in anderen Jahren können sie abweichen.
 
 !!! warning "Keine Steuerberatung"
-Die Steuerübersicht ist eine Hilfe zum Ausfüllen der Anlage V und für das Gespräch mit deinem Steuerberater. Sie kennt nur, was in mietkartei gebucht ist, und ersetzt keine Beratung. Prüfe die Zahlen vor der Abgabe.
+
+    Die Steuerübersicht ist eine Hilfe zum Ausfüllen der Anlage V und für das Gespräch mit deinem Steuerberater. Sie kennt nur, was in mietkartei gebucht ist, und ersetzt keine Beratung. Prüfe die Zahlen vor der Abgabe.
 
 ## Wie gezählt wird
 
