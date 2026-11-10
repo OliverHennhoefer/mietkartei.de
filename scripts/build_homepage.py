@@ -1,8 +1,7 @@
-"""Baut ausschließlich die öffentliche statische Startseite für Cloudflare."""
+"""Builds only the public static homepage for Cloudflare."""
 
 import hashlib
 import html
-import json
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -129,4 +128,4 @@ build_guides(ROOT / "website", OUTPUT)
 build_reference_cases(ROOT / "website", OUTPUT)
 frame_pages()
 
-print(f"Startseite erzeugt: {OUTPUT}")
+print(f"Homepage built: {OUTPUT}")

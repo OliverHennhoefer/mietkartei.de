@@ -1,6 +1,6 @@
 # Maintaining the documentation
 
-The public documentation is built with [Zensical](https://zensical.org/docs/) from `docs/`. Its address is `https://docs.mietkartei.de/`. The site starts with a single German placeholder page; full guides will follow with the application.
+The public documentation is built with [Zensical](https://zensical.org/docs/) from `docs/`. Its address is `https://docs.mietkartei.de/`. It holds the German user guides: the start page, the guide to self-hosting and the how-to guides under `docs/anleitungen/`.
 
 ## Preview and build
 
@@ -31,7 +31,10 @@ After changing the originals in `assets/brand/`, run `python scripts/prepare_doc
 
 | Path | Purpose |
 | --- | --- |
-| `docs/index.md` | Public placeholder page |
+| `docs/index.md` | Start page |
+| `docs/selbst-hosten.md` | Guide to self-hosting, on Cloudflare or with Docker |
+| `docs/anleitungen/` | How-to guides, one page each |
+| `docs/assets/screenshots/` | Screenshots of the guides, taken by `npm run screenshots` in `app/` |
 | `assets/brand/` | Shared symbols, wordmark combinations, favicon and Geist font |
 | `assets/brand/variants/` | Earlier design variants, not published |
 | `docs/assets/stylesheets/` | Styles for the documentation only |
@@ -46,13 +49,13 @@ After changing the originals in `assets/brand/`, run `python scripts/prepare_doc
 | `docs/overrides/main.html` | Theme override: tab titles as `Page \| mietkartei`, link previews (Open Graph), and the website's header, way back to the homepage and footer in place of the theme's |
 | `.github/workflows/websites.yml` | Required check and deployment of both websites |
 
-The header is the website's (`website/_header.html`): the register symbol with the Geist wordmark and the neon block behind "kartei", 52px high on desktop and 44px on smaller screens (`lockup-highlight.svg`, `lockup-highlight-white.svg` in dark mode), and the "Anmelden" button to the app's sign-in page left of the GitHub icon. Under it stands the way back to the homepage, at the bottom the website's footer; see the page frame in [HOMEPAGE.md](HOMEPAGE.md). The colour scheme follows the system, as on the website, so there is no toggle. The browser icon uses the small white symbol on black. The [brand assets](../assets/brand/README.md) contain the vector construction, shared exports and the earlier Geist wordmarks with their original font and license. The page uses the same locally hosted Geist font as the homepage and app, with system fonts as a fallback. Search stays disabled for the single placeholder page.
+The header is the website's (`website/_header.html`): the register symbol with the Geist wordmark and the neon block behind "kartei", 52px high on desktop and 44px on smaller screens (`lockup-highlight.svg`, `lockup-highlight-white.svg` in dark mode), and the "Anmelden" button to the app's sign-in page left of the GitHub icon. Under it stands the way back to the homepage, at the bottom the website's footer; see the page frame in [HOMEPAGE.md](HOMEPAGE.md). The colour scheme follows the system, as on the website, so there is no toggle. The browser icon uses the small white symbol on black. The [brand assets](../assets/brand/README.md) contain the vector construction, shared exports and the earlier Geist wordmarks with their original font and license. The page uses the same locally hosted Geist font as the homepage and app, with system fonts as a fallback. Search is disabled in `zensical.toml`.
 
 Every page needs `title` and `description` in its front matter: they become the tab title, the search engine description and the link preview. Zensical generates `sitemap.xml` from `site_url`, and its `llmstxt` plugin writes `llms.txt` and `llms-full.txt` for AI assistants; add each new page to the `llmstxt` sections in `zensical.toml`.
 
 ## Cloudflare and domain
 
-The Worker **mietkartei-de-docs** serves the Zensical output from `site/` at `https://docs.mietkartei.de/`. Language, page design and address are still configured in `zensical.toml`. `docs/wrangler.toml` and `docs/requirements.txt` are not included in the public output.
+The Worker **mietkartei-de-docs** serves the Zensical output from `site/` at `https://docs.mietkartei.de/`. Language, page design and address are still configured in `zensical.toml`. `docs/wrangler.toml`, `docs/requirements.in` and `docs/requirements.txt` are not included in the public output.
 
 The [deployment guide](DEPLOYMENT.md) describes the one-time setup of the GitHub secrets, the switch from the previous GitHub Pages CNAME to a Cloudflare custom domain, and the shared workflow for homepage and documentation.
 

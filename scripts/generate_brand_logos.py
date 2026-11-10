@@ -1,4 +1,4 @@
-"""Erzeugt die Wortmarken aus Geist Medium mit den originalen Schriftkonturen."""
+"""Generates the wordmarks from Geist Medium with the font's original outlines."""
 
 from html import escape
 import json

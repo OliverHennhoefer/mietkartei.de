@@ -1,6 +1,6 @@
 # Maintaining the public homepage
 
-The static landing page at `https://mietkartei.de/` is written for private landlords, many of them between 40 and 70: calm, factual and complete rather than loud. Large text (body copy 16 to 21px), generous whitespace and no motion. It scrolls through a centred hero with a link to the latest guide, the Auswertung in an app window on a soft neon haze with two floating details, four facts, the four yearly tasks with their screenshots (Nebenkostenabrechnung first), a grid of all areas of the app, a dark band with a sample chat with Claude, four promises about data and "So fängst du an": demo, setting up the first property, and choosing hosted or self-hosted with a link to the pricing page. The demo is the main call to action, so the page does not open with a sales pitch; the second hero button leads to the pricing page. The neon block of the logo marks only single facts. It consists of HTML and CSS. Geist, the register symbol/wordmark combination and the favicon are taken from the shared brand assets; the page needs no JavaScript of its own. The only script is the beacon of Cloudflare Web Analytics, which Cloudflare injects into every page; the Content-Security-Policy in `website/_headers` allows it (`static.cloudflareinsights.com`, reporting to `cloudflareinsights.com`), and the privacy policy describes it.
+The static landing page at `https://mietkartei.de/` is written for private landlords, many of them between 40 and 70: calm, factual and complete rather than loud. Large text (body copy 16 to 21px), generous whitespace and no motion. It scrolls through a centred hero with a link to the latest guide, the Auswertung in an app window on a soft neon haze with two floating details, four facts, the four yearly tasks with their screenshots (Nebenkostenabrechnung first), a grid of all areas of the app, a dark band with a sample chat with Claude, four promises about data and "So fängst du an": demo, setting up the first property, and choosing hosted or self-hosted with a link to the pricing page. The demo is the main call to action, so the page does not open with a sales pitch; the second hero button leads to the pricing page. The neon block of the logo marks only single facts. It consists of HTML and CSS. Geist, the register symbol/wordmark combination and the favicon are taken from the shared brand assets; the page needs no JavaScript of its own. Only the pages of the reference cases load a script, `website/assets/rechenbeispiele.js`, which shows one step at a time; without it all steps show one below the other. The only other script is the beacon of Cloudflare Web Analytics, which Cloudflare injects into every page; the Content-Security-Policy in `website/_headers` allows it (`static.cloudflareinsights.com`, reporting to `cloudflareinsights.com`), and the privacy policy describes it.
 
 ## Preview
 
@@ -21,6 +21,9 @@ Then open [http://127.0.0.1:8002](http://127.0.0.1:8002). Rebuild the output aft
 | `website/_header.html`, `website/_footer.html` | The one header and footer of every page; the build puts them in place of the `<!-- header -->` and `<!-- footer -->` markers and marks the footer link of the page itself |
 | `website/preise/index.html`, `website/fragen/index.html` | Pricing and FAQ pages |
 | `website/nebenkostenabrechnung/index.html` | The page on the operating cost statement (Nebenkostenabrechnung), the product's main search term: steps, checks, reference cases with their sample PDFs (filled in at the `<!-- reference-cases -->` marker by `scripts/build_reference_cases.py`), a comparison with an Excel template and an FAQ whose `FAQPage` JSON-LD the build adds, as for `/fragen/`. Its buttons open the demo on a finished statement (`/demo?ziel=abrechnung`) |
+| `website/rechenbeispiele/faelle.json` | The reference cases (Rechenbeispiele) with the app's result for each; written by `reference-cases.spec.ts` in `app/`, which keeps it in step with the app |
+| `website/rechenbeispiele/_layout.html` | Page frame for the pages of the reference cases |
+| `website/assets/rechenbeispiele.js` | Shows one step of a reference case at a time |
 | `website/rechenbeispiele/muster/*.pdf` | The sample statement (Muster-Nebenkostenabrechnung) of each reference case, the letter the app prints for the case's `sample` lease; written by `UPDATE_SAMPLES=1 npx vitest run reference-samples` in `app/`, whose test fails when a PDF is out of date. The build publishes each as `/rechenbeispiele/<slug>/muster-nebenkostenabrechnung.pdf` |
 | `website/impressum/index.html` | Legal notice (Impressum) with provider and contact details |
 | `website/auftragsverarbeitung/index.html` | Data processing agreement (Art. 28 GDPR) between landlords and mietkartei for the hosted app; keep its subprocessors and measures in step with the privacy policy |
@@ -39,6 +42,7 @@ Then open [http://127.0.0.1:8002](http://127.0.0.1:8002). Rebuild the output aft
 | `website/wrangler.toml` | Cloudflare Worker and custom domain |
 | `scripts/build_homepage.py` | Builds the public output with the shared assets |
 | `scripts/build_guides.py` | Renders the guide pages, the RSS feed and their sitemap and `llms.txt` entries |
+| `scripts/build_reference_cases.py` | Renders the pages of the reference cases from `faelle.json` and fills them in on the Nebenkostenabrechnung page |
 | `.github/workflows/websites.yml` | Checks and deploys homepage and documentation |
 | `dist/homepage/` | Generated output; not committed |
 
@@ -66,7 +70,7 @@ The build renders `/ratgeber/` (all guides, newest first), `/ratgeber/<slug>/` p
 
 ## Search engines and AI search
 
-Each page has a German title in the form `Page | mietkartei` (the homepage: `mietkartei – Hausverwaltung für Privatvermieter`), a description of at most about 160 characters and a canonical URL. The homepage also carries Open Graph tags for link previews and structured data (`Organization`, `WebSite`, `SoftwareApplication`) as JSON-LD. When the product changes, keep the description, the `featureList` in the JSON-LD and `llms.txt` in line with the README. A new page needs its own title, description and canonical URL and an entry in `sitemap.xml`.
+Each page has a German title in the form `Page | mietkartei` (the homepage: `mietkartei – Open-Source-Hausverwaltung für Privatvermieter`), a description of at most about 160 characters and a canonical URL. The homepage also carries Open Graph tags for link previews and structured data (`Organization`, `WebSite`, `SoftwareApplication`) as JSON-LD. When the product changes, keep the description, the `featureList` in the JSON-LD and `llms.txt` in line with the README. A new page needs its own title, description and canonical URL and an entry in `sitemap.xml`.
 
 The legal notice is available at `/impressum/`. Keep the provider and contact details current and remove optional details that do not apply.
 
