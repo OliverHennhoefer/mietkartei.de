@@ -1575,8 +1575,8 @@ export const users = sqliteTable(
 	},
 	(table) => [
 		index('users_account_id_idx').on(table.accountId),
-		// One owner per account. Invitations add managers only; the index also lets only one of two
-		// simultaneous first registrations take over the default account.
+		// One owner per account. Invitations add managers and viewers; the index also lets only one
+		// of two simultaneous first registrations take over the default account.
 		uniqueIndex('users_account_owner_unique')
 			.on(table.accountId)
 			.where(sql`${table.role} = 'owner'`)
@@ -1903,7 +1903,7 @@ export const loginAttempts = sqliteTable('login_attempts', {
 	lockedUntil: integer('locked_until', { mode: 'timestamp_ms' })
 });
 
-/** Mails stored instead of sent, when MAIL_TRANSPORT=outbox (end-to-end tests). */
+/** Mails stored instead of sent, when MAIL_TRANSPORT=outbox (the end-to-end tests and the demo). */
 export const outbox = sqliteTable('outbox', {
 	id: id(),
 	to: text('to').notNull(),

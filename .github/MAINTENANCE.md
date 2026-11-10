@@ -15,16 +15,20 @@ GitHub uses the issue and pull request templates from the default branch `main`.
 | `CODEOWNERS` | Review ownership |
 | `labels.json` | German labels and their descriptions |
 | `workflows/labels.yml` | Creates and updates the labels |
+| `workflows/app.yml` | Checks the app, deploys it and the demo, and publishes the Docker image |
 | `workflows/websites.yml` | Checks and deploys homepage and documentation |
 | `workflows/scorecard.yml` | Rates the repository's security practices with OpenSSF Scorecard |
 | `workflows/release.yml` | Attaches the source archive, checksum and SLSA provenance to a published release |
 | `workflows/municipalities.yml` | Monthly update of the bundled Gemeinde table from Destatis |
 | `workflows/registry-cleanup.yml` | Weekly deletion of stale image versions in GHCR |
 | `workflows/backup.yml` | Weekly export of the app database to the R2 bucket `mietkartei-backups` |
+| `workflows/map.yml` | Monthly upload of the street map of Germany to the R2 bucket `mietkartei-map` |
+| `workflows/selfhost-update.yml` | Manual update of a self-hosted copy on Cloudflare to `main` of this repository |
 | `HOMEPAGE.md` | Preview, build and deployment of the homepage |
 | `DOCUMENTATION.md` | Preview, build and deployment of the documentation |
 | `DEPLOYMENT.md` | Cloudflare access, domains and hosting migration |
 | `MIGRATIONS.md` | Data-preserving database migrations, backups and restore |
+| `SELF_HOSTING.md` | Running the app as a Docker container on a small server |
 | `dependabot.yml` | Weekly dependency update proposals |
 | `release.yml` | Categories for automatically generated release notes |
 | `RELEASE_TEMPLATE.md` | Template for a release description, used manually |

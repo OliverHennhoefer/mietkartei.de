@@ -67,7 +67,8 @@ Optionale Funktionen schaltest du im Cloudflare-Dashboard unter **Workers & Page
 mietkartei läuft als ein einziger Docker-Container. Alle Daten liegen in einer SQLite-Datei, hochgeladene Dokumente als Dateien daneben.
 
 !!! tip "Erreichbarkeit"
-Der Befehl unten macht mietkartei nur auf deinem eigenen Rechner erreichbar. Den Betrieb auf einem Server beschreibt die [Serveranleitung](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/.github/SELF_HOSTING.md) (englisch).
+
+    Der Befehl unten macht mietkartei nur auf deinem eigenen Rechner erreichbar. Den Betrieb auf einem Server beschreibt die [Serveranleitung](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/.github/SELF_HOSTING.md) (englisch).
 
 ```sh
 docker run -d --name mietkartei -p 127.0.0.1:3000:3000 \

@@ -1,6 +1,6 @@
 # Runs the published image on a server, e.g. from a laptop over SSH:
 #   docker --context <server> compose -f app/compose.yml up -d
-# See "Self-hosting the app" in .github/DEPLOYMENT.md.
+# See .github/SELF_HOSTING.md.
 
 name: mietkartei
 

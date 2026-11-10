@@ -87,7 +87,7 @@ Ein Schlüssel oder eine verbundene App hat dieselben Rechte wie du und sieht al
 
 So reicht es, dem Assistenten eine Rechnung oder das Foto eines Zählers zu zeigen: Er liest Betrag, Datum und Zählerstand ab und trägt sie ein. Die Datei selbst legt er nicht in mietkartei ab, das machst du weiterhin unter **Dokumente** oder beim Beleg.
 
-Löschen oder ändern kann der Assistent nichts. Gute Clients fragen vor jedem Schreiben nach, ob sie das wirklich tun sollen. Jede Änderung steht unter deinem Namen im **Änderungsprotokoll**.
+Löschen oder ändern kann der Assistent nichts. Gute Clients fragen vor jedem Schreiben nach, ob sie das wirklich tun sollen. Jede Änderung steht unter deinem Namen im Protokoll unter **Einstellungen → Protokoll**.
 
 Außerdem gilt:
 

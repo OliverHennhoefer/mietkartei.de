@@ -51,12 +51,12 @@ An existing CNAME prevents registering a Cloudflare custom domain. Cloudflare th
 
 The workflow [websites.yml](workflows/websites.yml) runs for pull requests and after a push to `main`. It detects the changed files and only builds or deploys the affected site:
 
-| Change                                                       | Homepage | Documentation |
-| ------------------------------------------------------------ | -------- | ------------- |
-| `website/**`, `scripts/build_homepage.py`                    | Yes      | No            |
-| `docs/**`, `zensical.toml`, `scripts/prepare_docs_assets.py` | No       | Yes           |
-| `assets/brand/**`, `.github/workflows/websites.yml`          | Yes      | Yes           |
-| Other files                                                  | No       | No            |
+| Change                                                                                                   | Homepage | Documentation |
+| -------------------------------------------------------------------------------------------------------- | -------- | ------------- |
+| `website/**`, `scripts/build_homepage.py`, `scripts/build_guides.py`, `scripts/build_reference_cases.py` | Yes      | No            |
+| `docs/**`, `zensical.toml`, `scripts/prepare_docs_assets.py`                                             | No       | Yes           |
+| `assets/brand/**`, `.github/workflows/websites.yml`                                                      | Yes      | Yes           |
+| Other files                                                                                              | No       | No            |
 
 Deleted files and both sides of a rename are taken into account. The required check runs for every pull request; changes unrelated to the websites need no build. Pull requests deploy nothing and receive no Cloudflare secrets. After the merge, the checked output of the same workflow run is deployed. Production runs on the same branch are processed one after another in full; up to 100 runs can wait without displacing a run that was already waiting. Within one run, the two deployment jobs can run in parallel. For pull requests, a new run still replaces an outdated check.
 

@@ -257,7 +257,7 @@
 		{:else}
 			<p class="muted">
 				Für eine Schätzung braucht es eine freigegebene Nebenkostenabrechnung. Sie entsteht unter
-				<a href="/betriebskosten/abrechnungen">Betriebskosten</a>.
+				<a href="/betriebskosten">Betriebskosten</a>.
 			</p>
 		{/if}
 	</section>
