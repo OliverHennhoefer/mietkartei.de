@@ -5,6 +5,8 @@ import type { Database } from './db';
 import { runBatch } from './db/batch';
 import {
 	accounts,
+	applicants,
+	lettings,
 	allocationKeys,
 	allocationKeyShares,
 	apiKeys,
@@ -122,6 +124,9 @@ function landlordDataDeletes(db: Database, accountId: string) {
 		.from(leases)
 		.where(eq(leases.accountId, accountId));
 	const scoped = [
+		// Before the tenants and units they point at.
+		applicants,
+		lettings,
 		// Before the tasks they paid for.
 		expenses,
 		tasks,

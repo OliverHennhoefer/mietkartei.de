@@ -147,9 +147,14 @@ const writablePaths = new Set(['/abo', '/abmelden', '/api/webhooks/stripe', '/hi
 
 /**
  * The pages of reset and address confirmation links, which secure the sign-in as well, and of
- * registration links, which create a new account that has nothing to do with the signed-in one.
+ * registration and Selbstauskunft links, which have nothing to do with the signed-in account.
  */
-const writablePrefixes = ['/passwort-zuruecksetzen/', '/e-mail-bestaetigen/', '/registrieren/'];
+const writablePrefixes = [
+	'/passwort-zuruecksetzen/',
+	'/e-mail-bestaetigen/',
+	'/registrieren/',
+	'/selbstauskunft/'
+];
 
 /**
  * Form actions that still work while the account is read-only: leaving the service (deleting or

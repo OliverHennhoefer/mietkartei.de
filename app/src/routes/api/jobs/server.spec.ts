@@ -73,9 +73,21 @@ describe('POST /api/jobs', () => {
 			false
 		);
 		env.DEMO = true;
-		expect(await deadlineMails()).toEqual({ deadlineMails: 0, notifications: 0 });
+		expect(await deadlineMails()).toEqual({
+			deadlineMails: 0,
+			notifications: 0,
+			deletedApplicants: 0
+		});
 		env.DEMO = false;
-		expect(await deadlineMails()).toEqual({ deadlineMails: 1, notifications: 1 });
-		expect(await deadlineMails()).toEqual({ deadlineMails: 0, notifications: 0 });
+		expect(await deadlineMails()).toEqual({
+			deadlineMails: 1,
+			notifications: 1,
+			deletedApplicants: 0
+		});
+		expect(await deadlineMails()).toEqual({
+			deadlineMails: 0,
+			notifications: 0,
+			deletedApplicants: 0
+		});
 	});
 });

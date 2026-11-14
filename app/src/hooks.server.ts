@@ -33,13 +33,16 @@ const publicPrefixes = [
 	'/einladung/',
 	'/e-mail-bestaetigen/',
 	// Calendar apps subscribe without a session; the token in the path is the credential.
-	'/api/calendar/'
+	'/api/calendar/',
+	// Mietinteressenten fill in the Selbstauskunft; the token in the path is the credential.
+	'/selbstauskunft/'
 ];
 
 /**
  * Paths whose posts check a password, hash a new one, create an account or send a reset mail,
  * counted per client address: the forms above, the pages of registration, reset and invitation
- * links, and the account deletion, which asks for the password again.
+ * links, and the account deletion, which asks for the password again. The Selbstauskunft link
+ * counts too: anyone who has it may post, without an account.
  */
 const authPaths = new Set([
 	'/anmelden',
@@ -48,7 +51,12 @@ const authPaths = new Set([
 	'/passwort-vergessen',
 	'/einstellungen/konto'
 ]);
-const authPrefixes = ['/registrieren/', '/passwort-zuruecksetzen/', '/einladung/'];
+const authPrefixes = [
+	'/registrieren/',
+	'/passwort-zuruecksetzen/',
+	'/einladung/',
+	'/selbstauskunft/'
+];
 
 function isAuthPath(pathname: string): boolean {
 	return authPaths.has(pathname) || authPrefixes.some((prefix) => pathname.startsWith(prefix));

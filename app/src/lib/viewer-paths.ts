@@ -17,12 +17,13 @@ export const viewerPaths = new Set([
 ]);
 
 /**
- * The pages of reset, address confirmation, registration and invitation links, which secure the
- * sign-in or have nothing to do with the signed-in account, and the snooze of a Hinweis, which is
- * the user's own (marking a task done there is refused to viewers by the page).
+ * The pages of reset, address confirmation, registration, invitation and Selbstauskunft links,
+ * which secure the sign-in or have nothing to do with the signed-in account, and the snooze of a
+ * Hinweis, which is the user's own (marking a task done there is refused to viewers by the page).
  */
 export const viewerPrefixes = [
 	'/erinnerung/',
+	'/selbstauskunft/',
 	'/passwort-zuruecksetzen/',
 	'/e-mail-bestaetigen/',
 	'/registrieren/',

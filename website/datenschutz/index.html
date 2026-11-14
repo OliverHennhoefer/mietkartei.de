@@ -72,9 +72,16 @@
 
         <section class="legal-section" aria-labelledby="app-daten">
           <h2 id="app-daten">App: Deine Daten und die Daten deiner Mieter</h2>
-          <p>In der App verwaltest du Objekte, Einheiten, Mieter, Mietverträge, Zahlungen, Bankumsätze, Belege, Abrechnungen, Aufgaben und Dokumente. Dazu gehören auch personenbezogene Daten deiner Mieter, etwa Namen, Kontaktdaten, Mieten, Zahlungen und Verbrauchswerte. Jede Änderung hält die App in einem Protokoll deines Kontos fest.</p>
+          <p>In der App verwaltest du Objekte, Einheiten, Mieter, Mietverträge, Zahlungen, Bankumsätze, Belege, Abrechnungen, Aufgaben und Dokumente. Dazu gehören auch personenbezogene Daten deiner Mieter und Mietinteressenten, etwa Namen, Kontaktdaten, Mieten, Zahlungen, Verbrauchswerte und die Angaben einer Mieterselbstauskunft. Jede Änderung hält die App in einem Protokoll deines Kontos fest.</p>
           <p>Gespeichert wird alles bei Cloudflare in einer Datenbank (D1) und einem Dateispeicher (R2), die auf die Europäische Union beschränkt sind. Die Daten werden also in der EU gespeichert. Ich nutze sie nur, um dir die App bereitzustellen: keine Auswertung für eigene Zwecke, keine Werbung, kein Verkauf und kein Training von KI-Modellen.</p>
           <p>Für die Daten deiner Mieter und anderer Personen, die du einträgst, bist du als Vermieter selbst Verantwortlicher im Sinne der DSGVO. Ich verarbeite sie in deinem Auftrag als Auftragsverarbeiter nach Art. 28 DSGVO und nur nach deinen Weisungen, also so, wie du die App bedienst. Als Unterauftragsverarbeiter setze ich Cloudflare (Hosting, Datenbank, Dateien) und Resend (E-Mail-Versand) ein. Die Einzelheiten regelt der <a href="/auftragsverarbeitung/">Vertrag zur Auftragsverarbeitung</a>, der mit dem Anlegen des Kontos gilt.</p>
+        </section>
+
+        <section class="legal-section" aria-labelledby="app-selbstauskunft">
+          <h2 id="app-selbstauskunft">App: Mieterselbstauskunft per Link</h2>
+          <p>Für eine Neuvermietung kannst du einem Mietinteressenten einen geheimen Link schicken. Darüber füllt er die Mieterselbstauskunft auf app.mietkartei.de aus, ohne ein Konto anzulegen. Der Link ist 14 Tage gültig und lässt sich einmal absenden; die App speichert nur einen Hash des Links. Das Formular setzt keine Cookies, nutzt keinen Speicher im Browser und wird nicht zwischengespeichert. Gegen massenhafte Anfragen begrenzt die App die Aufrufe je IP-Adresse für jeweils eine Minute, ohne die Adresse dauerhaft zu speichern.</p>
+          <p>Verantwortlicher für die Angaben ist der Vermieter, der den Link geschickt hat. Ich verarbeite sie in seinem Auftrag wie die übrigen Daten seines Kontos. Das Formular nennt dem Interessenten den Vermieter, Zweck und Rechtsgrundlage, die Speicherdauer und seine Rechte. Fragen, die die Datenschutzaufsicht in einer Selbstauskunft für unzulässig hält, etwa nach der Staatsangehörigkeit oder früheren Vermietern, stellt die App nicht, und von Ausweisen speichert sie nur das Datum, an dem sie vorgezeigt wurden.</p>
+          <p>Bekommt ein Interessent keine Zusage, löscht die App seine Daten drei Monate nach der Absage automatisch. Kommt ein Mietvertrag zustande, übernimmt der Vermieter Name, Geburtsdatum und Kontaktdaten in seine Mieterdaten; die übrigen Angaben löscht die App drei Monate nach Abschluss der Neuvermietung. Eine Sperrliste, einen Abgleich mit anderen Vermietern oder Meldungen an Auskunfteien gibt es nicht.</p>
         </section>
 
         <section class="legal-section" aria-labelledby="app-mail">
@@ -107,7 +114,7 @@
 
         <section class="legal-section" aria-labelledby="app-dauer">
           <h2 id="app-dauer">App: Speicherdauer, Export und Löschen</h2>
-          <p>Die Daten deines Kontos bleiben gespeichert, bis du sie löschst. Unter Einstellungen → Export lädst du alle Daten herunter, unter Einstellungen → Konto löschst du dein Konto. Dabei werden alle Daten und Dokumente des Kontos sofort gelöscht und ein laufendes Abo gekündigt. In den Sicherungen der Datenbank (Wiederherstellung zu einem früheren Zeitpunkt) sind gelöschte Daten noch 30 Tage enthalten; danach sind sie auch dort gelöscht. Hochgeladene Dokumente werden sofort und ohne Sicherung gelöscht. Rechnungen bewahrt Stripe nach den gesetzlichen Fristen auf.</p>
+          <p>Die Daten deines Kontos bleiben gespeichert, bis du sie löschst. Ausgenommen sind Mietinteressenten ohne Zusage und abgeschlossene Neuvermietungen, die die App nach drei Monaten von selbst löscht (siehe <a href="#app-selbstauskunft">Mieterselbstauskunft per Link</a>). Unter Einstellungen → Export lädst du alle Daten herunter, unter Einstellungen → Konto löschst du dein Konto. Dabei werden alle Daten und Dokumente des Kontos sofort gelöscht und ein laufendes Abo gekündigt. In den Sicherungen der Datenbank (Wiederherstellung zu einem früheren Zeitpunkt) sind gelöschte Daten noch 30 Tage enthalten; danach sind sie auch dort gelöscht. Hochgeladene Dokumente werden sofort und ohne Sicherung gelöscht. Rechnungen bewahrt Stripe nach den gesetzlichen Fristen auf.</p>
           <p>In der Demo bekommt jeder Besucher ein eigenes Konto mit erfundenen Daten. Es läuft nach einem Tag ab und wird danach automatisch gelöscht, sobald weitere Besucher eine Demo starten. Die Demo verschickt keine E-Mails.</p>
         </section>
 
@@ -129,7 +136,7 @@
 
         <section class="legal-section" aria-labelledby="stand">
           <h2 id="stand">Stand</h2>
-          <p>Oktober 2026</p>
+          <p>November 2026</p>
         </section>
       </main>
 
