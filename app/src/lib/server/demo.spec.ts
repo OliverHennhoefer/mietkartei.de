@@ -28,6 +28,8 @@ import {
 	units
 } from './db/schema';
 import { leaseTenantName } from '../domain/addressee';
+import { deletionDate } from '../domain/applicants';
+import { deleteExpired, listApplicants, listLettings } from './lettings';
 import type { LeaseStatement } from '../domain/statement';
 import { createDemoData, isEmptyAccount } from './demo';
 import { statementHintScope, withDismissals } from './hints';
@@ -153,6 +155,30 @@ describe('createDemoData', () => {
 		);
 		expect(overlapping).toEqual([]);
 		expect(await rows(tasks)).toHaveLength(16);
+		// The Neuvermietung of Wohnung 14 after Nowak's notice: Miriam Krüger got the Zusage and is
+		// the tenant of the lease that follows; the others got the Absage, all of it deleted three
+		// months on. Earlier lettings left only their lines in the Protokoll.
+		const [letting] = await listLettings(db, 'a');
+		expect(letting).toMatchObject({
+			unit: { name: 'Wohnung 14' },
+			closedAt: expect.any(String),
+			total: 6,
+			counts: { accepted: 1, rejected: 4, withdrawn: 1 }
+		});
+		const people = await listApplicants(db, 'a', letting.id);
+		const krueger = people.find((row) => row.status === 'accepted')!;
+		expect(krueger.lastName).toBe('Krüger');
+		const kruegerTenant = (
+			await db.select().from(tenants).where(eq(tenants.id, krueger.tenantId!))
+		)[0];
+		expect(kruegerTenant.lastName).toBe('Krüger');
+		expect(people.every((row) => row.decidedOn && row.decidedOn <= today())).toBe(true);
+		expect(await deleteExpired(db)).toBe(0);
+		expect(await deleteExpired(db, deletionDate(letting.closedAt!))).toBe(6);
+		const deletions = (await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'))).filter(
+			(row) => row.summary.includes('nach Ablauf der Frist gelöscht')
+		);
+		expect(deletions.length).toBeGreaterThanOrEqual(6);
 		// Nine Dienstleister, among them the Hausmeisterdienst and the Schornsteinfeger; six
 		// Reparaturen done and paid for, two still open.
 		const providers = await db

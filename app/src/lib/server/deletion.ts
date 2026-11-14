@@ -31,6 +31,7 @@ import {
 	units
 } from './db/schema';
 import { deleteDocument } from './documents';
+import { applicantAuditDeletesOnUnits, lettingsOnUnits } from './lettings';
 import type { Storage } from './storage';
 
 // What deleting a tenant, property, unit or lease takes along and what blocks it, and the deletes
@@ -250,6 +251,19 @@ function line(value: number, singular: string, plural: string, suffix = ''): str
 	return value === 0 ? [] : [`${pluralize(value, singular, plural)}${suffix}`];
 }
 
+/** The Neuvermietungen of the units, which go with them (database cascade). */
+async function lettingLines(db: Database, accountId: string, unitIds: string[]): Promise<string[]> {
+	const counts = await lettingsOnUnits(db, accountId, unitIds);
+	return line(
+		counts.lettings,
+		'Neuvermietung',
+		'Neuvermietungen',
+		counts.applicants
+			? ` mit ${pluralize(counts.applicants, 'Mietinteressent', 'Mietinteressenten')}`
+			: ''
+	);
+}
+
 // Tenants
 
 export async function tenantDeletion(
@@ -380,7 +394,8 @@ export async function propertyDeletion(
 		associationCount,
 		taskCount,
 		meterLine,
-		orphaned
+		orphaned,
+		lettingLine
 	] = await Promise.all([
 		leasesOnUnits(db, accountId, unitIds),
 		countRows(
@@ -415,7 +430,8 @@ export async function propertyDeletion(
 		),
 		countRows(db, tasks, and(eq(tasks.accountId, accountId), ofProperty(tasks.propertyId))),
 		meterLines(db, accountId, eq(meters.propertyId, propertyId)),
-		orphanedDocuments(db, accountId, { propertyIds: [propertyId], unitIds, costItemIds })
+		orphanedDocuments(db, accountId, { propertyIds: [propertyId], unitIds, costItemIds }),
+		lettingLines(db, accountId, unitIds)
 	]);
 	return {
 		blockers: [
@@ -424,6 +440,7 @@ export async function propertyDeletion(
 		],
 		removes: [
 			...line(unitIds.length, 'Einheit', 'Einheiten'),
+			...lettingLine,
 			...meterLine,
 			...line(costItemIds.length, 'Beleg', 'Belege'),
 			...line(
@@ -459,12 +476,14 @@ export async function deleteProperty(
 		.where(and(eq(properties.accountId, accountId), eq(properties.id, propertyId)));
 	if (!existing) return 'missing';
 	if ((await propertyDeletion(db, accountId, propertyId)).blockers.length > 0) return 'in-use';
+	const unitIds = await unitIdsOf(db, accountId, propertyId);
 	const orphaned = await orphanedDocuments(db, accountId, {
 		propertyIds: [propertyId],
-		unitIds: await unitIdsOf(db, accountId, propertyId),
+		unitIds,
 		costItemIds: await costItemIdsOf(db, accountId, propertyId)
 	});
 	await runBatch(db, [
+		...(await applicantAuditDeletesOnUnits(db, accountId, unitIds)),
 		db
 			.delete(properties)
 			.where(and(eq(properties.accountId, accountId), eq(properties.id, propertyId))),
@@ -479,8 +498,8 @@ export async function unitDeletion(
 	accountId: string,
 	unitId: string
 ): Promise<DeletionCheck> {
-	const [leaseList, expenseCount, directItems, shareCount, meterLine, orphaned] = await Promise.all(
-		[
+	const [leaseList, expenseCount, directItems, shareCount, meterLine, orphaned, lettingLine] =
+		await Promise.all([
 			leasesOnUnits(db, accountId, [unitId]),
 			countRows(db, expenses, and(eq(expenses.accountId, accountId), eq(expenses.unitId, unitId))),
 			db
@@ -497,9 +516,9 @@ export async function unitDeletion(
 				and(eq(allocationKeyShares.accountId, accountId), eq(allocationKeyShares.unitId, unitId))
 			),
 			meterLines(db, accountId, eq(meters.unitId, unitId)),
-			orphanedDocuments(db, accountId, { unitIds: [unitId] })
-		]
-	);
+			orphanedDocuments(db, accountId, { unitIds: [unitId] }),
+			lettingLines(db, accountId, [unitId])
+		]);
 	const blockers = [
 		...leasesBlocker(leaseList, 'der Einheit'),
 		...expensesBlocker(expenseCount, 'die Einheit')
@@ -516,6 +535,7 @@ export async function unitDeletion(
 	return {
 		blockers,
 		removes: [
+			...lettingLine,
 			...meterLine,
 			...line(shareCount, 'Anteil in einem Umlageschlüssel', 'Anteile in Umlageschlüsseln'),
 			...documentsLine(orphaned)
@@ -544,6 +564,7 @@ export async function deleteUnit(
 	if ((await unitDeletion(db, accountId, unitId)).blockers.length > 0) return 'in-use';
 	const orphaned = await orphanedDocuments(db, accountId, { unitIds: [unitId] });
 	await runBatch(db, [
+		...(await applicantAuditDeletesOnUnits(db, accountId, [unitId])),
 		db.delete(units).where(and(eq(units.accountId, accountId), eq(units.id, unitId))),
 		auditEntry(
 			db,

@@ -1,5 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { listLeases } from '#lib/server/leases.ts';
+import { openLettingOfUnit } from '#lib/server/lettings.ts';
 import { deleteUnit, unitDeletion } from '#lib/server/deletion.ts';
 import { getUnit } from '#lib/server/properties.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
@@ -10,13 +11,15 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const accountId = requireAccount(locals);
 	const unit = await getUnit(locals.db, accountId, params.unitId);
 	if (!unit || unit.propertyId !== params.id) error(404, 'Diese Einheit gibt es nicht.');
-	const [leases, deletion] = await Promise.all([
+	const [leases, deletion, openLettingId] = await Promise.all([
 		listLeases(locals.db, accountId, { unitId: unit.id }),
-		unitDeletion(locals.db, accountId, unit.id)
+		unitDeletion(locals.db, accountId, unit.id),
+		openLettingOfUnit(locals.db, accountId, unit.id)
 	]);
 	return {
 		unit,
 		deletion,
+		openLettingId: openLettingId ?? null,
 		leases: leases.map((lease) => ({
 			id: lease.id,
 			startDate: lease.startDate,

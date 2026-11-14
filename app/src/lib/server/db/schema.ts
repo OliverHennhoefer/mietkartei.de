@@ -100,6 +100,16 @@ export const trialClaims = sqliteTable('trial_claims', {
 	createdAt: createdAt()
 });
 
+/**
+ * Accounts that were deleted, by id only. A restore of the database brings them back from a
+ * backup, so the hourly job deletes every account listed here again (see redeleteAccounts). Kept
+ * as long as a backup can still hold the account.
+ */
+export const deletedAccounts = sqliteTable('deleted_accounts', {
+	id: text('id').primaryKey(),
+	createdAt: createdAt()
+});
+
 export const buildingUses = ['residential', 'non_residential'] as const;
 export type BuildingUse = (typeof buildingUses)[number];
 
@@ -1525,6 +1535,137 @@ export const tasks = sqliteTable(
 		index('tasks_property_id_idx').on(table.propertyId),
 		index('tasks_lease_id_idx').on(table.leaseId),
 		index('tasks_service_provider_id_idx').on(table.serviceProviderId)
+	]
+);
+
+/**
+ * Neuvermietung: finding a tenant for a unit that is or becomes free. It holds the terms the unit
+ * is offered at, which the applicants' rent burden and the lease of the chosen one start from.
+ * Once closed (a tenant was chosen or the landlord stopped), it is deleted with all its applicants
+ * after the retention period, see domain/applicants.ts.
+ */
+export const lettings = sqliteTable(
+	'lettings',
+	{
+		id: id(),
+		accountId: accountId(),
+		unitId: text('unit_id')
+			.notNull()
+			.references(() => units.id, { onDelete: 'cascade' }),
+		/** The day the unit is free; null: by arrangement. */
+		availableFrom: text('available_from'),
+		/** The terms offered, in cents, as in a lease. */
+		baseRent: integer('base_rent').notNull().default(0),
+		operatingCostPrepayment: integer('operating_cost_prepayment').notNull().default(0),
+		heatingCostPrepayment: integer('heating_cost_prepayment').notNull().default(0),
+		securityDeposit: integer('security_deposit').notNull().default(0),
+		/** Geförderter Wohnraum: the tenant needs a Wohnberechtigungsschein (WBS). */
+		requiresWbs: bool('requires_wbs', false),
+		notes: text('notes'),
+		/** The day it was closed; null while the landlord is looking for a tenant. */
+		closedAt: text('closed_at'),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('lettings_account_id_idx').on(table.accountId),
+		index('lettings_unit_id_idx').on(table.unitId)
+	]
+);
+
+/**
+ * Where an applicant stands: new = Anfrage, viewing = Besichtigung, applied = Selbstauskunft
+ * received, shortlisted = engere Wahl, accepted = Zusage, rejected = Absage, withdrawn = the
+ * applicant withdrew.
+ */
+export const applicantStatuses = [
+	'new',
+	'viewing',
+	'applied',
+	'shortlisted',
+	'accepted',
+	'rejected',
+	'withdrawn'
+] as const;
+export type ApplicantStatus = (typeof applicantStatuses)[number];
+
+/**
+ * Mietinteressent of a Neuvermietung, with the Mieterselbstauskunft. The questions follow the
+ * DSK Orientierungshilfe on Selbstauskünfte (2026): no nationality, marital status, length of
+ * employment or former landlords. Proofs are recorded as the day they were shown, never as
+ * copies. A rejected or withdrawn applicant is deleted after the retention period, counted from
+ * decidedOn; see domain/applicants.ts.
+ */
+export const applicants = sqliteTable(
+	'applicants',
+	{
+		id: id(),
+		accountId: accountId(),
+		lettingId: text('letting_id')
+			.notNull()
+			.references(() => lettings.id, { onDelete: 'cascade' }),
+		status: text('status', { enum: applicantStatuses }).notNull().default('new'),
+		salutation: text('salutation'),
+		firstName: text('first_name').notNull(),
+		lastName: text('last_name').notNull(),
+		email: text('email'),
+		phone: text('phone'),
+		/** The current address. */
+		street: text('street'),
+		postalCode: text('postal_code'),
+		city: text('city'),
+		/** The viewing appointment, local time as YYYY-MM-DDTHH:MM. */
+		viewingAt: text('viewing_at'),
+		/** Selbstauskunft, all optional: who moves in and what they live on. */
+		birthDate: text('birth_date'),
+		adults: integer('adults'),
+		children: integer('children'),
+		occupation: text('occupation'),
+		employer: text('employer'),
+		/** Monthly net income of the household in cents. */
+		netIncome: integer('net_income'),
+		/** Animals that need the landlord's consent (no small animals). */
+		pets: text('pets'),
+		/** A Verbraucherinsolvenzverfahren is open; null: not answered. */
+		insolvency: integer('insolvency', { mode: 'boolean' }),
+		/** Has a Wohnberechtigungsschein; null: not answered. */
+		hasWbs: integer('has_wbs', { mode: 'boolean' }),
+		moveInDate: text('move_in_date'),
+		/** A second person who would sign the lease, optional. */
+		coFirstName: text('co_first_name'),
+		coLastName: text('co_last_name'),
+		coBirthDate: text('co_birth_date'),
+		coOccupation: text('co_occupation'),
+		coEmployer: text('co_employer'),
+		/** What the applicant wrote. */
+		message: text('message'),
+		/** The landlord's own: a note and 1–5 stars. */
+		notes: text('notes'),
+		rating: integer('rating'),
+		/** The days proofs were shown (Ausweis, Bonitätsnachweis, Einkommensnachweis, WBS). */
+		idCheckedOn: text('id_checked_on'),
+		creditProofOn: text('credit_proof_on'),
+		incomeProofOn: text('income_proof_on'),
+		wbsProofOn: text('wbs_proof_on'),
+		/**
+		 * The secret link through which the applicant fills in the Selbstauskunft: only the hash of
+		 * its token is stored, with the end of its validity and the time it was sent in.
+		 */
+		disclosureTokenHash: text('disclosure_token_hash'),
+		disclosureExpiresAt: integer('disclosure_expires_at', { mode: 'timestamp_ms' }),
+		disclosureSubmittedAt: integer('disclosure_submitted_at', { mode: 'timestamp_ms' }),
+		/** The day of the Zusage, Absage or withdrawal; the retention period counts from it. */
+		decidedOn: text('decided_on'),
+		/** The tenant created from an accepted applicant. */
+		tenantId: text('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('applicants_account_id_idx').on(table.accountId),
+		index('applicants_letting_id_idx').on(table.lettingId),
+		index('applicants_tenant_id_idx').on(table.tenantId),
+		uniqueIndex('applicants_disclosure_token_unique')
+			.on(table.disclosureTokenHash)
+			.where(sql`${table.disclosureTokenHash} is not null`)
 	]
 );
 

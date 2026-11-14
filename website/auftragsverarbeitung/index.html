@@ -42,13 +42,13 @@
 
         <section class="legal-section" aria-labelledby="gegenstand">
           <h2 id="gegenstand">§ 1 Gegenstand und Dauer</h2>
-          <p>Ich verarbeite personenbezogene Daten in deinem Auftrag, um dir die App bereitzustellen: speichern, anzeigen, auswerten, als Brief oder PDF ausgeben, per E-Mail versenden, exportieren und löschen, jeweils so, wie du die App bedienst. Der Vertrag läuft, solange dein Konto besteht.</p>
+          <p>Ich verarbeite personenbezogene Daten in deinem Auftrag, um dir die App bereitzustellen: speichern, anzeigen, auswerten, als Brief oder PDF ausgeben, per E-Mail versenden, von Mietinteressenten über einen geheimen Link ausfüllen lassen, exportieren und löschen, jeweils so, wie du die App bedienst. Der Vertrag läuft, solange dein Konto besteht.</p>
         </section>
 
         <section class="legal-section" aria-labelledby="daten">
           <h2 id="daten">§ 2 Art der Daten und betroffene Personen</h2>
-          <p>Betroffen sind deine Mieter und frühere Mieter, im Mietvertrag genannte Personen, Personen, die du in die App einlädst, Dienstleister, die du anlegst, etwa Handwerker oder Hausmeisterdienste, sowie Gegenparteien deiner Bankumsätze, etwa Versorger und Verwalter.</p>
-          <p>Verarbeitet werden insbesondere Namen, Anschriften, E-Mail-Adressen und Telefonnummern, Vertrags- und Mietdaten, Zahlungen und Rückstände, Kautionen, Bankumsätze mit Name, IBAN und Verwendungszweck, Zählerstände und Verbrauchswerte, Abrechnungen, Notizen, Aufgaben und hochgeladene Dokumente. Besondere Kategorien nach Art. 9 DSGVO sind nicht vorgesehen; trägst du sie dennoch ein, etwa in Notizen oder Dokumenten, gilt dieser Vertrag auch für sie.</p>
+          <p>Betroffen sind deine Mieter und frühere Mieter, im Mietvertrag genannte Personen, Mietinteressenten und Personen, die mit ihnen einziehen wollen, Personen, die du in die App einlädst, Dienstleister, die du anlegst, etwa Handwerker oder Hausmeisterdienste, sowie Gegenparteien deiner Bankumsätze, etwa Versorger und Verwalter.</p>
+          <p>Verarbeitet werden insbesondere Namen, Anschriften, E-Mail-Adressen und Telefonnummern, Vertrags- und Mietdaten, Zahlungen und Rückstände, Kautionen, Bankumsätze mit Name, IBAN und Verwendungszweck, Zählerstände und Verbrauchswerte, die Angaben einer Mieterselbstauskunft (Geburtsdatum, Haushaltsgröße, Beruf und Arbeitgeber, Nettoeinkommen, Haustiere, ein laufendes Verbraucherinsolvenzverfahren, Wohnberechtigungsschein) und das Datum vorgelegter Nachweise, Abrechnungen, Notizen, Aufgaben und hochgeladene Dokumente. Besondere Kategorien nach Art. 9 DSGVO sind nicht vorgesehen; trägst du sie dennoch ein, etwa in Notizen oder Dokumenten, gilt dieser Vertrag auch für sie.</p>
         </section>
 
         <section class="legal-section" aria-labelledby="weisungen">
@@ -87,7 +87,8 @@
 
         <section class="legal-section" aria-labelledby="loeschung">
           <h2 id="loeschung">§ 9 Löschung und Rückgabe</h2>
-          <p>Vor dem Ende kannst du alle Daten unter Einstellungen → Export herunterladen. Löschst du dein Konto, werden alle Daten und Dokumente sofort gelöscht. In den Sicherungen der Datenbank sind sie danach noch 30 Tage enthalten und werden dann endgültig gelöscht. Endet der Nutzungsvertrag, ohne dass du das Konto löschst, lösche ich es auf deine Anfrage hin, es sei denn, ein Gesetz verpflichtet mich zur Aufbewahrung. Hochgeladene Dokumente haben keine Sicherung und sind sofort endgültig gelöscht.</p>
+          <p>Vor dem Ende kannst du alle Daten unter Einstellungen → Export herunterladen. Löschst du dein Konto, werden alle Daten und Dokumente sofort gelöscht. In den Sicherungen der Datenbank sind sie danach noch bis zu 12 Wochen enthalten und werden dann endgültig gelöscht. Wird eine Sicherung eingespielt, löscht die App das Konto sofort wieder; dafür bleibt nur seine Kennung gespeichert, bis keine Sicherung das Konto mehr enthält. Endet der Nutzungsvertrag, ohne dass du das Konto löschst, lösche ich es auf deine Anfrage hin, es sei denn, ein Gesetz verpflichtet mich zur Aufbewahrung. Hochgeladene Dokumente haben keine Sicherung und sind sofort endgültig gelöscht.</p>
+          <p>Schon während der Laufzeit löscht die App Mietinteressenten ohne Zusage drei Monate nach der Absage und abgeschlossene Neuvermietungen drei Monate nach dem Abschluss automatisch. Die wöchentlichen Kopien der Datenbank enthalten keine Mietinteressenten, gelöschte Interessenten sind also nur noch bis zu 30 Tage in der Sicherung. Mit den Interessenten löscht sie auch ihre Einträge im Protokoll; dort bleibt nur vermerkt, wie viele gelöscht wurden.</p>
         </section>
 
         <section class="legal-section" aria-labelledby="kontrolle">
@@ -103,17 +104,17 @@
         <section class="legal-section" aria-labelledby="anlage">
           <h2 id="anlage">Anlage: Technische und organisatorische Maßnahmen</h2>
           <p><strong>Speicherort und Verschlüsselung:</strong> Datenbank und Dateien liegen in Rechenzentren von Cloudflare in der EU und sind dort verschlüsselt gespeichert. Jede Verbindung zur App ist per TLS verschlüsselt; HSTS verhindert unverschlüsselte Aufrufe.</p>
-          <p><strong>Zugang und Zugriff:</strong> Passwörter werden nur als Hash (PBKDF2-SHA-256 mit Salt) gespeichert, Sitzungen, API-Schlüssel und Kalender-Links nur als Hash ihres Tokens. Nach mehreren falschen Passwörtern wird die Anmeldung gesperrt; Anfragen je Adresse und je Schlüssel sind begrenzt. Sitzungen laufen spätestens nach 90 Tagen ab. Rollen (Inhaber, Verwalter, Leser) begrenzen, wer Daten ändern darf.</p>
+          <p><strong>Zugang und Zugriff:</strong> Passwörter werden nur als Hash (PBKDF2-SHA-256 mit Salt) gespeichert, Sitzungen, API-Schlüssel, Kalender-Links und Links zur Mieterselbstauskunft nur als Hash ihres Tokens. Nach mehreren falschen Passwörtern wird die Anmeldung gesperrt; Anfragen je Adresse und je Schlüssel sind begrenzt. Sitzungen laufen spätestens nach 90 Tagen ab. Rollen (Inhaber, Verwalter, Leser) begrenzen, wer Daten ändern darf.</p>
           <p><strong>Trennung:</strong> Jeder Datensatz gehört genau einem Konto, und jede Abfrage der App ist auf das Konto des angemeldeten Nutzers beschränkt. Dokumente liegen je Konto unter einem eigenen Präfix.</p>
           <p><strong>Schutz im Browser:</strong> Eine strenge Content-Security-Policy, Schutz vor Einbettung in fremde Seiten und vor Cross-Site-Request-Forgery. Seiten angemeldeter Nutzer werden nicht zwischengespeichert.</p>
           <p><strong>Nachvollziehbarkeit:</strong> Ein Protokoll je Konto zeigt, wer wann was geändert hat.</p>
-          <p><strong>Verfügbarkeit und Wiederherstellung:</strong> Die Datenbank lässt sich auf jeden Zeitpunkt der letzten 30 Tage zurücksetzen. Du kannst jederzeit einen vollständigen Export herunterladen.</p>
+          <p><strong>Verfügbarkeit und Wiederherstellung:</strong> Die Datenbank lässt sich auf jeden Zeitpunkt der letzten 30 Tage zurücksetzen. Zusätzlich liegt jede Woche eine Kopie in einem Speicher von Cloudflare in der EU, die nach 12 Wochen automatisch gelöscht wird. Du kannst jederzeit einen vollständigen Export herunterladen.</p>
           <p><strong>Entwicklung:</strong> Jede Änderung durchläuft automatische Tests, eine statische Sicherheitsanalyse und ein Review, bevor sie ausgeliefert wird. Abhängigkeiten werden automatisch auf Sicherheitsupdates geprüft. Zugangsdaten zu den Diensten liegen nur als Geheimnisse in der Infrastruktur, nie im Quelltext.</p>
         </section>
 
         <section class="legal-section" aria-labelledby="stand">
           <h2 id="stand">Stand</h2>
-          <p>Oktober 2026</p>
+          <p>November 2026</p>
         </section>
       </main>
 

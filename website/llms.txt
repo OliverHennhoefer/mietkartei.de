@@ -11,6 +11,7 @@ Was mietkartei kann:
 - Mietkonto mit Soll und Ist je Mietvertrag, Rückständen und Kaution.
 - Bankimport von Kontoauszügen mit Zuordnungsvorschlägen und -regeln.
 - Objekte, Einheiten, Mieter und Mietverträge mit Index- und Staffelmiete.
+- Neuvermietung: Interessenten erfassen, datenschutzgerechte Mieterselbstauskunft per geheimem Link oder als PDF, Nachweise abhaken, Bewerber mit Mietbelastung vergleichen und den gewählten mit einem Klick als Mieter mit Mietvertrag anlegen; abgelehnte Bewerber werden nach drei Monaten automatisch gelöscht.
 - Zähler und Abrechnungskreise, Dokumente, Aufgaben und Fristen.
 - Mitverwalter, Datenübernahme per CSV, Änderungsprotokoll und vollständiger Export als ZIP (alle Einträge als JSON, alle Dokumente im Original), der sich in eine andere mietkartei-Instanz einspielen lässt, etwa von app.mietkartei.de auf den eigenen Server und zurück.
 
@@ -37,6 +38,7 @@ Worauf mietkartei setzt: nachvollziehbar gerechnete Umlagen, kein Lock-in (offen
 - [Steuerübersicht für die Anlage V](https://docs.mietkartei.de/anleitungen/steuer/): Einnahmen und Werbungskosten je Objekt und Jahr nach den Zeilen der Anlage V, als PDF und CSV
 - [Kontoauszüge importieren](https://docs.mietkartei.de/anleitungen/kontoauszuege-importieren/): Mietzahlungen per camt.053 oder CSV zuordnen
 - [Von Excel umsteigen](https://docs.mietkartei.de/anleitungen/von-excel-umsteigen/): Objekte, Mieter, Mietverträge und Zahlungen per CSV übernehmen
+- [Neuvermietung und Mietinteressenten](https://docs.mietkartei.de/anleitungen/neuvermietung/): Interessenten sammeln, Mieterselbstauskunft per Link oder PDF, Bewerber vergleichen und mit einem Klick Mieter und Mietvertrag anlegen
 - [Benachrichtigungen einrichten](https://docs.mietkartei.de/anleitungen/benachrichtigungen/): Hinweise zu Fristen und Aufgaben per E-Mail, als Mitteilung auf Handy und Computer oder per Webhook
 - [KI-Assistenten anbinden](https://docs.mietkartei.de/anleitungen/ki-assistenten/): MCP-Server unter https://app.mietkartei.de/mcp (OAuth für claude.ai und ChatGPT, sonst API-Schlüssel) und REST-API
 - [Selbst hosten](https://docs.mietkartei.de/selbst-hosten/): mietkartei im eigenen Cloudflare-Konto (Workers Paid, rund 5 US-Dollar im Monat, ohne Domain), mit Docker oder aus dem Quellcode betreiben

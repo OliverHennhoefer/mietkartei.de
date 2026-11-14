@@ -9,6 +9,7 @@ import {
 import { personName } from '#lib/format.ts';
 import { createLease, getLease, leaseLabel, listUnitsWithProperty } from '#lib/server/leases.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
+import { lettingLeaseDefaults } from '#lib/server/lettings.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -16,7 +17,8 @@ import type { Actions, PageServerLoad } from './$types';
 // here); a tenant created through /mieter/neu?return=/vertraege/neu comes back the same way, and
 // /mieter/neu without a return sends the new tenant here with ?created=1, which names them in a
 // notice above the form. "Speichern und nächsten Mietvertrag" comes back here with
-// ?angelegt=<lease id>, which names the lease just saved; the form starts empty again.
+// ?angelegt=<lease id>, which names the lease just saved; the form starts empty again. After the
+// Zusage of a Neuvermietung, ?vermietung=<letting id> fills in its terms and the persons moving in.
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const accountId = requireAccount(locals);
 	const [units, tenants] = await Promise.all([
@@ -30,6 +32,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		tenantIds: tenantIds.join(','),
 		startDate: firstOfMonth(addMonthsToMonth(monthOf(today()), 1))
 	};
+	const lettingId = url.searchParams.get('vermietung');
+	if (lettingId)
+		Object.assign(defaults, await lettingLeaseDefaults(locals.db, accountId, lettingId));
 	const created = url.searchParams.has('created')
 		? tenants.filter((tenant) => tenantIds.includes(tenant.id))
 		: [];

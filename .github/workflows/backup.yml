@@ -4,7 +4,9 @@ name: Back up database
 # reaches 30 days back): `wrangler d1 export` writes it as SQL, gzipped, to the R2 bucket
 # mietkartei-backups in the EU, which deletes each copy after 12 weeks. Runs on Sundays and by
 # hand under Actions; D1 answers no other queries while it exports, so it runs at night.
-# Restoring is described in .github/MIGRATIONS.md.
+# The copy leaves out the Mietinteressenten (scripts/filter-backup.ts): they have a deletion
+# deadline of their own and are covered by Time Travel alone. Restoring is described in
+# .github/MIGRATIONS.md.
 
 "on":
   schedule:
@@ -65,7 +67,15 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           name="mietkartei-$(date -u +%Y-%m-%dT%H%MZ).sql.gz"
-          npx wrangler d1 export mietkartei --remote --output "$RUNNER_TEMP/backup.sql"
+          npx wrangler d1 export mietkartei --remote --output "$RUNNER_TEMP/export.sql"
+          node scripts/filter-backup.ts "$RUNNER_TEMP/export.sql" "$RUNNER_TEMP/backup.sql" >> "$GITHUB_STEP_SUMMARY"
+          rm "$RUNNER_TEMP/export.sql"
+          # Should the export format change, the filter would keep everything: stop instead.
+          if grep -qE '^INSERT INTO "?(applicants|lettings)"? ' "$RUNNER_TEMP/backup.sql"; then
+            echo "The copy still holds Mietinteressenten; the export format may have changed." >&2
+            exit 1
+          fi
+          grep -qE '^INSERT INTO "?accounts"? ' "$RUNNER_TEMP/backup.sql"
           gzip -9 "$RUNNER_TEMP/backup.sql"
           npx wrangler r2 object put "mietkartei-backups/$name" --file "$RUNNER_TEMP/backup.sql.gz" \
             --content-type application/gzip --jurisdiction eu --remote

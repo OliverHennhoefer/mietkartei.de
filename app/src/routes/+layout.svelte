@@ -71,6 +71,7 @@
 			sections: [
 				{ href: '/objekte', label: 'Objekte', icon: 'building' },
 				{ href: '/mieter', label: 'Mieter', icon: 'people' },
+				{ href: '/vermietung', label: 'Neuvermietung', icon: 'key' },
 				{ href: '/dienstleister', label: 'Dienstleister', icon: 'wrench' },
 				{ href: '/vertraege', label: 'Mietverträge', icon: 'file' }
 			]

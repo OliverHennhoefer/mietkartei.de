@@ -15,6 +15,8 @@ import {
 	emailChanges,
 	expenses,
 	insurancePolicies,
+	lettings,
+	applicants,
 	associationStatements,
 	taxYears,
 	invitations,
@@ -82,6 +84,9 @@ export const QUOTAS = {
 	tasks: { table: tasks, max: 20_000, label: 'Aufgaben' },
 	serviceProviders: { table: serviceProviders, max: 2_000, label: 'Dienstleister' },
 	insurancePolicies: { table: insurancePolicies, max: 2_000, label: 'Versicherungen' },
+	lettings: { table: lettings, max: 2_000, label: 'Neuvermietungen' },
+	/** Deleted again after the retention period, so this only bounds a burst. */
+	applicants: { table: applicants, max: 20_000, label: 'Mietinteressenten' },
 	associationStatements: {
 		table: associationStatements,
 		max: 5_000,

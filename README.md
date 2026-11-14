@@ -27,6 +27,7 @@ Open Source, nachvollziehbar gerechnet, ohne Einarbeitung und direkt mit Claude 
 - **Auswertung:** Einnahmen, Ausgaben, Rendite, Cashflow und Prognose je Objekt und über alle Jahre.
 - **Objekte und Einheiten:** Häuser und Eigentumswohnungen mit Flächen, Lage und Versicherungen.
 - **Mieter und Mietverträge:** Vertragsdaten, Übergabe und Kaution samt Zinsen an einem Ort.
+- **Neuvermietung:** Interessenten sammeln, Selbstauskunft datenschutzgerecht per Link oder PDF, Bewerber vergleichen und mit einem Klick Mieter und Mietvertrag anlegen. (siehe [Anleitung](https://docs.mietkartei.de/anleitungen/neuvermietung/))
 - **Index- und Staffelmiete:** Erhöhungstermine und neue Miete nach Verbraucherpreisindex automatisch berechnet.
 - **Bankimport mit Regeln:** CSV gängiger Banken einlesen, wiederkehrende Umsätze ordnen sich selbst zu.
 - **Zähler und Abrechnungskreise:** Verbrauch und Kosten genau den betroffenen Einheiten zuordnen.

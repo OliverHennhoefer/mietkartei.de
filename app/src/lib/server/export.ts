@@ -41,6 +41,8 @@ export const exportTables: AccountTable[] = [
 	schema.properties,
 	schema.units,
 	schema.tenants,
+	schema.lettings,
+	schema.applicants,
 	schema.leases,
 	schema.leaseUnits,
 	schema.leasePersons,

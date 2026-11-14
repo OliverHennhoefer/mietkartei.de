@@ -13,6 +13,11 @@
 	let { data, form }: PageProps = $props();
 
 	const vacant = $derived(!data.leases.some((lease) => lease.active));
+	// The running lease ends and no later one follows: time to look for the next tenant.
+	const ending = $derived(
+		data.leases.some((lease) => lease.active && lease.main && lease.endDate) &&
+			!data.leases.some((lease) => lease.upcoming && lease.main)
+	);
 	const base = $derived(`/objekte/${data.property.id}/einheiten/${data.unit.id}`);
 	const sort = new TableSort<PageProps['data']['leases'][number]>({
 		tenants: byText((lease) => leaseTenantName(lease.tenants)),
@@ -28,6 +33,11 @@
 	<a href="/objekte/{data.property.id}/zaehler?unit={data.unit.id}">Zähler</a>
 	{#if vacant}
 		<a href="/vertraege/neu?unitId={data.unit.id}">Mietvertrag anlegen</a>
+	{/if}
+	{#if data.openLettingId}
+		<a href="/vermietung/{data.openLettingId}">Zur Neuvermietung</a>
+	{:else if vacant || ending}
+		<a href="/vermietung/neu?unitId={data.unit.id}">Neuvermietung anlegen</a>
 	{/if}
 	<a href="/objekte/{data.property.id}">Alle Einheiten</a>
 </div>

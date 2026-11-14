@@ -1,5 +1,6 @@
 import type {
 	AllocationKeyKind,
+	ApplicantStatus,
 	BankTransactionStatus,
 	BuildingUse,
 	ComparisonSource,
@@ -26,6 +27,16 @@ import type {
 import type { GermanState } from './working-days';
 
 // German labels for the enums in the schema, so every page uses the same words.
+
+export const applicantStatusLabels: Record<ApplicantStatus, string> = {
+	new: 'Anfrage',
+	viewing: 'Besichtigung',
+	applied: 'Selbstauskunft',
+	shortlisted: 'Engere Wahl',
+	accepted: 'Zusage',
+	rejected: 'Absage',
+	withdrawn: 'Zurückgezogen'
+};
 
 export const leaseKindLabels: Record<LeaseKind, string> = {
 	residential: 'Wohnraum',
@@ -278,6 +289,8 @@ export const auditEntityLabels: Record<string, string> = {
 	document: 'Dokument',
 	task: 'Aufgabe',
 	serviceProvider: 'Dienstleister',
+	letting: 'Neuvermietung',
+	applicant: 'Mietinteressent',
 	expense: 'Ausgabe',
 	import: 'Datenübernahme'
 };

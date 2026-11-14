@@ -39,8 +39,10 @@ import { addressKey } from './geocoding';
 import type { Database } from './db';
 import { chunk, chunkIds, rowsPerStatement, runBatch } from './db/batch';
 import {
+	applicants,
 	associationStatements,
 	auditLog,
+	lettings,
 	bankAccounts,
 	bankTransactions,
 	serviceProviders,
@@ -2519,6 +2521,254 @@ export async function createDemoData(
 		}
 	];
 
+	// Neuvermietung of Wohnung 14 after Nowak's notice: six Mietinteressenten, viewings in the days
+	// after, Selbstauskünfte through the link, and the Zusage to Miriam Krüger, whose lease follows
+	// his. The others got the Absage that day; all of it is deleted three months later. Earlier
+	// lettings are gone that way, and only their lines in the Protokoll remain.
+	const lettingId = crypto.randomUUID();
+	const decisionDay = soFar(addDays(noticeDay, 8));
+	const lettingRow = {
+		id: lettingId,
+		accountId,
+		unitId: unitId('Wohnung 14'),
+		availableFrom: addDays(moveOutDay, 1),
+		baseRent: 81500,
+		operatingCostPrepayment: 16000,
+		heatingCostPrepayment: 14000,
+		securityDeposit: 244500,
+		notes: 'Inserat auf zwei Portalen; Besichtigungen nach Absprache mit Herrn Nowak.',
+		closedAt: decisionDay,
+		createdAt: new Date(`${noticeDay}T16:00:00Z`)
+	};
+	/** The n-th day after the notice, capped at the decision, at the hour given. */
+	const lettingDay = (days: number) => {
+		const day = addDays(noticeDay, days);
+		return day < decisionDay ? day : decisionDay;
+	};
+	const viewing = (days: number, time: string) => `${lettingDay(days)}T${time}`;
+	const submitted = (days: number) => new Date(`${lettingDay(days)}T19:30:00Z`);
+	const applicantBase = {
+		accountId,
+		lettingId,
+		salutation: null,
+		email: null,
+		phone: null,
+		street: null,
+		postalCode: null,
+		city: null,
+		birthDate: null,
+		adults: null,
+		children: null,
+		occupation: null,
+		employer: null,
+		netIncome: null,
+		pets: null,
+		insolvency: null,
+		hasWbs: null,
+		moveInDate: null,
+		coFirstName: null,
+		coLastName: null,
+		coBirthDate: null,
+		coOccupation: null,
+		coEmployer: null,
+		message: null,
+		notes: null,
+		rating: null,
+		idCheckedOn: null,
+		creditProofOn: null,
+		incomeProofOn: null,
+		wbsProofOn: null,
+		disclosureTokenHash: null,
+		disclosureExpiresAt: null,
+		disclosureSubmittedAt: null,
+		tenantId: null
+	};
+	const applicantRows = (
+		[
+			{
+				...applicantBase,
+				id: crypto.randomUUID(),
+				status: 'accepted',
+				salutation: 'Frau',
+				firstName: 'Miriam',
+				lastName: 'Krüger',
+				email: 'miriam.krueger@example.org',
+				phone: '0160 3318274',
+				street: 'Gutenbergstraße 71',
+				postalCode: '14467',
+				city: 'Potsdam',
+				birthDate: '1991-04-07',
+				viewingAt: viewing(2, '17:30'),
+				adults: 1,
+				children: 0,
+				occupation: 'Bauingenieurin',
+				employer: 'Ingenieurbüro Havelland GmbH',
+				netIncome: 429000,
+				insolvency: false,
+				moveInDate: addDays(moveOutDay, 1),
+				message: 'Ich arbeite in Potsdam und suche eine ruhige Wohnung mit Balkon.',
+				notes: 'Pünktlich, hat nach dem Zählerstand und der Hausordnung gefragt.',
+				rating: 5,
+				idCheckedOn: lettingDay(2),
+				creditProofOn: lettingDay(6),
+				incomeProofOn: lettingDay(6),
+				disclosureSubmittedAt: submitted(3),
+				decidedOn: decisionDay,
+				tenantId: tenantIds.krueger
+			},
+			{
+				...applicantBase,
+				id: crypto.randomUUID(),
+				status: 'rejected',
+				salutation: 'Herr',
+				firstName: 'Daniel',
+				lastName: 'Hoffmann',
+				email: 'd.hoffmann@example.org',
+				viewingAt: viewing(2, '18:00'),
+				adults: 2,
+				children: 2,
+				occupation: 'Erzieher',
+				employer: 'Kita Sonnenhof',
+				netIncome: 352000,
+				pets: 'ein kleiner Hund',
+				insolvency: false,
+				moveInDate: addDays(moveOutDay, 1),
+				coFirstName: 'Sarah',
+				coLastName: 'Hoffmann',
+				coOccupation: 'Pflegefachfrau',
+				coEmployer: 'Klinikum Ernst von Bergmann',
+				notes: 'Sehr nett; für vier Personen sind drei Zimmer knapp.',
+				rating: 4,
+				idCheckedOn: lettingDay(2),
+				disclosureSubmittedAt: submitted(2),
+				decidedOn: decisionDay
+			},
+			{
+				...applicantBase,
+				id: crypto.randomUUID(),
+				status: 'rejected',
+				salutation: 'Frau',
+				firstName: 'Aylin',
+				lastName: 'Demir',
+				email: 'aylin.demir@example.org',
+				viewingAt: viewing(3, '17:00'),
+				adults: 1,
+				children: 0,
+				occupation: 'Softwareentwicklerin',
+				employer: 'Datenwerk Potsdam GmbH',
+				netIncome: 398000,
+				insolvency: false,
+				moveInDate: addDays(moveOutDay, 15),
+				rating: 4,
+				idCheckedOn: lettingDay(3),
+				creditProofOn: lettingDay(5),
+				disclosureSubmittedAt: submitted(4),
+				decidedOn: decisionDay
+			},
+			{
+				...applicantBase,
+				id: crypto.randomUUID(),
+				status: 'rejected',
+				salutation: 'Herr',
+				firstName: 'Paul',
+				lastName: 'Neumann',
+				email: 'paul.neumann@example.org',
+				viewingAt: viewing(3, '17:30'),
+				adults: 1,
+				children: 0,
+				occupation: 'Student',
+				netIncome: 140000,
+				insolvency: false,
+				message: 'Meine Eltern würden eine Bürgschaft übernehmen.',
+				rating: 3,
+				disclosureSubmittedAt: submitted(3),
+				decidedOn: decisionDay
+			},
+			{
+				...applicantBase,
+				id: crypto.randomUUID(),
+				status: 'withdrawn',
+				salutation: 'Herr',
+				firstName: 'Thomas',
+				lastName: 'Richter',
+				phone: '0171 2209318',
+				viewingAt: viewing(4, '18:30'),
+				notes: 'Hat abgesagt, eine andere Wohnung gefunden.',
+				decidedOn: lettingDay(4)
+			},
+			{
+				...applicantBase,
+				id: crypto.randomUUID(),
+				status: 'rejected',
+				salutation: 'Frau',
+				firstName: 'Lea',
+				lastName: 'Schwarz',
+				email: 'lea.schwarz@example.org',
+				notes: 'Anfrage über das Portal, zur Besichtigung nicht erschienen.',
+				decidedOn: decisionDay
+			}
+		] satisfies (typeof applicants.$inferInsert)[]
+	).map((row, index) => ({
+		...row,
+		createdAt: new Date(
+			`${lettingDay(index < 4 ? 1 : 2)}T${String(9 + index).padStart(2, '0')}:00:00Z`
+		)
+	}));
+	const lettingLabelOf = 'Wohnung 14 · Parkallee 8, Wohnung 14';
+	auditRows.push(
+		{
+			...audit('letting', lettingId, `Neuvermietung ${lettingLabelOf} angelegt`),
+			at: new Date(`${noticeDay}T16:00:00Z`)
+		},
+		...applicantRows.map((row) => ({
+			...audit(
+				'applicant',
+				row.id!,
+				`Mietinteressent ${row.firstName} ${row.lastName} für ${lettingLabelOf} angelegt`
+			),
+			at: row.createdAt
+		})),
+		{
+			...audit('letting', lettingId, `Neuvermietung ${lettingLabelOf}: Zusage an Miriam Krüger`),
+			action: 'update' as const,
+			at: new Date(`${decisionDay}T11:00:00Z`)
+		}
+	);
+	// The lettings before the current leases, long deleted; their lines in the Protokoll stay.
+	const earlier: [unit: string, property: string, leaseStart: IsoDate, people: number][] = [
+		['Wohnung 1. OG', 'Lindenstraße 12', at(-7, '01-01'), 7],
+		['Wohnung 14', 'Parkallee 8, Wohnung 14', at(-7, '05-01'), 5],
+		['Wohnung EG links', 'Lindenstraße 12', at(-6, '04-01'), 4],
+		['Wohnung 9', 'Rosenheimer Straße 104, Wohnung 9', at(-6, '12-01'), 9],
+		['Wohnung EG rechts', 'Lindenstraße 12', at(-4, '10-01'), 6]
+	];
+	for (const [unit, property, leaseStart, people] of earlier) {
+		const id = crypto.randomUUID();
+		const opened = addDays(leaseStart, -75);
+		const closed = addDays(leaseStart, -40);
+		auditRows.push(
+			{
+				...audit('letting', id, `Neuvermietung ${unit} · ${property} angelegt`),
+				at: new Date(`${opened}T10:00:00Z`)
+			},
+			{
+				...audit('letting', id, `Neuvermietung ${unit} · ${property} abgeschlossen`),
+				action: 'update' as const,
+				at: new Date(`${closed}T10:00:00Z`)
+			},
+			{
+				...audit(
+					'letting',
+					id,
+					`${people - 1} Mietinteressenten und eine abgeschlossene Neuvermietung nach Ablauf der Frist gelöscht`
+				),
+				userId: null,
+				action: 'delete' as const,
+				at: new Date(`${addMonths(closed, 3)}T03:00:00Z`)
+			}
+		);
+	}
+
 	// Without a property the account has no units, leases or cost items, but it may hold tenants,
 	// bank accounts and tasks up to their limits.
 	const adding: [QuotaKind, number][] = [
@@ -2528,7 +2778,8 @@ export async function createDemoData(
 		['matchingRules', ruleRows.length],
 		['expenses', expenseRows.length],
 		['tasks', taskRows.length],
-		['serviceProviders', serviceProviderRows.length]
+		['serviceProviders', serviceProviderRows.length],
+		['applicants', applicantRows.length]
 	];
 	for (const [kind, rows] of adding) await assertQuota(db, accountId, kind, rows);
 
@@ -2560,6 +2811,8 @@ export async function createDemoData(
 			...insert(properties, propertyRows),
 			...insert(units, unitRows),
 			...insert(tenants, tenantRows),
+			...insert(lettings, [lettingRow]),
+			...insert(applicants, applicantRows),
 			...newLeaseStatements(db, context, leaseEntries),
 			...partyStatements,
 			...insert(rentChanges, rentChangeRows),
