@@ -100,6 +100,16 @@ export const trialClaims = sqliteTable('trial_claims', {
 	createdAt: createdAt()
 });
 
+/**
+ * Accounts that were deleted, by id only. A restore of the database brings them back from a
+ * backup, so the hourly job deletes every account listed here again (see redeleteAccounts). Kept
+ * as long as a backup can still hold the account.
+ */
+export const deletedAccounts = sqliteTable('deleted_accounts', {
+	id: text('id').primaryKey(),
+	createdAt: createdAt()
+});
+
 export const buildingUses = ['residential', 'non_residential'] as const;
 export type BuildingUse = (typeof buildingUses)[number];
 

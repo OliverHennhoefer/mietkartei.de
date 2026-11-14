@@ -1,15 +1,15 @@
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, lt } from 'drizzle-orm';
 import { auditEntry, type AuditContext } from './audit';
 import { bankOfIban } from './bank/bank-codes';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
 import {
 	accounts,
-	applicants,
-	lettings,
 	allocationKeys,
 	allocationKeyShares,
 	apiKeys,
+	applicants,
+	associationStatements,
 	auditLog,
 	bankAccounts,
 	bankConnections,
@@ -18,33 +18,32 @@ import {
 	billingCircles,
 	billingCircleUnits,
 	calendarFeeds,
-	notificationChannels,
-	notificationDeliveries,
-	notificationStates,
 	co2CostSplits,
 	costCategories,
-	serviceProviders,
 	costItems,
 	costItemUnitAmounts,
+	deletedAccounts,
 	depositSettlements,
 	depositTransactions,
 	dismissedHints,
-	handoverProtocols,
 	documents,
 	emailChanges,
 	expenses,
+	handoverProtocols,
 	insurancePolicies,
-	associationStatements,
-	taxYears,
 	invitations,
 	leasePersons,
 	leases,
 	leaseTenants,
 	leaseUnits,
+	lettings,
 	loginAttempts,
 	matchingRules,
 	meterReadings,
 	meters,
+	notificationChannels,
+	notificationDeliveries,
+	notificationStates,
 	operatingCostStatements,
 	passwordResets,
 	paymentReminders,
@@ -52,9 +51,11 @@ import {
 	properties,
 	rentChanges,
 	rentCharges,
+	serviceProviders,
 	sessions,
 	statementResults,
 	tasks,
+	taxYears,
 	tenants,
 	units,
 	users
@@ -181,11 +182,14 @@ function landlordDataDeletes(db: Database, accountId: string) {
  * an upload between the two steps is caught by a second sweep after the batch, and an upload
  * after the batch finds no account and storeDocument removes its file again. Returns false when
  * there is no such account.
+ *
+ * The id stays in deleted_accounts, so a restore from a backup deletes the account again. The
+ * demo passes remember: false, as its database has no backups.
  */
 export async function deleteAccount(
 	db: Database,
 	accountId: string,
-	options?: { storage?: Storage }
+	options?: { storage?: Storage; remember?: boolean }
 ): Promise<boolean> {
 	const [account] = await db
 		.select({ id: accounts.id })
@@ -223,7 +227,10 @@ export async function deleteAccount(
 		db.delete(passwordResets).where(inArray(passwordResets.userId, accountUsers)),
 		db.delete(loginAttempts).where(inArray(loginAttempts.email, accountEmails)),
 		db.delete(users).where(eq(users.accountId, accountId)),
-		db.delete(accounts).where(eq(accounts.id, accountId))
+		db.delete(accounts).where(eq(accounts.id, accountId)),
+		...(options?.remember === false
+			? []
+			: [db.insert(deletedAccounts).values({ id: accountId }).onConflictDoNothing()])
 	]);
 	// The account is gone, so a failure here must not report the deletion as failed. Left behind
 	// can only be the file of an upload that landed between the two sweeps.
@@ -231,6 +238,36 @@ export async function deleteAccount(
 		console.error('[storage] Files stored while the account was deleted remain:', error);
 	});
 	return true;
+}
+
+/**
+ * How long deleted_accounts keeps an id: the weekly copies in R2 live 12 weeks, so after 13 no
+ * backup holds the account any more.
+ */
+export const DELETED_ACCOUNT_DAYS = 91;
+
+/**
+ * Deletes again every account that was deleted before and is back, because the database was
+ * restored from a backup, and forgets ids no backup can hold any more. Runs with the hourly job;
+ * after a restore, copy the ids of deleted_accounts from the newest database into the restored
+ * one first (see .github/MIGRATIONS.md). Returns the number of accounts deleted again.
+ */
+export async function redeleteAccounts(
+	db: Database,
+	options?: { storage?: Storage; now?: Date }
+): Promise<number> {
+	const now = options?.now ?? new Date();
+	await db
+		.delete(deletedAccounts)
+		.where(
+			lt(deletedAccounts.createdAt, new Date(now.getTime() - DELETED_ACCOUNT_DAYS * 86_400_000))
+		);
+	const back = await db
+		.select({ id: accounts.id })
+		.from(accounts)
+		.innerJoin(deletedAccounts, eq(deletedAccounts.id, accounts.id));
+	for (const { id } of back) await deleteAccount(db, id, { storage: options?.storage });
+	return back.length;
 }
 
 /**

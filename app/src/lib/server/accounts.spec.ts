@@ -5,9 +5,11 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	addressLines,
+	DELETED_ACCOUNT_DAYS,
 	deleteAccount,
 	getLandlord,
 	landlordAddress,
+	redeleteAccounts,
 	resetAccount,
 	updateLandlord
 } from './accounts';
@@ -16,6 +18,7 @@ import {
 	accounts,
 	auditLog,
 	costCategories,
+	deletedAccounts,
 	documents,
 	emailChanges,
 	invitations,
@@ -230,6 +233,30 @@ describe('deleteAccount', () => {
 			expect.objectContaining({ leaseId: leaseB })
 		]);
 		expect(await readdir(root)).toEqual(['b']);
+	});
+
+	it('deletes an account again that a restore brought back, until no backup can hold it', async () => {
+		await seedAccount(contextA);
+		await seedAccount(contextB);
+		expect(await deleteAccount(db, 'a', { storage })).toBe(true);
+		expect(await db.select({ id: deletedAccounts.id }).from(deletedAccounts)).toEqual([
+			{ id: 'a' }
+		]);
+		expect(await redeleteAccounts(db, { storage })).toBe(0);
+
+		// A restore from a backup taken before the deletion.
+		await db.insert(accounts).values({ id: 'a', name: 'Konto A' });
+		await seedUnit(db, 'a');
+		expect(await redeleteAccounts(db, { storage })).toBe(1);
+		expect(await db.select({ id: accounts.id }).from(accounts)).toEqual([{ id: 'b' }]);
+		expect(await readdir(root)).toEqual(['b']);
+
+		const later = new Date(Date.now() + (DELETED_ACCOUNT_DAYS + 1) * 86_400_000);
+		expect(await redeleteAccounts(db, { storage, now: later })).toBe(0);
+		expect(await db.select().from(deletedAccounts)).toEqual([]);
+		// The demo has no backups and remembers nothing.
+		expect(await deleteAccount(db, 'b', { storage, remember: false })).toBe(true);
+		expect(await db.select().from(deletedAccounts)).toEqual([]);
 	});
 
 	it('keeps every row and file when the storage fails, so the deletion can be retried', async () => {

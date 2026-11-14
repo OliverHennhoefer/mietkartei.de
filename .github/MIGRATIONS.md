@@ -55,7 +55,18 @@ Add a focused test to `migrations.spec.ts` for every migration that moves data, 
   npx wrangler d1 execute mietkartei-restore --remote --file backup.sql
   ```
 
-  Then point `database_id` in `app/wrangler.jsonc` at the restored database and deploy.
+  Then point `database_id` in `app/wrangler.jsonc` at the restored database and deploy. The copies leave out the rows of `lettings` and `applicants` and the log lines of applicants (see [filter-backup.ts](../app/scripts/filter-backup.ts)): Mietinteressenten must be deleted at most six months after the Absage, so only Time Travel holds them.
+
+  **Accounts deleted since then.** Either restore brings back the accounts deleted after its point in time. Their ids are in `deleted_accounts`, and the hourly job deletes every account listed there again. So before a restore, save the ids of the current database, and add them to the restored one afterwards:
+
+  ```sh
+  npx wrangler d1 export mietkartei --remote --table deleted_accounts --no-schema --output deleted-accounts.sql
+  sed -i 's/^INSERT INTO/INSERT OR IGNORE INTO/' deleted-accounts.sql
+  # after the restore, into the restored database:
+  npx wrangler d1 execute mietkartei --remote --file deleted-accounts.sql
+  ```
+
+  If the current database is gone, take the lines `INSERT INTO "deleted_accounts"` from the newest copy in R2 instead.
 
 - **Self-hosted on Cloudflare:** the same command with the copy's database name, in the copy's repository.
 

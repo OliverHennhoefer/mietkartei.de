@@ -442,6 +442,13 @@
       "when": 1794672934947,
       "tag": "0062_lettings",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "6",
+      "when": 1794676267490,
+      "tag": "0063_deleted_accounts",
+      "breakpoints": true
     }
   ]
 }

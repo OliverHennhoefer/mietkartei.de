@@ -68,7 +68,7 @@ export async function startDemo(
 		})
 	]);
 	if ((await countDemoStarts(db, Date.now() - HOUR)) > DEMO_STARTS_PER_HOUR) {
-		await deleteAccount(db, accountId, options);
+		await deleteAccount(db, accountId, { storage: options?.storage, remember: false });
 		return null;
 	}
 	// Clearing out yesterday's demos is not the visitor's business: on Workers it runs after the
@@ -130,7 +130,8 @@ export async function deleteExpiredDemoAccounts(
 		)
 		.orderBy(asc(accounts.createdAt))
 		.limit(EXPIRED_PER_START);
-	for (const { id } of expired) await deleteAccount(db, id, options);
+	for (const { id } of expired)
+		await deleteAccount(db, id, { storage: options?.storage, remember: false });
 	await db.delete(outbox).where(lt(outbox.createdAt, new Date(now - DEMO_LIFETIME)));
 	return expired.length;
 }
