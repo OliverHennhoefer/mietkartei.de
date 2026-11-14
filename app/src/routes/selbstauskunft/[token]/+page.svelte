@@ -64,6 +64,17 @@
 			{#each data.notice as paragraph, index (index)}<p>{paragraph}</p>{/each}
 		</section>
 	{/if}
+	<!-- Hosted, mietkartei runs the page and names its Impressum; a self-hosted instance has another
+	     operator, so it only credits the software. -->
+	<footer class="guest-footer">
+		{#if data.hosted}
+			Bereitgestellt mit <a href="https://mietkartei.de">mietkartei</a> ·
+			<a href="https://mietkartei.de/impressum/">Impressum</a> ·
+			<a href="https://mietkartei.de/datenschutz/">Datenschutz</a>
+		{:else}
+			Erstellt mit <a href="https://mietkartei.de">mietkartei</a>
+		{/if}
+	</footer>
 </div>
 
 <style>
@@ -75,5 +86,12 @@
 	}
 	.notice p {
 		font-size: 0.9rem;
+	}
+	.guest-footer {
+		margin: 3rem 0 1.5rem;
+		padding-top: 1rem;
+		border-top: 1px solid var(--color-border);
+		font-size: 0.85rem;
+		color: var(--color-muted);
 	}
 </style>

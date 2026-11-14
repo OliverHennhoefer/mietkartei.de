@@ -45,6 +45,9 @@ test('finds the next tenant for a unit and turns the applicant into tenant and l
 	await form.goto(link);
 	await expect(form.getByRole('heading', { name: 'Mieterselbstauskunft' })).toBeVisible();
 	await expect(form.getByText('Datenschutzhinweis')).toBeVisible();
+	// The landlord's page for a guest: no website frame, only a short credit.
+	await expect(form.getByRole('link', { name: 'Anmelden' })).toHaveCount(0);
+	await expect(form.getByText('Erstellt mit')).toBeVisible();
 	await expect(form.getByLabel('Nachname', { exact: true })).toHaveValue(lastName);
 	await form.getByLabel('Einziehende Erwachsene').fill('1');
 	await form.getByLabel('Monatliches Nettoeinkommen des Haushalts in €').fill('3.000');
