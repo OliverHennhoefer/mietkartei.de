@@ -11,7 +11,7 @@
 	const invalid = $derived(data.state === 'invalid' || Boolean(form && 'invalid' in form));
 	const values = $derived<Record<string, string>>(
 		(form && 'values' in form ? form.values : undefined) ??
-			(data.state === 'invalid' ? {} : data.values)
+			(data.state === 'open' ? data.values : {})
 	);
 	const errors = $derived(form && 'errors' in form ? form.errors : undefined);
 </script>

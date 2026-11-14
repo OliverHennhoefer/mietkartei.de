@@ -31,7 +31,7 @@ import {
 	units
 } from './db/schema';
 import { deleteDocument } from './documents';
-import { lettingsOnUnits } from './lettings';
+import { applicantAuditDeletesOnUnits, lettingsOnUnits } from './lettings';
 import type { Storage } from './storage';
 
 // What deleting a tenant, property, unit or lease takes along and what blocks it, and the deletes
@@ -476,12 +476,14 @@ export async function deleteProperty(
 		.where(and(eq(properties.accountId, accountId), eq(properties.id, propertyId)));
 	if (!existing) return 'missing';
 	if ((await propertyDeletion(db, accountId, propertyId)).blockers.length > 0) return 'in-use';
+	const unitIds = await unitIdsOf(db, accountId, propertyId);
 	const orphaned = await orphanedDocuments(db, accountId, {
 		propertyIds: [propertyId],
-		unitIds: await unitIdsOf(db, accountId, propertyId),
+		unitIds,
 		costItemIds: await costItemIdsOf(db, accountId, propertyId)
 	});
 	await runBatch(db, [
+		...(await applicantAuditDeletesOnUnits(db, accountId, unitIds)),
 		db
 			.delete(properties)
 			.where(and(eq(properties.accountId, accountId), eq(properties.id, propertyId))),
@@ -562,6 +564,7 @@ export async function deleteUnit(
 	if ((await unitDeletion(db, accountId, unitId)).blockers.length > 0) return 'in-use';
 	const orphaned = await orphanedDocuments(db, accountId, { unitIds: [unitId] });
 	await runBatch(db, [
+		...(await applicantAuditDeletesOnUnits(db, accountId, [unitId])),
 		db.delete(units).where(and(eq(units.accountId, accountId), eq(units.id, unitId))),
 		auditEntry(
 			db,

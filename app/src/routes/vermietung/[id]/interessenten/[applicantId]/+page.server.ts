@@ -7,8 +7,7 @@ import {
 	rentBurden,
 	type ProofKey
 } from '#lib/domain/applicants.ts';
-import { parseApplicant } from '#lib/forms/lettings.ts';
-import { formatCentsPlain } from '#lib/money.ts';
+import { parseApplicant, selfDisclosureValues } from '#lib/forms/lettings.ts';
 import { landlordAddress } from '#lib/server/accounts.ts';
 import {
 	acceptApplicant,
@@ -42,7 +41,6 @@ async function context(event: Pick<RequestEvent, 'locals' | 'params'>) {
 }
 
 const text = (value: string | null) => value ?? '';
-const yesNo = (value: boolean | null) => (value === null ? '' : value ? 'ja' : 'nein');
 
 export const load: PageServerLoad = async (event) => {
 	const { letting, applicant } = await context(event);
@@ -70,31 +68,8 @@ export const load: PageServerLoad = async (event) => {
 					? deletionDate(letting.closedAt)
 					: null,
 		values: {
-			salutation: text(applicant.salutation),
-			firstName: applicant.firstName,
-			lastName: applicant.lastName,
-			birthDate: text(applicant.birthDate),
-			email: text(applicant.email),
-			phone: text(applicant.phone),
-			street: text(applicant.street),
-			postalCode: text(applicant.postalCode),
-			city: text(applicant.city),
+			...selfDisclosureValues(applicant),
 			viewingAt: text(applicant.viewingAt),
-			adults: applicant.adults === null ? '' : String(applicant.adults),
-			children: applicant.children === null ? '' : String(applicant.children),
-			occupation: text(applicant.occupation),
-			employer: text(applicant.employer),
-			netIncome: applicant.netIncome === null ? '' : formatCentsPlain(applicant.netIncome),
-			pets: text(applicant.pets),
-			insolvency: yesNo(applicant.insolvency),
-			hasWbs: yesNo(applicant.hasWbs),
-			moveInDate: text(applicant.moveInDate),
-			coFirstName: text(applicant.coFirstName),
-			coLastName: text(applicant.coLastName),
-			coBirthDate: text(applicant.coBirthDate),
-			coOccupation: text(applicant.coOccupation),
-			coEmployer: text(applicant.coEmployer),
-			message: text(applicant.message),
 			notes: text(applicant.notes),
 			rating: applicant.rating === null ? '' : String(applicant.rating)
 		}

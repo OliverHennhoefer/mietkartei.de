@@ -1,7 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import { privacyNotice } from '#lib/domain/applicants.ts';
-import { parseSelfDisclosure } from '#lib/forms/lettings.ts';
-import { formatCentsPlain } from '#lib/money.ts';
+import { parseSelfDisclosure, selfDisclosureValues } from '#lib/forms/lettings.ts';
 import { disclosureByToken, submitDisclosure } from '#lib/server/lettings.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -10,17 +9,17 @@ import type { Actions, PageServerLoad } from './$types';
 // used link shows a notice instead of the form. Nothing of the landlord's account is shown apart
 // from the unit, its terms and the landlord as controller in the Datenschutzhinweis.
 
-const text = (value: string | null) => value ?? '';
-
 export const load: PageServerLoad = async ({ locals, params, setHeaders }) => {
 	// The page holds the applicant's name and contact, and the applicant is not signed in, so the
 	// app's no-store for signed-in pages does not apply on its own.
 	setHeaders({ 'cache-control': 'private, no-store' });
 	const page = await disclosureByToken(locals.db, params.token);
 	if (!page) return { state: 'invalid' as const };
+	// A used link shows only the thank-you note: it must not keep serving the answers.
+	if (page.submitted) return { state: 'submitted' as const };
 	const { applicant, letting, address, landlord } = page;
 	return {
-		state: page.submitted ? ('submitted' as const) : ('open' as const),
+		state: 'open' as const,
 		offer: {
 			unit: letting.unit.name,
 			address: `${address.street}, ${address.postalCode} ${address.city}`,
@@ -32,24 +31,7 @@ export const load: PageServerLoad = async ({ locals, params, setHeaders }) => {
 		},
 		landlordName: landlord.name,
 		notice: privacyNotice(landlord),
-		values: {
-			salutation: text(applicant.salutation),
-			firstName: applicant.firstName,
-			lastName: applicant.lastName,
-			email: text(applicant.email),
-			phone: text(applicant.phone),
-			street: text(applicant.street),
-			postalCode: text(applicant.postalCode),
-			city: text(applicant.city),
-			birthDate: text(applicant.birthDate),
-			adults: applicant.adults === null ? '' : String(applicant.adults),
-			children: applicant.children === null ? '' : String(applicant.children),
-			occupation: text(applicant.occupation),
-			employer: text(applicant.employer),
-			netIncome: applicant.netIncome === null ? '' : formatCentsPlain(applicant.netIncome),
-			pets: text(applicant.pets),
-			moveInDate: text(applicant.moveInDate)
-		}
+		values: selfDisclosureValues(applicant)
 	};
 };
 

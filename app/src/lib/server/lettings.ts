@@ -1,4 +1,15 @@
-import { and, asc, eq, inArray, isNotNull, isNull, lte } from 'drizzle-orm';
+import {
+	and,
+	asc,
+	eq,
+	exists,
+	inArray,
+	isNotNull,
+	isNull,
+	lte,
+	notExists,
+	type SQL
+} from 'drizzle-orm';
 import { addDays, formatDate, today, type IsoDate } from '../dates';
 import {
 	closedStatuses,
@@ -313,7 +324,7 @@ export async function updateLetting(
 }
 
 /** Applicants still open when a letting closes get the Absage that day. */
-function rejectOpen(db: Database, accountId: string, lettingId: string, date: IsoDate) {
+function rejectOpen(db: Database, accountId: string, lettingId: string, date: IsoDate, only?: SQL) {
 	return db
 		.update(applicants)
 		.set({ status: 'rejected', decidedOn: date })
@@ -321,7 +332,8 @@ function rejectOpen(db: Database, accountId: string, lettingId: string, date: Is
 			and(
 				eq(applicants.accountId, accountId),
 				eq(applicants.lettingId, lettingId),
-				inArray(applicants.status, [...openStatuses])
+				inArray(applicants.status, [...openStatuses]),
+				only
 			)
 		);
 }
@@ -368,6 +380,33 @@ function applicantAuditDeletes(db: Database, accountId: string, ids: string[]) {
 					inArray(auditLog.entityId, group)
 				)
 			)
+	);
+}
+
+/**
+ * The audit deletes for the applicants of every letting on these units, for deleting a unit or
+ * property: the database cascade takes the applicants, but not the lines that name them.
+ */
+export async function applicantAuditDeletesOnUnits(
+	db: Database,
+	accountId: string,
+	unitIds: string[]
+) {
+	const rows = (
+		await Promise.all(
+			chunkIds(unitIds).map((group) =>
+				db
+					.select({ id: applicants.id })
+					.from(applicants)
+					.innerJoin(lettings, eq(lettings.id, applicants.lettingId))
+					.where(and(eq(lettings.accountId, accountId), inArray(lettings.unitId, group)))
+			)
+		)
+	).flat();
+	return applicantAuditDeletes(
+		db,
+		accountId,
+		rows.map((row) => row.id)
 	);
 }
 
@@ -698,6 +737,11 @@ export async function submitDisclosure(
  * The Zusage: the applicant (and the second person who signs) become tenants, the other open
  * applicants get the Absage and the letting closes. Returns the new tenants' ids; undefined when
  * the applicant is not open or the letting is closed.
+ *
+ * Two Zusagen at once, say a double click or two managers, both pass the checks before either
+ * batch runs. So the batch claims the applicant itself: it sets the new tenant id only while the
+ * applicant and the letting are still open, and every later statement runs only if that claim
+ * holds. A batch that lost takes its tenants out again, and the outcome is read back.
  */
 export async function acceptApplicant(
 	db: Database,
@@ -735,20 +779,61 @@ export async function acceptApplicant(
 		...person,
 		notes: `Aus der Neuvermietung ${lettingLabel(letting)} übernommen.`
 	}));
+	const tenantId = tenantRows[0].id;
+	const claimed = exists(
+		db
+			.select({ id: applicants.id })
+			.from(applicants)
+			.where(and(byId(accountId, applicant.id), eq(applicants.tenantId, tenantId)))
+	);
+	const ofLetting = and(eq(lettings.accountId, accountId), eq(lettings.id, letting.id));
 	await runBatch(db, [
 		db.insert(tenants).values(tenantRows),
-		...tenantRows.map((row) =>
-			auditEntry(db, context, 'tenant', row.id, 'create', `Mieter ${personName(row)} angelegt`)
-		),
 		db
 			.update(applicants)
-			.set({ status: 'accepted', decidedOn: date, tenantId: tenantRows[0].id })
-			.where(byId(accountId, applicant.id)),
-		rejectOpen(db, accountId, letting.id, date),
+			.set({ status: 'accepted', decidedOn: date, tenantId })
+			.where(
+				and(
+					byId(accountId, applicant.id),
+					inArray(applicants.status, [...openStatuses]),
+					exists(
+						db
+							.select({ id: lettings.id })
+							.from(lettings)
+							.where(and(ofLetting, isNull(lettings.closedAt)))
+					)
+				)
+			),
+		db.delete(tenants).where(
+			and(
+				eq(tenants.accountId, accountId),
+				inArray(
+					tenants.id,
+					tenantRows.map((row) => row.id)
+				),
+				notExists(
+					db
+						.select({ id: applicants.id })
+						.from(applicants)
+						.where(and(byId(accountId, applicant.id), eq(applicants.tenantId, tenantId)))
+				)
+			)
+		),
+		rejectOpen(db, accountId, letting.id, date, claimed),
 		db
 			.update(lettings)
 			.set({ closedAt: date })
-			.where(and(eq(lettings.accountId, accountId), eq(lettings.id, letting.id))),
+			.where(and(ofLetting, isNull(lettings.closedAt), claimed))
+	]);
+	const [after] = await db
+		.select({ tenantId: applicants.tenantId })
+		.from(applicants)
+		.where(byId(accountId, applicant.id));
+	if (after?.tenantId !== tenantId) return undefined;
+	await runBatch(db, [
+		...tenantRows.map((row) =>
+			auditEntry(db, context, 'tenant', row.id, 'create', `Mieter ${personName(row)} angelegt`)
+		),
 		auditEntry(
 			db,
 			context,

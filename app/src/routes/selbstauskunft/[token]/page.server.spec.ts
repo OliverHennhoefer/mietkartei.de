@@ -118,10 +118,27 @@ describe('/selbstauskunft/[token]', () => {
 			notes: 'wirkte unpünktlich',
 			rating: 2
 		});
-		expect(await run(load, { params })).toMatchObject({ data: { state: 'submitted' } });
+		// The used link no longer serves the answers.
+		expect(await run(load, { params })).toEqual({ data: { state: 'submitted' } });
 		expect(await run(actions.default, { params, form: answers })).toEqual({
 			fail: 400,
 			data: { invalid: true }
+		});
+		// A new link starts from every answer, so sending it again keeps what is not changed.
+		const renewed = await createDisclosureLink(
+			db,
+			contextA,
+			(await getApplicant(db, 'a', lettingId, id))!
+		);
+		expect(await run(load, { params: { token: renewed.token } })).toMatchObject({
+			data: {
+				state: 'open',
+				values: expect.objectContaining({
+					insolvency: 'nein',
+					netIncome: '3.800,00',
+					coFirstName: ''
+				})
+			}
 		});
 	});
 

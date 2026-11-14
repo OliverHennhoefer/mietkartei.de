@@ -1,6 +1,7 @@
 import { normalizePostalCode, normalizeStreet, singleLine } from '../domain/address';
 import type { SelfDisclosure } from '../domain/applicants';
 import { isIsoDate, today } from '../dates';
+import { formatCentsPlain } from '../money';
 import { FormParser, type ParseResult } from './fields';
 
 // Parses the forms of a Neuvermietung: its terms, an applicant as the landlord enters them, and
@@ -124,6 +125,45 @@ function disclosureFields(parser: FormParser<SelfDisclosure>): () => SelfDisclos
 }
 
 /** What the applicant sends through the link. */
+const text = (value: string | null) => value ?? '';
+const count = (value: number | null) => (value === null ? '' : String(value));
+const yesNoText = (value: boolean | null) => (value === null ? '' : value ? 'ja' : 'nein');
+
+/**
+ * Every answer of a Selbstauskunft as the form shows it, the reverse of parseSelfDisclosure. A
+ * form that leaves out a field would save it as empty on the next submit.
+ */
+export function selfDisclosureValues(
+	answers: SelfDisclosure
+): Record<keyof SelfDisclosure, string> {
+	return {
+		salutation: text(answers.salutation),
+		firstName: answers.firstName,
+		lastName: answers.lastName,
+		birthDate: text(answers.birthDate),
+		email: text(answers.email),
+		phone: text(answers.phone),
+		street: text(answers.street),
+		postalCode: text(answers.postalCode),
+		city: text(answers.city),
+		adults: count(answers.adults),
+		children: count(answers.children),
+		occupation: text(answers.occupation),
+		employer: text(answers.employer),
+		netIncome: answers.netIncome === null ? '' : formatCentsPlain(answers.netIncome),
+		pets: text(answers.pets),
+		insolvency: yesNoText(answers.insolvency),
+		hasWbs: yesNoText(answers.hasWbs),
+		moveInDate: text(answers.moveInDate),
+		coFirstName: text(answers.coFirstName),
+		coLastName: text(answers.coLastName),
+		coBirthDate: text(answers.coBirthDate),
+		coOccupation: text(answers.coOccupation),
+		coEmployer: text(answers.coEmployer),
+		message: text(answers.message)
+	};
+}
+
 export function parseSelfDisclosure(form: FormData): ParseResult<SelfDisclosure> {
 	const parser = new FormParser<SelfDisclosure>(form);
 	const fields = disclosureFields(parser);

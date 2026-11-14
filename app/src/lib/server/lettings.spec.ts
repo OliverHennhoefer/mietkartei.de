@@ -31,6 +31,7 @@ import {
 	updateApplicant,
 	updateLetting
 } from './lettings';
+import { deleteProperty, deleteUnit } from './deletion';
 import {
 	contextA,
 	contextB,
@@ -366,6 +367,50 @@ describe('lettings', () => {
 		await db.delete(tenants).where(eq(tenants.id, result.tenantIds[0]));
 		expect((await getApplicant(db, 'a', lettingId, chosen))?.tenantId).toBeNull();
 		expect(unitId).toBeTruthy();
+	});
+
+	it('deletes the applicants’ log lines with their unit or property', async () => {
+		const applicantLines = () => db.select().from(auditLog).where(eq(auditLog.entity, 'applicant'));
+		const first = await createLetting(db, contextA, terms((await seedUnit(db, 'a')).unitId));
+		const second = await seedUnit(db, 'a');
+		const other = await createLetting(db, contextA, terms(second.unitId));
+		if (!first.ok || !other.ok) throw new Error('no letting');
+		await createApplicant(db, contextA, first.id, person('Anna', 'Berg'));
+		await createApplicant(db, contextA, other.id, person('Ben', 'Wolf'));
+		expect(await applicantLines()).toHaveLength(2);
+		const [unit] = await db
+			.select({ id: lettings.unitId })
+			.from(lettings)
+			.where(eq(lettings.id, first.id));
+		expect(await deleteUnit(db, contextA, unit.id)).toBe('deleted');
+		expect((await applicantLines()).map((row) => row.summary)).toEqual([
+			expect.stringContaining('Ben Wolf')
+		]);
+		expect(await deleteProperty(db, contextA, second.propertyId)).toBe('deleted');
+		expect(await applicantLines()).toEqual([]);
+	});
+
+	it('gives only one Zusage when two arrive at once', async () => {
+		const { lettingId } = await letting();
+		const first = (await createApplicant(db, contextA, lettingId, person('Anna', 'Berg')))!;
+		const second = (await createApplicant(db, contextA, lettingId, person('Ben', 'Wolf')))!;
+		const [a, b] = await Promise.all([
+			getApplicant(db, 'a', lettingId, first),
+			getApplicant(db, 'a', lettingId, second)
+		]);
+		// Both read an open letting before either writes: a double click and a second manager.
+		const results = await Promise.all([
+			acceptApplicant(db, contextA, a!),
+			acceptApplicant(db, contextA, a!),
+			acceptApplicant(db, contextA, b!)
+		]);
+		expect(results.filter(Boolean)).toHaveLength(1);
+		const rows = await listApplicants(db, 'a', lettingId);
+		expect(rows.map((row) => row.status).sort()).toEqual(['accepted', 'rejected']);
+		const created = await db.select().from(tenants).where(eq(tenants.accountId, 'a'));
+		expect(created.map((row) => row.id)).toEqual(results.find(Boolean)!.tenantIds);
+		const lines = await db.select().from(auditLog).where(eq(auditLog.entity, 'tenant'));
+		expect(lines).toHaveLength(1);
 	});
 
 	it('starts the lease when the unit is free without a move-in and leaves out a past one', async () => {
