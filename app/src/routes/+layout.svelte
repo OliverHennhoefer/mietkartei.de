@@ -186,6 +186,9 @@
 	const sections = $derived(settingsSections(data.role, data.billingEnabled));
 	// A settings page opened by its address renders the dialog itself (see SettingsFrame).
 	const onSettingsPage = $derived(!!settingsSectionOf(page.url.pathname));
+	// The Selbstauskunft belongs to the landlord, and the applicant is their guest: it stands without
+	// the website's frame and brings its own short footer.
+	const guestPage = $derived(page.url.pathname.startsWith('/selbstauskunft/'));
 	const settings = $derived(onSettingsPage ? undefined : page.state.settings);
 	const SettingsView = $derived(settings && settingsViews[settings.href]);
 
@@ -311,7 +314,7 @@
 	<!-- Signed out, the pages stand in the website's frame: its header, the way back to the homepage
 	     where the pricing page has it, and its footer. -->
 	{#if !data.email}
-		<WebsiteHeader />
+		{#if !guestPage}<WebsiteHeader />{/if}
 	{:else}
 		<header class="site-header">
 			<div class="brand-bar">
@@ -415,7 +418,7 @@
 			tabindex="-1"
 			inert={open}
 		>
-			{#if !data.email}
+			{#if !data.email && !guestPage}
 				<a class="back-link" href="https://mietkartei.de"
 					><span aria-hidden="true">←</span> Zur Startseite</a
 				>
@@ -451,7 +454,7 @@
 			{@render children()}
 		</main>
 	</div>
-	{#if !data.email}<WebsiteFooter />{/if}
+	{#if !data.email && !guestPage}<WebsiteFooter />{/if}
 	{#if settings && SettingsView}
 		<SettingsDialog
 			{sections}
