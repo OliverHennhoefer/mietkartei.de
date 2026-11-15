@@ -15,10 +15,9 @@
 <section class="card">
 	<h2>{data.entry.title}</h2>
 	<p>
-		{data.entry.kind === 'task' ? 'Fällig' : 'Frist'} am {formatDate(data.entry.date)}{data.entry
-			.overdue
-			? ', überfällig'
-			: ''}
+		{data.entry.kind === 'task' || data.entry.kind === 'arrears' ? 'Fällig' : 'Frist'} am {formatDate(
+			data.entry.date
+		)}{data.entry.overdue ? ', überfällig' : ''}
 	</p>
 	{#if data.entry.description}<p class="muted">{data.entry.description}</p>{/if}
 	<p><a href={data.entry.href}>Öffnen</a></p>

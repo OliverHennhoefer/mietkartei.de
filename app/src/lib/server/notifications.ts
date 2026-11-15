@@ -3,6 +3,9 @@ import { VAPID_PRIVATE_KEY } from '$app/env/private';
 import { addDays, daysBetween, dayOf, formatDate, weekday, type IsoDate } from '../dates';
 import { auditEntry, type AuditContext } from './audit';
 import { generateToken } from './auth';
+import { arrearsEntries } from './arrears-notices';
+import { syncDue } from './bank/sync';
+import { apiReadOnly } from './billing';
 import { calendarEntries, type CalendarEntry } from './calendar';
 import type { Database } from './db';
 import { chunk, chunkIds, rowsPerStatement, runBatch } from './db/batch';
@@ -14,7 +17,6 @@ import {
 	type NotificationChannelKind,
 	type NotificationStage
 } from './db/schema';
-import type { DeadlineKind } from './deadlines';
 import { sendMail, type Mail } from './mail';
 import {
 	PushGoneError,
@@ -31,7 +33,27 @@ import {
 // What was told is remembered per user and entry, so a stage is never told twice, and everything
 // of a day goes out together, at the hour the user chose and, if they wish, not at weekends. The
 // channels are the user's own mail address, the Mitteilungen of their browsers (push) and
-// webhooks. The job runs every hour, started like the Fristenübersicht (see jobs.ts).
+// webhooks. The job runs every hour, started like the Fristenübersicht (see jobs.ts). Besides the
+// deadlines and tasks it tells about rent that did not come in (arrears-notices.ts), after a
+// Bankabruf that is due, so the transactions are as new as they can be.
+
+/** Everything a Hinweis can be about: the entries of the calendar feed and missing payments. */
+export async function notificationEntries(
+	db: Database,
+	accountId: string,
+	origin: string,
+	today: IsoDate
+): Promise<CalendarEntry[]> {
+	const [calendar, arrears] = await Promise.all([
+		calendarEntries(db, accountId, origin, today),
+		// The deadlines go out even when the balances cannot be read.
+		arrearsEntries(db, accountId, origin, today).catch((error) => {
+			console.error(`[notifications] The arrears of account ${accountId} were not read:`, error);
+			return [];
+		})
+	]);
+	return [...calendar, ...arrears];
+}
 
 /** Failed sends in a row after which a channel is paused until a test goes through. */
 export const MAX_FAILURES = 5;
@@ -54,7 +76,7 @@ type Rule = { lead: number; soon: boolean };
  * When each kind is told ahead (days) and whether it gets the urgent Hinweis shortly before. The
  * long leads are for what takes preparation: a statement, notice to an insurer, a rent increase.
  */
-export const notificationRules: Record<DeadlineKind | 'task', Rule> = {
+export const notificationRules: Record<CalendarEntry['kind'], Rule> = {
 	statement: { lead: 42, soon: true },
 	objection: { lead: 7, soon: false },
 	lease_end: { lead: 30, soon: true },
@@ -68,7 +90,9 @@ export const notificationRules: Record<DeadlineKind | 'task', Rule> = {
 	meter_reading: { lead: 7, soon: true },
 	insurance_notice: { lead: 28, soon: true },
 	insurance_end: { lead: 28, soon: false },
-	task: { lead: 7, soon: false }
+	task: { lead: 7, soon: false },
+	// Only ever overdue: told once the money should have arrived.
+	arrears: { lead: 0, soon: false }
 };
 
 const stageRank: Record<NotificationStage, number> = { lead: 1, soon: 2, overdue: 3 };
@@ -163,7 +187,9 @@ export function noticeMail(recipient: Recipient, notices: Notice[], origin: stri
 	});
 	const paragraphs = [
 		recipient.name ? `Hallo ${recipient.name},` : 'Hallo,',
-		'in deiner Mietkartei hat sich bei diesen Fristen und Aufgaben etwas getan:',
+		notices.some(({ entry }) => entry.kind === 'arrears')
+			? 'in deiner Mietkartei hat sich bei diesen Fristen, Aufgaben und Mietzahlungen etwas getan:'
+			: 'in deiner Mietkartei hat sich bei diesen Fristen und Aufgaben etwas getan:',
 		...sections,
 		'Zu jeder Frist kommt höchstens dreimal ein Hinweis: wenn sie ansteht, kurz vorher und wenn sie überfällig ist.',
 		`Einstellen oder abbestellen: ${origin}/einstellungen/benachrichtigungen`
@@ -183,7 +209,7 @@ export type WebhookPayload = {
 	summary: string;
 	notices: {
 		id: string;
-		kind: DeadlineKind | 'task';
+		kind: CalendarEntry['kind'];
 		stage: NotificationStage;
 		urgent: boolean;
 		date: IsoDate;
@@ -554,9 +580,14 @@ export async function sendDueNotifications(db: Database, now: Date = new Date())
 				.from(notificationChannels)
 				.where(eq(notificationChannels.userId, user.id));
 			if (!channels.some((channel) => channel.failures < MAX_FAILURES)) continue;
+			// Whether rent came in depends on the newest transactions: a Bankabruf that is due runs
+			// first, as when someone opens the Umsätze. Its failure stays on the connection.
+			if (!(await apiReadOnly(db, user.accountId))) {
+				await syncDue(db, { accountId: user.accountId, userId: null }, now).catch(() => undefined);
+			}
 			// Relative links; each channel's lead to the address it was added at.
 			const [entries, states] = await Promise.all([
-				calendarEntries(db, user.accountId, '', today),
+				notificationEntries(db, user.accountId, '', today),
 				loadStates(db, user.id)
 			]);
 			const notices = dueNotices(entries, states, today);
@@ -899,8 +930,8 @@ export async function findEntry(
 	origin: string,
 	today: IsoDate = dayOf(new Date())
 ): Promise<CalendarEntry | undefined> {
-	if (!/^(task|deadline)-[-\w]{1,80}$/.test(key)) return undefined;
-	const entries = await calendarEntries(db, accountId, origin, today);
+	if (!/^(task|deadline|arrears)-[-\w]{1,80}$/.test(key)) return undefined;
+	const entries = await notificationEntries(db, accountId, origin, today);
 	return entries.find((entry) => entry.key === key);
 }
 

@@ -54,8 +54,9 @@
 	<p>
 		mietkartei meldet sich von selbst, wenn bei einer Frist oder Aufgabe etwas ansteht: einmal mit
 		Vorlauf (bei der Betriebskostenabrechnung sechs Wochen, bei Aufgaben eine Woche), bei
-		gesetzlichen Fristen noch einmal drei Tage vorher und einmal, wenn sie überfällig ist. Was an
-		einem Tag zusammenkommt, kommt in einer Nachricht. Ist nichts neu, kommt nichts.
+		gesetzlichen Fristen noch einmal drei Tage vorher und einmal, wenn sie überfällig ist. Ist eine
+		Miete zwei Werktage nach ihrer Fälligkeit nicht eingegangen, kommt ein dringender Hinweis. Was
+		an einem Tag zusammenkommt, kommt in einer Nachricht. Ist nichts neu, kommt nichts.
 	</p>
 </Alert>
 

@@ -13,7 +13,15 @@ const env = vi.hoisted(() => ({
 	MAIL_API_KEY: '',
 	MAIL_FROM: ''
 }));
-vi.mock('$app/env/private', () => env);
+vi.mock('$app/env/private', async (original) => ({
+	...(await original<Record<string, unknown>>()),
+	get DEMO() {
+		return env.DEMO;
+	},
+	MAIL_TRANSPORT: env.MAIL_TRANSPORT,
+	MAIL_API_KEY: env.MAIL_API_KEY,
+	MAIL_FROM: env.MAIL_FROM
+}));
 
 const globals = globalThis as Record<string, unknown>;
 const token = 'f'.repeat(64);

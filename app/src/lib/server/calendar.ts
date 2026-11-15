@@ -76,7 +76,8 @@ export type CalendarEntry = {
 	uid: string;
 	/** The uid without its domain, e.g. "task-<id>"; Hinweise remember entries by it. */
 	key: string;
-	kind: DeadlineKind | 'task';
+	/** `arrears` only in the Hinweise (arrears-notices.ts), not in the calendar feed. */
+	kind: DeadlineKind | 'task' | 'arrears';
 	date: IsoDate;
 	/** The title without the overdue mark. */
 	title: string;
