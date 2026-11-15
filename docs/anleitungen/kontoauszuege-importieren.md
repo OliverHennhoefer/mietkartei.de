@@ -51,7 +51,7 @@ Wo der Bankabruf eingerichtet ist, musst du keine Kontoauszüge mehr herunterlad
 
 Danach holt mietkartei neue Umsätze, sobald du **Bank → Umsätze** öffnest, höchstens alle sechs Stunden. Mit **Jetzt abrufen** geht es sofort. Beim ersten Abruf kommen die letzten 90 Tage. Die Umsätze durchlaufen denselben Import wie eine Datei: Duplikate werden übersprungen, und bestätigte Regeln ordnen gleich zu. Die Freigabe gilt je nach Bank 90 bis 180 Tage, danach erneuerst du sie mit **Erneuern**. **Beenden** widerruft den Zugriff, die abgerufenen Umsätze bleiben.
 
-Wer mietkartei selbst betreibt, braucht dafür eine eigene Anwendung bei Enable Banking, siehe [Selbst hosten](../selbst-hosten.md).
+Auf app.mietkartei.de gibt es den Bankabruf vorerst nicht für Abo-Konten, dort lädst du Kontoauszüge als Datei hoch. Wer mietkartei selbst betreibt, braucht dafür eine eigene Anwendung bei Enable Banking, siehe [Selbst hosten](../selbst-hosten.md).
 
 ## Weiter
 

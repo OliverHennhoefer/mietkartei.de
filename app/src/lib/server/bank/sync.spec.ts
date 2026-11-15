@@ -6,6 +6,7 @@ import { contextA, testDatabase } from '../testing';
 import { createBankAccount } from './accounts';
 import { applicationToken, toRow, type BankApiTransaction } from './enable-banking';
 import {
+	bankSyncOffered,
 	connectionActive,
 	endConnection,
 	finishConnection,
@@ -18,7 +19,8 @@ import {
 const env = vi.hoisted(() => ({
 	ENABLE_BANKING_APP_ID: 'app-unit',
 	ENABLE_BANKING_PRIVATE_KEY: '',
-	ENABLE_BANKING_API_BASE: 'http://enablebanking.test'
+	ENABLE_BANKING_API_BASE: 'http://enablebanking.test',
+	BANK_SYNC_EMAILS: ''
 }));
 vi.mock('$app/env/private', async (original) => ({
 	...(await original<Record<string, unknown>>()),
@@ -30,6 +32,9 @@ vi.mock('$app/env/private', async (original) => ({
 	},
 	get ENABLE_BANKING_API_BASE() {
 		return env.ENABLE_BANKING_API_BASE;
+	},
+	get BANK_SYNC_EMAILS() {
+		return env.BANK_SYNC_EMAILS;
 	}
 }));
 
@@ -108,6 +113,7 @@ beforeEach(async () => {
 afterEach(() => {
 	vi.unstubAllGlobals();
 	env.ENABLE_BANKING_APP_ID = 'app-unit';
+	env.BANK_SYNC_EMAILS = '';
 });
 
 function rent(overrides: Partial<BankApiTransaction> = {}): BankApiTransaction {
@@ -423,6 +429,29 @@ describe('Bankabruf', () => {
 		await syncDue(db, contextA, new Date('2027-01-01T00:00:00Z'));
 		expect(await syncConnection(db, contextA, await connection(), { force: true })).toBeUndefined();
 		expect(calls).toEqual([]);
+	});
+
+	it('offers the Bankabruf only to the accounts of BANK_SYNC_EMAILS', async () => {
+		expect(await bankSyncOffered(db, 'a')).toBe(true);
+		env.BANK_SYNC_EMAILS = 'familie@example.org; A@Example.org';
+		expect(await bankSyncOffered(db, 'a')).toBe(true);
+		expect(await bankSyncOffered(db, 'b')).toBe(false);
+		env.BANK_SYNC_EMAILS = 'familie@example.org';
+		expect(await bankSyncOffered(db, 'a')).toBe(false);
+		env.ENABLE_BANKING_APP_ID = '';
+		env.BANK_SYNC_EMAILS = '';
+		expect(await bankSyncOffered(db, 'a')).toBe(false);
+	});
+
+	it('fetches nothing for an account BANK_SYNC_EMAILS leaves out', async () => {
+		await connect();
+		env.BANK_SYNC_EMAILS = 'familie@example.org';
+		calls = [];
+		await syncDue(db, contextA, new Date('2027-01-01T00:00:00Z'));
+		expect(calls).toEqual([]);
+		env.BANK_SYNC_EMAILS = 'a@example.org';
+		await syncDue(db, contextA, new Date('2027-01-01T00:00:00Z'));
+		expect(calls).toContain('GET /accounts/acc-1/transactions');
 	});
 
 	it('ends the session at the bank when the Bankabruf ends', async () => {

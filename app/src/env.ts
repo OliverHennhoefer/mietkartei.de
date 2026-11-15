@@ -121,6 +121,15 @@ export const variables = defineEnvVars({
 			'line breaks may be written as \\n. A secret.',
 		schema: (value) => value || ''
 	},
+	BANK_SYNC_EMAILS: {
+		description:
+			'Email addresses whose accounts get the Bankabruf, separated by commas, semicolons or ' +
+			'whitespace: an account whose owner currently has one of them sees it. Unset, every account ' +
+			'of an instance with an Enable Banking application does. The hosted variant sets it, since ' +
+			'an application without a contract only fetches the accounts linked to it. A secret on the ' +
+			'hosted variant.',
+		schema: (value) => value || ''
+	},
 	ENABLE_BANKING_API_BASE: {
 		description: 'Base URL of the Enable Banking API; the tests point it at a fake.',
 		schema: (value) => value || 'https://api.enablebanking.com'

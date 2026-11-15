@@ -30,7 +30,10 @@ const env = vi.hoisted(() => ({
 	STRIPE_YEARLY_PRICE_ID: '',
 	FREE_ACCOUNT_EMAILS: '',
 	BILLING_REQUIRED: false,
-	GENESIS_API_TOKEN: ''
+	GENESIS_API_TOKEN: '',
+	ENABLE_BANKING_APP_ID: 'app-unit',
+	ENABLE_BANKING_PRIVATE_KEY: 'key',
+	BANK_SYNC_EMAILS: ''
 }));
 vi.mock('$app/env/private', () => env);
 
@@ -39,7 +42,7 @@ let db: Database;
 beforeEach(async () => {
 	vi.useFakeTimers({ toFake: ['Date'] });
 	vi.setSystemTime(new Date('2026-03-10T10:00:00Z'));
-	Object.assign(env, { STRIPE_SECRET_KEY: '', STRIPE_PRICE_ID: '' });
+	Object.assign(env, { STRIPE_SECRET_KEY: '', STRIPE_PRICE_ID: '', BANK_SYNC_EMAILS: '' });
 	db = await testDatabase();
 });
 
@@ -190,6 +193,13 @@ describe('start page reminders', () => {
 				title: 'Bankabruf erneuern: Altes Konto',
 				href: `/bank/konten/${expired}/abruf`
 			})
+		]);
+
+		// An account BANK_SYNC_EMAILS leaves out fetches nothing, so both need their statements.
+		env.BANK_SYNC_EMAILS = 'familie@example.org';
+		expect((await reminders()).map((reminder) => reminder.title)).toEqual([
+			'Kontoauszug laden: Altes Konto',
+			'Kontoauszug laden: Neues Konto'
 		]);
 	});
 

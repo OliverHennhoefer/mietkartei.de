@@ -7,8 +7,9 @@ import {
 	deleteBankAccount,
 	listBankAccounts
 } from '#lib/server/bank/accounts.ts';
-import { bankSyncEnabled, deleteSession } from '#lib/server/bank/enable-banking.ts';
+import { deleteSession } from '#lib/server/bank/enable-banking.ts';
 import {
+	bankSyncOffered,
 	connectionActive,
 	endConnection,
 	listConnections,
@@ -17,19 +18,22 @@ import {
 import { auditContext, requireOwner, requireUser } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
 
+const NO_SYNC = 'Für dieses Konto gibt es keinen Bankabruf.';
+
 // Bankverbindungen are an owner's business: a manager sees a short note instead of the list, and
 // every action insists on the owner role.
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const user = requireUser(locals);
 	const query = { abruf: url.searchParams.get('abruf') };
 	if (user.role !== 'owner') return { ownerOnly: true, bankAccounts: [], sync: null, query };
+	const offered = await bankSyncOffered(locals.db, user.accountId);
 	const [bankAccounts, connections] = await Promise.all([
 		listBankAccounts(locals.db, user.accountId),
-		bankSyncEnabled() ? listConnections(locals.db, user.accountId) : []
+		offered ? listConnections(locals.db, user.accountId) : []
 	]);
 	const now = new Date();
-	// The Bankabruf of each bank account, by its id; only while the instance offers it.
-	const sync = bankSyncEnabled()
+	// The Bankabruf of each bank account, by its id; only while the account gets it.
+	const sync = offered
 		? Object.fromEntries(
 				connections.map((connection) => [
 					connection.bankAccountId,
@@ -70,7 +74,7 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const id = String(form.get('id') ?? '');
 		// The access at the bank ends with the bank account; its row goes by cascade.
-		const session = bankSyncEnabled()
+		const session = (await bankSyncOffered(locals.db, user.accountId))
 			? (await listConnections(locals.db, user.accountId)).find(
 					(connection) => connection.bankAccountId === id
 				)?.sessionId
@@ -90,7 +94,7 @@ export const actions: Actions = {
 	/** Fetches the transactions of one bank account now, whenever it last did. */
 	sync: async ({ request, locals }) => {
 		const user = requireOwner(locals);
-		if (!bankSyncEnabled()) error(404, 'Auf dieser Instanz gibt es keinen Bankabruf.');
+		if (!(await bankSyncOffered(locals.db, user.accountId))) error(404, NO_SYNC);
 		const id = String((await request.formData()).get('id') ?? '');
 		const connection = (await listConnections(locals.db, user.accountId)).find(
 			(entry) => entry.bankAccountId === id
@@ -113,8 +117,8 @@ export const actions: Actions = {
 
 	/** Ends the Bankabruf of one bank account; its transactions stay. */
 	end: async ({ request, locals }) => {
-		requireOwner(locals);
-		if (!bankSyncEnabled()) error(404, 'Auf dieser Instanz gibt es keinen Bankabruf.');
+		const user = requireOwner(locals);
+		if (!(await bankSyncOffered(locals.db, user.accountId))) error(404, NO_SYNC);
 		const id = String((await request.formData()).get('id') ?? '');
 		let ended: boolean;
 		try {

@@ -1,10 +1,12 @@
 import { and, asc, eq, isNotNull, isNull, lt, or } from 'drizzle-orm';
+import { BANK_SYNC_EMAILS } from '$app/env/private';
 import { formatIban } from '../../domain/bank-matching';
 import { addDays, dayOf } from '../../dates';
 import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
 import { runBatch } from '../db/batch';
-import { bankAccounts, bankConnections } from '../db/schema';
+import { bankAccounts, bankConnections, users } from '../db/schema';
+import { parseEmailList } from '../email-list';
 import { getBankAccount } from './accounts';
 import {
 	bankSyncEnabled,
@@ -23,7 +25,8 @@ import { commitImport, previewImport } from './imports';
 // Verbraucherpreisindex there is no scheduled job: opening the Umsätze fetches what is new, at
 // most every six hours per bank account, and the button on the Konten tab fetches at once. The
 // transactions go through the same import as a file, so duplicates, rules and suggestions work
-// the same.
+// the same. An instance may offer it to a few accounts only (BANK_SYNC_EMAILS), as the hosted
+// variant does: its Enable Banking application has no contract and only fetches linked accounts.
 
 export type BankConnection = typeof bankConnections.$inferSelect;
 
@@ -35,6 +38,25 @@ const FIRST_FETCH_DAYS = 89;
 const OVERLAP_DAYS = 14;
 const DEFAULT_CONSENT_DAYS = 90;
 const MAX_CONSENT_DAYS = 180;
+
+/**
+ * Whether the account gets the Bankabruf: the instance has an Enable Banking application, and
+ * BANK_SYNC_EMAILS is unset or holds the owner's current address.
+ */
+export async function bankSyncOffered(
+	db: Database,
+	accountId: string,
+	list = BANK_SYNC_EMAILS
+): Promise<boolean> {
+	if (!bankSyncEnabled()) return false;
+	const emails = parseEmailList(list);
+	if (emails.length === 0) return true;
+	const [owner] = await db
+		.select({ email: users.email })
+		.from(users)
+		.where(and(eq(users.accountId, accountId), eq(users.role, 'owner')));
+	return Boolean(owner?.email && emails.includes(owner.email.trim().toLowerCase()));
+}
 
 export async function listConnections(db: Database, accountId: string): Promise<BankConnection[]> {
 	return db
@@ -226,7 +248,7 @@ export async function syncConnection(
  * stay on the connection for the Konten tab and never break the page that asked.
  */
 export async function syncDue(db: Database, context: AuditContext, now = new Date()) {
-	if (!bankSyncEnabled()) return;
+	if (!(await bankSyncOffered(db, context.accountId))) return;
 	const due = new Date(now.getTime() - SYNC_AFTER_MS);
 	const connections = await db
 		.select()

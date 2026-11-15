@@ -3,7 +3,7 @@ import { count, eq, max } from 'drizzle-orm';
 import { addMonths, daysBetween, formatDate, today } from '#lib/dates.ts';
 import { parseTask, type TaskFormErrors } from '#lib/forms/tasks.ts';
 import { listBankAccounts } from '#lib/server/bank/accounts.ts';
-import { connectionActive, listConnections } from '#lib/server/bank/sync.ts';
+import { bankSyncOffered, connectionActive, listConnections } from '#lib/server/bank/sync.ts';
 import { serviceProviderOptions } from '#lib/server/service-providers.ts';
 import { countUnmatched } from '#lib/server/bank/transactions.ts';
 import { bankTransactions, costCategories } from '#lib/server/db/schema.ts';
@@ -126,7 +126,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.from(bankTransactions)
 			.where(eq(bankTransactions.accountId, accountId))
 			.groupBy(bankTransactions.bankAccountId),
-		listConnections(locals.db, accountId),
+		// A Bankabruf the account no longer gets fetches nothing, so its statements are reminded.
+		bankSyncOffered(locals.db, accountId).then((offered) =>
+			offered ? listConnections(locals.db, accountId) : []
+		),
 		serviceProviderOptions(locals.db, accountId),
 		editing ? taskExpenses(locals.db, accountId, editing, date) : null
 	]);

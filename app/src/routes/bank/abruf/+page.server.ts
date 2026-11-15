@@ -1,6 +1,11 @@
 import { error, redirect } from '@sveltejs/kit';
-import { bankSyncEnabled, EnableBankingError } from '#lib/server/bank/enable-banking.ts';
-import { finishConnection, listConnections, syncConnection } from '#lib/server/bank/sync.ts';
+import { EnableBankingError } from '#lib/server/bank/enable-banking.ts';
+import {
+	bankSyncOffered,
+	finishConnection,
+	listConnections,
+	syncConnection
+} from '#lib/server/bank/sync.ts';
 import { auditContext, requireOwner } from '#lib/server/session.ts';
 import type { PageServerLoad } from './$types';
 
@@ -9,8 +14,10 @@ import type { PageServerLoad } from './$types';
 // the first transactions at once.
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	if (!bankSyncEnabled()) error(404, 'Auf dieser Instanz gibt es keinen Bankabruf.');
 	const user = requireOwner(locals);
+	if (!(await bankSyncOffered(locals.db, user.accountId))) {
+		error(404, 'Für dieses Konto gibt es keinen Bankabruf.');
+	}
 	const state = url.searchParams.get('state') ?? '';
 	const code = url.searchParams.get('code') ?? '';
 	if (url.searchParams.get('error') || !state || !code) {

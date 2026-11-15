@@ -3,13 +3,8 @@ import { ORIGIN } from '$app/env/private';
 import { formatIban } from '#lib/domain/bank-matching.ts';
 import { getBankAccount } from '#lib/server/bank/accounts.ts';
 import { bankOfIban } from '#lib/server/bank/bank-codes.ts';
-import {
-	bankSyncEnabled,
-	EnableBankingError,
-	listAspsps,
-	type Aspsp
-} from '#lib/server/bank/enable-banking.ts';
-import { startConnection } from '#lib/server/bank/sync.ts';
+import { EnableBankingError, listAspsps, type Aspsp } from '#lib/server/bank/enable-banking.ts';
+import { bankSyncOffered, startConnection } from '#lib/server/bank/sync.ts';
 import { mailLinkOrigin } from '#lib/server/mail-links.ts';
 import { auditContext, requireOwner } from '#lib/server/session.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -32,8 +27,10 @@ function preselect(aspsps: readonly Aspsp[], iban: string, bic: string | null): 
 }
 
 async function bankAccountOf(locals: App.Locals, id: string) {
-	if (!bankSyncEnabled()) error(404, 'Auf dieser Instanz gibt es keinen Bankabruf.');
 	const user = requireOwner(locals);
+	if (!(await bankSyncOffered(locals.db, user.accountId))) {
+		error(404, 'Für dieses Konto gibt es keinen Bankabruf.');
+	}
 	const bankAccount = await getBankAccount(locals.db, user.accountId, id);
 	if (!bankAccount) error(404, 'Diese Bankverbindung gibt es nicht.');
 	return bankAccount;
