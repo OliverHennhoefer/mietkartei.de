@@ -4,8 +4,8 @@ import type { IsoDate } from '../dates';
 import { arrearsEntries, paymentExpectedBy } from './arrears-notices';
 import { createBankAccount } from './bank/accounts';
 import type { Database } from './db';
-import { bankTransactions } from './db/schema';
-import { createPayment } from './ledger';
+import { bankConnections, bankTransactions } from './db/schema';
+import { createPayment, postCharge } from './ledger';
 import { findEntry } from './notifications';
 import { contextA, seedLease, seedTenant, seedUnit, testDatabase } from './testing';
 
@@ -135,6 +135,49 @@ describe('arrearsEntries', () => {
 		expect(entry.description).toContain(
 			'Ein Bankumsatz ist noch nicht zugeordnet, vielleicht ist die Zahlung dabei.'
 		);
+	});
+
+	it('calls a missed charge that is not only rent a Zahlung', async () => {
+		await pay('2026-03-04');
+		await postCharge(db, contextA, {
+			leaseId,
+			kind: 'statement_balance',
+			period: '2026-03',
+			dueDate: '2026-03-04',
+			amount: 12000
+		});
+		// Rent and Nachzahlung fall due the same day; 800 € paid leave 120 € of that day open.
+		expect(await at('2026-03-10')).toEqual([
+			expect.objectContaining({ title: 'Rückstand', date: '2026-03-04' })
+		]);
+		await postCharge(db, contextA, {
+			leaseId,
+			kind: 'statement_balance',
+			period: '2026-03',
+			dueDate: '2026-03-12',
+			amount: 30000
+		});
+		const [entry] = await at('2026-03-16');
+		expect(entry).toMatchObject({ title: 'Zahlung ausgeblieben', date: '2026-03-12' });
+		expect(entry.description).toContain('Insgesamt offen: 420,00');
+	});
+
+	it('counts a Bankabruf as bank data up to its day', async () => {
+		const id = await bankAccount();
+		await booking(id, '2026-02-20', 'unmatched');
+		await booking(id, '2026-02-21', 'unmatched');
+		expect(await at('2026-03-10')).toEqual([]);
+		await db.insert(bankConnections).values({
+			accountId: 'a',
+			bankAccountId: id,
+			aspspName: 'Testbank',
+			aspspCountry: 'DE',
+			sessionId: 's',
+			accountUid: 'u',
+			lastSyncedAt: new Date('2026-03-09T23:30:00Z')
+		});
+		const [entry] = await at('2026-03-10');
+		expect(entry.description).toContain('2 Bankumsätze sind noch nicht zugeordnet');
 	});
 
 	it('is found behind the link to snooze it', async () => {

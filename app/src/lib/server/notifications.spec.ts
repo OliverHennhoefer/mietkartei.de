@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CalendarEntry } from './calendar';
 import type { Database } from './db';
@@ -826,5 +826,19 @@ describe('sendDueNotifications', () => {
 		expect(await sendDueNotifications(db, morning('2026-11-05'))).toBe(1);
 		const [state] = await db.select().from(notificationStates);
 		expect(state).toMatchObject({ stage: 'lead', snoozedUntil: null });
+	});
+
+	it('still tells about deadlines and tasks when the balances cannot be read', async () => {
+		const id = await task('a', 'Rauchmelder prüfen', '2026-11-06');
+		const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		await db.run(sql`DROP TABLE payments`);
+		expect(await findEntry(db, 'a', `task-${id}`, ORIGIN, '2026-11-02')).toMatchObject({
+			kind: 'task'
+		});
+		expect(errors).toHaveBeenCalledWith(
+			expect.stringContaining('The arrears of account a were not read'),
+			expect.anything()
+		);
+		errors.mockRestore();
 	});
 });
