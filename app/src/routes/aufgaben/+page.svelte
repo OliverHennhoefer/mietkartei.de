@@ -162,7 +162,7 @@
 		{/if}
 		<ol class="steps">
 			{#each steps as step (step.label)}
-				<li class:done={step.done}>
+				<li class:done={step.done} class:next={step === steps.find((other) => !other.done)}>
 					<a href={step.href}>{step.label}</a>
 					{#if step.done}<span class="muted">erledigt</span>{/if}
 				</li>
@@ -190,7 +190,9 @@
 			<a class="stat highlight" class:overdue={deadline.overdue} href={deadline.href}>
 				<span class="kicker"
 					>{index === 0 ? 'Nächste Frist' : 'Frist'} ·
-					<span class="when">{relative(deadline.date)}</span></span
+					<span class="when" class:soon={!deadline.overdue && soon(deadline.date)}
+						>{relative(deadline.date)}</span
+					></span
 				>
 				<strong title={deadline.title}>{deadline.title}</strong>
 				<span class="label"
@@ -466,8 +468,8 @@
 		display: grid;
 		gap: 0.5rem;
 	}
-	/* An open step sits on the neon block of the logo; a done one goes back to plain text. */
-	.steps li:not(.done) a {
+	/* The next open step sits on the neon block of the logo; the others are plain links. */
+	.steps li.next a {
 		padding: 0 0.2em;
 		background: var(--color-highlight);
 		color: var(--color-highlight-text);
@@ -596,7 +598,8 @@
 		font-size: var(--text-lg);
 		line-height: 1.3;
 	}
-	.stat.highlight .when {
+	/* Neon only within two weeks, as in the list below and under Fristen. */
+	.stat.highlight .when.soon {
 		padding: 0 0.35em;
 		background: var(--color-highlight);
 		color: var(--color-highlight-text);

@@ -67,7 +67,9 @@
 </script>
 
 <figure class="cashflow-chart">
-	<div class="plot">
+	<!-- On a phone the chart scrolls sideways; the keyboard reaches it too. -->
+	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+	<div class="plot" tabindex="0" role="region" aria-label="Diagramm: {label}">
 		<svg viewBox="0 0 {width} {height}" role="img" aria-label={label}>
 			<defs>
 				<pattern

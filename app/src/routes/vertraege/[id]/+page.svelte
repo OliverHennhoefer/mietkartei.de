@@ -8,6 +8,7 @@
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import DeleteSection from '#lib/components/DeleteSection.svelte';
 	import EditDialog from '#lib/components/EditDialog.svelte';
+	import Reveal from '#lib/components/Reveal.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
@@ -163,7 +164,7 @@
 				<th>Mieter</th>
 				<th>Eingetreten</th>
 				<th>Ausgetreten</th>
-				<th class="actions"></th>
+				<th class="actions"><span class="visually-hidden">Aktionen</span></th>
 			</tr>
 		</thead>
 		<tbody>
@@ -201,37 +202,39 @@
 	ein; so bleibt erkennbar, wer an einem früheren Tag Vertragspartei war.
 </p>
 {#if data.joinable.length > 0 && !lease.terminatedAt}
-	<form method="POST" action="?/addParty" class="card form" use:enhance>
-		<Field label="Mieter tritt ein" error={addPartyForm?.errors.tenantId}>
-			<select
-				name="tenantId"
-				aria-invalid={addPartyForm?.errors.tenantId ? 'true' : undefined}
-				required
+	<Reveal label="Eintritt eines Mieters eintragen" open={addPartyForm !== undefined}>
+		<form method="POST" action="?/addParty" class="card form" use:enhance>
+			<Field label="Mieter tritt ein" error={addPartyForm?.errors.tenantId}>
+				<select
+					name="tenantId"
+					aria-invalid={addPartyForm?.errors.tenantId ? 'true' : undefined}
+					required
+				>
+					<option value="">Bitte wählen</option>
+					{#each data.joinable as tenant (tenant.id)}
+						<option value={tenant.id} selected={addPartyForm?.values.tenantId === tenant.id}
+							>{personName(tenant)}</option
+						>
+					{/each}
+				</select>
+			</Field>
+			<Field
+				label="Eingetreten am (optional)"
+				error={addPartyForm?.errors.joinedOn}
+				hint="Leer, wenn der Mieter von Anfang an Vertragspartei war."
 			>
-				<option value="">Bitte wählen</option>
-				{#each data.joinable as tenant (tenant.id)}
-					<option value={tenant.id} selected={addPartyForm?.values.tenantId === tenant.id}
-						>{personName(tenant)}</option
-					>
-				{/each}
-			</select>
-		</Field>
-		<Field
-			label="Eingetreten am (optional)"
-			error={addPartyForm?.errors.joinedOn}
-			hint="Leer, wenn der Mieter von Anfang an Vertragspartei war."
-		>
-			<input
-				name="joinedOn"
-				type="date"
-				defaultValue={addPartyForm?.values.joinedOn ?? ''}
-				aria-invalid={addPartyForm?.errors.joinedOn ? 'true' : undefined}
-			/>
-		</Field>
-		<div class="form-actions">
-			<button type="submit">Mieter hinzufügen</button>
-		</div>
-	</form>
+				<input
+					name="joinedOn"
+					type="date"
+					defaultValue={addPartyForm?.values.joinedOn ?? ''}
+					aria-invalid={addPartyForm?.errors.joinedOn ? 'true' : undefined}
+				/>
+			</Field>
+			<div class="form-actions">
+				<button type="submit">Mieter hinzufügen</button>
+			</div>
+		</form>
+	</Reveal>
 {/if}
 
 <h2>Aktuelle Miete</h2>
@@ -301,12 +304,14 @@
 			</tbody>
 		</table>
 	</div>
-	<form method="POST" action="?/addPersons" class="card form" use:enhance>
-		{@render personsFields(personsForm?.values ?? {}, personsForm?.errors ?? {})}
-		<div class="form-actions">
-			<button type="submit">Personenstand eintragen</button>
-		</div>
-	</form>
+	<Reveal label="Personenstand ändern" open={personsForm !== undefined}>
+		<form method="POST" action="?/addPersons" class="card form" use:enhance>
+			{@render personsFields(personsForm?.values ?? {}, personsForm?.errors ?? {})}
+			<div class="form-actions">
+				<button type="submit">Personenstand eintragen</button>
+			</div>
+		</form>
+	</Reveal>
 {/if}
 
 <h2>Vertragsende</h2>
@@ -328,70 +333,73 @@
 	</ul>
 {/if}
 {#if !lease.terminatedAt}
-	<ConfirmButton
-		action="?/end"
-		label="Vertrag beenden"
-		message="Den Vertrag wirklich zu diesem Datum beenden? Die Sollstellungen nach dem Vertragsende entfallen."
-		tone="primary"
-		card
-	>
-		<p class="form-wide muted small end-note">
-			{#if lease.kind === 'commercial'}
-				Das Vertragsende folgt § 580a Abs. 2 BGB: Eine Kündigung, die bis zum dritten Werktag eines
-				Quartals eingeht, beendet den Vertrag zum Ende des nächsten Quartals.
-			{:else}
-				Das Vertragsende folgt § 573c BGB: Eine Kündigung, die bis zum dritten Werktag eines Monats
-				eingeht (der Samstag zählt mit, bundesweite Feiertage nicht), beendet den Vertrag zum Ende
-				des übernächsten Monats. Bei einer Kündigung durch den Vermieter verlängert sich die Frist
-				nach fünf und acht Jahren Mietdauer um drei und sechs Monate.
-			{/if}
-			Das Datum passt sich an, wenn du Eingang oder Partei änderst.
-		</p>
-		<Field label="Kündigung erhalten am" error={endForm?.errors.terminatedAt}>
-			<input
-				name="terminatedAt"
-				type="date"
-				bind:value={endAt}
-				oninput={proposeEnd}
-				aria-invalid={endForm?.errors.terminatedAt ? 'true' : undefined}
-				required
-			/>
-		</Field>
-		<Field label="Gekündigt" error={endForm?.errors.terminatedBy}>
-			<select
-				name="terminatedBy"
-				bind:value={endBy}
-				onchange={proposeEnd}
-				aria-invalid={endForm?.errors.terminatedBy ? 'true' : undefined}
-			>
-				{#each terminators as [party, label] (party)}
-					<option value={party}>{label}</option>
-				{/each}
-			</select>
-		</Field>
-		<Field
-			label="Vertragsende"
-			error={endForm?.errors.endDate}
-			note={earliestEnd ? `Nach ${law} frühestens am ${formatDate(earliestEnd)}.` : undefined}
+	<!-- Folded until wanted: ending a lease is rare, and an open form invites a slip. -->
+	<Reveal label="Kündigung eintragen" open={endForm !== undefined}>
+		<ConfirmButton
+			action="?/end"
+			label="Vertrag beenden"
+			message="Den Vertrag wirklich zu diesem Datum beenden? Die Sollstellungen nach dem Vertragsende entfallen."
+			tone="primary"
+			card
 		>
-			<input
-				name="endDate"
-				type="date"
-				value={endOn}
-				oninput={(event) => (endTyped = event.currentTarget.value)}
-				aria-invalid={endForm?.errors.endDate ? 'true' : undefined}
-				required
-			/>
-		</Field>
-		<label class="inline form-wide">
-			<input
-				type="checkbox"
-				name="earlyEndAgreed"
-				defaultChecked={endForm?.values.earlyEndAgreed === 'on'}
-			/>
-			Früheres Ende vereinbart (Aufhebungsvertrag)
-		</label>
-	</ConfirmButton>
+			<p class="form-wide muted small end-note">
+				{#if lease.kind === 'commercial'}
+					Das Vertragsende folgt § 580a Abs. 2 BGB: Eine Kündigung, die bis zum dritten Werktag
+					eines Quartals eingeht, beendet den Vertrag zum Ende des nächsten Quartals.
+				{:else}
+					Das Vertragsende folgt § 573c BGB: Eine Kündigung, die bis zum dritten Werktag eines
+					Monats eingeht (der Samstag zählt mit, bundesweite Feiertage nicht), beendet den Vertrag
+					zum Ende des übernächsten Monats. Bei einer Kündigung durch den Vermieter verlängert sich
+					die Frist nach fünf und acht Jahren Mietdauer um drei und sechs Monate.
+				{/if}
+				Das Datum passt sich an, wenn du Eingang oder Partei änderst.
+			</p>
+			<Field label="Kündigung erhalten am" error={endForm?.errors.terminatedAt}>
+				<input
+					name="terminatedAt"
+					type="date"
+					bind:value={endAt}
+					oninput={proposeEnd}
+					aria-invalid={endForm?.errors.terminatedAt ? 'true' : undefined}
+					required
+				/>
+			</Field>
+			<Field label="Gekündigt" error={endForm?.errors.terminatedBy}>
+				<select
+					name="terminatedBy"
+					bind:value={endBy}
+					onchange={proposeEnd}
+					aria-invalid={endForm?.errors.terminatedBy ? 'true' : undefined}
+				>
+					{#each terminators as [party, label] (party)}
+						<option value={party}>{label}</option>
+					{/each}
+				</select>
+			</Field>
+			<Field
+				label="Vertragsende"
+				error={endForm?.errors.endDate}
+				note={earliestEnd ? `Nach ${law} frühestens am ${formatDate(earliestEnd)}.` : undefined}
+			>
+				<input
+					name="endDate"
+					type="date"
+					value={endOn}
+					oninput={(event) => (endTyped = event.currentTarget.value)}
+					aria-invalid={endForm?.errors.endDate ? 'true' : undefined}
+					required
+				/>
+			</Field>
+			<label class="inline form-wide">
+				<input
+					type="checkbox"
+					name="earlyEndAgreed"
+					defaultChecked={endForm?.values.earlyEndAgreed === 'on'}
+				/>
+				Früheres Ende vereinbart (Aufhebungsvertrag)
+			</label>
+		</ConfirmButton>
+	</Reveal>
 {/if}
 
 <DeleteSection

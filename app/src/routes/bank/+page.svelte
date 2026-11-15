@@ -97,13 +97,13 @@
 		).slice(0, 200);
 	}
 
+	type Transaction = (typeof data.transactions)[number];
+
 	/**
-	 * The expense form starts open for money paid out, or from a counterpart booked as an expense
-	 * before, that no lease is suggested for, and after its own refusal; otherwise the lease
-	 * assignment is what the row is usually for.
+	 * The expense form leads for money paid out, or from a counterpart booked as an expense before,
+	 * that no lease is suggested for; otherwise the lease assignment is what the row is usually for.
 	 */
-	function expenseOpen(transaction: (typeof data.transactions)[number]): boolean {
-		if (formId === transaction.id && expenseErrors) return true;
+	function expenseFirst(transaction: Transaction): boolean {
 		return (
 			(transaction.amount < 0 || transaction.expensePreset !== null) && !transaction.suggestion
 		);
@@ -132,6 +132,242 @@
 		return where ? `${kind}${share} · ${where}` : `${kind}${share}`;
 	}
 </script>
+
+<!-- An open transaction offers the lease assignment and the expense form: the one that fits it
+	leads with the main button, the other waits folded underneath. Ignoring sits with the leader. -->
+{#snippet rentForm(transaction: Transaction, primary: boolean)}
+	<form
+		method="POST"
+		action={action('assign')}
+		class="assign rent"
+		use:enhance={submitting(transaction.id)}
+	>
+		<input type="hidden" name="id" value={transaction.id} />
+		<label>
+			Mietvertrag
+			<select
+				name="leaseId"
+				aria-invalid={formId === transaction.id && errors?.leaseId ? 'true' : undefined}
+			>
+				<option value="" selected={preselected(transaction) === ''}>– bitte wählen –</option>
+				{#each data.leases as lease (lease.id)}
+					<option value={lease.id} selected={preselected(transaction) === lease.id}>
+						{lease.label}{transaction.suggestion?.leaseId === lease.id ? ' (Vorschlag)' : ''}
+					</option>
+				{/each}
+			</select>
+			{#if formId === transaction.id && errors?.leaseId}
+				<span class="error">{errors.leaseId}</span>
+			{/if}
+		</label>
+		<label>
+			Buchen als
+			<select name="target">
+				<option value="rent" selected={rowValue(transaction, 'target') !== 'deposit'}>
+					Miete (Zahlung)
+				</option>
+				{#if data.depositAgreed}
+					<option value="deposit" selected={rowValue(transaction, 'target') === 'deposit'}>
+						Kaution
+					</option>
+				{/if}
+			</select>
+		</label>
+		<div class="row buttons">
+			<button
+				type="submit"
+				class={primary ? undefined : 'secondary'}
+				disabled={pending === transaction.id}
+			>
+				Zuordnen
+			</button>
+			{#if primary}
+				<button
+					type="submit"
+					class="secondary"
+					formaction={action('ignore')}
+					disabled={pending === transaction.id}
+				>
+					Ignorieren
+				</button>
+			{/if}
+		</div>
+		{#if transaction.suggestion}
+			<p class="muted small hint">
+				Vorschlag: {sourceLabels[transaction.suggestion.source]}
+			</p>
+		{/if}
+		{#if data.leases.length > 1}
+			<details class="split" open={rowValue(transaction, 'splitLeaseId') !== ''}>
+				<summary>Zahlung für zwei Verträge? Betrag aufteilen</summary>
+				<div class="split-fields">
+					<label>
+						Zweiter Mietvertrag
+						<select
+							name="splitLeaseId"
+							aria-invalid={formId === transaction.id && errors?.splitLeaseId ? 'true' : undefined}
+						>
+							<option value="" selected={rowValue(transaction, 'splitLeaseId') === ''}>
+								– keine Aufteilung –
+							</option>
+							{#each data.leases as lease (lease.id)}
+								<option
+									value={lease.id}
+									selected={rowValue(transaction, 'splitLeaseId') === lease.id}
+								>
+									{lease.label}
+								</option>
+							{/each}
+						</select>
+						{#if formId === transaction.id && errors?.splitLeaseId}
+							<span class="error">{errors.splitLeaseId}</span>
+						{/if}
+					</label>
+					<label>
+						Betrag erster Vertrag
+						<input
+							name="amount"
+							inputmode="decimal"
+							defaultValue={rowValue(transaction, 'amount')}
+							placeholder={formatCents(Math.abs(transaction.amount))}
+						/>
+						{#if formId === transaction.id && errors?.amount}
+							<span class="error">{errors.amount}</span>
+						{/if}
+					</label>
+					<label>
+						Betrag zweiter Vertrag
+						<input
+							name="splitAmount"
+							inputmode="decimal"
+							defaultValue={rowValue(transaction, 'splitAmount')}
+							placeholder="0"
+						/>
+						{#if formId === transaction.id && errors?.splitAmount}
+							<span class="error">{errors.splitAmount}</span>
+						{/if}
+					</label>
+				</div>
+			</details>
+		{/if}
+	</form>
+{/snippet}
+
+{#snippet expenseForm(transaction: Transaction, primary: boolean)}
+	<form
+		method="POST"
+		action={action('expense')}
+		class="assign"
+		use:enhance={submitting(transaction.id)}
+	>
+		<input type="hidden" name="id" value={transaction.id} />
+		{#if transaction.expensePreset}
+			<p class="muted small preset">Vorbelegt wie die letzte Ausgabe an diesen Empfänger.</p>
+		{/if}
+		<label>
+			Kategorie
+			<select
+				name="category"
+				aria-invalid={formId === transaction.id && expenseErrors?.category ? 'true' : undefined}
+			>
+				<option value="" selected={expenseValue(transaction, 'category') === ''}>
+					– bitte wählen –
+				</option>
+				{#each categoryEntries as [value, label] (value)}
+					<option {value} selected={expenseValue(transaction, 'category') === value}>
+						{label}
+					</option>
+				{/each}
+			</select>
+			{#if formId === transaction.id && expenseErrors?.category}
+				<span class="error">{expenseErrors.category}</span>
+			{/if}
+		</label>
+		<label>
+			Betrifft
+			<select
+				name="scope"
+				aria-invalid={formId === transaction.id && expenseErrors?.scope ? 'true' : undefined}
+			>
+				<option value="" selected={expenseValue(transaction, 'scope') === ''}>
+					Gesamter Bestand
+				</option>
+				{#each data.scopes as group (group.id)}
+					<optgroup label={group.label}>
+						{#each group.options as option (option.value)}
+							<option
+								value={option.value}
+								selected={expenseValue(transaction, 'scope') === option.value}
+							>
+								{option.label}
+							</option>
+						{/each}
+					</optgroup>
+				{/each}
+			</select>
+			{#if formId === transaction.id && expenseErrors?.scope}
+				<span class="error">{expenseErrors.scope}</span>
+			{/if}
+		</label>
+		{#if data.serviceProviders.length > 0}
+			<label>
+				Dienstleister
+				<select
+					name="serviceProviderId"
+					aria-invalid={formId === transaction.id && expenseErrors?.serviceProviderId
+						? 'true'
+						: undefined}
+				>
+					<option value="" selected={expenseValue(transaction, 'serviceProviderId') === ''}>
+						Unbekannt
+					</option>
+					{#each data.serviceProviders as provider (provider.id)}
+						<option
+							value={provider.id}
+							selected={expenseValue(transaction, 'serviceProviderId') === provider.id}
+						>
+							{provider.name}
+						</option>
+					{/each}
+				</select>
+				{#if formId === transaction.id && expenseErrors?.serviceProviderId}
+					<span class="error">{expenseErrors.serviceProviderId}</span>
+				{/if}
+			</label>
+		{/if}
+		<label>
+			Beschreibung
+			<input
+				name="description"
+				maxlength="200"
+				defaultValue={expenseDescription(transaction)}
+				aria-invalid={formId === transaction.id && expenseErrors?.description ? 'true' : undefined}
+			/>
+			{#if formId === transaction.id && expenseErrors?.description}
+				<span class="error">{expenseErrors.description}</span>
+			{/if}
+		</label>
+		<div class="row buttons">
+			<button
+				type="submit"
+				class={primary ? undefined : 'secondary'}
+				disabled={pending === transaction.id}
+			>
+				{expenseLabel(transaction)}
+			</button>
+			{#if primary}
+				<button
+					type="submit"
+					class="secondary"
+					formaction={action('ignore')}
+					disabled={pending === transaction.id}
+				>
+					Ignorieren
+				</button>
+			{/if}
+		</div>
+	</form>
+{/snippet}
 
 <!-- The heading and the tab bar come from +layout.svelte; this page is the "Umsätze" tab. -->
 <h2 class="visually-hidden">Umsätze</h2>
@@ -288,235 +524,22 @@
 
 				{#if transaction.status === 'unmatched'}
 					<div class="work">
-						<form
-							method="POST"
-							action={action('assign')}
-							class="assign rent"
-							use:enhance={submitting(transaction.id)}
-						>
-							<input type="hidden" name="id" value={transaction.id} />
-							<label>
-								Mietvertrag
-								<select
-									name="leaseId"
-									aria-invalid={formId === transaction.id && errors?.leaseId ? 'true' : undefined}
-								>
-									<option value="" selected={preselected(transaction) === ''}
-										>– bitte wählen –</option
-									>
-									{#each data.leases as lease (lease.id)}
-										<option value={lease.id} selected={preselected(transaction) === lease.id}>
-											{lease.label}{transaction.suggestion?.leaseId === lease.id
-												? ' (Vorschlag)'
-												: ''}
-										</option>
-									{/each}
-								</select>
-								{#if formId === transaction.id && errors?.leaseId}
-									<span class="error">{errors.leaseId}</span>
-								{/if}
-							</label>
-							<label>
-								Buchen als
-								<select name="target">
-									<option value="rent" selected={rowValue(transaction, 'target') !== 'deposit'}>
-										Miete (Zahlung)
-									</option>
-									{#if data.depositAgreed}
-										<option
-											value="deposit"
-											selected={rowValue(transaction, 'target') === 'deposit'}
-										>
-											Kaution
-										</option>
-									{/if}
-								</select>
-							</label>
-							<div class="row buttons">
-								<button type="submit" disabled={pending === transaction.id}>Zuordnen</button>
-								<button
-									type="submit"
-									class="secondary"
-									formaction={action('ignore')}
-									disabled={pending === transaction.id}
-								>
-									Ignorieren
-								</button>
-							</div>
-							{#if transaction.suggestion}
-								<p class="muted small hint">
-									Vorschlag: {sourceLabels[transaction.suggestion.source]}
-								</p>
-							{/if}
-							{#if data.leases.length > 1}
-								<details class="split" open={rowValue(transaction, 'splitLeaseId') !== ''}>
-									<summary>Zahlung für zwei Verträge? Betrag aufteilen</summary>
-									<div class="split-fields">
-										<label>
-											Zweiter Mietvertrag
-											<select
-												name="splitLeaseId"
-												aria-invalid={formId === transaction.id && errors?.splitLeaseId
-													? 'true'
-													: undefined}
-											>
-												<option value="" selected={rowValue(transaction, 'splitLeaseId') === ''}>
-													– keine Aufteilung –
-												</option>
-												{#each data.leases as lease (lease.id)}
-													<option
-														value={lease.id}
-														selected={rowValue(transaction, 'splitLeaseId') === lease.id}
-													>
-														{lease.label}
-													</option>
-												{/each}
-											</select>
-											{#if formId === transaction.id && errors?.splitLeaseId}
-												<span class="error">{errors.splitLeaseId}</span>
-											{/if}
-										</label>
-										<label>
-											Betrag erster Vertrag
-											<input
-												name="amount"
-												inputmode="decimal"
-												defaultValue={rowValue(transaction, 'amount')}
-												placeholder={formatCents(Math.abs(transaction.amount))}
-											/>
-											{#if formId === transaction.id && errors?.amount}
-												<span class="error">{errors.amount}</span>
-											{/if}
-										</label>
-										<label>
-											Betrag zweiter Vertrag
-											<input
-												name="splitAmount"
-												inputmode="decimal"
-												defaultValue={rowValue(transaction, 'splitAmount')}
-												placeholder="0"
-											/>
-											{#if formId === transaction.id && errors?.splitAmount}
-												<span class="error">{errors.splitAmount}</span>
-											{/if}
-										</label>
-									</div>
-								</details>
-							{/if}
-						</form>
-						<details class="expense" open={expenseOpen(transaction)}>
-							<summary>{expenseLabel(transaction)}</summary>
-							<form
-								method="POST"
-								action={action('expense')}
-								class="assign"
-								use:enhance={submitting(transaction.id)}
+						{#if expenseFirst(transaction)}
+							{@render expenseForm(transaction, true)}
+							<details class="alternative" open={formId === transaction.id && errors !== undefined}>
+								<summary>Stattdessen einem Mietvertrag zuordnen</summary>
+								{@render rentForm(transaction, false)}
+							</details>
+						{:else}
+							{@render rentForm(transaction, true)}
+							<details
+								class="alternative"
+								open={formId === transaction.id && expenseErrors !== undefined}
 							>
-								<input type="hidden" name="id" value={transaction.id} />
-								{#if transaction.expensePreset}
-									<p class="muted small preset">
-										Vorbelegt wie die letzte Ausgabe an diesen Empfänger.
-									</p>
-								{/if}
-								<label>
-									Kategorie
-									<select
-										name="category"
-										aria-invalid={formId === transaction.id && expenseErrors?.category
-											? 'true'
-											: undefined}
-									>
-										<option value="" selected={expenseValue(transaction, 'category') === ''}>
-											– bitte wählen –
-										</option>
-										{#each categoryEntries as [value, label] (value)}
-											<option {value} selected={expenseValue(transaction, 'category') === value}>
-												{label}
-											</option>
-										{/each}
-									</select>
-									{#if formId === transaction.id && expenseErrors?.category}
-										<span class="error">{expenseErrors.category}</span>
-									{/if}
-								</label>
-								<label>
-									Betrifft
-									<select
-										name="scope"
-										aria-invalid={formId === transaction.id && expenseErrors?.scope
-											? 'true'
-											: undefined}
-									>
-										<option value="" selected={expenseValue(transaction, 'scope') === ''}>
-											Gesamter Bestand
-										</option>
-										{#each data.scopes as group (group.id)}
-											<optgroup label={group.label}>
-												{#each group.options as option (option.value)}
-													<option
-														value={option.value}
-														selected={expenseValue(transaction, 'scope') === option.value}
-													>
-														{option.label}
-													</option>
-												{/each}
-											</optgroup>
-										{/each}
-									</select>
-									{#if formId === transaction.id && expenseErrors?.scope}
-										<span class="error">{expenseErrors.scope}</span>
-									{/if}
-								</label>
-								{#if data.serviceProviders.length > 0}
-									<label>
-										Dienstleister
-										<select
-											name="serviceProviderId"
-											aria-invalid={formId === transaction.id && expenseErrors?.serviceProviderId
-												? 'true'
-												: undefined}
-										>
-											<option
-												value=""
-												selected={expenseValue(transaction, 'serviceProviderId') === ''}
-											>
-												Unbekannt
-											</option>
-											{#each data.serviceProviders as provider (provider.id)}
-												<option
-													value={provider.id}
-													selected={expenseValue(transaction, 'serviceProviderId') === provider.id}
-												>
-													{provider.name}
-												</option>
-											{/each}
-										</select>
-										{#if formId === transaction.id && expenseErrors?.serviceProviderId}
-											<span class="error">{expenseErrors.serviceProviderId}</span>
-										{/if}
-									</label>
-								{/if}
-								<label>
-									Beschreibung
-									<input
-										name="description"
-										maxlength="200"
-										defaultValue={expenseDescription(transaction)}
-										aria-invalid={formId === transaction.id && expenseErrors?.description
-											? 'true'
-											: undefined}
-									/>
-									{#if formId === transaction.id && expenseErrors?.description}
-										<span class="error">{expenseErrors.description}</span>
-									{/if}
-								</label>
-								<div class="row">
-									<button type="submit" disabled={pending === transaction.id}>
-										{expenseLabel(transaction)}
-									</button>
-								</div>
-							</form>
-						</details>
+								<summary>{expenseLabel(transaction)}</summary>
+								{@render expenseForm(transaction, false)}
+							</details>
+						{/if}
 					</div>
 				{/if}
 			</li>
@@ -655,7 +678,7 @@
 		grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
 		margin-top: 0.5rem;
 	}
-	.expense {
+	.alternative {
 		border-top: 1px solid var(--color-border);
 		padding-top: 0.75rem;
 	}
@@ -663,7 +686,7 @@
 	.hint {
 		margin: 0;
 	}
-	.expense .assign {
+	.alternative .assign {
 		margin-top: 0.5rem;
 	}
 	nav a[aria-current='page'] {

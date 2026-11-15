@@ -198,7 +198,7 @@
 				<SortHeader {sort} key="reason">Grund</SortHeader>
 				<SortHeader {sort} key="index">Index</SortHeader>
 				<SortHeader {sort} key="note">Notiz</SortHeader>
-				<th class="actions"></th>
+				<th class="actions"><span class="visually-hidden">Aktionen</span></th>
 			</tr>
 		</thead>
 		<tbody>

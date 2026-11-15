@@ -185,7 +185,7 @@
 							<SortHeader sort={readingSort} key="value" class="num"
 								>Stand ({meter.unit})</SortHeader
 							>
-							<th></th>
+							<th><span class="visually-hidden">Schätzung</span></th>
 							<SortHeader sort={readingSort} key="note">Notiz</SortHeader>
 						</tr>
 					</thead>

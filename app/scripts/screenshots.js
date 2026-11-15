@@ -326,7 +326,7 @@ try {
 			'abrechnung',
 			'/betriebskosten',
 			async () => {
-				await tourPage.getByRole('link', { name: 'Öffnen' }).first().click();
+				await tourPage.locator('a[href^="/betriebskosten/abrechnungen/"]').first().click();
 				await tourPage.waitForURL(/\/betriebskosten\/abrechnungen\//);
 				await scrollTo('section.lease', 'Armin Schmidt');
 			}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { setContext } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -7,6 +8,9 @@
 	import LettingFields from '#lib/components/LettingFields.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import type { PageProps } from './$types';
+
+	// The form's groups are this page's sections, right under its title.
+	setContext('form-heading-level', 2);
 
 	let { data, form }: PageProps = $props();
 

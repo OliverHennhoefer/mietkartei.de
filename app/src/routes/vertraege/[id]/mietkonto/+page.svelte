@@ -156,7 +156,7 @@
 	<p class="muted">In diesem Zeitraum gibt es keine Buchungen.</p>
 {:else}
 	<div class="table-wrap">
-		<table class="table" aria-label="Buchungen">
+		<table class="table ledger" aria-label="Buchungen">
 			<thead>
 				<tr>
 					<SortHeader sort={rowSort} key="date">Datum</SortHeader>
@@ -326,7 +326,7 @@
 			</Alert>
 		{/if}
 		<div class="form-actions">
-			<button type="submit">Schreiben erstellen</button>
+			<button type="submit" class="secondary">Schreiben erstellen</button>
 		</div>
 	</form>
 {/if}
@@ -340,7 +340,7 @@
 					<SortHeader sort={reminderSort} key="level">Schreiben</SortHeader>
 					<SortHeader sort={reminderSort} key="amount" class="num">Betrag</SortHeader>
 					<SortHeader sort={reminderSort} key="deadline">Zahlungsfrist</SortHeader>
-					<th class="actions"></th>
+					<th class="actions"><span class="visually-hidden">Aktionen</span></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -475,7 +475,7 @@
 		/>
 	</Field>
 	<div class="form-actions">
-		<button type="submit">Korrektur buchen</button>
+		<button type="submit" class="secondary">Korrektur buchen</button>
 	</div>
 </form>
 
@@ -596,5 +596,48 @@
 		align-items: baseline;
 		gap: 0.25rem 1rem;
 		margin: 0 0 1rem;
+	}
+	/* On a phone a booking takes two lines instead of a card of five: date and text, then the
+	   amount with Soll or Haben in front and the balance at the right. */
+	@media (max-width: 40rem) {
+		.ledger tbody tr {
+			display: grid;
+			grid-template-columns: 6.25rem minmax(0, 1fr) auto;
+			grid-template-areas:
+				'date label label'
+				'. amount balance';
+			gap: 0.2rem 0.75rem;
+			padding-block: 0.6rem;
+		}
+		.ledger tbody td {
+			margin: 0;
+		}
+		.ledger tbody td:nth-child(1) {
+			grid-area: date;
+			font-weight: 400;
+			color: var(--color-muted);
+		}
+		.ledger tbody td:nth-child(2) {
+			grid-area: label;
+		}
+		.ledger tbody td:nth-child(3),
+		.ledger tbody td:nth-child(4) {
+			grid-area: amount;
+		}
+		.ledger tbody td:nth-child(5) {
+			grid-area: balance;
+			text-align: right;
+		}
+		.ledger tbody td:global([data-label]):not(:first-child) {
+			padding-left: 0;
+		}
+		.ledger tbody td:global([data-label]):not(:first-child)::before {
+			float: none;
+			width: auto;
+			margin: 0 0.4rem 0 0;
+		}
+		.ledger tbody td:nth-child(2):global([data-label])::before {
+			content: none;
+		}
 	}
 </style>

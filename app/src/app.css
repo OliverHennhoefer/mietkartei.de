@@ -159,6 +159,11 @@ textarea {
 	padding: 0 1.5rem;
 }
 
+.bar-section {
+	font-weight: 600;
+	font-size: var(--text-sm);
+}
+
 /* The notes above the page: quiet lines on the Übersicht, louder only when writes are refused. */
 .page-notices {
 	display: flex;
@@ -1108,7 +1113,7 @@ form.card:has(> .form-section) {
 	padding-top: 0.25rem;
 	border-top: 0;
 }
-.form-section-head h3 {
+.form-section-title {
 	margin: 0;
 }
 .form-section-head p {
@@ -1430,6 +1435,20 @@ button.link {
 	text-underline-offset: 3px;
 	font-weight: 400;
 }
+/* A form folded behind a button until it is wanted: the summary is the button, the form opens
+   under it. */
+details.reveal {
+	margin: 0.75rem 0 1rem;
+}
+details.reveal > summary {
+	list-style: none;
+}
+details.reveal > summary::-webkit-details-marker {
+	display: none;
+}
+details.reveal[open] > summary {
+	margin-bottom: 0.75rem;
+}
 button:disabled {
 	opacity: 0.45;
 	cursor: default;
@@ -1649,7 +1668,11 @@ dl.details dd {
 	}
 	/* Sorting is for wider screens: the hidden sort buttons stay out of the tab order. */
 	.table thead .sort-header {
-		visibility: hidden;
+		display: none;
+	}
+	/* The heading's words stay for screen readers and the cells' labels. */
+	.table thead .sort-label {
+		display: inline;
 	}
 	.table tbody tr {
 		padding: 0.9rem 1.1rem;

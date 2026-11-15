@@ -214,7 +214,10 @@
 					<td>
 						{#if item.allocable}
 							{item.keyName}
-							<span class="muted small">({allocationKeyKindLabels[item.keyKind]})</span>
+							<!-- The kind only where the key's own name does not say it already. -->
+							{#if !allocationKeyKindLabels[item.keyKind].endsWith(item.keyName)}
+								<span class="muted small">({allocationKeyKindLabels[item.keyKind]})</span>
+							{/if}
 						{:else}
 							<span class="muted">nicht umlagefähig</span>
 						{/if}

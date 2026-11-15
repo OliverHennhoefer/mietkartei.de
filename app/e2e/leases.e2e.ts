@@ -64,7 +64,7 @@ test('saves a lease in whole euros and starts the next one empty', async ({ page
 	await page.getByLabel('Beginn', { exact: true }).fill('2025-01-01');
 	// Whole euros are enough; the placeholder shows no cents.
 	const baseRent = page.locator('input[name="baseRent"]');
-	await expect(baseRent).toHaveAttribute('placeholder', '650');
+	await expect(baseRent).toHaveAttribute('placeholder', 'z. B. 650');
 	await baseRent.fill('600');
 	await page.getByRole('button', { name: 'Speichern und nächsten Mietvertrag' }).click();
 
@@ -221,6 +221,7 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	// Persons history: the initial row and one added "ab Datum".
 	const persons = page.getByRole('table', { name: 'Personenstand' });
 	await expect(persons.getByRole('row')).toHaveCount(2);
+	await page.locator('summary', { hasText: 'Personenstand ändern' }).click();
 	await page.getByLabel('Personen ab Datum').fill('2026-01-01');
 	await page.getByLabel('Personen', { exact: true }).fill('3');
 	await page.getByLabel('Notiz (optional)').fill('Kind geboren');
@@ -300,6 +301,7 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	// Vertrag beenden: a tenant's notice received on 2 March 2026 ends the lease on 31 May 2026
 	// at the earliest (§ 573c BGB); the form proposes that date, and an earlier one is refused
 	// unless it was agreed.
+	await page.locator('summary', { hasText: 'Kündigung eintragen' }).click();
 	await page.getByLabel('Kündigung erhalten am').fill('2026-03-02');
 	await page.locator('select[name="terminatedBy"]').selectOption('tenant');
 	const endDate = page.locator('input[name="endDate"]');
@@ -450,6 +452,7 @@ test('proposes the landlord notice period and deletes a lease without money', as
 	// (§ 573c Abs. 1 BGB: three plus six months), a tenant's on 31 May 2026.
 	const { leaseId } = await seedLease(page.request, { lease: { startDate: '2017-01-01' } });
 	await page.goto(`/vertraege/${leaseId}`);
+	await page.locator('summary', { hasText: 'Kündigung eintragen' }).click();
 	await page.getByLabel('Kündigung erhalten am').fill('2026-03-02');
 	const endDate = page.locator('input[name="endDate"]');
 	await expect(endDate).toHaveValue('2026-05-31');
@@ -511,6 +514,7 @@ test('records a co-tenant leaving and another joining the lease', async ({ page 
 	await expect(parties.getByRole('row').nth(1)).toContainText('bei Vertragsbeginn');
 
 	// Jonas joins by a Nachtrag on 1 April 2025.
+	await page.locator('summary', { hasText: 'Eintritt eines Mieters eintragen' }).click();
 	await page.getByLabel('Mieter tritt ein').selectOption({ label: `Jonas Neu-${s}` });
 	await page.getByLabel('Eingetreten am (optional)').fill('2025-04-01');
 	await page.getByRole('button', { name: 'Mieter hinzufügen' }).click();

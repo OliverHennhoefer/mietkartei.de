@@ -77,7 +77,7 @@
 				<SortHeader {sort} key="size" class="num">Größe</SortHeader>
 				<SortHeader {sort} key="created">Hochgeladen</SortHeader>
 				<SortHeader {sort} key="links">Verknüpft mit</SortHeader>
-				<th class="actions"></th>
+				<th class="actions"><span class="visually-hidden">Aktionen</span></th>
 			</tr>
 		</thead>
 		<tbody>

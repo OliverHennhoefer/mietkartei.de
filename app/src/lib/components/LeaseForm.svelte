@@ -219,7 +219,7 @@
 				name="baseRent"
 				defaultValue={values.baseRent ?? ''}
 				inputmode="decimal"
-				placeholder="650"
+				placeholder="z. B. 650"
 				aria-invalid={invalid('baseRent')}
 				required
 			/>

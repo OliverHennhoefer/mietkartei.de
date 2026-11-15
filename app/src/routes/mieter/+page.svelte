@@ -67,6 +67,17 @@
 			.filter(Boolean)
 			.join(', ');
 	}
+
+	/**
+	 * The property under the unit, without the unit's name when the property already ends in it
+	 * (a condominium named „Parkallee 8, Wohnung 14“ with its unit „Wohnung 14“).
+	 */
+	function propertyOf(lease: { unit: string; property: string }): string {
+		const suffix = `, ${lease.unit}`;
+		return lease.property.endsWith(suffix)
+			? lease.property.slice(0, -suffix.length)
+			: lease.property;
+	}
 </script>
 
 <PageHeader title="Mieter">
@@ -156,16 +167,19 @@
 									{#if tenant.activeLeases.length > 0}
 										{#each tenant.activeLeases as lease (lease.id)}
 											<a class="lease" href="/vertraege/{lease.id}"
-												>{lease.unit}<span class="muted small">{lease.property}</span></a
+												>{lease.unit}<span class="muted small">{propertyOf(lease)}</span></a
 											>
 										{/each}
 									{:else if tenant.moveIn}
 										<a class="lease" href="/vertraege/{tenant.moveIn.id}"
-											>{tenant.moveIn.unit}<span class="muted small">{tenant.moveIn.property}</span
+											>{tenant.moveIn.unit}<span class="muted small"
+												>{propertyOf(tenant.moveIn)}</span
 											></a
 										>
 									{:else if tenant.withoutLease}
-										<a href="/vertraege/neu?tenantId={tenant.id}">Mietvertrag anlegen</a>
+										<a href="/vertraege/neu?tenantId={tenant.id}" class="button secondary small"
+											>Mietvertrag anlegen</a
+										>
 									{:else}
 										<span class="muted">keine</span>
 									{/if}

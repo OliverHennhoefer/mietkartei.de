@@ -1,10 +1,14 @@
 <script lang="ts">
+	import { setContext } from 'svelte';
 	import Alert from '#lib/components/Alert.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import TenantForm from '#lib/components/TenantForm.svelte';
 	import { personName } from '#lib/format.ts';
 	import { FreshForm } from '#lib/fresh-form.svelte.ts';
 	import type { PageProps } from './$types';
+
+	// The form's groups are this page's sections, right under its title.
+	setContext('form-heading-level', 2);
 
 	let { data, form }: PageProps = $props();
 	// "Speichern und nächsten Mieter" comes back here; the next tenant starts empty.

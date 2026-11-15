@@ -367,7 +367,7 @@
 			name="amount"
 			defaultValue={values.amount ?? ''}
 			inputmode="decimal"
-			placeholder="600"
+			placeholder="z. B. 600"
 			aria-invalid={errors.amount ? 'true' : undefined}
 			required
 		/>

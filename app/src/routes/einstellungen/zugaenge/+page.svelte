@@ -51,7 +51,7 @@
 				<SortHeader sort={userSort} key="name">Name</SortHeader>
 				<SortHeader sort={userSort} key="email">E-Mail-Adresse</SortHeader>
 				<SortHeader sort={userSort} key="role">Rolle</SortHeader>
-				<th class="actions"></th>
+				<th class="actions"><span class="visually-hidden">Aktionen</span></th>
 			</tr>
 		</thead>
 		<tbody>
@@ -109,7 +109,7 @@
 					<SortHeader sort={invitationSort} key="email">E-Mail-Adresse</SortHeader>
 					<SortHeader sort={invitationSort} key="role">Rolle</SortHeader>
 					<SortHeader sort={invitationSort} key="expires">Status</SortHeader>
-					<th class="actions"></th>
+					<th class="actions"><span class="visually-hidden">Aktionen</span></th>
 				</tr>
 			</thead>
 			<tbody>
