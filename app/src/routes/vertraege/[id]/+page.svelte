@@ -8,6 +8,7 @@
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import DeleteSection from '#lib/components/DeleteSection.svelte';
 	import EditDialog from '#lib/components/EditDialog.svelte';
+	import Reveal from '#lib/components/Reveal.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
@@ -201,8 +202,7 @@
 	ein; so bleibt erkennbar, wer an einem früheren Tag Vertragspartei war.
 </p>
 {#if data.joinable.length > 0 && !lease.terminatedAt}
-	<details class="reveal" open={addPartyForm !== undefined}>
-		<summary class="button secondary small">Eintritt eines Mieters eintragen</summary>
+	<Reveal label="Eintritt eines Mieters eintragen" open={addPartyForm !== undefined}>
 		<form method="POST" action="?/addParty" class="card form" use:enhance>
 			<Field label="Mieter tritt ein" error={addPartyForm?.errors.tenantId}>
 				<select
@@ -234,7 +234,7 @@
 				<button type="submit">Mieter hinzufügen</button>
 			</div>
 		</form>
-	</details>
+	</Reveal>
 {/if}
 
 <h2>Aktuelle Miete</h2>
@@ -304,15 +304,14 @@
 			</tbody>
 		</table>
 	</div>
-	<details class="reveal" open={personsForm !== undefined}>
-		<summary class="button secondary small">Personenstand ändern</summary>
+	<Reveal label="Personenstand ändern" open={personsForm !== undefined}>
 		<form method="POST" action="?/addPersons" class="card form" use:enhance>
 			{@render personsFields(personsForm?.values ?? {}, personsForm?.errors ?? {})}
 			<div class="form-actions">
 				<button type="submit">Personenstand eintragen</button>
 			</div>
 		</form>
-	</details>
+	</Reveal>
 {/if}
 
 <h2>Vertragsende</h2>
@@ -335,8 +334,7 @@
 {/if}
 {#if !lease.terminatedAt}
 	<!-- Folded until wanted: ending a lease is rare, and an open form invites a slip. -->
-	<details class="reveal" open={endForm !== undefined}>
-		<summary class="button secondary small">Kündigung eintragen</summary>
+	<Reveal label="Kündigung eintragen" open={endForm !== undefined}>
 		<ConfirmButton
 			action="?/end"
 			label="Vertrag beenden"
@@ -401,7 +399,7 @@
 				Früheres Ende vereinbart (Aufhebungsvertrag)
 			</label>
 		</ConfirmButton>
-	</details>
+	</Reveal>
 {/if}
 
 <DeleteSection
