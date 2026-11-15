@@ -1,4 +1,6 @@
-import { addDays, addMonths, type IsoDate } from '../dates';
+import { addDays, addMonths, addMonthsToMonth, monthOf, type IsoDate } from '../dates';
+import { nthWorkingDay } from '../working-days';
+import { paymentExpectedBy } from './arrears-notices';
 import type { Database } from './db';
 import { chunk, rowsPerStatement, runBatch } from './db/batch';
 import { notificationChannels, notificationDeliveries } from './db/schema';
@@ -7,6 +9,8 @@ import { notificationChannels, notificationDeliveries } from './db/schema';
 // Mitteilungen on their iPhone, since the spring everything as Mitteilungen on their laptop too,
 // and for the last year everything on a webhook to n8n, with a history of sends that reaches back
 // over the years like the rest of the demo. The demo sends nothing; the addresses lead nowhere.
+// Berger stopped paying two months ago, so each of the last rents she missed was told as overdue
+// ("Miete ausgeblieben") once it should have been there.
 
 const ORIGIN = 'https://demo.mietkartei.de';
 
@@ -26,6 +30,15 @@ const year: { monthDay: string; summary: string; urgent?: boolean }[] = [
 	{ monthDay: '11-19', summary: '1 neu' },
 	{ monthDay: '12-28', summary: '1 bald fällig', urgent: true }
 ];
+
+/** The Hinweise about Berger's missed rents (due on the third working day), before `today`. */
+export function arrearsSends(from: IsoDate, today: IsoDate): Send[] {
+	const current = monthOf(today);
+	return [-2, -1, 0]
+		.map((months) => paymentExpectedBy(nthWorkingDay(addMonthsToMonth(current, months), 3, 'BE')))
+		.filter((date) => date >= from && date < today)
+		.map((date) => ({ date, summary: '1 überfällig', urgent: true }));
+}
 
 /** The sends from `from` until the day before `today`, oldest first. */
 export function demoSends(from: IsoDate, today: IsoDate): Send[] {
@@ -90,9 +103,9 @@ export async function createDemoNotifications(
 	const deliveries: (typeof notificationDeliveries.$inferInsert)[] = [];
 	const lastSent = new Map<string, Date>();
 	for (const channel of channels) {
-		const sends = demoSends(channel.since, today).filter(
-			(send) => send.urgent || !channel.urgentOnly
-		);
+		const sends = [...demoSends(channel.since, today), ...arrearsSends(channel.since, today)]
+			.filter((send) => send.urgent || !channel.urgentOnly)
+			.sort((a, b) => a.date.localeCompare(b.date));
 		sends.forEach((send, index) => {
 			const createdAt = at(send.date);
 			const row = { accountId, userId, channelId: channel.id, summary: send.summary };

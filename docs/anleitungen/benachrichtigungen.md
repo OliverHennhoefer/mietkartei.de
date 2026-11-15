@@ -1,11 +1,11 @@
 ---
 title: Benachrichtigungen einrichten
-description: "Wie mietkartei dich von selbst an Fristen und Aufgaben erinnert: per E-Mail, als Mitteilung auf Handy und Computer oder per Webhook an n8n, Make, Zapier, Home Assistant und darüber auch an WhatsApp oder Telegram."
+description: "Wie mietkartei dich von selbst an Fristen und Aufgaben erinnert und meldet, wenn eine Miete ausbleibt: per E-Mail, als Mitteilung auf Handy und Computer oder per Webhook an n8n, Make, Zapier, Home Assistant und darüber auch an WhatsApp oder Telegram."
 ---
 
 # Benachrichtigungen einrichten
 
-mietkartei meldet sich von selbst, wenn bei einer Frist oder Aufgabe etwas ansteht. Du musst also nicht jeden Tag in die App schauen, um nichts zu verpassen. Damit die Hinweise nicht nerven, gelten feste Regeln:
+mietkartei meldet sich von selbst, wenn bei einer Frist oder Aufgabe etwas ansteht und wenn eine Miete nicht eingegangen ist. Du musst also nicht jeden Tag in die App schauen, um nichts zu verpassen. Damit die Hinweise nicht nerven, gelten feste Regeln:
 
 - **Höchstens dreimal je Frist.** Ein Hinweis kommt mit Vorlauf, bei gesetzlichen Fristen noch einmal drei Tage vorher und einmal, wenn die Frist überfällig ist. Danach steht sie nur noch in der wöchentlichen Übersicht.
 - **Eine Nachricht am Tag.** Was an einem Tag zusammenkommt, kommt gesammelt. Ist nichts neu, kommt nichts.
@@ -27,7 +27,15 @@ Du richtest alles unter **Einstellungen → Benachrichtigungen** ein. Jeder Zuga
 | Einwendungsfrist, Kautionsrate                              | 7 Tage          | nein             |
 | Eigene Aufgaben mit Fälligkeit                              | 7 Tage          | nein             |
 
-„Drei Tage vorher“ und „überfällig“ gelten als dringend. Für jeden Kanal kannst du wählen, ob er alle Hinweise bekommt oder nur die dringenden. Bewährt hat sich: alles per E-Mail, nur Dringendes aufs Handy.
+## Wenn eine Miete ausbleibt
+
+Ist eine Miete zwei Werktage nach ihrer Fälligkeit noch nicht eingegangen, kommt der Hinweis **Miete ausgeblieben**, mit Mieter, Betrag und dem ganzen Rückstand. Das gilt auch für eine fällige Nachzahlung („Zahlung ausgeblieben“). Für jede ausgebliebene Miete kommt der Hinweis einmal. Ist nur ein Teil offen, heißt er **Rückstand**. Er kommt einmal im Monat, solange der Teil offen bleibt.
+
+Dabei geht mietkartei vom Mietkonto aus: Was dort als Zahlung steht, gilt als eingegangen. Führst du Bankkonten in mietkartei, wartet der Hinweis, bis die Umsätze bis zu diesem Tag da sind. So meldet mietkartei keine Miete als ausgeblieben, nur weil der Kontoauszug noch nicht importiert ist. Mit dem Bankabruf holt mietkartei die neuen Umsätze vor jedem Hinweis selbst. Die Zahlungen ordnet es nach deinen bestätigten Regeln gleich zu. Das passiert, sobald du die erste Miete eines Mieters zugeordnet hast. Liegen noch nicht zugeordnete Umsätze unter **Bank**, sagt der Hinweis das dazu, denn vielleicht ist die Zahlung darunter.
+
+Ohne **Mit Namen der Mieter** steht in Mitteilungen und Webhooks nur „Miete ausgeblieben“ mit dem Datum, ohne Namen und Betrag.
+
+„Drei Tage vorher“ und „überfällig“ gelten als dringend. Ein Hinweis zu einer ausgebliebenen Miete ist immer dringend. Für jeden Kanal kannst du wählen, ob er alle Hinweise bekommt oder nur die dringenden. Bewährt hat sich: alles per E-Mail, nur Dringendes aufs Handy.
 
 Jeder Hinweis per E-Mail hat einen Link **Später erinnern**. Darüber verschiebst du einen Hinweis um drei Tage, eine oder zwei Wochen; eine Aufgabe kannst du dort auch gleich als erledigt markieren.
 
@@ -86,7 +94,7 @@ mietkartei schickt eine `POST`-Anfrage mit diesem Inhalt:
 ```
 
 - `stage` ist `lead` (mit Vorlauf), `soon` (drei Tage vorher) oder `overdue` (überfällig).
-- `kind` ist `task` für eigene Aufgaben, sonst die Art der Frist, etwa `statement`, `insurance_notice` oder `lease_end`.
+- `kind` ist `task` für eigene Aufgaben, `arrears` für eine ausgebliebene Miete oder einen Rückstand, sonst die Art der Frist, etwa `statement`, `insurance_notice` oder `lease_end`.
 - `detail` mit Mietern und Einheit ist nur dabei, wenn du **Mit Namen der Mieter** wählst. Ohne das Häkchen ist `title` bei eigenen Aufgaben nur `Aufgabe`, da du den Titel selbst schreibst und darin ein Name stehen kann.
 - **Test senden** schickt eine Anfrage mit `"event": "test"` und leerer Liste.
 

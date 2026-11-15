@@ -760,9 +760,33 @@ export type LeaseBalance = {
 	openSince: IsoMonth | null;
 	/** The due date of that charge, null when nothing is overdue. */
 	openSinceDate: IsoDate | null;
+	/**
+	 * The newest charge due by `asOf` (no credit, no refund): its due date, amount and whether it
+	 * is a month's rent. Since payments settle the oldest charges first, a Rückstand of at least
+	 * its amount means it is not paid at all. Null when nothing was due yet.
+	 */
+	lastDue: { date: IsoDate; amount: number; rent: boolean } | null;
 };
 
-type BalanceCharge = { amount: number; dueDate: IsoDate | null };
+type BalanceCharge = { amount: number; dueDate: IsoDate | null; kind?: RentChargeKind };
+
+/** The newest positive charge due by `asOf`; refunds have no kind and do not count. */
+function lastDueCharge(charges: readonly BalanceCharge[], asOf: IsoDate): LeaseBalance['lastDue'] {
+	let last: LeaseBalance['lastDue'] = null;
+	for (const charge of charges) {
+		if (!charge.kind || charge.amount <= 0 || !charge.dueDate || charge.dueDate > asOf) continue;
+		if (!last || charge.dueDate > last.date) {
+			last = { date: charge.dueDate, amount: charge.amount, rent: charge.kind === 'rent' };
+		} else if (charge.dueDate === last.date) {
+			last = {
+				date: last.date,
+				amount: last.amount + charge.amount,
+				rent: last.rent && charge.kind === 'rent'
+			};
+		}
+	}
+	return last;
+}
 
 /** What is overdue on `asOf` and since when, by FIFO over the due charges in due-date order. */
 function overdueSince(
@@ -873,6 +897,7 @@ export async function listBalances(
 			paid,
 			balance: charged - paid,
 			...overdueSince([...charges, ...refunds], receivedByAsOf, asOf),
+			lastDue: lastDueCharge(charges, asOf),
 			lastPaymentDate
 		};
 	});

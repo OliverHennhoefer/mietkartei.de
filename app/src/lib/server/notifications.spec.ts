@@ -34,7 +34,8 @@ import { contextA, contextB, testDatabase } from './testing';
 
 const env = vi.hoisted(() => ({ VAPID_PRIVATE_KEY: '' }));
 
-vi.mock('$app/env/private', () => ({
+vi.mock('$app/env/private', async (original) => ({
+	...(await original<Record<string, unknown>>()),
 	MAIL_TRANSPORT: 'outbox',
 	MAIL_API_KEY: '',
 	MAIL_FROM: '',
@@ -155,6 +156,27 @@ describe('the messages', () => {
 				'  Später erinnern oder erledigt: https://app.example.org/erinnerung/task-2'
 		);
 		expect(mail.text).toContain('Neu anstehend\n\n- 10.11.2026: Rauchmelder prüfen\n  Müller');
+	});
+
+	it('name the payments in a mail about missing rent, but no tenant in a push without details', () => {
+		const arrears = {
+			entry: entry({
+				key: 'arrears-l1',
+				kind: 'arrears',
+				date: '2026-11-04',
+				overdue: true,
+				title: 'Miete ausgeblieben',
+				description: 'Max Müller: 800,00 €, fällig am 04.11.2026, ist nicht eingegangen.'
+			}),
+			stage: 'overdue' as const
+		};
+		const mail = noticeMail({ email: 'a@example.org', name: null }, [arrears], ORIGIN);
+		expect(mail.text).toContain('bei diesen Fristen, Aufgaben und Mietzahlungen etwas getan');
+		expect(mail.text).toContain('Später erinnern: https://app.example.org/erinnerung/arrears-l1');
+		expect(pushMessage([arrears], false, ORIGIN).body).toBe(
+			'04.11.2026: Miete ausgeblieben (überfällig)'
+		);
+		expect(stageOf(arrears.entry, '2026-11-06')).toBe('overdue');
 	});
 
 	it('leave tenant names and task titles out of a push and a webhook unless asked for', () => {
