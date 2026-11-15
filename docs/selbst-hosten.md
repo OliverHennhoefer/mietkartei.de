@@ -31,7 +31,7 @@ Eine eigene Domain brauchst du nicht.
 3. Lege bei [GitHub](https://github.com/signup) ein Konto an, falls du noch keins hast.
 4. Klicke auf diesen Link:
 
-    **[mietkartei bei Cloudflare einrichten →](https://deploy.workers.cloudflare.com/?url=https://github.com/OliverHennhoefer/mietkartei.de)**
+   **[mietkartei bei Cloudflare einrichten →](https://deploy.workers.cloudflare.com/?url=https://github.com/OliverHennhoefer/mietkartei.de)**
 
 5. Cloudflare fragt nach deinem GitHub-Konto und schlägt Namen für die Kopie, die Datenbank und den Dokumentenspeicher vor. Die Vorschläge kannst du übernehmen.
 6. Unter **SETUP_CODE** trägst du einen **Einrichtungscode** ein, den nur du kennst, etwa drei zufällige Wörter wie `kanal-tulpe-wolke`. Notiere ihn dir.
@@ -107,7 +107,7 @@ Jedes [Release](https://github.com/OliverHennhoefer/mietkartei.de/releases) enth
 
 ## Bankabruf
 
-Damit mietkartei die Umsätze selbst bei deiner Bank abholt, legst du kostenlos eine eigene Anwendung bei [Enable Banking](https://enablebanking.com/cp/applications) an. Als Weiterleitungsadresse trägst du die Adresse deiner Installation mit `/bank/abruf` am Ende ein, etwa `https://mietkartei.example.de/bank/abruf` oder `https://mietkartei.dein-name.workers.dev/bank/abruf`. Mit Docker setzt du außerdem `ORIGIN` auf dieselbe Adresse. Ohne Vertrag läuft die Anwendung im eingeschränkten Modus und ruft nur Konten ab, die du im Control Panel von Enable Banking verknüpft hast. Das ist kostenlos und reicht für die eigenen Konten. Die Anwendungs-Id und den heruntergeladenen privaten Schlüssel übergibst du als `ENABLE_BANKING_APP_ID` und `ENABLE_BANKING_PRIVATE_KEY`.
+Damit mietkartei die Umsätze selbst bei deiner Bank abholt, legst du kostenlos eine eigene Anwendung bei [Enable Banking](https://enablebanking.com/cp/applications) an. Als Weiterleitungsadresse trägst du die Adresse deiner Installation mit `/bank/abruf` am Ende ein, etwa `https://mietkartei.example.de/bank/abruf` oder `https://mietkartei.dein-name.workers.dev/bank/abruf`. Mit Docker setzt du außerdem `ORIGIN` auf dieselbe Adresse. Ohne Vertrag läuft die Anwendung im eingeschränkten Modus und ruft nur Konten ab, die du im Control Panel von Enable Banking verknüpft hast. Das ist kostenlos und reicht für die eigenen Konten. Die Anwendungs-Id und den heruntergeladenen privaten Schlüssel übergibst du als `ENABLE_BANKING_APP_ID` und `ENABLE_BANKING_PRIVATE_KEY`. Haben auf deiner Installation mehrere Personen ein eigenes Konto, bekommen alle den Bankabruf. Mit `BANK_SYNC_EMAILS` beschränkst du ihn auf die Konten, deren Vermieter sich mit einer der genannten E-Mail-Adressen anmeldet.
 
 ## Mitteilungen aufs Handy
 

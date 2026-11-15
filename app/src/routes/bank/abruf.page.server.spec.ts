@@ -13,7 +13,8 @@ import { actions as startActions, load as loadStart } from './konten/[id]/abruf/
 const env = vi.hoisted(() => ({
 	ENABLE_BANKING_APP_ID: 'app-unit',
 	ENABLE_BANKING_PRIVATE_KEY: '',
-	ENABLE_BANKING_API_BASE: 'http://enablebanking.test'
+	ENABLE_BANKING_API_BASE: 'http://enablebanking.test',
+	BANK_SYNC_EMAILS: ''
 }));
 vi.mock('$app/env/private', async (original) => ({
 	...(await original<Record<string, unknown>>()),
@@ -25,6 +26,9 @@ vi.mock('$app/env/private', async (original) => ({
 	},
 	get ENABLE_BANKING_API_BASE() {
 		return env.ENABLE_BANKING_API_BASE;
+	},
+	get BANK_SYNC_EMAILS() {
+		return env.BANK_SYNC_EMAILS;
 	}
 }));
 
@@ -112,6 +116,7 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 	vi.restoreAllMocks();
 	env.ENABLE_BANKING_APP_ID = 'app-unit';
+	env.BANK_SYNC_EMAILS = '';
 });
 
 function run(handler: (event: never) => unknown, options: Parameters<typeof routeEvent>[1] = {}) {
@@ -269,6 +274,23 @@ describe('bank/konten Bankabruf', () => {
 			redirect: '/bank/konten'
 		});
 		expect(calls).toContain('DELETE /sessions/session-1');
+	});
+
+	it('has no Bankabruf for an account BANK_SYNC_EMAILS leaves out', async () => {
+		env.BANK_SYNC_EMAILS = 'familie@example.org';
+		expect(await run(loadAccounts)).toMatchObject({ data: { sync: null } });
+		expect(await run(loadStart, { params: { id: bankAccountId } })).toMatchObject({ error: 404 });
+		expect(await run(loadCallback, { url: '/bank/abruf?state=x&code=y' })).toMatchObject({
+			error: 404
+		});
+		expect(await run(accountActions.sync, { form: { id: bankAccountId } })).toMatchObject({
+			error: 404
+		});
+		env.BANK_SYNC_EMAILS = 'familie@example.org, a@example.org';
+		expect(await run(loadAccounts)).toMatchObject({ data: { sync: {} } });
+		expect(await run(loadStart, { params: { id: bankAccountId } })).toMatchObject({
+			data: { banks: expect.any(Array) }
+		});
 	});
 
 	it('shows managers no Bankabruf and has none without an application', async () => {
