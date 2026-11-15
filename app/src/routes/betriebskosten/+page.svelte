@@ -6,6 +6,7 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
+	import Alert from '#lib/components/Alert.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { statementStatusLabels } from '#lib/labels.ts';
 	import { byDate, byNumber, bySeverity, TableSort } from '#lib/table-sort.svelte.ts';
@@ -18,6 +19,19 @@
 	const errors = $derived(form?.errors);
 	const values = $derived(form?.values);
 	const withCostItems = $derived(data.properties.filter((property) => property.hasCostItems));
+	type Statement = PageProps['data']['groups'][number]['statements'][number];
+	// The last three years stay in view; older statements fold away under the table.
+	const recentFrom = $derived(`${Number(data.defaults.periodEnd.slice(0, 4)) - 2}-01-01`);
+	const recent = (statements: Statement[]) =>
+		statements.filter((statement) => statement.periodEnd >= recentFrom);
+	const older = (statements: Statement[]) =>
+		statements.filter((statement) => statement.periodEnd < recentFrom);
+	// The version matters only once a statement was corrected.
+	const corrected = (statements: Statement[]) =>
+		statements.some((statement) => statement.version > 1);
+	const propertyName = (id: string) =>
+		data.properties.find((property) => property.id === id)?.name ?? 'Objekt';
+
 	// One order for the statements of all properties.
 	const sort = new TableSort<PageProps['data']['groups'][number]['statements'][number]>({
 		period: byDate((statement) => statement.periodStart),
@@ -39,33 +53,60 @@
 		Noch keine Abrechnung. Lege unten einen Entwurf für ein Objekt und einen Zeitraum an.
 	</p>
 {/if}
+{#if data.due.length > 0}
+	<Alert tone={data.due.some((deadline) => deadline.overdue) ? 'danger' : 'warning'}>
+		<ul class="due" aria-label="Fällige Abrechnungen">
+			{#each data.due as deadline (`${deadline.propertyId} ${deadline.date}`)}
+				<li>
+					<strong>{deadline.title} · {propertyName(deadline.propertyId)}</strong>
+					{deadline.overdue ? 'war fällig bis' : 'fällig bis'}
+					{formatDate(deadline.date)}
+					· <a href="?objekt={deadline.propertyId}#neue-abrechnung">Entwurf erstellen</a>
+				</li>
+			{/each}
+		</ul>
+	</Alert>
+{/if}
 {#each data.groups as group (group.property.id)}
 	<h3><a href="/objekte/{group.property.id}">{group.property.name}</a></h3>
+	{@render statements(group.property.name, recent(group.statements), corrected(group.statements))}
+	{#if older(group.statements).length > 0}
+		<details class="older">
+			<summary>Ältere Abrechnungen ({older(group.statements).length})</summary>
+			{@render statements(
+				`${group.property.name}, ältere`,
+				older(group.statements),
+				corrected(group.statements)
+			)}
+		</details>
+	{/if}
+{/each}
+
+{#snippet statements(name: string, rows: Statement[], withVersion: boolean)}
 	<div class="table-wrap">
-		<table class="table" aria-label="Abrechnungen {group.property.name}">
+		<table class="table" aria-label="Abrechnungen {name}">
 			<thead>
 				<tr>
 					<SortHeader {sort} key="period">Zeitraum</SortHeader>
-					<SortHeader {sort} key="version">Version</SortHeader>
+					{#if withVersion}<SortHeader {sort} key="version">Version</SortHeader>{/if}
 					<SortHeader {sort} key="status">Status</SortHeader>
 					<SortHeader {sort} key="costs" class="num">Gesamtkosten</SortHeader>
 					<SortHeader {sort} key="allocable" class="num">Umlagefähig</SortHeader>
 					<SortHeader {sort} key="leases" class="num">Mietverträge</SortHeader>
 					<SortHeader {sort} key="nachzahlungen" class="num">Nachzahlungen</SortHeader>
 					<SortHeader {sort} key="guthaben" class="num">Guthaben</SortHeader>
-					<th class="actions"></th>
 				</tr>
 			</thead>
 			<tbody>
-				{#each sort.rows(group.statements) as statement (statement.id)}
+				{#each sort.rows(rows) as statement (statement.id)}
 					<tr>
 						<td>
-							{statement.periodLabel}
+							<a href="/betriebskosten/abrechnungen/{statement.id}">{statement.periodLabel}</a>
 							<span class="muted small">
 								({formatDate(statement.periodStart)} – {formatDate(statement.periodEnd)})
 							</span>
 						</td>
-						<td>{statement.version}</td>
+						{#if withVersion}<td>{statement.version}</td>{/if}
 						<td>
 							{#if statement.superseded}
 								<Badge tone="neutral">Ersetzt</Badge>
@@ -80,17 +121,12 @@
 						<td class="num">{statement.leaseCount}</td>
 						<td class="num"><Money cents={statement.nachzahlungen} /></td>
 						<td class="num"><Money cents={statement.guthaben} /></td>
-						<td class="actions">
-							<a class="button secondary small" href="/betriebskosten/abrechnungen/{statement.id}"
-								>Öffnen</a
-							>
-						</td>
 					</tr>
 				{/each}
 			</tbody>
 		</table>
 	</div>
-{/each}
+{/snippet}
 
 <h2 id="neue-abrechnung">Neue Abrechnung</h2>
 {#if withCostItems.length === 0}
@@ -105,7 +141,10 @@
 		<Field label="Objekt" error={errors?.propertyId}>
 			<select name="propertyId" aria-invalid={errors?.propertyId ? 'true' : undefined} required>
 				{#each withCostItems as property (property.id)}
-					<option value={property.id} selected={values?.propertyId === property.id}>
+					<option
+						value={property.id}
+						selected={(values?.propertyId ?? data.defaults.propertyId) === property.id}
+					>
 						{property.name}
 					</option>
 				{/each}
@@ -137,3 +176,19 @@
 		</div>
 	</form>
 {/if}
+
+<style>
+	.due {
+		margin: 0;
+		padding-left: 1.1rem;
+	}
+	.older {
+		margin: 0.75rem 0 1.5rem;
+	}
+	.older > summary {
+		cursor: pointer;
+	}
+	.older .table-wrap {
+		margin-top: 0.75rem;
+	}
+</style>

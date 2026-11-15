@@ -77,7 +77,7 @@
 						<SortHeader {sort} key="openSince">Offen seit</SortHeader>
 						<SortHeader {sort} key="lastPayment">Letzte Zahlung</SortHeader>
 						<SortHeader {sort} key="reminder">Erinnert</SortHeader>
-						<th class="actions"></th>
+						<th class="actions"><span class="visually-hidden">Aktionen</span></th>
 					</tr>
 				</thead>
 				<tbody>

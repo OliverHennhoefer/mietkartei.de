@@ -127,7 +127,7 @@
 					<SortHeader sort={appSort} key="scope">Rechte</SortHeader>
 					<SortHeader sort={appSort} key="created">Verbunden seit</SortHeader>
 					<SortHeader sort={appSort} key="used">Zuletzt genutzt</SortHeader>
-					<th class="actions"></th>
+					<th class="actions"><span class="visually-hidden">Aktionen</span></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -171,7 +171,7 @@
 					<SortHeader sort={keySort} key="scope">Rechte</SortHeader>
 					<SortHeader sort={keySort} key="expires">Gültig bis</SortHeader>
 					<SortHeader sort={keySort} key="used">Zuletzt genutzt</SortHeader>
-					<th class="actions"></th>
+					<th class="actions"><span class="visually-hidden">Aktionen</span></th>
 				</tr>
 			</thead>
 			<tbody>

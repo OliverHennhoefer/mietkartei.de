@@ -141,7 +141,7 @@
 					<th>Ziel</th>
 					<th>Was</th>
 					<th>Stand</th>
-					<th class="actions"></th>
+					<th class="actions"><span class="visually-hidden">Aktionen</span></th>
 				</tr>
 			</thead>
 			<tbody>

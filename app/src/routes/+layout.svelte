@@ -87,6 +87,11 @@
 		}
 	];
 
+	// The bar on a phone names the section the page belongs to, so a long page keeps its bearings.
+	const section = $derived(
+		groups.flatMap((group) => group.sections).find((item) => current(item.href))?.label
+	);
+
 	function current(href: string): 'page' | undefined {
 		const path = page.url.pathname;
 		return path === href || path.startsWith(`${href}/`) ? 'page' : undefined;
@@ -140,7 +145,10 @@
 	function labelTableCells() {
 		for (const table of document.querySelectorAll<HTMLTableElement>('table.table')) {
 			const headings = [...(table.tHead?.rows[0]?.cells ?? [])].flatMap((cell) =>
-				Array<string>(cell.colSpan).fill(cell.textContent?.trim() ?? '')
+				Array<string>(cell.colSpan).fill(
+					// A sortable heading's own words, without a legend below it.
+					(cell.querySelector('.sort-label') ?? cell).textContent?.trim() ?? ''
+				)
 			);
 			for (const body of [...table.tBodies, ...(table.tFoot ? [table.tFoot] : [])]) {
 				for (const row of body.rows) {
@@ -329,6 +337,7 @@
 				>
 					<Icon name={open ? 'close' : 'menu'} size={20} />
 				</button>
+				{#if section}<span class="bar-section" aria-hidden="true">{section}</span>{/if}
 			</div>
 		</header>
 	{/if}

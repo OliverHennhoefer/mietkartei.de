@@ -24,10 +24,28 @@
 		const left = current.offsetLeft - nav.offsetLeft;
 		if (left < nav.scrollLeft || left + current.offsetWidth > nav.scrollLeft + nav.clientWidth)
 			nav.scrollLeft = left - (nav.clientWidth - current.offsetWidth) / 2;
+		edges();
 	});
+
+	// Tabs cut off at an edge fade out there, so the bar reads as one that scrolls on.
+	let moreBefore = $state(false);
+	let moreAfter = $state(false);
+	function edges() {
+		if (!nav) return;
+		moreBefore = nav.scrollLeft > 1;
+		moreAfter = nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 1;
+	}
 </script>
 
-<nav bind:this={nav} class="tabs" aria-label={label}>
+<svelte:window onresize={edges} />
+<nav
+	bind:this={nav}
+	class="tabs"
+	class:more-before={moreBefore}
+	class:more-after={moreAfter}
+	aria-label={label}
+	onscroll={edges}
+>
 	{#each tabs as tab, index (tab.href)}
 		<a href={tab.href} aria-current={isCurrent(tab, index) ? 'page' : undefined}>
 			{tab.label}
@@ -46,6 +64,21 @@
 		scrollbar-width: none;
 		border-bottom: 1px solid var(--color-border);
 		margin: 0 0 2rem;
+	}
+	.tabs.more-after {
+		mask-image: linear-gradient(to right, #000 calc(100% - 3rem), transparent);
+	}
+	.tabs.more-before {
+		mask-image: linear-gradient(to left, #000 calc(100% - 3rem), transparent);
+	}
+	.tabs.more-before.more-after {
+		mask-image: linear-gradient(
+			to right,
+			transparent,
+			#000 3rem,
+			#000 calc(100% - 3rem),
+			transparent
+		);
 	}
 	.tabs::-webkit-scrollbar {
 		display: none;

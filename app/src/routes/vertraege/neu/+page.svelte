@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { setContext } from 'svelte';
 	import Alert from '#lib/components/Alert.svelte';
 	import CreateButton from '#lib/components/CreateButton.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
@@ -7,6 +8,9 @@
 	import { personName } from '#lib/format.ts';
 	import { FreshForm } from '#lib/fresh-form.svelte.ts';
 	import type { PageProps } from './$types';
+
+	// The form's groups are this page's sections, right under its title.
+	setContext('form-heading-level', 2);
 
 	let { data, form }: PageProps = $props();
 	// "Speichern und nächsten Mietvertrag" comes back here; the next lease starts empty.

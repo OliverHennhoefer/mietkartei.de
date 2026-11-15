@@ -37,6 +37,17 @@ describe('betriebskosten', () => {
 		});
 	});
 
+	it('lists the statements still to be made and opens the form on a linked property', async () => {
+		const result = await outcome(() =>
+			load(routeEvent(db, { url: `/betriebskosten?objekt=${propertyId}` }))
+		);
+		expect(result).toMatchObject({ data: { defaults: { propertyId } } });
+		const due = (result as { data: { due: { propertyId: string; title: string }[] } }).data.due;
+		expect(due.length).toBeGreaterThan(0);
+		expect(due.every((deadline) => deadline.propertyId === propertyId)).toBe(true);
+		expect(due[0].title).toMatch(/^Betriebskostenabrechnung /);
+	});
+
 	it('creates a draft and opens it', async () => {
 		const result = await create({ propertyId, periodStart: '2025-01-01', periodEnd: '2025-12-31' });
 		expect(result).toEqual({

@@ -32,10 +32,15 @@
 			viewBox="0 0 24 24"
 			aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg
 		></button
-	>{@render after?.()}
+	><span class="sort-label">{@render children()}</span>{@render after?.()}
 </th>
 
 <style>
+	/* The heading's words without the button, for the head of a stacked table on a phone (app.css),
+	   where the button leaves the tab order. */
+	.sort-label {
+		display: none;
+	}
 	.sort-header {
 		all: unset;
 		display: inline-flex;

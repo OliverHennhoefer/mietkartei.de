@@ -116,7 +116,7 @@
 		{/if}
 	</p>
 	<div class="plot">
-		<svg viewBox="0 0 {width} {height}" role="img" aria-label={label}>
+		<svg viewBox="0 0 {width} {height}" role="group" aria-label={label}>
 			{#each scale.ticks as tick (tick)}
 				<line
 					class="grid"

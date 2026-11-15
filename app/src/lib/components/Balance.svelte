@@ -37,8 +37,12 @@
 >
 
 <style>
+	/* The amount never breaks; the word may go to the next line in a narrow column. */
 	.balance {
 		font-variant-numeric: tabular-nums;
+	}
+	.amount,
+	.word {
 		white-space: nowrap;
 	}
 	.credit .amount {
