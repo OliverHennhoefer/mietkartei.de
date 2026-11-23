@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseCsv, toRecords } from '../csv';
 import {
 	applyRules,
+	suggestContraAccount,
 	base64ToBytes,
 	bytesToBase64,
 	detectPreset,
@@ -426,11 +427,26 @@ describe('rules', () => {
 		purpose: 'Miete Oktober Wohnung 2'
 	};
 	const rules: Rule[] = [
-		{ id: 'r1', leaseId: 'l1', field: 'purpose', pattern: 'wohnung 1', confirmed: true },
-		{ id: 'r2', leaseId: 'l2', field: 'counterpartName', pattern: 'müller', confirmed: false },
+		{
+			id: 'r1',
+			leaseId: 'l1',
+			contraAccountId: null,
+			field: 'purpose',
+			pattern: 'wohnung 1',
+			confirmed: true
+		},
+		{
+			id: 'r2',
+			leaseId: 'l2',
+			contraAccountId: null,
+			field: 'counterpartName',
+			pattern: 'müller',
+			confirmed: false
+		},
 		{
 			id: 'r3',
 			leaseId: 'l3',
+			contraAccountId: null,
 			field: 'counterpartIban',
 			pattern: 'DE12 5001 0517 5407 3249 31',
 			confirmed: true
@@ -445,10 +461,27 @@ describe('rules', () => {
 		expect(ruleMatches(rules[2], { ...transaction, counterpartIban: null })).toBe(false);
 	});
 
-	it('applies the first confirmed rule to incoming amounts only', () => {
-		expect(applyRules(rules, transaction)).toBe('l3');
+	it('applies the first confirmed rule, a lease rule to incoming amounts only', () => {
+		expect(applyRules(rules, transaction)?.id).toBe('r3');
 		expect(applyRules(rules, { ...transaction, amount: -85000 })).toBeUndefined();
 		expect(applyRules([rules[1]], transaction)).toBeUndefined();
+	});
+
+	it('books either direction to a Gegenkonto rule', () => {
+		const contra: Rule = { ...rules[2], id: 'r4', leaseId: null, contraAccountId: 'c1' };
+		expect(applyRules([contra], { ...transaction, amount: -85000 })?.id).toBe('r4');
+		expect(applyRules([contra], transaction)?.id).toBe('r4');
+		expect(applyRules([rules[2], contra], { ...transaction, amount: -85000 })).toBeUndefined();
+	});
+
+	it('suggests a Gegenkonto when the first matching rule names one', () => {
+		const contra: Rule = { ...rules[1], id: 'r4', leaseId: null, contraAccountId: 'c1' };
+		expect(suggestContraAccount(transaction, [contra, rules[2]])).toBe('c1');
+		expect(suggestContraAccount(transaction, [rules[2], contra])).toBeUndefined();
+		expect(suggestContraAccount(transaction, [])).toBeUndefined();
+		expect(
+			suggestLease(transaction, { rules: [contra], leaseByIban: new Map(), leases: [] })
+		).toBeUndefined();
 	});
 
 	it('suggests by rule, then IBAN, then last name, then unit name', () => {
@@ -511,13 +544,16 @@ describe('rules', () => {
 		const rule = (overrides: Partial<Rule> = {}): Rule => ({
 			id: 'r1',
 			leaseId: 'l1',
+			contraAccountId: null,
 			field: 'counterpartIban',
 			pattern: 'DE12500105175407324931',
 			confirmed: true,
 			...overrides
 		});
-		const none = { rules: [], earlierLeaseIds: [] };
-		const rent = (...leaseIds: string[]) => ({ leaseIds, rent: true });
+		const none = { rules: [], earlierTargets: [] };
+		const lease = (id: string) => `lease:${id}`;
+		const rent = (...leaseIds: string[]) => ({ targets: leaseIds.map(lease), remember: true });
+		const deposit = (leaseId: string) => ({ targets: [lease(leaseId)], remember: false });
 
 		it('remembers the counterpart of incoming rent only', () => {
 			expect(rememberStep(transaction, rent('l1'), none)).toEqual({
@@ -525,7 +561,9 @@ describe('rules', () => {
 				field: 'counterpartIban',
 				pattern: 'DE12500105175407324931'
 			});
-			expect(rememberStep({ ...transaction, amount: -100 }, rent('l1'), none)).toBeUndefined();
+			expect(
+				rememberStep({ ...transaction, amount: -100 }, { ...rent('l1'), remember: false }, none)
+			).toBeUndefined();
 		});
 
 		it('adds nothing when a rule already matches', () => {
@@ -554,21 +592,46 @@ describe('rules', () => {
 				kind: 'unconfirm',
 				ruleIds: ['r1']
 			});
-			expect(
-				rememberStep(transaction, { leaseIds: ['l2'], rent: false }, { ...none, rules })
-			).toEqual({ kind: 'unconfirm', ruleIds: ['r1'] });
-			expect(rememberStep(transaction, { leaseIds: ['l1'], rent: false }, none)).toBeUndefined();
+			expect(rememberStep(transaction, deposit('l2'), { ...none, rules })).toEqual({
+				kind: 'unconfirm',
+				ruleIds: ['r1']
+			});
+			expect(rememberStep(transaction, deposit('l1'), { ...none, rules })).toBeUndefined();
+			expect(rememberStep(transaction, deposit('l1'), none)).toBeUndefined();
 			expect(rememberStep(transaction, rent('l1', 'l2'), none)).toBeUndefined();
 		});
 
 		it('remembers nobody whose money went to another lease before', () => {
 			expect(
-				rememberStep(transaction, rent('l1'), { ...none, earlierLeaseIds: ['l1'] })
+				rememberStep(transaction, rent('l1'), { ...none, earlierTargets: [lease('l1')] })
 			).toMatchObject({
 				kind: 'create'
 			});
 			expect(
-				rememberStep(transaction, rent('l1'), { ...none, earlierLeaseIds: ['l1', 'l2'] })
+				rememberStep(transaction, rent('l1'), {
+					...none,
+					earlierTargets: [lease('l1'), lease('l2')]
+				})
+			).toBeUndefined();
+		});
+
+		it('remembers and demotes Gegenkonto rules alike', () => {
+			const contra = (id: string) => ({ targets: [`contra:${id}`], remember: true });
+			expect(rememberStep({ ...transaction, amount: -100 }, contra('c1'), none)).toMatchObject({
+				kind: 'create'
+			});
+			const rules = [rule({ leaseId: null, contraAccountId: 'c1' })];
+			expect(rememberStep(transaction, contra('c1'), { ...none, rules })).toBeUndefined();
+			expect(rememberStep(transaction, contra('c2'), { ...none, rules })).toEqual({
+				kind: 'unconfirm',
+				ruleIds: ['r1']
+			});
+			expect(rememberStep(transaction, rent('l1'), { ...none, rules })).toEqual({
+				kind: 'unconfirm',
+				ruleIds: ['r1']
+			});
+			expect(
+				rememberStep(transaction, contra('c1'), { ...none, earlierTargets: ['contra:c2'] })
 			).toBeUndefined();
 		});
 	});

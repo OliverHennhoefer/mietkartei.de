@@ -6,6 +6,8 @@ import { runBatch } from './db/batch';
 import {
 	accounts,
 	allocationKeys,
+	contraAccounts,
+	otherBookings,
 	allocationKeyShares,
 	apiKeys,
 	applicants,
@@ -149,6 +151,7 @@ function landlordDataDeletes(db: Database, accountId: string) {
 		lettings,
 		// Before the tasks they paid for.
 		expenses,
+		otherBookings,
 		tasks,
 		serviceProviders,
 		insurancePolicies,
@@ -169,6 +172,7 @@ function landlordDataDeletes(db: Database, accountId: string) {
 		matchingRules,
 		paymentReminders,
 		payments,
+		contraAccounts,
 		depositTransactions,
 		depositSettlements,
 		handoverProtocols,

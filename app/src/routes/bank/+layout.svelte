@@ -16,6 +16,7 @@
 		{ href: '/bank', label: 'Umsätze' },
 		{ href: '/bank/import', label: 'Import' },
 		{ href: '/bank/regeln', label: 'Regeln' },
+		{ href: '/bank/gegenkonten', label: 'Gegenkonten' },
 		{ href: '/bank/konten', label: 'Konten' }
 	];
 
@@ -23,6 +24,8 @@
 		switch (page.url.pathname) {
 			case '/bank/regeln':
 				return { href: '#regel-anlegen', label: 'Regel anlegen' };
+			case '/bank/gegenkonten':
+				return { href: '#gegenkonto-anlegen', label: 'Gegenkonto anlegen' };
 			case '/bank/konten':
 				// Only the landlord manages bank accounts; a co-manager sees no form there.
 				return (page.data as { ownerOnly?: boolean }).ownerOnly

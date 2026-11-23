@@ -545,6 +545,11 @@ export const depositTransactions = sqliteTable(
 		settlementId: text('settlement_id').references(() => depositSettlements.id, {
 			onDelete: 'no action'
 		}),
+		/** The Gegenkonto of kind deposit, optional; no delete action, as for payments. */
+		contraAccountId: text('contra_account_id').references(
+			(): AnySQLiteColumn => contraAccounts.id,
+			{ onDelete: 'no action' }
+		),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -553,7 +558,8 @@ export const depositTransactions = sqliteTable(
 		uniqueIndex('deposit_transactions_bank_transaction_unique')
 			.on(table.bankTransactionId)
 			.where(sql`${table.bankTransactionId} is not null`),
-		index('deposit_transactions_settlement_id_idx').on(table.settlementId)
+		index('deposit_transactions_settlement_id_idx').on(table.settlementId),
+		index('deposit_transactions_contra_account_id_idx').on(table.contraAccountId)
 	]
 );
 
@@ -694,13 +700,22 @@ export const payments = sqliteTable(
 		settlementId: text('settlement_id').references(() => depositSettlements.id, {
 			onDelete: 'no action'
 		}),
+		/**
+		 * The Gegenkonto (e.g. 8005 Mieten Rudolf) the payment was booked to, optional. Added to
+		 * an existing table, so SQLite keeps no delete action; deleting a Gegenkonto clears it first.
+		 */
+		contraAccountId: text('contra_account_id').references(
+			(): AnySQLiteColumn => contraAccounts.id,
+			{ onDelete: 'no action' }
+		),
 		createdAt: createdAt()
 	},
 	(table) => [
 		index('payments_account_id_idx').on(table.accountId),
 		index('payments_lease_id_date_idx').on(table.leaseId, table.date),
 		index('payments_bank_transaction_id_idx').on(table.bankTransactionId),
-		index('payments_settlement_id_idx').on(table.settlementId)
+		index('payments_settlement_id_idx').on(table.settlementId),
+		index('payments_contra_account_id_idx').on(table.contraAccountId)
 	]
 );
 
@@ -750,6 +765,8 @@ export const bankAccounts = sqliteTable(
 		iban: text('iban').notNull(),
 		bic: text('bic'),
 		holder: text('holder').notNull(),
+		/** The account number of the bank account in the landlord's bookkeeping, e.g. „1200“. */
+		ledgerNumber: text('ledger_number'),
 		createdAt: createdAt()
 	},
 	(table) => [uniqueIndex('bank_accounts_iban_unique').on(table.accountId, table.iban)]
@@ -860,15 +877,22 @@ export const bankTransactions = sqliteTable(
 export const matchingFields = ['counterpartIban', 'counterpartName', 'purpose'] as const;
 export type MatchingField = (typeof matchingFields)[number];
 
-/** A rule "transactions whose <field> contains <pattern> belong to this lease". */
+/**
+ * A rule "transactions whose <field> contains <pattern> belong to this lease" or "… are booked to
+ * this Gegenkonto". Exactly one of leaseId and contraAccountId is set.
+ */
 export const matchingRules = sqliteTable(
 	'matching_rules',
 	{
 		id: id(),
 		accountId: accountId(),
-		leaseId: text('lease_id')
-			.notNull()
-			.references(() => leases.id, { onDelete: 'cascade' }),
+		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'cascade' }),
+		contraAccountId: text('contra_account_id').references(
+			(): AnySQLiteColumn => contraAccounts.id,
+			{ onDelete: 'cascade' }
+		),
+		/** What the rule is for, e.g. „Miete Müller“; null for rules from before names. */
+		name: text('name'),
 		field: text('field', { enum: matchingFields }).notNull(),
 		pattern: text('pattern').notNull(),
 		/** Confirmed rules assign automatically on import; others only suggest. */
@@ -877,7 +901,8 @@ export const matchingRules = sqliteTable(
 	},
 	(table) => [
 		index('matching_rules_account_id_idx').on(table.accountId),
-		index('matching_rules_lease_id_idx').on(table.leaseId)
+		index('matching_rules_lease_id_idx').on(table.leaseId),
+		index('matching_rules_contra_account_id_idx').on(table.contraAccountId)
 	]
 );
 
@@ -939,6 +964,11 @@ export const expenses = sqliteTable(
 			(): AnySQLiteColumn => serviceProviders.id,
 			{ onDelete: 'no action' }
 		),
+		/** The Gegenkonto (e.g. 4401 Grundsteuer), optional; no delete action, as for payments. */
+		contraAccountId: text('contra_account_id').references(
+			(): AnySQLiteColumn => contraAccounts.id,
+			{ onDelete: 'no action' }
+		),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -949,7 +979,98 @@ export const expenses = sqliteTable(
 			.on(table.bankTransactionId)
 			.where(sql`${table.bankTransactionId} is not null`),
 		index('expenses_property_id_idx').on(table.propertyId),
-		index('expenses_unit_id_idx').on(table.unitId)
+		index('expenses_unit_id_idx').on(table.unitId),
+		index('expenses_contra_account_id_idx').on(table.contraAccountId)
+	]
+);
+
+/**
+ * What a Gegenkonto books to. The lease kinds take payments of a tenant: rent = the Kaltmiete
+ * (Mieteinnahmen), operating_costs = the Betriebskostenvorauszahlungen (Nebenkosten),
+ * statement_balance = a Nachzahlung or Guthaben of a Betriebskostenabrechnung (Nebenkosten
+ * Vorjahr); deposit = Kautionen. expense = an Ausgabe of its category. The rest are other
+ * bookings, which stay out of the Auswertung and the Anlage V: capital_income = Kapitalerträge
+ * such as interest on the Rücklage, private = Privatentnahme or Privateinlage, other_income = any
+ * other money received.
+ */
+export const contraAccountKinds = [
+	'rent',
+	'operating_costs',
+	'statement_balance',
+	'deposit',
+	'expense',
+	'capital_income',
+	'private',
+	'other_income'
+] as const;
+export type ContraAccountKind = (typeof contraAccountKinds)[number];
+
+/** The kinds a payment of a tenant is booked to, picked by the lease's property. */
+export const paymentContraAccountKinds = ['rent', 'operating_costs', 'statement_balance'] as const;
+export type PaymentContraAccountKind = (typeof paymentContraAccountKinds)[number];
+
+/** The kinds booked as an other booking rather than a payment or an expense. */
+export const otherBookingKinds = ['capital_income', 'private', 'other_income'] as const;
+export type OtherBookingKind = (typeof otherBookingKinds)[number];
+
+/**
+ * Gegenkonto: the landlord's own account of their bookkeeping, e.g. „4401 Grundsteuer“ or
+ * „8005 Mieten Rudolf“, that a bank transaction is booked to. The number is the landlord's own
+ * and optional. An expense account carries the expense category; any account may name the
+ * property it belongs to, which a booking then defaults to.
+ */
+export const contraAccounts = sqliteTable(
+	'contra_accounts',
+	{
+		id: id(),
+		accountId: accountId(),
+		number: text('number'),
+		name: text('name').notNull(),
+		kind: text('kind', { enum: contraAccountKinds }).notNull(),
+		/** Set for kind expense only. */
+		expenseCategory: text('expense_category', { enum: expenseCategories }),
+		propertyId: text('property_id').references(() => properties.id, { onDelete: 'set null' }),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('contra_accounts_account_id_idx').on(table.accountId),
+		uniqueIndex('contra_accounts_number_unique')
+			.on(table.accountId, table.number)
+			.where(sql`${table.number} is not null`),
+		index('contra_accounts_property_id_idx').on(table.propertyId)
+	]
+);
+
+/**
+ * Sonstige Buchung: a bank transaction booked neither to a lease nor as an expense, e.g. interest
+ * received (capital_income) or money the landlord took out for themselves (private). Amount is
+ * signed as on the bank statement: positive = received.
+ */
+export const otherBookings = sqliteTable(
+	'other_bookings',
+	{
+		id: id(),
+		accountId: accountId(),
+		kind: text('kind', { enum: otherBookingKinds }).notNull(),
+		contraAccountId: text('contra_account_id').references(() => contraAccounts.id, {
+			// Deleting a Gegenkonto clears it first, in the same batch.
+			onDelete: 'no action'
+		}),
+		propertyId: text('property_id').references(() => properties.id, { onDelete: 'set null' }),
+		date: text('date').notNull(),
+		amount: integer('amount').notNull(),
+		description: text('description').notNull().default(''),
+		/** No delete action, as for payments. */
+		bankTransactionId: text('bank_transaction_id')
+			.notNull()
+			.references(() => bankTransactions.id, { onDelete: 'no action' }),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('other_bookings_account_id_date_idx').on(table.accountId, table.date),
+		uniqueIndex('other_bookings_bank_transaction_unique').on(table.bankTransactionId),
+		index('other_bookings_contra_account_id_idx').on(table.contraAccountId),
+		index('other_bookings_property_id_idx').on(table.propertyId)
 	]
 );
 

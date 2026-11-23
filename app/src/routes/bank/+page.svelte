@@ -9,7 +9,12 @@
 	import { formatDate } from '#lib/dates.ts';
 	import { formatIban } from '#lib/domain/bank-matching.ts';
 	import { pluralize } from '#lib/format.ts';
-	import { bankTransactionStatusLabels, expenseCategoryLabels } from '#lib/labels.ts';
+	import {
+		bankTransactionStatusLabels,
+		contraAccountKindShortLabels,
+		expenseCategoryLabels,
+		otherBookingKindLabels
+	} from '#lib/labels.ts';
 	import { formatCents } from '#lib/money.ts';
 	import type { PageProps } from './$types';
 
@@ -44,7 +49,22 @@
 	const expenseErrors = $derived(
 		form && 'expenseErrors' in form ? (form.expenseErrors as Record<string, string>) : undefined
 	);
+	const otherErrors = $derived(
+		form && 'otherErrors' in form ? (form.otherErrors as Record<string, string>) : undefined
+	);
 	const leases = $derived(new Map(data.leases.map((lease) => [lease.id, lease])));
+	const contraAccounts = $derived(
+		new Map(data.contraAccounts.map((account) => [account.id, account]))
+	);
+	const expenseAccounts = $derived(
+		data.contraAccounts.filter((account) => account.kind === 'expense')
+	);
+	const otherKinds = new Set<string>(['capital_income', 'private', 'other_income']);
+	const otherAccounts = $derived(
+		data.contraAccounts.filter((account) => otherKinds.has(account.kind))
+	);
+	const otherKindEntries = Object.entries(otherBookingKindLabels);
+	const properties = $derived(data.scopes.map((group) => ({ id: group.id, label: group.label })));
 
 	const filters = [
 		{ status: 'unmatched', label: bankTransactionStatusLabels.unmatched },
@@ -83,10 +103,61 @@
 	 */
 	function expenseValue(
 		transaction: (typeof data.transactions)[number],
-		name: 'category' | 'scope' | 'serviceProviderId'
+		name: 'category' | 'scope' | 'serviceProviderId' | 'contraAccountId'
 	): string {
 		if (formId === transaction.id) return values?.[name] ?? '';
+		const suggested = transaction.contraSuggestion
+			? contraAccounts.get(transaction.contraSuggestion)
+			: undefined;
+		if (suggested?.kind === 'expense') {
+			if (name === 'contraAccountId') return suggested.id;
+			if (name === 'category') return suggested.expenseCategory ?? '';
+			if (name === 'scope' && suggested.propertyId) return `property:${suggested.propertyId}`;
+		}
 		return transaction.expensePreset?.[name] ?? '';
+	}
+
+	/** A field of the other booking form: what was typed before an error, else the suggestion. */
+	function otherValue(
+		transaction: (typeof data.transactions)[number],
+		name: 'contraAccountId' | 'kind' | 'propertyId'
+	): string {
+		if (formId === transaction.id) return values?.[name] ?? '';
+		const suggested = transaction.contraSuggestion
+			? contraAccounts.get(transaction.contraSuggestion)
+			: undefined;
+		if (!suggested || !otherKinds.has(suggested.kind)) return '';
+		if (name === 'contraAccountId') return suggested.id;
+		if (name === 'kind') return suggested.kind;
+		return suggested.propertyId ?? '';
+	}
+
+	/**
+	 * Choosing a Gegenkonto in the expense form fills in its category and property, so the landlord
+	 * sees what is booked. Without JavaScript the server does the same for empty fields.
+	 */
+	function applyContraAccount(event: Event & { currentTarget: HTMLSelectElement }) {
+		const account = contraAccounts.get(event.currentTarget.value);
+		const fields = event.currentTarget.form?.elements;
+		if (!account || !fields) return;
+		const category = fields.namedItem('category');
+		const scope = fields.namedItem('scope');
+		if (category instanceof HTMLSelectElement && account.expenseCategory) {
+			category.value = account.expenseCategory;
+		}
+		if (scope instanceof HTMLSelectElement) {
+			scope.value = account.propertyId ? `property:${account.propertyId}` : '';
+		}
+	}
+
+	/** Which form leads an open row: a Gegenkonto rule's kind, else rent or expense as before. */
+	function leadingForm(transaction: Transaction): 'rent' | 'expense' | 'other' {
+		const suggested = transaction.contraSuggestion
+			? contraAccounts.get(transaction.contraSuggestion)
+			: undefined;
+		if (suggested && otherKinds.has(suggested.kind)) return 'other';
+		if (suggested?.kind === 'expense') return 'expense';
+		return expenseFirst(transaction) ? 'expense' : 'rent';
 	}
 
 	function expenseDescription(transaction: (typeof data.transactions)[number]): string {
@@ -124,12 +195,23 @@
 		transaction: (typeof data.transactions)[number],
 		assignment: (typeof data.transactions)[number]['assignments'][number]
 	): string {
-		const kind = { rent: 'Miete', deposit: 'Kaution', expense: 'Ausgabe' }[assignment.kind];
+		const contra =
+			'contraAccountId' in assignment && assignment.contraAccountId
+				? contraAccounts.get(assignment.contraAccountId)
+				: undefined;
+		const kind = contra
+			? contraAccountKindShortLabels[contra.kind]
+			: { rent: 'Miete', deposit: 'Kaution', expense: 'Ausgabe', other: 'Sonstige Buchung' }[
+					assignment.kind
+				];
 		const share =
 			transaction.assignments.length > 1 ? ` ${formatCents(Math.abs(assignment.amount))}` : '';
 		const where =
-			assignment.kind === 'expense' ? assignment.scope : leases.get(assignment.leaseId)?.property;
-		return where ? `${kind}${share} · ${where}` : `${kind}${share}`;
+			assignment.kind === 'expense' || assignment.kind === 'other'
+				? assignment.scope
+				: leases.get(assignment.leaseId)?.property;
+		const parts = [`${kind}${share}`, contra?.label, where].filter(Boolean);
+		return parts.join(' · ');
 	}
 </script>
 
@@ -264,6 +346,33 @@
 		{#if transaction.expensePreset}
 			<p class="muted small preset">Vorbelegt wie die letzte Ausgabe an diesen Empfänger.</p>
 		{/if}
+		{#if expenseAccounts.length > 0}
+			<label>
+				Gegenkonto
+				<select
+					name="contraAccountId"
+					onchange={applyContraAccount}
+					aria-invalid={formId === transaction.id && expenseErrors?.contraAccountId
+						? 'true'
+						: undefined}
+				>
+					<option value="" selected={expenseValue(transaction, 'contraAccountId') === ''}>
+						– ohne –
+					</option>
+					{#each expenseAccounts as account (account.id)}
+						<option
+							value={account.id}
+							selected={expenseValue(transaction, 'contraAccountId') === account.id}
+						>
+							{account.label}
+						</option>
+					{/each}
+				</select>
+				{#if formId === transaction.id && expenseErrors?.contraAccountId}
+					<span class="error">{expenseErrors.contraAccountId}</span>
+				{/if}
+			</label>
+		{/if}
 		<label>
 			Kategorie
 			<select
@@ -366,6 +475,111 @@
 				</button>
 			{/if}
 		</div>
+	</form>
+{/snippet}
+
+{#snippet otherForm(transaction: Transaction, primary: boolean)}
+	<form
+		method="POST"
+		action={action('other')}
+		class="assign"
+		use:enhance={submitting(transaction.id)}
+	>
+		<input type="hidden" name="id" value={transaction.id} />
+		{#if otherAccounts.length > 0}
+			<label>
+				Gegenkonto
+				<select
+					name="contraAccountId"
+					aria-invalid={formId === transaction.id && otherErrors?.contraAccountId
+						? 'true'
+						: undefined}
+				>
+					<option value="" selected={otherValue(transaction, 'contraAccountId') === ''}>
+						– nach Art –
+					</option>
+					{#each otherAccounts as account (account.id)}
+						<option
+							value={account.id}
+							selected={otherValue(transaction, 'contraAccountId') === account.id}
+						>
+							{account.label}
+						</option>
+					{/each}
+				</select>
+				{#if formId === transaction.id && otherErrors?.contraAccountId}
+					<span class="error">{otherErrors.contraAccountId}</span>
+				{/if}
+			</label>
+		{/if}
+		<label>
+			Art{otherAccounts.length > 0 ? ' (ohne Gegenkonto)' : ''}
+			<select
+				name="kind"
+				aria-invalid={formId === transaction.id && otherErrors?.kind ? 'true' : undefined}
+			>
+				<option value="" selected={otherValue(transaction, 'kind') === ''}>– bitte wählen –</option>
+				{#each otherKindEntries as [value, label] (value)}
+					<option {value} selected={otherValue(transaction, 'kind') === value}>{label}</option>
+				{/each}
+			</select>
+			{#if formId === transaction.id && otherErrors?.kind}
+				<span class="error">{otherErrors.kind}</span>
+			{/if}
+		</label>
+		{#if properties.length > 0}
+			<label>
+				Objekt
+				<select name="propertyId">
+					<option value="" selected={otherValue(transaction, 'propertyId') === ''}>
+						– keins –
+					</option>
+					{#each properties as property (property.id)}
+						<option
+							value={property.id}
+							selected={otherValue(transaction, 'propertyId') === property.id}
+						>
+							{property.label}
+						</option>
+					{/each}
+				</select>
+				{#if formId === transaction.id && otherErrors?.propertyId}
+					<span class="error">{otherErrors.propertyId}</span>
+				{/if}
+			</label>
+		{/if}
+		<label>
+			Beschreibung
+			<input
+				name="description"
+				maxlength="200"
+				defaultValue={formId === transaction.id
+					? (values?.description ?? '')
+					: transaction.purpose.slice(0, 200)}
+			/>
+		</label>
+		<div class="row buttons">
+			<button
+				type="submit"
+				class={primary ? undefined : 'secondary'}
+				disabled={pending === transaction.id}
+			>
+				Buchen
+			</button>
+			{#if primary}
+				<button
+					type="submit"
+					class="secondary"
+					formaction={action('ignore')}
+					disabled={pending === transaction.id}
+				>
+					Ignorieren
+				</button>
+			{/if}
+		</div>
+		<p class="muted small hint">
+			Kapitalerträge, Privatentnahmen und -einlagen zählen nicht als Mieteinnahme oder Ausgabe.
+		</p>
 	</form>
 {/snippet}
 
@@ -476,12 +690,16 @@
 						<ul class="assignments">
 							{#each transaction.assignments as assignment (assignment.id)}
 								{@const lease =
-									assignment.kind === 'expense' ? undefined : leases.get(assignment.leaseId)}
+									assignment.kind === 'expense' || assignment.kind === 'other'
+										? undefined
+										: leases.get(assignment.leaseId)}
 								<li>
 									<span class="target"
 										>{assignment.kind === 'expense'
 											? expenseCategoryLabels[assignment.category]
-											: (lease?.unit ?? 'Unbekannter Mietvertrag')}</span
+											: assignment.kind === 'other'
+												? otherBookingKindLabels[assignment.otherKind]
+												: (lease?.unit ?? 'Unbekannter Mietvertrag')}</span
 									>
 									<span class="muted small">{assignmentDetail(transaction, assignment)}</span>
 								</li>
@@ -502,7 +720,7 @@
 								label="Zuordnung aufheben"
 								tone="secondary"
 								small
-								message="Zuordnung aufheben? Die gebuchten Zahlungen, Kautionsbewegungen oder Ausgaben werden gelöscht."
+								message="Zuordnung aufheben? Die gebuchten Zahlungen, Kautionsbewegungen, Ausgaben oder sonstigen Buchungen werden gelöscht."
 							>
 								<input type="hidden" name="id" value={transaction.id} />
 							</ConfirmButton>
@@ -523,21 +741,37 @@
 				</div>
 
 				{#if transaction.status === 'unmatched'}
+					{@const lead = leadingForm(transaction)}
 					<div class="work">
-						{#if expenseFirst(transaction)}
+						{#if lead === 'rent'}
+							{@render rentForm(transaction, true)}
+						{:else if lead === 'expense'}
 							{@render expenseForm(transaction, true)}
+						{:else}
+							{@render otherForm(transaction, true)}
+						{/if}
+						{#if lead !== 'rent'}
 							<details class="alternative" open={formId === transaction.id && errors !== undefined}>
 								<summary>Stattdessen einem Mietvertrag zuordnen</summary>
 								{@render rentForm(transaction, false)}
 							</details>
-						{:else}
-							{@render rentForm(transaction, true)}
+						{/if}
+						{#if lead !== 'expense'}
 							<details
 								class="alternative"
 								open={formId === transaction.id && expenseErrors !== undefined}
 							>
 								<summary>{expenseLabel(transaction)}</summary>
 								{@render expenseForm(transaction, false)}
+							</details>
+						{/if}
+						{#if lead !== 'other'}
+							<details
+								class="alternative"
+								open={formId === transaction.id && otherErrors !== undefined}
+							>
+								<summary>Kapitalertrag, Privat oder sonstige Einnahme buchen</summary>
+								{@render otherForm(transaction, false)}
 							</details>
 						{/if}
 					</div>

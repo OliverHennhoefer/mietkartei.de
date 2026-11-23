@@ -263,3 +263,79 @@ describe('0057_push_channels', () => {
 		expect(db.prepare('select id from notification_deliveries').all()).toEqual([{ id: 'd1' }]);
 	});
 });
+
+describe('0064_contra_accounts', () => {
+	it('keeps the matching rules, names them after their unit and lets them name a Gegenkonto', () => {
+		const db = new Sqlite(':memory:');
+		db.pragma('foreign_keys = ON');
+		for (const file of files.filter((name) => name < '0064')) apply(db, file);
+		const insert = (table: string, row: Record<string, string | number>) =>
+			db
+				.prepare(
+					`insert into ${table} (${Object.keys(row).join(', ')}) values (${Object.keys(row)
+						.map(() => '?')
+						.join(', ')})`
+				)
+				.run(...Object.values(row));
+		insert('accounts', { id: 'a', name: 'A' });
+		insert('properties', {
+			id: 'p',
+			account_id: 'a',
+			name: 'Haus',
+			street: 'Weg 1',
+			postal_code: '12345',
+			city: 'Ort'
+		});
+		insert('units', {
+			id: 'u',
+			account_id: 'a',
+			property_id: 'p',
+			name: 'EG links',
+			kind: 'apartment'
+		});
+		insert('leases', {
+			id: 'l',
+			account_id: 'a',
+			unit_id: 'u',
+			start_date: '2025-01-01',
+			base_rent: 60000
+		});
+		insert('matching_rules', {
+			id: 'r',
+			account_id: 'a',
+			lease_id: 'l',
+			field: 'counterpartIban',
+			pattern: 'DE12',
+			confirmed: 1
+		});
+		apply(
+			db,
+			files.find((name) => name.startsWith('0064'))!
+		);
+		expect(
+			db
+				.prepare('select id, lease_id, contra_account_id, name, confirmed from matching_rules')
+				.all()
+		).toEqual([
+			{ id: 'r', lease_id: 'l', contra_account_id: null, name: 'Miete EG links', confirmed: 1 }
+		]);
+		insert('contra_accounts', {
+			id: 'c',
+			account_id: 'a',
+			number: '4403',
+			name: 'Wasser',
+			kind: 'expense'
+		});
+		insert('matching_rules', {
+			id: 'r2',
+			account_id: 'a',
+			contra_account_id: 'c',
+			field: 'counterpartName',
+			pattern: 'Stadtwerke'
+		});
+		expect(db.pragma('foreign_key_check')).toEqual([]);
+		// Deleting the lease still takes its rules along.
+		db.exec(`delete from leases where id = 'l'`);
+		expect(db.prepare('select id from matching_rules').all()).toEqual([{ id: 'r2' }]);
+	});
+});

@@ -1,5 +1,5 @@
 import { today } from '../../dates';
-import { suggestLease } from '../../domain/bank-matching';
+import { suggestContraAccount, suggestLease } from '../../domain/bank-matching';
 import { loadAnalysis } from '../analysis';
 import { listAssociationStatements } from '../association-statements';
 import { applyCategoryDefaults } from '../../domain/operating-costs';
@@ -8,9 +8,11 @@ import { repeatOptions } from '../../task-templates';
 import type { ApiCaller } from '../api-keys';
 import type { AuditContext } from '../audit';
 import type { Database } from '../db';
+import { listContraAccounts } from '../bank/contra-accounts';
 import { listRules } from '../bank/rules';
 import {
 	assignExpense,
+	assignOther,
 	assignTransaction,
 	getTransaction,
 	leaseByIban,
@@ -20,6 +22,8 @@ import {
 import {
 	bankTransactionStatuses,
 	expenseCategories,
+	otherBookingKinds,
+	type OtherBookingKind,
 	taskCategories,
 	type ApiKeyScope,
 	type BankTransactionStatus,
@@ -167,11 +171,22 @@ const expenseFields = {
 
 /** The answer to an assignment: what happened, or why nothing did. */
 function assignmentResult(
-	outcome: 'assigned' | 'missing' | 'not-open' | 'unknown-lease' | 'amount-mismatch',
+	outcome:
+		| 'assigned'
+		| 'missing'
+		| 'not-open'
+		| 'unknown-lease'
+		| 'amount-mismatch'
+		| 'unknown-contra-account'
+		| 'unknown-property',
 	transactionId: string
 ) {
 	if (outcome === 'missing') notFound('Bank transaction');
 	if (outcome === 'unknown-lease') notFound('Lease');
+	if (outcome === 'unknown-property') notFound('Property');
+	if (outcome === 'unknown-contra-account') {
+		notFound('Contra account (Gegenkonto) of a fitting kind');
+	}
 	if (outcome === 'not-open') {
 		throw new ApiError(409, 'not_open', 'The transaction is already assigned or ignored.');
 	}
@@ -623,7 +638,7 @@ export const operations: Operation[] = [
 	},
 	{
 		name: 'list_bank_transactions',
-		description: `Lists imported bank transactions (Umsätze), newest first, by default the open ones still to assign; page with offset or narrow by booking date. Positive amounts came in, negative ones went out. An open one carries suggestedLeaseId when a rule, the IBAN, a tenant's name or a unit's name points to a lease. Assign with assign_bank_transaction or assign_bank_transaction_as_expense. ${AMOUNTS}`,
+		description: `Lists imported bank transactions (Umsätze), newest first, by default the open ones still to assign; page with offset or narrow by booking date. Positive amounts came in, negative ones went out. An open one carries suggestedLeaseId when a rule, the IBAN, a tenant's name or a unit's name points to a lease, or suggestedContraAccountId when a rule points to a Gegenkonto. Assign with assign_bank_transaction, assign_bank_transaction_as_expense or assign_bank_transaction_as_other. ${AMOUNTS}`,
 		method: 'GET',
 		path: '/bank-transactions',
 		scope: 'read',
@@ -672,7 +687,9 @@ export const operations: Operation[] = [
 					suggestedLeaseId:
 						row.status === 'unmatched'
 							? (suggestLease(row, { rules, leaseByIban: byIban, leases: hints })?.leaseId ?? null)
-							: null
+							: null,
+					suggestedContraAccountId:
+						row.status === 'unmatched' ? (suggestContraAccount(row, rules) ?? null) : null
 				})),
 				more: listed.more
 			};
@@ -1000,7 +1017,7 @@ export const operations: Operation[] = [
 	{
 		name: 'assign_bank_transaction',
 		description:
-			'Assigns an open bank transaction in full to one lease: as rent (target "rent", the default: a payment on the Mietkonto) or as a Kaution movement (target "deposit"). Remembers the payer for the next import, as an assignment on the page does. Split payments are assigned in the app.',
+			'Assigns an open bank transaction in full to one lease: as rent (target "rent", the default: a payment on the Mietkonto) or as a Kaution movement (target "deposit"). Rent is booked to the Gegenkonten of the lease\'s property, split into Kaltmiete and Nebenkosten when the landlord keeps both. Remembers the payer for the next import, as an assignment on the page does. Split payments are assigned in the app.',
 		method: 'POST',
 		path: '/bank-transactions/{id}/assign',
 		scope: 'write',
@@ -1031,27 +1048,76 @@ export const operations: Operation[] = [
 	{
 		name: 'assign_bank_transaction_as_expense',
 		description:
-			'Books an open bank transaction as an expense (Ausgabe): an outgoing one as money paid out, an incoming one as a refund that lowers the category’s costs. For a unit, a property or (with neither) the whole portfolio.',
+			"Books an open bank transaction as an expense (Ausgabe): an outgoing one as money paid out, an incoming one as a refund that lowers the category’s costs. For a unit, a property or (with neither) the whole portfolio. With contraAccountId (a Gegenkonto of kind expense, see list_contra_accounts) the category may be left out and the property defaults to the Gegenkonto's; the payee is then remembered for the next import.",
 		method: 'POST',
 		path: '/bank-transactions/{id}/expense',
 		scope: 'write',
 		readOnly: false,
-		input: schema({ id: id('bank transaction'), ...expenseFields }, [
-			'id',
-			'category',
-			'description'
-		]),
+		input: schema(
+			{
+				id: id('bank transaction'),
+				...expenseFields,
+				contraAccountId: { type: 'string', description: 'A Gegenkonto of kind expense.' }
+			},
+			['id', 'description']
+		),
 		async run({ db, caller }, input) {
 			const description = String(input.description);
+			if (!input.category && !input.contraAccountId) {
+				invalid('Pass "category" or "contraAccountId".');
+			}
 			const outcome = await assignExpense(db, auditContextOf(caller), String(input.id), {
-				category: input.category as ExpenseCategory,
+				category: (input.category as ExpenseCategory | undefined) ?? null,
 				scope: expenseScope(input),
 				description,
-				serviceProviderId: (input.serviceProviderId as string | undefined) ?? null
+				serviceProviderId: (input.serviceProviderId as string | undefined) ?? null,
+				contraAccountId: (input.contraAccountId as string | undefined) ?? null
 			});
 			if (outcome === 'unknown-scope') notFound('Property or unit');
 			if (outcome === 'unknown-service-provider') notFound('Service provider');
 			return assignmentResult(outcome, String(input.id));
+		}
+	},
+	{
+		name: 'assign_bank_transaction_as_other',
+		description:
+			'Books an open bank transaction that is neither rent nor an expense: interest received (kind capital_income), money the landlord took out or put in (private) or other income (other_income), either by kind or by contraAccountId, a Gegenkonto of one of those kinds (see list_contra_accounts). These stay out of the analysis and the tax overview.',
+		method: 'POST',
+		path: '/bank-transactions/{id}/other',
+		scope: 'write',
+		readOnly: false,
+		input: schema(
+			{
+				id: id('bank transaction'),
+				kind: { type: 'string', enum: otherBookingKinds, description: 'Without contraAccountId.' },
+				contraAccountId: { type: 'string', description: 'The Gegenkonto; sets the kind.' },
+				propertyId: { type: 'string', description: 'The property it concerns, optional.' },
+				description: { type: 'string', maxLength: 200, description: 'Optional.' }
+			},
+			['id']
+		),
+		async run({ db, caller }, input) {
+			if (!input.kind && !input.contraAccountId) invalid('Pass "kind" or "contraAccountId".');
+			const outcome = await assignOther(db, auditContextOf(caller), String(input.id), {
+				kind: (input.kind as OtherBookingKind | undefined) ?? null,
+				contraAccountId: (input.contraAccountId as string | undefined) ?? null,
+				propertyId: (input.propertyId as string | undefined) ?? null,
+				description: String(input.description ?? '').slice(0, 200)
+			});
+			return assignmentResult(outcome, String(input.id));
+		}
+	},
+	{
+		name: 'list_contra_accounts',
+		description:
+			'Lists the Gegenkonten: the landlord\'s own accounts of their bookkeeping (e.g. "4401 Grundsteuer", "8005 Mieten Rudolf"), with number, name, kind (rent, operating_costs, statement_balance, deposit, expense, capital_income, private, other_income), the expense category of an expense account and the property it belongs to.',
+		method: 'GET',
+		path: '/contra-accounts',
+		scope: 'read',
+		readOnly: true,
+		input: schema({}),
+		async run({ db, caller }) {
+			return listContraAccounts(db, caller.user.accountId);
 		}
 	}
 ];

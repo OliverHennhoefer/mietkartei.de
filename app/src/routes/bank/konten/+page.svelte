@@ -17,6 +17,7 @@
 	const errors = $derived(form && 'errors' in form ? form.errors : undefined);
 	const values = $derived(form && 'values' in form ? form.values : undefined);
 	const message = $derived(form && 'message' in form ? form.message : undefined);
+	const ledgerErrors = $derived(form && 'ledgerErrors' in form ? form.ledgerErrors : undefined);
 	const synced = $derived(form && 'synced' in form ? form.synced : undefined);
 	// ?bearbeiten=<id> opens a bank account in its dialog.
 	const opened = $derived(
@@ -28,6 +29,7 @@
 		iban: byText((account) => account.iban),
 		bic: byText((account) => account.bic),
 		holder: byText((account) => account.holder),
+		ledgerNumber: byText((account) => account.ledgerNumber ?? ''),
 		transactions: byNumber((account) => account.transactionCount)
 	});
 
@@ -79,6 +81,7 @@
 				<thead>
 					<tr>
 						<SortHeader {sort} key="name">Bezeichnung</SortHeader>
+						<SortHeader {sort} key="ledgerNumber">Konto-Nr.</SortHeader>
 						<SortHeader {sort} key="iban">IBAN</SortHeader>
 						<SortHeader {sort} key="bic">BIC</SortHeader>
 						<SortHeader {sort} key="holder">Kontoinhaber</SortHeader>
@@ -92,6 +95,7 @@
 							<td>
 								<a href="?bearbeiten={account.id}" data-sveltekit-reset="false">{account.name}</a>
 							</td>
+							<td>{account.ledgerNumber ?? '–'}</td>
 							<td class="iban">{formatIban(account.iban)}</td>
 							<td>{account.bic ?? '–'}</td>
 							<td>{account.holder}</td>
@@ -182,6 +186,20 @@
 				required
 			/>
 		</Field>
+		<Field
+			label="Kontonummer in der Buchhaltung (optional)"
+			error={errors?.ledgerNumber}
+			hint="Das Konto dieser Bankverbindung in deinem Kontenplan, etwa 1200. Der DATEV-Export bucht jeden Umsatz von diesem Konto auf sein Gegenkonto."
+		>
+			<input
+				name="ledgerNumber"
+				inputmode="numeric"
+				maxlength="20"
+				defaultValue={values?.ledgerNumber ?? ''}
+				placeholder="z. B. 1200"
+				aria-invalid={errors?.ledgerNumber ? 'true' : undefined}
+			/>
+		</Field>
 		<div class="form-actions form-wide">
 			<button type="submit">Bankverbindung anlegen</button>
 		</div>
@@ -195,6 +213,7 @@
 	{#key opened.id}
 		<EditDialog
 			title={opened.name}
+			action={data.ownerOnly ? undefined : '?/ledger'}
 			deleteAction="?/delete"
 			deleteMessage="Bankverbindung „{opened.name}“ mit allen importierten Umsätzen löschen?"
 			close="/bank/konten"
@@ -211,6 +230,21 @@
 				<dt>Umsätze</dt>
 				<dd>{opened.transactionCount}</dd>
 			</dl>
+			{#if !data.ownerOnly}
+				<Field
+					label="Kontonummer in der Buchhaltung"
+					error={ledgerErrors?.ledgerNumber}
+					hint="Das Konto dieser Bankverbindung in deinem Kontenplan, etwa 1200."
+				>
+					<input
+						name="ledgerNumber"
+						inputmode="numeric"
+						maxlength="20"
+						defaultValue={opened.ledgerNumber ?? ''}
+						placeholder="z. B. 1200"
+					/>
+				</Field>
+			{/if}
 		</EditDialog>
 	{/key}
 {/if}

@@ -11,6 +11,8 @@ export type BankAccountInput = {
 	iban: string;
 	bic: string | null;
 	holder: string;
+	/** The account number in the landlord's bookkeeping (e.g. „1200“), for the DATEV export. */
+	ledgerNumber?: string | null;
 };
 
 export function parseBankAccount(form: FormData): ParseResult<BankAccountInput> {
@@ -22,7 +24,15 @@ export function parseBankAccount(form: FormData): ParseResult<BankAccountInput> 
 		parser.fail('bic', 'Bitte gib eine gültige BIC an (8 oder 11 Zeichen).');
 	}
 	const holder = parser.text('holder', { max: 100 });
-	return parser.result(() => ({ name, iban: iban!, bic, holder }));
+	const ledgerNumber = parser.optionalText('ledgerNumber', 20);
+	return parser.result(() => ({ name, iban: iban!, bic, holder, ledgerNumber }));
+}
+
+/** The Kontonummer in der Buchhaltung of an existing bank account; empty clears it. */
+export function parseLedgerNumber(form: FormData): ParseResult<{ ledgerNumber: string | null }> {
+	const parser = new FormParser<{ ledgerNumber: string | null }>(form);
+	const ledgerNumber = parser.optionalText('ledgerNumber', 20);
+	return parser.result(() => ({ ledgerNumber }));
 }
 
 /** The columns the user maps for a file without a preset; raw column names, '' = none. */
@@ -175,20 +185,52 @@ export function parseAssignment(form: FormData, transactionAmount: number): Assi
 	};
 }
 
+/** Exactly one of leaseId and contraAccountId is set. */
 export type RuleInput = {
-	leaseId: string;
+	/** What the rule is for, e.g. „Miete Müller“. */
+	name: string;
+	leaseId: string | null;
+	contraAccountId: string | null;
 	field: MatchingField;
 	pattern: string;
 	/** Confirmed rules assign on import; unconfirmed ones only suggest. */
 	confirmed: boolean;
 };
 
-export function parseRule(form: FormData): ParseResult<RuleInput> {
-	const parser = new FormParser<RuleInput>(form);
-	const leaseId = parser.id('leaseId');
+/** Form fields of a rule: `target` is `lease:<id>` or `contra:<id>`, one select for both. */
+export type RuleFields = {
+	name: string;
+	target: string;
+	field: string;
+	pattern: string;
+	confirmed: string;
+};
+
+export type RuleParseResult =
+	| { ok: true; data: RuleInput }
+	| { ok: false; errors: FieldErrors<RuleFields>; values: Record<string, string> };
+
+export function parseRule(form: FormData): RuleParseResult {
+	const parser = new FormParser<RuleFields>(form);
+	const name = parser.text('name', { max: 100 });
+	const target = parser.raw('target');
+	const match = /^(lease|contra):([\w-]{1,64})$/.exec(target);
+	if (!target) parser.fail('target', 'Bitte wähle einen Eintrag aus.');
+	else if (!match) parser.fail('target', 'Bitte wähle einen gültigen Eintrag aus.');
 	const field = parser.oneOf('field', matchingFieldIds);
 	const pattern = parser.text('pattern', { max: 200 });
 	if (pattern && pattern.length < 2) parser.fail('pattern', 'Mindestens zwei Zeichen.');
 	const confirmed = parser.flag('confirmed');
-	return parser.result(() => ({ leaseId: leaseId!, field: field!, pattern, confirmed }));
+	if (parser.hasErrors) return { ok: false, errors: parser.errors, values: parser.values };
+	return {
+		ok: true,
+		data: {
+			name,
+			leaseId: match![1] === 'lease' ? match![2] : null,
+			contraAccountId: match![1] === 'contra' ? match![2] : null,
+			field: field!,
+			pattern,
+			confirmed
+		}
+	};
 }

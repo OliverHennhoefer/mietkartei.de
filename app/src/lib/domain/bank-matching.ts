@@ -438,13 +438,23 @@ export const matchingFieldLabels: Record<MatchingField, string> = {
 /** The fields a rule may test, in the order the selects list them; the schema's list, client-safe. */
 export const matchingFieldIds = Object.keys(matchingFieldLabels) as MatchingField[];
 
+/** Exactly one of leaseId and contraAccountId is set. */
 export type Rule = {
 	id: string;
-	leaseId: string;
+	leaseId: string | null;
+	contraAccountId: string | null;
 	field: MatchingField;
 	pattern: string;
 	confirmed: boolean;
 };
+
+/** Where a rule or a booking sends money, as one comparable key: `lease:<id>` or `contra:<id>`. */
+export function targetKey(target: {
+	leaseId?: string | null;
+	contraAccountId?: string | null;
+}): string {
+	return target.leaseId ? `lease:${target.leaseId}` : `contra:${target.contraAccountId ?? ''}`;
+}
 
 type Matchable = Pick<BankRow, 'amount' | 'counterpartName' | 'counterpartIban' | 'purpose'>;
 
@@ -464,10 +474,27 @@ export function ruleMatches(
 	return normalizeText(transaction[rule.field]).toLowerCase().includes(pattern);
 }
 
-/** The lease a confirmed rule assigns an incoming amount to on import; first rule wins. */
-export function applyRules(rules: readonly Rule[], transaction: Matchable): string | undefined {
-	if (transaction.amount <= 0) return undefined;
-	return rules.find((rule) => rule.confirmed && ruleMatches(rule, transaction))?.leaseId;
+/**
+ * The confirmed rule that books the transaction on import; the first matching rule wins. A lease
+ * rule takes incoming amounts only (rent); a Gegenkonto rule takes either direction.
+ */
+export function applyRules(rules: readonly Rule[], transaction: Matchable): Rule | undefined {
+	const rule = rules.find(
+		(candidate) => candidate.confirmed && ruleMatches(candidate, transaction)
+	);
+	if (!rule || (rule.leaseId && transaction.amount <= 0)) return undefined;
+	return rule;
+}
+
+/**
+ * The Gegenkonto an open transaction most likely goes to: the first matching rule (unconfirmed
+ * ones too, in creation order) when it is a Gegenkonto rule. A lease rule first means the lease.
+ */
+export function suggestContraAccount(
+	transaction: Matchable,
+	rules: readonly Rule[]
+): string | undefined {
+	return rules.find((rule) => ruleMatches(rule, transaction))?.contraAccountId ?? undefined;
 }
 
 export type SuggestionSource = 'rule' | 'iban' | 'name' | 'unit';
@@ -494,7 +521,7 @@ export function suggestLease(
 	}
 ): { leaseId: string; source: SuggestionSource } | undefined {
 	const rule = context.rules.find((candidate) => ruleMatches(candidate, transaction));
-	if (rule) return { leaseId: rule.leaseId, source: 'rule' };
+	if (rule?.leaseId) return { leaseId: rule.leaseId, source: 'rule' };
 
 	const byIban =
 		transaction.counterpartIban && context.leaseByIban.get(transaction.counterpartIban);
@@ -531,25 +558,30 @@ export type RememberStep =
 	| { kind: 'unconfirm'; ruleIds: string[] };
 
 /**
- * What assigning a transaction does to the rules. Incoming rent on one lease remembers the
- * counterpart with a confirmed rule, so the next transfer assigns on import. A counterpart that
- * pays for more than one lease (the Jobcenter, parents with two flats) must not assign on its
- * own: when the landlord books money a confirmed rule matches anywhere else (another lease, a
- * split, a deposit elsewhere), that rule drops back to a suggestion, and a counterpart whose money
- * went to another lease before gets no rule. Undefined when nothing changes, also when a rule
- * for the lease already matches.
+ * What assigning a transaction does to the rules. Incoming rent on one lease, and any booking to
+ * one Gegenkonto, remembers the counterpart with a confirmed rule, so the next transfer is booked
+ * on import. A counterpart whose money goes to more than one place (the Jobcenter, parents with
+ * two flats, the town taking Grundsteuer and Müll) must not book on its own: when the landlord
+ * books money a confirmed rule matches anywhere else (another lease or Gegenkonto, a split, a
+ * deposit on another lease), that rule drops back to a suggestion, and a
+ * counterpart whose money went elsewhere before gets no rule. Undefined when nothing changes,
+ * also when a rule for the target already matches.
+ *
+ * `targets` are the targetKeys of the booking (two for a split; a deposit names its lease);
+ * `remember` says whether the booking may create a rule: incoming rent or a Gegenkonto, not a
+ * deposit.
  */
 export function rememberStep(
 	transaction: Matchable,
-	assignment: { leaseIds: readonly string[]; rent: boolean },
-	context: { rules: readonly Rule[]; earlierLeaseIds: readonly string[] }
+	assignment: { targets: readonly string[]; remember: boolean },
+	context: { rules: readonly Rule[]; earlierTargets: readonly string[] }
 ): RememberStep | undefined {
-	const single = assignment.leaseIds.length === 1 ? assignment.leaseIds[0] : undefined;
+	const single = assignment.targets.length === 1 ? assignment.targets[0] : undefined;
 	const matching = context.rules.filter((rule) => ruleMatches(rule, transaction));
-	const conflicting = matching.filter((rule) => rule.confirmed && rule.leaseId !== single);
+	const conflicting = matching.filter((rule) => rule.confirmed && targetKey(rule) !== single);
 	if (conflicting.length) return { kind: 'unconfirm', ruleIds: conflicting.map((rule) => rule.id) };
-	if (!single || !assignment.rent || transaction.amount <= 0 || matching.length) return undefined;
-	if (context.earlierLeaseIds.some((id) => id !== single)) return undefined;
+	if (!single || !assignment.remember || matching.length) return undefined;
+	if (context.earlierTargets.some((target) => target !== single)) return undefined;
 	const rule = rememberedRule(transaction);
 	return rule && { kind: 'create', ...rule };
 }
