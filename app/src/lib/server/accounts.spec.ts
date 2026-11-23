@@ -5,14 +5,17 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	addressLines,
+	DEFAULT_ACCOUNT_ID,
 	DELETED_ACCOUNT_DAYS,
 	deleteAccount,
+	ensureDefaultAccount,
 	getLandlord,
 	landlordAddress,
 	redeleteAccounts,
 	resetAccount,
 	updateLandlord
 } from './accounts';
+import { registerUser } from './auth';
 import type { Database } from './db';
 import {
 	accounts,
@@ -34,6 +37,7 @@ import {
 	units,
 	users
 } from './db/schema';
+import { createSqliteDatabase } from './db/sqlite';
 import { storeDocument } from './documents';
 import { createPayment, ensureCharges } from './ledger';
 import { createLease } from './leases';
@@ -257,6 +261,37 @@ describe('deleteAccount', () => {
 		// The demo has no backups and remembers nothing.
 		expect(await deleteAccount(db, 'b', { storage, remember: false })).toBe(true);
 		expect(await db.select().from(deletedAccounts)).toEqual([]);
+	});
+
+	it('keeps a default account that was registered after the previous one was deleted', async () => {
+		const fresh = createSqliteDatabase(':memory:');
+		expect(await registerUser(fresh, 'owner@example.org', 'a-long-password-1')).toMatchObject({
+			ok: true
+		});
+		expect(await deleteAccount(fresh, DEFAULT_ACCOUNT_ID, { storage })).toBe(true);
+		expect(await fresh.select({ id: deletedAccounts.id }).from(deletedAccounts)).toEqual([
+			{ id: DEFAULT_ACCOUNT_ID }
+		]);
+
+		// The next first user gets the default account again, under the remembered id.
+		expect(await registerUser(fresh, 'next@example.org', 'a-long-password-2')).toMatchObject({
+			ok: true
+		});
+		expect(await redeleteAccounts(fresh, { storage })).toBe(0);
+		expect(await fresh.select({ id: accounts.id }).from(accounts)).toEqual([
+			{ id: DEFAULT_ACCOUNT_ID }
+		]);
+		expect(await fresh.select({ email: users.email }).from(users)).toEqual([
+			{ email: 'next@example.org' }
+		]);
+
+		// A default account a restore brought back is still deleted again: it is there before
+		// anyone registers, so its id stays remembered.
+		expect(await deleteAccount(fresh, DEFAULT_ACCOUNT_ID, { storage })).toBe(true);
+		await fresh.insert(accounts).values({ id: DEFAULT_ACCOUNT_ID, name: 'Standardkonto' });
+		await ensureDefaultAccount(fresh);
+		expect(await redeleteAccounts(fresh, { storage })).toBe(1);
+		expect(await fresh.select().from(accounts)).toEqual([]);
 	});
 
 	it('keeps every row and file when the storage fails, so the deletion can be retried', async () => {

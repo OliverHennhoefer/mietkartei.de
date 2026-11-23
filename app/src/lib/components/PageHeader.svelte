@@ -1,23 +1,30 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { page } from '$app/state';
+	import { titleTab, type Tab } from '../tabs';
 
 	// The heading of a page, with an optional line above it (back link), a lead text and actions.
 	let {
 		title,
 		lead,
 		back,
+		tabs,
 		actions
 	}: {
 		title: string;
 		lead?: string;
 		/** A link shown above the title, e.g. `{ href: '/objekte', label: 'Alle Objekte' }`. */
 		back?: { href: string; label: string };
+		/** The tabs below the heading: the current one goes into the page title, "Zähler – Haus". */
+		tabs?: readonly Tab[];
 		actions?: Snippet;
 	} = $props();
+
+	const tab = $derived(tabs && titleTab(tabs, page.url.pathname));
 </script>
 
 <svelte:head>
-	<title>{title} | mietkartei</title>
+	<title>{tab ? `${tab} – ${title}` : title} | mietkartei</title>
 </svelte:head>
 
 <!-- The actions sit at the right of the title, on a phone too, so a page's main action is always

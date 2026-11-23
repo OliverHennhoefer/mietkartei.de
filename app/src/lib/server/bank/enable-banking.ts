@@ -85,6 +85,9 @@ export async function applicationToken(
 	return `${input}.${base64Url(new Uint8Array(signature))}`;
 }
 
+/** Enable Banking asks the bank while it answers, so its calls take longer than most. */
+const TIMEOUT_MS = 20_000;
+
 async function call<T>(
 	method: 'GET' | 'POST' | 'DELETE',
 	path: string,
@@ -97,7 +100,9 @@ async function call<T>(
 			authorization: `Bearer ${token}`,
 			...(body === undefined ? {} : { 'content-type': 'application/json' })
 		},
-		body: body === undefined ? undefined : JSON.stringify(body)
+		body: body === undefined ? undefined : JSON.stringify(body),
+		// A bank that does not answer must not hold the page or the hourly job.
+		signal: AbortSignal.timeout(TIMEOUT_MS)
 	});
 	const text = await response.text();
 	if (!response.ok) {

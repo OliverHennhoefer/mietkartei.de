@@ -1,6 +1,6 @@
 import { asc, eq, sql } from 'drizzle-orm';
 import { findHeaderRow, parseCsv, toRecords } from '../csv';
-import { today, type IsoDate } from '../dates';
+import { dayOf, today, type IsoDate } from '../dates';
 import { halfYearStart, type BaseRate } from '../domain/default-interest';
 import type { Database } from './db';
 import { chunk, rowsPerStatement, runBatch } from './db/batch';
@@ -103,7 +103,7 @@ export type RefreshOptions = { now?: Date; fetcher?: typeof fetch };
  */
 export async function refreshBaseRates(db: Database, options: RefreshOptions = {}): Promise<void> {
 	const now = options.now ?? new Date();
-	const wanted = halfYearStart(now.toISOString().slice(0, 10));
+	const wanted = halfYearStart(dayOf(now));
 	const [current] = await db.select().from(baseRates).where(eq(baseRates.validFrom, wanted));
 	if (current) return;
 	const last = await lastBaseRateFetch(db);

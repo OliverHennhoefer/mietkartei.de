@@ -158,7 +158,7 @@ function landlordLine(landlord: Landlord): string {
 export function privacyNotice(landlord: Landlord): string[] {
 	return [
 		`Verantwortlich für Ihre Angaben ist ${landlordLine(landlord) || 'der Vermieter'}.`,
-		'Ihre Angaben dienen nur der Entscheidung, ob ein Mietvertrag mit Ihnen geschlossen wird (Art. 6 Abs. 1 lit. b DSGVO). Pflicht sind nur Name und Kontaktdaten; ohne die übrigen Angaben kann Ihre Bewerbung aber womöglich nicht berücksichtigt werden.',
+		'Ihre Angaben dienen nur der Entscheidung, ob ein Mietvertrag mit Ihnen geschlossen wird (Art. 6 Abs. 1 lit. b DSGVO). Pflicht sind nur Vor- und Nachname; ohne die übrigen Angaben kann Ihre Bewerbung aber womöglich nicht berücksichtigt werden.',
 		`Der Vermieter speichert die Angaben in der Mietverwaltung mietkartei. Der Betreiber der Software und dessen Hosting-Anbieter verarbeiten sie nur im Auftrag des Vermieters (Art. 28 DSGVO). Kommt kein Mietvertrag zustande, werden Ihre Angaben ${RETENTION_MONTHS} Monate nach der Absage gelöscht; diese Zeit dient nur der Abwehr von Ansprüchen nach dem Allgemeinen Gleichbehandlungsgesetz. Kommt ein Vertrag zustande, übernimmt der Vermieter Name, Geburtsdatum und Kontaktdaten in seine Mieterdaten; die übrigen Angaben werden ${RETENTION_MONTHS} Monate nach Abschluss der Vermietung gelöscht.`,
 		'Sie haben das Recht auf Auskunft, Berichtigung, Löschung und Einschränkung der Verarbeitung sowie auf Widerspruch (Art. 15 bis 21 DSGVO). Wenden Sie sich dazu an den Vermieter. Sie können sich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren.'
 	];

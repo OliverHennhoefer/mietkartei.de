@@ -1,3 +1,19 @@
+<script module lang="ts">
+	// Whether focus last moved by keyboard: Tab sets it, a pointer clears it. One pair of listeners
+	// for all tips of the page.
+	let keyboard = false;
+	if (typeof document !== 'undefined') {
+		document.addEventListener(
+			'keydown',
+			(event) => {
+				if (event.key === 'Tab') keyboard = true;
+			},
+			true
+		);
+		document.addEventListener('pointerdown', () => (keyboard = false), true);
+	}
+</script>
+
 <script lang="ts">
 	// A (?) next to a field title: the help text shows on hover, and on click, tap or Enter until
 	// the next click, Escape or leaving the button. The bubble is positioned against the nearest
@@ -6,11 +22,20 @@
 	// field's label too. The help text is its description.
 	// Tab skips the button, so filling a form goes from field to field. The field's control names
 	// the bubble's `id` in its aria-describedby, so screen readers read the help with the field.
+	// Who tabs into the field sees the help too (WCAG 2.1.1): the bubble then shows above the
+	// title, clear of the control and of a list that opens below it, until the field is left.
 	let { text, id }: { text: string; id: string } = $props();
 	// Pinned by a click or tap; shown while the mouse rests on it. Escape hides both (WCAG 1.4.13).
 	let open = $state(false);
 	let hover = $state(false);
+	// The control this tip describes has the focus, and Tab brought it there.
+	let focused = $state(false);
 	let root: HTMLElement;
+
+	function describes(target: EventTarget | null): boolean {
+		if (!(target instanceof Element)) return false;
+		return (target.getAttribute('aria-describedby') ?? '').split(/\s+/).includes(id);
+	}
 </script>
 
 <svelte:window
@@ -18,13 +43,19 @@
 		if (open && !root.contains(event.target as Node)) open = false;
 	}}
 	onkeydown={(event) => {
-		if (event.key === 'Escape') open = hover = false;
+		if (event.key === 'Escape') open = hover = focused = false;
 	}}
+	onfocusin={(event) => {
+		// Not the (?) itself, which names the bubble as its description too.
+		focused = keyboard && !root.contains(event.target as Node) && describes(event.target);
+	}}
+	onfocusout={() => (focused = false)}
 />
 
 <span
 	class="tip"
-	class:open={open || hover}
+	class:open={open || hover || focused}
+	class:above={focused && !open && !hover}
 	bind:this={root}
 	role="presentation"
 	onpointerenter={(event) => {
@@ -106,5 +137,9 @@
 	}
 	.open .bubble {
 		display: block;
+	}
+	.above .bubble {
+		top: auto;
+		bottom: calc(100% + 0.25rem);
 	}
 </style>

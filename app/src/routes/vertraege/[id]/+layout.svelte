@@ -35,6 +35,7 @@
 <PageHeader
 	title={data.leaseLabel}
 	{lead}
+	{tabs}
 	back={{ href: '/vertraege', label: 'Alle Mietverträge' }}
 />
 

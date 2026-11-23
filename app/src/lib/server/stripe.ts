@@ -59,7 +59,8 @@ export async function stripeRequest<T = Record<string, unknown>>(
 			authorization: `Bearer ${STRIPE_SECRET_KEY}`,
 			'content-type': 'application/x-www-form-urlencoded'
 		},
-		body: method === 'POST' ? body : undefined
+		body: method === 'POST' ? body : undefined,
+		signal: AbortSignal.timeout(15_000)
 	});
 	const text = await response.text();
 	let parsed: unknown;

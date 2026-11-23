@@ -42,7 +42,8 @@ async function call(
 	const event = {
 		request,
 		url,
-		params: { path: url.pathname.slice('/api/v1/'.length) },
+		// Decoded, as SvelteKit hands it to the route.
+		params: { path: decodeURIComponent(url.pathname.slice('/api/v1/'.length)) },
 		locals: { db, user: undefined },
 		getClientAddress: () => options.address ?? '10.0.0.1'
 	} as never;
@@ -96,6 +97,9 @@ describe('/api/v1', () => {
 			error: { code: 'not_found', message: 'Property not found.' }
 		});
 		expect((await call('/nothing')).status).toBe(404);
+		// An id that is no valid percent-encoding once decoded is just an unknown row.
+		expect((await call('/leases/%25')).status).toBe(404);
+		expect((await call('/leases/%25ff/ledger')).status).toBe(404);
 	});
 
 	it('writes with a write key from a JSON body and refuses read keys', async () => {

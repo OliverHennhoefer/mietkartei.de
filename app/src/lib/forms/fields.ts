@@ -2,8 +2,8 @@ import { isIsoDate, isIsoMonth } from '../dates';
 import { parseAmount, type AmountInput } from '../money';
 
 /**
- * The field the app's layout adds to every form a user who types amounts like DATEV submits, see
- * src/routes/+layout.svelte; without JavaScript amounts read with a comma.
+ * The field the server adds to every form a user who types amounts like DATEV submits, from the
+ * user's setting; see markAmountInput in src/hooks.server.ts. A value the browser sent is dropped.
  */
 export const AMOUNT_INPUT_FIELD = 'amountInput';
 

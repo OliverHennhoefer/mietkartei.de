@@ -163,6 +163,30 @@ describe('handle', () => {
 		expect(locals.user).toMatchObject({ id: 'user-a', accountId: 'a', role: 'owner' });
 	});
 
+	it("reads amounts the way the user's setting says, whatever the form sent", async () => {
+		const { token } = await createSession(db, 'user-a');
+		const post = async (form: Record<string, string>) => {
+			const event = routeEvent(db, {
+				url: '/vertraege/neu',
+				form,
+				cookies: new Map([['session', token]]),
+				user: null
+			}) as { request: globalThis.Request };
+			let style: FormDataEntryValue | null = null;
+			const resolve = async () => {
+				style = (await event.request.formData()).get('amountInput');
+				return new Response('ok');
+			};
+			await handle({ event, resolve } as never);
+			return style;
+		};
+		// A comma user cannot switch the reading per form.
+		expect(await post({ baseRent: '60000', amountInput: 'datev' })).toBeNull();
+		await db.update(users).set({ amountInput: 'datev' }).where(eq(users.id, 'user-a'));
+		// Without JavaScript the form carries no marker; the setting still decides.
+		expect(await post({ baseRent: '60000' })).toBe('datev');
+	});
+
 	it("renders the user's colour scheme into the page", async () => {
 		await db.update(users).set({ theme: 'dark' }).where(eq(users.id, 'user-a'));
 		const { token } = await createSession(db, 'user-a');

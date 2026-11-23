@@ -6,7 +6,6 @@
 	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
 	import WebsiteFooter from '#lib/components/WebsiteFooter.svelte';
 	import WebsiteHeader from '#lib/components/WebsiteHeader.svelte';
-	import { AMOUNT_INPUT_FIELD } from '#lib/forms/fields.ts';
 	import { settingsSectionOf, settingsSections } from '#lib/settings.ts';
 	import { viewerWritesOn } from '#lib/viewer-paths.ts';
 	import { goto, preloadData } from '$app/navigation';
@@ -118,15 +117,6 @@
 	// the settings or signing in as someone else without a full page load.
 	$effect(() => {
 		document.documentElement.dataset.theme = data.theme;
-	});
-
-	// A user who types amounts like DATEV: every form tells its action so (forms/fields.ts). The
-	// formdata event does not bubble, hence the capture on the document.
-	$effect(() => {
-		if (data.amountInput !== 'datev') return;
-		const mark = (event: FormDataEvent) => event.formData.set(AMOUNT_INPUT_FIELD, 'datev');
-		document.addEventListener('formdata', mark, true);
-		return () => document.removeEventListener('formdata', mark, true);
 	});
 
 	$effect(() => {
@@ -317,6 +307,24 @@
 	}}
 />
 
+{#snippet accountLinks()}
+	<a
+		href={resolve('/einstellungen/profil')}
+		onclick={(event) => settingsLink(event, '/einstellungen/profil', false)}
+		><Icon name="settings" />Einstellungen</a
+	>
+	<a
+		href="https://docs.mietkartei.de/"
+		target="_blank"
+		rel="noreferrer"
+		aria-label="Hilfe und Dokumentation (neuer Tab)"
+		onclick={() => (accountOpen = false)}><Icon name="help" />Hilfe</a
+	>
+	<form method="POST" action={resolve('/abmelden')}>
+		<button type="submit"><Icon name="logout" />Abmelden</button>
+	</form>
+{/snippet}
+
 <div class="app-shell" class:authenticated={!!data.email}>
 	<a class="skip-link" href="#main-content">Zum Inhalt</a>
 	<!-- Signed out, the pages stand in the website's frame: its header, the way back to the homepage
@@ -366,17 +374,18 @@
 				</div>
 				<div class="nav-footer">
 					<div class="account">
+						<!-- "Konto" for screen readers, in front of the name and address the card shows. -->
 						<button
 							bind:this={accountButton}
 							type="button"
 							class="account-card"
-							aria-label="Konto"
 							aria-expanded={accountOpen}
 							aria-controls="account-menu"
 							onclick={() => (accountOpen = !accountOpen)}
 						>
 							<span class="avatar" aria-hidden="true">{initials}</span>
 							<span class="account-user">
+								<span class="sr-only">Konto:</span>
 								<span class="account-name" title={data.name ?? undefined}
 									>{data.name ?? 'Dein Konto'}</span
 								><span class="account-email" title={data.email}>{data.email}</span>
@@ -385,23 +394,13 @@
 						</button>
 						{#if accountOpen}
 							<div bind:this={accountMenu} id="account-menu" class="account-menu">
-								<a
-									href={resolve('/einstellungen/profil')}
-									onclick={(event) => settingsLink(event, '/einstellungen/profil', false)}
-									><Icon name="settings" />Einstellungen</a
-								>
-								<a
-									href="https://docs.mietkartei.de/"
-									target="_blank"
-									rel="noreferrer"
-									aria-label="Hilfe und Dokumentation (neuer Tab)"
-									onclick={() => (accountOpen = false)}><Icon name="help" />Hilfe</a
-								>
-								<form method="POST" action={resolve('/abmelden')}>
-									<button type="submit"><Icon name="logout" />Abmelden</button>
-								</form>
+								{@render accountLinks()}
 							</div>
 						{/if}
+						<!-- Without JavaScript the card opens nothing, so its links stand under it. -->
+						<noscript>
+							<div class="account-menu static">{@render accountLinks()}</div>
+						</noscript>
 					</div>
 					<p class="nav-version">
 						<a

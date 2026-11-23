@@ -19,7 +19,8 @@ export async function sendMail(db: Database, mail: Mail): Promise<void> {
 					subject: mail.subject,
 					text: mail.text,
 					...(mail.html ? { html: mail.html } : {})
-				})
+				}),
+				signal: AbortSignal.timeout(10_000)
 			});
 			if (!response.ok) {
 				throw new Error(`Mail provider answered ${response.status}: ${await response.text()}`);

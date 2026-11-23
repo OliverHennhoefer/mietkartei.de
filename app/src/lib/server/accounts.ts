@@ -1,4 +1,4 @@
-import { eq, inArray, lt } from 'drizzle-orm';
+import { and, eq, inArray, lt, notExists } from 'drizzle-orm';
 import { auditEntry, type AuditContext } from './audit';
 import { bankOfIban } from './bank/bank-codes';
 import type { Database } from './db';
@@ -68,11 +68,30 @@ import { accountPrefix, getStorage, type Storage } from './storage';
  */
 export const DEFAULT_ACCOUNT_ID = 'default';
 
+/**
+ * Creates the default account unless it exists. Its id is fixed, so an account created here after
+ * the previous default account was deleted carries the id deleted_accounts remembers: the id is
+ * forgotten with the creation, or the hourly job would take the new account for one a restore
+ * brought back and delete it. An account that is there already (a restore did bring it back)
+ * stays remembered.
+ */
 export async function ensureDefaultAccount(db: Database): Promise<string> {
-	await db
-		.insert(accounts)
-		.values({ id: DEFAULT_ACCOUNT_ID, name: 'Standardkonto' })
-		.onConflictDoNothing();
+	await runBatch(db, [
+		db
+			.delete(deletedAccounts)
+			.where(
+				and(
+					eq(deletedAccounts.id, DEFAULT_ACCOUNT_ID),
+					notExists(
+						db.select({ id: accounts.id }).from(accounts).where(eq(accounts.id, DEFAULT_ACCOUNT_ID))
+					)
+				)
+			),
+		db
+			.insert(accounts)
+			.values({ id: DEFAULT_ACCOUNT_ID, name: 'Standardkonto' })
+			.onConflictDoNothing()
+	]);
 	return DEFAULT_ACCOUNT_ID;
 }
 

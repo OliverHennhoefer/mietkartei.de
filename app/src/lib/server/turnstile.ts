@@ -30,7 +30,8 @@ export async function verifyTurnstile(
 	try {
 		const response = await fetcher(VERIFY_URL, {
 			method: 'POST',
-			body: new URLSearchParams({ secret, response: token, remoteip: remoteIp })
+			body: new URLSearchParams({ secret, response: token, remoteip: remoteIp }),
+			signal: AbortSignal.timeout(5000)
 		});
 		if (!response.ok) return false;
 		const result = (await response.json()) as { success?: unknown };
