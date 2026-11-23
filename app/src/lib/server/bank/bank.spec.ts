@@ -188,13 +188,17 @@ describe('import', () => {
 
 	it('assigns incoming rule hits on import as matched payments, never outgoing amounts', async () => {
 		await createRule(db, contextA, {
+			name: 'Regel',
 			leaseId,
+			contraAccountId: null,
 			field: 'counterpartIban',
 			pattern: 'DE12 5001 0517 5407 3249 31',
 			confirmed: true
 		});
 		await createRule(db, contextA, {
+			name: 'Regel',
 			leaseId: secondLeaseId,
+			contraAccountId: null,
 			field: 'counterpartName',
 			pattern: 'Hausmeister',
 			confirmed: true
@@ -205,7 +209,7 @@ describe('import', () => {
 			['rule', leaseId],
 			['new', null]
 		]);
-		expect(preview?.rows[0].leaseLabel).toBe('EG links · Haus');
+		expect(preview?.rows[0].targetLabel).toBe('EG links · Haus');
 
 		const result = await importSparkasse();
 		expect(result).toMatchObject({ imported: 3, assigned: 2, duplicates: 0 });
@@ -223,7 +227,9 @@ describe('import', () => {
 
 	it('answers a double commit with duplicates instead of failing, and books each hit once', async () => {
 		await createRule(db, contextA, {
+			name: 'Regel',
 			leaseId,
+			contraAccountId: null,
 			field: 'counterpartIban',
 			pattern: 'DE12500105175407324931',
 			confirmed: true
@@ -255,7 +261,9 @@ describe('import', () => {
 
 	it('books many rule hits with one audit line each', async () => {
 		await createRule(db, contextA, {
+			name: 'Regel',
 			leaseId,
+			contraAccountId: null,
 			field: 'counterpartIban',
 			pattern: 'DE12500105175407324931',
 			confirmed: true
@@ -641,13 +649,17 @@ describe('transactions', () => {
 describe('rules', () => {
 	it('creates, confirms and deletes rules in creation order', async () => {
 		const first = await createRule(db, contextA, {
+			name: 'Regel',
 			leaseId,
+			contraAccountId: null,
 			field: 'purpose',
 			pattern: 'Wohnung 1',
 			confirmed: false
 		});
 		const second = await createRule(db, contextA, {
+			name: 'Regel',
 			leaseId: secondLeaseId,
+			contraAccountId: null,
 			field: 'counterpartName',
 			pattern: 'Müller',
 			confirmed: false
@@ -664,14 +676,18 @@ describe('rules', () => {
 	it('does not leak into another account', async () => {
 		expect(
 			await createRule(db, contextA, {
+				name: 'Regel',
 				leaseId: foreignLeaseId,
+				contraAccountId: null,
 				field: 'purpose',
 				pattern: 'Miete',
 				confirmed: true
 			})
 		).toEqual({ ok: false, reason: 'unknown-lease' });
 		const foreign = await createRule(db, contextB, {
+			name: 'Regel',
 			leaseId: foreignLeaseId,
+			contraAccountId: null,
 			field: 'purpose',
 			pattern: 'Miete',
 			confirmed: false
@@ -752,7 +768,8 @@ describe('transaction helpers', () => {
 			category: 'other' as const,
 			scope: '',
 			description: 'Strom',
-			serviceProviderId: ''
+			serviceProviderId: '',
+			contraAccountId: ''
 		};
 		const presets = {
 			byIban: new Map([['DE89370400440532013000', preset]]),

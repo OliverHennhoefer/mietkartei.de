@@ -1,9 +1,11 @@
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { formatDate } from '../../dates';
-import { rememberStep, type LeaseHints } from '../../domain/bank-matching';
+import { rememberStep, targetKey, type LeaseHints } from '../../domain/bank-matching';
 import type { AssignmentInput } from '../../forms/bank';
+import type { OtherBookingInput } from '../../forms/contra-accounts';
 import type { ExpenseAssignmentInput } from '../../forms/expenses';
+import { otherBookingKindLabels } from '../../labels';
 import { formatCents } from '../../money';
 import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
@@ -11,10 +13,13 @@ import { runBatch, selectInChunks } from '../db/batch';
 import {
 	bankAccounts,
 	bankTransactions,
+	contraAccounts,
 	depositTransactions,
 	expenses,
 	leases,
+	otherBookings,
 	payments,
+	properties,
 	type BankTransactionStatus
 } from '../db/schema';
 import {
@@ -26,12 +31,15 @@ import {
 } from '../expenses';
 import { paymentEntry } from '../ledger';
 import { leaseLabel, leasePlace, type LeaseSummary } from '../leases';
+import { contraAccountLabel, depositContraAccount, planPayments } from './contra-accounts';
+import type { PaymentPart } from '../../domain/contra-accounts';
 import { listRules, ruleEntry, unconfirmEntries } from './rules';
 import { assertQuota, QUOTAS, usage } from '../quotas';
 
-// Umsätze: the imported statement lines and their assignment to leases or as an expense. `matched`
-// means a payment, a deposit movement or an expense references the transaction; undo deletes
-// those and reopens it.
+// Umsätze: the imported statement lines and their assignment to leases, as an expense or as an
+// other booking (Kapitalertrag, Privat), each optionally on one of the landlord's Gegenkonten.
+// `matched` means a payment, a deposit movement, an expense or an other booking references the
+// transaction; undo deletes those and reopens it.
 
 export type BankTransaction = typeof bankTransactions.$inferSelect;
 type Expense = typeof expenses.$inferSelect;
@@ -115,12 +123,30 @@ export async function getTransaction(
 }
 
 export type Assignment =
-	| { kind: 'rent' | 'deposit'; id: string; leaseId: string; amount: number }
-	| { kind: 'expense'; id: string; amount: number; category: Expense['category']; scope: string };
+	| { kind: 'rent'; id: string; leaseId: string; amount: number; contraAccountId: string | null }
+	| { kind: 'deposit'; id: string; leaseId: string; amount: number }
+	| {
+			kind: 'expense';
+			id: string;
+			amount: number;
+			category: Expense['category'];
+			scope: string;
+			contraAccountId: string | null;
+	  }
+	| {
+			kind: 'other';
+			id: string;
+			amount: number;
+			otherKind: OtherBooking['kind'];
+			scope: string;
+			contraAccountId: string | null;
+	  };
+
+type OtherBooking = typeof otherBookings.$inferSelect;
 
 /**
- * The payments, deposit movements and expenses of the given transactions: three queries per 90
- * ids and two for the expenses' labels, all side by side.
+ * The payments, deposit movements, expenses and other bookings of the given transactions: four
+ * queries per 90 ids and two for the labels, all side by side.
  */
 export async function listAssignments(
 	db: Database,
@@ -128,7 +154,7 @@ export async function listAssignments(
 	transactionIds: readonly string[]
 ): Promise<Map<string, Assignment[]>> {
 	const ids = [...new Set(transactionIds)];
-	const [label, paymentRows, depositRows, expenseRows] = await Promise.all([
+	const [label, paymentRows, depositRows, expenseRows, otherRows] = await Promise.all([
 		scopeLabels(db, accountId),
 		selectInChunks(ids, (group) =>
 			db
@@ -136,7 +162,8 @@ export async function listAssignments(
 					id: payments.id,
 					leaseId: payments.leaseId,
 					amount: payments.amount,
-					bankTransactionId: payments.bankTransactionId
+					bankTransactionId: payments.bankTransactionId,
+					contraAccountId: payments.contraAccountId
 				})
 				.from(payments)
 				.where(and(eq(payments.accountId, accountId), inArray(payments.bankTransactionId, group)))
@@ -163,6 +190,17 @@ export async function listAssignments(
 				.select()
 				.from(expenses)
 				.where(and(eq(expenses.accountId, accountId), inArray(expenses.bankTransactionId, group)))
+		),
+		selectInChunks(ids, (group) =>
+			db
+				.select()
+				.from(otherBookings)
+				.where(
+					and(
+						eq(otherBookings.accountId, accountId),
+						inArray(otherBookings.bankTransactionId, group)
+					)
+				)
 		)
 	]);
 	const result = new Map<string, Assignment[]>();
@@ -180,7 +218,18 @@ export async function listAssignments(
 			id: row.id,
 			amount: row.amount,
 			category: row.category,
-			scope: label(row)
+			scope: label(row),
+			contraAccountId: row.contraAccountId
+		});
+	}
+	for (const row of otherRows) {
+		add(row.bankTransactionId, {
+			kind: 'other',
+			id: row.id,
+			amount: row.amount,
+			otherKind: row.kind,
+			scope: label({ propertyId: row.propertyId, unitId: null }),
+			contraAccountId: row.contraAccountId
 		});
 	}
 	return result;
@@ -231,6 +280,8 @@ export type ExpensePreset = {
 	description: string;
 	/** '' when unknown. */
 	serviceProviderId: string;
+	/** '' without one. */
+	contraAccountId: string;
 };
 
 /**
@@ -251,7 +302,8 @@ export async function expenseByCounterpart(
 			propertyId: expenses.propertyId,
 			unitId: expenses.unitId,
 			description: expenses.description,
-			serviceProviderId: expenses.serviceProviderId
+			serviceProviderId: expenses.serviceProviderId,
+			contraAccountId: expenses.contraAccountId
 		})
 		.from(expenses)
 		.innerJoin(bankTransactions, eq(expenses.bankTransactionId, bankTransactions.id))
@@ -264,7 +316,8 @@ export async function expenseByCounterpart(
 			category: row.category,
 			scope: expenseScopeValue(row),
 			description: row.description,
-			serviceProviderId: row.serviceProviderId ?? ''
+			serviceProviderId: row.serviceProviderId ?? '',
+			contraAccountId: row.contraAccountId ?? ''
 		};
 		if (row.iban) byIban.set(row.iban, preset);
 		const name = row.name?.trim().toLowerCase();
@@ -352,8 +405,11 @@ async function runGuarded(
 export type AssignOutcome =
 	'assigned' | 'missing' | 'not-open' | 'unknown-lease' | 'amount-mismatch';
 
-/** The leases earlier payments and deposit movements from the counterpart went to. Two queries. */
-async function earlierLeaseIds(
+/**
+ * Where earlier money from the counterpart went, as targetKeys: the leases of its payments and
+ * deposit movements, the Gegenkonten of its expenses and other bookings. Four queries.
+ */
+async function earlierTargets(
 	db: Database,
 	accountId: string,
 	transaction: Pick<BankTransaction, 'counterpartIban' | 'counterpartName'>
@@ -362,7 +418,7 @@ async function earlierLeaseIds(
 		? eq(bankTransactions.counterpartIban, transaction.counterpartIban)
 		: // Name rules match case-insensitively, so the history does too (SQLite lowers ASCII only).
 			sql`lower(${bankTransactions.counterpartName}) = lower(${transaction.counterpartName})`;
-	const [paymentRows, depositRows] = await Promise.all([
+	const [paymentRows, depositRows, expenseRows, otherRows] = await Promise.all([
 		db
 			.selectDistinct({ leaseId: payments.leaseId })
 			.from(payments)
@@ -372,30 +428,55 @@ async function earlierLeaseIds(
 			.selectDistinct({ leaseId: depositTransactions.leaseId })
 			.from(depositTransactions)
 			.innerJoin(bankTransactions, eq(depositTransactions.bankTransactionId, bankTransactions.id))
-			.where(and(eq(depositTransactions.accountId, accountId), counterpart))
+			.where(and(eq(depositTransactions.accountId, accountId), counterpart)),
+		db
+			.selectDistinct({ contraAccountId: expenses.contraAccountId })
+			.from(expenses)
+			.innerJoin(bankTransactions, eq(expenses.bankTransactionId, bankTransactions.id))
+			.where(
+				and(eq(expenses.accountId, accountId), isNotNull(expenses.contraAccountId), counterpart)
+			),
+		db
+			.selectDistinct({ contraAccountId: otherBookings.contraAccountId })
+			.from(otherBookings)
+			.innerJoin(bankTransactions, eq(otherBookings.bankTransactionId, bankTransactions.id))
+			.where(
+				and(
+					eq(otherBookings.accountId, accountId),
+					isNotNull(otherBookings.contraAccountId),
+					counterpart
+				)
+			)
 	]);
-	return [...paymentRows, ...depositRows].map((row) => row.leaseId);
+	return [...paymentRows, ...depositRows, ...expenseRows, ...otherRows].map((row) =>
+		targetKey(row)
+	);
 }
 
 /**
- * The rule statements of the assignment (see rememberStep). A full rule quota leaves the
+ * The rule statements of a booking (see rememberStep). A full rule quota leaves the
  * counterpart unremembered instead of refusing the assignment.
  */
 async function rememberStatements(
 	db: Database,
 	context: AuditContext,
 	transaction: BankTransaction,
-	input: AssignmentInput
+	booking: {
+		targets: { leaseId?: string; contraAccountId?: string }[];
+		remember: boolean;
+		/** The name a new rule gets, e.g. „Miete Max Müller“ or „4403 Stadtwerke Wasser/Müll“. */
+		name: string;
+	}
 ): Promise<BatchItem<'sqlite'>[]> {
-	const leaseIds = [...new Set(input.parts.map((part) => part.leaseId))];
 	const [rules, earlier] = await Promise.all([
 		listRules(db, context.accountId),
-		earlierLeaseIds(db, context.accountId, transaction)
+		earlierTargets(db, context.accountId, transaction)
 	]);
+	const keys = [...new Set(booking.targets.map(targetKey))];
 	const step = rememberStep(
 		transaction,
-		{ leaseIds, rent: input.target === 'rent' },
-		{ rules, earlierLeaseIds: earlier }
+		{ targets: keys, remember: booking.remember },
+		{ rules, earlierTargets: earlier }
 	);
 	if (!step) return [];
 	if (step.kind === 'unconfirm') {
@@ -408,8 +489,24 @@ async function rememberStatements(
 	}
 	if ((await usage(db, context.accountId, 'matchingRules')) >= QUOTAS.matchingRules.max) return [];
 	const { field, pattern } = step;
-	return ruleEntry(db, context, { leaseId: leaseIds[0], field, pattern, confirmed: true })
-		.statements;
+	const [target] = booking.targets;
+	return ruleEntry(db, context, {
+		name: booking.name.slice(0, 100),
+		leaseId: target.leaseId ?? null,
+		contraAccountId: target.contraAccountId ?? null,
+		field,
+		pattern,
+		confirmed: true
+	}).statements;
+}
+
+/** A Gegenkonto of the account, or undefined. */
+async function ownContraAccount(db: Database, accountId: string, id: string) {
+	const [row] = await db
+		.select()
+		.from(contraAccounts)
+		.where(and(eq(contraAccounts.accountId, accountId), eq(contraAccounts.id, id)));
+	return row;
 }
 
 /**
@@ -436,26 +533,39 @@ export async function assignTransaction(
 	if (sum !== transaction.amount || input.parts.some((part) => part.amount === 0)) {
 		return 'amount-mismatch';
 	}
+	// Rent splits into Kaltmiete and Nebenkosten on the property's Gegenkonten (one payment each).
+	const planned =
+		input.target === 'rent'
+			? await planPayments(db, accountId, input.parts, transaction.bookingDate)
+			: new Map<string, PaymentPart[]>();
+	const depositAccount =
+		input.target === 'deposit'
+			? await depositContraAccount(db, accountId, input.parts[0].leaseId)
+			: null;
+	const paymentCount = [...planned.values()].reduce((total, list) => total + list.length, 0);
 	await assertQuota(
 		db,
 		accountId,
 		input.target === 'rent' ? 'payments' : 'depositTransactions',
-		input.parts.length
+		input.target === 'rent' ? paymentCount : input.parts.length
 	);
 
 	const statements: BatchItem<'sqlite'>[] = [];
 	for (const part of input.parts) {
 		if (input.target === 'rent') {
-			statements.push(
-				paymentEntry(db, context, {
-					leaseId: part.leaseId,
-					date: transaction.bookingDate,
-					amount: part.amount,
-					source: 'bank',
-					bankTransactionId: transaction.id,
-					note: transaction.purpose || null
-				}).statement
-			);
+			for (const booked of planned.get(part.leaseId) ?? []) {
+				statements.push(
+					paymentEntry(db, context, {
+						leaseId: part.leaseId,
+						date: transaction.bookingDate,
+						amount: booked.amount,
+						source: 'bank',
+						bankTransactionId: transaction.id,
+						contraAccountId: booked.contraAccountId,
+						note: transaction.purpose || null
+					}).statement
+				);
+			}
 		} else {
 			statements.push(
 				db.insert(depositTransactions).values({
@@ -466,12 +576,19 @@ export async function assignTransaction(
 					amount: part.amount,
 					kind: part.amount > 0 ? 'received' : 'returned',
 					bankTransactionId: transaction.id,
+					contraAccountId: depositAccount,
 					note: transaction.purpose || null
 				})
 			);
 		}
 	}
-	statements.push(...(await rememberStatements(db, context, transaction, input)));
+	statements.push(
+		...(await rememberStatements(db, context, transaction, {
+			targets: input.parts.map((part) => ({ leaseId: part.leaseId })),
+			remember: input.target === 'rent' && transaction.amount > 0,
+			name: `Miete ${transaction.counterpartName || 'ohne Namen'}`
+		}))
+	);
 	const what = input.target === 'rent' ? 'als Zahlung' : 'auf die Kaution';
 	const parts =
 		input.parts.length > 1 ? ` (aufgeteilt auf ${input.parts.length} Mietverträge)` : '';
@@ -495,21 +612,49 @@ export async function assignTransaction(
 	return done ? 'assigned' : 'not-open';
 }
 
+/** The expense assignment of a transaction; with a Gegenkonto, a null category takes its. */
+export type BankExpenseInput = Omit<ExpenseAssignmentInput, 'category'> & {
+	category: Expense['category'] | null;
+};
+
 /**
  * Books the transaction as an expense: an outgoing transaction as money paid out, an incoming one
- * as a refund (a negative expense). Marks it matched. One batch.
+ * as a refund (a negative expense). Marks it matched. A Gegenkonto (kind expense) gives the
+ * category when none is chosen and the place when the expense would belong to the whole
+ * portfolio, and lets the counterpart be remembered (see rememberStep). One batch.
  */
 export async function assignExpense(
 	db: Database,
 	context: AuditContext,
 	transactionId: string,
-	input: ExpenseAssignmentInput
-): Promise<'assigned' | 'missing' | 'not-open' | 'unknown-scope' | 'unknown-service-provider'> {
+	input: BankExpenseInput
+): Promise<
+	| 'assigned'
+	| 'missing'
+	| 'not-open'
+	| 'unknown-scope'
+	| 'unknown-service-provider'
+	| 'unknown-contra-account'
+> {
 	const { accountId } = context;
 	const transaction = await getTransaction(db, accountId, transactionId);
 	if (!transaction) return 'missing';
 	if (transaction.status !== 'unmatched') return 'not-open';
-	const scope = await resolveScope(db, accountId, input.scope);
+	const contra = input.contraAccountId
+		? await ownContraAccount(db, accountId, input.contraAccountId)
+		: undefined;
+	if (input.contraAccountId && (!contra || contra.kind !== 'expense')) {
+		return 'unknown-contra-account';
+	}
+	const category = input.category ?? contra?.expenseCategory;
+	if (!category) return 'unknown-contra-account';
+	const scope = await resolveScope(
+		db,
+		accountId,
+		input.scope.kind === 'portfolio' && contra?.propertyId
+			? { kind: 'property', id: contra.propertyId }
+			: input.scope
+	);
 	if (!scope) return 'unknown-scope';
 	if (!(await knownServiceProvider(db, accountId, input.serviceProviderId))) {
 		return 'unknown-service-provider';
@@ -522,13 +667,22 @@ export async function assignExpense(
 		...scope,
 		date: transaction.bookingDate,
 		amount: -transaction.amount,
-		category: input.category,
+		category,
 		description: input.description,
 		serviceProviderId: input.serviceProviderId ?? null,
+		contraAccountId: contra?.id ?? null,
 		bankTransactionId: transaction.id
 	};
+	const remembered = contra
+		? await rememberStatements(db, context, transaction, {
+				targets: [{ contraAccountId: contra.id }],
+				remember: true,
+				name: contraAccountLabel(contra)
+			})
+		: [];
 	const done = await runGuarded(db, accountId, transaction.id, 'unmatched', [
 		db.insert(expenses).values(row),
+		...remembered,
 		db
 			.update(bankTransactions)
 			.set({ status: 'matched' })
@@ -547,7 +701,80 @@ export async function assignExpense(
 	return done ? 'assigned' : 'not-open';
 }
 
-/** Deletes the payments, deposit movements and expenses of the transaction and reopens it. */
+/**
+ * Books the transaction as an other booking: Kapitalertrag, Privatentnahme or -einlage, or any
+ * other income, by its Gegenkonto or by the kind chosen without one. Remembers the counterpart
+ * like an expense on a Gegenkonto. One batch.
+ */
+export async function assignOther(
+	db: Database,
+	context: AuditContext,
+	transactionId: string,
+	input: OtherBookingInput
+): Promise<'assigned' | 'missing' | 'not-open' | 'unknown-contra-account' | 'unknown-property'> {
+	const { accountId } = context;
+	const transaction = await getTransaction(db, accountId, transactionId);
+	if (!transaction) return 'missing';
+	if (transaction.status !== 'unmatched') return 'not-open';
+	const contra = input.contraAccountId
+		? await ownContraAccount(db, accountId, input.contraAccountId)
+		: undefined;
+	if (input.contraAccountId && !contra) return 'unknown-contra-account';
+	const kind = contra ? contra.kind : input.kind;
+	if (kind !== 'capital_income' && kind !== 'private' && kind !== 'other_income') {
+		return 'unknown-contra-account';
+	}
+	const propertyId = input.propertyId ?? contra?.propertyId ?? null;
+	if (propertyId) {
+		const [property] = await db
+			.select({ id: properties.id })
+			.from(properties)
+			.where(and(eq(properties.accountId, accountId), eq(properties.id, propertyId)));
+		if (!property) return 'unknown-property';
+	}
+	await assertQuota(db, accountId, 'otherBookings');
+	const remembered = contra
+		? await rememberStatements(db, context, transaction, {
+				targets: [{ contraAccountId: contra.id }],
+				remember: true,
+				name: contraAccountLabel(contra)
+			})
+		: [];
+	const done = await runGuarded(db, accountId, transaction.id, 'unmatched', [
+		db.insert(otherBookings).values({
+			id: crypto.randomUUID(),
+			accountId,
+			kind,
+			contraAccountId: contra?.id ?? null,
+			propertyId,
+			date: transaction.bookingDate,
+			amount: transaction.amount,
+			description: input.description,
+			bankTransactionId: transaction.id
+		}),
+		...remembered,
+		db
+			.update(bankTransactions)
+			.set({ status: 'matched' })
+			.where(
+				and(eq(bankTransactions.accountId, accountId), eq(bankTransactions.id, transaction.id))
+			),
+		auditEntry(
+			db,
+			context,
+			'bankTransaction',
+			transaction.id,
+			'assign',
+			`${transactionLabel(transaction)} als ${otherBookingKindLabels[kind]} gebucht`
+		)
+	]);
+	return done ? 'assigned' : 'not-open';
+}
+
+/**
+ * Deletes the payments, deposit movements, expenses and other bookings of the transaction and
+ * reopens it.
+ */
 export async function undoAssignment(
 	db: Database,
 	context: AuditContext,
@@ -575,6 +802,14 @@ export async function undoAssignment(
 			.delete(expenses)
 			.where(
 				and(eq(expenses.accountId, accountId), eq(expenses.bankTransactionId, transaction.id))
+			),
+		db
+			.delete(otherBookings)
+			.where(
+				and(
+					eq(otherBookings.accountId, accountId),
+					eq(otherBookings.bankTransactionId, transaction.id)
+				)
 			),
 		db
 			.update(bankTransactions)

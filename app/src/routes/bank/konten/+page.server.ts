@@ -1,11 +1,12 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { dayOf } from '#lib/dates.ts';
-import { parseBankAccount, type BankAccountInput } from '#lib/forms/bank.ts';
+import { parseBankAccount, parseLedgerNumber, type BankAccountInput } from '#lib/forms/bank.ts';
 import type { FieldErrors } from '#lib/forms/fields.ts';
 import {
 	createBankAccount,
 	deleteBankAccount,
-	listBankAccounts
+	listBankAccounts,
+	setLedgerNumber
 } from '#lib/server/bank/accounts.ts';
 import { deleteSession } from '#lib/server/bank/enable-banking.ts';
 import {
@@ -63,10 +64,27 @@ export const actions: Actions = {
 			};
 			return fail(400, {
 				errors,
-				values: { ...result.data, bic: result.data.bic ?? '' }
+				values: {
+					...result.data,
+					bic: result.data.bic ?? '',
+					ledgerNumber: result.data.ledgerNumber ?? ''
+				}
 			});
 		}
 		return { created: result.data.name };
+	},
+
+	/** The Kontonummer in der Buchhaltung, the only field that changes after creation. */
+	ledger: async ({ request, locals }) => {
+		requireOwner(locals);
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		const result = parseLedgerNumber(form);
+		if (!result.ok) return fail(400, { ledgerErrors: result.errors });
+		if (!(await setLedgerNumber(locals.db, auditContext(locals), id, result.data.ledgerNumber))) {
+			error(404, 'Diese Bankverbindung gibt es nicht.');
+		}
+		redirect(303, '/bank/konten');
 	},
 
 	delete: async ({ request, locals }) => {

@@ -28,6 +28,7 @@ import {
 } from '../domain/deposit-settlement';
 import { defaultKeys, defaultRooms } from '../domain/handover';
 import { effectiveFrom } from '../domain/index-rent';
+import { contraAccountFor, splitPayment } from '../domain/contra-accounts';
 import { monthlyAmounts, total, unitRent, type RentChange } from '../domain/rents';
 import { formatCents } from '../money';
 import type { UnitKind } from '../units';
@@ -45,6 +46,8 @@ import {
 	lettings,
 	bankAccounts,
 	bankTransactions,
+	contraAccounts,
+	otherBookings,
 	serviceProviders,
 	costItems,
 	costItemUnitAmounts,
@@ -69,6 +72,7 @@ import {
 	taxYears,
 	tenants,
 	units,
+	type ContraAccountKind,
 	type ExpenseCategory,
 	type RentChangeReason
 } from './db/schema';
@@ -460,6 +464,63 @@ export async function createDemoData(
 	].map((row) => ({ id: crypto.randomUUID(), accountId, ...row, kind: row.kind as UnitKind }));
 	const unitId = (name: string) => unitRows.find((row) => row.name === name)!.id;
 	const unitOf = (id: string) => unitRows.find((row) => row.id === id)!;
+
+	// Gegenkonten: the landlord's chart of accounts in the style of a DATEV SKR, so the bank
+	// transactions are booked like in a bookkeeping program and the DATEV export has numbers.
+	// Rent and Nebenkosten per property, the costs by kind, Kapitalerträge and Privatentnahmen.
+	const contraRows: (typeof contraAccounts.$inferInsert & { id: string })[] = [];
+	const contra = (
+		number: string,
+		name: string,
+		kind: ContraAccountKind,
+		propertyId: string | null = null,
+		expenseCategory: ExpenseCategory | null = null
+	) => {
+		const id = crypto.randomUUID();
+		contraRows.push({ id, accountId, number, name, kind, propertyId, expenseCategory });
+		return id;
+	};
+	const contraIds = {
+		privat: contra('1800', 'Privatentnahmen allgemein', 'private'),
+		capital: contra('1890', 'Kapitalerträge', 'capital_income'),
+		deposits: contra('3790', 'Mietkautionen', 'deposit'),
+		propertyTax: contra('4401', 'Grundsteuer', 'expense', null, 'operating_costs'),
+		gas: contra('4402', 'Gas Heizung Lindenstraße', 'expense', lindenId, 'operating_costs'),
+		water: contra('4403', 'Stadtwerke Wasser/Müll', 'expense', lindenId, 'operating_costs'),
+		caretaker: contra('4409', 'Hausordnung + Winterdienst', 'expense', lindenId, 'operating_costs'),
+		garden: contra('4410', 'Gartenarbeiten', 'expense', lindenId, 'operating_costs'),
+		management: contra('4411', 'Hausverwaltung und Beratung', 'expense', null, 'management'),
+		costsLinden: contra('4412', 'Kosten Lindenstraße', 'expense', lindenId, 'maintenance'),
+		insurance: contra('4413', 'Versicherungen', 'expense', null, 'operating_costs'),
+		costsPark: contra('4414', 'Kosten Parkallee', 'expense', parkId, 'maintenance'),
+		membership: contra('4415', 'Haus + Grund', 'expense', null, 'other'),
+		costsRosenheim: contra(
+			'4418',
+			'Kosten Rosenheimer Straße',
+			'expense',
+			rosenheimId,
+			'maintenance'
+		),
+		hausgeld: contra('4420', 'Hausgeld WEG', 'expense', null, 'association_fee'),
+		loans: contra('4430', 'Darlehensraten', 'expense', null, 'loan_payment'),
+		rentLinden: contra('8000', 'Mieteinnahmen Lindenstraße', 'rent', lindenId),
+		costsIncomeLinden: contra('8001', 'Nebenkosten Lindenstraße', 'operating_costs', lindenId),
+		previousLinden: contra(
+			'8002',
+			'Nebenkosten Vorjahr Lindenstraße',
+			'statement_balance',
+			lindenId
+		),
+		rentPark: contra('8005', 'Mieten Parkallee', 'rent', parkId),
+		costsIncomePark: contra('8006', 'NK Parkallee', 'operating_costs', parkId),
+		rentRosenheim: contra('8008', 'Mieten Rosenheimer Straße', 'rent', rosenheimId),
+		costsIncomeRosenheim: contra('8009', 'NK Rosenheimer Straße', 'operating_costs', rosenheimId)
+	};
+	const contraRefs = contraRows.map((row) => ({
+		id: row.id,
+		kind: row.kind,
+		propertyId: row.propertyId ?? null
+	}));
 
 	// Tenants. Those who moved out are archived, with the address they moved to; the current ones
 	// get letters at the rented unit, and one new tenant still waits for her lease.
@@ -1082,7 +1143,8 @@ export async function createDemoData(
 		name: 'Mietkonto Berliner Sparkasse',
 		iban: 'DE63100500006600099110',
 		bic: 'BELADEBEXXX',
-		holder: 'Katrin Hoffmann'
+		holder: 'Katrin Hoffmann',
+		ledgerNumber: '1200'
 	};
 	const bankFrom = addMonthsToMonth(lastMonth, -2);
 	type DemoTransaction = { id: string; status: 'matched' | 'unmatched'; row: BankRow };
@@ -1150,16 +1212,36 @@ export async function createDemoData(
 							entry.bank.purpose(month)
 						)
 					: null;
-			paymentRows.push({
-				id: crypto.randomUUID(),
-				accountId,
-				leaseId: entry.id,
-				date: day,
-				amount,
-				source: bankTransactionId ? 'bank' : 'manual',
-				bankTransactionId,
-				note: `Miete ${month}`
-			});
+			// A transfer booked from the bank goes to the property's Gegenkonten, Kaltmiete and
+			// Nebenkosten apart, as the bank page books it; earlier payments were entered by hand.
+			const propertyId = unitOf(entry.input.unitId).propertyId;
+			const parts = bankTransactionId
+				? splitPayment(amount, {
+						monthly: {
+							amount: total(amounts),
+							operatingCostPrepayment: amounts.operatingCostPrepayment,
+							heatingCostPrepayment: amounts.heatingCostPrepayment
+						},
+						statementBalances: [],
+						accounts: {
+							rent: contraAccountFor(contraRefs, 'rent', propertyId),
+							operating_costs: contraAccountFor(contraRefs, 'operating_costs', propertyId)
+						}
+					})
+				: [{ amount, contraAccountId: null }];
+			for (const part of parts) {
+				paymentRows.push({
+					id: crypto.randomUUID(),
+					accountId,
+					leaseId: entry.id,
+					date: day,
+					amount: part.amount,
+					source: bankTransactionId ? 'bank' : 'manual',
+					bankTransactionId,
+					contraAccountId: part.contraAccountId,
+					note: `Miete ${month}`
+				});
+			}
 		}
 	}
 	// Schmidt transferred the June rent of two years ago twice; the landlord paid the second
@@ -1199,22 +1281,59 @@ export async function createDemoData(
 		);
 	}
 
-	// Rules: the two tenants whose rent is assigned on import, and a suggestion not confirmed yet.
+	// Rules: the two tenants whose rent is assigned on import, a suggestion not confirmed yet, the
+	// Hausgeld of both Verwalter booked to its Gegenkonto on import, and the gas supplier, whose
+	// Abschlag of this month is still open with the rule as a suggestion.
 	const ruleRows = [
 		{
+			name: 'Miete Nowak',
 			leaseId: leaseId('nowak'),
 			field: 'counterpartIban' as const,
 			pattern: 'DE54500105175419038277',
 			confirmed: true
 		},
-		{ leaseId: leaseId('weber'), field: 'purpose' as const, pattern: 'WE 9', confirmed: true },
 		{
+			name: 'Miete Weber/Albrecht',
+			leaseId: leaseId('weber'),
+			field: 'purpose' as const,
+			pattern: 'WE 9',
+			confirmed: true
+		},
+		{
+			name: 'Miete Berger',
 			leaseId: leaseId('berger'),
 			field: 'counterpartName' as const,
 			pattern: 'Berger',
 			confirmed: false
+		},
+		{
+			name: 'Hausgeld Havelland',
+			contraAccountId: contraIds.hausgeld,
+			field: 'counterpartName' as const,
+			pattern: 'Havelland Hausverwaltung',
+			confirmed: true
+		},
+		{
+			name: 'Hausgeld Isar',
+			contraAccountId: contraIds.hausgeld,
+			field: 'counterpartName' as const,
+			pattern: 'Isar Immobilienverwaltung',
+			confirmed: true
+		},
+		{
+			name: 'GASAG Abschlag',
+			contraAccountId: contraIds.gas,
+			field: 'counterpartIban' as const,
+			pattern: 'DE54100500006603058742',
+			confirmed: false
 		}
-	].map((row) => ({ id: crypto.randomUUID(), accountId, ...row }));
+	].map((row) => ({
+		id: crypto.randomUUID(),
+		accountId,
+		leaseId: null,
+		contraAccountId: null,
+		...row
+	}));
 
 	// Deposits: received at the start, interest on the Mietkautionskonto at every year end, and
 	// settled with the former tenants after moving out, less the cost of repairs they owed.
@@ -2237,6 +2356,58 @@ export async function createDemoData(
 		expense(`${year}-01-15`, 9800, 'other', `Mitgliedsbeitrag Haus & Grund ${year}`, null);
 	}
 
+	// What the landlord took out of the Mietkonto for themselves: a Privatentnahme each month the
+	// bank account shows, booked to 1800.
+	const otherRows: (typeof otherBookings.$inferInsert)[] = [];
+	for (const month of monthsInRange(bankFrom, lastMonth)) {
+		const day = soFar(nthWorkingDay(month, 10, 'BE'));
+		const amount = -150000;
+		const bankTransactionId = bankTransaction(
+			day,
+			amount,
+			'Katrin Hoffmann',
+			'DE44100110012620873944',
+			`Entnahme ${month}`
+		);
+		otherRows.push({
+			id: crypto.randomUUID(),
+			accountId,
+			kind: 'private',
+			contraAccountId: contraIds.privat,
+			propertyId: null,
+			date: day,
+			amount,
+			description: 'Privatentnahme',
+			bankTransactionId
+		});
+	}
+
+	// The Gegenkonten of the expenses, by what they paid for, over the whole history: what the
+	// landlord would have booked them to.
+	const contraOfExpense = (row: (typeof expenseRows)[number]): string | null => {
+		const text = row.description.toLowerCase();
+		if (row.category === 'association_fee') return contraIds.hausgeld;
+		if (row.category === 'loan_payment') return contraIds.loans;
+		if (row.category === 'management') return contraIds.management;
+		if (text.includes('haus & grund')) return contraIds.membership;
+		if (/versicherung|rechtsschutz|haftpflicht/.test(text)) return contraIds.insurance;
+		if (row.category === 'operating_costs') {
+			if (text.includes('grundsteuer')) return contraIds.propertyTax;
+			if (/erdgas|heizung/.test(text)) return contraIds.gas;
+			if (/wasser|abwasser|müll|abfall|straßenreinigung/.test(text)) return contraIds.water;
+			if (/hausmeister|winterdienst|treppenhaus|reinigung/.test(text)) return contraIds.caretaker;
+			if (/garten|grün/.test(text)) return contraIds.garden;
+			return null;
+		}
+		if (['maintenance', 'modernization', 'special_levy'].includes(row.category)) {
+			if (row.propertyId === lindenId) return contraIds.costsLinden;
+			if (row.propertyId === parkId) return contraIds.costsPark;
+			if (row.propertyId === rosenheimId) return contraIds.costsRosenheim;
+		}
+		return null;
+	};
+	for (const row of expenseRows) row.contraAccountId = contraOfExpense(row);
+
 	const fingerprinted = await fingerprintRows(transactions.map((entry) => entry.row));
 	const transactionRows = fingerprinted.map((row, index) => ({
 		id: transactions[index].id,
@@ -2255,7 +2426,8 @@ export async function createDemoData(
 		name: 'Rücklagenkonto DKB',
 		iban: 'DE02120300000000202051',
 		bic: 'BYLADEM1001',
-		holder: 'Katrin Hoffmann'
+		holder: 'Katrin Hoffmann',
+		ledgerNumber: '1210'
 	};
 	const reserveRows = await fingerprintRows(
 		monthsInRange(addMonthsToMonth(lastMonth, -24), addMonthsToMonth(lastMonth, -1)).map(
@@ -2280,6 +2452,43 @@ export async function createDemoData(
 			...row
 		}))
 	);
+	// Interest on the Rücklagenkonto at every quarter end, booked to 1890 Kapitalerträge.
+	const interestRows = await fingerprintRows(
+		monthsInRange(addMonthsToMonth(lastMonth, -24), addMonthsToMonth(lastMonth, -1))
+			.filter((month) => ['03', '06', '09', '12'].includes(month.slice(5)))
+			.map((month, index): BankRow => ({
+				bookingDate: lastOfMonth(month),
+				valueDate: lastOfMonth(month),
+				// The balance grows by 250 € a month at about 1.5 % a year.
+				amount: Math.round((index * 3 + 1.5) * 25000 * 0.015 * 0.25),
+				counterpartName: 'DKB AG',
+				counterpartIban: null,
+				purpose: `Zinsen ${month.slice(0, 4)} Quartal ${Math.ceil(Number(month.slice(5)) / 3)}`,
+				externalId: null
+			}))
+	);
+	for (const row of interestRows) {
+		const id = crypto.randomUUID();
+		transactionRows.push({
+			id,
+			accountId,
+			bankAccountId: reserveAccount.id,
+			importId: null,
+			status: 'matched' as const,
+			...row
+		});
+		otherRows.push({
+			id: crypto.randomUUID(),
+			accountId,
+			kind: 'capital_income',
+			contraAccountId: contraIds.capital,
+			propertyId: null,
+			date: row.bookingDate,
+			amount: row.amount,
+			description: row.purpose,
+			bankTransactionId: id
+		});
+	}
 
 	// Drafts of the Betriebskostenabrechnungen of every history year but the last, approved below.
 	const drafts = historyYears.slice(0, -1).flatMap((year) =>
@@ -2776,6 +2985,8 @@ export async function createDemoData(
 		['bankAccounts', 2],
 		['bankTransactions', transactionRows.length],
 		['matchingRules', ruleRows.length],
+		['contraAccounts', contraRows.length],
+		['otherBookings', otherRows.length],
 		['expenses', expenseRows.length],
 		['tasks', taskRows.length],
 		['serviceProviders', serviceProviderRows.length],
@@ -2809,6 +3020,7 @@ export async function createDemoData(
 	try {
 		await runBatch(db, [
 			...insert(properties, propertyRows),
+			...insert(contraAccounts, contraRows),
 			...insert(units, unitRows),
 			...insert(tenants, tenantRows),
 			...insert(lettings, [lettingRow]),
@@ -2835,6 +3047,7 @@ export async function createDemoData(
 			// Before the expenses that paid for them.
 			...insert(tasks, taskRows),
 			...insert(expenses, expenseRows),
+			...insert(otherBookings, otherRows),
 			...insert(taxYears, taxYearRows),
 			...insert(auditLog, auditRows),
 			// The last line is also the guard against a second run at the same time (a double
@@ -3091,6 +3304,9 @@ export async function createDemoData(
 				.delete(operatingCostStatements)
 				.where(inArray(operatingCostStatements.propertyId, propertyIds)),
 			...ids(expenseRows).map((group) => db.delete(expenses).where(inArray(expenses.id, group))),
+			...ids(otherRows).map((group) =>
+				db.delete(otherBookings).where(inArray(otherBookings.id, group))
+			),
 			db.delete(leases).where(
 				inArray(
 					leases.id,
@@ -3114,6 +3330,13 @@ export async function createDemoData(
 				inArray(
 					serviceProviders.id,
 					serviceProviderRows.map((row) => row.id)
+				)
+			),
+			// After the bookings on them and their rules, which go with the leases and bank accounts.
+			db.delete(contraAccounts).where(
+				inArray(
+					contraAccounts.id,
+					contraRows.map((row) => row.id)
 				)
 			),
 			db.delete(properties).where(inArray(properties.id, propertyIds))

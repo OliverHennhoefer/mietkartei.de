@@ -5,11 +5,12 @@ import type { RuleInput } from '../../forms/bank';
 import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
 import { runBatch } from '../db/batch';
-import { leases, matchingRules } from '../db/schema';
+import { contraAccounts, leases, matchingRules } from '../db/schema';
 import { assertQuota } from '../quotas';
 
-// Zuordnungsregeln: "transactions whose <field> contains <pattern> belong to this lease". They
-// apply in creation order, first match wins; only confirmed rules assign on import.
+// Zuordnungsregeln: "transactions whose <field> contains <pattern> belong to this lease" or "… are
+// booked to this Gegenkonto". They apply in creation order, first match wins; only confirmed
+// rules assign on import.
 
 export type MatchingRule = typeof matchingRules.$inferSelect;
 
@@ -27,8 +28,14 @@ export async function listConfirmedRules(db: Database, accountId: string): Promi
 	return (await listRules(db, accountId)).filter((rule) => rule.confirmed);
 }
 
-function ruleSummary(rule: RuleInput, verb: string): string {
-	return `Zuordnungsregel „${matchingFieldLabels[rule.field]} enthält ${rule.pattern}“ ${verb}`;
+function ruleSummary(
+	rule: Pick<RuleInput, 'field' | 'pattern'> & { name: string | null },
+	verb: string
+): string {
+	const what = `${matchingFieldLabels[rule.field]} enthält ${rule.pattern}`;
+	return rule.name
+		? `Zuordnungsregel „${rule.name}“ (${what}) ${verb}`
+		: `Zuordnungsregel „${what}“ ${verb}`;
 }
 
 /** The insert statements for a rule an assignment remembers, for the assignment batch. */
@@ -75,18 +82,45 @@ export function unconfirmEntries(
 	]);
 }
 
-/** Creates a rule for a lease of the account; `confirmed` decides whether it assigns on import. */
+export type RuleRefusal = 'unknown-lease' | 'unknown-contra-account' | 'rent-contra-account';
+
+/**
+ * Whether the rule's lease or Gegenkonto is in the account. A Gegenkonto of kind rent is refused:
+ * rent goes to a lease, and a lease rule books it there.
+ */
+async function checkTarget(
+	db: Database,
+	accountId: string,
+	input: Pick<RuleInput, 'leaseId' | 'contraAccountId'>
+): Promise<RuleRefusal | null> {
+	if (input.leaseId) {
+		const [lease] = await db
+			.select({ id: leases.id })
+			.from(leases)
+			.where(and(eq(leases.accountId, accountId), eq(leases.id, input.leaseId)));
+		return lease ? null : 'unknown-lease';
+	}
+	const [account] = input.contraAccountId
+		? await db
+				.select({ kind: contraAccounts.kind })
+				.from(contraAccounts)
+				.where(
+					and(eq(contraAccounts.accountId, accountId), eq(contraAccounts.id, input.contraAccountId))
+				)
+		: [];
+	if (!account) return 'unknown-contra-account';
+	return account.kind === 'rent' ? 'rent-contra-account' : null;
+}
+
+/** Creates a rule for a lease or Gegenkonto; `confirmed` decides whether it assigns on import. */
 export async function createRule(
 	db: Database,
 	context: AuditContext,
 	input: RuleInput
-): Promise<{ ok: true; id: string } | { ok: false; reason: 'unknown-lease' }> {
+): Promise<{ ok: true; id: string } | { ok: false; reason: RuleRefusal }> {
 	await assertQuota(db, context.accountId, 'matchingRules');
-	const [lease] = await db
-		.select({ id: leases.id })
-		.from(leases)
-		.where(and(eq(leases.accountId, context.accountId), eq(leases.id, input.leaseId)));
-	if (!lease) return { ok: false, reason: 'unknown-lease' };
+	const refusal = await checkTarget(db, context.accountId, input);
+	if (refusal) return { ok: false, reason: refusal };
 	const entry = ruleEntry(db, context, input);
 	await runBatch(db, entry.statements);
 	return { ok: true, id: entry.id };
@@ -119,19 +153,16 @@ export async function confirmRule(
 	return true;
 }
 
-/** Changes a rule's lease, field, text and whether it assigns on import. */
+/** Changes a rule's lease or Gegenkonto, field, text and whether it assigns on import. */
 export async function updateRule(
 	db: Database,
 	context: AuditContext,
 	ruleId: string,
 	input: RuleInput
-): Promise<{ ok: true } | { ok: false; reason: 'missing' | 'unknown-lease' }> {
+): Promise<{ ok: true } | { ok: false; reason: 'missing' | RuleRefusal }> {
 	if (!(await getRule(db, context.accountId, ruleId))) return { ok: false, reason: 'missing' };
-	const [lease] = await db
-		.select({ id: leases.id })
-		.from(leases)
-		.where(and(eq(leases.accountId, context.accountId), eq(leases.id, input.leaseId)));
-	if (!lease) return { ok: false, reason: 'unknown-lease' };
+	const refusal = await checkTarget(db, context.accountId, input);
+	if (refusal) return { ok: false, reason: refusal };
 	await runBatch(db, [
 		db
 			.update(matchingRules)

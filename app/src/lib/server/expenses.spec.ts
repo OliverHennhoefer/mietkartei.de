@@ -324,7 +324,14 @@ describe('bank transactions as expenses', () => {
 		});
 		const assignments = await listAssignments(db, 'a', [transactionId]);
 		expect(assignments.get(transactionId)).toEqual([
-			{ kind: 'expense', id: expense.id, amount: 125000, category: 'maintenance', scope: 'Haus' }
+			{
+				kind: 'expense',
+				id: expense.id,
+				amount: 125000,
+				category: 'maintenance',
+				scope: 'Haus',
+				contraAccountId: null
+			}
 		]);
 
 		// Deleted on the bank page only.
@@ -392,7 +399,8 @@ describe('bank transactions as expenses', () => {
 			category: 'maintenance',
 			scope: `unit:${unitId}`,
 			description: 'Heizungswartung',
-			serviceProviderId: heating
+			serviceProviderId: heating,
+			contraAccountId: ''
 		};
 		// The IBAN wins over the name; without an IBAN the name decides, whatever its case.
 		expect(expensePreset({ counterpartIban: iban, counterpartName: 'Jemand' }, presets)).toEqual(

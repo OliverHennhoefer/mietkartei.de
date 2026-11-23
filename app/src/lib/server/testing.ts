@@ -393,6 +393,7 @@ export async function integrityProblems(db: Database): Promise<string[]> {
 			exists (select 1 from payments where bank_transaction_id = t.id)
 			or exists (select 1 from deposit_transactions where bank_transaction_id = t.id)
 			or exists (select 1 from expenses where bank_transaction_id = t.id)
+			or exists (select 1 from other_bookings where bank_transaction_id = t.id)
 		)`);
 	for (const row of unmatched) {
 		problems.push(`bank transaction ${row.id} is ${row.status} but its assignment says otherwise`);

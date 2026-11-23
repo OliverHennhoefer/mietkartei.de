@@ -19,15 +19,33 @@
 	const editValues = $derived(
 		editRefused?.values ??
 			(data.editing && {
-				leaseId: data.editing.leaseId,
+				name: data.editing.name ?? '',
+				target: data.editing.leaseId
+					? `lease:${data.editing.leaseId}`
+					: `contra:${data.editing.contraAccountId}`,
 				field: data.editing.field,
 				pattern: data.editing.pattern,
 				confirmed: data.editing.confirmed ? 'on' : ''
 			})
 	);
 	const leaseLabels = $derived(new Map(data.leases.map((lease) => [lease.id, lease.label])));
-	const sort = new TableSort<PageProps['data']['rules'][number]>({
-		lease: byText((rule) => leaseLabels.get(rule.leaseId) ?? 'Unbekannter Mietvertrag'),
+	type Rule = PageProps['data']['rules'][number];
+
+	/** Where the rule books: „Miete · EG links – Müller“ or „Gegenkonto 4403 Wasser/Müll“. */
+	function targetLabel(rule: Rule): string {
+		if (rule.leaseId) {
+			return `Miete · ${leaseLabels.get(rule.leaseId) ?? 'Unbekannter Mietvertrag'}`;
+		}
+		const contra = rule.contraAccountId ? data.contraLabels[rule.contraAccountId] : undefined;
+		return `Gegenkonto ${contra ?? 'unbekannt'}`;
+	}
+
+	/** Rules from before names show where they book instead. */
+	const nameOf = (rule: Rule) => rule.name || targetLabel(rule);
+
+	const sort = new TableSort<Rule>({
+		name: byText(nameOf),
+		lease: byText(targetLabel),
 		field: byText((rule) => matchingFieldLabels[rule.field]),
 		pattern: byText((rule) => rule.pattern),
 		status: bySeverity((rule) => (rule.confirmed ? 0 : 1))
@@ -38,27 +56,29 @@
 <h2 class="visually-hidden">Zuordnungsregeln</h2>
 <p class="muted">
 	Regeln gelten in der Reihenfolge, in der sie angelegt wurden; die erste passende gewinnt.
-	Bestätigte Regeln ordnen eingehende Umsätze beim Import automatisch zu, unbestätigte machen nur
-	einen Vorschlag. Ausgaben werden nie automatisch zugeordnet.
+	Bestätigte Regeln buchen Umsätze beim Import automatisch, unbestätigte machen nur einen Vorschlag.
+	Eine Regel auf einen Mietvertrag bucht nur eingehende Umsätze, eine Regel auf ein Gegenkonto (etwa
+	„4403 Stadtwerke“) beide Richtungen.
 </p>
 <p class="muted">
-	Wenn du einen Umsatz als Miete einem Mietvertrag zuordnest, merkt sich Mietkartei die IBAN (ohne
-	IBAN den Namen) als bestätigte Regel. Ordnest du einen Umsatz, zu dem eine Regel passt, einem
-	anderen Mietvertrag zu, wird die Regel wieder zum Vorschlag – so landet Geld von einem Zahler für
-	mehrere Mietverträge (etwa dem Jobcenter) nicht automatisch beim falschen.
+	Wenn du einen Umsatz als Miete einem Mietvertrag zuordnest oder auf ein Gegenkonto buchst, merkt
+	sich Mietkartei die IBAN (ohne IBAN den Namen) als bestätigte Regel. Buchst du einen Umsatz, zu
+	dem eine Regel passt, woandershin, wird die Regel wieder zum Vorschlag – so landet Geld von einem
+	Zahler für mehrere Mietverträge (etwa dem Jobcenter) nicht automatisch beim falschen.
 </p>
 
 {#if data.rules.length === 0}
 	<EmptyState
 		title="Noch keine Zuordnungsregeln"
-		text="Lege eine Regel an oder ordne einen Umsatz als Miete zu; die Zuordnung wird dann gemerkt."
+		text="Lege eine Regel an, ordne einen Umsatz als Miete zu oder buche ihn auf ein Gegenkonto; die Zuordnung wird dann gemerkt."
 	/>
 {:else}
 	<div class="table-wrap">
 		<table class="table" aria-label="Zuordnungsregeln">
 			<thead>
 				<tr>
-					<SortHeader {sort} key="lease">Mietvertrag</SortHeader>
+					<SortHeader {sort} key="name">Name</SortHeader>
+					<SortHeader {sort} key="lease">Bucht auf</SortHeader>
 					<SortHeader {sort} key="field">Feld</SortHeader>
 					<SortHeader {sort} key="pattern">Enthält</SortHeader>
 					<SortHeader {sort} key="status">Status</SortHeader>
@@ -69,10 +89,9 @@
 				{#each sort.rows(data.rules) as rule (rule.id)}
 					<tr>
 						<td>
-							<a href="?bearbeiten={rule.id}" data-sveltekit-reset="false"
-								>{leaseLabels.get(rule.leaseId) ?? 'Unbekannter Mietvertrag'}</a
-							>
+							<a href="?bearbeiten={rule.id}" data-sveltekit-reset="false">{nameOf(rule)}</a>
 						</td>
+						<td>{targetLabel(rule)}</td>
 						<td>{matchingFieldLabels[rule.field]}</td>
 						<td>{rule.pattern}</td>
 						<td>
@@ -98,8 +117,11 @@
 {/if}
 
 <h2 id="regel-anlegen">Regel anlegen</h2>
-{#if data.leases.length === 0}
-	<EmptyState title="Noch kein Mietvertrag" text="Eine Regel ordnet einem Mietvertrag zu.">
+{#if data.leases.length === 0 && data.contraAccounts.length === 0}
+	<EmptyState
+		title="Noch kein Mietvertrag"
+		text="Eine Regel ordnet einem Mietvertrag oder einem Gegenkonto zu."
+	>
 		<CreateButton href="/vertraege/neu" label="Mietvertrag anlegen" />
 	</EmptyState>
 {:else}
@@ -118,11 +140,39 @@
 	values: Record<string, string> | undefined,
 	errors: Partial<Record<string, string>> | undefined
 )}
-	<Field label="Mietvertrag" error={errors?.leaseId}>
-		<select name="leaseId" aria-invalid={errors?.leaseId ? 'true' : undefined} required>
-			{#each data.leases as lease (lease.id)}
-				<option value={lease.id} selected={values?.leaseId === lease.id}>{lease.label}</option>
-			{/each}
+	<Field label="Name" error={errors?.name} hint="Woran du die Regel erkennst.">
+		<input
+			name="name"
+			maxlength="100"
+			defaultValue={values?.name ?? ''}
+			placeholder="z. B. Miete Müller oder Stadtwerke"
+			aria-invalid={errors?.name ? 'true' : undefined}
+			required
+		/>
+	</Field>
+	<Field label="Bucht auf" error={errors?.target}>
+		<select name="target" aria-invalid={errors?.target ? 'true' : undefined} required>
+			{#if data.leases.length}
+				<optgroup label="Miete an Mietvertrag">
+					{#each data.leases as lease (lease.id)}
+						<option value="lease:{lease.id}" selected={values?.target === `lease:${lease.id}`}>
+							{lease.label}
+						</option>
+					{/each}
+				</optgroup>
+			{/if}
+			{#if data.contraAccounts.length}
+				<optgroup label="Gegenkonto">
+					{#each data.contraAccounts as account (account.id)}
+						<option
+							value="contra:{account.id}"
+							selected={values?.target === `contra:${account.id}`}
+						>
+							{account.label}
+						</option>
+					{/each}
+				</optgroup>
+			{/if}
 		</select>
 	</Field>
 	<Field label="Feld" error={errors?.field}>
@@ -155,8 +205,8 @@
 			title="Regel bearbeiten"
 			action="?/update"
 			deleteAction="?/delete"
-			deleteMessage="Regel „{matchingFieldLabels[data.editing.field]} enthält {data.editing
-				.pattern}“ löschen?"
+			deleteMessage="Regel „{data.editing.name ||
+				`${matchingFieldLabels[data.editing.field]} enthält ${data.editing.pattern}`}“ löschen?"
 			close="/bank/regeln"
 		>
 			<input type="hidden" name="id" value={data.editing.id} />

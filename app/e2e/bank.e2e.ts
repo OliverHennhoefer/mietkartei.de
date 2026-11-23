@@ -123,7 +123,7 @@ test('imports a Sparkasse export and recognises it as duplicates the second time
 		page
 			.getByRole('row', { name: new RegExp(accountName) })
 			.getByRole('cell')
-			.nth(4)
+			.nth(5)
 	).toHaveText('3');
 });
 
@@ -204,7 +204,11 @@ test('books an outgoing line as an expense and undoes it', async ({ page }) => {
 	const outgoing = card(page, `Hausmeister ${suffix}`);
 	// Money paid out without a lease suggestion opens the expense form right away.
 	await outgoing.getByLabel('Kategorie').selectOption({ label: 'Hausgeld (WEG)' });
-	await expect(outgoing.getByLabel('Beschreibung')).toHaveValue('Hausmeister GmbH');
+	// The other booking form below has a Beschreibung of its own.
+	const expenseForm = outgoing.locator('form', {
+		has: page.getByRole('button', { name: 'Als Ausgabe buchen' })
+	});
+	await expect(expenseForm.getByLabel('Beschreibung')).toHaveValue('Hausmeister GmbH');
 	await outgoing.getByRole('button', { name: 'Als Ausgabe buchen' }).click();
 	await expect(card(page, `Hausmeister ${suffix}`)).toHaveCount(0);
 

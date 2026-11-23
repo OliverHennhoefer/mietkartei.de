@@ -449,13 +449,17 @@ describe('bank/konten', () => {
 
 describe('bank/regeln', () => {
 	it('creates, confirms, edits and deletes a rule', async () => {
-		const form = { leaseId, field: 'counterpartName', pattern: 'Müller' };
+		const form = {
+			name: 'Miete Müller',
+			target: `lease:${leaseId}`,
+			field: 'counterpartName',
+			pattern: 'Müller'
+		};
+		const foreign = `lease:${foreignLeaseId}`;
 		expect(await run(ruleActions.create, { form })).toEqual({ data: { created: true } });
-		expect(
-			await run(ruleActions.create, { form: { ...form, leaseId: foreignLeaseId } })
-		).toMatchObject({
+		expect(await run(ruleActions.create, { form: { ...form, target: foreign } })).toMatchObject({
 			fail: 400,
-			data: { errors: { leaseId: 'Diesen Mietvertrag gibt es nicht.' } }
+			data: { errors: { target: 'Diesen Mietvertrag gibt es nicht.' } }
 		});
 		expect(await run(ruleActions.create, { form: { ...form, pattern: 'M' } })).toMatchObject({
 			fail: 400
@@ -472,13 +476,13 @@ describe('bank/regeln', () => {
 			data: { editing: { id: rule.id, pattern: 'Müller' } }
 		});
 		expect(
-			await run(ruleActions.update, { form: { ...form, id: rule.id, leaseId: foreignLeaseId } })
-		).toMatchObject({ fail: 400, data: { edit: true, errors: { leaseId: expect.any(String) } } });
+			await run(ruleActions.update, { form: { ...form, id: rule.id, target: foreign } })
+		).toMatchObject({ fail: 400, data: { edit: true, errors: { target: expect.any(String) } } });
 		expect(
 			await run(ruleActions.update, { form: { ...form, id: rule.id, pattern: 'Meier' } })
 		).toEqual({ redirect: '/bank/regeln' });
 		expect(await run(loadRules)).toMatchObject({
-			data: { rules: [{ id: rule.id, pattern: 'Meier', confirmed: false }] }
+			data: { rules: [{ id: rule.id, name: 'Miete Müller', pattern: 'Meier', confirmed: false }] }
 		});
 		expect(await run(ruleActions.delete, { form: { id: rule.id } })).toEqual({
 			redirect: '/bank/regeln'

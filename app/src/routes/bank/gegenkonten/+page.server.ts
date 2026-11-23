@@ -1,0 +1,82 @@
+import { error, fail, redirect } from '@sveltejs/kit';
+import { parseContraAccount, type ContraAccountFields } from '#lib/forms/contra-accounts.ts';
+import type { FieldErrors } from '#lib/forms/fields.ts';
+import {
+	createContraAccount,
+	deleteContraAccount,
+	listContraAccounts,
+	updateContraAccount,
+	type ContraAccountRefusal
+} from '#lib/server/bank/contra-accounts.ts';
+import { listProperties } from '#lib/server/properties.ts';
+import { auditContext, requireAccount } from '#lib/server/session.ts';
+import type { Actions, PageServerLoad } from './$types';
+
+// Gegenkonten: the landlord's own accounts of their bookkeeping. Two queries per page (the
+// accounts, the properties). ?bearbeiten=<id> opens one in the edit dialog.
+export const load: PageServerLoad = async ({ locals, url }) => {
+	const accountId = requireAccount(locals);
+	const [contraAccounts, properties] = await Promise.all([
+		listContraAccounts(locals.db, accountId),
+		listProperties(locals.db, accountId, { archived: true })
+	]);
+	const editing =
+		contraAccounts.find((account) => account.id === url.searchParams.get('bearbeiten')) ?? null;
+	return {
+		contraAccounts,
+		editing,
+		properties: properties.map((property) => ({
+			id: property.id,
+			name: property.archivedAt ? `${property.name} (archiviert)` : property.name
+		}))
+	};
+};
+
+const missing = 'Dieses Gegenkonto gibt es nicht.';
+
+const refusals: Record<ContraAccountRefusal, FieldErrors<ContraAccountFields>> = {
+	'unknown-property': { propertyId: 'Dieses Objekt gibt es nicht.' },
+	'duplicate-number': { number: 'Ein Gegenkonto mit dieser Nummer gibt es schon.' }
+};
+
+function stringValues(form: FormData): Record<string, string> {
+	const values: Record<string, string> = {};
+	for (const [name, value] of form.entries()) if (typeof value === 'string') values[name] = value;
+	return values;
+}
+
+export const actions: Actions = {
+	create: async ({ request, locals }) => {
+		const form = await request.formData();
+		const result = parseContraAccount(form);
+		if (!result.ok) return fail(400, { errors: result.errors, values: result.values });
+		const outcome = await createContraAccount(locals.db, auditContext(locals), result.data);
+		if (!outcome.ok) {
+			return fail(400, { errors: refusals[outcome.reason], values: stringValues(form) });
+		}
+		return { created: true };
+	},
+
+	update: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		const result = parseContraAccount(form);
+		if (!result.ok) return fail(400, { edit: true, errors: result.errors, values: result.values });
+		const outcome = await updateContraAccount(locals.db, auditContext(locals), id, result.data);
+		if (!outcome.ok) {
+			if (outcome.reason === 'missing') error(404, missing);
+			return fail(400, {
+				edit: true,
+				errors: refusals[outcome.reason],
+				values: stringValues(form)
+			});
+		}
+		redirect(303, '/bank/gegenkonten');
+	},
+
+	delete: async ({ request, locals }) => {
+		const id = String((await request.formData()).get('id') ?? '');
+		if (!(await deleteContraAccount(locals.db, auditContext(locals), id))) error(404, missing);
+		redirect(303, '/bank/gegenkonten');
+	}
+};
