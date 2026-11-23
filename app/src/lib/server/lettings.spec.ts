@@ -263,6 +263,33 @@ describe('lettings', () => {
 		expect(log.at(-1)?.summary).toBe('Mietinteressent gelöscht');
 	});
 
+	it('keeps one open letting and one Selbstauskunft when two requests come at once', async () => {
+		const { unitId } = await seedUnit(db, 'a', { name: 'Doppelklick' });
+		const created = await Promise.all([
+			createLetting(db, contextA, terms(unitId)),
+			createLetting(db, contextA, terms(unitId))
+		]);
+		expect(created.filter((result) => result.ok)).toHaveLength(1);
+		expect(created.filter((result) => !result.ok)).toEqual([{ ok: false, reason: 'open-exists' }]);
+		const winner = created.find((result) => result.ok) as { ok: true; id: string };
+		expect(
+			await db.select({ id: lettings.id }).from(lettings).where(eq(lettings.unitId, unitId))
+		).toEqual([{ id: winner.id }]);
+
+		const id = (await createApplicant(db, contextA, winner.id, person('Miriam', 'Krüger')))!;
+		const applicant = (await getApplicant(db, 'a', winner.id, id))!;
+		const { token } = await createDisclosureLink(db, contextA, applicant);
+		const sent = await Promise.all([
+			submitDisclosure(db, token, answers),
+			submitDisclosure(db, token, answers)
+		]);
+		expect(sent.sort()).toEqual([false, true]);
+		const received = (await db.select().from(auditLog).where(eq(auditLog.entityId, id))).filter(
+			(row) => row.summary.includes('über den Link erhalten')
+		);
+		expect(received).toHaveLength(1);
+	});
+
 	it('takes the Selbstauskunft once through the secret link while it is valid', async () => {
 		const { lettingId } = await letting();
 		const id = (await createApplicant(db, contextA, lettingId, person('Miriam', 'Krüger')))!;

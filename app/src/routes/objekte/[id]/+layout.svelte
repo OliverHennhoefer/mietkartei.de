@@ -73,6 +73,7 @@
 		? ` · archiviert am ${formatDate(data.property.archivedAt)}`
 		: ''}"
 	back={{ href: '/objekte', label: 'Alle Objekte' }}
+	{tabs}
 >
 	{#snippet actions()}
 		{#if onTab}

@@ -1,19 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { isCurrentTab, type Tab } from '../tabs';
 
-	// Links styled as tabs. The tab whose href matches the current path (or is its prefix for
-	// nested pages) is marked current; the first tab only matches exactly, as it is the overview.
-	// `also` lists further path prefixes a tab owns, e.g. the unit pages below an overview tab.
-	type Tab = { href: string; label: string; also?: string[] };
+	// Links styled as tabs. The tab the current path belongs to is marked current; see ../tabs.ts.
 	let { tabs, label = 'Bereiche' }: { tabs: Tab[]; label?: string } = $props();
-
-	const within = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
-
-	function isCurrent(tab: Tab, index: number): boolean {
-		const path = page.url.pathname;
-		if (tab.also?.some((prefix) => within(path, prefix))) return true;
-		return index === 0 ? path === tab.href : within(path, tab.href);
-	}
 
 	// On a narrow screen the tabs scroll sideways; the current one is scrolled into sight.
 	let nav = $state<HTMLElement>();
@@ -47,7 +37,10 @@
 	onscroll={edges}
 >
 	{#each tabs as tab, index (tab.href)}
-		<a href={tab.href} aria-current={isCurrent(tab, index) ? 'page' : undefined}>
+		<a
+			href={tab.href}
+			aria-current={isCurrentTab(tab, index, page.url.pathname) ? 'page' : undefined}
+		>
 			{tab.label}
 		</a>
 	{/each}

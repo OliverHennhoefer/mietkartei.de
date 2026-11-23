@@ -14,6 +14,7 @@ import {
 	testChannel,
 	type ChannelError
 } from '#lib/server/notifications.ts';
+import { getAuthLimiter } from '#lib/server/rate-limit/index.ts';
 import { auditContext, requireUser } from '#lib/server/session.ts';
 import { deviceLabel } from '#lib/server/web-push.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -146,6 +147,14 @@ export const actions: Actions = {
 		const user = requireUser(locals);
 		// Visitors of the demo could otherwise make it post to any address.
 		if (DEMO) return fail(400, { refused: 'In der Demo werden keine Hinweise verschickt.' });
+		// Each test sends a mail, a push or a request to a foreign server: a few a minute are
+		// plenty for a person, and a script cannot use the button to send in bulk.
+		const limiter = await getAuthLimiter();
+		if (!(await limiter.limit(`notification-test:${user.id}`))) {
+			return fail(429, {
+				refused: 'Zu viele Tests in kurzer Zeit. Bitte warte eine Minute.'
+			});
+		}
 		const id = String((await request.formData()).get('channelId'));
 		const result = await testChannel(locals.db, auditContext(locals), id, user);
 		if (!result) return fail(404, { refused: 'Diesen Kanal gibt es nicht mehr.' });

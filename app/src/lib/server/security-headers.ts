@@ -11,7 +11,7 @@ const BASE_HEADERS: Record<string, string> = {
 	// SvelteKit's CSRF check refuses them.
 	'Referrer-Policy': 'same-origin',
 	'Permissions-Policy':
-		'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), browsing-topics=()',
+		'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), browsing-topics=()',
 	'Cross-Origin-Opener-Policy': 'same-origin',
 	'Cross-Origin-Resource-Policy': 'same-origin'
 };

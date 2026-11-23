@@ -30,7 +30,7 @@ export const actions: Actions = {
 			// The page rendered after a post without JavaScript reads it in the same request.
 			locals.theme = theme as Theme;
 		}
-		// Not "amountInput": the layout adds that field to every form of a DATEV user.
+		// Not "amountInput": the server sets that field on every form of a DATEV user.
 		const amounts = form.get('amounts');
 		if (amountInputs.includes(amounts as AmountInput)) {
 			await setAmountInput(locals.db, user.id, amounts as AmountInput);

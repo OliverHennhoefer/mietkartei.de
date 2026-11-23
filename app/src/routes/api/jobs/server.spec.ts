@@ -5,6 +5,7 @@ import { tasks } from '#lib/server/db/schema.ts';
 import { isJobRequest } from '#lib/server/jobs.ts';
 import { addChannel } from '#lib/server/notifications.ts';
 import { outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
+import * as lettings from '#lib/server/lettings.ts';
 import { POST } from './+server';
 
 const env = vi.hoisted(() => ({
@@ -100,5 +101,29 @@ describe('POST /api/jobs', () => {
 			deletedApplicants: 0,
 			redeletedAccounts: 0
 		});
+	});
+
+	it('runs the other jobs when one fails, and answers 500 naming it', async () => {
+		globals.__mietkartei_job_token = token;
+		await setDeadlineMail(db, 'user-a', 'https://app.example.org');
+		await db
+			.insert(tasks)
+			.values({ accountId: 'a', title: 'Heizung warten', dueDate: '2026-10-20' });
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(new Date('2026-11-02T07:00:00Z'));
+		const failing = vi.spyOn(lettings, 'deleteExpired').mockRejectedValue(new Error('disk full'));
+		const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const { data } = (await post(`Bearer ${token}`)) as { data: Response };
+		expect(data.status).toBe(500);
+		expect(await data.json()).toEqual({
+			deadlineMails: 1,
+			notifications: 0,
+			deletedApplicants: 0,
+			redeletedAccounts: 0,
+			failed: ['deletedApplicants']
+		});
+		expect(logged).toHaveBeenCalledWith('[jobs] deletedApplicants failed:', expect.any(Error));
+		failing.mockRestore();
+		logged.mockRestore();
 	});
 });

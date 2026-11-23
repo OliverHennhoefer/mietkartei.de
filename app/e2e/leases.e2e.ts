@@ -194,6 +194,16 @@ test('creates a lease with an opening balance, keeps its history and ends it', a
 	await deposit.focus();
 	await page.keyboard.press('Tab');
 	await expect(page.locator('select[name="operatingCostModel"]')).toBeFocused();
+	// Who tabs into a field sees its help without the mouse, and Escape puts it away.
+	const depositTip = page.getByRole('tooltip', {
+		name: 'Bei Wohnraum höchstens drei Nettokaltmieten (§ 551 BGB).'
+	});
+	await expect(depositTip).toBeHidden();
+	await page.keyboard.press('Shift+Tab');
+	await expect(deposit).toBeFocused();
+	await expect(depositTip).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(depositTip).toBeHidden();
 	// The start defaults to the first of next month.
 	await expect(page.locator('input[name="startDate"]')).toHaveValue(/^\d{4}-\d{2}-01$/);
 	await page.getByLabel('Beginn', { exact: true }).fill('2025-01-01');

@@ -8,9 +8,10 @@ import {
 	isNull,
 	lte,
 	notExists,
+	sql,
 	type SQL
 } from 'drizzle-orm';
-import { addDays, formatDate, today, type IsoDate } from '../dates';
+import { addDays, dayOf, formatDate, today, type IsoDate } from '../dates';
 import {
 	closedStatuses,
 	deletionDate,
@@ -275,17 +276,33 @@ export async function createLetting(
 	}
 	await assertQuota(db, accountId, 'lettings');
 	const id = crypto.randomUUID();
-	await runBatch(db, [
-		db.insert(lettings).values({ id, accountId, ...input }),
-		auditEntry(
-			db,
-			context,
-			'letting',
-			id,
-			'create',
-			`Neuvermietung ${lettingLabel(place)} angelegt`
+	await db.insert(lettings).values({ id, accountId, ...input });
+	// Two requests at once, say a double click, both pass the check above before either inserts.
+	// The row inserted first is the unit's open letting; a later one takes itself out again.
+	const [first] = await db
+		.select({ id: lettings.id })
+		.from(lettings)
+		.where(
+			and(
+				eq(lettings.accountId, accountId),
+				eq(lettings.unitId, input.unitId),
+				isNull(lettings.closedAt)
+			)
 		)
-	]);
+		.orderBy(sql`${lettings}.rowid`)
+		.limit(1);
+	if (first?.id !== id) {
+		await db.delete(lettings).where(and(eq(lettings.accountId, accountId), eq(lettings.id, id)));
+		return { ok: false, reason: 'open-exists' };
+	}
+	await auditEntry(
+		db,
+		context,
+		'letting',
+		id,
+		'create',
+		`Neuvermietung ${lettingLabel(place)} angelegt`
+	);
 	return { ok: true, id };
 }
 
@@ -716,20 +733,22 @@ export async function submitDisclosure(
 	const { applicant } = page;
 	const status =
 		applicant.status === 'new' || applicant.status === 'viewing' ? 'applied' : applicant.status;
-	await runBatch(db, [
-		db
-			.update(applicants)
-			.set({ ...input, status, disclosureSubmittedAt: new Date(now) })
-			.where(byId(applicant.accountId, applicant.id)),
-		auditEntry(
-			db,
-			{ accountId: applicant.accountId, userId: null },
-			'applicant',
-			applicant.id,
-			'update',
-			`Selbstauskunft von ${personName(input)} über den Link erhalten`
-		)
-	]);
+	// Two posts of the form at once both pass the check above; only the first update finds the
+	// Selbstauskunft still open, so the second neither overwrites it nor counts as received.
+	const saved = await db
+		.update(applicants)
+		.set({ ...input, status, disclosureSubmittedAt: new Date(now) })
+		.where(and(byId(applicant.accountId, applicant.id), isNull(applicants.disclosureSubmittedAt)))
+		.returning({ id: applicants.id });
+	if (saved.length === 0) return false;
+	await auditEntry(
+		db,
+		{ accountId: applicant.accountId, userId: null },
+		'applicant',
+		applicant.id,
+		'update',
+		`Selbstauskunft von ${personName(input)} über den Link erhalten`
+	);
 	return true;
 }
 
@@ -1013,7 +1032,7 @@ export async function disclosureReport(
 				{
 					paragraph: blank
 						? 'Bitte füllen Sie nur aus, was Sie angeben möchten. Weitere Angaben, etwa Nachweise zum Einkommen oder zur Bonität, brauchen Sie erst, wenn der Vermieter Ihnen die Wohnung anbieten möchte. Eine Kopie Ihres Ausweises ist nicht nötig.'
-						: `Angaben von ${name}${applicant.disclosureSubmittedAt ? `, über den Link gesendet am ${formatDate(applicant.disclosureSubmittedAt.toISOString().slice(0, 10))}` : ''}.`
+						: `Angaben von ${name}${applicant.disclosureSubmittedAt ? `, über den Link gesendet am ${formatDate(dayOf(applicant.disclosureSubmittedAt))}` : ''}.`
 				},
 				...sections.map((section) => ({
 					table: {

@@ -1,5 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { formatDate } from '#lib/dates.ts';
+import { dayOf, formatDate } from '#lib/dates.ts';
 import {
 	deletionDate,
 	isClosedStatus,
@@ -137,7 +137,7 @@ export const actions: Actions = {
 		);
 		return {
 			linkUrl: `${event.url.origin}${disclosurePath(token)}`,
-			linkExpires: formatDate(expiresAt.toISOString().slice(0, 10))
+			linkExpires: formatDate(dayOf(expiresAt))
 		};
 	},
 	revoke: async (event) => {

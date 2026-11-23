@@ -35,7 +35,7 @@
 	});
 </script>
 
-<PageHeader title="Bank">
+<PageHeader title="Bank" {tabs}>
 	{#snippet actions()}
 		{#if create}<CreateButton {...create} />{/if}
 	{/snippet}

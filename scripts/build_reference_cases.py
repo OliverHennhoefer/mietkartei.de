@@ -197,7 +197,7 @@ class Case:
             <p>{html.escape(self.data["property"]["street"])}, {html.escape(self.data["property"]["postalCode"])} {html.escape(self.data["property"]["city"])}. Jede Zeile ist eine Wohnung, der Balken das Jahr {self.year} vom 1. Januar bis 31. Dezember.</p>
             <div class="house">{"".join(rows)}</div>
             <h3>Die Belege</h3>
-            <div class="table-wrap"><table class="case-table"><thead><tr><th>Beleg</th><th>Zeitraum</th><th>Verteilt</th><th class="num">Betrag</th></tr></thead><tbody>{bills}</tbody></table></div>"""
+            <div class="table-wrap" tabindex="0" role="region" aria-label="Die Belege"><table class="case-table"><thead><tr><th>Beleg</th><th>Zeitraum</th><th>Verteilt</th><th class="num">Betrag</th></tr></thead><tbody>{bills}</tbody></table></div>"""
 
     def item_step(self, item: dict) -> str:
         summary = self.item_results[item["id"]]
@@ -383,7 +383,7 @@ class Case:
         )
         return f"""<h2>Das Ergebnis je Mieter</h2>
             <p>Die Anteile aller Belege, abzüglich der geleisteten Vorauszahlungen.</p>
-            <div class="table-wrap"><table class="case-table result"><thead><tr><th>Mieter</th><th class="num">Kosten</th><th class="num">Vorauszahlungen</th><th class="num">Ergebnis</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>
+            <div class="table-wrap" tabindex="0" role="region" aria-label="Das Ergebnis je Mieter"><table class="case-table result"><thead><tr><th>Mieter</th><th class="num">Kosten</th><th class="num">Vorauszahlungen</th><th class="num">Ergebnis</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>
             {footer}"""
 
     def check_step(self) -> str:
@@ -407,7 +407,7 @@ class Case:
         )
         return f"""<h2>Unabhängig nachgerechnet</h2>
             <ul class="checks">{checks}</ul>
-            <div class="table-wrap"><table class="case-table"><thead><tr><th>Mieter</th><th class="num">mietkartei</th><th class="num">Nachrechnung</th><th></th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>
+            <div class="table-wrap" tabindex="0" role="region" aria-label="Unabhängig nachgerechnet"><table class="case-table"><thead><tr><th>Mieter</th><th class="num">mietkartei</th><th class="num">Nachrechnung</th><th><span class="visually-hidden">Vergleich</span></th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>
             <p>Bei jeder Änderung an mietkartei läuft dieses Beispiel als automatischer Test. Weicht ein Cent ab, wird die Änderung nicht übernommen. Das Beispiel und die erwarteten Beträge stehen offen im <a href="https://github.com/OliverHennhoefer/mietkartei.de/blob/main/app/src/lib/domain/reference-cases.ts">Quellcode</a>.</p>
             <h3>Rechtsgrundlagen</h3>
             <ul class="sources">{sources}</ul>"""

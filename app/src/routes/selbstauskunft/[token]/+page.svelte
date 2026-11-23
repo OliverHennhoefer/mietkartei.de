@@ -1,9 +1,13 @@
 <script lang="ts">
+	import { setContext } from 'svelte';
 	import { enhance } from '$app/forms';
 	import Money from '#lib/components/Money.svelte';
 	import SelfDisclosureFields from '#lib/components/SelfDisclosureFields.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import type { PageProps } from './$types';
+
+	// The form's groups are this page's sections, right under its title.
+	setContext('form-heading-level', 2);
 
 	let { data, form }: PageProps = $props();
 

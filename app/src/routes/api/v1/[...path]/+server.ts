@@ -23,7 +23,8 @@ function match(method: string, path: string): { operation: Operation; id?: strin
 	for (const route of routes) {
 		if (route.operation.method !== method) continue;
 		const found = route.pattern.exec(path);
-		if (found) return { operation: route.operation, id: found[1] && decodeURIComponent(found[1]) };
+		// SvelteKit has decoded the path already; decoding again would throw on a literal "%".
+		if (found) return { operation: route.operation, id: found[1] };
 	}
 	return undefined;
 }
