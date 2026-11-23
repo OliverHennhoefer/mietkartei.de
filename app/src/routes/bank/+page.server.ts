@@ -1,14 +1,21 @@
 import { error, fail } from '@sveltejs/kit';
-import { suggestLease, type SuggestionSource } from '#lib/domain/bank-matching.ts';
+import {
+	suggestContraAccount,
+	suggestLease,
+	type SuggestionSource
+} from '#lib/domain/bank-matching.ts';
 import { parseAssignment, type AssignmentFields } from '#lib/forms/bank.ts';
+import { parseOtherBooking } from '#lib/forms/contra-accounts.ts';
 import { parseExpenseAssignment } from '#lib/forms/expenses.ts';
 import type { FieldErrors } from '#lib/forms/fields.ts';
 import { listBankAccounts } from '#lib/server/bank/accounts.ts';
+import { contraAccountLabel, listContraAccounts } from '#lib/server/bank/contra-accounts.ts';
 import { listRules } from '#lib/server/bank/rules.ts';
 import { syncDue } from '#lib/server/bank/sync.ts';
 import { apiReadOnly } from '#lib/server/billing.ts';
 import {
 	assignExpense,
+	assignOther,
 	assignTransaction,
 	countUnmatched,
 	expenseByCounterpart,
@@ -33,8 +40,8 @@ import type { Actions, PageServerLoad } from './$types';
 
 // Umsätze: the review list. A fixed number of queries whatever the page shows: the bank
 // accounts, the transactions, the open count, the leases (with units and tenants), the rules,
-// the earlier assignments by IBAN, the earlier expenses by counterpart, the properties and units for the expense select, and the
-// payments, deposit movements and expenses of the listed rows.
+// the earlier assignments by IBAN, the earlier expenses by counterpart, the properties and units
+// for the expense select, the Gegenkonten, and the bookings of the listed rows.
 
 export type StatusFilter = BankTransactionStatus | 'all';
 
@@ -65,7 +72,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		byIban,
 		scopes,
 		presets,
-		serviceProviders
+		serviceProviders,
+		contraAccounts
 	] = await Promise.all([
 		listBankAccounts(locals.db, accountId),
 		listTransactions(locals.db, accountId, { status, bankAccountId, transactionId }),
@@ -75,7 +83,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		leaseByIban(locals.db, accountId),
 		scopeOptions(locals.db, accountId),
 		expenseByCounterpart(locals.db, accountId),
-		serviceProviderOptions(locals.db, accountId)
+		serviceProviderOptions(locals.db, accountId),
+		listContraAccounts(locals.db, accountId)
 	]);
 	const assignments = await listAssignments(
 		locals.db,
@@ -89,6 +98,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			row.status === 'unmatched'
 				? (suggestLease(row, { rules, leaseByIban: byIban, leases: hints }) ?? null)
 				: null,
+		contraSuggestion:
+			row.status === 'unmatched' ? (suggestContraAccount(row, rules) ?? null) : null,
 		expensePreset: row.status === 'unmatched' ? (expensePreset(row, presets) ?? null) : null,
 		assignments: (assignments.get(row.id) ?? []) as Assignment[]
 	}));
@@ -104,7 +115,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		// Booking as a deposit only makes sense once some lease has one agreed.
 		depositAgreed: leases.some((lease) => lease.securityDeposit > 0),
 		scopes,
-		serviceProviders
+		serviceProviders,
+		// The Gegenkonten a transaction is booked to by hand; rent and deposits take theirs from the
+		// lease's property.
+		contraAccounts: contraAccounts.map((account) => ({
+			id: account.id,
+			label: contraAccountLabel(account),
+			kind: account.kind,
+			expenseCategory: account.expenseCategory,
+			propertyId: account.propertyId
+		}))
 	};
 };
 
@@ -152,6 +172,13 @@ export const actions: Actions = {
 		}
 		const outcome = await assignExpense(locals.db, auditContext(locals), id, result.data);
 		if (outcome === 'missing') notFound();
+		if (outcome === 'unknown-contra-account') {
+			return fail(400, {
+				id,
+				expenseErrors: { contraAccountId: 'Dieses Gegenkonto gibt es nicht.' },
+				values: result.values
+			});
+		}
 		if (outcome === 'unknown-service-provider') {
 			return fail(400, {
 				id,
@@ -165,6 +192,25 @@ export const actions: Actions = {
 					? 'Dieser Umsatz ist nicht mehr offen.'
 					: 'Diese Zuordnung gibt es nicht.';
 			return fail(400, { id, expenseErrors: { scope: message }, values: result.values });
+		}
+		return { assigned: id };
+	},
+
+	other: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		const result = parseOtherBooking(form);
+		if (!result.ok) return fail(400, { id, otherErrors: result.errors, values: result.values });
+		const outcome = await assignOther(locals.db, auditContext(locals), id, result.data);
+		if (outcome === 'missing') notFound();
+		if (outcome !== 'assigned') {
+			const otherErrors =
+				outcome === 'not-open'
+					? { kind: 'Dieser Umsatz ist nicht mehr offen.' }
+					: outcome === 'unknown-property'
+						? { propertyId: 'Dieses Objekt gibt es nicht.' }
+						: { contraAccountId: 'Dieses Gegenkonto gibt es nicht.' };
+			return fail(400, { id, otherErrors, values: result.values });
 		}
 		return { assigned: id };
 	},

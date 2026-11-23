@@ -447,6 +447,8 @@ export type PaymentInput = {
 	source: PaymentSource;
 	/** The bank transaction the payment was assigned from. */
 	bankTransactionId?: string | null;
+	/** The Gegenkonto of kind rent, e.g. „8005 Mieten Rudolf“. */
+	contraAccountId?: string | null;
 	note?: string | null;
 };
 
@@ -465,6 +467,7 @@ export function paymentEntry(
 		amount: input.amount,
 		source: input.source,
 		bankTransactionId: input.bankTransactionId ?? null,
+		contraAccountId: input.contraAccountId ?? null,
 		note: input.note ?? null
 	});
 	return { id, statement };

@@ -16,6 +16,8 @@ export type ExpenseAssignmentInput = {
 	description: string;
 	/** Who was paid; null when unknown. Left out (the API), a change keeps the Dienstleister. */
 	serviceProviderId?: string | null;
+	/** The Gegenkonto of kind expense; null without one. */
+	contraAccountId?: string | null;
 };
 
 export type ExpenseInput = ExpenseAssignmentInput & {
@@ -31,6 +33,7 @@ export type ExpenseFields = {
 	scope: string;
 	description: string;
 	serviceProviderId: string;
+	contraAccountId: string;
 };
 
 export type ExpenseParseResult<T> =
@@ -58,16 +61,25 @@ function parseServiceProvider(parser: FormParser<ExpenseFields>): string | null 
 	return value || null;
 }
 
-export function parseExpenseAssignment(form: FormData): ExpenseParseResult<ExpenseAssignmentInput> {
+/**
+ * The assignment of a bank transaction as an expense. With a Gegenkonto the category may be left
+ * empty (null): the server takes the Gegenkonto's.
+ */
+export function parseExpenseAssignment(
+	form: FormData
+): ExpenseParseResult<
+	Omit<ExpenseAssignmentInput, 'category'> & { category: ExpenseCategory | null }
+> {
 	const parser = new FormParser<ExpenseFields>(form);
-	const category = parser.oneOf('category', expenseCategories);
+	const contraAccountId = parser.id('contraAccountId', { required: false });
+	const category = parser.oneOf('category', expenseCategories, { required: !contraAccountId });
 	const scope = parseScope(parser);
 	const description = parser.text('description', { max: 200 });
 	const serviceProviderId = parseServiceProvider(parser);
 	if (parser.hasErrors) return { ok: false, errors: parser.errors, values: parser.values };
 	return {
 		ok: true,
-		data: { category: category!, scope, description, serviceProviderId },
+		data: { category, scope, description, serviceProviderId, contraAccountId },
 		values: parser.values
 	};
 }

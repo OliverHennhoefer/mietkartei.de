@@ -1,4 +1,6 @@
 import type {
+	ContraAccountKind,
+	OtherBookingKind,
 	AllocationKeyKind,
 	ApplicantStatus,
 	BankTransactionStatus,
@@ -211,6 +213,36 @@ export const expenseCategoryShortLabels: Record<ExpenseCategory, string> = {
 	other: 'Sonstiges'
 };
 
+/** What a Gegenkonto books to, for its form and the list on /bank/buchungskonten. */
+export const contraAccountKindLabels: Record<ContraAccountKind, string> = {
+	rent: 'Mieteinnahmen (Kaltmiete)',
+	operating_costs: 'Nebenkosten-Vorauszahlungen',
+	statement_balance: 'Nebenkosten Vorjahr (Nachzahlung oder Guthaben)',
+	deposit: 'Kaution',
+	expense: 'Ausgabe',
+	capital_income: 'Kapitalerträge (z. B. Zinsen)',
+	private: 'Privatentnahme oder Privateinlage',
+	other_income: 'Sonstige Einnahme'
+};
+
+/** The short form, for the list of Gegenkonten and a booked transaction. */
+export const contraAccountKindShortLabels: Record<ContraAccountKind, string> = {
+	rent: 'Miete',
+	operating_costs: 'Nebenkosten',
+	statement_balance: 'Nebenkosten Vorjahr',
+	deposit: 'Kaution',
+	expense: 'Ausgabe',
+	capital_income: 'Kapitalertrag',
+	private: 'Privat',
+	other_income: 'Sonstige Einnahme'
+};
+
+export const otherBookingKindLabels: Record<OtherBookingKind, string> = {
+	capital_income: 'Kapitalertrag (z. B. Zinsen)',
+	private: 'Privatentnahme oder Privateinlage',
+	other_income: 'Sonstige Einnahme'
+};
+
 export const insuranceKindLabels: Record<InsuranceKind, string> = {
 	building: 'Wohngebäudeversicherung',
 	liability: 'Haus- und Grundbesitzerhaftpflicht',
@@ -274,6 +306,7 @@ export const auditEntityLabels: Record<string, string> = {
 	bankImport: 'Bankimport',
 	bankTransaction: 'Umsatz',
 	matchingRule: 'Zuordnungsregel',
+	contraAccount: 'Gegenkonto',
 	cost_category: 'Kostenart',
 	allocation_key: 'Umlageschlüssel',
 	billing_circle: 'Abrechnungskreis',

@@ -26,7 +26,8 @@ describe('parseBankAccount', () => {
 				name: 'Mietkonto',
 				iban: 'DE02120300000000202051',
 				bic: 'BYLADEM1001',
-				holder: 'Oliver Beispiel'
+				holder: 'Oliver Beispiel',
+				ledgerNumber: null
 			}
 		});
 	});
@@ -235,18 +236,47 @@ describe('parseRule', () => {
 	it('accepts a lease, a field and a pattern', () => {
 		expect(
 			parseRule(
-				formDataOf({ leaseId: 'l1', field: 'purpose', pattern: ' Wohnung 2 ', confirmed: 'on' })
+				formDataOf({
+					name: 'Miete Müller',
+					target: 'lease:l1',
+					field: 'purpose',
+					pattern: ' Wohnung 2 ',
+					confirmed: 'on'
+				})
 			)
 		).toEqual({
 			ok: true,
-			data: { leaseId: 'l1', field: 'purpose', pattern: 'Wohnung 2', confirmed: true }
+			data: {
+				name: 'Miete Müller',
+				leaseId: 'l1',
+				contraAccountId: null,
+				field: 'purpose',
+				pattern: 'Wohnung 2',
+				confirmed: true
+			}
 		});
-		const unconfirmed = parseRule(formDataOf({ leaseId: 'l1', field: 'purpose', pattern: 'ab' }));
+		const unconfirmed = parseRule(
+			formDataOf({ name: 'x', target: 'lease:l1', field: 'purpose', pattern: 'ab' })
+		);
 		expect(unconfirmed.ok && unconfirmed.data.confirmed).toBe(false);
 	});
 
-	it('rejects an unknown field and a one-character pattern', () => {
-		const result = parseRule(formDataOf({ leaseId: 'l1', field: 'colour', pattern: 'x' }));
+	it('accepts a Gegenkonto', () => {
+		const result = parseRule(
+			formDataOf({ name: 'Wasser', target: 'contra:c1', field: 'counterpartIban', pattern: 'DE12' })
+		);
+		expect(result.ok && result.data).toMatchObject({ leaseId: null, contraAccountId: 'c1' });
+	});
+
+	it('rejects a rule without a name, an unknown target or field and a one-character pattern', () => {
+		const unnamed = parseRule(formDataOf({ target: 'lease:l1', field: 'purpose', pattern: 'ab' }));
+		expect(!unnamed.ok && unnamed.errors.name).toBe('Bitte fülle dieses Feld aus.');
+		expect(
+			parseRule(formDataOf({ name: 'x', target: 'x:1', field: 'purpose', pattern: 'ab' })).ok
+		).toBe(false);
+		const result = parseRule(
+			formDataOf({ name: 'x', target: 'lease:l1', field: 'colour', pattern: 'x' })
+		);
 		expect(result.ok).toBe(false);
 		if (result.ok) return;
 		expect(result.errors.field).toBe('Bitte wähle einen gültigen Eintrag aus.');

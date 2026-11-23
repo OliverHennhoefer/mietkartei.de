@@ -72,6 +72,36 @@ export async function createBankAccount(
 	return { ok: true, id };
 }
 
+/** Sets the Kontonummer in der Buchhaltung; false when the bank account is not in the account. */
+export async function setLedgerNumber(
+	db: Database,
+	context: AuditContext,
+	bankAccountId: string,
+	ledgerNumber: string | null
+): Promise<boolean> {
+	const account = await getBankAccount(db, context.accountId, bankAccountId);
+	if (!account) return false;
+	await runBatch(db, [
+		db
+			.update(bankAccounts)
+			.set({ ledgerNumber })
+			.where(
+				and(eq(bankAccounts.accountId, context.accountId), eq(bankAccounts.id, bankAccountId))
+			),
+		auditEntry(
+			db,
+			context,
+			'bankAccount',
+			bankAccountId,
+			'update',
+			ledgerNumber
+				? `Kontonummer der Bankverbindung „${account.name}“ auf ${ledgerNumber} gesetzt`
+				: `Kontonummer der Bankverbindung „${account.name}“ entfernt`
+		)
+	]);
+	return true;
+}
+
 /**
  * Deletes the bank account with its imports and transactions (cascade). Refused while a
  * transaction is assigned, because the payments on the ledger would lose their origin.

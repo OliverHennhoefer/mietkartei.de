@@ -12,14 +12,26 @@ import { formatCents } from '../../money';
 import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
 import { chunk, rowsPerStatement, runBatch, selectInChunks } from '../db/batch';
-import { auditLog, bankImports, bankTransactions, payments } from '../db/schema';
+import {
+	auditLog,
+	bankImports,
+	bankTransactions,
+	expenses,
+	otherBookingKinds,
+	otherBookings,
+	payments
+} from '../db/schema';
+import { otherBookingKindLabels } from '../../labels';
+import { expenseSummary } from '../expenses';
+import { contraAccountLabel, listContraAccounts, type ContraAccount } from './contra-accounts';
 import { leaseLabel, listLeases } from '../leases';
 import { getBankAccount } from './accounts';
 import { listConfirmedRules } from './rules';
 import { assertQuota } from '../quotas';
 
 // The CSV import: every row of the file is new, a duplicate (its fingerprint is already in the
-// bank account), a rule hit (a confirmed rule assigns the incoming amount on import) or invalid.
+// bank account), a rule hit (a confirmed rule books it on import: incoming rent to a lease, or
+// either direction to a Gegenkonto) or invalid.
 // The preview and the commit run the same analysis, so what the landlord saw is what happens.
 
 export type PreviewStatus = 'new' | 'duplicate' | 'rule' | 'invalid';
@@ -32,7 +44,10 @@ export type PreviewRow = {
 	/** Why the row is invalid, or which rule hit. */
 	reason: string | null;
 	leaseId: string | null;
-	leaseLabel: string | null;
+	/** The Gegenkonto a rule hit is booked to, instead of a lease. */
+	contraAccountId: string | null;
+	/** The lease or Gegenkonto of a rule hit. */
+	targetLabel: string | null;
 };
 
 export type ImportCounts = {
@@ -45,9 +60,15 @@ export type ImportCounts = {
 
 export type ImportPreview = { rows: PreviewRow[]; counts: ImportCounts };
 
-type AnalyzedRow = PreviewRow & { fingerprinted: FingerprintedRow | null };
+type AnalyzedRow = PreviewRow & {
+	fingerprinted: FingerprintedRow | null;
+	contraAccount: ContraAccount | null;
+};
 
-/** Fixed number of queries: the bank account, the fingerprints (per 90), the rules, the leases. */
+/**
+ * Fixed number of queries: the bank account, the fingerprints (per 90), the rules, the leases,
+ * the Gegenkonten.
+ */
 async function analyze(
 	db: Database,
 	accountId: string,
@@ -73,59 +94,59 @@ async function analyze(
 				)
 	);
 	const existing = new Set(existingRows.map((row) => row.fingerprint));
-	const [rules, leases] = await Promise.all([
+	const [rules, leases, contraAccounts] = await Promise.all([
 		listConfirmedRules(db, accountId),
-		listLeases(db, accountId)
+		listLeases(db, accountId),
+		listContraAccounts(db, accountId)
 	]);
 	const labels = new Map(leases.map((lease) => [lease.id, leaseLabel(lease)]));
+	const contraById = new Map(contraAccounts.map((account) => [account.id, account]));
+	const otherKinds = new Set<string>(otherBookingKinds);
+	const none = { leaseId: null, contraAccountId: null, targetLabel: null, contraAccount: null };
 
 	const byIndex = new Map(valid.map((entry, position) => [entry.index, fingerprinted[position]]));
 	return results.map((result, index): AnalyzedRow => {
 		const row = byIndex.get(index);
 		if (!result.ok || !row) {
 			const reason = result.ok ? null : result.reason;
-			return {
-				index,
-				status: 'invalid',
-				row: null,
-				reason,
-				leaseId: null,
-				leaseLabel: null,
-				fingerprinted: null
-			};
+			return { index, status: 'invalid', row: null, reason, ...none, fingerprinted: null };
 		}
 		if (existing.has(row.fingerprint)) {
-			return {
-				index,
-				status: 'duplicate',
-				row,
-				reason: null,
-				leaseId: null,
-				leaseLabel: null,
-				fingerprinted: row
-			};
+			return { index, status: 'duplicate', row, reason: null, ...none, fingerprinted: row };
 		}
-		const leaseId = applyRules(rules, row);
-		if (leaseId && labels.has(leaseId)) {
+		const rule = applyRules(rules, row);
+		if (rule?.leaseId && labels.has(rule.leaseId)) {
 			return {
 				index,
 				status: 'rule',
 				row,
 				reason: null,
-				leaseId,
-				leaseLabel: labels.get(leaseId) ?? null,
+				...none,
+				leaseId: rule.leaseId,
+				targetLabel: labels.get(rule.leaseId) ?? null,
 				fingerprinted: row
 			};
 		}
-		return {
-			index,
-			status: 'new',
-			row,
-			reason: null,
-			leaseId: null,
-			leaseLabel: null,
-			fingerprinted: row
-		};
+		const contra = rule?.contraAccountId ? contraById.get(rule.contraAccountId) : undefined;
+		// Only an expense (with its category) or an other booking takes a Gegenkonto rule: rent and
+		// deposits go to a lease, and a lease rule books them there.
+		if (
+			contra &&
+			(otherKinds.has(contra.kind) || (contra.kind === 'expense' && contra.expenseCategory))
+		) {
+			return {
+				index,
+				status: 'rule',
+				row,
+				reason: null,
+				leaseId: null,
+				contraAccountId: contra.id,
+				targetLabel: contraAccountLabel(contra),
+				contraAccount: contra,
+				fingerprinted: row
+			};
+		}
+		return { index, status: 'new', row, reason: null, ...none, fingerprinted: row };
 	});
 }
 
@@ -150,8 +171,9 @@ export async function previewImport(
 	const analyzed = await analyze(db, accountId, bankAccountId, results);
 	if (!analyzed) return undefined;
 	const rows = analyzed.map((entry): PreviewRow => {
-		const { fingerprinted: _, ...row } = entry;
+		const { fingerprinted: _, contraAccount: __, ...row } = entry;
 		void _;
+		void __;
 		return row;
 	});
 	return { rows, counts: countRows(rows) };
@@ -197,6 +219,8 @@ async function commitOnce(
 
 	const transactionRows: (typeof bankTransactions.$inferInsert)[] = [];
 	const paymentRows: (typeof payments.$inferInsert)[] = [];
+	const expenseRows: (typeof expenses.$inferInsert)[] = [];
+	const otherRows: (typeof otherBookings.$inferInsert)[] = [];
 	const auditRows: (typeof auditLog.$inferInsert)[] = [];
 	for (const entry of analyzed) {
 		const row = entry.fingerprinted;
@@ -238,11 +262,65 @@ async function commitOnce(
 				summary: `Zahlung ${formatCents(row.amount)} vom ${formatDate(row.bookingDate)} (${row.counterpartName || 'ohne Namen'}) per Regel zugeordnet`
 			});
 		}
+		const contra = entry.status === 'rule' ? entry.contraAccount : null;
+		if (contra) {
+			const who = row.counterpartName || 'ohne Namen';
+			const label = `Umsatz ${formatCents(row.amount)} vom ${formatDate(row.bookingDate)} (${who})`;
+			if (contra.kind === 'expense' && contra.expenseCategory) {
+				const expense = {
+					id: crypto.randomUUID(),
+					accountId,
+					propertyId: contra.propertyId,
+					unitId: null,
+					date: row.bookingDate,
+					amount: -row.amount,
+					category: contra.expenseCategory,
+					description: (row.purpose || row.counterpartName || contra.name).slice(0, 200),
+					contraAccountId: contra.id,
+					bankTransactionId: id
+				};
+				expenseRows.push(expense);
+				auditRows.push({
+					accountId,
+					userId: context.userId,
+					entity: 'bankTransaction',
+					entityId: id,
+					action: 'assign',
+					summary: `${label} als ${expenseSummary(expense)} per Regel zugeordnet`
+				});
+			} else if (
+				contra.kind === 'capital_income' ||
+				contra.kind === 'private' ||
+				contra.kind === 'other_income'
+			) {
+				otherRows.push({
+					id: crypto.randomUUID(),
+					accountId,
+					kind: contra.kind,
+					contraAccountId: contra.id,
+					propertyId: contra.propertyId,
+					date: row.bookingDate,
+					amount: row.amount,
+					description: row.purpose.slice(0, 200),
+					bankTransactionId: id
+				});
+				auditRows.push({
+					accountId,
+					userId: context.userId,
+					entity: 'bankTransaction',
+					entityId: id,
+					action: 'assign',
+					summary: `${label} als ${otherBookingKindLabels[contra.kind]} per Regel gebucht`
+				});
+			}
+		}
 	}
 
 	const imported = counts.new + counts.rules;
 	await assertQuota(db, accountId, 'bankTransactions', transactionRows.length);
 	await assertQuota(db, accountId, 'payments', paymentRows.length);
+	await assertQuota(db, accountId, 'expenses', expenseRows.length);
+	await assertQuota(db, accountId, 'otherBookings', otherRows.length);
 	try {
 		await runBatch(db, [
 			db.insert(bankImports).values({
@@ -260,6 +338,12 @@ async function commitOnce(
 			),
 			...chunk(paymentRows, rowsPerStatement(payments)).map((rows) =>
 				db.insert(payments).values(rows)
+			),
+			...chunk(expenseRows, rowsPerStatement(expenses)).map((rows) =>
+				db.insert(expenses).values(rows)
+			),
+			...chunk(otherRows, rowsPerStatement(otherBookings)).map((rows) =>
+				db.insert(otherBookings).values(rows)
 			),
 			...chunk(auditRows, rowsPerStatement(auditLog)).map((rows) =>
 				db.insert(auditLog).values(rows)

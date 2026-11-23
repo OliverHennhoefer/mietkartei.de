@@ -161,8 +161,8 @@
 									<Badge tone={statusLabels[row.status].tone}
 										>{statusLabels[row.status].label}</Badge
 									>
-									{#if row.status === 'rule' && row.leaseLabel}
-										<span class="small">→ {row.leaseLabel}</span>
+									{#if row.status === 'rule' && row.targetLabel}
+										<span class="small">→ {row.targetLabel}</span>
 									{/if}
 								</td>
 							</tr>

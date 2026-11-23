@@ -7,6 +7,8 @@ import {
 	bankAccounts,
 	billingCircles,
 	bankTransactions,
+	contraAccounts,
+	otherBookings,
 	co2CostSplits,
 	costCategories,
 	serviceProviders,
@@ -63,6 +65,8 @@ export const QUOTAS = {
 	matchingRules: { table: matchingRules, max: 2_000, label: 'Zuordnungsregeln' },
 	bankTransactions: { table: bankTransactions, max: 100_000, label: 'Bankumsätze' },
 	expenses: { table: expenses, max: 100_000, label: 'Ausgaben' },
+	contraAccounts: { table: contraAccounts, max: 500, label: 'Gegenkonten' },
+	otherBookings: { table: otherBookings, max: 100_000, label: 'Sonstige Buchungen' },
 	costCategories: { table: costCategories, max: 200, label: 'Kostenarten' },
 	/** Also bounds the shares: one per unit of the key's property. */
 	allocationKeys: { table: allocationKeys, max: 200, label: 'Umlageschlüssel' },
