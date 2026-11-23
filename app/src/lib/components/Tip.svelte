@@ -100,6 +100,17 @@
 	button:focus-visible {
 		outline-offset: 0;
 	}
+	/* On a phone the small mark takes a tap from a finger: the area around it counts too. */
+	@media (max-width: 40rem) {
+		.tip button {
+			position: relative;
+		}
+		.tip button::after {
+			content: '';
+			position: absolute;
+			inset: -0.6rem;
+		}
+	}
 	.mark {
 		display: inline-grid;
 		place-items: center;

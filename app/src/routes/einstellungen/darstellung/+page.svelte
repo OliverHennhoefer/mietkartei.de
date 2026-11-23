@@ -60,8 +60,7 @@
 	<p class="muted hint">
 		Wie DATEV tippst du Beträge ohne Komma, die letzten zwei Ziffern sind die Cent: 60000 für 600,00
 		€. Mit Komma oder Punkt („600,50“, „1.200“) liest mietkartei den Betrag wie gewohnt. Die
-		Einstellung gilt nur für dich und braucht JavaScript im Browser; ohne JavaScript gelten Beträge
-		mit Komma.
+		Einstellung gilt nur für dich.
 	</p>
 	<label class="inline">
 		<input type="checkbox" name="showPropertyMaps" checked={data.showPropertyMaps} />

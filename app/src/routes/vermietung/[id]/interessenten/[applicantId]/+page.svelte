@@ -307,10 +307,13 @@
 		gap: 0.5rem;
 		align-items: center;
 	}
+	/* The sections sit in the fieldset, not in the form, so it is their container: on a narrow
+	   screen their titles go above the fields, as in every other form (app.css). */
 	fieldset {
 		border: 0;
 		padding: 0;
 		margin: 0;
 		min-width: 0;
+		container-type: inline-size;
 	}
 </style>

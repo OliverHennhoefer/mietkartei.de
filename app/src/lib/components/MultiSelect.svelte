@@ -281,6 +281,17 @@
 	.pill button:focus-visible {
 		outline-offset: 0;
 	}
+	/* On a phone a finger needs more than the cross: the area around it counts too. */
+	@media (max-width: 40rem) {
+		.pill button {
+			position: relative;
+		}
+		.pill button::after {
+			content: '';
+			position: absolute;
+			inset: -0.5rem -0.4rem;
+		}
+	}
 	.pill svg {
 		fill: none;
 		stroke: currentColor;

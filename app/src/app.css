@@ -1712,22 +1712,38 @@ dl.details dd {
 	.table tbody td:first-child {
 		font-weight: 500;
 	}
+	/* The label column holds the longest headings in one line ("Eigenkapitalrendite",
+	   "Standardschlüssel"); a value wraps inside the card, also where its column never wraps on
+	   a wide screen (an IBAN, an amount with a date). */
 	.table td[data-label]:not(:first-child) {
 		display: flow-root;
-		padding-left: 8.25rem;
+		width: auto;
+		padding-left: 9.25rem;
 		text-align: left;
+		white-space: normal;
+		overflow-wrap: anywhere;
 	}
 	.table td[data-label]:not(:first-child)::before {
 		content: attr(data-label);
 		float: left;
-		width: 7.5rem;
-		margin-left: -8.25rem;
+		width: 8.5rem;
+		margin-left: -9.25rem;
 		color: var(--color-muted);
 		font-size: var(--text-xs);
 		font-weight: 400;
 		line-height: 1.6rem;
+		white-space: normal;
 		hyphens: auto;
 		overflow-wrap: anywhere;
+	}
+	/* A larger target for the thumb, without moving the text: the title of a card is a block of
+	   its own, a link inside a line grows above and below it. */
+	.table td a:not(.button) {
+		padding-block: 0.35rem;
+	}
+	.table tbody td:first-child > a:only-child {
+		display: block;
+		margin-block: -0.35rem;
 	}
 	.table .num,
 	.table .actions {
@@ -1756,6 +1772,60 @@ dl.details dd {
 	.table tfoot td {
 		background: none;
 		border: 0;
+	}
+
+	/* The page title a size smaller, so a long name takes two lines instead of three. */
+	h1 {
+		font-size: var(--text-2xl);
+	}
+	/* A long term wraps instead of squeezing its value into a few letters a line. */
+	dl.details {
+		grid-template-columns: fit-content(45%) minmax(0, 1fr);
+	}
+	dl.details dt {
+		overflow-wrap: anywhere;
+		hyphens: auto;
+	}
+	/* Small buttons, icon buttons and the lines that fold open are easier to hit with a thumb. */
+	button.small,
+	.button.small {
+		min-height: 2.5rem;
+		padding-inline: 0.8rem;
+	}
+	button.icon-button {
+		width: 2.75rem;
+		min-height: 2.75rem;
+	}
+	main summary,
+	dialog summary {
+		padding-block: 0.5rem;
+	}
+	nav.toolbar > a {
+		padding-block: 0.65rem;
+	}
+	/* A check box whose text wraps keeps the text beside it, not under it. */
+	label.inline {
+		align-items: flex-start;
+	}
+	label.inline > input {
+		flex-shrink: 0;
+		margin-top: 0.15rem;
+	}
+	/* A chart or table that scrolls sideways fades out where more follows (scroll-fade.ts). */
+	.scroll-fade.more-after {
+		mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+	}
+	.scroll-fade.more-before {
+		mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent);
+	}
+	.scroll-fade.more-before.more-after {
+		mask-image: linear-gradient(
+			to right,
+			transparent,
+			#000 2.5rem,
+			#000 calc(100% - 2.5rem),
+			transparent
+		);
 	}
 }
 

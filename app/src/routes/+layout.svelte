@@ -144,12 +144,15 @@
 				for (const row of body.rows) {
 					let column = 0;
 					for (const cell of row.cells) {
-						// Actions and a lone button speak for themselves; an empty cell is left out.
+						// Actions and a lone button speak for themselves; an empty cell is left out, and so
+						// is one that holds nothing but the dash for "none", except as the row's title.
 						const action =
 							cell.classList.contains('actions') ||
 							cell.matches(':has(> form:only-child), :has(> button:only-child)');
+						const text = cell.textContent?.trim() ?? '';
 						const blank =
-							!cell.textContent?.trim() && !cell.querySelector('input, select, button, img, svg');
+							(!text || (column > 0 && /^[–—-]$/.test(text))) &&
+							!cell.querySelector('input, select, button, img, svg');
 						const label = cell.colSpan === 1 && !action && !blank ? headings[column] : '';
 						setData(cell, 'label', label || undefined);
 						setData(cell, 'blank', blank ? '' : undefined);
