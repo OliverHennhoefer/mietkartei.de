@@ -17,6 +17,7 @@
 		{ href: '/bank/import', label: 'Import' },
 		{ href: '/bank/regeln', label: 'Regeln' },
 		{ href: '/bank/gegenkonten', label: 'Gegenkonten' },
+		{ href: '/bank/datev', label: 'DATEV' },
 		{ href: '/bank/konten', label: 'Konten' }
 	];
 

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { formatCents } from '../money';
 import {
+	datevPeriodOf,
 	mappingError,
 	parseAssignment,
 	parseBankAccount,
+	parseDatevNumbers,
 	parseImport,
 	parseRule,
 	toColumnMapping
@@ -281,5 +283,32 @@ describe('parseRule', () => {
 		if (result.ok) return;
 		expect(result.errors.field).toBe('Bitte wähle einen gültigen Eintrag aus.');
 		expect(result.errors.pattern).toBe('Mindestens zwei Zeichen.');
+	});
+});
+
+describe('parseDatevNumbers', () => {
+	it('takes numbers within the DATEV ranges without leading zeros', () => {
+		expect(
+			parseDatevNumbers(formDataOf({ advisorNumber: '29098', clientNumber: '00042' }))
+		).toEqual({ ok: true, data: { advisorNumber: '29098', clientNumber: '42' } });
+		const refused = parseDatevNumbers(formDataOf({ advisorNumber: '999', clientNumber: '0' }));
+		expect(refused.ok).toBe(false);
+		if (!refused.ok)
+			expect(Object.keys(refused.errors).sort()).toEqual(['advisorNumber', 'clientNumber']);
+	});
+});
+
+describe('datevPeriodOf', () => {
+	it('defaults to the last calendar year and refuses a period over two years', () => {
+		expect(datevPeriodOf(null, null, '2026-11-23')).toEqual({
+			from: '2025-01-01',
+			to: '2025-12-31',
+			error: null
+		});
+		expect(datevPeriodOf('2026-01-01', 'x', '2026-11-23').to).toBe('2026-12-31');
+		expect(datevPeriodOf('2025-12-01', '2026-01-31', '2026-11-23').error).toMatch(
+			/Wirtschaftsjahr/
+		);
+		expect(datevPeriodOf('2025-12-01', '2025-11-30', '2026-11-23').error).toMatch(/vor dem Anfang/);
 	});
 });

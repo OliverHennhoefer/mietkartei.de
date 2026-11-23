@@ -53,7 +53,10 @@ export async function startDemo(
 			postalCode: '10435',
 			city: 'Berlin',
 			iban: 'DE63100500006600099110',
-			bankName: 'Berliner Sparkasse'
+			bankName: 'Berliner Sparkasse',
+			// DATEV's own sample Berater and Mandant, so the demo's Buchungsstapel can be downloaded.
+			datevAdvisorNumber: '29098',
+			datevClientNumber: '55003'
 		}),
 		db.insert(users).values({
 			id: userId,
