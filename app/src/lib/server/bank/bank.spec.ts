@@ -607,6 +607,12 @@ describe('transactions', () => {
 		expect(await ignoreTransaction(db, contextA, outgoing.id)).toBe('ignored');
 		expect(await ignoreTransaction(db, contextA, outgoing.id)).toBe('not-open');
 		expect((await listTransactions(db, 'a', { status: 'ignored' })).rows).toHaveLength(1);
+		// Importing the file again keeps it ignored, and the preview says so.
+		const again = await previewImport(db, 'a', bankAccountId, rows(sparkasse));
+		expect(again?.rows.every((row) => row.status === 'duplicate')).toBe(true);
+		expect(
+			again?.rows.filter((row) => row.reason === 'Ignoriert').map((row) => row.row?.amount)
+		).toEqual([outgoing.amount]);
 		expect(await reopenTransaction(db, contextA, outgoing.id)).toBe('reopened');
 		expect(await reopenTransaction(db, contextA, outgoing.id)).toBe('not-ignored');
 		expect(await countUnmatched(db, 'a')).toBe(3);

@@ -626,6 +626,23 @@
 	<Alert tone="danger"><p>{message}</p></Alert>
 {/if}
 
+<!-- An ignored transaction leaves the list of open ones; this brings it back at once. Later it is
+     under the filter „Ignoriert“ with „Wieder öffnen“. -->
+{#if form && 'ignored' in form}
+	<Alert tone="success">
+		<form method="POST" action={action('reopen')} class="row" use:enhance>
+			<input type="hidden" name="id" value={form.ignored} />
+			<span>
+				Der Umsatz wird ignoriert. Du findest ihn unter
+				<a href={filterHref('ignored')}>{bankTransactionStatusLabels.ignored}</a>.
+			</span>
+			<button type="submit" class="secondary small">Rückgängig</button>
+		</form>
+	</Alert>
+{:else if form && 'reopened' in form}
+	<Alert tone="success"><p>Der Umsatz ist wieder offen.</p></Alert>
+{/if}
+
 {#if data.transactionId}
 	<Alert tone="info">
 		<p>

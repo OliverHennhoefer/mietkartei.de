@@ -33,6 +33,7 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ### Geändert
 
+- Versehentlich ignorierte Bankumsätze holst du gleich danach mit **Rückgängig** zurück. Beim erneuten Import zeigt die Vorschau ignorierte Zeilen als ignoriert an und sagt, wo du sie wieder öffnest.
 - Klarere Seiten nach einem Durchgang zu Bedienung und Gestaltung:
   - **Bank:** Bei einer Abbuchung steht das Formular **Als Ausgabe buchen** oben, mit **Ignorieren** daneben; die Zuordnung zu einem Mietvertrag liegt eingeklappt darunter. Bei einer Gutschrift bleibt es umgekehrt. Je Umsatz gibt es nur noch einen hervorgehobenen Knopf.
   - **Mietvertrag:** In der Übersicht sind die Formulare für den Eintritt eines Mieters, den Personenstand und die Kündigung eingeklappt und öffnen sich mit **Eintritt eines Mieters eintragen**, **Personenstand ändern** und **Kündigung eintragen**. Im Mietkonto sind **Schreiben erstellen** und **Korrektur buchen** nicht mehr hervorgehoben, nur **Zahlung buchen**.
