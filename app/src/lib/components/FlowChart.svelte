@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { scrollFade } from '#lib/scroll-fade.ts';
 	import { formatCents } from '#lib/money.ts';
 
 	// Money in against money out per month or year, as paired bars on one axis, with the surplus
@@ -115,7 +116,7 @@
 			Zeige auf einen Zeitraum für die Beträge.
 		{/if}
 	</p>
-	<div class="plot">
+	<div class="plot scroll-fade" use:scrollFade>
 		<svg viewBox="0 0 {width} {height}" role="group" aria-label={label}>
 			{#each scale.ticks as tick (tick)}
 				<line

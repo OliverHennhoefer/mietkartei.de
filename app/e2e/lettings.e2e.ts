@@ -76,6 +76,10 @@ test('finds the next tenant for a unit and turns the applicant into tenant and l
 	await expect(page.locator('.proofs li').filter({ hasText: 'Ausweis vorgezeigt' })).toContainText(
 		'vorgelegt am'
 	);
+	// The page with the answers fits a phone: its form stacks instead of pushing the page wide.
+	await page.setViewportSize({ width: 390, height: 844 });
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+	await page.setViewportSize({ width: 1280, height: 720 });
 
 	page.once('dialog', (dialog) => dialog.accept());
 	await page.getByRole('button', { name: 'Zusage geben und Mietvertrag anlegen' }).click();

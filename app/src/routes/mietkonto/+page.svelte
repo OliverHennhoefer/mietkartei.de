@@ -253,4 +253,23 @@
 		font-weight: 600;
 		text-decoration: none;
 	}
+	/* On a phone the arrow sits at the top right of the row's card, not in a line of its own. */
+	@media (max-width: 40rem) {
+		.table tbody tr {
+			position: relative;
+		}
+		.table tbody td:first-child {
+			padding-right: 2.75rem;
+		}
+		.open {
+			position: absolute;
+			top: 0.4rem;
+			right: 0.4rem;
+			width: 2.75rem;
+			height: 2.75rem;
+		}
+		td.actions:not(:has(button, .button)) {
+			display: none;
+		}
+	}
 </style>

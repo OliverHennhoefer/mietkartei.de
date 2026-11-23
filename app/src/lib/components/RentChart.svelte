@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { scrollFade } from '#lib/scroll-fade.ts';
 	import { formatCents } from '#lib/money.ts';
 
 	// What was charged (Soll) against what came in (Ist), per year: the charge as a dashed frame,
@@ -73,7 +74,7 @@
 			Zeige auf ein Jahr für die Beträge.
 		{/if}
 	</p>
-	<div class="plot">
+	<div class="plot scroll-fade" use:scrollFade>
 		<svg viewBox="0 0 {width} {height}" role="group" aria-label={label}>
 			{#each scale.ticks as tick (tick)}
 				<line

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { getDeadlineMail } from '#lib/server/deadline-mails.ts';
 import { notificationChannels } from '#lib/server/db/schema.ts';
+import { AUTH_LIMIT } from '#lib/server/rate-limit/index.ts';
 import { outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
 import { actions, load } from './+page.server';
 
@@ -126,6 +127,20 @@ describe('einstellungen/benachrichtigungen', () => {
 			fail: 404
 		});
 		vi.unstubAllGlobals();
+	});
+
+	it('limits how many tests a user sends per minute', async () => {
+		await run(actions.add, { form: { kind: 'email' } });
+		const [channel] = await db.select().from(notificationChannels);
+		const results = [];
+		for (let post = 0; post <= AUTH_LIMIT; post++) {
+			results.push(await run(actions.test, { form: { channelId: channel.id } }));
+		}
+		expect(results[0]).toEqual({ data: { tested: true } });
+		expect(results[AUTH_LIMIT]).toMatchObject({
+			fail: 429,
+			data: { refused: 'Zu viele Tests in kurzer Zeit. Bitte warte eine Minute.' }
+		});
 	});
 
 	it('offers Mitteilungen only with the server key, and sends a test to a new device', async () => {

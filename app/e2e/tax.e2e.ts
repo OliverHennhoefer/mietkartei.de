@@ -54,6 +54,10 @@ test('sorts a year of an Eigentumswohnung into the lines of the Anlage V', async
 	await expect(page.getByText('Sie ist keine Steuerberatung')).toBeVisible();
 	await expect(page.getByText(/Ohne Kaufdatum/)).toBeVisible();
 	await expect(page.getByText(/Darlehensraten über 6\.000,00\s€/)).toBeVisible();
+	// The figures fit a phone without scrolling sideways.
+	await page.setViewportSize({ width: 390, height: 844 });
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+	await page.setViewportSize({ width: 1280, height: 720 });
 
 	const income = page.getByRole('region', { name: 'Einnahmen', exact: true });
 	await expect(income.getByRole('row', { name: /^15 Mieteinnahmen für Wohnungen/ })).toContainText(

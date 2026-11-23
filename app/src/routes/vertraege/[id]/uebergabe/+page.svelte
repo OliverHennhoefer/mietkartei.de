@@ -244,6 +244,13 @@
 		.key {
 			grid-template-columns: minmax(0, 1fr);
 		}
+		/* Stacked, the fields of one room or key need a line to the next. */
+		.room + .room,
+		.key + .key {
+			margin-top: 1rem;
+			padding-top: 1rem;
+			border-top: 1px solid var(--color-border);
+		}
 	}
 	.protocol .actions {
 		display: flex;

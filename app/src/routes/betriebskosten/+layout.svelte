@@ -44,7 +44,7 @@
 	});
 </script>
 
-<PageHeader title="Betriebskosten">
+<PageHeader title="Betriebskosten" {tabs}>
 	{#snippet actions()}
 		{#if create}<CreateButton {...create} />{/if}
 	{/snippet}

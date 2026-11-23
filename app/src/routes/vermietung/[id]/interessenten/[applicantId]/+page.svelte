@@ -9,7 +9,7 @@
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import PreviewLink from '#lib/components/PreviewLink.svelte';
 	import SelfDisclosureFields from '#lib/components/SelfDisclosureFields.svelte';
-	import { formatDate, formatDateTime } from '#lib/dates.ts';
+	import { dayOf, formatDate, formatDateTime } from '#lib/dates.ts';
 	import { burdenTone, RETENTION_MONTHS } from '#lib/domain/applicants.ts';
 	import { formatNumber } from '#lib/format.ts';
 	import { applicantStatusLabels } from '#lib/labels.ts';
@@ -192,7 +192,7 @@
 			<p class="muted">
 				{data.link.submittedAt
 					? `Eingegangen am ${formatDateTime(data.link.submittedAt)}.`
-					: `Ein Link ist offen bis zum ${formatDate(data.link.expiresAt.toISOString().slice(0, 10))}.`}
+					: `Ein Link ist offen bis zum ${formatDate(dayOf(data.link.expiresAt))}.`}
 			</p>
 		{/if}
 		<div class="toolbar">
@@ -307,10 +307,13 @@
 		gap: 0.5rem;
 		align-items: center;
 	}
+	/* The sections sit in the fieldset, not in the form, so it is their container: on a narrow
+	   screen their titles go above the fields, as in every other form (app.css). */
 	fieldset {
 		border: 0;
 		padding: 0;
 		margin: 0;
 		min-width: 0;
+		container-type: inline-size;
 	}
 </style>

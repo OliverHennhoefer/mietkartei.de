@@ -159,8 +159,8 @@
 				<span>
 					<a href="/vertraege/{lease.id}"><strong>{lease.label}</strong></a>
 					<span class="muted">
-						· seit {formatDate(lease.startDate)}{#if lease.endDate}
-							bis {formatDate(lease.endDate)}{/if}
+						· seit {formatDate(lease.startDate)}
+						{#if lease.endDate}bis {formatDate(lease.endDate)}{/if}
 					</span>
 					<span class="figures muted small">
 						<Money cents={lease.rent} /> warm ·

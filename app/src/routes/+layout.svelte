@@ -6,7 +6,6 @@
 	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
 	import WebsiteFooter from '#lib/components/WebsiteFooter.svelte';
 	import WebsiteHeader from '#lib/components/WebsiteHeader.svelte';
-	import { AMOUNT_INPUT_FIELD } from '#lib/forms/fields.ts';
 	import { settingsSectionOf, settingsSections } from '#lib/settings.ts';
 	import { viewerWritesOn } from '#lib/viewer-paths.ts';
 	import { goto, preloadData } from '$app/navigation';
@@ -120,15 +119,6 @@
 		document.documentElement.dataset.theme = data.theme;
 	});
 
-	// A user who types amounts like DATEV: every form tells its action so (forms/fields.ts). The
-	// formdata event does not bubble, hence the capture on the document.
-	$effect(() => {
-		if (data.amountInput !== 'datev') return;
-		const mark = (event: FormDataEvent) => event.formData.set(AMOUNT_INPUT_FIELD, 'datev');
-		document.addEventListener('formdata', mark, true);
-		return () => document.removeEventListener('formdata', mark, true);
-	});
-
 	$effect(() => {
 		void page.url.pathname;
 		open = false;
@@ -154,12 +144,15 @@
 				for (const row of body.rows) {
 					let column = 0;
 					for (const cell of row.cells) {
-						// Actions and a lone button speak for themselves; an empty cell is left out.
+						// Actions and a lone button speak for themselves; an empty cell is left out, and so
+						// is one that holds nothing but the dash for "none", except as the row's title.
 						const action =
 							cell.classList.contains('actions') ||
 							cell.matches(':has(> form:only-child), :has(> button:only-child)');
+						const text = cell.textContent?.trim() ?? '';
 						const blank =
-							!cell.textContent?.trim() && !cell.querySelector('input, select, button, img, svg');
+							(!text || (column > 0 && /^[–—-]$/.test(text))) &&
+							!cell.querySelector('input, select, button, img, svg');
 						const label = cell.colSpan === 1 && !action && !blank ? headings[column] : '';
 						setData(cell, 'label', label || undefined);
 						setData(cell, 'blank', blank ? '' : undefined);
@@ -317,6 +310,24 @@
 	}}
 />
 
+{#snippet accountLinks()}
+	<a
+		href={resolve('/einstellungen/profil')}
+		onclick={(event) => settingsLink(event, '/einstellungen/profil', false)}
+		><Icon name="settings" />Einstellungen</a
+	>
+	<a
+		href="https://docs.mietkartei.de/"
+		target="_blank"
+		rel="noreferrer"
+		aria-label="Hilfe und Dokumentation (neuer Tab)"
+		onclick={() => (accountOpen = false)}><Icon name="help" />Hilfe</a
+	>
+	<form method="POST" action={resolve('/abmelden')}>
+		<button type="submit"><Icon name="logout" />Abmelden</button>
+	</form>
+{/snippet}
+
 <div class="app-shell" class:authenticated={!!data.email}>
 	<a class="skip-link" href="#main-content">Zum Inhalt</a>
 	<!-- Signed out, the pages stand in the website's frame: its header, the way back to the homepage
@@ -366,17 +377,18 @@
 				</div>
 				<div class="nav-footer">
 					<div class="account">
+						<!-- "Konto" for screen readers, in front of the name and address the card shows. -->
 						<button
 							bind:this={accountButton}
 							type="button"
 							class="account-card"
-							aria-label="Konto"
 							aria-expanded={accountOpen}
 							aria-controls="account-menu"
 							onclick={() => (accountOpen = !accountOpen)}
 						>
 							<span class="avatar" aria-hidden="true">{initials}</span>
 							<span class="account-user">
+								<span class="sr-only">Konto:</span>
 								<span class="account-name" title={data.name ?? undefined}
 									>{data.name ?? 'Dein Konto'}</span
 								><span class="account-email" title={data.email}>{data.email}</span>
@@ -385,23 +397,13 @@
 						</button>
 						{#if accountOpen}
 							<div bind:this={accountMenu} id="account-menu" class="account-menu">
-								<a
-									href={resolve('/einstellungen/profil')}
-									onclick={(event) => settingsLink(event, '/einstellungen/profil', false)}
-									><Icon name="settings" />Einstellungen</a
-								>
-								<a
-									href="https://docs.mietkartei.de/"
-									target="_blank"
-									rel="noreferrer"
-									aria-label="Hilfe und Dokumentation (neuer Tab)"
-									onclick={() => (accountOpen = false)}><Icon name="help" />Hilfe</a
-								>
-								<form method="POST" action={resolve('/abmelden')}>
-									<button type="submit"><Icon name="logout" />Abmelden</button>
-								</form>
+								{@render accountLinks()}
 							</div>
 						{/if}
+						<!-- Without JavaScript the card opens nothing, so its links stand under it. -->
+						<noscript>
+							<div class="account-menu static">{@render accountLinks()}</div>
+						</noscript>
 					</div>
 					<p class="nav-version">
 						<a

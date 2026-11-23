@@ -66,4 +66,14 @@
 	.filter {
 		margin-bottom: 1.5rem;
 	}
+	/* On a phone two filters share a line, so the list starts on the first screen. */
+	@media (max-width: 40rem) {
+		.filter {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 0.9rem;
+		}
+		.filter .form-actions:not(:has(a, button)) {
+			display: none;
+		}
+	}
 </style>

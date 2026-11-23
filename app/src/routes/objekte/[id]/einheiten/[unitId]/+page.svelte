@@ -91,8 +91,8 @@
 							</a>
 						</td>
 						<td>
-							seit {formatDate(lease.startDate)}{#if lease.endDate}
-								bis {formatDate(lease.endDate)}{/if}
+							seit {formatDate(lease.startDate)}
+							{#if lease.endDate}bis {formatDate(lease.endDate)}{/if}
 						</td>
 						<td>{lease.main ? 'Haupteinheit' : 'Mitvermietet'}</td>
 						<td>

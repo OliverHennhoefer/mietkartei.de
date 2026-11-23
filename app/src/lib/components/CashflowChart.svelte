@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { scrollFade } from '#lib/scroll-fade.ts';
 	import { formatCents } from '#lib/money.ts';
 
 	// From the money received down to the cashflow, as steps: each cost hangs from where the one
@@ -69,7 +70,13 @@
 <figure class="cashflow-chart">
 	<!-- On a phone the chart scrolls sideways; the keyboard reaches it too. -->
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-	<div class="plot" tabindex="0" role="region" aria-label="Diagramm: {label}">
+	<div
+		class="plot scroll-fade"
+		tabindex="0"
+		role="region"
+		aria-label="Diagramm: {label}"
+		use:scrollFade
+	>
 		<svg viewBox="0 0 {width} {height}" role="img" aria-label={label}>
 			<defs>
 				<pattern

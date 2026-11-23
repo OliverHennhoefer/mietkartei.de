@@ -2,6 +2,8 @@ import { error, redirect } from '@sveltejs/kit';
 import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
 import { DEMO, E2E } from '$app/env/private';
 import { validateSession } from '#lib/server/auth.ts';
+import { AMOUNT_INPUT_FIELD } from '#lib/forms/fields.ts';
+import type { AmountInput } from '#lib/money.ts';
 import { enforceBilling } from '#lib/server/billing.ts';
 import { isCrossSiteForm } from '#lib/server/csrf.ts';
 import { enforceRole } from '#lib/server/roles.ts';
@@ -94,6 +96,21 @@ function isPublic(pathname: string): boolean {
 	return E2E && pathname.startsWith('/api/e2e/');
 }
 
+/**
+ * Tells every form of the request how its user types amounts (forms/fields.ts). The setting of
+ * the signed-in user decides, never a field the browser sent: a post without JavaScript, or one
+ * built by hand, reads its amounts like any other. The form is read when the action asks for it.
+ */
+function markAmountInput(request: Request, style: AmountInput): void {
+	const read = request.formData.bind(request);
+	request.formData = async () => {
+		const form = await read();
+		if (style === 'datev') form.set(AMOUNT_INPUT_FIELD, style);
+		else form.delete(AMOUNT_INPUT_FIELD);
+		return form;
+	};
+}
+
 export const handle: Handle = async ({ event, resolve }) => {
 	if (isCrossSiteForm(event.request, event.url)) {
 		return new Response(`Cross-site ${event.request.method} form submissions are forbidden`, {
@@ -139,6 +156,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 	if (event.locals.user) await enforceBilling(event);
 	// Viewers only read.
 	enforceRole(event);
+	if (event.locals.user && event.request.method === 'POST') {
+		markAmountInput(event.request, event.locals.user.amountInput);
+	}
 	// Rendered into the page, so the chosen colours show before any script runs; see app.css.
 	const response = await resolve(event, {
 		transformPageChunk: ({ html }) => html.replace('%theme%', event.locals.theme)

@@ -122,8 +122,9 @@
 	</dd>
 	<dt>Laufzeit</dt>
 	<dd>
-		seit {formatDate(lease.startDate)}{#if lease.endDate}
-			bis {formatDate(lease.endDate)}{:else}, unbefristet{/if}
+		seit {formatDate(lease.startDate)}{lease.endDate
+			? ` bis ${formatDate(lease.endDate)}`
+			: ', unbefristet'}
 	</dd>
 	<dt>Art</dt>
 	<dd>{leaseKindLabels[lease.kind]}</dd>

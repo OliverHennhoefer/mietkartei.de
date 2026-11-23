@@ -603,9 +603,10 @@
 		.ledger tbody tr {
 			display: grid;
 			grid-template-columns: 6.25rem minmax(0, 1fr) auto;
+			/* The amount starts below the date: beside the balance it would not fit in one line. */
 			grid-template-areas:
 				'date label label'
-				'. amount balance';
+				'amount amount balance';
 			gap: 0.2rem 0.75rem;
 			padding-block: 0.6rem;
 		}
