@@ -42,6 +42,8 @@ const accountFields = [
 	'city',
 	'iban',
 	'bankName',
+	'datevAdvisorNumber',
+	'datevClientNumber',
 	'operatingCostDefaultsSeeded'
 ] as const;
 

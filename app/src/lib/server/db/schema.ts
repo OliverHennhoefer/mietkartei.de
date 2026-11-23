@@ -52,6 +52,9 @@ export const accounts = sqliteTable(
 		/** Where tenants transfer a Nachzahlung to; printed on the statement. */
 		iban: text('iban'),
 		bankName: text('bank_name'),
+		/** Beraternummer and Mandantennummer for the DATEV Buchungsstapel, both optional. */
+		datevAdvisorNumber: text('datev_advisor_number'),
+		datevClientNumber: text('datev_client_number'),
 		/** Set once the standard cost categories and keys are seeded, so they are seeded only once. */
 		operatingCostDefaultsSeeded: bool('operating_cost_defaults_seeded', false),
 		/** When the free trial ends; null: 30 days after the account was created. */

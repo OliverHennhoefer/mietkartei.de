@@ -1,6 +1,6 @@
 ---
 title: Kontoauszüge importieren
-description: "Kontoauszüge als camt.053 oder CSV in mietkartei importieren, Mietzahlungen den Mietverträgen zuordnen, Umsätze auf eigene Gegenkonten buchen und Zuordnungsregeln anlegen."
+description: "Kontoauszüge als camt.053 oder CSV in mietkartei importieren, Mietzahlungen den Mietverträgen zuordnen, Umsätze auf eigene Gegenkonten buchen, Zuordnungsregeln anlegen und einen DATEV-Buchungsstapel ausgeben."
 ---
 
 # Kontoauszüge importieren
@@ -64,6 +64,12 @@ Bei einer Ausgabe oder einer sonstigen Buchung wählst du das Gegenkonto selbst.
 Unter **Bank → Regeln** legst du fest, dass ein Umsatz, dessen Text etwas Bestimmtes enthält, zu einem Mietvertrag oder einem Gegenkonto gehört, etwa „Miete Gartenweg 3 links“ oder „IBAN der Stadtwerke → 4403 Stadtwerke Wasser/Müll“. Jede Regel hat einen Namen, damit du in der Liste siehst, wofür sie ist. Bestätigte Regeln buchen beim nächsten Import automatisch, unbestätigte machen nur einen Vorschlag. Eine Regel auf einen Mietvertrag bucht nur eingehende Zahlungen. Eine Regel auf ein Gegenkonto bucht beide Richtungen.
 
 Buchst du einen Umsatz auf ein Gegenkonto, merkt sich mietkartei den Absender genauso wie bei Mieten. Zahlt derselbe Absender später auf ein anderes Konto, etwa die Stadtkasse einmal Grundsteuer und einmal Müll, wird die Regel wieder zum Vorschlag. Ausgaben ohne Gegenkonto bucht mietkartei nie automatisch.
+
+## 7. Als DATEV-Buchungsstapel ausgeben
+
+Unter **Bank → DATEV** trägst du einmal die Beraternummer und die Mandantennummer ein, die dir dein Steuerberater nennt. Dann wählst du den Zeitraum, standardmäßig das Vorjahr, und klickst **Buchungsstapel herunterladen**. Die Datei im DATEV-Format liest dein Steuerberater in DATEV ein.
+
+Jeder zugeordnete Umsatz wird eine Buchung von der Kontonummer der Bankverbindung auf das Gegenkonto, etwa 1200 an 8005. Eine Miete, die mietkartei in Kaltmiete und Vorauszahlungen aufgeteilt hat, ergibt zwei Buchungen. Fehlt der Bankverbindung oder dem Gegenkonto die Nummer, oder ist ein Umsatz ohne Gegenkonto gebucht, kommt er nicht in die Datei. Die Seite listet solche Umsätze mit dem Grund auf, damit du die Nummer ergänzen kannst. Ein Stapel umfasst höchstens ein Kalenderjahr, weil DATEV je Stapel nur ein Wirtschaftsjahr annimmt.
 
 ## Bankabruf statt Datei
 

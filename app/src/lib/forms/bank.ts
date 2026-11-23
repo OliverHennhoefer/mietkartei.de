@@ -1,3 +1,4 @@
+import { isIsoDate } from '../dates';
 import { matchingFieldIds, type ColumnMapping } from '../domain/bank-matching';
 import { formatCents } from '../money';
 import type { MatchingField } from '../server/db/schema';
@@ -233,4 +234,43 @@ export function parseRule(form: FormData): RuleParseResult {
 			confirmed
 		}
 	};
+}
+
+export type DatevNumbersInput = { advisorNumber: string; clientNumber: string };
+
+/** Beraternummer (1001 to 9999999) and Mandantennummer (1 to 99999), as DATEV allows them. */
+export function parseDatevNumbers(form: FormData): ParseResult<DatevNumbersInput> {
+	const parser = new FormParser<DatevNumbersInput>(form);
+	const advisorNumber = parser.text('advisorNumber', { max: 7 });
+	const clientNumber = parser.text('clientNumber', { max: 5 });
+	if (advisorNumber && !(/^\d+$/.test(advisorNumber) && Number(advisorNumber) >= 1001)) {
+		parser.fail('advisorNumber', 'Eine Zahl von 1001 bis 9999999.');
+	}
+	if (clientNumber && !(/^\d+$/.test(clientNumber) && Number(clientNumber) >= 1)) {
+		parser.fail('clientNumber', 'Eine Zahl von 1 bis 99999.');
+	}
+	return parser.result(() => ({
+		advisorNumber: String(Number(advisorNumber)),
+		clientNumber: String(Number(clientNumber))
+	}));
+}
+
+/** The period of the DATEV-Export: within one calendar year, as DATEV wants one Wirtschaftsjahr. */
+export function datevPeriodOf(
+	from: string | null,
+	to: string | null,
+	today: string
+): { from: string; to: string; error: string | null } {
+	const year = today.slice(0, 4);
+	const start = from && isIsoDate(from) ? from : `${Number(year) - 1}-01-01`;
+	const end = to && isIsoDate(to) ? to : `${start.slice(0, 4)}-12-31`;
+	if (end < start) return { from: start, to: end, error: 'Das Ende liegt vor dem Anfang.' };
+	if (end.slice(0, 4) !== start.slice(0, 4)) {
+		return {
+			from: start,
+			to: end,
+			error: 'DATEV nimmt nur ein Wirtschaftsjahr je Stapel. Wähle einen Zeitraum in einem Jahr.'
+		};
+	}
+	return { from: start, to: end, error: null };
 }
