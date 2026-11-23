@@ -1073,6 +1073,8 @@ export const operations: Operation[] = [
 				serviceProviderId: (input.serviceProviderId as string | undefined) ?? null,
 				contraAccountId: (input.contraAccountId as string | undefined) ?? null
 			});
+			// Splits are made in the app; without them the outcome never says so.
+			if (outcome === 'split-too-large') invalid('Split payments are assigned in the app.');
 			if (outcome === 'unknown-scope') notFound('Property or unit');
 			if (outcome === 'unknown-service-provider') notFound('Service provider');
 			return assignmentResult(outcome, String(input.id));

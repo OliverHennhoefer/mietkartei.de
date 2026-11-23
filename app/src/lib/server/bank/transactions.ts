@@ -4,7 +4,7 @@ import { formatDate } from '../../dates';
 import { rememberStep, targetKey, type LeaseHints } from '../../domain/bank-matching';
 import type { AssignmentInput } from '../../forms/bank';
 import type { OtherBookingInput } from '../../forms/contra-accounts';
-import type { ExpenseAssignmentInput } from '../../forms/expenses';
+import type { ExpenseAssignmentInput, ExpenseSplit } from '../../forms/expenses';
 import { otherBookingKindLabels } from '../../labels';
 import { formatCents } from '../../money';
 import { auditEntry, type AuditContext } from '../audit';
@@ -282,6 +282,8 @@ export type ExpensePreset = {
 	serviceProviderId: string;
 	/** '' without one. */
 	contraAccountId: string;
+	/** The further parts of a split, with their amounts of last time (cents, positive). */
+	splits: ExpenseSplit[];
 };
 
 /**
@@ -296,6 +298,8 @@ export async function expenseByCounterpart(
 ): Promise<{ byIban: Map<string, ExpensePreset>; byName: Map<string, ExpensePreset> }> {
 	const rows = await db
 		.select({
+			bankTransactionId: expenses.bankTransactionId,
+			amount: expenses.amount,
 			iban: bankTransactions.counterpartIban,
 			name: bankTransactions.counterpartName,
 			category: expenses.category,
@@ -309,15 +313,31 @@ export async function expenseByCounterpart(
 		.innerJoin(bankTransactions, eq(expenses.bankTransactionId, bankTransactions.id))
 		.where(eq(expenses.accountId, accountId))
 		.orderBy(asc(expenses.createdAt));
+	// The rows of one transaction together, in the order they were booked; the largest part is
+	// the first one of the form, the others its further parts.
+	const groups = new Map<string, typeof rows>();
+	for (const row of rows) {
+		const group = groups.get(row.bankTransactionId!) ?? [];
+		group.push(row);
+		groups.delete(row.bankTransactionId!);
+		groups.set(row.bankTransactionId!, group);
+	}
 	const byIban = new Map<string, ExpensePreset>();
 	const byName = new Map<string, ExpensePreset>();
-	for (const row of rows) {
+	for (const group of groups.values()) {
+		const sorted = [...group].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+		const [row, ...rest] = sorted;
 		const preset: ExpensePreset = {
 			category: row.category,
 			scope: expenseScopeValue(row),
 			description: row.description,
 			serviceProviderId: row.serviceProviderId ?? '',
-			contraAccountId: row.contraAccountId ?? ''
+			contraAccountId: row.contraAccountId ?? '',
+			splits: rest.map((part) =>
+				part.contraAccountId
+					? { amount: Math.abs(part.amount), contraAccountId: part.contraAccountId }
+					: { amount: Math.abs(part.amount), category: part.category }
+			)
 		};
 		if (row.iban) byIban.set(row.iban, preset);
 		const name = row.name?.trim().toLowerCase();
@@ -635,11 +655,26 @@ export async function assignExpense(
 	| 'unknown-scope'
 	| 'unknown-service-provider'
 	| 'unknown-contra-account'
+	| 'split-too-large'
 > {
 	const { accountId } = context;
 	const transaction = await getTransaction(db, accountId, transactionId);
 	if (!transaction) return 'missing';
 	if (transaction.status !== 'unmatched') return 'not-open';
+	const splits = input.splits ?? [];
+	const total = Math.abs(transaction.amount);
+	const rest = total - splits.reduce((sum, split) => sum + split.amount, 0);
+	if (splits.length > 0 && rest < 1) return 'split-too-large';
+	const splitAccounts: (Awaited<ReturnType<typeof ownContraAccount>> | undefined)[] = [];
+	for (const split of splits) {
+		const account = split.contraAccountId
+			? await ownContraAccount(db, accountId, split.contraAccountId)
+			: undefined;
+		if (split.contraAccountId && (!account || account.kind !== 'expense')) {
+			return 'unknown-contra-account';
+		}
+		splitAccounts.push(account);
+	}
 	const contra = input.contraAccountId
 		? await ownContraAccount(db, accountId, input.contraAccountId)
 		: undefined;
@@ -659,29 +694,47 @@ export async function assignExpense(
 	if (!(await knownServiceProvider(db, accountId, input.serviceProviderId))) {
 		return 'unknown-service-provider';
 	}
-	await assertQuota(db, accountId, 'expenses');
-	const id = crypto.randomUUID();
-	const row = {
-		id,
+	await assertQuota(db, accountId, 'expenses', 1 + splits.length);
+	// An expense is the money paid out, so an outgoing transaction gives positive amounts.
+	const sign = transaction.amount < 0 ? 1 : -1;
+	const base = {
 		accountId,
 		...scope,
 		date: transaction.bookingDate,
-		amount: -transaction.amount,
-		category,
 		description: input.description,
 		serviceProviderId: input.serviceProviderId ?? null,
-		contraAccountId: contra?.id ?? null,
 		bankTransactionId: transaction.id
 	};
-	const remembered = contra
-		? await rememberStatements(db, context, transaction, {
-				targets: [{ contraAccountId: contra.id }],
-				remember: true,
-				name: contraAccountLabel(contra)
-			})
-		: [];
+	const row = {
+		...base,
+		id: crypto.randomUUID(),
+		amount: sign * rest,
+		category,
+		contraAccountId: contra?.id ?? null
+	};
+	const rows = [
+		row,
+		...splits.map((split, index) => ({
+			...base,
+			id: crypto.randomUUID(),
+			amount: sign * split.amount,
+			category: (split.category ?? splitAccounts[index]?.expenseCategory)!,
+			contraAccountId: splitAccounts[index]?.id ?? null
+		}))
+	];
+	if (rows.some((entry) => !entry.category)) return 'unknown-contra-account';
+	// A split is remembered by its accounts: a rule books one account only, so it suggests.
+	const contraTargets = [...new Set(rows.map((entry) => entry.contraAccountId))];
+	const remembered =
+		contra && contraTargets.every(Boolean)
+			? await rememberStatements(db, context, transaction, {
+					targets: contraTargets.map((contraAccountId) => ({ contraAccountId: contraAccountId! })),
+					remember: true,
+					name: contraAccountLabel(contra)
+				})
+			: [];
 	const done = await runGuarded(db, accountId, transaction.id, 'unmatched', [
-		db.insert(expenses).values(row),
+		db.insert(expenses).values(rows),
 		...remembered,
 		db
 			.update(bankTransactions)
@@ -695,7 +748,7 @@ export async function assignExpense(
 			'bankTransaction',
 			transaction.id,
 			'assign',
-			`${transactionLabel(transaction)} als ${expenseSummary(row)} zugeordnet`
+			`${transactionLabel(transaction)} als ${rows.map(expenseSummary).join(', ')} zugeordnet`
 		)
 	]);
 	return done ? 'assigned' : 'not-open';

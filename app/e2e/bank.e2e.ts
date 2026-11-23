@@ -189,6 +189,13 @@ test('ignores a transaction and reopens it', async ({ page }) => {
 	await expect(outgoing).toContainText('-120,50 €');
 	await outgoing.getByRole('button', { name: 'Ignorieren' }).click();
 	await expect(card(page, `Hausmeister ${suffix}`)).toHaveCount(0);
+	// Ignored by mistake: the notice brings it back at once.
+	await expect(page.getByText('Der Umsatz wird ignoriert.')).toBeVisible();
+	await page.getByRole('button', { name: 'Rückgängig' }).click();
+	await expect(page.getByText('Der Umsatz ist wieder offen.')).toBeVisible();
+	await expect(card(page, `Hausmeister ${suffix}`)).toHaveCount(1);
+	await card(page, `Hausmeister ${suffix}`).getByRole('button', { name: 'Ignorieren' }).click();
+	await expect(card(page, `Hausmeister ${suffix}`)).toHaveCount(0);
 
 	await page.goto('/bank?status=ignored');
 	const ignored = card(page, `Hausmeister ${suffix}`);

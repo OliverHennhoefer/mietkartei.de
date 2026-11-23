@@ -179,6 +179,15 @@ export const actions: Actions = {
 				values: result.values
 			});
 		}
+		if (outcome === 'split-too-large') {
+			return fail(400, {
+				id,
+				expenseErrors: {
+					split1Amount: 'Die weiteren Teile müssen zusammen kleiner als der Umsatz sein.'
+				},
+				values: result.values
+			});
+		}
 		if (outcome === 'unknown-service-provider') {
 			return fail(400, {
 				id,

@@ -11,6 +11,7 @@ import {
 	type PaymentPart
 } from '../../domain/contra-accounts';
 import {
+	bankTransactions,
 	contraAccounts,
 	depositTransactions,
 	expenses,
@@ -281,4 +282,55 @@ export async function depositContraAccount(
 		leaseProperties(db, accountId, [leaseId])
 	]);
 	return contraAccountFor(all, 'deposit', propertyOf.get(leaseId) ?? null) ?? null;
+}
+
+export type ContraAccountTotal = { amount: number; count: number };
+
+/**
+ * What was booked from the bank to each Gegenkonto in a calendar year, as the bank sees it
+ * (money in positive, money out negative), and how many bookings; key null for bookings without
+ * a Gegenkonto. The same bookings and dates as the DATEV-Export, so the sums match its Stapel.
+ * Four queries.
+ */
+export async function contraAccountTotals(
+	db: Database,
+	accountId: string,
+	year: number
+): Promise<Map<string | null, ContraAccountTotal>> {
+	const from = `${year}-01-01`;
+	const to = `${year}-12-31`;
+	const sumOf = (
+		table: typeof payments | typeof depositTransactions | typeof expenses | typeof otherBookings
+	) =>
+		db
+			.select({
+				contraAccountId: table.contraAccountId,
+				amount: sql<number>`coalesce(sum(case when ${bankTransactions.amount} < 0 then -abs(${table.amount}) else abs(${table.amount}) end), 0)`,
+				count: sql<number>`count(*)`
+			})
+			.from(table)
+			.innerJoin(bankTransactions, eq(bankTransactions.id, table.bankTransactionId))
+			.where(
+				and(
+					eq(table.accountId, accountId),
+					eq(bankTransactions.accountId, accountId),
+					gte(bankTransactions.bookingDate, from),
+					lte(bankTransactions.bookingDate, to)
+				)
+			)
+			.groupBy(table.contraAccountId);
+	const groups = await Promise.all([
+		sumOf(payments),
+		sumOf(depositTransactions),
+		sumOf(expenses),
+		sumOf(otherBookings)
+	]);
+	const totals = new Map<string | null, ContraAccountTotal>();
+	for (const row of groups.flat()) {
+		const total = totals.get(row.contraAccountId) ?? { amount: 0, count: 0 };
+		total.amount += Number(row.amount);
+		total.count += Number(row.count);
+		totals.set(row.contraAccountId, total);
+	}
+	return totals;
 }
