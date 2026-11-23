@@ -775,7 +775,8 @@ describe('transaction helpers', () => {
 			scope: '',
 			description: 'Strom',
 			serviceProviderId: '',
-			contraAccountId: ''
+			contraAccountId: '',
+			splits: []
 		};
 		const presets = {
 			byIban: new Map([['DE89370400440532013000', preset]]),

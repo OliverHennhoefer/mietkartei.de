@@ -15,7 +15,8 @@
 		expenseCategoryLabels,
 		otherBookingKindLabels
 	} from '#lib/labels.ts';
-	import { formatCents } from '#lib/money.ts';
+	import { formatCents, formatCentsPlain } from '#lib/money.ts';
+	import { EXPENSE_SPLITS, splitTargetValue } from '#lib/expense-splits.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -115,6 +116,18 @@
 			if (name === 'scope' && suggested.propertyId) return `property:${suggested.propertyId}`;
 		}
 		return transaction.expensePreset?.[name] ?? '';
+	}
+
+	/** A further part of the expense form: what was typed before an error, else last time's. */
+	function splitValue(
+		transaction: (typeof data.transactions)[number],
+		index: number,
+		field: 'Target' | 'Amount'
+	): string {
+		if (formId === transaction.id) return values?.[`split${index}${field}`] ?? '';
+		const split = transaction.expensePreset?.splits[index - 1];
+		if (!split) return '';
+		return field === 'Amount' ? formatCentsPlain(split.amount) : splitTargetValue(split);
 	}
 
 	/** A field of the other booking form: what was typed before an error, else the suggestion. */
@@ -444,6 +457,72 @@
 				{/if}
 			</label>
 		{/if}
+		<details class="split" open={splitValue(transaction, 1, 'Target') !== ''}>
+			<summary>Auf mehrere Konten aufteilen? Etwa Hausgeld oder Darlehensrate</summary>
+			<p class="muted small hint">
+				Trage die weiteren Teile ein, etwa die Rücklage oder die Tilgung. Der Rest bleibt auf dem
+				Konto oben.
+			</p>
+			{#each Array.from({ length: EXPENSE_SPLITS }, (_, index) => index + 1) as index (index)}
+				{@const targetField = `split${index}Target`}
+				{@const amountField = `split${index}Amount`}
+				<div class="split-fields">
+					<label>
+						Teil {index + 1}
+						<select
+							name={targetField}
+							aria-invalid={formId === transaction.id && expenseErrors?.[targetField]
+								? 'true'
+								: undefined}
+						>
+							<option value="" selected={splitValue(transaction, index, 'Target') === ''}>
+								– kein weiterer Teil –
+							</option>
+							{#if expenseAccounts.length > 0}
+								<optgroup label="Gegenkonten">
+									{#each expenseAccounts as account (account.id)}
+										<option
+											value="contra:{account.id}"
+											selected={splitValue(transaction, index, 'Target') === `contra:${account.id}`}
+										>
+											{account.label}
+										</option>
+									{/each}
+								</optgroup>
+							{/if}
+							<optgroup label="Kategorien">
+								{#each categoryEntries as [value, label] (value)}
+									<option
+										value="category:{value}"
+										selected={splitValue(transaction, index, 'Target') === `category:${value}`}
+									>
+										{label}
+									</option>
+								{/each}
+							</optgroup>
+						</select>
+						{#if formId === transaction.id && expenseErrors?.[targetField]}
+							<span class="error">{expenseErrors[targetField]}</span>
+						{/if}
+					</label>
+					<label>
+						Betrag Teil {index + 1}
+						<input
+							name={amountField}
+							inputmode="decimal"
+							defaultValue={splitValue(transaction, index, 'Amount')}
+							placeholder="0"
+							aria-invalid={formId === transaction.id && expenseErrors?.[amountField]
+								? 'true'
+								: undefined}
+						/>
+						{#if formId === transaction.id && expenseErrors?.[amountField]}
+							<span class="error">{expenseErrors[amountField]}</span>
+						{/if}
+					</label>
+				</div>
+			{/each}
+		</details>
 		<label>
 			Beschreibung
 			<input

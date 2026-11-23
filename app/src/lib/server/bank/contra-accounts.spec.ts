@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { parseBankFile } from '../../domain/bank-matching';
 import type { Database } from '../db';
+import type { ExpenseCategory } from '../db/schema';
 import {
 	depositTransactions,
 	expenses,
@@ -14,6 +15,7 @@ import { createLease } from '../leases';
 import { contextA, contextB, leaseInput, seedTenant, seedUnit, testDatabase } from '../testing';
 import { createBankAccount } from './accounts';
 import {
+	contraAccountTotals,
 	createContraAccount,
 	deleteContraAccount,
 	listContraAccounts,
@@ -25,6 +27,8 @@ import {
 	assignExpense,
 	assignOther,
 	assignTransaction,
+	expenseByCounterpart,
+	expensePreset,
 	listAssignments,
 	listTransactions,
 	undoAssignment
@@ -72,7 +76,7 @@ async function account(
 	number: string,
 	name: string,
 	kind: Parameters<typeof createContraAccount>[2]['kind'],
-	extra: { expenseCategory?: 'operating_costs' | null; propertyId?: string | null } = {}
+	extra: { expenseCategory?: ExpenseCategory | null; propertyId?: string | null } = {}
 ) {
 	const created = await createContraAccount(db, contextA, {
 		number: number || null,
@@ -357,5 +361,138 @@ describe('rules on Gegenkonten', () => {
 		expect(await listRules(db, 'a')).toMatchObject([
 			{ contraAccountId: grundsteuer, confirmed: false }
 		]);
+	});
+});
+
+describe('splitting an expense', () => {
+	const hausgeld = line(
+		'03.10.26',
+		'Hausgeld Oktober',
+		'WEG Lindenstr',
+		'DE44500105175407324931',
+		'-450,00'
+	);
+
+	it('books Hausgeld on three accounts and offers the split again next month', async () => {
+		const costs = await account('4402', 'Hausgeld umlagefähig', 'expense', {
+			expenseCategory: 'operating_costs'
+		});
+		const reserve = await account('4416', 'Rücklage', 'expense', {
+			expenseCategory: 'special_levy_reserve'
+		});
+		await importLines(hausgeld);
+		const [transaction] = await open();
+		const input = {
+			category: null,
+			scope: { kind: 'portfolio' as const },
+			description: 'Hausgeld',
+			contraAccountId: costs
+		};
+		expect(
+			await assignExpense(db, contextA, transaction.id, {
+				...input,
+				splits: [{ amount: 45000, category: 'association_fee' }]
+			})
+		).toBe('split-too-large');
+		expect(
+			await assignExpense(db, contextA, transaction.id, {
+				...input,
+				splits: [{ amount: 100, contraAccountId: crypto.randomUUID() }]
+			})
+		).toBe('unknown-contra-account');
+		expect(
+			await assignExpense(db, contextA, transaction.id, {
+				...input,
+				splits: [
+					{ amount: 9000, contraAccountId: reserve },
+					{ amount: 6000, category: 'association_fee' }
+				]
+			})
+		).toBe('assigned');
+		const rows = await db.select().from(expenses);
+		expect(rows.map((row) => [row.amount, row.category, row.contraAccountId]).sort()).toEqual(
+			[
+				[30000, 'operating_costs', costs],
+				[9000, 'special_levy_reserve', reserve],
+				[6000, 'association_fee', null]
+			].sort()
+		);
+		expect((await listAssignments(db, 'a', [transaction.id])).get(transaction.id)).toHaveLength(3);
+		// A split is no single target, so no rule books it on its own.
+		expect(await listRules(db, 'a')).toEqual([]);
+
+		const presets = await expenseByCounterpart(db, 'a');
+		expect(
+			expensePreset({ counterpartIban: 'DE44500105175407324931', counterpartName: '' }, presets)
+		).toMatchObject({
+			contraAccountId: costs,
+			splits: [
+				{ amount: 9000, contraAccountId: reserve },
+				{ amount: 6000, category: 'association_fee' }
+			]
+		});
+
+		expect(await undoAssignment(db, contextA, transaction.id)).toBe('undone');
+		expect(await db.select().from(expenses)).toEqual([]);
+	});
+
+	it('splits a Darlehensrate into interest and repayment', async () => {
+		await importLines(
+			line('30.10.26', 'Darlehen 4711', 'Sparkasse', 'DE02100500000024290661', '-1200,00')
+		);
+		const [transaction] = await open();
+		expect(
+			await assignExpense(db, contextA, transaction.id, {
+				category: 'loan_repayment',
+				scope: { kind: 'property', id: propertyId },
+				description: 'Darlehen 4711',
+				splits: [{ amount: 38050, category: 'loan_interest' }]
+			})
+		).toBe('assigned');
+		const rows = await db.select().from(expenses);
+		expect(rows.map((row) => [row.category, row.amount, row.propertyId]).sort()).toEqual(
+			[
+				['loan_interest', 38050, propertyId],
+				['loan_repayment', 81950, propertyId]
+			].sort()
+		);
+	});
+});
+
+describe('contraAccountTotals', () => {
+	it('sums the bookings of a year per Gegenkonto, as the bank sees them', async () => {
+		const rentAccount = await account('8005', 'Mieten', 'rent');
+		const costs = await account('8006', 'NK', 'operating_costs');
+		const taxAccount = await account('4401', 'Grundsteuer', 'expense', {
+			expenseCategory: 'operating_costs'
+		});
+		await importLines(rent, tax, interest);
+		const rows = await open();
+		const find = (purpose: string) => rows.find((row) => row.purpose === purpose)!.id;
+		await assignTransaction(db, contextA, find('Miete Oktober'), {
+			target: 'rent',
+			parts: [{ leaseId, amount: 80000 }]
+		});
+		await assignExpense(db, contextA, find('Grundsteuer Q4'), {
+			category: null,
+			scope: { kind: 'portfolio' },
+			description: 'Grundsteuer',
+			contraAccountId: taxAccount
+		});
+		await assignOther(db, contextA, find('Zinsen'), {
+			kind: 'capital_income',
+			contraAccountId: null,
+			propertyId: null,
+			description: ''
+		});
+		const totals = await contraAccountTotals(db, 'a', 2026);
+		expect(Object.fromEntries(totals)).toEqual({
+			[rentAccount]: { amount: 60000, count: 1 },
+			[costs]: { amount: 20000, count: 1 },
+			[taxAccount]: { amount: -21000, count: 1 },
+			null: { amount: 312, count: 1 }
+		});
+		expect((await contraAccountTotals(db, 'a', 2025)).size).toBe(0);
+		expect((await contraAccountTotals(db, 'b', 2026)).size).toBe(0);
 	});
 });

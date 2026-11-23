@@ -1,5 +1,8 @@
 import { expenseCategories, type ExpenseCategory } from '../server/db/schema';
+import { EXPENSE_SPLITS, type ExpenseSplit } from '../expense-splits';
 import { FormParser, type FieldErrors } from './fields';
+
+export type { ExpenseSplit };
 
 // Parsers of the expense forms: a manual expense and the assignment of a bank transaction as an
 // expense. Where the expense belongs is one select over properties and units, so its value
@@ -18,6 +21,12 @@ export type ExpenseAssignmentInput = {
 	serviceProviderId?: string | null;
 	/** The Gegenkonto of kind expense; null without one. */
 	contraAccountId?: string | null;
+	/**
+	 * Further parts of a bank transaction split over several accounts (Hausgeld: umlagefähig,
+	 * nicht umlagefähig, Rücklage; Darlehensrate: Zins and Tilgung). Cents, positive; the first
+	 * part keeps the rest.
+	 */
+	splits?: ExpenseSplit[];
 };
 
 export type ExpenseInput = ExpenseAssignmentInput & {
@@ -34,6 +43,7 @@ export type ExpenseFields = {
 	description: string;
 	serviceProviderId: string;
 	contraAccountId: string;
+	[split: `split${number}Target` | `split${number}Amount`]: string;
 };
 
 export type ExpenseParseResult<T> =
@@ -76,12 +86,35 @@ export function parseExpenseAssignment(
 	const scope = parseScope(parser);
 	const description = parser.text('description', { max: 200 });
 	const serviceProviderId = parseServiceProvider(parser);
+	const splits = parseSplits(parser);
 	if (parser.hasErrors) return { ok: false, errors: parser.errors, values: parser.values };
 	return {
 		ok: true,
-		data: { category, scope, description, serviceProviderId, contraAccountId },
+		data: { category, scope, description, serviceProviderId, contraAccountId, splits },
 		values: parser.values
 	};
+}
+
+/** The further parts: a row counts once it has an account; it then needs an amount. */
+function parseSplits(parser: FormParser<ExpenseFields>): ExpenseSplit[] {
+	const splits: ExpenseSplit[] = [];
+	for (let index = 1; index <= EXPENSE_SPLITS; index += 1) {
+		const target = parser.raw(`split${index}Target`);
+		const amountField = `split${index}Amount` as const;
+		if (!target) {
+			parser.raw(amountField);
+			continue;
+		}
+		const amount = parser.money(amountField, { min: 1 });
+		const contra = /^contra:([\w-]{1,64})$/.exec(target);
+		const category = /^category:(\w+)$/.exec(target)?.[1];
+		if (amount === null) continue;
+		if (contra) splits.push({ amount, contraAccountId: contra[1] });
+		else if (category && (expenseCategories as readonly string[]).includes(category)) {
+			splits.push({ amount, category: category as ExpenseCategory });
+		} else parser.fail(`split${index}Target`, 'Bitte wähle einen gültigen Eintrag aus.');
+	}
+	return splits;
 }
 
 export function parseExpense(form: FormData): ExpenseParseResult<ExpenseInput> {

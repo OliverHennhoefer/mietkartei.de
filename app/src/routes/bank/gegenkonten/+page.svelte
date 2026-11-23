@@ -3,13 +3,14 @@
 	import EditDialog from '#lib/components/EditDialog.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Field from '#lib/components/Field.svelte';
+	import Money from '#lib/components/Money.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
 	import {
 		contraAccountKindLabels,
 		contraAccountKindShortLabels,
 		expenseCategoryLabels
 	} from '#lib/labels.ts';
-	import { byText, TableSort } from '#lib/table-sort.svelte.ts';
+	import { byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -39,7 +40,9 @@
 		number: byText((row) => row.number ?? ''),
 		name: byText((row) => row.name),
 		kind: byText((row) => contraAccountKindShortLabels[row.kind]),
-		property: byText((row) => (row.propertyId ? (propertyNames.get(row.propertyId) ?? '') : ''))
+		property: byText((row) => (row.propertyId ? (propertyNames.get(row.propertyId) ?? '') : '')),
+		total: byNumber((row) => data.totals[row.id]?.amount ?? 0),
+		count: byNumber((row) => data.totals[row.id]?.count ?? 0)
 	});
 
 	/** What the account books beyond its kind: the expense category. */
@@ -60,6 +63,25 @@
 	Konten ohne Objekt gelten für alle Objekte ohne eigenes Konto dieser Art.
 </p>
 
+{#if data.contraAccounts.length > 0}
+	<div class="toolbar">
+		<nav class="row" aria-label="Jahr">
+			{#each data.years as year (year)}
+				<a
+					href="?jahr={year}"
+					class="button small {data.year === year ? '' : 'secondary'}"
+					aria-current={data.year === year ? 'page' : undefined}
+				>
+					{year}
+				</a>
+			{/each}
+		</nav>
+		<a class="button secondary small" href="/bank/datev?von={data.year}-01-01&bis={data.year}-12-31"
+			>DATEV-Export {data.year}</a
+		>
+	</div>
+{/if}
+
 {#if data.contraAccounts.length === 0}
 	<EmptyState
 		title="Noch keine Gegenkonten"
@@ -74,6 +96,8 @@
 					<SortHeader {sort} key="name">Name</SortHeader>
 					<SortHeader {sort} key="kind">Art</SortHeader>
 					<SortHeader {sort} key="property">Objekt</SortHeader>
+					<SortHeader {sort} key="total" class="num">Summe {data.year}</SortHeader>
+					<SortHeader {sort} key="count" class="num">Buchungen</SortHeader>
 				</tr>
 			</thead>
 			<tbody>
@@ -85,9 +109,24 @@
 						</td>
 						<td>{detail(row)}</td>
 						<td>{row.propertyId ? (propertyNames.get(row.propertyId) ?? '–') : 'alle'}</td>
+						<td class="num"><Money cents={data.totals[row.id]?.amount ?? 0} signed /></td>
+						<td class="num">{data.totals[row.id]?.count ?? 0}</td>
 					</tr>
 				{/each}
 			</tbody>
+			{#if data.totals.none}
+				<tfoot>
+					<tr>
+						<td></td>
+						<td colspan="3">
+							Ohne Gegenkonto gebucht
+							<span class="muted small">(fehlt im DATEV-Export)</span>
+						</td>
+						<td class="num"><Money cents={data.totals.none.amount} signed /></td>
+						<td class="num">{data.totals.none.count}</td>
+					</tr>
+				</tfoot>
+			{/if}
 		</table>
 	</div>
 {/if}

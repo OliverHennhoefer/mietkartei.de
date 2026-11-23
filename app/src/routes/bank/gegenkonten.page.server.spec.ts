@@ -90,10 +90,27 @@ describe('bank/gegenkonten', () => {
 		).toEqual({ data: { created: true } });
 
 		const [tax, rent] = await listContraAccounts(db, 'a');
-		const page = (await run(loadContra, { url: `/bank/gegenkonten?bearbeiten=${rent.id}` })) as {
-			data: { contraAccounts: unknown[]; editing: { id: string }; properties: unknown[] };
+		const page = (await run(loadContra, {
+			url: `/bank/gegenkonten?bearbeiten=${rent.id}&jahr=2025`
+		})) as {
+			data: {
+				contraAccounts: unknown[];
+				editing: { id: string };
+				properties: unknown[];
+				year: number;
+				totals: object;
+			};
 		};
+		expect(page.data.year).toBe(2025);
+		expect(page.data.totals).toEqual({});
 		expect(page.data.contraAccounts).toHaveLength(2);
+		expect(
+			(
+				(await run(loadContra, { url: '/bank/gegenkonten?jahr=1800' })) as {
+					data: { year: number };
+				}
+			).data.year
+		).toBe(Number(new Date().toISOString().slice(0, 4)));
 		expect(page.data.editing.id).toBe(rent.id);
 		expect(page.data.properties).toHaveLength(1);
 
@@ -163,6 +180,44 @@ describe('bank: booking on Gegenkonten', () => {
 		).toEqual({ data: { assigned: tax.id } });
 		const [assignment] = (await listAssignments(db, 'a', [tax.id])).get(tax.id)!;
 		expect(assignment).toMatchObject({ kind: 'expense', contraAccountId: taxAccount });
+	});
+
+	it('splits an expense over a Gegenkonto and a category', async () => {
+		const taxAccount = await contra('4401', 'Grundsteuer', 'expense');
+		const { tax } = await importFile();
+		const base = { id: tax.id, scope: '', description: 'Stadtkasse', category: 'other' };
+		expect(
+			await run(actions.expense, {
+				form: { ...base, split1Target: 'category:nonsense', split1Amount: '10,00' }
+			})
+		).toMatchObject({ fail: 400, data: { expenseErrors: { split1Target: expect.any(String) } } });
+		expect(
+			await run(actions.expense, { form: { ...base, split1Target: `contra:${taxAccount}` } })
+		).toMatchObject({ fail: 400, data: { expenseErrors: { split1Amount: expect.any(String) } } });
+		expect(
+			await run(actions.expense, {
+				form: { ...base, split1Target: `contra:${taxAccount}`, split1Amount: '210,00' }
+			})
+		).toMatchObject({
+			fail: 400,
+			data: {
+				expenseErrors: {
+					split1Amount: 'Die weiteren Teile müssen zusammen kleiner als der Umsatz sein.'
+				}
+			}
+		});
+		expect(
+			await run(actions.expense, {
+				form: {
+					...base,
+					split1Target: `contra:${taxAccount}`,
+					split1Amount: '200,00',
+					split2Amount: '5,00'
+				}
+			})
+		).toEqual({ data: { assigned: tax.id } });
+		const assignments = (await listAssignments(db, 'a', [tax.id])).get(tax.id)!;
+		expect(assignments.map((row) => row.amount).sort()).toEqual([1000, 20000]);
 	});
 
 	it('books interest as Kapitalertrag and refuses what does not fit', async () => {
