@@ -6,6 +6,7 @@ import { createAssociationStatement } from '../association-statements';
 import { listAuditLog } from '../audit';
 import type { Database } from '../db';
 import { accounts, bankAccounts, bankTransactions } from '../db/schema';
+import { createContraAccount } from '../bank/contra-accounts';
 import { createExpense } from '../expenses';
 import { createPayment, listLedger } from '../ledger';
 import { QUOTAS } from '../quotas';
@@ -653,6 +654,96 @@ describe('write operations', () => {
 				description: 'x'
 			})
 		).rejects.toMatchObject({ status: 404 });
+	});
+
+	it('books bank transactions on Gegenkonten and as other bookings', async () => {
+		const bankAccountId = crypto.randomUUID();
+		await db.insert(bankAccounts).values({
+			id: bankAccountId,
+			accountId: 'a',
+			name: 'Mietkonto',
+			iban: 'DE02120300000000202051',
+			holder: 'Vermieter'
+		});
+		const transaction = (amount: number, counterpartName: string, purpose: string) => ({
+			id: crypto.randomUUID(),
+			accountId: 'a',
+			bankAccountId,
+			bookingDate: '2026-03-02',
+			amount,
+			counterpartName,
+			purpose,
+			fingerprint: crypto.randomUUID()
+		});
+		const tax = transaction(-21000, 'Stadtkasse', 'Grundsteuer');
+		const interest = transaction(312, 'Bank', 'Zinsen');
+		const withdrawal = transaction(-50000, 'Vermieter', 'Umbuchung');
+		await db.insert(bankTransactions).values([tax, interest, withdrawal]);
+		const taxAccount = await createContraAccount(db, contextA, {
+			number: '4401',
+			name: 'Grundsteuer',
+			kind: 'expense',
+			expenseCategory: 'operating_costs',
+			propertyId: null
+		});
+		const capital = await createContraAccount(db, contextA, {
+			number: '1890',
+			name: 'Kapitalerträge',
+			kind: 'capital_income',
+			expenseCategory: null,
+			propertyId: null
+		});
+		if (!taxAccount.ok || !capital.ok) throw new Error('setup failed');
+		expect(await run('list_contra_accounts')).toMatchObject([
+			{ number: '1890', kind: 'capital_income' },
+			{ number: '4401', kind: 'expense' }
+		]);
+
+		await expect(
+			write('assign_bank_transaction_as_expense', { id: tax.id, description: 'Grundsteuer' })
+		).rejects.toMatchObject({ status: 400 });
+		await expect(
+			write('assign_bank_transaction_as_expense', {
+				id: tax.id,
+				description: 'Grundsteuer',
+				contraAccountId: 'other'
+			})
+		).rejects.toMatchObject({ status: 404 });
+		expect(
+			await write('assign_bank_transaction_as_expense', {
+				id: tax.id,
+				description: 'Grundsteuer',
+				contraAccountId: taxAccount.id
+			})
+		).toMatchObject({ status: 'matched' });
+		expect(await run('list_expenses')).toMatchObject([
+			{ amount: 21000, category: 'operating_costs', contraAccountId: taxAccount.id }
+		]);
+
+		const other = (input: Record<string, unknown>) =>
+			write('assign_bank_transaction_as_other', input);
+		await expect(other({ id: interest.id })).rejects.toMatchObject({ status: 400 });
+		await expect(other({ id: interest.id, contraAccountId: 'other' })).rejects.toMatchObject({
+			status: 404
+		});
+		await expect(
+			other({ id: interest.id, kind: 'private', propertyId: 'other' })
+		).rejects.toMatchObject({ status: 404 });
+		expect(
+			await other({ id: interest.id, contraAccountId: capital.id, description: 'Zinsen' })
+		).toMatchObject({ status: 'matched' });
+		expect(await other({ id: withdrawal.id, kind: 'private' })).toMatchObject({
+			status: 'matched'
+		});
+		// The payee of the expense is remembered, so a new letter from the Stadtkasse is suggested.
+		const next = transaction(-21000, 'Stadtkasse', 'Grundsteuer Q2');
+		await db.insert(bankTransactions).values(next);
+		const listed = (await run('list_bank_transactions')) as {
+			transactions: { id: string; suggestedContraAccountId: string | null }[];
+		};
+		expect(listed.transactions).toEqual([
+			expect.objectContaining({ id: next.id, suggestedContraAccountId: taxAccount.id })
+		]);
 	});
 });
 
