@@ -449,7 +449,7 @@ def render_case(layout: str, case: Case) -> str:
         <section class="topic-tool" aria-labelledby="rechner">
           <p class="kicker">Kostenlos, ohne Anmeldung</p>
           <h2 id="rechner">Deine eigene Abrechnung, genauso gerechnet.</h2>
-          <p>Der kostenlose Rechner legt mit derselben Rechnung um wie dieses Beispiel: tagesgenau, mit Mieterwechsel, Leerstand und Heizkostenverordnung. Er läuft in deinem Browser, ohne Anmeldung.</p>
+          <p>Der kostenlose Rechner legt mit derselben Rechnung um wie dieses Beispiel: tagesgenau, mit Mieterwechsel, Leerstand und Heizkostenverordnung. <mark>Er läuft in deinem Browser und speichert nichts bei uns.</mark></p>
           <a class="button button-ghost" href="/nebenkostenabrechnung/erstellen/">Zum kostenlosen Rechner<span aria-hidden="true">→</span></a>
         </section>"""
     return fill(
