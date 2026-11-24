@@ -29,7 +29,6 @@ import { ensureCharges } from './ledger';
 import { QUOTAS } from './quotas';
 import {
 	approveStatement,
-	checkRows,
 	createCorrection,
 	createStatement,
 	deleteDraft,
@@ -38,10 +37,9 @@ import {
 	listPropertiesForStatements,
 	listStatements,
 	loadStatementInput,
-	setDelivered,
-	statementFilename,
-	statementLetter
+	setDelivered
 } from './statements';
+import { checkRows, statementFilename, statementLetter } from '../domain/statement-letter';
 import {
 	contextA,
 	contextB,

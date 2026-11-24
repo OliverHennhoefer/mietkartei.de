@@ -1,7 +1,8 @@
 import { error } from '@sveltejs/kit';
 import { pdfResponse, renderLetter } from '#lib/server/pdf.ts';
 import { requireAccount } from '#lib/server/session.ts';
-import { getLeaseResult, statementFilename, statementLetter } from '#lib/server/statements.ts';
+import { statementFilename, statementLetter } from '#lib/domain/statement-letter.ts';
+import { getLeaseResult } from '#lib/server/statements.ts';
 import type { RequestHandler } from './$types';
 
 // The statement letter of one lease, printed from the frozen statement_results row alone.
