@@ -1,9 +1,11 @@
 // Configuration for the cloudflare target (DEPLOY_TARGET=cloudflare). The App workflow deploys it
 // to app.mietkartei.de; locally it runs the built app in workerd with a local D1 and R2.
+// adapter-cloudflare sets the Worker and the assets directory, and writes this configuration,
+// resolved for one environment (CLOUDFLARE_ENV), to .svelte-kit/cloudflare/worker/wrangler.json;
+// deploys and wrangler dev name that file with --config. See vite.config.ts.
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "mietkartei-app",
-	"main": ".svelte-kit/cloudflare/_worker.js",
 	"compatibility_date": "2026-10-01",
 	"compatibility_flags": ["nodejs_als"],
 	"routes": [{ "pattern": "app.mietkartei.de", "custom_domain": true }],
@@ -28,10 +30,7 @@
 		"STRIPE_PRICE_ID": "price_1UTPZ8HkVR9ErMZWMjxrzJPD",
 		"STRIPE_YEARLY_PRICE_ID": "price_1UUXTHHkVR9ErMZW5jBwYL8y"
 	},
-	"assets": {
-		"binding": "ASSETS",
-		"directory": ".svelte-kit/cloudflare"
-	},
+	"assets": { "binding": "ASSETS" },
 	// A request may use at most 10 s of CPU instead of the default 30 s. The slowest real path, a
 	// bank import of a 2 MB file (~27,000 rows), takes about 1 s each for preview and commit.
 	"limits": { "cpu_ms": 10000 },
@@ -70,7 +69,7 @@
 			"jurisdiction": "eu"
 		}
 	],
-	// The public demo at demo.mietkartei.de, deployed with `wrangler deploy --env demo` after the
+	// The public demo at demo.mietkartei.de, built with CLOUDFLARE_ENV=demo and deployed after the
 	// app. Every visitor gets a throwaway account (DEMO, see src/lib/server/demo-accounts.ts); mails
 	// stay in the outbox table and are never sent. The deploy job creates the bucket when it is
 	// missing.

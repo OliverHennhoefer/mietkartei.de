@@ -2,7 +2,9 @@
 // and without a domain. The "Deploy to Cloudflare" button in docs/selbst-hosten.md copies this
 // repository, creates the D1 database and the R2 bucket below and fills in their ids here, then
 // runs the build and deploy scripts of package.json. The hosted app.mietkartei.de deploys
-// app/wrangler.jsonc instead.
+// app/wrangler.jsonc instead. The build hands this file to adapter-cloudflare (WRANGLER_CONFIG),
+// which sets the Worker and the assets directory and writes the configuration of the build to
+// app/.svelte-kit/cloudflare/worker/wrangler.json; the deploy script deploys that one.
 //
 // Compared with that one: no custom domain, no subscription, no street map (the property list
 // shows the outline of Germany), and mails stay in the outbox table, since sending them needs a
@@ -11,7 +13,6 @@
 {
 	"$schema": "./app/node_modules/wrangler/config-schema.json",
 	"name": "mietkartei",
-	"main": "app/.svelte-kit/cloudflare/_worker.js",
 	// The scheduled jobs, the weekly Fristenübersicht and the Hinweise at the hour each user chose,
 	// every hour.
 	"triggers": { "crons": ["0 * * * *"] },
@@ -23,10 +24,7 @@
 	"vars": {
 		"MAIL_TRANSPORT": "outbox"
 	},
-	"assets": {
-		"binding": "ASSETS",
-		"directory": "app/.svelte-kit/cloudflare"
-	},
+	"assets": { "binding": "ASSETS" },
 	"ratelimits": [
 		{ "name": "AUTH_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
 		{ "name": "API_LIMITER", "namespace_id": "1002", "simple": { "limit": 120, "period": 60 } }

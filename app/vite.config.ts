@@ -3,24 +3,31 @@ import cloudflare from '@sveltejs/adapter-cloudflare';
 import node from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 import type { Adapter } from '@sveltejs/kit';
-import { copyFileSync, readFileSync, renameSync } from 'node:fs';
+import { copyFileSync, readFileSync, renameSync, rmSync } from 'node:fs';
 
 // The version shown at the bottom of the sidebar; set in package.json for each release.
 const { version } = JSON.parse(readFileSync(new URL('package.json', import.meta.url), 'utf8'));
 
 /**
  * adapter-cloudflare, with worker.js in front of the worker it builds: the adapter's worker only
- * answers requests, worker.js also runs the cron trigger. The adapter's file moves next to the
- * server it imports, outside the static assets.
+ * answers requests, worker.js also runs the cron trigger. The adapter's entry is renamed and
+ * worker.js takes its place, so the wrangler.json the adapter writes next to it stays valid.
+ *
+ * That wrangler.json is wrangler.jsonc resolved for one environment, and the adapter also points
+ * every later wrangler command in app/ at it through .wrangler/deploy/config.json. wrangler then
+ * ignores --env, so `wrangler secret put … --env demo` would reach the Worker built last. The
+ * pointer is removed: deploys name the built config with --config, everything else reads
+ * wrangler.jsonc as before.
  */
 function withScheduledJobs(adapter: Adapter): Adapter {
 	return {
 		...adapter,
 		async adapt(builder) {
 			await adapter.adapt(builder);
-			const worker = `${builder.getBuildDirectory('cloudflare')}/_worker.js`;
-			renameSync(worker, `${builder.getBuildDirectory('cloudflare-tmp')}/app-worker.js`);
-			copyFileSync(new URL('worker.js', import.meta.url), worker);
+			const worker = `${builder.getBuildDirectory('cloudflare')}/worker`;
+			renameSync(`${worker}/index.js`, `${worker}/app-worker.js`);
+			copyFileSync(new URL('worker.js', import.meta.url), `${worker}/index.js`);
+			rmSync(new URL('.wrangler/deploy/config.json', import.meta.url), { force: true });
 		}
 	};
 }
@@ -39,7 +46,12 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: target === 'cloudflare' ? withScheduledJobs(cloudflare()) : node(),
+			// WRANGLER_CONFIG names another configuration than app/wrangler.jsonc, such as the one of a
+			// self-hosted copy (../wrangler.jsonc); CLOUDFLARE_ENV picks one of its environments.
+			adapter:
+				target === 'cloudflare'
+					? withScheduledJobs(cloudflare({ config: process.env.WRANGLER_CONFIG }))
+					: node(),
 			// The hook checks the origin of form posts instead, with an exception for the OAuth
 			// token endpoint; see #lib/server/csrf.ts.
 			csrf: { trustedOrigins: ['*'] },
