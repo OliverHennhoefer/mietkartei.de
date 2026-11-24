@@ -9,6 +9,7 @@ import { countUnmatched } from '#lib/server/bank/transactions.ts';
 import { bankTransactions, costCategories } from '#lib/server/db/schema.ts';
 import { listDeadlines } from '#lib/server/deadlines.ts';
 import { leaseLabel, listLeases, listUnitsWithProperty } from '#lib/server/leases.ts';
+import { lettingLabel, lettingSuggestions, listLettings } from '#lib/server/lettings.ts';
 import { listBalances } from '#lib/server/ledger.ts';
 import { listProperties } from '#lib/server/properties.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
@@ -31,7 +32,7 @@ import type { Actions, PageServerLoad } from './$types';
 // The start page: the first-run checklist until the account has a lease and a bank account, then
 // the next deadlines, and everything that needs doing: the user's own tasks, with reminders that
 // follow from the data (arrears, unmatched bank transactions, statements not loaded, vacant
-// units). listBalances syncs the rent charges first, so the arrears are current when the page opens
+// units, units that become free and open lettings). listBalances syncs the rent charges first, so the arrears are current when the page opens
 // (the same as /mietkonto does).
 
 export type FirstRun = {
@@ -52,7 +53,7 @@ export type FirstRun = {
 export type Reminder = {
 	/** Unique within the list: the kind and what it is about. */
 	id: string;
-	kind: 'arrears' | 'bank' | 'bank_import' | 'vacancy';
+	kind: 'arrears' | 'bank' | 'bank_import' | 'vacancy' | 'letting';
 	title: string;
 	detail?: string;
 	/** Cents, for the arrears. */
@@ -103,7 +104,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		latestBookings,
 		connections,
 		serviceProviders,
-		editingExpenses
+		editingExpenses,
+		lettings,
+		suggestions
 	] = await Promise.all([
 		listDeadlines(locals.db, accountId, { to: addMonths(date, 12) }),
 		listTasks(locals.db, accountId),
@@ -131,7 +134,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			offered ? listConnections(locals.db, accountId) : []
 		),
 		serviceProviderOptions(locals.db, accountId),
-		editing ? taskExpenses(locals.db, accountId, editing, date) : null
+		editing ? taskExpenses(locals.db, accountId, editing, date) : null,
+		listLettings(locals.db, accountId),
+		lettingSuggestions(locals.db, accountId)
 	]);
 
 	// Rückstand is what is overdue today, not this month's rent before its due day.
@@ -219,6 +224,29 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				title: `Mietvertrag anlegen: ${row.unit.name} · ${row.property.name}`,
 				detail: 'Die Einheit steht leer.',
 				href: `/vertraege/neu?unitId=${row.unit.id}`
+			});
+		}
+		// Neuvermietung has no section of its own: a letting is rare, so it shows up here while it
+		// matters, from the lease that ends until the Zusage.
+		for (const { unit, property, freeFrom } of suggestions) {
+			if (!freeFrom) continue;
+			reminders.push({
+				id: `letting:${unit.id}`,
+				kind: 'letting',
+				title: `Neuvermietung anlegen: ${lettingLabel({ unit, property })}`,
+				detail: `Frei ab ${formatDate(freeFrom)}. Sammle Interessenten und ihre Selbstauskunft.`,
+				href: `/vermietung/neu?unitId=${unit.id}`
+			});
+		}
+		for (const letting of lettings.filter((row) => row.closedAt === null)) {
+			reminders.push({
+				id: `letting:${letting.id}`,
+				kind: 'letting',
+				title: `Neuvermietung: ${lettingLabel(letting)}`,
+				detail: letting.total
+					? pluralize(letting.total, 'Mietinteressent', 'Mietinteressenten')
+					: 'Noch keine Mietinteressenten eingetragen.',
+				href: `/vermietung/${letting.id}`
 			});
 		}
 		if (vacant.length > VACANT_LISTED) {

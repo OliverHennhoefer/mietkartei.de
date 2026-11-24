@@ -5,11 +5,11 @@ description: "Wie du für eine frei werdende Wohnung Interessenten sammelst, die
 
 # Neuvermietung und Mietinteressenten
 
-Wird eine Wohnung frei, sammelst du unter **Neuvermietung** die Interessenten, holst ihre Selbstauskunft ein, vergleichst sie und machst aus der Zusage direkt Mieter und Mietvertrag. Du brauchst dafür kein Konto bei einer Auskunftei und keine Bewerberliste in Excel.
+Wird eine Wohnung frei, sammelst du in einer **Neuvermietung** die Interessenten, holst ihre Selbstauskunft ein, vergleichst sie und machst aus der Zusage direkt Mieter und Mietvertrag. Du brauchst dafür kein Konto bei einer Auskunftei und keine Bewerberliste in Excel.
 
 ## 1. Neuvermietung anlegen
 
-Unter **Neuvermietung → Bald frei** stehen die Einheiten, die leer stehen oder deren Vertrag in den nächsten vier Monaten endet. Mit **Neuvermietung anlegen** wählst du die Einheit. Kaltmiete, Vorauszahlungen, Kaution und das Datum **Frei ab** übernimmt mietkartei aus dem letzten Vertrag. Du passt sie an, bevor du das Angebot ausschreibst, und vermerkst, ob ein Wohnberechtigungsschein nötig ist.
+Endet ein Vertrag in den nächsten vier Monaten, erinnert dich **Aufgaben** daran, eine Neuvermietung anzulegen. Alle Neuvermietungen und die Einheiten, die leer stehen oder bald frei werden, findest du unter **Mietverträge → Neuvermietung**. Mit **Neuvermietung anlegen** wählst du die Einheit. Kaltmiete, Vorauszahlungen, Kaution und das Datum **Frei ab** übernimmt mietkartei aus dem letzten Vertrag. Du passt sie an, bevor du das Angebot ausschreibst, und vermerkst, ob ein Wohnberechtigungsschein nötig ist.
 
 Auch die Seite einer Einheit zeigt **Neuvermietung anlegen**, sobald die Einheit frei ist oder ihr Vertrag endet.
 
