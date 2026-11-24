@@ -55,7 +55,9 @@
 		'/einstellungen/konto': Account
 	};
 
-	type Section = { href: string; label: string; icon: IconName };
+	// `also`: further paths that belong to the section, such as the Neuvermietung, which leads to a
+	// lease and is reached from Aufgaben, the unit and the Mietverträge.
+	type Section = { href: string; label: string; icon: IconName; also?: string[] };
 	const groups: { label: string; sections: Section[] }[] = [
 		{
 			label: 'Alltag',
@@ -70,9 +72,8 @@
 			sections: [
 				{ href: '/objekte', label: 'Objekte', icon: 'building' },
 				{ href: '/mieter', label: 'Mieter', icon: 'people' },
-				{ href: '/vermietung', label: 'Neuvermietung', icon: 'key' },
 				{ href: '/dienstleister', label: 'Dienstleister', icon: 'wrench' },
-				{ href: '/vertraege', label: 'Mietverträge', icon: 'file' }
+				{ href: '/vertraege', label: 'Mietverträge', icon: 'file', also: ['/vermietung'] }
 			]
 		},
 		{
@@ -88,12 +89,16 @@
 
 	// The bar on a phone names the section the page belongs to, so a long page keeps its bearings.
 	const section = $derived(
-		groups.flatMap((group) => group.sections).find((item) => current(item.href))?.label
+		groups.flatMap((group) => group.sections).find((item) => current(item))?.label
 	);
 
-	function current(href: string): 'page' | undefined {
+	function current(item: Section): 'page' | undefined {
 		const path = page.url.pathname;
-		return path === href || path.startsWith(`${href}/`) ? 'page' : undefined;
+		return [item.href, ...(item.also ?? [])].some(
+			(href) => path === href || path.startsWith(`${href}/`)
+		)
+			? 'page'
+			: undefined;
 	}
 
 	// First letters of the first and last name ("Max Muster" → "MM"), else of the email address.
@@ -365,7 +370,7 @@
 						<div class="nav-group">
 							<p class="nav-label">{group.label}</p>
 							{#each group.sections as item (item.href)}
-								{@const here = current(item.href)}
+								{@const here = current(item)}
 								<a class="nav-item" href={item.href} aria-current={here}
 									><span class="nav-icon"><Icon name={item.icon} size={16} /></span><span
 										class="nav-text">{item.label}</span

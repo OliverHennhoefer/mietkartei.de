@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
-import { today } from '#lib/dates.ts';
+import { addDays, formatDate, today } from '#lib/dates.ts';
+import { createBankAccount } from '#lib/server/bank/accounts.ts';
+import { createLetting } from '#lib/server/lettings.ts';
 import { createServiceProvider } from '#lib/server/service-providers.ts';
 import { expenses } from '#lib/server/db/schema.ts';
 import { createTask as storeTask, getTask, listTasks } from '#lib/server/tasks.ts';
@@ -201,5 +203,48 @@ describe('aufgaben', () => {
 		expect(await run(load)).toMatchObject({
 			data: { open: [{ id, costs: { total: 18900 } }], editingExpenses: null }
 		});
+	});
+
+	it('reminds of a lease that ends soon and of an open Neuvermietung', async () => {
+		const bank = await createBankAccount(db, contextA, {
+			name: 'Mietkonto',
+			iban: 'DE02120300000000202051',
+			bic: null,
+			holder: 'Oliver'
+		});
+		if (!bank.ok) throw new Error('setup failed');
+		const ending = await seedUnit(db, 'a', { name: 'OG rechts', propertyName: 'Parkallee 8' });
+		const lastDay = addDays(today(), 60);
+		await seedLease(db, 'a', ending.unitId, { endDate: lastDay });
+		const offered = await seedUnit(db, 'a', { name: 'DG', propertyName: 'Ringstraße 3' });
+		const letting = await createLetting(db, contextA, {
+			unitId: offered.unitId,
+			availableFrom: null,
+			baseRent: 70000,
+			operatingCostPrepayment: 15000,
+			heatingCostPrepayment: 10000,
+			securityDeposit: 210000,
+			requiresWbs: false,
+			notes: null
+		});
+		if (!letting.ok) throw new Error('setup failed');
+
+		const { data } = (await run(load)) as { data: { reminders: { kind: string }[] } };
+		expect(data.reminders.filter((reminder) => reminder.kind === 'letting')).toEqual([
+			{
+				id: `letting:${ending.unitId}`,
+				kind: 'letting',
+				title: 'Neuvermietung anlegen: OG rechts · Parkallee 8',
+				detail: `Frei ab ${formatDate(addDays(lastDay, 1))}. Sammle Interessenten und ihre Selbstauskunft.`,
+				href: `/vermietung/neu?unitId=${ending.unitId}`
+			},
+			{
+				id: `letting:${letting.id}`,
+				kind: 'letting',
+				title: 'Neuvermietung: DG · Ringstraße 3',
+				detail: 'Noch keine Mietinteressenten eingetragen.',
+				href: `/vermietung/${letting.id}`
+			}
+		]);
 	});
 });
