@@ -37,6 +37,11 @@ updates:
     groups:
       app-dependencies:
         update-types: [minor, patch]
+    # 4.2 moves the text of inline elements (span, option, button) onto lines of its own, which
+    # adds visible spaces in 55 components. Stays on 4.1 until that is reformatted and checked.
+    ignore:
+      - dependency-name: prettier-plugin-svelte
+        versions: [">=4.2.0"]
     labels:
       - abhängigkeiten
       - wartung
