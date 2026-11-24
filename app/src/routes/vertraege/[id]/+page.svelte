@@ -1,14 +1,12 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
 	import LeaseStatus from '#lib/components/LeaseStatus.svelte';
 	import Balance from '#lib/components/Balance.svelte';
-	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import DeleteSection from '#lib/components/DeleteSection.svelte';
-	import EditDialog from '#lib/components/EditDialog.svelte';
-	import Reveal from '#lib/components/Reveal.svelte';
+	import FormDialog from '#lib/components/FormDialog.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
@@ -30,6 +28,9 @@
 	let { data, form }: PageProps = $props();
 
 	const lease = $derived(data.lease);
+	// ?neu=eintritt, ?neu=personen and ?neu=kuendigung open the dialog of that step; it stays open
+	// while the server refuses the input.
+	const creating = $derived(form?.which && !form.errors ? null : page.url.searchParams.get('neu'));
 	const personsForm = $derived(form?.which === 'persons' && form.errors ? form : undefined);
 	const endForm = $derived(form?.which === 'end' && form.errors ? form : undefined);
 	const editPersonsForm = $derived(form?.which === 'editPersons' && form.errors ? form : undefined);
@@ -203,8 +204,18 @@
 	ein; so bleibt erkennbar, wer an einem früheren Tag Vertragspartei war.
 </p>
 {#if data.joinable.length > 0 && !lease.terminatedAt}
-	<Reveal label="Eintritt eines Mieters eintragen" open={addPartyForm !== undefined}>
-		<form method="POST" action="?/addParty" class="card form" use:enhance>
+	<p>
+		<a href="?neu=eintritt" data-sveltekit-reset="false" class="button secondary small"
+			>Eintritt eines Mieters eintragen</a
+		>
+	</p>
+	{#if creating === 'eintritt'}
+		<FormDialog
+			title="Eintritt eines Mieters eintragen"
+			action="?/addParty"
+			submitLabel="Mieter hinzufügen"
+			close="/vertraege/{lease.id}"
+		>
 			<Field label="Mieter tritt ein" error={addPartyForm?.errors.tenantId}>
 				<select
 					name="tenantId"
@@ -231,11 +242,8 @@
 					aria-invalid={addPartyForm?.errors.joinedOn ? 'true' : undefined}
 				/>
 			</Field>
-			<div class="form-actions">
-				<button type="submit">Mieter hinzufügen</button>
-			</div>
-		</form>
-	</Reveal>
+		</FormDialog>
+	{/if}
 {/if}
 
 <h2>Aktuelle Miete</h2>
@@ -305,14 +313,21 @@
 			</tbody>
 		</table>
 	</div>
-	<Reveal label="Personenstand ändern" open={personsForm !== undefined}>
-		<form method="POST" action="?/addPersons" class="card form" use:enhance>
+	<p>
+		<a href="?neu=personen" data-sveltekit-reset="false" class="button secondary small"
+			>Personenstand ändern</a
+		>
+	</p>
+	{#if creating === 'personen'}
+		<FormDialog
+			title="Personenstand ändern"
+			action="?/addPersons"
+			submitLabel="Personenstand eintragen"
+			close="/vertraege/{lease.id}"
+		>
 			{@render personsFields(personsForm?.values ?? {}, personsForm?.errors ?? {})}
-			<div class="form-actions">
-				<button type="submit">Personenstand eintragen</button>
-			</div>
-		</form>
-	</Reveal>
+		</FormDialog>
+	{/if}
 {/if}
 
 <h2>Vertragsende</h2>
@@ -334,14 +349,19 @@
 	</ul>
 {/if}
 {#if !lease.terminatedAt}
-	<!-- Folded until wanted: ending a lease is rare, and an open form invites a slip. -->
-	<Reveal label="Kündigung eintragen" open={endForm !== undefined}>
-		<ConfirmButton
+	<!-- Behind a button and a question: ending a lease is rare, and an open form invites a slip. -->
+	<p>
+		<a href="?neu=kuendigung" data-sveltekit-reset="false" class="button secondary small"
+			>Kündigung eintragen</a
+		>
+	</p>
+	{#if creating === 'kuendigung'}
+		<FormDialog
+			title="Kündigung eintragen"
 			action="?/end"
-			label="Vertrag beenden"
-			message="Den Vertrag wirklich zu diesem Datum beenden? Die Sollstellungen nach dem Vertragsende entfallen."
-			tone="primary"
-			card
+			submitLabel="Vertrag beenden"
+			submitMessage="Den Vertrag wirklich zu diesem Datum beenden? Die Sollstellungen nach dem Vertragsende entfallen."
+			close="/vertraege/{lease.id}"
 		>
 			<p class="form-wide muted small end-note">
 				{#if lease.kind === 'commercial'}
@@ -399,8 +419,8 @@
 				/>
 				Früheres Ende vereinbart (Aufhebungsvertrag)
 			</label>
-		</ConfirmButton>
-	</Reveal>
+		</FormDialog>
+	{/if}
 {/if}
 
 <DeleteSection
@@ -439,7 +459,7 @@
 
 {#if data.editing && editValues}
 	{#key data.editing.id}
-		<EditDialog
+		<FormDialog
 			title="Personenstand bearbeiten"
 			action="?/updatePersons"
 			deleteAction="?/deletePersons"
@@ -449,13 +469,13 @@
 		>
 			<input type="hidden" name="rowId" value={data.editing.id} />
 			{@render personsFields(editValues, editPersonsForm?.errors ?? {})}
-		</EditDialog>
+		</FormDialog>
 	{/key}
 {/if}
 
 {#if data.editingParty && partyValues}
 	{#key data.editingParty.tenant.id}
-		<EditDialog
+		<FormDialog
 			title="{personName(data.editingParty.tenant)}: Ein- und Austritt"
 			action="?/updateParty"
 			close="/vertraege/{lease.id}"
@@ -489,7 +509,7 @@
 				Wer versehentlich eingetragen wurde, entfernst du unter „Bearbeiten“; ein Austritt bleibt
 				mit Datum im Vertrag stehen.
 			</p>
-		</EditDialog>
+		</FormDialog>
 	{/key}
 {/if}
 

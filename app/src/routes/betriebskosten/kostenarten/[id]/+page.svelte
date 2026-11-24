@@ -1,7 +1,8 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
-	import CostCategoryForm from '#lib/components/CostCategoryForm.svelte';
+	import CostCategoryFields from '#lib/components/CostCategoryFields.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -27,15 +28,18 @@
 	<Alert tone="danger"><p>{refused}</p></Alert>
 {/if}
 
-<CostCategoryForm
-	action="?/update"
-	submitLabel="Speichern"
-	keys={data.keys}
-	circles={data.circles}
-	category={data.category}
-	{errors}
-	{values}
-/>
+<form method="POST" action="?/update" class="card" use:enhance>
+	<CostCategoryFields
+		keys={data.keys}
+		circles={data.circles}
+		category={data.category}
+		{errors}
+		{values}
+	/>
+	<div class="form-actions">
+		<button type="submit">Speichern</button>
+	</div>
+</form>
 
 <h2>Kostenart löschen</h2>
 <p class="muted">Eine Kostenart, die Belege verwenden, kann nicht gelöscht werden.</p>

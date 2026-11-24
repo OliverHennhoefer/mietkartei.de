@@ -30,6 +30,7 @@ test('creates a property and adds units to it', async ({ page }) => {
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText(name);
 	await expect(page.getByText('Dieses Objekt hat noch keine Einheiten.')).toBeVisible();
 
+	await page.getByRole('link', { name: 'Einheit anlegen' }).click();
 	await page.getByLabel('Bezeichnung').fill('Wohnung EG links');
 	await page.getByLabel('Art').selectOption({ label: 'Wohnung' });
 	await page.getByLabel('Fläche in m² (optional)').fill('72,5');
@@ -227,7 +228,7 @@ test('deletes a unit without a lease and keeps the property while an ended lease
 	});
 	const unitName = `Keller ${suffix()}`;
 
-	await page.goto(`/objekte/${propertyId}`);
+	await page.goto(`/objekte/${propertyId}?neu`);
 	await page.getByLabel('Bezeichnung').fill(unitName);
 	await page.getByLabel('Art').selectOption({ label: 'Gewerbe' });
 	await page.getByRole('button', { name: 'Einheit anlegen' }).click();
@@ -261,6 +262,7 @@ test('deletes a property without leases', async ({ page }) => {
 	await page.getByLabel('Ort').fill('Berlin');
 	await page.getByRole('button', { name: 'Objekt anlegen' }).click();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText(name);
+	await page.getByRole('link', { name: 'Einheit anlegen' }).click();
 	await page.getByLabel('Bezeichnung').fill('Garage');
 	await page.getByLabel('Art').selectOption({ label: 'Stellplatz' });
 	await page.getByRole('button', { name: 'Einheit anlegen' }).click();

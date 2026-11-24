@@ -1,5 +1,6 @@
 <script lang="ts">
-	import BillingCircleForm from '#lib/components/BillingCircleForm.svelte';
+	import { enhance } from '$app/forms';
+	import BillingCircleFields from '#lib/components/BillingCircleFields.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import type { PageProps } from './$types';
 
@@ -11,14 +12,17 @@
 </div>
 
 <h2>{data.circle.name}</h2>
-<BillingCircleForm
-	action="?/update"
-	submitLabel="Speichern"
-	units={data.units}
-	circle={data.circle}
-	errors={form?.errors}
-	values={form?.values}
-/>
+<form method="POST" action="?/update" class="card" use:enhance>
+	<BillingCircleFields
+		units={data.units}
+		circle={data.circle}
+		errors={form?.errors}
+		values={form?.values}
+	/>
+	<div class="form-actions">
+		<button type="submit">Speichern</button>
+	</div>
+</form>
 
 <h2>Abrechnungskreis löschen</h2>
 <p class="muted">

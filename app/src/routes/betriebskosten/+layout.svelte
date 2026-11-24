@@ -2,7 +2,7 @@
 	// The frame of every page under /betriebskosten: heading and tab bar. Child pages render only
 	// h2 sections, no PageHeader (a first h2 that only repeats the tab name is .visually-hidden, as the
 	// current tab already shows it). The create action of each tab sits at the right of the heading;
-	// it is set here, by the current path, and leads to the tab's form further down or its own page.
+	// it is set here, by the current path, and opens the tab's create dialog (?neu) or its own page.
 	import { page } from '$app/state';
 	import CreateButton from '#lib/components/CreateButton.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
@@ -18,10 +18,12 @@
 		{ href: '/betriebskosten/schluessel', label: 'Umlageschlüssel' }
 	];
 
+	// ?neu opens the create dialog of the tab; the tab's filters stay in the query.
+	const neu = $derived(page.url.search ? `${page.url.search}&neu` : '?neu');
 	const create = $derived.by(() => {
 		switch (page.url.pathname) {
 			case '/betriebskosten':
-				return { href: '#neue-abrechnung', label: 'Abrechnung erstellen' };
+				return { href: neu, label: 'Abrechnung erstellen' };
 			case '/betriebskosten/belege': {
 				// The new receipt starts with the property and year of the current filter.
 				const filter = page.data as { property?: { id: string } | null; year?: number | null };
@@ -37,16 +39,16 @@
 				};
 			}
 			case '/betriebskosten/kostenarten':
-				return { href: '#kostenart-anlegen', label: 'Kostenart anlegen' };
+				return { href: neu, label: 'Kostenart anlegen' };
 			case '/betriebskosten/schluessel':
-				return { href: '#umlageschluessel-anlegen', label: 'Umlageschlüssel anlegen' };
+				return { href: neu, label: 'Umlageschlüssel anlegen' };
 		}
 	});
 </script>
 
 <PageHeader title="Betriebskosten" {tabs}>
 	{#snippet actions()}
-		{#if create}<CreateButton {...create} />{/if}
+		{#if create}<CreateButton {...create} data-sveltekit-reset={false} />{/if}
 	{/snippet}
 </PageHeader>
 

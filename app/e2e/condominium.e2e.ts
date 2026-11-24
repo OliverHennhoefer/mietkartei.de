@@ -56,7 +56,7 @@ test('prints the cost of the WEG, its key and the share on the statement', async
 		'Gesamtkosten 4.200,00 €, verteilt nach MEA; Anteil der Wohnung 85/1.000 (8,5 %)'
 	);
 
-	await page.goto('/betriebskosten');
+	await page.goto('/betriebskosten?neu');
 	await page.getByLabel('Objekt').selectOption({ value: propertyId });
 	await page.getByLabel('Zeitraum von').fill(`${year}-01-01`);
 	await page.getByLabel('Zeitraum bis').fill(`${year}-12-31`);
@@ -98,6 +98,7 @@ test('reconciles a Hausgeldabrechnung against the Hausgeld paid', async ({ page 
 	await page.getByRole('link', { name: 'Hausgeld' }).click();
 	await expect(page).toHaveURL(`/objekte/${propertyId}/hausgeld`);
 	await page.waitForLoadState('networkidle');
+	await page.getByRole('link', { name: 'Hausgeldabrechnung erfassen' }).click();
 	await page.getByLabel('Wirtschaftsjahr von').fill('2025-01-01');
 	await page.getByLabel('Wirtschaftsjahr bis').fill('2025-12-31');
 	await page.getByLabel(/^Umlagefähige Kosten/).fill('1.800,00');
@@ -129,12 +130,14 @@ test('reconciles a Hausgeldabrechnung against the Hausgeld paid', async ({ page 
 	await expect(missing).toHaveCount(1);
 
 	// A second statement for the same year is refused.
+	await page.getByRole('link', { name: 'Hausgeldabrechnung erfassen' }).click();
 	await page.getByLabel('Wirtschaftsjahr von').fill('2025-01-01');
 	await page.getByLabel('Wirtschaftsjahr bis').fill('2025-12-31');
 	await page.getByRole('button', { name: 'Hausgeldabrechnung erfassen' }).click();
 	await expect(
 		page.getByText('Für dieses Wirtschaftsjahr gibt es schon eine Hausgeldabrechnung.')
 	).toBeVisible();
+	await page.getByRole('dialog').getByRole('link', { name: 'Abbrechen' }).click();
 
 	// Edit, then delete.
 	await statement.getByRole('link', { name: /^Wirtschaftsjahr/ }).click();

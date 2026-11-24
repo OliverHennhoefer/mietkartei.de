@@ -135,7 +135,7 @@ describe('the paths in the source', () => {
 					'<a href={`/mieter/${tenant.id}`}>Mieter</a>' +
 					'<a href="https://example.org/">Quelle</a><a href="?jahr=2025">2025</a>' +
 					'<form method="post" action="/hinweise"></form>' +
-					'<EditDialog close="/bank/konten" title="Konto" />'
+					'<FormDialog close="/bank/konten" title="Konto" />'
 			)
 		).toEqual(['/objekte/*/steuer/pdf*', '/mieter/*', '/hinweise', '/bank/konten']);
 		expect(

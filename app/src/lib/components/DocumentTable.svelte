@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import DocumentLink from './DocumentLink.svelte';
-	import EditDialog from './EditDialog.svelte';
+	import FormDialog from './FormDialog.svelte';
 	import Icon from './Icon.svelte';
 	import PreviewLink from './PreviewLink.svelte';
 	import SortHeader from './SortHeader.svelte';
@@ -129,7 +129,7 @@
 {#if opened}
 	{@const links = describeDocumentLinks(opened, options, omit)}
 	{#key opened.id}
-		<EditDialog
+		<FormDialog
 			title={opened.name}
 			{deleteAction}
 			deleteMessage={`Dokument „${opened.name}“ wirklich löschen?`}
@@ -148,7 +148,7 @@
 				<dt>Datei</dt>
 				<dd><DocumentLink document={opened} /></dd>
 			</dl>
-		</EditDialog>
+		</FormDialog>
 	{/key}
 {/if}
 

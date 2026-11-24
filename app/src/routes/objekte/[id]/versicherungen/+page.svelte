@@ -1,15 +1,17 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import Badge from '#lib/components/Badge.svelte';
-	import InsurancePolicyForm from '#lib/components/InsurancePolicyForm.svelte';
+	import FormDialog from '#lib/components/FormDialog.svelte';
+	import InsurancePolicyFields from '#lib/components/InsurancePolicyFields.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import { insuranceKindLabels } from '#lib/labels.ts';
-	import { FreshForm } from '#lib/fresh-form.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	// The create form below starts empty again once its entry is saved.
-	const fresh = new FreshForm();
+
+	// ?neu opens the create dialog; it stays open while the server refuses the input.
+	const creating = $derived(page.url.searchParams.has('neu'));
 
 	const receiptHref = (policyId: string, start: string) =>
 		`/betriebskosten/belege/neu?versicherung=${policyId}&von=${start}`;
@@ -63,15 +65,16 @@
 	</ul>
 {/if}
 
-<h2 id="versicherung-anlegen">Versicherung anlegen</h2>
-{#key fresh.visit}
-	<InsurancePolicyForm
+{#if creating}
+	<FormDialog
+		title="Versicherung anlegen"
 		action="?/create"
 		submitLabel="Versicherung anlegen"
-		errors={form?.errors}
-		values={form?.values}
-	/>
-{/key}
+		close={page.url.pathname}
+	>
+		<InsurancePolicyFields errors={form?.errors} values={form?.values} />
+	</FormDialog>
+{/if}
 
 <style>
 	.policy {

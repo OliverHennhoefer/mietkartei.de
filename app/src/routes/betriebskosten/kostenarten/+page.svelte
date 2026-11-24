@@ -1,13 +1,15 @@
 <script lang="ts">
-	import CostCategoryForm from '#lib/components/CostCategoryForm.svelte';
+	import { page } from '$app/state';
+	import FormDialog from '#lib/components/FormDialog.svelte';
+	import CostCategoryFields from '#lib/components/CostCategoryFields.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
-	import { FreshForm } from '#lib/fresh-form.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	// The create form below starts empty again once its entry is saved.
-	const fresh = new FreshForm();
+
+	// ?neu opens the create dialog; it stays open while the server refuses the input.
+	const creating = $derived(page.url.searchParams.has('neu'));
 
 	const keyName = (id: string | null) => data.keys.find((key) => key.id === id)?.name ?? '–';
 	const circleName = (id: string | null) => {
@@ -62,14 +64,18 @@
 	</table>
 </div>
 
-<h2 id="kostenart-anlegen">Kostenart anlegen</h2>
-{#key fresh.visit}
-	<CostCategoryForm
+{#if creating}
+	<FormDialog
+		title="Kostenart anlegen"
 		action="?/create"
 		submitLabel="Kostenart anlegen"
-		keys={data.keys}
-		circles={data.circles}
-		errors={form?.errors}
-		values={form?.values}
-	/>
-{/key}
+		close={page.url.pathname}
+	>
+		<CostCategoryFields
+			keys={data.keys}
+			circles={data.circles}
+			errors={form?.errors}
+			values={form?.values}
+		/>
+	</FormDialog>
+{/if}

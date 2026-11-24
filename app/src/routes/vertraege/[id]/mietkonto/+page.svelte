@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
 	import Balance from '#lib/components/Balance.svelte';
-	import EditDialog from '#lib/components/EditDialog.svelte';
+	import CreateButton from '#lib/components/CreateButton.svelte';
+	import FormDialog from '#lib/components/FormDialog.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PreviewLink from '#lib/components/PreviewLink.svelte';
@@ -50,6 +52,17 @@
 		if (name && value) query.set(name, value);
 		return `${base}?${query}`;
 	};
+	// ?neu=zahlung and ?neu=korrektur open the dialog that books one; it stays open while the
+	// server refuses the input.
+	const creating = $derived(form && 'booked' in form ? null : page.url.searchParams.get('neu'));
+	// What the dialog booked, confirmed above the balance once it has closed.
+	let booked = $state<string>();
+	$effect(() => {
+		if (creating) booked = undefined;
+	});
+	const bookedShown = $derived(
+		creating ? undefined : (booked ?? (form && 'booked' in form ? form.booked : undefined))
+	);
 	const reminderErrors = $derived(failed?.form === 'reminder' ? failed.errors : undefined);
 	const reminderValues = $derived(failed?.form === 'reminder' ? failed.values : undefined);
 
@@ -93,10 +106,8 @@
 		data.reminders.baseRates.error ? ` (${data.reminders.baseRates.error})` : ''
 	);
 
-	let paymentForm = $state<HTMLFormElement>();
-
 	/** Fills the payment form like the last payment: today, its amount and its note. */
-	function repeatLastPayment() {
+	function repeatLastPayment(paymentForm: HTMLFormElement | null) {
 		const last = data.lastPayment;
 		if (!last || !paymentForm) return;
 		const amount = paymentForm.elements.namedItem('amount');
@@ -128,9 +139,9 @@
 
 {#if form && 'message' in form}
 	<Alert tone="danger"><p>{form.message}</p></Alert>
-{:else if form && 'booked' in form}
+{:else if bookedShown}
 	<Alert tone="success">
-		<p>{form.booked === 'payment' ? 'Zahlung gebucht.' : 'Korrektur gebucht.'}</p>
+		<p>{bookedShown === 'payment' ? 'Zahlung gebucht.' : 'Korrektur gebucht.'}</p>
 	</Alert>
 {:else if form?.reminderId}
 	<Alert tone="success">
@@ -151,6 +162,19 @@
 		über alle Buchungen · {formatMonth(data.range.from)} bis {formatMonth(data.range.to)} unten
 	</span>
 </p>
+<div class="toolbar">
+	<CreateButton
+		href={withRange('neu', 'zahlung')}
+		label="Zahlung buchen"
+		data-sveltekit-reset={false}
+	/>
+	<CreateButton
+		href={withRange('neu', 'korrektur')}
+		label="Korrektur oder Anfangssaldo"
+		secondary
+		data-sveltekit-reset={false}
+	/>
+</div>
 
 {#if data.rows.length === 0}
 	<p class="muted">In diesem Zeitraum gibt es keine Buchungen.</p>
@@ -371,118 +395,115 @@
 	</div>
 {/if}
 
-<h2>Zahlung buchen</h2>
-<form
-	method="POST"
-	action="?/payment"
-	class="card"
-	aria-label="Zahlung buchen"
-	bind:this={paymentForm}
-	use:enhance
->
-	{#if data.lastPayment}
-		<p class="form-wide last-payment muted small">
-			<span>
-				Letzte Zahlung: {formatCents(data.lastPayment.amount)} am {formatDate(
-					data.lastPayment.date
-				)}{data.lastPayment.note ? ` („${data.lastPayment.note}“)` : ''}
-			</span>
-			<button type="button" class="secondary small" onclick={repeatLastPayment}>
-				Wie letzte Zahlung
-			</button>
-		</p>
-	{/if}
-	<Field label="Datum" error={paymentErrors?.date}>
-		<input
-			type="date"
-			name="date"
-			defaultValue={paymentValues?.date ?? data.today}
-			aria-invalid={paymentErrors?.date ? 'true' : undefined}
-			required
-		/>
-	</Field>
-	<Field label="Art" error={paymentErrors?.side}>
-		{@render paymentSide(paymentValues?.side)}
-	</Field>
-	<Field
-		label="Betrag in €"
-		error={paymentErrors?.amount}
-		hint="Vorbelegt mit dem offenen Saldo, sonst der Gesamtmiete."
+{#if creating === 'zahlung'}
+	<FormDialog
+		title="Zahlung buchen"
+		action="?/payment"
+		submitLabel="Zahlung buchen"
+		close={withRange()}
+		onsaved={() => (booked = 'payment')}
 	>
-		<input
-			name="amount"
-			inputmode="decimal"
-			defaultValue={paymentValues?.amount ?? formatCentsPlain(data.paymentDefault)}
-			aria-invalid={paymentErrors?.amount ? 'true' : undefined}
-			required
-		/>
-	</Field>
-	<Field label="Vermerk (optional)" error={paymentErrors?.note}>
-		<input
-			name="note"
-			defaultValue={paymentValues?.note ?? ''}
-			placeholder="z. B. Überweisung, bar erhalten"
-			aria-invalid={paymentErrors?.note ? 'true' : undefined}
-		/>
-	</Field>
-	<div class="form-actions">
-		<button type="submit">Zahlung buchen</button>
-	</div>
-</form>
-
-<h2>Korrektur oder Anfangssaldo</h2>
-<p class="muted">
-	Für Korrekturen und den Anfangssaldo. Führst du das Mietkonto erst ab einem späteren Datum
-	(„Mietkonto führen ab“), buchst du den Stand an diesem Tag hier mit dem Vermerk „Anfangssaldo“:
-	einen Rückstand als Forderung, ein Guthaben als Gutschrift.
-</p>
-<form
-	method="POST"
-	action="?/adjustment"
-	class="card"
-	aria-label="Korrektur oder Anfangssaldo"
-	use:enhance
->
-	<Field label="Datum" error={adjustmentErrors?.date}>
-		<input
-			type="date"
-			name="date"
-			defaultValue={adjustmentValues?.date ?? data.today}
-			aria-invalid={adjustmentErrors?.date ? 'true' : undefined}
-			required
-		/>
-	</Field>
-	<Field label="Art" error={adjustmentErrors?.side}>
-		{@render adjustmentSide(adjustmentValues?.side)}
-	</Field>
-	<Field label="Betrag in €" error={adjustmentErrors?.amount}>
-		<input
-			name="amount"
-			inputmode="decimal"
-			defaultValue={adjustmentValues?.amount ?? ''}
-			placeholder="z. B. 50,00"
-			aria-invalid={adjustmentErrors?.amount ? 'true' : undefined}
-			required
-		/>
-	</Field>
-	<Field label="Vermerk" error={adjustmentErrors?.note}>
-		<input
-			name="note"
-			defaultValue={adjustmentValues?.note ?? ''}
-			placeholder="z. B. Anfangssaldo, Mietminderung"
-			aria-invalid={adjustmentErrors?.note ? 'true' : undefined}
-			required
-		/>
-	</Field>
-	<div class="form-actions">
-		<button type="submit" class="secondary">Korrektur buchen</button>
-	</div>
-</form>
+		{#if data.lastPayment}
+			<p class="form-wide last-payment muted small">
+				<span>
+					Letzte Zahlung: {formatCents(data.lastPayment.amount)} am {formatDate(
+						data.lastPayment.date
+					)}{data.lastPayment.note ? ` („${data.lastPayment.note}“)` : ''}
+				</span>
+				<button
+					type="button"
+					class="secondary small"
+					onclick={(event) => repeatLastPayment(event.currentTarget.form)}
+				>
+					Wie letzte Zahlung
+				</button>
+			</p>
+		{/if}
+		<Field label="Datum" error={paymentErrors?.date}>
+			<input
+				type="date"
+				name="date"
+				defaultValue={paymentValues?.date ?? data.today}
+				aria-invalid={paymentErrors?.date ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		<Field label="Art" error={paymentErrors?.side}>
+			{@render paymentSide(paymentValues?.side)}
+		</Field>
+		<Field
+			label="Betrag in €"
+			error={paymentErrors?.amount}
+			hint="Vorbelegt mit dem offenen Saldo, sonst der Gesamtmiete."
+		>
+			<input
+				name="amount"
+				inputmode="decimal"
+				defaultValue={paymentValues?.amount ?? formatCentsPlain(data.paymentDefault)}
+				aria-invalid={paymentErrors?.amount ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		<Field label="Vermerk (optional)" error={paymentErrors?.note}>
+			<input
+				name="note"
+				defaultValue={paymentValues?.note ?? ''}
+				placeholder="z. B. Überweisung, bar erhalten"
+				aria-invalid={paymentErrors?.note ? 'true' : undefined}
+			/>
+		</Field>
+	</FormDialog>
+{:else if creating === 'korrektur'}
+	<FormDialog
+		title="Korrektur oder Anfangssaldo"
+		action="?/adjustment"
+		submitLabel="Korrektur buchen"
+		close={withRange()}
+		onsaved={() => (booked = 'adjustment')}
+	>
+		<p class="muted form-wide">
+			Für Korrekturen und den Anfangssaldo. Führst du das Mietkonto erst ab einem späteren Datum
+			(„Mietkonto führen ab“), buchst du den Stand an diesem Tag hier mit dem Vermerk
+			„Anfangssaldo“: einen Rückstand als Forderung, ein Guthaben als Gutschrift.
+		</p>
+		<Field label="Datum" error={adjustmentErrors?.date}>
+			<input
+				type="date"
+				name="date"
+				defaultValue={adjustmentValues?.date ?? data.today}
+				aria-invalid={adjustmentErrors?.date ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		<Field label="Art" error={adjustmentErrors?.side}>
+			{@render adjustmentSide(adjustmentValues?.side)}
+		</Field>
+		<Field label="Betrag in €" error={adjustmentErrors?.amount}>
+			<input
+				name="amount"
+				inputmode="decimal"
+				defaultValue={adjustmentValues?.amount ?? ''}
+				placeholder="z. B. 50,00"
+				aria-invalid={adjustmentErrors?.amount ? 'true' : undefined}
+				required
+			/>
+		</Field>
+		<Field label="Vermerk" error={adjustmentErrors?.note}>
+			<input
+				name="note"
+				defaultValue={adjustmentValues?.note ?? ''}
+				placeholder="z. B. Anfangssaldo, Mietminderung"
+				aria-invalid={adjustmentErrors?.note ? 'true' : undefined}
+				required
+			/>
+		</Field>
+	</FormDialog>
+{/if}
 
 {#if data.editing && editValues}
 	{@const payment = data.editing.kind === 'payment'}
 	{#key data.editing.id}
-		<EditDialog
+		<FormDialog
 			title={payment ? 'Zahlung bearbeiten' : 'Korrektur bearbeiten'}
 			action="?/update"
 			deleteAction="?/delete"
@@ -526,13 +547,13 @@
 					required={!payment}
 				/>
 			</Field>
-		</EditDialog>
+		</FormDialog>
 	{/key}
 {/if}
 
 {#if data.reminder}
 	{#key data.reminder.id}
-		<EditDialog
+		<FormDialog
 			title={reminderTitle(data.reminder)}
 			deleteAction="?/deleteReminder"
 			deleteMessage="{reminderTitle(
@@ -556,7 +577,7 @@
 					>
 				</dd>
 			</dl>
-		</EditDialog>
+		</FormDialog>
 	{/key}
 {/if}
 

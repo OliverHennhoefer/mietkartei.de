@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
-	import EditDialog from '#lib/components/EditDialog.svelte';
+	import FormDialog from '#lib/components/FormDialog.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
@@ -254,7 +254,7 @@
 {#if data.editing}
 	{@const split = data.editing}
 	{#key split.id}
-		<EditDialog
+		<FormDialog
 			title="CO₂-Kostenaufteilung {split.year}"
 			deleteAction="?/delete"
 			deleteMessage={`CO₂-Kostenaufteilung ${split.year} und die Gutschrift über ${formatCents(split.amount)} löschen?`}
@@ -281,6 +281,6 @@
 				Ändern lässt sich eine Aufteilung nicht. Lösche sie und erfasse sie oben neu; die Gutschrift
 				im Mietkonto wird mit gelöscht.
 			</p>
-		</EditDialog>
+		</FormDialog>
 	{/key}
 {/if}

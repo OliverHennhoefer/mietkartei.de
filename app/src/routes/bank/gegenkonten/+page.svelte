@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
-	import EditDialog from '#lib/components/EditDialog.svelte';
+	import { page } from '$app/state';
+	import FormDialog from '#lib/components/FormDialog.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
@@ -15,7 +15,16 @@
 
 	let { data, form }: PageProps = $props();
 
-	// A refused edit belongs to the edit dialog, everything else to the create form.
+	// ?neu opens the create dialog; it stays open while the server refuses the input.
+	const creating = $derived(page.url.searchParams.has('neu') && !(form && 'created' in form));
+	// Whether the dialog created a row, noted above the list once it has closed.
+	let created = $state(false);
+	$effect(() => {
+		if (creating) created = false;
+	});
+	const createdShown = $derived(!creating && (created || Boolean(form && 'created' in form)));
+
+	// A refused edit belongs to the edit dialog, everything else to the create dialog.
 	const editRefused = $derived(form && 'edit' in form ? form : undefined);
 	const errors = $derived(form && 'errors' in form && !editRefused ? form.errors : undefined);
 	const values = $derived(form && 'values' in form && !editRefused ? form.values : undefined);
@@ -55,6 +64,7 @@
 
 <!-- The heading and the tab bar come from +layout.svelte; this page is the "Gegenkonten" tab. -->
 <h2 class="visually-hidden">Gegenkonten</h2>
+{#if createdShown}<p role="status">Das Gegenkonto wurde angelegt.</p>{/if}
 <p class="muted">
 	Gegenkonten sind die Konten deiner Buchhaltung, auf die ein Umsatz gebucht wird, etwa „4401
 	Grundsteuer“ oder „8005 Mieten Rudolf“. Die Art legt fest, was die Buchung in Mietkartei bewirkt.
@@ -131,16 +141,17 @@
 	</div>
 {/if}
 
-<h2 id="gegenkonto-anlegen">Gegenkonto anlegen</h2>
-<form method="POST" action="?/create" class="card" use:enhance>
-	{@render fields(values, errors)}
-	<div class="form-actions form-wide">
-		<button type="submit">Gegenkonto anlegen</button>
-	</div>
-	{#if form && 'created' in form}
-		<p class="form-actions form-wide" role="status">Das Gegenkonto wurde angelegt.</p>
-	{/if}
-</form>
+{#if creating}
+	<FormDialog
+		title="Gegenkonto anlegen"
+		action="?/create"
+		submitLabel="Gegenkonto anlegen"
+		close="/bank/gegenkonten"
+		onsaved={() => (created = true)}
+	>
+		{@render fields(values, errors)}
+	</FormDialog>
+{/if}
 
 {#snippet fields(
 	values: Record<string, string> | undefined | null,
@@ -203,7 +214,7 @@
 
 {#if data.editing && editValues}
 	{#key data.editing.id}
-		<EditDialog
+		<FormDialog
 			title="Gegenkonto bearbeiten"
 			action="?/update"
 			deleteAction="?/delete"
@@ -215,7 +226,7 @@
 		>
 			<input type="hidden" name="id" value={data.editing.id} />
 			{@render fields(editValues, editRefused?.errors)}
-		</EditDialog>
+		</FormDialog>
 	{/key}
 {/if}
 

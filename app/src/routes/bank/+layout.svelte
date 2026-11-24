@@ -3,7 +3,7 @@
 	// sections, no PageHeader (a first h2 that only repeats the tab name is .visually-hidden, as the
 	// current tab already shows it), and put their other action buttons in a <div class="toolbar">
 	// below the tabs. The create action of a tab sits at the right of the heading; it is set here,
-	// by the current path, and leads to the tab's form further down.
+	// by the current path, and opens the tab's create dialog (?neu).
 	import { page } from '$app/state';
 	import CreateButton from '#lib/components/CreateButton.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
@@ -21,24 +21,26 @@
 		{ href: '/bank/konten', label: 'Konten' }
 	];
 
+	// ?neu opens the create dialog of the tab; the tab's filters stay in the query.
+	const neu = $derived(page.url.search ? `${page.url.search}&neu` : '?neu');
 	const create = $derived.by(() => {
 		switch (page.url.pathname) {
 			case '/bank/regeln':
-				return { href: '#regel-anlegen', label: 'Regel anlegen' };
+				return { href: neu, label: 'Regel anlegen' };
 			case '/bank/gegenkonten':
-				return { href: '#gegenkonto-anlegen', label: 'Gegenkonto anlegen' };
+				return { href: neu, label: 'Gegenkonto anlegen' };
 			case '/bank/konten':
 				// Only the landlord manages bank accounts; a co-manager sees no form there.
 				return (page.data as { ownerOnly?: boolean }).ownerOnly
 					? undefined
-					: { href: '#bankverbindung-anlegen', label: 'Bankverbindung anlegen' };
+					: { href: neu, label: 'Bankverbindung anlegen' };
 		}
 	});
 </script>
 
 <PageHeader title="Bank" {tabs}>
 	{#snippet actions()}
-		{#if create}<CreateButton {...create} />{/if}
+		{#if create}<CreateButton {...create} data-sveltekit-reset={false} />{/if}
 	{/snippet}
 </PageHeader>
 

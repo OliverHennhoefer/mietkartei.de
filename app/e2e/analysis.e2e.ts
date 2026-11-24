@@ -19,12 +19,15 @@ test('enters an expense and finds it in the analysis of its property', async ({ 
 
 	await page.goto('/auswertung/ausgaben');
 	await expect(page.getByRole('heading', { level: 1, name: 'Ausgaben' })).toBeVisible();
-	await page.getByLabel('Datum').fill(`${year}-01-15`);
-	await page.getByLabel('Betrag').fill('1.234,50');
-	await page.getByLabel('Kategorie').selectOption({ label: 'Instandhaltung und Reparaturen' });
-	await page.getByLabel('Betrifft').selectOption({ label: unitName });
-	await page.getByLabel('Beschreibung').fill(`Therme ${suffix}`);
-	await page.getByRole('button', { name: 'Ausgabe erfassen' }).click();
+	await page.getByRole('link', { name: 'Ausgabe erfassen' }).click();
+	const create = page.getByRole('dialog', { name: 'Ausgabe erfassen' });
+	await create.getByLabel('Datum').fill(`${year}-01-15`);
+	await create.getByLabel('Betrag').fill('1.234,50');
+	await create.getByLabel('Kategorie').selectOption({ label: 'Instandhaltung und Reparaturen' });
+	await create.getByLabel('Betrifft').selectOption({ label: unitName });
+	await create.getByLabel('Beschreibung').fill(`Therme ${suffix}`);
+	await create.getByRole('button', { name: 'Ausgabe erfassen' }).click();
+	await expect(create).toBeHidden();
 	await expect(page.getByRole('status')).toHaveText('Die Ausgabe wurde erfasst.');
 	await expect(
 		page.getByRole('table', { name: `Ausgaben ${year}` }).getByRole('row', {
@@ -33,14 +36,14 @@ test('enters an expense and finds it in the analysis of its property', async ({ 
 	).toContainText(`${unitName} · ${propertyName}`);
 
 	// The description again brings its category and scope along.
-	await page.goto('/auswertung/ausgaben');
+	await page.goto('/auswertung/ausgaben?neu');
 	await page.waitForLoadState('networkidle');
-	await page.getByLabel('Beschreibung').fill(`Therme ${suffix}`);
-	await page.getByLabel('Beschreibung').blur();
-	await expect(page.getByLabel('Kategorie').locator('option:checked')).toHaveText(
+	await create.getByLabel('Beschreibung').fill(`Therme ${suffix}`);
+	await create.getByLabel('Beschreibung').blur();
+	await expect(create.getByLabel('Kategorie').locator('option:checked')).toHaveText(
 		'Instandhaltung und Reparaturen'
 	);
-	await expect(page.getByLabel('Betrifft').locator('option:checked')).toHaveText(unitName);
+	await expect(create.getByLabel('Betrifft').locator('option:checked')).toHaveText(unitName);
 
 	await page.goto(`/auswertung?jahr=${year}&objekt=${propertyId}`);
 	const tiles = page.getByRole('list', { name: `Kennzahlen ${year}` });

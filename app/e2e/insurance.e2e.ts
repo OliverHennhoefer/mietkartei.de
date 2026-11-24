@@ -19,6 +19,7 @@ test('records a policy, lists its notice deadline and enters its premium as a Be
 
 	await page.goto(`/objekte/${propertyId}/versicherungen`);
 	await expect(page.getByRole('heading', { level: 2, name: 'Versicherungen' })).toBeVisible();
+	await page.getByRole('link', { name: 'Versicherung anlegen' }).click();
 	await page.getByLabel('Art').selectOption({ label: 'Wohngebäudeversicherung' });
 	await page.getByLabel('Versicherer').fill(insurer);
 	await page.getByLabel('Jahresbeitrag in €').fill('1.200,00');
@@ -28,7 +29,8 @@ test('records a policy, lists its notice deadline and enters its premium as a Be
 	const policy = page.getByRole('list', { name: 'Versicherungen' }).getByRole('listitem').first();
 	await expect(policy).toContainText(insurer);
 	await expect(policy).toContainText('Hauptfälligkeit 01.01.');
-	// The form starts empty for the next policy instead of keeping the one just saved.
+	// The dialog starts empty for the next policy instead of keeping the one just saved.
+	await page.getByRole('link', { name: 'Versicherung anlegen' }).click();
 	await expect(page.getByLabel('Versicherer')).toHaveValue('');
 	await expect(page.getByLabel('Jahresbeitrag in €')).toHaveValue('');
 	await expect(page.getByLabel('Hauptfälligkeit')).toHaveValue('');

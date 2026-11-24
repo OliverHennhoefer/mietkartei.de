@@ -1,9 +1,9 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import Field from '#lib/components/Field.svelte';
 	import CreateButton from '#lib/components/CreateButton.svelte';
-	import { enhance } from '$app/forms';
+	import FormDialog from '#lib/components/FormDialog.svelte';
 	import Badge from '#lib/components/Badge.svelte';
-	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
 	import Alert from '#lib/components/Alert.svelte';
@@ -12,9 +12,12 @@
 	import { byDate, byNumber, bySeverity, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
-	// The "Abrechnungen" tab of /betriebskosten: the statements per property and the form for a
+	// The "Abrechnungen" tab of /betriebskosten: the statements per property and the dialog for a
 	// new draft. The heading and tab bar come from +layout.svelte.
 	let { data, form }: PageProps = $props();
+
+	// ?neu opens the create dialog; it stays open while the server refuses the input.
+	const creating = $derived(page.url.searchParams.has('neu'));
 
 	const errors = $derived(form?.errors);
 	const values = $derived(form?.values);
@@ -61,7 +64,10 @@
 					<strong>{deadline.title} · {propertyName(deadline.propertyId)}</strong>
 					{deadline.overdue ? 'war fällig bis' : 'fällig bis'}
 					{formatDate(deadline.date)}
-					· <a href="?objekt={deadline.propertyId}#neue-abrechnung">Entwurf erstellen</a>
+					·
+					<a href="?objekt={deadline.propertyId}&neu" data-sveltekit-reset="false"
+						>Entwurf erstellen</a
+					>
 				</li>
 			{/each}
 		</ul>
@@ -128,53 +134,58 @@
 	</div>
 {/snippet}
 
-<h2 id="neue-abrechnung">Neue Abrechnung</h2>
-{#if withCostItems.length === 0}
-	<EmptyState
-		title="Noch keine Belege"
-		text="Eine Abrechnung braucht Belege eines Objekts. Erfasse zuerst die Kosten des Jahres."
-	>
-		<CreateButton href="/betriebskosten/belege/neu" label="Beleg erfassen" />
-	</EmptyState>
-{:else}
-	<form method="POST" action="?/create" class="card" use:enhance>
-		<Field label="Objekt" error={errors?.propertyId}>
-			<select name="propertyId" aria-invalid={errors?.propertyId ? 'true' : undefined} required>
-				{#each withCostItems as property (property.id)}
-					<option
-						value={property.id}
-						selected={(values?.propertyId ?? data.defaults.propertyId) === property.id}
-					>
-						{property.name}
-					</option>
-				{/each}
-			</select>
-		</Field>
-		<Field label="Zeitraum von" error={errors?.periodStart}>
-			<input
-				type="date"
-				name="periodStart"
-				defaultValue={values?.periodStart ?? data.defaults.periodStart}
-				aria-invalid={errors?.periodStart ? 'true' : undefined}
-				required
-			/>
-		</Field>
-		<Field label="Zeitraum bis" error={errors?.periodEnd}>
-			<input
-				type="date"
-				name="periodEnd"
-				defaultValue={values?.periodEnd ?? data.defaults.periodEnd}
-				aria-invalid={errors?.periodEnd ? 'true' : undefined}
-				required
-			/>
-		</Field>
-		<div class="form-actions">
-			<button type="submit">Entwurf erstellen</button>
-			<span class="muted small"
-				>Höchstens zwölf Monate; der Entwurf wird vor der Freigabe geprüft.</span
-			>
-		</div>
-	</form>
+{#if creating}
+	{#if withCostItems.length === 0}
+		<FormDialog title="Neue Abrechnung" close="/betriebskosten">
+			<p class="form-wide">
+				Eine Abrechnung braucht Belege eines Objekts. Erfasse zuerst die Kosten des Jahres.
+			</p>
+			<p class="form-wide">
+				<CreateButton href="/betriebskosten/belege/neu" label="Beleg erfassen" />
+			</p>
+		</FormDialog>
+	{:else}
+		<FormDialog
+			title="Neue Abrechnung"
+			action="?/create"
+			submitLabel="Entwurf erstellen"
+			close="/betriebskosten"
+		>
+			<Field label="Objekt" error={errors?.propertyId}>
+				<select name="propertyId" aria-invalid={errors?.propertyId ? 'true' : undefined} required>
+					{#each withCostItems as property (property.id)}
+						<option
+							value={property.id}
+							selected={(values?.propertyId ?? data.defaults.propertyId) === property.id}
+						>
+							{property.name}
+						</option>
+					{/each}
+				</select>
+			</Field>
+			<Field label="Zeitraum von" error={errors?.periodStart}>
+				<input
+					type="date"
+					name="periodStart"
+					defaultValue={values?.periodStart ?? data.defaults.periodStart}
+					aria-invalid={errors?.periodStart ? 'true' : undefined}
+					required
+				/>
+			</Field>
+			<Field label="Zeitraum bis" error={errors?.periodEnd}>
+				<input
+					type="date"
+					name="periodEnd"
+					defaultValue={values?.periodEnd ?? data.defaults.periodEnd}
+					aria-invalid={errors?.periodEnd ? 'true' : undefined}
+					required
+				/>
+			</Field>
+			<p class="muted small form-wide">
+				Höchstens zwölf Monate; der Entwurf wird vor der Freigabe geprüft.
+			</p>
+		</FormDialog>
+	{/if}
 {/if}
 
 <style>

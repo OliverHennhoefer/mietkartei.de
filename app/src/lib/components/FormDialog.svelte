@@ -3,16 +3,17 @@
 	import { afterNavigate, goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 
-	import type { Snippet } from 'svelte';
+	import { tick, type Snippet } from 'svelte';
 	import Icon from '#lib/components/Icon.svelte';
 
-	// A row of a list in a dialog over the list: its fields, "Speichern" and "Abbrechen" at the
-	// bottom left and "Löschen" set apart at the bottom right. A row that cannot be changed shows
-	// what it holds instead (no `action`), one that cannot be deleted has no "Löschen". The list
-	// opens it with a query parameter (?bearbeiten=<id>), so the back button closes it, a link can
-	// lead to it and the server renders it open without JavaScript. Both buttons submit the one
-	// form: "Löschen" to `deleteAction`, after a question and without checking the fields. When an
-	// action redirects back to the list, the dialog closes.
+	// A new or existing row of a list in a dialog over the list: its fields, the submit button and
+	// "Abbrechen" at the bottom left and "Löschen" set apart at the bottom right. A row that cannot
+	// be changed shows what it holds instead (no `action`), one that cannot be deleted has no
+	// "Löschen". The list opens it with a query parameter (?neu, ?bearbeiten=<id>), so the back
+	// button closes it, a link can lead to it and the server renders it open without JavaScript.
+	// Both buttons submit the one form: "Löschen" to `deleteAction`, after a question and without
+	// checking the fields. When an action succeeds, the dialog closes: after a redirect back to the
+	// list, or after an answer with data, which goes to `onsaved` first.
 	let {
 		title,
 		action,
@@ -20,11 +21,20 @@
 		deleteMessage,
 		close,
 		error,
+		submitLabel = 'Speichern',
+		submitMessage,
+		onsaved,
 		children
 	}: {
 		title: string;
 		/** The action that saves the fields; without it the dialog only shows the row. */
 		action?: string;
+		/** The submit button, such as "Dienstleister anlegen" in a dialog that creates a row. */
+		submitLabel?: string;
+		/** The question before saving, for a step such as ending a lease. */
+		submitMessage?: string;
+		/** Receives what a successful action answers instead of a redirect, before the dialog closes. */
+		onsaved?: (data: Record<string, unknown> | undefined) => void;
 		deleteAction?: string;
 		/** The question before deleting. */
 		deleteMessage?: string;
@@ -55,10 +65,16 @@
 		fromList = from?.url.pathname === to?.url.pathname;
 	});
 
+	// Made modal once the surrounding effects have run: a dialog over a page in the settings dialog
+	// has to open after that one, or the settings would cover it.
 	$effect(() => {
-		if (!dialog || dialog.matches(':modal')) return;
-		dialog.close();
-		dialog.showModal();
+		const opened = dialog;
+		if (!opened) return;
+		tick().then(() => {
+			if (!opened.isConnected || opened.matches(':modal')) return;
+			opened.close();
+			opened.showModal();
+		});
 	});
 
 	function leave() {
@@ -79,12 +95,17 @@
 
 	const submit: SubmitFunction = ({ submitter, cancel }) => {
 		const deleting = submitter?.getAttribute('formaction') === deleteTarget;
-		if (deleting && deleteMessage && !confirm(deleteMessage)) {
+		const question = deleting ? deleteMessage : submitMessage;
+		if (question && !confirm(question)) {
 			cancel();
 			return;
 		}
 		return async ({ result, update }) => {
-			if (result.type === 'redirect') {
+			if (result.type === 'success') {
+				await invalidateAll();
+				onsaved?.(result.data);
+				leave();
+			} else if (result.type === 'redirect') {
 				// A redirect elsewhere than the list, such as the year an expense moved to, is followed.
 				if (!leadsToList(result.location)) {
 					// eslint-disable-next-line svelte/no-navigation-without-resolve -- the action's redirect
@@ -101,7 +122,7 @@
 
 <dialog
 	bind:this={dialog}
-	class="edit-dialog"
+	class="form-dialog"
 	aria-labelledby={id}
 	open
 	oncancel={(event) => {
@@ -124,7 +145,7 @@
 		{@render children()}
 		{#if error}<p class="error form-wide" role="alert">{error}</p>{/if}
 		<div class="form-actions">
-			{#if action}<button type="submit">Speichern</button>{/if}
+			{#if action}<button type="submit">{submitLabel}</button>{/if}
 			<a
 				href={close}
 				class={['button', action && 'secondary']}

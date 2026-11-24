@@ -70,12 +70,15 @@ test('creates a bank account', async ({ page }) => {
 	await page.getByRole('link', { name: 'Konten', exact: true }).click();
 	await expect(page).toHaveURL(/\/bank\/konten$/);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Bank');
-	await page.getByLabel('Bezeichnung').fill(accountName);
-	await page.getByLabel('IBAN').fill('de02 1203 0000 0000 2020 51');
-	await page.getByLabel('BIC (optional)').fill('byladem1001');
-	await page.getByLabel('Kontoinhaber').fill('Vera Vermieterin');
-	await page.getByRole('button', { name: 'Bankverbindung anlegen' }).click();
+	await page.getByRole('link', { name: 'Bankverbindung anlegen' }).click();
+	const create = page.getByRole('dialog', { name: 'Bankverbindung anlegen' });
+	await create.getByLabel('Bezeichnung').fill(accountName);
+	await create.getByLabel('IBAN').fill('de02 1203 0000 0000 2020 51');
+	await create.getByLabel('BIC (optional)').fill('byladem1001');
+	await create.getByLabel('Kontoinhaber').fill('Vera Vermieterin');
+	await create.getByRole('button', { name: 'Bankverbindung anlegen' }).click();
 
+	await expect(create).toBeHidden();
 	await expect(page.getByText(`„${accountName}“ wurde angelegt.`)).toBeVisible();
 	const row = page.getByRole('row', { name: new RegExp(accountName) });
 	await expect(row).toContainText('DE02 1203 0000 0000 2020 51');
@@ -83,11 +86,12 @@ test('creates a bank account', async ({ page }) => {
 	await expect(row).toContainText('Vera Vermieterin');
 
 	// The same IBAN a second time is refused: one statement must not be imported twice.
-	await page.getByLabel('Bezeichnung').fill('Zweitkonto');
-	await page.getByLabel('IBAN').fill('DE02120300000000202051');
-	await page.getByLabel('Kontoinhaber').fill('Vera Vermieterin');
-	await page.getByRole('button', { name: 'Bankverbindung anlegen' }).click();
-	await expect(page.getByText('Ein Konto mit dieser IBAN gibt es schon.')).toBeVisible();
+	await page.getByRole('link', { name: 'Bankverbindung anlegen' }).click();
+	await create.getByLabel('Bezeichnung').fill('Zweitkonto');
+	await create.getByLabel('IBAN').fill('DE02120300000000202051');
+	await create.getByLabel('Kontoinhaber').fill('Vera Vermieterin');
+	await create.getByRole('button', { name: 'Bankverbindung anlegen' }).click();
+	await expect(create.getByText('Ein Konto mit dieser IBAN gibt es schon.')).toBeVisible();
 	await expect(page.getByRole('row', { name: /Zweitkonto/ })).toHaveCount(0);
 });
 

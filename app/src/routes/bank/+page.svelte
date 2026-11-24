@@ -736,7 +736,7 @@
 		title="Noch keine Bankverbindung"
 		text="Lege zuerst das Konto an, auf dem die Mieten eingehen; danach kannst du Kontoauszüge importieren."
 	>
-		<CreateButton href="/bank/konten#bankverbindung-anlegen" label="Bankverbindung anlegen" />
+		<CreateButton href="/bank/konten?neu" label="Bankverbindung anlegen" />
 	</EmptyState>
 {:else if data.transactions.length === 0}
 	{#if data.transactionId}
