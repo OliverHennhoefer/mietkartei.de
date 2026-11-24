@@ -41,6 +41,11 @@ import { monthlyAmounts, type RentChange } from './rents';
 // costs and step 6 checks the deadline and the HeizKV. The server module freezes the result on
 // approval and the PDF prints the per-lease part.
 
+/**
+ * A Nachzahlung is due this many days after the statement reached the tenant (decided on
+ * 21.10.2026), a Guthaben this many days after the approval.
+ */
+export const DUE_DAYS = 30;
 /** § 556 Abs. 3 BGB: at most one year per statement. */
 const MAX_PERIOD_MONTHS = 12;
 /** § 556 Abs. 3 BGB: the statement must reach the tenant within a year after the period. */
@@ -1363,6 +1368,41 @@ function prepaymentsOf(lease: StatementLease, range: DateRange, asOf: IsoDate): 
  * warnings, and one LeaseStatement per lease that occupied a unit in the period and pays
  * prepayments. Throws when the period is invalid (the form checks it first).
  */
+export type ApprovalOptions = {
+	/** The landlord is not to blame for missing the deadline (§ 556 Abs. 3 Satz 3 BGB). */
+	lateApprovalJustified?: boolean;
+	/** For a correction: what the corrected statement still posts for the lease. */
+	previousPosting?: number;
+};
+
+/**
+ * The per-lease result as frozen on approval. The balance credits the paid prepayments only; the
+ * unpaid ones are still charged on the rent account. So the posting is the claim less the unpaid
+ * prepayments: together they make up the claim (`posted`), and nothing counts twice. § 556 Abs. 3
+ * BGB: after the deadline a residential Nachzahlung is excluded, but not as far as it rests on
+ * prepayments the tenant did not pay (BGH VIII ZR 261/06): the posting may not exceed 0 then, for
+ * a correction not what the corrected statement still posts. A claim to pay is due 30 days after
+ * the statement reached the tenant, so it has no due date yet; a credit is due 30 days after the
+ * approval.
+ */
+export function approveLease(
+	lease: LeaseStatement,
+	approvedOn: IsoDate,
+	options: ApprovalOptions = {}
+): LeaseStatement {
+	const excluded =
+		lease.late && lease.leaseKind === 'residential' && !options.lateApprovalJustified;
+	const due = lease.balance - lease.unpaidPrepayments;
+	const posting = excluded ? Math.min(due, options.previousPosting ?? 0) : due;
+	const posted = posting + lease.unpaidPrepayments;
+	return {
+		...lease,
+		approvedOn,
+		dueDate: posted > 0 ? null : addDays(approvedOn, DUE_DAYS),
+		posted
+	};
+}
+
 export function computeStatement(
 	input: StatementInput,
 	options: StatementOptions = {}

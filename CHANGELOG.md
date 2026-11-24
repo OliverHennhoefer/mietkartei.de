@@ -12,6 +12,7 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ### Neu
 
+- Kostenloser Rechner für die Nebenkostenabrechnung: Unter [mietkartei.de/nebenkostenabrechnung/erstellen](https://mietkartei.de/nebenkostenabrechnung/erstellen/) erstellt jeder ohne Konto eine Abrechnung für ein Haus: Wohnungen und Mieter mit Ein- und Auszug, die Kosten je Kostenart mit Umlageschlüssel, Verbrauch und CO₂-Aufteilung, dann ein PDF je Mieter. Der Rechner rechnet mit demselben Programmcode wie die App und druckt denselben Brief. Er läuft nur im Browser, die Eingaben werden nicht übertragen und lassen sich als Datei speichern und im nächsten Jahr übernehmen.
 - DATEV-Buchungsstapel: Unter **Bank → DATEV** gibst du die zugeordneten Umsätze eines Zeitraums als Buchungsstapel für deinen Steuerberater aus, von der Kontonummer der Bankverbindung auf das Gegenkonto. Beraternummer und Mandantennummer trägst du einmal ein. Umsätze ohne Kontonummer zeigt die Seite mit dem Grund an. Siehe [Kontoauszüge importieren](https://docs.mietkartei.de/anleitungen/kontoauszuege-importieren/).
 - Ausgaben aufteilen: Eine Überweisung, die mehrere Konten abdeckt, etwa das Hausgeld oder eine Darlehensrate mit Zins und Tilgung, buchst du mit **Auf mehrere Konten aufteilen?** auf bis zu vier Gegenkonten oder Kategorien. Beim nächsten Umsatz desselben Empfängers ist die Aufteilung vorbelegt.
 - Summen je Gegenkonto: **Bank → Gegenkonten** zeigt je Konto, was im gewählten Jahr gebucht wurde, und was ohne Gegenkonto gebucht ist.

@@ -85,7 +85,8 @@ import { renderLetter } from './pdf';
 import { postCharge } from './ledger';
 import { createReminder, reminderLetter, updateReminderText } from './reminders';
 import { dismissHints, hintKey, statementHintScope } from './hints';
-import { approveStatement, DUE_DAYS, getStatement } from './statements';
+import { DUE_DAYS } from '../domain/statement';
+import { approveStatement, getStatement } from './statements';
 import type { Storage } from './storage';
 import type { TenantInput } from './tenants';
 

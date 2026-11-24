@@ -516,3 +516,24 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 }
 .case-sample { max-width: 880px; margin: -16px 0 36px; color: var(--muted); font-size: var(--text-sm); }
 .case-sample a { color: var(--foreground); font-weight: 500; text-decoration-color: var(--highlight); text-decoration-thickness: 3px; text-underline-offset: 4px; }
+
+/* The free statement tool (/nebenkostenabrechnung/erstellen/): three facts under the lead, the
+   tool itself (its own styles come with its script) and the way into the app after it. */
+.tool-facts { display: flex; flex-wrap: wrap; gap: 12px 32px; margin: 28px 0 0; padding: 0; list-style: none; color: var(--muted); font-size: var(--text-base); }
+.tool-facts li { display: block; }
+.tool-facts li::before { content: ""; display: inline-block; margin-right: 8px; width: 10px; height: 10px; border-radius: 2px; background: var(--highlight); }
+.tool-facts strong { color: var(--foreground); font-weight: 500; }
+.tool-mount { min-height: 240px; }
+.tool-loading { max-width: 720px; margin: 48px 0 0; padding: 20px 24px; border: 1px solid var(--line); border-radius: 14px; color: var(--muted); }
+.tool-loading a { color: var(--foreground); text-underline-offset: 3px; }
+.tool-cta { margin-top: 48px; padding: 48px; border-radius: 16px; background: color-mix(in srgb, var(--code-background), var(--background) 55%); }
+.tool-cta .section-title { margin-top: 12px; }
+.topic-tool { margin-top: 40px; padding: 32px; border: 1px solid var(--line); border-radius: 16px; }
+.topic-tool h2 { margin: 12px 0 0; font-size: var(--text-2xl); font-weight: 500; letter-spacing: -.035em; }
+.topic-tool p:not(.kicker) { max-width: 720px; margin: 12px 0 0; color: var(--muted); font-size: var(--text-lg); line-height: 1.6; }
+.topic-tool .button { margin-top: 24px; }
+
+@media (max-width: 600px) {
+  .tool-cta, .topic-tool { padding: 28px 20px; }
+  .tool-facts { flex-direction: column; }
+}

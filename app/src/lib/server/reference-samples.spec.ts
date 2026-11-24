@@ -4,7 +4,7 @@ import { addDays } from '../dates';
 import { referenceCases, referenceInput } from '../domain/reference-cases';
 import { computeStatement } from '../domain/statement';
 import { renderLetter } from './pdf';
-import { statementLetter } from './statements';
+import { statementLetter } from '../domain/statement-letter';
 
 // The Muster-Nebenkostenabrechnung of each reference case on mietkartei.de: the letter the app
 // prints for the case's sample lease, as if approved on this day. The website build has no Node,
