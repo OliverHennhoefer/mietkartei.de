@@ -4,7 +4,7 @@ import { addDays, formatDate, today } from '#lib/dates.ts';
 import { createBankAccount } from '#lib/server/bank/accounts.ts';
 import { createLetting } from '#lib/server/lettings.ts';
 import { createServiceProvider } from '#lib/server/service-providers.ts';
-import { expenses } from '#lib/server/db/schema.ts';
+import { applicants, expenses } from '#lib/server/db/schema.ts';
 import { createTask as storeTask, getTask, listTasks } from '#lib/server/tasks.ts';
 import {
 	contextA,
@@ -246,5 +246,13 @@ describe('aufgaben', () => {
 				href: `/vermietung/${letting.id}`
 			}
 		]);
+
+		await db
+			.insert(applicants)
+			.values({ accountId: 'a', lettingId: letting.id, firstName: 'Miriam', lastName: 'Krüger' });
+		const after = (await run(load)) as { data: { reminders: { id: string; detail?: string }[] } };
+		expect(
+			after.data.reminders.find((reminder) => reminder.id === `letting:${letting.id}`)
+		).toMatchObject({ detail: '1\u00a0Mietinteressent' });
 	});
 });
