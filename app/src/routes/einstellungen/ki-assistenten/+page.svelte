@@ -1,7 +1,9 @@
 <script lang="ts">
 	import Field from '#lib/components/Field.svelte';
-	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import Alert from '#lib/components/Alert.svelte';
+	import CreateButton from '#lib/components/CreateButton.svelte';
+	import FormDialog from '#lib/components/FormDialog.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
@@ -13,7 +15,16 @@
 	const errors = $derived(form && 'errors' in form ? form.errors : undefined);
 	const values = $derived(form && 'values' in form ? form.values : undefined);
 	const refused = $derived(form && 'refused' in form ? form.refused : undefined);
-	const created = $derived(form && 'created' in form ? form.created : undefined);
+	// ?neu opens the dialog for a new key; it stays open while the server refuses the input.
+	const creating = $derived(page.url.searchParams.has('neu') && !(form && 'created' in form));
+	// The key the dialog created, shown once above everything after the dialog has closed.
+	let issued = $state<{ name: string; key: string }>();
+	$effect(() => {
+		if (creating) issued = undefined;
+	});
+	const created = $derived(
+		creating ? undefined : (issued ?? (form && 'created' in form ? form.created : undefined))
+	);
 
 	const scopeLabels: Record<string, string> = { read: 'Nur lesen', write: 'Lesen und schreiben' };
 	// What was copied last: the server address or the new key.
@@ -48,7 +59,7 @@
 
 <PageHeader title="KI-Assistenten" />
 
-{#if refused}
+{#if refused && !creating}
 	<Alert tone="danger"><p>{refused}</p></Alert>
 {:else if form && 'revoked' in form}
 	<Alert tone="success"><p>Der Zugriff wurde widerrufen.</p></Alert>
@@ -154,7 +165,10 @@
 	</div>
 {/if}
 
-<h2>API-Schlüssel</h2>
+<div class="heading-row">
+	<h2>API-Schlüssel</h2>
+	<CreateButton href="?neu" label="Neuer Schlüssel" data-sveltekit-reset={false} />
+</div>
 <p class="muted">
 	Claude Code, Claude Desktop, Cursor und eigene Programme melden sich mit einem API-Schlüssel beim
 	MCP-Server oder bei der REST-API an.
@@ -199,57 +213,62 @@
 	</div>
 {/if}
 
-<h2>Neuer Schlüssel</h2>
-<p class="muted">
-	Ein Schlüssel hat dieselben Rechte wie du und gibt Zugriff auf alle Daten deines Kontos, auch auf
-	die persönlichen Daten deiner Mieter. Gib ihn nur Programmen, denen du vertraust. Wenn du dein
-	Passwort änderst, werden alle deine Schlüssel widerrufen.
-</p>
-{#if data.scopes.length > 1}
-	<p class="muted">
-		Ein Schlüssel zum Schreiben darf zusätzlich Zahlungen buchen, Aufgaben anlegen und erledigen,
-		Belege, Ausgaben und Zählerstände erfassen sowie offene Bankumsätze zuordnen. Löschen oder
-		ändern kann er nichts. Jede Änderung steht unter deinem Namen im Protokoll.
-	</p>
-{/if}
-<form method="POST" action="?/create" class="card" use:enhance>
-	<Field label="Name" error={errors?.name}>
-		<input
-			name="name"
-			placeholder="z. B. Claude auf dem Laptop"
-			defaultValue={values?.name ?? ''}
-			aria-invalid={errors?.name ? 'true' : undefined}
-			maxlength="100"
-			required
-		/>
-	</Field>
-	{#if data.scopes.length > 1}
-		<Field label="Rechte" error={errors?.scope}>
-			<select name="scope">
-				{#each data.scopes as scope (scope)}
-					<option value={scope} selected={(values?.scope ?? 'read') === scope}>
-						{scopeLabels[scope]}
+{#if creating}
+	<FormDialog
+		title="Neuer Schlüssel"
+		action="?/create"
+		submitLabel="Schlüssel anlegen"
+		close="/einstellungen/ki-assistenten"
+		error={refused}
+		onsaved={(saved) => (issued = saved?.created as { name: string; key: string })}
+	>
+		<p class="muted form-wide">
+			Ein Schlüssel hat dieselben Rechte wie du und gibt Zugriff auf alle Daten deines Kontos, auch
+			auf die persönlichen Daten deiner Mieter. Gib ihn nur Programmen, denen du vertraust. Wenn du
+			dein Passwort änderst, werden alle deine Schlüssel widerrufen.
+		</p>
+		{#if data.scopes.length > 1}
+			<p class="muted form-wide">
+				Ein Schlüssel zum Schreiben darf zusätzlich Zahlungen buchen, Aufgaben anlegen und
+				erledigen, Belege, Ausgaben und Zählerstände erfassen sowie offene Bankumsätze zuordnen.
+				Löschen oder ändern kann er nichts. Jede Änderung steht unter deinem Namen im Protokoll.
+			</p>
+		{/if}
+		<Field label="Name" error={errors?.name}>
+			<input
+				name="name"
+				placeholder="z. B. Claude auf dem Laptop"
+				defaultValue={values?.name ?? ''}
+				aria-invalid={errors?.name ? 'true' : undefined}
+				maxlength="100"
+				required
+			/>
+		</Field>
+		{#if data.scopes.length > 1}
+			<Field label="Rechte" error={errors?.scope}>
+				<select name="scope">
+					{#each data.scopes as scope (scope)}
+						<option value={scope} selected={(values?.scope ?? 'read') === scope}>
+							{scopeLabels[scope]}
+						</option>
+					{/each}
+				</select>
+			</Field>
+		{/if}
+		<Field label="Gültig für" error={errors?.lifetimeDays}>
+			<select name="lifetimeDays">
+				{#each data.lifetimes as days (days)}
+					<option
+						value={String(days)}
+						selected={(values?.lifetimeDays ?? String(data.defaultLifetime)) === String(days)}
+					>
+						{days === 365 ? 'ein Jahr' : `${days} Tage`}
 					</option>
 				{/each}
 			</select>
 		</Field>
-	{/if}
-	<Field label="Gültig für" error={errors?.lifetimeDays}>
-		<select name="lifetimeDays">
-			{#each data.lifetimes as days (days)}
-				<option
-					value={String(days)}
-					selected={(values?.lifetimeDays ?? String(data.defaultLifetime)) === String(days)}
-				>
-					{days === 365 ? 'ein Jahr' : `${days} Tage`}
-				</option>
-			{/each}
-		</select>
-	</Field>
-	<div class="form-actions">
-		<button type="submit">Schlüssel anlegen</button>
-	</div>
-</form>
+	</FormDialog>
+{/if}
 
 <style>
 	.created {

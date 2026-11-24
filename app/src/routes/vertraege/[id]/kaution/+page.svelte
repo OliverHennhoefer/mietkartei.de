@@ -5,7 +5,8 @@
 	import { resolve } from '$app/paths';
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
-	import EditDialog from '#lib/components/EditDialog.svelte';
+	import CreateButton from '#lib/components/CreateButton.svelte';
+	import FormDialog from '#lib/components/FormDialog.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import Icon from '#lib/components/Icon.svelte';
@@ -20,6 +21,9 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+
+	// ?neu opens the create dialog; it stays open while the server refuses the input.
+	const creating = $derived(page.url.searchParams.has('neu') && !(form && 'added' in form));
 	/** An amount as the user types them (Einstellungen › Darstellung). */
 	const amountOf = (input: string) => parseAmount(input, page.data.amountInput ?? 'comma');
 
@@ -149,7 +153,10 @@
 	</ul>
 {/if}
 
-<h2>Bewegungen</h2>
+<div class="heading-row">
+	<h2>Bewegungen</h2>
+	<CreateButton href="?neu" label="Bewegung buchen" secondary data-sveltekit-reset={false} />
+</div>
 {#if data.movements.length === 0}
 	<p class="muted">Noch keine Bewegungen.</p>
 {:else}
@@ -329,13 +336,16 @@
 	</form>
 {/if}
 
-<h2>Bewegung buchen</h2>
-<form method="POST" action="?/add" class="card form" use:enhance>
-	{@render movementFields(values, errors, kindsFor())}
-	<div class="form-actions">
-		<button type="submit">Bewegung buchen</button>
-	</div>
-</form>
+{#if creating}
+	<FormDialog
+		title="Bewegung buchen"
+		action="?/add"
+		submitLabel="Bewegung buchen"
+		close={page.url.pathname}
+	>
+		{@render movementFields(values, errors, kindsFor())}
+	</FormDialog>
+{/if}
 
 {#snippet movementFields(
 	values: Record<string, string>,
@@ -379,7 +389,7 @@
 
 {#if data.editing && editValues}
 	{#key data.editing.id}
-		<EditDialog
+		<FormDialog
 			title="Bewegung bearbeiten"
 			action="?/update"
 			deleteAction="?/delete"
@@ -391,7 +401,7 @@
 		>
 			<input type="hidden" name="movementId" value={data.editing.id} />
 			{@render movementFields(editValues, editRefused?.errors ?? {}, kindsFor(data.editing.kind))}
-		</EditDialog>
+		</FormDialog>
 	{/key}
 {/if}
 

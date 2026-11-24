@@ -11,7 +11,7 @@ Statt jede Mietzahlung von Hand einzutragen, importierst du deine Kontoauszüge.
 
 ## 1. Bankverbindung anlegen
 
-Unter **Bank → Konten** legst du das Konto an, auf dem die Mieten eingehen, mit Name und IBAN. Hast du mehrere Konten, legst du jedes an. Führst du eine Buchhaltung, trägst du dazu die Kontonummer des Bankkontos in deinem Kontenplan ein, etwa 1200. Bei einem bestehenden Konto klickst du auf seinen Namen und ergänzt sie dort.
+Unter **Bank → Konten** legst du mit **Bankverbindung anlegen** das Konto an, auf dem die Mieten eingehen, mit Name und IBAN. Hast du mehrere Konten, legst du jedes an. Führst du eine Buchhaltung, trägst du dazu die Kontonummer des Bankkontos in deinem Kontenplan ein, etwa 1200. Bei einem bestehenden Konto klickst du auf seinen Namen und ergänzt sie dort.
 
 ## 2. Kontoauszug herunterladen
 

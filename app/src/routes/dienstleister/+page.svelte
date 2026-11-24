@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import CreateButton from '#lib/components/CreateButton.svelte';
-	import EditDialog from '#lib/components/EditDialog.svelte';
+	import FormDialog from '#lib/components/FormDialog.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
@@ -11,7 +11,16 @@
 
 	let { data, form }: PageProps = $props();
 
-	// A refused edit belongs to the edit dialog, everything else to the create form.
+	// ?neu opens the create dialog; it stays open while the server refuses the input.
+	const creating = $derived(page.url.searchParams.has('neu') && !(form && 'created' in form));
+	// What the dialog created, named under the header once it has closed.
+	let created = $state<string>();
+	$effect(() => {
+		if (creating) created = undefined;
+	});
+	const createdName = $derived(created ?? (form && 'created' in form ? form.created : undefined));
+
+	// A refused edit belongs to the edit dialog, everything else to the create dialog.
 	const editRefused = $derived(form && 'edit' in form ? form : undefined);
 	const errors = $derived(form && 'errors' in form && !editRefused ? form.errors : undefined);
 	const values = $derived(form && 'values' in form && !editRefused ? form.values : undefined);
@@ -40,9 +49,11 @@
 
 <PageHeader title="Dienstleister">
 	{#snippet actions()}
-		<CreateButton href="#dienstleister-anlegen" label="Dienstleister anlegen" />
+		<CreateButton href="?neu" label="Dienstleister anlegen" data-sveltekit-reset={false} />
 	{/snippet}
 </PageHeader>
+
+{#if createdName && !creating}<p role="status">„{createdName}“ wurde angelegt.</p>{/if}
 
 {#if data.serviceProviders.length === 0}
 	<EmptyState
@@ -94,16 +105,17 @@
 	</div>
 {/if}
 
-<h2 id="dienstleister-anlegen">Dienstleister anlegen</h2>
-<form method="POST" action="?/create" class="card" use:enhance>
-	{@render serviceProviderFields(values, errors)}
-	<div class="form-actions form-wide">
-		<button type="submit">Dienstleister anlegen</button>
-	</div>
-	{#if form && 'created' in form}
-		<p class="form-actions form-wide" role="status">„{form.created}“ wurde angelegt.</p>
-	{/if}
-</form>
+{#if creating}
+	<FormDialog
+		title="Dienstleister anlegen"
+		action="?/create"
+		submitLabel="Dienstleister anlegen"
+		close="/dienstleister"
+		onsaved={(saved) => (created = String(saved?.created ?? ''))}
+	>
+		{@render serviceProviderFields(values, errors)}
+	</FormDialog>
+{/if}
 
 {#snippet serviceProviderFields(
 	values: Record<string, string> | undefined,
@@ -151,7 +163,7 @@
 
 {#if data.editing && editValues}
 	{#key data.editing.id}
-		<EditDialog
+		<FormDialog
 			title="Dienstleister bearbeiten"
 			action="?/update"
 			deleteAction="?/delete"
@@ -160,7 +172,7 @@
 		>
 			<input type="hidden" name="id" value={data.editing.id} />
 			{@render serviceProviderFields(editValues, editRefused?.errors)}
-		</EditDialog>
+		</FormDialog>
 	{/key}
 {/if}
 

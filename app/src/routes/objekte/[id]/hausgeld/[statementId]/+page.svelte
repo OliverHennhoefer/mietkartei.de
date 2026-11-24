@@ -1,5 +1,6 @@
 <script lang="ts">
-	import AssociationStatementForm from '#lib/components/AssociationStatementForm.svelte';
+	import { enhance } from '$app/forms';
+	import AssociationStatementFields from '#lib/components/AssociationStatementFields.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import { formatDate } from '#lib/dates.ts';
 	import type { PageProps } from './$types';
@@ -16,13 +17,16 @@
 </div>
 
 <h2>{title}</h2>
-<AssociationStatementForm
-	action="?/update"
-	submitLabel="Speichern"
-	statement={data.statement}
-	errors={form?.errors}
-	values={form?.values}
-/>
+<form method="POST" action="?/update" class="card" use:enhance>
+	<AssociationStatementFields
+		statement={data.statement}
+		errors={form?.errors}
+		values={form?.values}
+	/>
+	<div class="form-actions">
+		<button type="submit">Speichern</button>
+	</div>
+</form>
 
 <h2>Hausgeldabrechnung löschen</h2>
 <p class="muted">Belege und Ausgaben bleiben erhalten.</p>

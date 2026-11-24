@@ -1,11 +1,13 @@
 <script lang="ts">
-	import BillingCircleForm from '#lib/components/BillingCircleForm.svelte';
-	import { FreshForm } from '#lib/fresh-form.svelte.ts';
+	import { page } from '$app/state';
+	import FormDialog from '#lib/components/FormDialog.svelte';
+	import BillingCircleFields from '#lib/components/BillingCircleFields.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	// The create form below starts empty again once its entry is saved.
-	const fresh = new FreshForm();
+
+	// ?neu opens the create dialog; it stays open while the server refuses the input.
+	const creating = $derived(page.url.searchParams.has('neu'));
 
 	const unitName = (unitId: string) => data.units.find((unit) => unit.id === unitId)?.name ?? '?';
 </script>
@@ -38,13 +40,13 @@
 	</ul>
 {/if}
 
-<h2 id="abrechnungskreis-anlegen">Abrechnungskreis anlegen</h2>
-{#key fresh.visit}
-	<BillingCircleForm
+{#if creating}
+	<FormDialog
+		title="Abrechnungskreis anlegen"
 		action="?/create"
 		submitLabel="Abrechnungskreis anlegen"
-		units={data.units}
-		errors={form?.errors}
-		values={form?.values}
-	/>
-{/key}
+		close={page.url.pathname}
+	>
+		<BillingCircleFields units={data.units} errors={form?.errors} values={form?.values} />
+	</FormDialog>
+{/if}

@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import Badge from '#lib/components/Badge.svelte';
-	import EditDialog from '#lib/components/EditDialog.svelte';
+	import FormDialog from '#lib/components/FormDialog.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Money from '#lib/components/Money.svelte';
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
 	import Sections from '../Sections.svelte';
@@ -59,7 +60,16 @@
 		return percent > 0 && percent < 0.5 ? '< 1 %' : `${formatNumber(percent, 0)} %`;
 	}
 
-	let createForm = $state<HTMLFormElement>();
+	// ?neu opens the create dialog; it stays open while the server refuses the input.
+	const creating = $derived(page.url.searchParams.has('neu') && !(form && 'created' in form));
+	// The year of the expense the dialog created, confirmed above the list once it has closed.
+	let createdYear = $state<number>();
+	$effect(() => {
+		if (creating) createdYear = undefined;
+	});
+	const createdShown = $derived(
+		creating ? undefined : (createdYear ?? (form && 'created' in form ? form.year : undefined))
+	);
 
 	/**
 	 * A description used before brings its category, scope and Dienstleister along, as long as no
@@ -69,16 +79,18 @@
 		const suggestion = data.suggestions.find(
 			(candidate) => candidate.description === event.currentTarget.value
 		);
+		const createForm = event.currentTarget.form;
 		const category = createForm?.elements.namedItem('category');
-		if (!suggestion || !(category instanceof HTMLSelectElement) || category.value) return;
+		if (!createForm || !suggestion || !(category instanceof HTMLSelectElement) || category.value)
+			return;
 		category.value = suggestion.category;
-		pick('scope', suggestion.scope);
-		pick('serviceProviderId', suggestion.serviceProviderId);
+		pick(createForm, 'scope', suggestion.scope);
+		pick(createForm, 'serviceProviderId', suggestion.serviceProviderId);
 	}
 
 	/** Selects the value in the create form's select of that name, when it offers it. */
-	function pick(name: string, value: string) {
-		const select = createForm?.elements.namedItem(name);
+	function pick(createForm: HTMLFormElement, name: string, value: string) {
+		const select = createForm.elements.namedItem(name);
 		if (
 			select instanceof HTMLSelectElement &&
 			[...select.options].some((option) => option.value === value)
@@ -88,7 +100,15 @@
 	}
 </script>
 
-<PageHeader title="Ausgaben" />
+<PageHeader title="Ausgaben">
+	{#snippet actions()}
+		<CreateButton
+			href="?jahr={data.year}&neu"
+			label="Ausgabe erfassen"
+			data-sveltekit-reset={false}
+		/>
+	{/snippet}
+</PageHeader>
 
 <Sections />
 
@@ -111,12 +131,18 @@
 {#if form && 'message' in form}
 	<p class="error" role="alert">{form.message}</p>
 {/if}
+{#if createdShown}
+	<p role="status">
+		Die Ausgabe wurde erfasst.{#if createdShown !== data.year}
+			<a href="?jahr={createdShown}">Ausgaben {createdShown} anzeigen</a>{/if}
+	</p>
+{/if}
 
 <h2>Ausgaben {data.year}</h2>
 {#if data.expenses.length === 0}
 	<p class="muted">
 		Keine Ausgaben in {data.year}. Ausgehende Bankumsätze buchst du unter <a href="/bank">Bank</a>
-		als Ausgabe; was du bar oder von einem anderen Konto bezahlt hast, erfasst du hier unten.
+		als Ausgabe; was du bar oder von einem anderen Konto bezahlt hast, erfasst du mit „Ausgabe erfassen“.
 	</p>
 {:else}
 	<div class="table-wrap">
@@ -195,24 +221,22 @@
 	</div>
 {/if}
 
-<h2>Ausgabe erfassen</h2>
-<form method="POST" action="?/create" class="card" bind:this={createForm} use:enhance>
-	{@render expenseFields(values, errors, true)}
-	<datalist id="expense-descriptions">
-		{#each data.suggestions as suggestion (suggestion.description)}
-			<option value={suggestion.description}></option>
-		{/each}
-	</datalist>
-	<div class="form-actions">
-		<button type="submit">Ausgabe erfassen</button>
-		{#if form && 'created' in form}
-			<p role="status">
-				Die Ausgabe wurde erfasst.{#if form.year !== data.year}
-					<a href="?jahr={form.year}">Ausgaben {form.year} anzeigen</a>{/if}
-			</p>
-		{/if}
-	</div>
-</form>
+{#if creating}
+	<FormDialog
+		title="Ausgabe erfassen"
+		action="?/create"
+		submitLabel="Ausgabe erfassen"
+		close="/auswertung/ausgaben?jahr={data.year}"
+		onsaved={(saved) => (createdYear = Number(saved?.year))}
+	>
+		{@render expenseFields(values, errors, true)}
+		<datalist id="expense-descriptions">
+			{#each data.suggestions as suggestion (suggestion.description)}
+				<option value={suggestion.description}></option>
+			{/each}
+		</datalist>
+	</FormDialog>
+{/if}
 
 {#snippet expenseFields(
 	values: Record<string, string>,
@@ -298,7 +322,7 @@
 
 {#if data.editing}
 	{#key data.editing.id}
-		<EditDialog
+		<FormDialog
 			title="Ausgabe bearbeiten"
 			action="?/update"
 			deleteAction="?/delete"
@@ -310,7 +334,7 @@
 		>
 			<input type="hidden" name="id" value={data.editing.id} />
 			{@render expenseFields(editValues, editErrors, false)}
-		</EditDialog>
+		</FormDialog>
 	{/key}
 {/if}
 
@@ -332,8 +356,5 @@
 	}
 	.action a {
 		text-decoration: none;
-	}
-	.form-actions p {
-		margin: 0;
 	}
 </style>

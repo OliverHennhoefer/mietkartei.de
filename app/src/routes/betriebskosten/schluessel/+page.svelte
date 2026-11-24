@@ -1,11 +1,16 @@
 <script lang="ts">
-	import AllocationKeyForm from '#lib/components/AllocationKeyForm.svelte';
+	import { page } from '$app/state';
+	import FormDialog from '#lib/components/FormDialog.svelte';
+	import AllocationKeyFields from '#lib/components/AllocationKeyFields.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { allocationKeyKindLabels, meterKindLabels } from '#lib/labels.ts';
 	import { byNumber, byText, TableSort } from '#lib/table-sort.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+
+	// ?neu opens the create dialog; it stays open while the server refuses the input.
+	const creating = $derived(page.url.searchParams.has('neu'));
 	const sort = new TableSort<PageProps['data']['keys'][number]>({
 		name: byText((key) => key.name),
 		kind: byText((key) => allocationKeyKindLabels[key.kind]),
@@ -51,11 +56,13 @@
 	</table>
 </div>
 
-<h2 id="umlageschluessel-anlegen">Umlageschlüssel anlegen</h2>
-<AllocationKeyForm
-	action="?/create"
-	submitLabel="Umlageschlüssel anlegen"
-	properties={data.properties}
-	errors={form?.errors}
-	values={form?.values}
-/>
+{#if creating}
+	<FormDialog
+		title="Umlageschlüssel anlegen"
+		action="?/create"
+		submitLabel="Umlageschlüssel anlegen"
+		close={page.url.pathname}
+	>
+		<AllocationKeyFields properties={data.properties} errors={form?.errors} values={form?.values} />
+	</FormDialog>
+{/if}

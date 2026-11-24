@@ -1,9 +1,10 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import Field from '#lib/components/Field.svelte';
 	import { enhance } from '$app/forms';
 	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
-	import EditDialog from '#lib/components/EditDialog.svelte';
+	import FormDialog from '#lib/components/FormDialog.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
 	import { formatDate, today } from '#lib/dates.ts';
 	import { defaultMeterUnit } from '#lib/domain/operating-costs.ts';
@@ -15,7 +16,10 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	// The create forms start empty again once their entry is saved.
+
+	// ?neu opens the create dialog; it stays open while the server refuses the input.
+	const creating = $derived(page.url.searchParams.has('neu'));
+	// The reading form of a meter starts empty again once its entry is saved.
 	const fresh = new FreshForm();
 
 	// The kinds come from the labels: schema.ts is server-only code.
@@ -259,9 +263,13 @@
 	</section>
 {/if}
 
-<h2 id="zaehler-anlegen">Zähler anlegen</h2>
-{#key fresh.visit}
-	<form method="POST" action={actionOn('createMeter')} class="card" use:enhance>
+{#if creating}
+	<FormDialog
+		title="Zähler anlegen"
+		action="?/createMeter"
+		submitLabel="Zähler anlegen"
+		close={withUnit()}
+	>
 		<input type="hidden" name="filterUnit" value={data.filterUnit?.id ?? ''} />
 		<Field label="Einheit" error={meterForm?.errors.unitId}>
 			<select name="unitId" aria-invalid={meterForm?.errors.unitId ? 'true' : undefined}>
@@ -323,11 +331,8 @@
 				aria-invalid={meterForm?.errors.installedAt ? 'true' : undefined}
 			/>
 		</Field>
-		<div class="form-actions">
-			<button type="submit">Zähler anlegen</button>
-		</div>
-	</form>
-{/key}
+	</FormDialog>
+{/if}
 
 {#snippet readingFields(
 	unit: string,
@@ -367,7 +372,7 @@
 
 {#if data.editing && data.expanded && editValues}
 	{#key data.editing.id}
-		<EditDialog
+		<FormDialog
 			title="Zählerstand bearbeiten"
 			action="?/updateReading"
 			deleteAction="?/deleteReading"
@@ -378,7 +383,7 @@
 			<input type="hidden" name="readingId" value={data.editing.id} />
 			<input type="hidden" name="filterUnit" value={data.filterUnit?.id ?? ''} />
 			{@render readingFields(data.expanded.unit, editValues, editForm?.errors)}
-		</EditDialog>
+		</FormDialog>
 	{/key}
 {/if}
 

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Alert from '#lib/components/Alert.svelte';
-	import AllocationKeyForm from '#lib/components/AllocationKeyForm.svelte';
+	import AllocationKeyFields from '#lib/components/AllocationKeyFields.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
 	import { formatNumber } from '#lib/format.ts';
 	import type { PageProps } from './$types';
@@ -39,14 +39,17 @@
 	<Alert tone="danger"><p>{refused}</p></Alert>
 {/if}
 
-<AllocationKeyForm
-	action="?/update"
-	submitLabel="Speichern"
-	properties={data.properties}
-	key={data.key}
-	errors={keyForm && 'errors' in keyForm ? keyForm.errors : undefined}
-	values={keyForm && 'values' in keyForm ? keyForm.values : undefined}
-/>
+<form method="POST" action="?/update" class="card" use:enhance>
+	<AllocationKeyFields
+		properties={data.properties}
+		key={data.key}
+		errors={keyForm && 'errors' in keyForm ? keyForm.errors : undefined}
+		values={keyForm && 'values' in keyForm ? keyForm.values : undefined}
+	/>
+	<div class="form-actions">
+		<button type="submit">Speichern</button>
+	</div>
+</form>
 
 {#if data.key.kind === 'custom' && data.key.propertyId}
 	<h2>Anteile je Einheit</h2>

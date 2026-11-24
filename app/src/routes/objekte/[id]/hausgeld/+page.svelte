@@ -1,15 +1,17 @@
 <script lang="ts">
-	import AssociationStatementForm from '#lib/components/AssociationStatementForm.svelte';
+	import { page } from '$app/state';
+	import FormDialog from '#lib/components/FormDialog.svelte';
+	import AssociationStatementFields from '#lib/components/AssociationStatementFields.svelte';
 	import Hints from '#lib/components/Hints.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import { formatDate, today } from '#lib/dates.ts';
 	import { balanceText } from '#lib/domain/association.ts';
-	import { FreshForm } from '#lib/fresh-form.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	// The create form below starts empty again once its entry is saved.
-	const fresh = new FreshForm();
+
+	// ?neu opens the create dialog; it stays open while the server refuses the input.
+	const creating = $derived(page.url.searchParams.has('neu'));
 
 	// The Hausgeldabrechnung most often entered is last year's.
 	const defaultYear = Number(today().slice(0, 4)) - 1;
@@ -89,16 +91,16 @@
 	</ul>
 {/if}
 
-<h2 id="hausgeldabrechnung-erfassen">Hausgeldabrechnung erfassen</h2>
-{#key fresh.visit}
-	<AssociationStatementForm
+{#if creating}
+	<FormDialog
+		title="Hausgeldabrechnung erfassen"
 		action="?/create"
 		submitLabel="Hausgeldabrechnung erfassen"
-		{defaultYear}
-		errors={form?.errors}
-		values={form?.values}
-	/>
-{/key}
+		close={page.url.pathname}
+	>
+		<AssociationStatementFields {defaultYear} errors={form?.errors} values={form?.values} />
+	</FormDialog>
+{/if}
 
 <style>
 	.statement {

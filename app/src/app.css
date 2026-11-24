@@ -225,9 +225,9 @@ textarea {
 	text-underline-offset: 4px;
 }
 
-/* A dialog over a list to create or edit one of its rows (EditDialog, "Aufgabe anlegen"); the
+/* A dialog over a list to create or edit one of its rows (FormDialog, "Aufgabe anlegen"); the
    whole screen on a phone. */
-.edit-dialog {
+.form-dialog {
 	width: min(52rem, calc(100vw - 2rem));
 	max-height: calc(100dvh - 2rem);
 	margin: auto;
@@ -238,7 +238,7 @@ textarea {
 	color: var(--color-text);
 	box-shadow: 0 24px 64px rgb(0 0 0 / 22%);
 }
-.edit-dialog::backdrop {
+.form-dialog::backdrop {
 	background: rgb(0 0 0 / 35%);
 }
 .dialog-head {
@@ -252,7 +252,7 @@ textarea {
 	margin: 0;
 }
 @media (max-width: 40rem) {
-	.edit-dialog {
+	.form-dialog {
 		width: 100vw;
 		max-width: none;
 		height: 100dvh;
@@ -834,6 +834,18 @@ h2 {
 h3 {
 	font-size: var(--text-base);
 	margin: 1.75rem 0 0.75rem;
+}
+/* An h2 with the create action of its section at the right, such as "Bewegung buchen". */
+.heading-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem 1rem;
+	margin: 2.5rem 0 1rem;
+}
+.heading-row > h2 {
+	margin: 0;
 }
 p {
 	margin-block: 0.75rem;
@@ -1450,20 +1462,6 @@ button.link {
 	text-decoration: underline;
 	text-underline-offset: 3px;
 	font-weight: 400;
-}
-/* A form folded behind a button until it is wanted: the summary is the button, the form opens
-   under it. */
-details.reveal {
-	margin: 0.75rem 0 1rem;
-}
-details.reveal > summary {
-	list-style: none;
-}
-details.reveal > summary::-webkit-details-marker {
-	display: none;
-}
-details.reveal[open] > summary {
-	margin-bottom: 0.75rem;
 }
 button:disabled {
 	opacity: 0.45;

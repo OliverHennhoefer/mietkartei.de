@@ -39,7 +39,7 @@ Eine Rechnung, die nicht genau das Abrechnungsjahr abdeckt, etwa eine Versicheru
 
 ## 3. Entwurf erstellen und prüfen
 
-Unter **Betriebskosten → Abrechnungen** wählst du Objekt und Zeitraum und klickst **Entwurf erstellen**. Der Zeitraum darf höchstens zwölf Monate lang sein.
+Unter **Betriebskosten → Abrechnungen** klickst du **Abrechnung erstellen**, wählst Objekt und Zeitraum und klickst **Entwurf erstellen**. Der Zeitraum darf höchstens zwölf Monate lang sein.
 
 Der Entwurf zeigt oben die Summen: Gesamtkosten, umlagefähige Kosten, den Anteil des Leerstands und den CO₂-Anteil des Vermieters. Darunter steht für jeden Mietvertrag, welche Kosten mit welchem Schlüssel auf ihn entfallen, welche Vorauszahlungen er geleistet hat und ob eine Nachzahlung oder ein Guthaben herauskommt.
 

@@ -28,6 +28,7 @@ test('finds the next tenant for a unit and turns the applicant into tenant and l
 	await expect(page).toHaveURL(/\/vermietung\/[\w-]+$/);
 	const lettingUrl = page.url();
 
+	await page.getByRole('link', { name: 'Interessent eintragen' }).click();
 	await page.getByLabel('Vorname', { exact: true }).fill('Miriam');
 	await page.getByLabel('Nachname', { exact: true }).fill(lastName);
 	await page.getByLabel('E-Mail (optional)').fill('miriam@example.org');

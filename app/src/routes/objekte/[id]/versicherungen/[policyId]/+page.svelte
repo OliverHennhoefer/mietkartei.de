@@ -1,6 +1,7 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
-	import InsurancePolicyForm from '#lib/components/InsurancePolicyForm.svelte';
+	import InsurancePolicyFields from '#lib/components/InsurancePolicyFields.svelte';
 	import { insuranceKindLabels } from '#lib/labels.ts';
 	import type { PageProps } from './$types';
 
@@ -12,13 +13,12 @@
 </div>
 
 <h2>{insuranceKindLabels[data.policy.kind]} ({data.policy.insurer})</h2>
-<InsurancePolicyForm
-	action="?/update"
-	submitLabel="Speichern"
-	policy={data.policy}
-	errors={form?.errors}
-	values={form?.values}
-/>
+<form method="POST" action="?/update" class="card" use:enhance>
+	<InsurancePolicyFields policy={data.policy} errors={form?.errors} values={form?.values} />
+	<div class="form-actions">
+		<button type="submit">Speichern</button>
+	</div>
+</form>
 
 <h2>Versicherung löschen</h2>
 <p class="muted">Belege, die aus dieser Versicherung übernommen wurden, bleiben erhalten.</p>

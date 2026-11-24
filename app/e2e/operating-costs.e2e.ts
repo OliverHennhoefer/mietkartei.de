@@ -32,7 +32,7 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 	await expect(page).toHaveURL(/\/betriebskosten$/);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Betriebskosten');
 	await expect(page).toHaveTitle('Betriebskosten | mietkartei');
-	await expect(page.getByRole('heading', { level: 2, name: 'Neue Abrechnung' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Abrechnung erstellen' })).toBeVisible();
 
 	// Categories: heating and hot water start with their HeizKV key, a combined system with none
 	// (§ 9 HeizKV splits it first), everything else allocable with floor area (§ 556a BGB).
@@ -60,6 +60,7 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 	await expect(keys).toContainText('Wohnfläche');
 	await expect(keys).toContainText('Beträge je Einheit');
 	const keyName = `Miteigentumsanteile ${suffix}`;
+	await page.getByRole('link', { name: 'Umlageschlüssel anlegen' }).click();
 	await page.getByLabel('Bezeichnung').fill(keyName);
 	await page.getByRole('combobox', { name: 'Art', exact: true }).selectOption('custom');
 	await page.getByRole('combobox', { name: 'Objekt' }).selectOption({ label: propertyName });
@@ -72,7 +73,7 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 	await expect(page.getByLabel(unitName)).toHaveValue('500');
 
 	// A mixed key for heating outside the HeizKV range is refused.
-	await page.goto('/betriebskosten/schluessel');
+	await page.goto('/betriebskosten/schluessel?neu');
 	// The form binds its selects; a choice made before hydration is reset to the default.
 	await page.waitForLoadState('networkidle');
 	await page.getByLabel('Bezeichnung').fill(`Heizung 80/20 ${suffix}`);
@@ -100,6 +101,7 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 		'aria-current'
 	);
 	const circleName = `Haus A ${suffix}`;
+	await page.getByRole('link', { name: 'Abrechnungskreis anlegen' }).click();
 	await page.getByLabel('Bezeichnung').fill(circleName);
 	await page.getByRole('button', { name: 'Abrechnungskreis anlegen' }).click();
 	await expect(page.getByText('Bitte wähle mindestens eine Einheit aus.')).toBeVisible();
@@ -111,7 +113,7 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 	await expect(circles).toContainText(unitName);
 
 	// The circle can be the default of a category.
-	await page.goto('/betriebskosten/kostenarten');
+	await page.goto('/betriebskosten/kostenarten?neu');
 	const categoryName = `Treppenhausreinigung ${suffix}`;
 	await page.getByLabel('Bezeichnung').fill(categoryName);
 	await page
@@ -139,6 +141,7 @@ test('sets up categories, keys, circles, meters and a cost item with a receipt',
 	await expect(page.getByText('Dieses Objekt hat noch keine Zähler.')).toBeVisible();
 
 	// A heat meter of the unit with two readings; a second reading on the same date is refused.
+	await page.getByRole('link', { name: 'Zähler anlegen' }).click();
 	await page
 		.getByRole('combobox', { name: 'Einheit', exact: true })
 		.selectOption({ label: unitName });
@@ -298,7 +301,7 @@ test('edits and deletes categories, keys, circles, cost items, meters and readin
 
 	// A category of its own, renamed on its page.
 	const categoryName = `Gartenpflege extra ${tag}`;
-	await page.goto('/betriebskosten/kostenarten');
+	await page.goto('/betriebskosten/kostenarten?neu');
 	await page.getByLabel('Bezeichnung').fill(`${categoryName} alt`);
 	await page.getByRole('button', { name: 'Kostenart anlegen' }).click();
 	await expect(page).toHaveURL(/\/betriebskosten\/kostenarten$/);
@@ -313,13 +316,14 @@ test('edits and deletes categories, keys, circles, cost items, meters and readin
 	await expect(categories).not.toContainText(`${categoryName} alt`);
 
 	// A second category of the same name is refused.
+	await page.getByRole('link', { name: 'Kostenart anlegen' }).click();
 	await page.getByLabel('Bezeichnung').fill(categoryName);
 	await page.getByRole('button', { name: 'Kostenart anlegen' }).click();
 	await expect(page.getByText('Eine Kostenart mit diesem Namen gibt es schon.')).toBeVisible();
 
 	// A custom key of the property, renamed on its page.
 	const keyName = `Gartenanteile ${tag}`;
-	await page.goto('/betriebskosten/schluessel');
+	await page.goto('/betriebskosten/schluessel?neu');
 	// The form binds its selects; a choice made before hydration is reset to the default.
 	await page.waitForLoadState('networkidle');
 	await page.getByLabel('Bezeichnung').fill(`${keyName} alt`);
@@ -410,7 +414,7 @@ test('edits and deletes categories, keys, circles, cost items, meters and readin
 	await expect(categories).not.toContainText(categoryName);
 
 	// A circle, renamed on its page (it keeps at least one unit), then deleted.
-	await page.goto(`/objekte/${propertyId}/abrechnungskreise`);
+	await page.goto(`/objekte/${propertyId}/abrechnungskreise?neu`);
 	await page.getByLabel('Bezeichnung').fill(`Haus B ${tag}`);
 	await page.getByLabel(unitName).check();
 	await page.getByRole('button', { name: 'Abrechnungskreis anlegen' }).click();
@@ -446,6 +450,7 @@ test('edits and deletes categories, keys, circles, cost items, meters and readin
 	await expect(propertyTabs.getByRole('link', { name: 'Einheiten' })).not.toHaveAttribute(
 		'aria-current'
 	);
+	await page.getByRole('link', { name: 'Zähler anlegen' }).click();
 	await page
 		.getByRole('combobox', { name: 'Einheit', exact: true })
 		.selectOption({ label: unitName });

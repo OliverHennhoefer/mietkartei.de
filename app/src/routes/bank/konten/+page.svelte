@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import Alert from '#lib/components/Alert.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
-	import EditDialog from '#lib/components/EditDialog.svelte';
+	import FormDialog from '#lib/components/FormDialog.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
@@ -19,6 +19,16 @@
 	const message = $derived(form && 'message' in form ? form.message : undefined);
 	const ledgerErrors = $derived(form && 'ledgerErrors' in form ? form.ledgerErrors : undefined);
 	const synced = $derived(form && 'synced' in form ? form.synced : undefined);
+	// ?neu opens the create dialog; it stays open while the server refuses the input.
+	const creating = $derived(
+		!data.ownerOnly && page.url.searchParams.has('neu') && !(form && 'created' in form)
+	);
+	// What the dialog created, named above the list once it has closed.
+	let created = $state<string>();
+	$effect(() => {
+		if (creating) created = undefined;
+	});
+	const createdName = $derived(created ?? (form && 'created' in form ? form.created : undefined));
 	// ?bearbeiten=<id> opens a bank account in its dialog.
 	const opened = $derived(
 		data.bankAccounts.find((account) => account.id === page.url.searchParams.get('bearbeiten'))
@@ -48,6 +58,9 @@
 {:else}
 	{#if message}
 		<Alert tone="danger"><p>{message}</p></Alert>
+	{/if}
+	{#if createdName && !creating}
+		<p role="status">„{createdName}“ wurde angelegt.</p>
 	{/if}
 	{#if form && 'ended' in form}
 		<Alert tone="success"><p>Der Bankabruf ist beendet. Die Umsätze bleiben erhalten.</p></Alert>
@@ -143,75 +156,76 @@
 		</div>
 	{/if}
 
-	<h2 id="bankverbindung-anlegen">Bankverbindung anlegen</h2>
-	<form method="POST" action="?/create" class="card" use:enhance>
-		<Field label="Bezeichnung" error={errors?.name}>
-			<input
-				name="name"
-				defaultValue={values?.name ?? ''}
-				placeholder="z. B. Mietkonto"
-				aria-invalid={errors?.name ? 'true' : undefined}
-				required
-			/>
-		</Field>
-		<Field label="IBAN" error={errors?.iban}>
-			<input
-				name="iban"
-				autocapitalize="characters"
-				spellcheck="false"
-				defaultValue={values?.iban ?? ''}
-				placeholder="DE00 0000 0000 0000 0000 00"
-				aria-invalid={errors?.iban ? 'true' : undefined}
-				required
-			/>
-		</Field>
-		<Field
-			label="BIC (optional)"
-			error={errors?.bic}
-			hint="Bleibt das Feld leer, ergänzen wir sie bei deutschen Konten aus dem Bankleitzahlenverzeichnis der Bundesbank."
+	{#if creating}
+		<FormDialog
+			title="Bankverbindung anlegen"
+			action="?/create"
+			submitLabel="Bankverbindung anlegen"
+			close="/bank/konten"
+			onsaved={(saved) => (created = String(saved?.created ?? ''))}
 		>
-			<input
-				name="bic"
-				autocapitalize="characters"
-				spellcheck="false"
-				defaultValue={values?.bic ?? ''}
-				aria-invalid={errors?.bic ? 'true' : undefined}
-			/>
-		</Field>
-		<Field label="Kontoinhaber" error={errors?.holder}>
-			<input
-				name="holder"
-				defaultValue={values?.holder ?? ''}
-				aria-invalid={errors?.holder ? 'true' : undefined}
-				required
-			/>
-		</Field>
-		<Field
-			label="Kontonummer in der Buchhaltung (optional)"
-			error={errors?.ledgerNumber}
-			hint="Das Konto dieser Bankverbindung in deinem Kontenplan, etwa 1200. Der DATEV-Export bucht jeden Umsatz von diesem Konto auf sein Gegenkonto."
-		>
-			<input
-				name="ledgerNumber"
-				inputmode="numeric"
-				maxlength="20"
-				defaultValue={values?.ledgerNumber ?? ''}
-				placeholder="z. B. 1200"
-				aria-invalid={errors?.ledgerNumber ? 'true' : undefined}
-			/>
-		</Field>
-		<div class="form-actions form-wide">
-			<button type="submit">Bankverbindung anlegen</button>
-		</div>
-		{#if form && 'created' in form}
-			<p class="form-actions form-wide" role="status">„{form.created}“ wurde angelegt.</p>
-		{/if}
-	</form>
+			<Field label="Bezeichnung" error={errors?.name}>
+				<input
+					name="name"
+					defaultValue={values?.name ?? ''}
+					placeholder="z. B. Mietkonto"
+					aria-invalid={errors?.name ? 'true' : undefined}
+					required
+				/>
+			</Field>
+			<Field label="IBAN" error={errors?.iban}>
+				<input
+					name="iban"
+					autocapitalize="characters"
+					spellcheck="false"
+					defaultValue={values?.iban ?? ''}
+					placeholder="DE00 0000 0000 0000 0000 00"
+					aria-invalid={errors?.iban ? 'true' : undefined}
+					required
+				/>
+			</Field>
+			<Field
+				label="BIC (optional)"
+				error={errors?.bic}
+				hint="Bleibt das Feld leer, ergänzen wir sie bei deutschen Konten aus dem Bankleitzahlenverzeichnis der Bundesbank."
+			>
+				<input
+					name="bic"
+					autocapitalize="characters"
+					spellcheck="false"
+					defaultValue={values?.bic ?? ''}
+					aria-invalid={errors?.bic ? 'true' : undefined}
+				/>
+			</Field>
+			<Field label="Kontoinhaber" error={errors?.holder}>
+				<input
+					name="holder"
+					defaultValue={values?.holder ?? ''}
+					aria-invalid={errors?.holder ? 'true' : undefined}
+					required
+				/>
+			</Field>
+			<Field
+				label="Kontonummer in der Buchhaltung (optional)"
+				error={errors?.ledgerNumber}
+				hint="Das Konto dieser Bankverbindung in deinem Kontenplan, etwa 1200. Der DATEV-Export bucht jeden Umsatz von diesem Konto auf sein Gegenkonto."
+			>
+				<input
+					name="ledgerNumber"
+					inputmode="numeric"
+					maxlength="20"
+					defaultValue={values?.ledgerNumber ?? ''}
+					placeholder="z. B. 1200"
+					aria-invalid={errors?.ledgerNumber ? 'true' : undefined}
+				/>
+			</Field>
+		</FormDialog>
+	{/if}
 {/if}
 
 {#if opened}
 	{#key opened.id}
-		<EditDialog
+		<FormDialog
 			title={opened.name}
 			action={data.ownerOnly ? undefined : '?/ledger'}
 			deleteAction="?/delete"
@@ -245,7 +259,7 @@
 					/>
 				</Field>
 			{/if}
-		</EditDialog>
+		</FormDialog>
 	{/key}
 {/if}
 

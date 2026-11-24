@@ -32,7 +32,7 @@ Hat eine Einheit im Zeitraum des Belegs den Mieter gewechselt oder stand sie lee
 
 ## Eigene Schlüssel anlegen
 
-Unten auf derselben Seite legst du weitere Schlüssel an. Zur Wahl stehen:
+Mit **Umlageschlüssel anlegen** oben auf derselben Seite legst du weitere Schlüssel an. Zur Wahl stehen:
 
 - **nach Verbrauch** oder **Verbrauch und Fläche** mit einer Zählerart (Kaltwasser, Warmwasser, Wärme, Gas oder Strom). Der Verbrauch kommt aus den Zählerständen, die du im Objekt unter **Zähler** erfasst.
 - **eigene Anteile** für ein Objekt, zum Beispiel Miteigentumsanteile. Die Anteile je Einheit trägst du danach im Schlüssel ein.

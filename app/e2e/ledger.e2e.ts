@@ -69,8 +69,9 @@ test('shows arrears, books and deletes a payment and a correction', async ({ pag
 	// Rent rows follow from the lease and cannot be deleted here.
 	await expect(firstRent.getByRole('button')).toHaveCount(0);
 
-	// The payment form proposes the open balance; the tenant pays one Gesamtmiete.
-	const paymentForm = page.getByRole('form', { name: 'Zahlung buchen' });
+	// The payment dialog proposes the open balance; the tenant pays one Gesamtmiete.
+	await page.getByRole('link', { name: 'Zahlung buchen' }).click();
+	const paymentForm = page.getByRole('dialog', { name: 'Zahlung buchen' });
 	await expect(paymentForm.getByLabel('Betrag in €')).toHaveValue('4.000,00');
 	await paymentForm.getByLabel('Betrag in €').fill('0');
 	await paymentForm.getByRole('button', { name: 'Zahlung buchen' }).click();
@@ -79,9 +80,11 @@ test('shows arrears, books and deletes a payment and a correction', async ({ pag
 	await paymentForm.getByLabel('Betrag in €').fill('800,00');
 	await paymentForm.getByLabel('Vermerk (optional)').fill(`Überweisung ${suffix}`);
 	await paymentForm.getByRole('button', { name: 'Zahlung buchen' }).click();
+	await expect(paymentForm).toBeHidden();
 	await expect(page.getByText('Zahlung gebucht.')).toBeVisible();
 	await expect(await balance(page)).toHaveText('Saldo −3.200,00 € Rückstand');
 	// "Wie letzte Zahlung" repeats the amount and the note of the payment just booked.
+	await page.getByRole('link', { name: 'Zahlung buchen' }).click();
 	await paymentForm.getByRole('button', { name: 'Wie letzte Zahlung' }).click();
 	await expect(paymentForm.getByLabel('Betrag in €')).toHaveValue('800,00');
 	await expect(paymentForm.getByLabel('Vermerk (optional)')).toHaveValue(`Überweisung ${suffix}`);
@@ -89,13 +92,17 @@ test('shows arrears, books and deletes a payment and a correction', async ({ pag
 	const paymentRow = ledger.locator('tr', { hasText: `Überweisung ${suffix}` });
 	await expect(paymentRow).toContainText('800,00 €');
 	await expect(paymentForm.getByLabel('Betrag in €')).toHaveValue('3.200,00');
+	await paymentForm.getByRole('link', { name: 'Abbrechen' }).click();
+	await expect(paymentForm).toBeHidden();
 
 	// A credit of 200 € as a correction: chosen as Gutschrift, typed without a sign.
-	const adjustmentForm = page.getByRole('form', { name: 'Korrektur oder Anfangssaldo' });
+	await page.getByRole('link', { name: 'Korrektur oder Anfangssaldo' }).click();
+	const adjustmentForm = page.getByRole('dialog', { name: 'Korrektur oder Anfangssaldo' });
 	await adjustmentForm.getByLabel('Art').selectOption('credit');
 	await adjustmentForm.getByLabel('Betrag in €').fill('200');
 	await adjustmentForm.getByLabel('Vermerk').fill(`Mietminderung ${suffix}`);
 	await adjustmentForm.getByRole('button', { name: 'Korrektur buchen' }).click();
+	await expect(adjustmentForm).toBeHidden();
 	await expect(page.getByText('Korrektur gebucht.')).toBeVisible();
 	await expect(await balance(page)).toHaveText('Saldo −3.000,00 € Rückstand');
 	const adjustmentRow = ledger.locator('tr', { hasText: `Mietminderung ${suffix}` });

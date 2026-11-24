@@ -36,6 +36,7 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ### Geändert
 
+- Anlegen öffnet überall einen Dialog über der Liste, wie das Bearbeiten: Der Knopf „+ … anlegen“ oben auf der Seite öffnet ihn, etwa für Dienstleister, Bankverbindungen, Gegenkonten, Regeln, Kostenarten, Umlageschlüssel, Einheiten, Zähler, Abrechnungskreise, Versicherungen, Hausgeldabrechnungen, Ausgaben, Interessenten, API-Schlüssel und Abrechnungsentwürfe. Zahlungen und Korrekturen im Mietkonto, Kautionsbewegungen sowie Eintritt, Personenstand und Kündigung im Mietvertrag buchst du ebenso im Dialog. Die Formulare unter den Tabellen entfallen.
 - Versehentlich ignorierte Bankumsätze holst du gleich danach mit **Rückgängig** zurück. Beim erneuten Import zeigt die Vorschau ignorierte Zeilen als ignoriert an und sagt, wo du sie wieder öffnest.
 - Klarere Seiten nach einem Durchgang zu Bedienung und Gestaltung:
   - **Bank:** Bei einer Abbuchung steht das Formular **Als Ausgabe buchen** oben, mit **Ignorieren** daneben; die Zuordnung zu einem Mietvertrag liegt eingeklappt darunter. Bei einer Gutschrift bleibt es umgekehrt. Je Umsatz gibt es nur noch einen hervorgehobenen Knopf.

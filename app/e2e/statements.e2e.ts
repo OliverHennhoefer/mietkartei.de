@@ -29,6 +29,7 @@ async function pdfOf(page: Page, href: string): Promise<string> {
 async function submitPeriod(page: Page, propertyId: string, start: string, end: string) {
 	await page.goto('/betriebskosten');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Betriebskosten');
+	await page.getByRole('link', { name: 'Abrechnung erstellen' }).click();
 	await page.getByLabel('Objekt').selectOption({ value: propertyId });
 	await page.getByLabel('Zeitraum von').fill(start);
 	await page.getByLabel('Zeitraum bis').fill(end);

@@ -134,7 +134,7 @@ test('fills a repeating task from a template and brings it back when done', asyn
 	await page.getByRole('link', { name: 'Aufgabe anlegen' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Aufgabe anlegen' });
 	await dialog.getByRole('link', { name: 'Heizung warten lassen' }).click();
-	await expect(page).toHaveURL(/\?vorlage=heizungswartung/);
+	await expect(page).toHaveURL(/\?neu&vorlage=heizungswartung$/);
 	// The template fills the form, and the dialog stays open.
 	await expect(dialog.getByLabel('Art')).toHaveValue('maintenance');
 	await expect(dialog.getByLabel('Wiederholen')).toHaveValue('12');
@@ -207,10 +207,14 @@ test('names the Dienstleister of a Reparatur and links the bill that paid for it
 	await page.goto('/aufgaben');
 	await page.getByRole('link', { name: 'Dienstleister' }).first().click();
 	await expect(page).toHaveURL(/\/dienstleister$/);
-	await page.getByLabel('Name').fill(serviceProvider);
-	await page.getByLabel('Leistung (optional)').fill('Elektro');
-	await page.getByLabel('Telefon (optional)').fill('030 9182 4410');
-	await page.getByRole('button', { name: 'Dienstleister anlegen' }).last().click();
+	await page.getByRole('link', { name: 'Dienstleister anlegen' }).click();
+	const createProvider = page.getByRole('dialog', { name: 'Dienstleister anlegen' });
+	await createProvider.getByLabel('Name').fill(serviceProvider);
+	await createProvider.getByLabel('Leistung (optional)').fill('Elektro');
+	await createProvider.getByLabel('Telefon (optional)').fill('030 9182 4410');
+	await createProvider.getByRole('button', { name: 'Dienstleister anlegen' }).click();
+	await expect(createProvider).toBeHidden();
+	await expect(page).toHaveURL(/\/dienstleister$/);
 	await expect(page.getByRole('status')).toContainText(`„${serviceProvider}“ wurde angelegt.`);
 	await expect(page.getByRole('table', { name: 'Dienstleister' })).toContainText('030 9182 4410');
 

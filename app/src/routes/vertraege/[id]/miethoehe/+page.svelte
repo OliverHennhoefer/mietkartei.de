@@ -5,7 +5,7 @@
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
-	import EditDialog from '#lib/components/EditDialog.svelte';
+	import FormDialog from '#lib/components/FormDialog.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import PreviewLink from '#lib/components/PreviewLink.svelte';
@@ -734,7 +734,7 @@
 
 {#if editing}
 	{#key editing.id}
-		<EditDialog
+		<FormDialog
 			title={editing.status === 'proposed'
 				? `Vorschlag ab ${formatDate(editing.validFrom)}`
 				: `Mietänderung ab ${formatDate(editing.validFrom)}`}
@@ -790,7 +790,7 @@
 					Sollstellungen werden neu berechnet.
 				</p>
 			{/if}
-		</EditDialog>
+		</FormDialog>
 	{/key}
 {/if}
 

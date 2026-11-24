@@ -1,8 +1,8 @@
 <script lang="ts">
-	import CreateButton from '#lib/components/CreateButton.svelte';
+	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
 	import Badge from '#lib/components/Badge.svelte';
-	import EditDialog from '#lib/components/EditDialog.svelte';
+	import FormDialog from '#lib/components/FormDialog.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import SortHeader from '#lib/components/SortHeader.svelte';
@@ -12,7 +12,16 @@
 
 	let { data, form }: PageProps = $props();
 
-	// A refused edit belongs to the edit dialog, everything else to the create form.
+	// ?neu opens the create dialog; it stays open while the server refuses the input.
+	const creating = $derived(page.url.searchParams.has('neu') && !(form && 'created' in form));
+	// Whether the dialog created a row, noted above the list once it has closed.
+	let created = $state(false);
+	$effect(() => {
+		if (creating) created = false;
+	});
+	const createdShown = $derived(!creating && (created || Boolean(form && 'created' in form)));
+
+	// A refused edit belongs to the edit dialog, everything else to the create dialog.
 	const editRefused = $derived(form && 'edit' in form ? form : undefined);
 	const errors = $derived(form && 'errors' in form && !editRefused ? form.errors : undefined);
 	const values = $derived(form && 'values' in form && !editRefused ? form.values : undefined);
@@ -54,6 +63,7 @@
 
 <!-- The heading and the tab bar come from +layout.svelte; this page is the "Regeln" tab. -->
 <h2 class="visually-hidden">Zuordnungsregeln</h2>
+{#if createdShown}<p role="status">Die Regel wurde angelegt.</p>{/if}
 <p class="muted">
 	Regeln gelten in der Reihenfolge, in der sie angelegt wurden; die erste passende gewinnt.
 	Bestätigte Regeln buchen Umsätze beim Import automatisch, unbestätigte machen nur einen Vorschlag.
@@ -116,24 +126,25 @@
 	</div>
 {/if}
 
-<h2 id="regel-anlegen">Regel anlegen</h2>
-{#if data.leases.length === 0 && data.contraAccounts.length === 0}
-	<EmptyState
-		title="Noch kein Mietvertrag"
-		text="Eine Regel ordnet einem Mietvertrag oder einem Gegenkonto zu."
-	>
-		<CreateButton href="/vertraege/neu" label="Mietvertrag anlegen" />
-	</EmptyState>
-{:else}
-	<form method="POST" action="?/create" class="card" use:enhance>
-		{@render ruleFields(values, errors)}
-		<div class="form-actions form-wide">
-			<button type="submit">Regel anlegen</button>
-		</div>
-		{#if form && 'created' in form}
-			<p class="form-actions form-wide" role="status">Die Regel wurde angelegt.</p>
-		{/if}
-	</form>
+{#if creating}
+	{#if data.leases.length === 0 && data.contraAccounts.length === 0}
+		<FormDialog title="Regel anlegen" close="/bank/regeln">
+			<p class="form-wide">
+				Eine Regel ordnet einem Mietvertrag oder einem Gegenkonto zu. Lege zuerst einen
+				<a href="/vertraege/neu">Mietvertrag</a> an.
+			</p>
+		</FormDialog>
+	{:else}
+		<FormDialog
+			title="Regel anlegen"
+			action="?/create"
+			submitLabel="Regel anlegen"
+			close="/bank/regeln"
+			onsaved={() => (created = true)}
+		>
+			{@render ruleFields(values, errors)}
+		</FormDialog>
+	{/if}
 {/if}
 
 {#snippet ruleFields(
@@ -201,7 +212,7 @@
 
 {#if data.editing && editValues}
 	{#key data.editing.id}
-		<EditDialog
+		<FormDialog
 			title="Regel bearbeiten"
 			action="?/update"
 			deleteAction="?/delete"
@@ -211,7 +222,7 @@
 		>
 			<input type="hidden" name="id" value={data.editing.id} />
 			{@render ruleFields(editValues, editRefused?.errors)}
-		</EditDialog>
+		</FormDialog>
 	{/key}
 {/if}
 

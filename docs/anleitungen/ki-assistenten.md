@@ -30,7 +30,7 @@ Die Verbindung erscheint danach unter **Einstellungen → KI-Assistenten → Ver
 
 ## Andere Assistenten: API-Schlüssel anlegen
 
-Claude Code, Claude Desktop, Cursor und eigene Programme melden sich mit einem API-Schlüssel an. Den legst du in mietkartei unter **Einstellungen → KI-Assistenten** an:
+Claude Code, Claude Desktop, Cursor und eigene Programme melden sich mit einem API-Schlüssel an. Den legst du in mietkartei unter **Einstellungen → KI-Assistenten** mit **Neuer Schlüssel** an:
 
 1. Gib dem Schlüssel einen Namen, an dem du ihn wiedererkennst, etwa „Claude auf dem Laptop“.
 2. Wähle die Rechte: **Nur lesen** reicht für Fragen. **Lesen und schreiben** braucht es, wenn der Assistent auch etwas eintragen soll.

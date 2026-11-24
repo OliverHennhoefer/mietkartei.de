@@ -3,8 +3,8 @@
 	// from +layout.server.ts; child pages read it from the layout data (data.property) and render
 	// only h2 sections, no PageHeader; a first h2 that only repeats the tab name is .visually-hidden,
 	// as the current tab already shows it. The create action of each tab sits at the right of the
-	// heading, next to "Bearbeiten"; it is set here, by the current path, and leads to the tab's form
-	// further down.
+	// heading, next to "Bearbeiten"; it is set here, by the current path, and opens the tab's create
+	// dialog (?neu).
 	import { page } from '$app/state';
 	import CreateButton from '#lib/components/CreateButton.svelte';
 	import { formatDate } from '#lib/dates.ts';
@@ -31,18 +31,20 @@
 		{ href: `/objekte/${data.property.id}/lage`, label: 'Lage' }
 	]);
 
+	// ?neu opens the create dialog of the tab; the tab's filters stay in the query.
+	const neu = $derived(page.url.search ? `${page.url.search}&neu` : '?neu');
 	const create = $derived.by(() => {
 		const base = `/objekte/${data.property.id}`;
 		const creates: Record<string, { href: string; label: string }> = {
-			[base]: { href: '#einheit-anlegen', label: 'Einheit anlegen' },
-			[`${base}/zaehler`]: { href: '#zaehler-anlegen', label: 'Zähler anlegen' },
+			[base]: { href: neu, label: 'Einheit anlegen' },
+			[`${base}/zaehler`]: { href: neu, label: 'Zähler anlegen' },
 			[`${base}/abrechnungskreise`]: {
-				href: '#abrechnungskreis-anlegen',
+				href: neu,
 				label: 'Abrechnungskreis anlegen'
 			},
-			[`${base}/versicherungen`]: { href: '#versicherung-anlegen', label: 'Versicherung anlegen' },
+			[`${base}/versicherungen`]: { href: neu, label: 'Versicherung anlegen' },
 			[`${base}/hausgeld`]: {
-				href: '#hausgeldabrechnung-erfassen',
+				href: neu,
 				label: 'Hausgeldabrechnung erfassen'
 			}
 		};
@@ -79,7 +81,7 @@
 		{#if onTab}
 			<a class="button secondary" href="/objekte/{data.property.id}/bearbeiten">Bearbeiten</a>
 		{/if}
-		{#if create}<CreateButton {...create} />{/if}
+		{#if create}<CreateButton {...create} data-sveltekit-reset={false} />{/if}
 	{/snippet}
 </PageHeader>
 

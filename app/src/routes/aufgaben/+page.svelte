@@ -1,12 +1,9 @@
 <script lang="ts">
 	import CreateButton from '#lib/components/CreateButton.svelte';
 	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
-	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { onMount } from 'svelte';
 	import Badge from '#lib/components/Badge.svelte';
-	import EditDialog from '#lib/components/EditDialog.svelte';
+	import FormDialog from '#lib/components/FormDialog.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import Money from '#lib/components/Money.svelte';
 	import PageHeader from '#lib/components/PageHeader.svelte';
@@ -44,31 +41,19 @@
 		};
 	});
 
-	// The create form opens in a dialog: from the header's link, from a template (?vorlage=, which
-	// keeps it open) and stays open when the server refuses the input. A page loaded with ?neu, a
-	// template or refused input renders it open on the server, so it works without JavaScript too,
-	// and makes it modal once mounted.
-	let dialog = $state<HTMLDialogElement>();
-	let created = $state<string>();
-	const requested = $derived(
-		page.url.searchParams.has('neu') || Boolean(data.template) || Boolean(errors)
+	// ?neu opens the create dialog, and so does a template (?vorlage=), which fills it; it stays
+	// open while the server refuses the input.
+	const creating = $derived(
+		(page.url.searchParams.has('neu') || Boolean(data.template)) && !(form && 'created' in form)
 	);
-	onMount(() => {
-		if (!requested || !dialog) return;
-		if (dialog.open) dialog.close();
-		dialog.showModal();
+	// What the dialog created, named above the list once it has closed.
+	let created = $state<string>();
+	$effect(() => {
+		if (creating) created = undefined;
 	});
-
-	function openDialog(event: MouseEvent) {
-		event.preventDefault();
-		created = undefined;
-		dialog?.showModal();
-	}
-
-	/** Drops ?neu and ?vorlage=, so a reload does not open the dialog again. */
-	function closed() {
-		if (page.url.search) goto(resolve('/aufgaben'), { replace: true, reset: false });
-	}
+	const createdName = $derived(
+		creating ? undefined : (created ?? (form && 'created' in form ? form.created : undefined))
+	);
 	const weekdayFormat = new Intl.DateTimeFormat('de-DE', {
 		weekday: 'long',
 		day: 'numeric',
@@ -139,7 +124,7 @@
 
 <PageHeader title="Aufgaben">
 	{#snippet actions()}
-		<CreateButton href="?neu" label="Aufgabe anlegen" onclick={openDialog} />
+		<CreateButton href="?neu" label="Aufgabe anlegen" data-sveltekit-reset={false} />
 	{/snippet}
 </PageHeader>
 
@@ -206,10 +191,8 @@
 {/if}
 
 <h2 id="offene-aufgaben">Offene Aufgaben</h2>
-{#if created ?? (form && 'created' in form ? form.created : undefined)}
-	<p role="status" class="muted">
-		„{created ?? (form && 'created' in form ? form.created : '')}“ wurde angelegt.
-	</p>
+{#if createdName}
+	<p role="status" class="muted">„{createdName}“ wurde angelegt.</p>
 {/if}
 {#if form && 'message' in form}
 	<p class="error" role="alert">{form.message}</p>
@@ -327,44 +310,26 @@
 	</details>
 {/if}
 
-<dialog
-	bind:this={dialog}
-	class="edit-dialog"
-	aria-labelledby="task-dialog-title"
-	open={import.meta.env.SSR && requested ? true : undefined}
-	onclose={closed}
->
-	<div class="dialog-head">
-		<h2 id="task-dialog-title">Aufgabe anlegen</h2>
-		<form method="dialog">
-			<button type="submit" class="icon-button" aria-label="Schließen" title="Schließen"
-				><Icon name="close" size={20} /></button
-			>
-		</form>
-	</div>
-	<p class="muted templates">
-		Vorlagen für wiederkehrende Pflichten:
-		{#each taskTemplates as template, index (template.key)}
-			{index > 0 ? ' · ' : ''}<a
-				href="?vorlage={template.key}"
-				data-sveltekit-reset="false"
-				data-sveltekit-replacestate
-				aria-current={data.template?.key === template.key ? 'true' : undefined}>{template.title}</a
-			>
-		{/each}
-	</p>
-	<form
-		method="POST"
+{#if creating}
+	<FormDialog
+		title="Aufgabe anlegen"
 		action="?/create"
-		class="form"
-		use:enhance={() =>
-			async ({ result, update }) => {
-				await update();
-				if (result.type !== 'success') return;
-				created = String(result.data?.created ?? '');
-				dialog?.close();
-			}}
+		submitLabel="Aufgabe anlegen"
+		close="/aufgaben"
+		onsaved={(saved) => (created = String(saved?.created ?? ''))}
 	>
+		<p class="muted templates form-wide">
+			Vorlagen für wiederkehrende Pflichten:
+			{#each taskTemplates as template, index (template.key)}
+				{index > 0 ? ' · ' : ''}<a
+					href="?neu&vorlage={template.key}"
+					data-sveltekit-reset="false"
+					data-sveltekit-replacestate
+					aria-current={data.template?.key === template.key ? 'true' : undefined}
+					>{template.title}</a
+				>
+			{/each}
+		</p>
 		<!-- Keyed, so choosing another template refills fields the browser has not touched yet. -->
 		{#key data.template?.key}
 			<TaskFields
@@ -375,15 +340,12 @@
 				serviceProviders={data.serviceProviders}
 			/>
 		{/key}
-		<div class="form-actions">
-			<button type="submit">Aufgabe anlegen</button>
-		</div>
-	</form>
-</dialog>
+	</FormDialog>
+{/if}
 
 {#if data.editing}
 	{#key data.editing.id}
-		<EditDialog
+		<FormDialog
 			title="Aufgabe bearbeiten"
 			action="?/update"
 			deleteAction="?/delete"
@@ -438,7 +400,7 @@
 					{/if}
 				</fieldset>
 			{/if}
-		</EditDialog>
+		</FormDialog>
 	{/key}
 {/if}
 

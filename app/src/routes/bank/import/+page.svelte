@@ -74,7 +74,7 @@
 		title="Noch keine Bankverbindung"
 		text="Lege zuerst das Konto an, dessen Umsätze du importieren möchtest."
 	>
-		<CreateButton href="/bank/konten#bankverbindung-anlegen" label="Bankverbindung anlegen" />
+		<CreateButton href="/bank/konten?neu" label="Bankverbindung anlegen" />
 	</EmptyState>
 {:else if preview}
 	<!-- Step 2: the preview. The file travels back in the hidden field; the mapping with it. -->

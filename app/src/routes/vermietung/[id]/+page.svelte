@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import Alert from '#lib/components/Alert.svelte';
 	import Badge from '#lib/components/Badge.svelte';
+	import CreateButton from '#lib/components/CreateButton.svelte';
 	import ConfirmButton from '#lib/components/ConfirmButton.svelte';
-	import EditDialog from '#lib/components/EditDialog.svelte';
+	import FormDialog from '#lib/components/FormDialog.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import Field from '#lib/components/Field.svelte';
 	import LettingFields from '#lib/components/LettingFields.svelte';
@@ -24,6 +25,21 @@
 	const base = $derived(`/vermietung/${letting.id}`);
 	const open = $derived(!letting.closedAt);
 	const viewer = $derived(data.role === 'viewer');
+	// ?neu opens the dialog for a new applicant; it stays open while the server refuses the input.
+	const creating = $derived(
+		open && !viewer && page.url.searchParams.has('neu') && !(form && 'added' in form)
+	);
+	// Whom the dialog added, confirmed above the list once it has closed.
+	let added = $state<{ added: string; viewing: string | null }>();
+	$effect(() => {
+		if (creating) added = undefined;
+	});
+	const addedShown = $derived(
+		creating
+			? undefined
+			: (added ??
+					(form && 'added' in form ? { added: form.added, viewing: form.viewing } : undefined))
+	);
 	const editRefused = $derived(form && 'edit' in form ? form : undefined);
 	const errors = $derived<Partial<Record<string, string>> | undefined>(
 		form && 'errors' in form && !editRefused ? form.errors : undefined
@@ -145,7 +161,19 @@
 	>
 </div>
 
-<h2>Interessenten</h2>
+<div class="heading-row">
+	<h2>Interessenten</h2>
+	{#if open && !viewer}
+		<CreateButton href="?neu" label="Interessent eintragen" data-sveltekit-reset={false} />
+	{/if}
+</div>
+{#if addedShown}
+	<p role="status">
+		{addedShown.added} wurde eingetragen{addedShown.viewing
+			? `, Besichtigung am ${addedShown.viewing} Uhr`
+			: ''}.
+	</p>
+{/if}
 {#if data.applicants.length === 0}
 	<EmptyState
 		title="Noch keine Interessenten"
@@ -220,9 +248,15 @@
 	</div>
 {/if}
 
-{#if open && !viewer}
-	<h2 id="interessent-anlegen">Interessent eintragen</h2>
-	<form method="POST" action="?/addApplicant" class="card" use:enhance>
+{#if creating}
+	<FormDialog
+		title="Interessent eintragen"
+		action="?/addApplicant"
+		submitLabel="Interessent eintragen"
+		close={base}
+		onsaved={(saved) =>
+			(added = { added: String(saved?.added ?? ''), viewing: (saved?.viewing as string) ?? null })}
+	>
 		<Field label="Vorname" error={errors?.firstName}>
 			<input name="firstName" defaultValue={values?.firstName ?? ''} required />
 		</Field>
@@ -241,15 +275,7 @@
 		<Field label="Notiz (optional)" error={errors?.notes}>
 			<input name="notes" defaultValue={values?.notes ?? ''} placeholder="z. B. über Inserat" />
 		</Field>
-		<div class="form-actions form-wide">
-			<button type="submit">Interessent eintragen</button>
-		</div>
-		{#if form && 'added' in form}
-			<p class="form-actions form-wide" role="status">
-				{form.added} wurde eingetragen{form.viewing ? `, Besichtigung am ${form.viewing} Uhr` : ''}.
-			</p>
-		{/if}
-	</form>
+	</FormDialog>
 {/if}
 
 {#if !viewer}
@@ -280,9 +306,9 @@
 {/if}
 
 {#if data.editing}
-	<EditDialog title="Neuvermietung bearbeiten" action="?/update" close={base}>
+	<FormDialog title="Neuvermietung bearbeiten" action="?/update" close={base}>
 		<LettingFields values={editRefused?.values ?? data.editing} errors={editRefused?.errors} />
-	</EditDialog>
+	</FormDialog>
 {/if}
 
 <style>
