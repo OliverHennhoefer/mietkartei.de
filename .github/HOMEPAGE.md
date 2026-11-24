@@ -68,7 +68,7 @@ description: One or two sentences, at most about 160 characters, used for search
 Body text. Supported: paragraphs, `## headings`, `- lists`, `**bold**` and `[links](https://…)`.
 ```
 
-The build renders `/ratgeber/` (all guides, newest first), `/ratgeber/<slug>/` per guide with `BlogPosting` structured data, and `/ratgeber/feed.xml` (RSS). It replaces the `<!-- guides -->` marker in `website/llms.txt` with the guide links and the `<!-- latest-guide -->` marker of the homepage with a link to the newest guide, and appends the guide pages to `sitemap.xml`, so a new guide needs no other edit. Use the categories `Mietrecht` and `Betriebskosten`; product updates do not belong here. Guides link the law on gesetze-im-internet.de and end with the note that they are general information, not legal advice.
+The build renders `/ratgeber/` (all guides, newest first), `/ratgeber/<slug>/` per guide with `BlogPosting` structured data, and `/ratgeber/feed.xml` (RSS). It replaces the `<!-- guides -->` marker in `website/llms.txt` with the guide links and appends the guide pages to `sitemap.xml`, so a new guide needs no other edit. Use the categories `Mietrecht` and `Betriebskosten`; product updates do not belong here. Guides link the law on gesetze-im-internet.de and end with the note that they are general information, not legal advice.
 
 ## Search engines and AI search
 
