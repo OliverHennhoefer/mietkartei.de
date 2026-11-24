@@ -135,6 +135,23 @@ describe('datenuebernahme', () => {
 		});
 	});
 
+	it('asks for the tool file, refuses a huge one and an incomplete one', async () => {
+		expect(await run('tool', {})).toMatchObject({
+			fail: 400,
+			data: { toolError: expect.stringContaining('wähle die gespeicherte Datei') }
+		});
+		const huge = new File(['x'.repeat(1_000_001)], 'gross.json');
+		expect(await run('tool', { toolFile: huge })).toMatchObject({
+			fail: 400,
+			data: { toolError: expect.stringContaining('zu groß') }
+		});
+		const incomplete = new File([toolFile(newToolState(today()))], 'leer.json');
+		expect(await run('tool', { toolFile: incomplete })).toMatchObject({
+			fail: 400,
+			data: { toolError: expect.stringContaining('noch nicht vollständig') }
+		});
+	});
+
 	it('refuses a file that is not from the statement tool', async () => {
 		expect(await run('tool', { toolFile: csv(tenants) })).toMatchObject({
 			fail: 400,

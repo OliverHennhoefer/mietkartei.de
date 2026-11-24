@@ -10,7 +10,8 @@ import {
 	type ToolState
 } from '../domain/statement-tool';
 import type { Database } from './db';
-import { costItems, leases, meters, properties } from './db/schema';
+import { allocationKeys, costCategories, costItems, leases, meters, properties } from './db/schema';
+import { ensureDefaults } from './operating-costs';
 import { getStatement } from './statements';
 import { importToolState } from './statement-tool-import';
 import { contextA, testDatabase } from './testing';
@@ -112,6 +113,42 @@ describe('importToolState', () => {
 		const thisMonth = `${today().slice(0, 7)}-01`;
 		const ledgerStarts = (await db.select().from(leases)).map((lease) => lease.ledgerStart);
 		expect(ledgerStarts).toEqual([thisMonth, thisMonth, thisMonth]);
+	});
+
+	it('adds a Kostenart the account removed and a key it does not have', async () => {
+		await ensureDefaults(db, 'a');
+		await db.delete(costCategories).where(eq(costCategories.betrkvItem, 1));
+		const state = house();
+		// Both heating and hot water at 50 %: one new key for the house, shared by the two.
+		Object.assign(
+			state.items.find((item) => item.category === 4)!,
+			{ consumptionPercent: 50 }
+		);
+		Object.assign(
+			state.items.find((item) => item.category === 5)!,
+			{
+				key: 'mixed',
+				consumptionPercent: 50,
+				meter: 'heat'
+			}
+		);
+		const result = await importToolState(db, contextA, state);
+		expect(result.ok).toBe(true);
+		const grundsteuer = await db
+			.select()
+			.from(costCategories)
+			.where(eq(costCategories.betrkvItem, 1));
+		expect(grundsteuer).toHaveLength(1);
+		const houseKeys = (await db.select().from(allocationKeys)).filter(
+			(key) => key.propertyId !== null
+		);
+		// Cold water by consumption has no account key either.
+		expect(
+			houseKeys.map((key) => [key.kind, key.meterKind, key.consumptionPercent]).sort()
+		).toEqual([
+			['consumption', 'cold_water', null],
+			['mixed', 'heat', 50]
+		]);
 	});
 
 	it('refuses a file that is not complete', async () => {

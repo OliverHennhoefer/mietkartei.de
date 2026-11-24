@@ -3,6 +3,8 @@ import { renderLetter } from '../server/pdf';
 import { statementLetter } from './statement-letter';
 import {
 	computeTool,
+	formatTyped,
+	itemsTotal,
 	newItem,
 	newTenancy,
 	newToolState,
@@ -181,6 +183,92 @@ describe('computeTool', () => {
 			'Grundsteuer: Der Betrag ist kein Betrag.'
 		]);
 		expect(computeTool(state, today).ready).toBe(false);
+	});
+
+	it('checks every number the form takes', () => {
+		const state = house();
+		state.property.city = '';
+		const [eg, og] = state.units;
+		eg.area = 'groß';
+		Object.assign(eg.tenancies[0], {
+			start: '2025-13-01',
+			persons: '1,5',
+			operatingCostPrepayment: '-5',
+			heatingCostPrepayment: 'viel'
+		});
+		og.tenancies[0].end = '30.06.2025';
+		og.tenancies[1].lastName = '';
+		og.tenancies[1].start = '2025-08-01';
+		og.tenancies[1].end = '2025-07-01';
+		fill(state, 5, '700', { key: 'direct', amounts: { [eg.id]: 'x' } });
+		fill(state, 4, '3000', {
+			key: 'consumption',
+			meter: 'heat',
+			co2: { fuel: 'gas', fuelKwh: 'a', co2Kg: '-1', co2Cost: 'b' }
+		});
+		state.consumption.heat = { [eg.id]: 'zehn' };
+		expect(toolIssues(state).map((issue) => issue.message)).toEqual([
+			'Trage die Adresse des Hauses ein.',
+			'EG: Die Wohnfläche ist keine Zahl.',
+			'EG, Anna Erdmann: Das Einzugsdatum fehlt.',
+			'EG, Anna Erdmann: Die Personenzahl ist keine ganze Zahl.',
+			'EG, Anna Erdmann: Die Vorauszahlung für Betriebskosten ist kein Betrag.',
+			'EG, Anna Erdmann: Die Vorauszahlung für Heizkosten ist kein Betrag.',
+			'OG, Alt: Das Auszugsdatum fehlt.',
+			'OG: Trage den Namen des Mieters ein.',
+			'OG, Mieter ohne Namen: Der Auszug liegt vor dem Einzug.',
+			// Without a valid move-out date the earlier tenant counts as still living there.
+			'OG: Alt und Mieter ohne Namen wohnen zur gleichen Zeit dort. Trage beim früheren Mieter das Auszugsdatum ein.',
+			'Heizung: Die kWh sind keine Zahl.',
+			'Heizung: Die kg CO₂ sind keine Zahl.',
+			'Heizung: Die CO₂-Kosten sind kein Betrag.',
+			'Warmwasser: Der Betrag für EG ist kein Betrag.',
+			'Heizung: Der Verbrauch von EG ist keine Zahl.'
+		]);
+	});
+
+	it('asks for a house with at least one flat', () => {
+		const state = house();
+		state.units = [];
+		expect(toolIssues(state).map((issue) => issue.message)).toContain(
+			'Lege mindestens eine Wohnung an.'
+		);
+		expect(computeTool(state, today).ready).toBe(false);
+	});
+
+	it('explains a flat without area and a flat left empty', () => {
+		const state = house();
+		state.units[1].area = '';
+		const empty = newUnit(3);
+		empty.name = 'DG';
+		empty.area = '20';
+		empty.tenancies = [];
+		state.units.push(empty);
+		fill(state, 1, '1000');
+		const messages = computeTool(state, today).statement!.warnings.map((w) => w.message);
+		expect(messages).toEqual(
+			expect.arrayContaining([
+				expect.stringMatching(/OG fehlt die Wohnfläche/),
+				expect.stringMatching(/DG stand im ganzen Zeitraum leer/)
+			])
+		);
+	});
+
+	it('takes the kg CO₂ from the bill when they are given', () => {
+		const state = house();
+		const item = fill(state, 4, '3000', { key: 'area' });
+		item.co2 = { fuel: 'gas', fuelKwh: '', co2Kg: '1500', co2Cost: '250' };
+		const line = computeTool(state, today).statement!.leases[0].lines[0];
+		expect(line.co2).toMatchObject({ co2Kg: 1500 });
+	});
+
+	it('sums the filled amounts and formats what was typed', () => {
+		const state = house();
+		fill(state, 1, '1.000,50');
+		fill(state, 2, '99');
+		expect(itemsTotal(state)).toBe(109950);
+		expect(formatTyped('1234,5')).toMatch(/^1\.234,50\s€$/);
+		expect(formatTyped('abc')).toBe('');
 	});
 
 	it('computes nothing for an invalid period', () => {
