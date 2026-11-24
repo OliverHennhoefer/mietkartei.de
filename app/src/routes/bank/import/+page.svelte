@@ -163,6 +163,11 @@
 									>
 									{#if row.status === 'rule' && row.targetLabel}
 										<span class="small">→ {row.targetLabel}</span>
+									{:else if row.status === 'duplicate' && row.reason}
+										<span class="muted small">
+											Ignoriert, unter <a href="/bank?status=ignored">Umsätze → Ignoriert</a> wieder zu
+											öffnen.
+										</span>
 									{/if}
 								</td>
 							</tr>

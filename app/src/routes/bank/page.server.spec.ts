@@ -17,6 +17,8 @@ import {
 	seedUnit,
 	testDatabase
 } from '#lib/server/testing.ts';
+import { actions as datevActions, load as loadDatev } from './datev/+page.server';
+import { GET as datevFile } from './datev/export/+server';
 import { actions as importActions, load as loadImport } from './import/+page.server';
 import { actions as accountActions, load as loadAccounts } from './konten/+page.server';
 import { actions as ruleActions, load as loadRules } from './regeln/+page.server';
@@ -492,5 +494,41 @@ describe('bank/regeln', () => {
 		});
 		expect(await run(ruleActions.confirm, { form: { id: rule.id } })).toMatchObject({ error: 404 });
 		expect(await run(ruleActions.delete, { form: { id: rule.id } })).toMatchObject({ error: 404 });
+	});
+});
+
+describe('bank/datev', () => {
+	it('saves the numbers, refuses a period over two years and serves the file', async () => {
+		expect(
+			await run(datevFile, { url: '/bank/datev/export?von=2026-01-01&bis=2026-12-31' })
+		).toEqual({
+			error: 400,
+			message: 'Trage zuerst Beraternummer und Mandantennummer ein.'
+		});
+		expect(
+			await run(datevActions.numbers, { form: { advisorNumber: '12', clientNumber: '1' } })
+		).toMatchObject({ fail: 400 });
+		expect(
+			await run(datevActions.numbers, { form: { advisorNumber: '29098', clientNumber: '55003' } })
+		).toEqual({ data: { saved: true } });
+		expect(
+			await run(loadDatev, { url: '/bank/datev?von=2025-12-01&bis=2026-01-31' })
+		).toMatchObject({
+			data: { summary: null, numbers: { advisorNumber: '29098', clientNumber: '55003' } }
+		});
+		expect(
+			await run(loadDatev, { url: '/bank/datev?von=2026-01-01&bis=2026-12-31' })
+		).toMatchObject({
+			data: { summary: { bookings: 0, skipped: [] } }
+		});
+		const response = (await datevFile(
+			routeEvent(db, { url: '/bank/datev/export?von=2026-01-01&bis=2026-12-31' })
+		)) as Response;
+		expect(response.headers.get('Content-Disposition')).toContain(
+			'EXTF_Buchungsstapel_20260101_20261231.csv'
+		);
+		expect(new TextDecoder('windows-1252').decode(await response.arrayBuffer())).toMatch(
+			/^"EXTF";700;21;"Buchungsstapel";/
+		);
 	});
 });

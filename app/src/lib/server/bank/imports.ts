@@ -83,7 +83,7 @@ async function analyze(
 		fingerprinted.map((row) => row.fingerprint),
 		(fingerprints) =>
 			db
-				.select({ fingerprint: bankTransactions.fingerprint })
+				.select({ fingerprint: bankTransactions.fingerprint, status: bankTransactions.status })
 				.from(bankTransactions)
 				.where(
 					and(
@@ -93,7 +93,7 @@ async function analyze(
 					)
 				)
 	);
-	const existing = new Set(existingRows.map((row) => row.fingerprint));
+	const existing = new Map(existingRows.map((row) => [row.fingerprint, row.status]));
 	const [rules, leases, contraAccounts] = await Promise.all([
 		listConfirmedRules(db, accountId),
 		listLeases(db, accountId),
@@ -112,7 +112,9 @@ async function analyze(
 			return { index, status: 'invalid', row: null, reason, ...none, fingerprinted: null };
 		}
 		if (existing.has(row.fingerprint)) {
-			return { index, status: 'duplicate', row, reason: null, ...none, fingerprinted: row };
+			// An ignored line stays ignored; the preview says where it can be opened again.
+			const reason = existing.get(row.fingerprint) === 'ignored' ? 'Ignoriert' : null;
+			return { index, status: 'duplicate', row, reason, ...none, fingerprinted: row };
 		}
 		const rule = applyRules(rules, row);
 		if (rule?.leaseId && labels.has(rule.leaseId)) {

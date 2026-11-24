@@ -52,6 +52,9 @@ export const accounts = sqliteTable(
 		/** Where tenants transfer a Nachzahlung to; printed on the statement. */
 		iban: text('iban'),
 		bankName: text('bank_name'),
+		/** Beraternummer and Mandantennummer for the DATEV Buchungsstapel, both optional. */
+		datevAdvisorNumber: text('datev_advisor_number'),
+		datevClientNumber: text('datev_client_number'),
 		/** Set once the standard cost categories and keys are seeded, so they are seeded only once. */
 		operatingCostDefaultsSeeded: bool('operating_cost_defaults_seeded', false),
 		/** When the free trial ends; null: 30 days after the account was created. */
@@ -975,9 +978,8 @@ export const expenses = sqliteTable(
 		index('expenses_account_id_date_idx').on(table.accountId, table.date),
 		index('expenses_task_id_idx').on(table.taskId),
 		index('expenses_service_provider_id_idx').on(table.serviceProviderId),
-		uniqueIndex('expenses_bank_transaction_unique')
-			.on(table.bankTransactionId)
-			.where(sql`${table.bankTransactionId} is not null`),
+		// Several expenses per bank transaction when it is split (Hausgeld, Darlehensrate).
+		index('expenses_bank_transaction_id_idx').on(table.bankTransactionId),
 		index('expenses_property_id_idx').on(table.propertyId),
 		index('expenses_unit_id_idx').on(table.unitId),
 		index('expenses_contra_account_id_idx').on(table.contraAccountId)

@@ -1,6 +1,6 @@
 ---
 title: Kontoauszüge importieren
-description: "Kontoauszüge als camt.053 oder CSV in mietkartei importieren, Mietzahlungen den Mietverträgen zuordnen, Umsätze auf eigene Gegenkonten buchen und Zuordnungsregeln anlegen."
+description: "Kontoauszüge als camt.053 oder CSV in mietkartei importieren, Mietzahlungen den Mietverträgen zuordnen, Umsätze auf eigene Gegenkonten buchen, Zuordnungsregeln anlegen und einen DATEV-Buchungsstapel ausgeben."
 ---
 
 # Kontoauszüge importieren
@@ -39,7 +39,7 @@ Unter **Bank → Umsätze** stehen die offenen Umsätze. Zu jedem schlägt mietk
 - der Name der Einheit im Verwendungszweck,
 - eine Zuordnungsregel.
 
-Passt der Vorschlag, klickst du **Zuordnen**. Ordnest du einen Umsatz als Miete einem Mietvertrag zu, merkt sich mietkartei die IBAN (ohne IBAN den Namen) als bestätigte Regel; die nächste Überweisung ordnet der Import dann selbst zu. Zahlt jemand für mehrere Mietverträge, etwa das Jobcenter, und du ordnest einen Umsatz einem anderen Vertrag zu, als die Regel sagt, wird die Regel wieder zum bloßen Vorschlag. Zahlt ein Paar mit einer Überweisung für zwei Mietverträge, etwa Wohnung und Stellplatz, teilst du den Betrag über **Zahlung für zwei Verträge? Betrag aufteilen** auf. Den Punkt gibt es nur, wenn du mehr als einen Mietvertrag hast. Ausgaben wie die Rechnung der Stadtwerke buchst du mit **Als Ausgabe buchen**, sie erscheinen dann in der Auswertung. Eine Erstattung, etwa ein Guthaben von den Stadtwerken, buchst du bei der Gutschrift mit **Als Erstattung buchen**; sie senkt die Kosten der Kategorie. Zinsen, Privatentnahmen und andere Einnahmen buchst du unter **Kapitalertrag, Privat oder sonstige Einnahme buchen**. Sie zählen weder als Mieteinnahme noch als Ausgabe. Umsätze, die nichts mit der Vermietung zu tun haben, ignorierst du.
+Passt der Vorschlag, klickst du **Zuordnen**. Ordnest du einen Umsatz als Miete einem Mietvertrag zu, merkt sich mietkartei die IBAN (ohne IBAN den Namen) als bestätigte Regel; die nächste Überweisung ordnet der Import dann selbst zu. Zahlt jemand für mehrere Mietverträge, etwa das Jobcenter, und du ordnest einen Umsatz einem anderen Vertrag zu, als die Regel sagt, wird die Regel wieder zum bloßen Vorschlag. Zahlt ein Paar mit einer Überweisung für zwei Mietverträge, etwa Wohnung und Stellplatz, teilst du den Betrag über **Zahlung für zwei Verträge? Betrag aufteilen** auf. Den Punkt gibt es nur, wenn du mehr als einen Mietvertrag hast. Ausgaben wie die Rechnung der Stadtwerke buchst du mit **Als Ausgabe buchen**, sie erscheinen dann in der Auswertung. Deckt eine Überweisung mehrere Konten ab, öffnest du dort **Auf mehrere Konten aufteilen?** und trägst bis zu drei weitere Teile ein, der Rest bleibt auf dem Konto oben. So teilst du das Hausgeld in umlagefähige Kosten, nicht umlagefähige Kosten und Rücklage, oder eine Darlehensrate in Zinsen und Tilgung. Beim nächsten Umsatz desselben Empfängers schlägt mietkartei die Aufteilung vom letzten Mal vor. Eine Erstattung, etwa ein Guthaben von den Stadtwerken, buchst du bei der Gutschrift mit **Als Erstattung buchen**; sie senkt die Kosten der Kategorie. Zinsen, Privatentnahmen und andere Einnahmen buchst du unter **Kapitalertrag, Privat oder sonstige Einnahme buchen**. Sie zählen weder als Mieteinnahme noch als Ausgabe. Umsätze, die nichts mit der Vermietung zu tun haben, ignorierst du. Hast du versehentlich ignoriert, klickst du gleich danach **Rückgängig**. Später findest du den Umsatz unter dem Filter **Ignoriert** und holst ihn mit **Wieder öffnen** zurück. Ein erneuter Import öffnet ihn nicht von selbst, die Vorschau zeigt ihn aber als ignoriert an.
 
 ## 5. Auf Gegenkonten buchen
 
@@ -59,11 +59,19 @@ Mieten bucht mietkartei dann selbst auf die Gegenkonten des Objekts: Überweist 
 
 Bei einer Ausgabe oder einer sonstigen Buchung wählst du das Gegenkonto selbst. Kategorie und Objekt füllt mietkartei aus dem Gegenkonto vor.
 
+Neben jedem Gegenkonto steht, was im gewählten Jahr darauf gebucht wurde, und darunter die Summe der Buchungen ohne Gegenkonto. So gleichst du vor dem DATEV-Export mit deinem Steuerberater ab.
+
 ## 6. Regeln anlegen
 
 Unter **Bank → Regeln** legst du fest, dass ein Umsatz, dessen Text etwas Bestimmtes enthält, zu einem Mietvertrag oder einem Gegenkonto gehört, etwa „Miete Gartenweg 3 links“ oder „IBAN der Stadtwerke → 4403 Stadtwerke Wasser/Müll“. Jede Regel hat einen Namen, damit du in der Liste siehst, wofür sie ist. Bestätigte Regeln buchen beim nächsten Import automatisch, unbestätigte machen nur einen Vorschlag. Eine Regel auf einen Mietvertrag bucht nur eingehende Zahlungen. Eine Regel auf ein Gegenkonto bucht beide Richtungen.
 
 Buchst du einen Umsatz auf ein Gegenkonto, merkt sich mietkartei den Absender genauso wie bei Mieten. Zahlt derselbe Absender später auf ein anderes Konto, etwa die Stadtkasse einmal Grundsteuer und einmal Müll, wird die Regel wieder zum Vorschlag. Ausgaben ohne Gegenkonto bucht mietkartei nie automatisch.
+
+## 7. Als DATEV-Buchungsstapel ausgeben
+
+Unter **Bank → DATEV** trägst du einmal die Beraternummer und die Mandantennummer ein, die dir dein Steuerberater nennt. Dann wählst du den Zeitraum, standardmäßig das Vorjahr, und klickst **Buchungsstapel herunterladen**. Die Datei im DATEV-Format liest dein Steuerberater in DATEV ein.
+
+Jeder zugeordnete Umsatz wird eine Buchung von der Kontonummer der Bankverbindung auf das Gegenkonto, etwa 1200 an 8005. Eine Miete, die mietkartei in Kaltmiete und Vorauszahlungen aufgeteilt hat, ergibt zwei Buchungen. Fehlt der Bankverbindung oder dem Gegenkonto die Nummer, oder ist ein Umsatz ohne Gegenkonto gebucht, kommt er nicht in die Datei. Die Seite listet solche Umsätze mit dem Grund auf, damit du die Nummer ergänzen kannst. Ein Stapel umfasst höchstens ein Kalenderjahr, weil DATEV je Stapel nur ein Wirtschaftsjahr annimmt.
 
 ## Bankabruf statt Datei
 

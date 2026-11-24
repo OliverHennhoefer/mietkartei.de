@@ -400,7 +400,8 @@ describe('bank transactions as expenses', () => {
 			scope: `unit:${unitId}`,
 			description: 'Heizungswartung',
 			serviceProviderId: heating,
-			contraAccountId: ''
+			contraAccountId: '',
+			splits: []
 		};
 		// The IBAN wins over the name; without an IBAN the name decides, whatever its case.
 		expect(expensePreset({ counterpartIban: iban, counterpartName: 'Jemand' }, presets)).toEqual(
