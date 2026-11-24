@@ -113,6 +113,10 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 /* The neon block of the logo marks the one task landlords dread most; black text in both schemes. */
 .hero-lead mark { padding: .02em .2em; background: var(--highlight); color: #000; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .hero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; margin-top: 40px; }
+.hero-tool { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 6px 10px; width: fit-content; max-width: 100%; margin: 28px auto 0 !important; padding: 10px 18px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: var(--text-base); line-height: 1.5; }
+.hero-tool strong { color: var(--foreground); font-weight: 500; }
+.hero-tool a { color: var(--foreground); font-weight: 500; text-decoration-color: var(--highlight); text-decoration-thickness: 3px; text-underline-offset: 5px; }
+.hero-tool a:hover { text-decoration-color: currentColor; }
 
 .stage { position: relative; padding-top: 24px; }
 .stage-glow { position: absolute; left: 50%; top: 18%; width: min(1100px, 90vw); height: 60%; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--highlight) 55%, transparent), transparent); opacity: .35; filter: blur(40px); transform: translateX(-50%); pointer-events: none; }
@@ -140,6 +144,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .feature h3 { margin: 20px 0 0; font-size: clamp(24px, 2.2vw, 32px); line-height: 1.2; }
 .feature-more { display: inline-block; margin-top: 12px; color: var(--foreground); font-weight: 500; text-decoration-color: var(--highlight); text-decoration-thickness: 3px; text-underline-offset: 5px; }
 .feature-more:hover { text-decoration-color: currentColor; }
+.feature-more + .feature-more { margin-left: 18px; }
 .feature-copy p { margin-top: 16px; color: var(--muted); font-size: var(--text-lg); line-height: 1.7; }
 
 .areas { padding: 96px 0 0; }
@@ -221,6 +226,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
   .hero h1 { font-size: clamp(30px, 8.6vw, 40px); }
   .latest { font-size: var(--text-xs); }
   .hero-actions { flex-direction: column; }
+  .hero-tool { border-radius: 16px; }
   .section-lead { font-size: var(--text-lg); }
   .window-bar b { display: none; }
   .float-payment { display: none; }

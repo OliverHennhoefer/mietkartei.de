@@ -111,7 +111,13 @@ def render_post(layout: str, post: Post) -> str:
           <div class="prose">
 {render_markdown(post.body)}
           </div>
-        </article>"""
+        </article>
+        <section class="topic-tool" aria-labelledby="rechner">
+          <p class="kicker">Kostenlos, ohne Anmeldung</p>
+          <h2 id="rechner">Jetzt die Nebenkostenabrechnung erstellen.</h2>
+          <p>Kosten eintragen, Umlageschlüssel wählen, für jeden Mieter ein PDF mit Rechenweg laden. Der Rechner läuft in deinem Browser und speichert nichts bei uns.</p>
+          <a class="button button-ghost" href="/nebenkostenabrechnung/erstellen/">Zum kostenlosen Rechner<span aria-hidden="true">→</span></a>
+        </section>"""
     return fill(
         layout,
         title=html.escape(post.title),
