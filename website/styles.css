@@ -533,6 +533,11 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 .tool-loading a { color: var(--foreground); text-underline-offset: 3px; }
 .tool-cta { margin-top: 48px; padding: 48px; border-radius: 16px; background: color-mix(in srgb, var(--code-background), var(--background) 55%); }
 .tool-cta .section-title { margin-top: 12px; }
+.duty-list { display: grid; gap: 14px; max-width: 720px; margin: 24px 0 0; padding: 0; list-style: none; }
+.duty-list li { display: flex; align-items: flex-start; gap: 14px; }
+.duty-list .step-number { flex: none; width: 28px; height: 28px; margin-top: 1px; font-size: var(--text-base); }
+.duty-list p { margin: 0; color: var(--muted); font-size: var(--text-lg); line-height: 1.6; }
+.duty-list strong { color: var(--foreground); font-weight: 500; }
 .topic-tool { margin-top: 40px; padding: 32px; border: 1px solid var(--line); border-radius: 16px; }
 .topic-tool h2 { margin: 12px 0 0; font-size: var(--text-2xl); font-weight: 500; letter-spacing: -.035em; }
 .topic-tool p:not(.kicker) { max-width: 720px; margin: 12px 0 0; color: var(--muted); font-size: var(--text-lg); line-height: 1.6; }
