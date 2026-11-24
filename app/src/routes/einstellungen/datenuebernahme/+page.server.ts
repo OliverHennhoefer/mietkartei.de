@@ -1,4 +1,6 @@
-import { fail, type ActionFailure } from '@sveltejs/kit';
+import { fail, redirect, type ActionFailure } from '@sveltejs/kit';
+import { today } from '#lib/dates.ts';
+import { parseToolFile } from '#lib/domain/statement-tool.ts';
 import { decodeCsv, parseCsv } from '#lib/csv.ts';
 import { IMPORT_MAX_ROWS, parseImportForm, type ImportFormInput } from '#lib/forms/import.ts';
 import {
@@ -20,11 +22,15 @@ import {
 	type RowResult
 } from '#lib/server/import.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
+import { importToolState } from '#lib/server/statement-tool-import.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 // The data import in two steps: step 1 uploads the file, step 2 shows the column mapping and a
 // preview of the rows and commits. The file travels as a hidden base64 field, so no server-side
 // state is needed; the preview and the commit validate the rows with the same code (planImport).
+
+/** A file of the free statement tool is a few kB; anything far larger is no such file. */
+const TOOL_FILE_MAX_BYTES = 1_000_000;
 
 /** How many rows the preview shows. */
 const PREVIEW_ROWS = 20;
@@ -167,5 +173,28 @@ export const actions: Actions = {
 		const summary = await commitImport(locals.db, auditContext(locals), prepared.plan);
 		const done: ImportDone = { step: 'done', summary };
 		return done;
+	},
+
+	// A file saved by the free statement tool on mietkartei.de: the house, its tenants and the
+	// bills of one period, with a statement draft to open right away.
+	tool: async ({ request, locals }) => {
+		requireAccount(locals);
+		const file = (await request.formData()).get('toolFile');
+		if (!(file instanceof File) || file.size === 0) {
+			return fail(400, { toolError: 'Bitte wähle die gespeicherte Datei aus dem Rechner aus.' });
+		}
+		if (file.size > TOOL_FILE_MAX_BYTES) {
+			return fail(400, { toolError: 'Diese Datei ist zu groß für eine Datei aus dem Rechner.' });
+		}
+		const state = parseToolFile(await file.text(), today());
+		if (!state) {
+			return fail(400, {
+				toolError:
+					'Diese Datei ist keine gespeicherte Abrechnung aus dem Rechner auf mietkartei.de. Dort speicherst du sie mit „Als Datei speichern“.'
+			});
+		}
+		const result = await importToolState(locals.db, auditContext(locals), state);
+		if (!result.ok) return fail(400, { toolError: result.message });
+		redirect(303, `/betriebskosten/abrechnungen/${result.statementId}`);
 	}
 };

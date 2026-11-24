@@ -21,6 +21,8 @@ Heizt ein Mieter mit einer Etagenheizung und hat einen eigenen Gas- oder Wärmev
 
 Die gezahlten Vorauszahlungen liest mietkartei aus dem Mietkonto. Wenn du deine [Kontoauszüge importierst](kontoauszuege-importieren.md), stimmen sie ohne weitere Arbeit.
 
+Hast du die letzte Abrechnung mit dem [kostenlosen Rechner](https://mietkartei.de/nebenkostenabrechnung/erstellen/) erstellt und dort als Datei gespeichert, übernimmst du sie unter **Einstellungen → Datenübernahme → Abrechnung aus dem kostenlosen Rechner**. mietkartei legt daraus das Objekt mit seinen Einheiten an, dazu die Mieter, die Mietverträge, die Belege mit ihren Umlageschlüsseln und die Verbräuche als Zählerstände. Die Abrechnung erscheint als Entwurf und rechnet dasselbe wie der Rechner. Die Mietkonten beginnen mit dem laufenden Monat. Die Kaltmiete trägst du im Mietvertrag nach.
+
 ## 1. Umlageschlüssel prüfen
 
 Jede Kostenart hat einen Standardschlüssel: Heizung und Warmwasser nach Verbrauch und Fläche (70/30), alles andere nach Wohnfläche. Brauchst du etwas anderes, etwa Müll nach Personen, änderst du das einmal bei der Kostenart, bevor du die Belege erfasst. Jeder Beleg übernimmt den Schlüssel beim Speichern. Bei Belegen, die du schon erfasst hast, änderst du den Schlüssel im Beleg selbst. Welche Schlüssel es gibt und wann welcher passt, steht unter [Umlageschlüssel](umlageschluessel.md).

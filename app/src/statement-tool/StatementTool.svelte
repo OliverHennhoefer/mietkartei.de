@@ -142,7 +142,7 @@
 			'application/json'
 		);
 		notice =
-			'Die Datei liegt in deinen Downloads. Öffne sie hier wieder, um weiterzumachen oder die Abrechnung im nächsten Jahr zu übernehmen.';
+			'Die Datei liegt in deinen Downloads. Öffne sie hier wieder, um weiterzumachen, oder übernimm sie in ein mietkartei-Konto unter Einstellungen → Datenübernahme.';
 	}
 
 	async function openFile(event: Event) {
