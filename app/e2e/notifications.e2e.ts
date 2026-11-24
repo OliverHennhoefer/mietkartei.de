@@ -36,6 +36,8 @@ test('keeps the webhook folded away for those who want it', async ({ page }) => 
 	await page.goto('/einstellungen/benachrichtigungen');
 	const address = page.getByLabel('Adresse');
 	await expect(address).toBeHidden();
+	// Hydration sets the details' open state again, so a click before it gets folded back.
+	await page.waitForLoadState('networkidle');
 	await page.getByText('Für Technikfreunde: Webhook').click();
 	await address.fill('https://n8n.example.de/webhook/mietkartei');
 	await page.getByRole('button', { name: 'Webhook hinzufügen' }).click();
