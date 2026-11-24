@@ -81,13 +81,15 @@
 		arrears: 'wallet',
 		bank: 'bank',
 		bank_import: 'download',
-		vacancy: 'building'
+		vacancy: 'building',
+		letting: 'key'
 	} as const;
 	const reminderLabels = {
 		arrears: 'Mietkonto',
 		bank: 'Bank',
 		bank_import: 'Bank',
-		vacancy: 'Leerstand'
+		vacancy: 'Leerstand',
+		letting: 'Neuvermietung'
 	} as const;
 	const utc = (date: string) => new Date(`${date}T00:00:00Z`);
 

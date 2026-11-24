@@ -23,6 +23,7 @@
 
 <PageHeader title="Mietverträge">
 	{#snippet actions()}
+		<a class="button secondary" href="/vermietung">Neuvermietung</a>
 		<CreateButton href="/vertraege/neu" label="Mietvertrag anlegen" />
 	{/snippet}
 </PageHeader>
