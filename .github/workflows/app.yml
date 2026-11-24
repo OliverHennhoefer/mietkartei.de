@@ -324,15 +324,28 @@ jobs:
           npx wrangler r2 bucket info mietkartei-map --jurisdiction eu ||
             npx wrangler r2 bucket create mietkartei-map --jurisdiction eu
 
+      # The build wrote wrangler.jsonc, resolved for the app, next to the Worker; see vite.config.ts.
       - name: Deploy to Cloudflare
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy
+        run: npx wrangler deploy --config .svelte-kit/cloudflare/worker/wrangler.json
 
-      # The public demo at demo.mietkartei.de: the same build with the demo environment of
+      # The public demo at demo.mietkartei.de: a build of its own with the demo environment of
       # wrangler.jsonc, its own database and bucket. It deploys after the app, so a failure here
       # never holds back app.mietkartei.de.
+      - name: Build the demo
+        env:
+          CLOUDFLARE_ENV: demo
+        run: npm run build:cloudflare
+
+      - name: Check that the demo build is the demo
+        run: |
+          if ! grep -q '"name": "mietkartei-demo"' .svelte-kit/cloudflare/worker/wrangler.json; then
+            echo "::error::The demo build does not configure the Worker mietkartei-demo."
+            exit 1
+          fi
+
       - name: Create the demo document bucket
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -351,7 +364,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy --env demo
+        run: npx wrangler deploy --config .svelte-kit/cloudflare/worker/wrangler.json
 
   publish:
     name: Publish image

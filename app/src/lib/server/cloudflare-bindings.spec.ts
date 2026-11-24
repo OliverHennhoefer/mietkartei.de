@@ -207,11 +207,10 @@ describe('wrangler.jsonc of a self-hosted copy', () => {
 	const selfHosted = wranglerConfig('../wrangler.jsonc');
 
 	it('deploys the same build to workers.dev, without a domain', () => {
-		expect(selfHosted.main).toBe(`app/${hosted.main}`);
-		expect(selfHosted.assets).toEqual({
-			...hosted.assets,
-			directory: `app/${hosted.assets.directory}`
-		});
+		// adapter-cloudflare sets the Worker and the assets directory of both.
+		expect(selfHosted.main).toBeUndefined();
+		expect(hosted.main).toBeUndefined();
+		expect(selfHosted.assets).toEqual(hosted.assets);
 		expect(selfHosted.compatibility_date).toBe(hosted.compatibility_date);
 		expect(selfHosted.compatibility_flags).toEqual(hosted.compatibility_flags);
 		expect(selfHosted.triggers).toEqual(hosted.triggers);
