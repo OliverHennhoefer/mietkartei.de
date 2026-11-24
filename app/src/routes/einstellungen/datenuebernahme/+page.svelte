@@ -13,6 +13,7 @@
 
 	// Step 1 (the upload form, also after a form error), step 2 (mapping and preview) or the summary.
 	const errors = $derived(form && 'errors' in form ? form.errors : undefined);
+	const toolError = $derived(form && 'toolError' in form ? form.toolError : undefined);
 	const values = $derived(form && 'values' in form ? form.values : undefined);
 	const preview = $derived(form && 'step' in form && form.step === 'preview' ? form : undefined);
 	const summary = $derived(
@@ -188,6 +189,23 @@
 			<dd>{help[kind]}</dd>
 		{/each}
 	</dl>
+	<h2 id="rechner">Abrechnung aus dem kostenlosen Rechner</h2>
+	<p>
+		Hast du eine Nebenkostenabrechnung mit dem
+		<a href="https://mietkartei.de/nebenkostenabrechnung/erstellen/">kostenlosen Rechner</a>
+		erstellt und dort als Datei gespeichert? Dann übernimmt mietkartei daraus das Haus mit seinen Wohnungen,
+		die Mieter und Mietverträge, die Belege mit ihren Umlageschlüsseln und die Verbräuche als Zählerstände,
+		und legt die Abrechnung als Entwurf an. Die Mietkonten beginnen mit diesem Monat; die Kaltmiete trägst
+		du danach im Mietvertrag nach.
+	</p>
+	<form method="POST" action="?/tool" enctype="multipart/form-data" class="card" use:enhance>
+		<Field label="Datei aus dem Rechner" error={toolError}>
+			<input type="file" name="toolFile" accept=".json,application/json" required />
+		</Field>
+		<div class="form-actions">
+			<button type="submit">Übernehmen</button>
+		</div>
+	</form>
 {/if}
 
 <style>

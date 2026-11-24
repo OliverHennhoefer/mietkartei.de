@@ -2,10 +2,12 @@
 
 import hashlib
 import html
+import json
 import re
+import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from shutil import copyfile, rmtree
+from shutil import copyfile, copytree, rmtree
 
 from build_guides import build_guides, json_ld
 from build_reference_cases import build_reference_cases
@@ -24,6 +26,7 @@ for filename in (
     "auftragsverarbeitung/index.html",
     "fragen/index.html",
     "nebenkostenabrechnung/index.html",
+    "nebenkostenabrechnung/erstellen/index.html",
     "preise/index.html",
     "styles.css",
     "robots.txt",
@@ -104,6 +107,25 @@ def fingerprint_screenshots(page: Path) -> None:
     page.write_text(re.sub(r'src="(/?assets/screenshots/[\w-]+\.png)"', versioned, text), encoding="utf-8")
 
 
+def build_statement_tool(page: Path) -> None:
+    """Builds the free statement tool from the app's sources (app/src/statement-tool/, with the
+    app's computation and letter) and links its script and styles in place of the
+    <!-- statement-tool --> marker. Needs the app's dependencies: npm ci --prefix app."""
+    if not (ROOT / "app" / "node_modules").is_dir():
+        raise SystemExit("The statement tool is built from app/: run `npm ci --prefix app` first.")
+    subprocess.run(["npm", "run", "--silent", "build:statement-tool", "--prefix", "app"], cwd=ROOT, check=True)
+    built = ROOT / "dist" / "statement-tool"
+    copytree(built / "assets", OUTPUT / "assets", dirs_exist_ok=True)
+    manifest = json.loads((built / ".vite" / "manifest.json").read_text(encoding="utf-8"))
+    entry = manifest["src/statement-tool/main.ts"]
+    tags = [f'<link rel="stylesheet" href="/{css}">' for css in entry.get("css", [])]
+    tags.append(f'<script type="module" src="/{entry["file"]}"></script>')
+    text = page.read_text(encoding="utf-8")
+    if text.count("    <!-- statement-tool -->\n") != 1:
+        raise ValueError(f"{page.relative_to(OUTPUT)}: needs one <!-- statement-tool --> marker")
+    page.write_text(text.replace("<!-- statement-tool -->", "\n    ".join(tags)), encoding="utf-8")
+
+
 def frame_pages() -> None:
     """Puts the one header and footer of website/_header.html and _footer.html into every page,
     so no page drifts from the others, and marks the footer link of the page itself."""
@@ -122,6 +144,8 @@ def frame_pages() -> None:
 
 add_faq_json_ld(OUTPUT / "fragen" / "index.html")
 add_faq_json_ld(OUTPUT / "nebenkostenabrechnung" / "index.html")
+add_faq_json_ld(OUTPUT / "nebenkostenabrechnung" / "erstellen" / "index.html")
+build_statement_tool(OUTPUT / "nebenkostenabrechnung" / "erstellen" / "index.html")
 fingerprint_screenshots(OUTPUT / "index.html")
 fingerprint_screenshots(OUTPUT / "nebenkostenabrechnung" / "index.html")
 build_guides(ROOT / "website", OUTPUT)

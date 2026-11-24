@@ -7,9 +7,9 @@ import { createCategory } from './categories';
 import {
 	defaultCategories,
 	defaultKeys,
-	defaultLandlordCategories,
-	ensureDefaults
-} from './defaults';
+	defaultLandlordCategories
+} from '../../domain/operating-cost-defaults';
+import { ensureDefaults } from './defaults';
 import { createKey } from './keys';
 
 let db: Database;

@@ -12,6 +12,7 @@
 		"dev:cloudflare": "npm run db:migrate:d1 && DEPLOY_TARGET=cloudflare vite dev",
 		"build": "vite build",
 		"build:cloudflare": "DEPLOY_TARGET=cloudflare vite build",
+		"build:statement-tool": "svelte-kit sync && vite build --config vite.statement-tool.config.ts",
 		"preview": "vite preview",
 		"start": "node server.js",
 		"prepare": "svelte-kit sync || echo ''",

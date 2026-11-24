@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '#lib/server/db/index.ts';
 import { listTenants } from '#lib/server/tenants.ts';
+import { today } from '#lib/dates.ts';
+import { newToolState, toolFile } from '#lib/domain/statement-tool.ts';
 import { outcome, routeEvent, testDatabase } from '#lib/server/testing.ts';
 import { actions, load } from './+page.server';
 
@@ -115,6 +117,45 @@ describe('datenuebernahme', () => {
 		expect(await run('preview', { kind: 'tenants', file: csv(huge) })).toMatchObject({
 			fail: 400,
 			data: { errors: { file: expect.stringContaining('höchstens') } }
+		});
+	});
+
+	it('takes over a file of the free statement tool and opens its draft', async () => {
+		const state = newToolState(today());
+		state.landlord.name = 'Eva Beispiel';
+		state.property = { name: '', street: 'Gartenweg 5', postalCode: '04109', city: 'Leipzig' };
+		state.units[0].area = '60';
+		state.units[0].tenancies[0].lastName = 'Erdmann';
+		state.items[0].amount = '1000';
+		const file = new File([toolFile(state)], 'Nebenkostenabrechnung.json', {
+			type: 'application/json'
+		});
+		expect(await run('tool', { toolFile: file })).toMatchObject({
+			redirect: expect.stringMatching(/^\/betriebskosten\/abrechnungen\/[\w-]+$/)
+		});
+	});
+
+	it('asks for the tool file, refuses a huge one and an incomplete one', async () => {
+		expect(await run('tool', {})).toMatchObject({
+			fail: 400,
+			data: { toolError: expect.stringContaining('wähle die gespeicherte Datei') }
+		});
+		const huge = new File(['x'.repeat(1_000_001)], 'gross.json');
+		expect(await run('tool', { toolFile: huge })).toMatchObject({
+			fail: 400,
+			data: { toolError: expect.stringContaining('zu groß') }
+		});
+		const incomplete = new File([toolFile(newToolState(today()))], 'leer.json');
+		expect(await run('tool', { toolFile: incomplete })).toMatchObject({
+			fail: 400,
+			data: { toolError: expect.stringContaining('noch nicht vollständig') }
+		});
+	});
+
+	it('refuses a file that is not from the statement tool', async () => {
+		expect(await run('tool', { toolFile: csv(tenants) })).toMatchObject({
+			fail: 400,
+			data: { toolError: expect.stringContaining('keine gespeicherte Abrechnung') }
 		});
 	});
 });
