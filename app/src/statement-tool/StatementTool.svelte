@@ -28,7 +28,15 @@
 		type ToolState,
 		type ToolUnit
 	} from '../lib/domain/statement-tool';
-	import { clearDraft, loadDraft, saveDraft } from './draft';
+	import {
+		clearDraft,
+		clearRescuedDraft,
+		fileSavedOn,
+		loadDraft,
+		markFileSaved,
+		rescuedDraft,
+		saveDraft
+	} from './draft';
 
 	// The whole tool on one page: house and landlord, flats and tenants, the costs with their keys,
 	// the consumption where a key needs it, and the result with a PDF per tenant. The result is
@@ -36,23 +44,39 @@
 
 	const today = berlinToday();
 	const draft = loadDraft(today);
-	let form = $state<ToolState>(draft ?? newToolState(today));
+	let form = $state<ToolState>(draft.state ?? newToolState(today));
+	const emptyFile = toolFile(newToolState(today));
 	const result = $derived(computeTool(form, today));
 	const meters = $derived(usedMeters(form));
 	const total = $derived(itemsTotal(form));
 	const blocking = $derived(result.issues.filter((issue) => issue.blocking));
 	const warnings = $derived(result.statement?.warnings ?? []);
+	const hasEntries = $derived(toolFile(form) !== emptyFile);
 	let stored = $state(true);
-	let notice = $state(draft ? 'Deine letzten Eingaben aus diesem Browser sind wieder da.' : '');
+	let notice = $state(
+		draft.state ? 'Deine letzten Eingaben aus diesem Browser sind wieder da.' : ''
+	);
+	let rescued = $state(draft.rescued);
+	let savedOn = $state(fileSavedOn());
 	let busy = $state('');
-	let confirmReset = $state(false);
+	// The step that replaces or clears entries waits for a second click.
+	let confirming = $state<'' | 'open' | 'next' | 'reset'>('');
 	let fileInput = $state<HTMLInputElement>();
 
 	// Saved a moment after the last change, so typing does not write on every key.
 	$effect(() => {
 		const snapshot = $state.snapshot(form) as ToolState;
 		const timer = setTimeout(() => (stored = saveDraft(snapshot)), 400);
-		return () => clearTimeout(timer);
+		// Closing the tab right after typing still keeps the last entry.
+		const flush = () => {
+			clearTimeout(timer);
+			stored = saveDraft(snapshot);
+		};
+		window.addEventListener('pagehide', flush);
+		return () => {
+			clearTimeout(timer);
+			window.removeEventListener('pagehide', flush);
+		};
 	});
 
 	const keyHints: Record<string, string> = {
@@ -141,8 +165,28 @@
 			`Nebenkostenabrechnung ${periodLabel(form.periodStart, form.periodEnd)}.json`,
 			'application/json'
 		);
+		markFileSaved(today);
+		savedOn = today;
 		notice =
 			'Die Datei liegt in deinen Downloads. Öffne sie hier wieder, um weiterzumachen, oder übernimm sie in ein mietkartei-Konto unter Einstellungen → Datenübernahme.';
+	}
+
+	async function saveRescued() {
+		const content = rescuedDraft();
+		if (!content) {
+			rescued = false;
+			return;
+		}
+		const { download } = await import('./files');
+		download(content, 'Nebenkostenabrechnung früherer Entwurf.json', 'application/json');
+		clearRescuedDraft();
+		rescued = false;
+		notice = 'Der frühere Entwurf liegt als Datei in deinen Downloads.';
+	}
+
+	function chooseFile() {
+		confirming = '';
+		fileInput?.click();
 	}
 
 	async function openFile(event: Event) {
@@ -156,11 +200,13 @@
 			return;
 		}
 		form = opened;
+		confirming = '';
 		notice = `„${file.name}“ ist geöffnet.`;
 	}
 
 	function startNextPeriod() {
 		form = nextPeriod($state.snapshot(form) as ToolState);
+		confirming = '';
 		notice = `Der Zeitraum ist jetzt ${formatDate(form.periodStart)} bis ${formatDate(form.periodEnd)}. Haus, Wohnungen und Mieter sind übernommen, trag die neuen Beträge ein.`;
 		document.getElementById('kosten')?.scrollIntoView();
 	}
@@ -168,7 +214,8 @@
 	function reset() {
 		clearDraft();
 		form = newToolState(today);
-		confirmReset = false;
+		savedOn = null;
+		confirming = '';
 		notice = 'Alle Eingaben sind gelöscht.';
 	}
 </script>
@@ -176,6 +223,37 @@
 <div class="tool">
 	{#if notice}
 		<p class="notice" role="status">{notice}</p>
+	{/if}
+	{#if rescued}
+		<div class="keep">
+			<p>
+				Ein früherer Entwurf aus diesem Browser lässt sich mit dieser Version nicht mehr öffnen. Er
+				ist aufbewahrt, lade ihn als Datei, bevor du neu anfängst.
+			</p>
+			<button class="small" type="button" onclick={saveRescued}>Früheren Entwurf laden</button>
+		</div>
+	{/if}
+	{#if !stored}
+		<div class="keep warn" role="alert">
+			<p>
+				Dieser Browser speichert nichts (privates Fenster?). Speichere die Abrechnung als Datei,
+				bevor du die Seite schließt.
+			</p>
+			<button class="small" type="button" onclick={saveFile}>Als Datei speichern</button>
+		</div>
+	{:else if hasEntries}
+		<div class="keep">
+			<p>
+				Deine Eingaben bleiben in diesem Browser, auch wenn du die Seite schließt.
+				{#if savedOn}
+					Zuletzt als Datei gesichert am {formatDate(savedOn)}.
+				{:else}
+					Willst du später weitermachen, sichere sie zusätzlich als Datei: Manche Browser löschen
+					gespeicherte Daten nach einigen Tagen ohne Besuch.
+				{/if}
+			</p>
+			<button class="small" type="button" onclick={saveFile}>Als Datei speichern</button>
+		</div>
 	{/if}
 
 	<section class="tool-section" aria-labelledby="schritt-haus">
@@ -644,7 +722,9 @@
 		<h2 id="speichern">Speichern und weitermachen</h2>
 		<p class="hint">
 			{#if stored}
-				Deine Eingaben bleiben nur in diesem Browser gespeichert und werden nicht übertragen.
+				Deine Eingaben bleiben nur in diesem Browser gespeichert und werden nicht übertragen. Als
+				Datei nimmst du sie auf ein anderes Gerät mit und bist sicher, falls der Browser seine Daten
+				löscht.
 			{:else}
 				Dieser Browser speichert nichts (privates Fenster?). Speichere die Abrechnung als Datei,
 				bevor du die Seite schließt.
@@ -652,7 +732,13 @@
 		</p>
 		<div class="result-actions">
 			<button class="small" type="button" onclick={saveFile}>Als Datei speichern</button>
-			<button class="small" type="button" onclick={() => fileInput?.click()}>Datei öffnen</button>
+			<button
+				class="small"
+				type="button"
+				onclick={() => (hasEntries ? (confirming = 'open') : chooseFile())}
+			>
+				Datei öffnen
+			</button>
 			<input
 				class="visually-hidden"
 				type="file"
@@ -662,18 +748,45 @@
 				tabindex="-1"
 				aria-hidden="true"
 			/>
-			<button class="small" type="button" onclick={startNextPeriod}>
+			<button class="small" type="button" onclick={() => (confirming = 'next')}>
 				Für den nächsten Zeitraum übernehmen
 			</button>
-			{#if confirmReset}
-				<button class="small danger" type="button" onclick={reset}>Ja, alles löschen</button>
-				<button class="link" type="button" onclick={() => (confirmReset = false)}>Abbrechen</button>
-			{:else}
-				<button class="link" type="button" onclick={() => (confirmReset = true)}>
-					Neu beginnen
-				</button>
-			{/if}
+			<button class="link" type="button" onclick={() => (confirming = 'reset')}>
+				Neu beginnen
+			</button>
 		</div>
+		{#if confirming}
+			<div class="confirm" role="group" aria-label="Bestätigen">
+				<p>
+					{#if confirming === 'open'}
+						Die Datei ersetzt deine jetzigen Eingaben.
+					{:else if confirming === 'next'}
+						Die Beträge und Verbräuche dieses Zeitraums werden geleert, Haus, Wohnungen und Mieter
+						bleiben.
+					{:else}
+						Alle Eingaben werden gelöscht.
+					{/if}
+					{#if savedOn}
+						Zuletzt als Datei gesichert am {formatDate(savedOn)}.
+					{:else}
+						Deine Eingaben sind noch nicht als Datei gesichert.
+					{/if}
+				</p>
+				<div class="result-actions">
+					<button class="small" type="button" onclick={saveFile}>Erst als Datei speichern</button>
+					{#if confirming === 'open'}
+						<button class="small danger" type="button" onclick={chooseFile}>Trotzdem öffnen</button>
+					{:else if confirming === 'next'}
+						<button class="small danger" type="button" onclick={startNextPeriod}>
+							Ja, übernehmen
+						</button>
+					{:else}
+						<button class="small danger" type="button" onclick={reset}>Ja, alles löschen</button>
+					{/if}
+					<button class="link" type="button" onclick={() => (confirming = '')}>Abbrechen</button>
+				</div>
+			</div>
+		{/if}
 	</section>
 </div>
 
@@ -696,6 +809,41 @@
 		border-left: 4px solid var(--highlight);
 		background: var(--field);
 		border-radius: 8px;
+	}
+	.keep {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px 24px;
+		margin: 0 0 24px;
+		padding: 14px 18px;
+		border: 1px solid var(--line);
+		border-radius: 8px;
+	}
+	.keep p {
+		flex: 1 1 320px;
+		margin: 0;
+		color: var(--muted);
+		font-size: var(--text-sm);
+	}
+	.keep.warn {
+		border-color: var(--error);
+	}
+	.keep.warn p {
+		color: var(--foreground);
+	}
+	.confirm {
+		margin-top: 20px;
+		padding: 16px 18px;
+		border: 1px solid var(--error);
+		border-radius: 10px;
+	}
+	.confirm p {
+		margin: 0;
+	}
+	.confirm .result-actions {
+		margin-top: 12px;
 	}
 	.tool-section {
 		padding: 40px 0;
