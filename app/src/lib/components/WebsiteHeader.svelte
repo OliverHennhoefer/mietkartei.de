@@ -14,6 +14,9 @@
 		</picture>
 	</a>
 	<nav class="website-links" aria-label="Seitenlinks">
+		<a class="website-tool-link" href="https://mietkartei.de/nebenkostenabrechnung/erstellen/"
+			>Nebenkostenrechner<span>kostenlos</span></a
+		>
 		{#if page.url.pathname !== resolve('/anmelden')}
 			<a class="website-sign-in" href={resolve('/anmelden')}>Anmelden</a>
 		{/if}

@@ -40,6 +40,15 @@ export function saveDraft(state: ToolState): boolean {
 	}
 }
 
+/** Removes the stored entries but keeps the date of the last file save. */
+export function forgetDraft(): void {
+	try {
+		localStorage.removeItem(KEY);
+	} catch {
+		// Nothing stored, nothing to remove.
+	}
+}
+
 export function clearDraft(): void {
 	try {
 		localStorage.removeItem(KEY);

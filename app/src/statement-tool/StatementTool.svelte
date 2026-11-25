@@ -7,6 +7,7 @@
 		categoryName,
 		computeTool,
 		directRows,
+		applyLetterEdits,
 		filledItems,
 		isHeating,
 		itemsTotal,
@@ -25,11 +26,13 @@
 		toolMeterLabels,
 		usedMeters,
 		type ToolItem,
+		type ToolLetterEdit,
 		type ToolState,
 		type ToolUnit
 	} from '../lib/domain/statement-tool';
 	import {
 		clearDraft,
+		forgetDraft,
 		clearRescuedDraft,
 		fileSavedOn,
 		loadDraft,
@@ -37,6 +40,10 @@
 		rescuedDraft,
 		saveDraft
 	} from './draft';
+	import { exampleToolState } from './example';
+	import LetterEditor from './LetterEditor.svelte';
+	import { statementFilename, statementLetter } from '../lib/domain/statement-letter';
+	import type { Letter } from '../lib/server/pdf';
 
 	// The whole tool on one page: house and landlord, flats and tenants, the costs with their keys,
 	// the consumption where a key needs it, and the result with a PDF per tenant. The result is
@@ -45,18 +52,39 @@
 	const today = berlinToday();
 	const draft = loadDraft(today);
 	let form = $state<ToolState>(draft.state ?? newToolState(today));
-	const emptyFile = toolFile(newToolState(today));
+	// The entries without their random ids, to tell an untouched form from one with entries.
+	const withoutIds = (state: ToolState) =>
+		JSON.stringify(state, (key, value) => (key === 'id' ? undefined : value));
+	const emptyForm = withoutIds(newToolState(today));
 	const result = $derived(computeTool(form, today));
 	const meters = $derived(usedMeters(form));
 	const total = $derived(itemsTotal(form));
 	const blocking = $derived(result.issues.filter((issue) => issue.blocking));
 	const warnings = $derived(result.statement?.warnings ?? []);
-	const hasEntries = $derived(toolFile(form) !== emptyFile);
+	const hasEntries = $derived(withoutIds(form) !== emptyForm);
+	// A stored draft nobody typed into (an earlier version saved the untouched form) is no draft.
+	const restored = draft.state !== undefined && withoutIds(draft.state) !== emptyForm;
 	let stored = $state(true);
-	let notice = $state(
-		draft.state ? 'Deine letzten Eingaben aus diesem Browser sind wieder da.' : ''
-	);
+	let notice = $state(restored ? 'Deine letzten Eingaben aus diesem Browser sind wieder da.' : '');
 	let rescued = $state(draft.rescued);
+	// The example house is loaded; its entries are not the landlord's own.
+	let isExample = $state(false);
+
+	// "Mit Beispiel ausprobieren" on the page above the tool links here with ?beispiel; it never
+	// replaces entries someone already made.
+	const query = location.search.slice(1).split('&').filter(Boolean);
+	const rest = query.filter((part) => part.split('=')[0] !== 'beispiel');
+	if (rest.length < query.length) {
+		if (restored) {
+			notice =
+				'Deine letzten Eingaben aus diesem Browser sind wieder da. Das Beispiel lädst du nach „Neu beginnen“ ganz unten.';
+		} else {
+			form = exampleToolState(today);
+			isExample = true;
+		}
+		const search = rest.length ? `?${rest.join('&')}` : '';
+		history.replaceState(null, '', `${location.pathname}${search}${location.hash}`);
+	}
 	let savedOn = $state(fileSavedOn());
 	let busy = $state('');
 	// The step that replaces or clears entries waits for a second click.
@@ -66,11 +94,18 @@
 	// Saved a moment after the last change, so typing does not write on every key.
 	$effect(() => {
 		const snapshot = $state.snapshot(form) as ToolState;
-		const timer = setTimeout(() => (stored = saveDraft(snapshot)), 400);
+		// An untouched form and the example house are not stored: a first visit or a look at the
+		// example leaves nothing behind, and the next visit starts clean.
+		const blank = !hasEntries || isExample;
+		const save = () => {
+			if (blank) forgetDraft();
+			else stored = saveDraft(snapshot);
+		};
+		const timer = setTimeout(save, 400);
 		// Closing the tab right after typing still keeps the last entry.
 		const flush = () => {
 			clearTimeout(timer);
-			stored = saveDraft(snapshot);
+			save();
 		};
 		window.addEventListener('pagehide', flush);
 		return () => {
@@ -134,14 +169,31 @@
 			.join(', ');
 	}
 
-	async function pdf(lease: LeaseStatement) {
+	/** The letter as computed, before the landlord's wording. */
+	function computedLetter(lease: LeaseStatement): Letter {
+		return statementLetter(lease, { prepayments: 'entered' });
+	}
+
+	function letterOf(lease: LeaseStatement) {
+		return applyLetterEdits(computedLetter(lease), form.letterEdits[lease.leaseId]);
+	}
+
+	async function pdf(lease: LeaseStatement, letter: Letter = letterOf(lease).letter) {
 		busy = lease.leaseId;
 		try {
 			const { downloadLetter } = await import('./files');
-			await downloadLetter(lease);
+			await downloadLetter(letter, statementFilename(lease));
 		} finally {
 			busy = '';
 		}
+	}
+
+	// The lease whose letter is open for editing.
+	let editing = $state<LeaseStatement | null>(null);
+
+	function saveEdits(lease: LeaseStatement, edits: ToolLetterEdit[]) {
+		if (edits.length > 0) form.letterEdits[lease.leaseId] = edits;
+		else delete form.letterEdits[lease.leaseId];
 	}
 
 	async function pdfAll() {
@@ -150,7 +202,7 @@
 		try {
 			const { downloadAll } = await import('./files');
 			await downloadAll(
-				result.statement.leases,
+				result.statement.leases.map((lease) => letterOf(lease).letter),
 				`Betriebskostenabrechnung ${periodLabel(form.periodStart, form.periodEnd)} alle Mieter.pdf`
 			);
 		} finally {
@@ -184,6 +236,13 @@
 		notice = 'Der frühere Entwurf liegt als Datei in deinen Downloads.';
 	}
 
+	function loadExample() {
+		form = exampleToolState(today);
+		isExample = true;
+		notice = '';
+		document.getElementById('ergebnis')?.scrollIntoView({ block: 'start' });
+	}
+
 	function chooseFile() {
 		confirming = '';
 		fileInput?.click();
@@ -215,6 +274,7 @@
 		clearDraft();
 		form = newToolState(today);
 		savedOn = null;
+		isExample = false;
 		confirming = '';
 		notice = 'Alle Eingaben sind gelöscht.';
 	}
@@ -233,6 +293,15 @@
 			<button class="small" type="button" onclick={saveRescued}>Früheren Entwurf laden</button>
 		</div>
 	{/if}
+	{#if isExample}
+		<div class="keep example">
+			<p>
+				<strong>Das ist ein Beispielhaus</strong> mit drei Wohnungen, Mieterwechsel, Wasserzählern und
+				Gasheizung. Ändere ruhig Zahlen und sieh, wie sich das Ergebnis ändert.
+			</p>
+			<button class="small" type="button" onclick={reset}>Leer anfangen</button>
+		</div>
+	{/if}
 	{#if !stored}
 		<div class="keep warn" role="alert">
 			<p>
@@ -241,7 +310,7 @@
 			</p>
 			<button class="small" type="button" onclick={saveFile}>Als Datei speichern</button>
 		</div>
-	{:else if hasEntries}
+	{:else if hasEntries && !isExample}
 		<div class="keep">
 			<p>
 				Deine Eingaben bleiben in diesem Browser, auch wenn du die Seite schließt.
@@ -662,6 +731,7 @@
 					</thead>
 					<tbody>
 						{#each result.statement.leases as lease (lease.leaseId)}
+							{@const letter = letterOf(lease)}
 							<tr>
 								<td>
 									{leaseName(lease)}
@@ -679,14 +749,29 @@
 									{#if lease.balance !== 0}{formatCents(Math.abs(lease.balance))}{/if}
 								</td>
 								<td>
-									<button
-										class="small"
-										type="button"
-										disabled={!result.ready || busy !== ''}
-										onclick={() => pdf(lease)}
-									>
-										{busy === lease.leaseId ? 'Wird erstellt …' : 'PDF'}
-									</button>
+									<div class="lease-actions">
+										<button
+											class="small"
+											type="button"
+											disabled={!result.ready || busy !== ''}
+											onclick={() => (editing = lease)}
+										>
+											Brief ansehen
+										</button>
+										<button
+											class="small"
+											type="button"
+											disabled={!result.ready || busy !== ''}
+											onclick={() => pdf(lease, letter.letter)}
+										>
+											{busy === lease.leaseId ? 'Wird erstellt …' : 'PDF'}
+										</button>
+									</div>
+									{#if letter.stale.length > 0}
+										<small class="edited stale-note">Zahlen geändert, deinen Text prüfen</small>
+									{:else if form.letterEdits[lease.leaseId]}
+										<small class="edited">Text angepasst</small>
+									{/if}
 								</td>
 							</tr>
 						{/each}
@@ -707,7 +792,8 @@
 				{:else}
 					<p class="hint">
 						Jedes PDF ist der fertige Brief an den Mieter: Kostenaufstellung mit Rechenweg,
-						Vorauszahlungen, Ergebnis und ein Prüfprotokoll als Anlage.
+						Vorauszahlungen, Ergebnis und ein Prüfprotokoll als Anlage. Unter „Brief ansehen“
+						änderst du seinen Text, etwa die Anrede oder einen Satz zur Heizung.
 					</p>
 				{/if}
 			</div>
@@ -715,8 +801,24 @@
 			<p class="hint">
 				Sobald du Kosten einträgst, steht hier, was jeder Mieter zahlt oder zurückbekommt.
 			</p>
+			{#if !hasEntries}
+				<button class="small" type="button" onclick={loadExample}>Mit Beispiel ausprobieren</button>
+			{/if}
 		{/if}
 	</section>
+
+	{#if editing}
+		{@const lease = editing}
+		<LetterEditor
+			title="Brief an {leaseName(lease)}"
+			letter={computedLetter(lease)}
+			edits={form.letterEdits[lease.leaseId] ?? []}
+			busy={busy !== ''}
+			onsave={(edits) => saveEdits(lease, edits)}
+			ondownload={(letter) => pdf(lease, letter)}
+			onclose={() => (editing = null)}
+		/>
+	{/if}
 
 	<section class="tool-section save" aria-labelledby="speichern">
 		<h2 id="speichern">Speichern und weitermachen</h2>
@@ -826,6 +928,13 @@
 		margin: 0;
 		color: var(--muted);
 		font-size: var(--text-sm);
+	}
+	.keep.example {
+		border-left: 4px solid var(--highlight);
+	}
+	.keep strong {
+		color: var(--foreground);
+		font-weight: 600;
 	}
 	.keep.warn {
 		border-color: var(--error);
@@ -1017,6 +1126,21 @@
 		align-items: center;
 		gap: 12px 20px;
 		margin-top: 20px;
+	}
+	.lease-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 8px;
+	}
+	.edited {
+		display: block;
+		margin-top: 4px;
+		color: var(--muted);
+		font-size: var(--text-xs);
+		text-align: right;
+	}
+	.stale-note {
+		color: var(--error);
 	}
 	.result-actions .hint {
 		margin: 0;

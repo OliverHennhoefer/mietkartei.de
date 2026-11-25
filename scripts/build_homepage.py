@@ -128,7 +128,7 @@ def build_statement_tool(page: Path) -> None:
 
 def frame_pages() -> None:
     """Puts the one header and footer of website/_header.html and _footer.html into every page,
-    so no page drifts from the others, and marks the footer link of the page itself."""
+    so no page drifts from the others, and marks the header and footer link of the page itself."""
     header = (ROOT / "website" / "_header.html").read_text(encoding="utf-8")
     footer = (ROOT / "website" / "_footer.html").read_text(encoding="utf-8")
     for page in OUTPUT.rglob("*.html"):
@@ -138,7 +138,8 @@ def frame_pages() -> None:
         folder = page.relative_to(OUTPUT).parent.as_posix()
         path = "/" if folder == "." else f"/{folder}/"
         own = footer.replace(f'<a href="{path}">', f'<a href="{path}" aria-current="page">')
-        text = text.replace("      <!-- header -->\n", header).replace("      <!-- footer -->\n", own)
+        own_header = header.replace(f'<a class="tool-link" href="{path}">', f'<a class="tool-link" href="{path}" aria-current="page">')
+        text = text.replace("      <!-- header -->\n", own_header).replace("      <!-- footer -->\n", own)
         page.write_text(text, encoding="utf-8")
 
 
@@ -148,6 +149,7 @@ add_faq_json_ld(OUTPUT / "nebenkostenabrechnung" / "erstellen" / "index.html")
 build_statement_tool(OUTPUT / "nebenkostenabrechnung" / "erstellen" / "index.html")
 fingerprint_screenshots(OUTPUT / "index.html")
 fingerprint_screenshots(OUTPUT / "nebenkostenabrechnung" / "index.html")
+fingerprint_screenshots(OUTPUT / "nebenkostenabrechnung" / "erstellen" / "index.html")
 build_guides(ROOT / "website", OUTPUT)
 build_reference_cases(ROOT / "website", OUTPUT)
 frame_pages()

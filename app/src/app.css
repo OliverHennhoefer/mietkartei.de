@@ -699,6 +699,35 @@ button.account-card[aria-expanded='true'] {
 	align-items: center;
 	gap: 12px;
 }
+/* The free statement tool on the website, as in its header. */
+.website-tool-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 40px;
+	padding: 0 8px;
+	color: var(--color-text);
+	font-size: var(--text-sm);
+	font-weight: 500;
+	text-decoration: none;
+	text-underline-offset: 4px;
+}
+.website-tool-link:hover {
+	text-decoration: underline;
+}
+.website-tool-link span {
+	padding: 2px 8px;
+	border-radius: 999px;
+	background: var(--color-highlight);
+	color: var(--color-highlight-text);
+	font-size: var(--text-xs);
+	font-weight: 600;
+}
+@media (max-width: 720px) {
+	.website-tool-link {
+		display: none;
+	}
+}
 /* The way to the sign-in page, as on the website; left out on the sign-in page itself. */
 .website-sign-in {
 	display: inline-flex;

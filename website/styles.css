@@ -61,6 +61,12 @@ a { color: inherit; }
 /* The way into the hosted app, quiet beside the GitHub icon so the homepage's own buttons lead. */
 .sign-in { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border: 1px solid var(--line); border-radius: 8px; font-size: var(--text-sm); font-weight: 500; text-decoration: none; transition: border-color 140ms; }
 .sign-in:hover { border-color: var(--foreground); }
+/* The free statement tool, a service of its own next to the app: in every header, beside the sign-in. */
+.tool-link { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 8px; color: var(--foreground); font-size: var(--text-sm); font-weight: 500; text-decoration: none; text-underline-offset: 4px; }
+.tool-link:hover { text-decoration: underline; }
+.tool-link span { padding: 2px 8px; border-radius: 999px; background: var(--highlight); color: #000; font-size: var(--text-xs); font-weight: 600; }
+.tool-link[aria-current="page"] { text-decoration: underline; text-decoration-color: var(--highlight); text-decoration-thickness: 3px; }
+@media (max-width: 720px) { .tool-link { display: none; } }
 
 main { flex: 1; }
 
@@ -139,7 +145,13 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .tool-teaser h2 { margin: 14px 0 0; font-size: clamp(24px, 2.4vw, 32px); font-weight: 500; line-height: 1.2; letter-spacing: -.03em; }
 .tool-teaser-copy { max-width: 720px; }
 .tool-teaser-copy p:not(.kicker) { margin: 12px 0 0; color: var(--muted); font-size: var(--text-lg); line-height: 1.6; }
-.tool-teaser .button { flex: none; }
+.tool-teaser { padding-block: 40px 0; align-items: flex-end; }
+.tool-teaser-copy { padding-bottom: 40px; }
+.tool-teaser-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; margin-top: 24px; }
+.tool-teaser-actions .feature-more { margin-top: 0; }
+/* The letter the tool prints, rising out of the card's lower edge. */
+.tool-teaser-sheet { flex: none; align-self: flex-end; width: 260px; height: 220px; overflow: hidden; }
+.tool-teaser-sheet img { display: block; width: 100%; height: auto; border-radius: 4px 4px 0 0; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .06), 0 20px 48px -16px rgb(0 0 0 / .3); transform: rotate(-2deg) translateY(10px); transform-origin: bottom left; }
 .features { padding: clamp(72px, 10vh, 112px) 0 0; }
 .feature { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: center; gap: 72px; margin-top: 80px; }
 .feature:nth-of-type(even) .feature-copy { order: 2; }
@@ -223,7 +235,8 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
   .feature, .assistant-inner { grid-template-columns: minmax(0, 1fr); gap: 32px; }
   .feature { margin-top: 64px; }
   .feature:nth-of-type(even) .feature-copy { order: 0; }
-  .tool-teaser { flex-direction: column; align-items: stretch; gap: 24px; }
+  .tool-teaser { flex-direction: column; align-items: stretch; gap: 0; }
+  .tool-teaser-sheet { display: none; }
   .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .facts li:nth-child(3) { border-left: 0; }
   .facts li:nth-child(n + 3) { border-top: 1px solid var(--line); }
@@ -245,7 +258,8 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
   .float-surplus { left: 8px; bottom: -28px; padding: 12px 16px; }
   .facts li { padding: 20px 16px; }
   .facts strong { font-size: var(--text-lg); }
-  .tool-teaser { padding: 28px 20px 24px; }
+  .tool-teaser { padding: 28px 20px 0; }
+  .tool-teaser-copy { padding-bottom: 28px; }
   .features { padding-top: 72px; }
   .assistant { margin-top: 72px; padding: 64px 24px; }
   .promises { padding-top: 64px; }
@@ -539,6 +553,33 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; }
 
 /* The free statement tool (/nebenkostenabrechnung/erstellen/): three facts under the lead, the
    tool itself (its own styles come with its script) and the way into the app after it. */
+/* The statement tool's own landing: copy on the left, the letter it prints as a small stack of
+   paper on the right, so people see the result before they type anything. */
+.tool-page { max-width: 1192px; }
+.tool-hero { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: center; gap: 64px; }
+.tool-eyebrow { display: flex; align-items: center; gap: 10px; }
+.tool-eyebrow span { padding: 3px 10px; border-radius: 999px; background: var(--highlight); color: #000; font-weight: 600; letter-spacing: .06em; }
+.tool-hero-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 32px; }
+.sheets { position: relative; display: block; width: min(100%, 420px); justify-self: center; padding: 0 0 56px 0; color: var(--muted); text-decoration: none; }
+.sheet { display: block; width: 100%; height: auto; border-radius: 4px; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .06), 0 24px 56px -20px rgb(0 0 0 / .28); }
+.sheet-back { position: absolute; top: 18px; left: 28px; transform: rotate(3deg); opacity: .9; }
+.sheet-front { position: relative; transform: rotate(-1.5deg); transition: transform 200ms; }
+.sheets:hover .sheet-front { transform: rotate(-1.5deg) translateY(-6px); }
+.sheets-caption { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font-size: var(--text-sm); }
+.sheets-caption u { color: var(--foreground); text-decoration-color: var(--highlight); text-decoration-thickness: 3px; text-underline-offset: 5px; }
+.sheets::before { content: ""; position: absolute; inset: 10% -12% 20%; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--highlight) 50%, transparent), transparent); opacity: .35; filter: blur(30px); }
+@media (prefers-color-scheme: dark) {
+  .sheet { box-shadow: 0 24px 56px -16px #000; }
+  .sheets::before { opacity: .18; }
+}
+@media (prefers-reduced-motion: reduce) { .sheet-front { transition: none; } }
+@media (max-width: 900px) {
+  .tool-hero { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+  .sheets { width: min(72%, 300px); }
+}
+@media (max-width: 600px) {
+  .tool-hero-actions { flex-direction: column; }
+}
 .tool-facts { display: flex; flex-wrap: wrap; gap: 12px 32px; margin: 28px 0 0; padding: 0; list-style: none; color: var(--muted); font-size: var(--text-base); }
 .tool-facts li { display: block; }
 .tool-facts li::before { content: ""; display: inline-block; margin-right: 8px; width: 10px; height: 10px; border-radius: 2px; background: var(--highlight); }
