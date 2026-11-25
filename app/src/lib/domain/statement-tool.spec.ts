@@ -380,4 +380,35 @@ describe('letter edits', () => {
 		});
 		expect(nextPeriod(state).letterEdits).toEqual({});
 	});
+
+	it('reads only well-formed edits from a file', () => {
+		const parsed = parseToolFile(
+			JSON.stringify({
+				format: 'mietkartei-nebenkostenabrechnung',
+				version: 1,
+				letterEdits: { m: [{ original: 'a', text: 'b' }, { original: 1 }, 'kaputt'], n: 'kaputt' }
+			}),
+			today
+		)!;
+		expect(parsed.letterEdits).toEqual({ m: [{ original: 'a', text: 'b' }], n: [] });
+	});
+
+	it('works on letters made of paragraphs and tables', () => {
+		const table = { columns: [{ label: 'A' }], rows: [['1']] };
+		const plain = {
+			sender: [],
+			recipient: [],
+			date: '',
+			subject: '',
+			paragraphs: ['Eins', 'Zwei'],
+			tables: [table]
+		};
+		expect(letterParagraphs(plain)).toEqual(['Eins', 'Zwei']);
+		expect(applyLetterEdits(plain).letter.blocks).toEqual([
+			{ paragraph: 'Eins' },
+			{ paragraph: 'Zwei' },
+			{ table }
+		]);
+		expect(letterEditsOf(['Eins'], [])).toEqual([{ original: 'Eins', text: '' }]);
+	});
 });

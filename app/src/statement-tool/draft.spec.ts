@@ -4,6 +4,7 @@ import {
 	clearDraft,
 	clearRescuedDraft,
 	fileSavedOn,
+	forgetDraft,
 	loadDraft,
 	markFileSaved,
 	rescuedDraft,
@@ -61,6 +62,23 @@ describe('draft', () => {
 		expect(loadDraft(today)).toEqual({ rescued: false });
 		expect(saveDraft(newToolState(today))).toBe(false);
 		expect(fileSavedOn()).toBeNull();
-		expect(() => clearDraft()).not.toThrow();
+		expect(rescuedDraft()).toBeNull();
+		expect(() => {
+			clearDraft();
+			forgetDraft();
+			clearRescuedDraft();
+			markFileSaved(today);
+		}).not.toThrow();
+	});
+
+	it('forgets the entries but remembers the last file save', () => {
+		vi.stubGlobal('localStorage', memoryStorage());
+		const state = newToolState(today);
+		state.landlord.name = 'Eva Beispiel';
+		saveDraft(state);
+		markFileSaved(today);
+		forgetDraft();
+		expect(loadDraft(today)).toEqual({ rescued: false });
+		expect(fileSavedOn()).toBe(today);
 	});
 });
