@@ -82,6 +82,7 @@
 					></p>
 				{:else if block.table}
 					{@const columns = widths(block.table)}
+					{#if block.table.title}<p class="table-title">{block.table.title}</p>{/if}
 					<table>
 						<colgroup>
 							{#each columns as share, column (column)}<col style:width="{share}%" />{/each}
@@ -230,6 +231,8 @@
 		vertical-align: top;
 		text-align: left;
 		overflow-wrap: anywhere;
+		/* Cells break lines where the PDF does, e.g. the Kostenart over its BetrKV item. */
+		white-space: pre-line;
 	}
 	th {
 		border-bottom: calc(0.5 * var(--pt)) solid #666;
@@ -241,6 +244,10 @@
 	}
 	.right {
 		text-align: right;
+	}
+	.table-title {
+		margin: calc(8 * var(--pt)) 0 calc(2 * var(--pt));
+		font-weight: bold;
 	}
 	.girocode {
 		display: flex;

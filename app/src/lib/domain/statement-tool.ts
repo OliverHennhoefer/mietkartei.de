@@ -3,6 +3,7 @@ import { formatCents, parseCents } from '../money';
 import { parseDecimal } from '../format';
 import { meterKindLabels } from '../labels';
 import type { Fuel, MeterKind } from '../server/db/schema';
+import type { Letter, LetterBlock } from '../server/pdf';
 import { co2KgFromKwh } from './co2';
 import { defaultCategories, defaultKeyNameFor, defaultKeys } from './operating-cost-defaults';
 import { monthlyAmounts } from './rents';
@@ -122,7 +123,16 @@ export type ToolState = {
 	consumption: Record<ToolMeterKind, Record<string, string>>;
 	/** Heat meters measure kWh, heat cost allocators unitless Einheiten. */
 	heatUnit: 'kWh' | 'Einheiten';
+	/** The landlord's own wording of paragraphs of a tenant's letter, by tenancy id. */
+	letterEdits: Record<string, ToolLetterEdit[]>;
 };
+
+/**
+ * A paragraph of a letter as the landlord rewrote it. `original` is the computed text it replaces;
+ * when new numbers change that text, the edit no longer applies and is shown for review instead of
+ * printing old numbers. An empty `text` leaves the paragraph out.
+ */
+export type ToolLetterEdit = { original: string; text: string };
 
 let counter = 0;
 
@@ -187,7 +197,8 @@ export function newToolState(today: IsoDate): ToolState {
 		units: [newUnit(1)],
 		items: defaultCategories.map((category) => newItem(category.betrkvItem!)),
 		consumption: { cold_water: {}, hot_water: {}, heat: {} },
-		heatUnit: 'kWh'
+		heatUnit: 'kWh',
+		letterEdits: {}
 	};
 }
 
@@ -643,7 +654,9 @@ export function nextPeriod(state: ToolState): ToolState {
 			amounts: {},
 			co2: item.co2 ? { ...item.co2, fuelKwh: '', co2Kg: '', co2Cost: '' } : null
 		})),
-		consumption: { cold_water: {}, hot_water: {}, heat: {} }
+		consumption: { cold_water: {}, hot_water: {}, heat: {} },
+		// The new period's letters have new numbers; last year's wording would not fit them.
+		letterEdits: {}
 	};
 }
 
@@ -767,6 +780,61 @@ export function parseToolFile(content: string, today: IsoDate): ToolState | unde
 			hot_water: stringRecord(consumption.hot_water),
 			heat: stringRecord(consumption.heat)
 		},
-		heatUnit: oneOf(data.heatUnit, ['kWh', 'Einheiten'] as const, 'kWh')
+		heatUnit: oneOf(data.heatUnit, ['kWh', 'Einheiten'] as const, 'kWh'),
+		letterEdits: Object.fromEntries(
+			Object.entries(record(data.letterEdits)).map(([id, edits]) => [
+				id,
+				list(edits)
+					.map((entry) => record(entry))
+					.filter((entry) => typeof entry.original === 'string' && typeof entry.text === 'string')
+					.map((entry) => ({ original: text(entry.original), text: text(entry.text) }))
+			])
+		)
 	};
+}
+
+/** The blocks of a letter, like blocksOf in pdf.ts; a copy, so the form does not load pdf-lib. */
+function blocksOf(letter: Letter): LetterBlock[] {
+	if (letter.blocks) return letter.blocks;
+	return [
+		...letter.paragraphs.map((paragraph) => ({ paragraph })),
+		...(letter.tables ?? []).map((table) => ({ table }))
+	];
+}
+
+/** The paragraph blocks of a letter, in order. */
+export function letterParagraphs(letter: Letter): string[] {
+	return blocksOf(letter).flatMap((block) => ('paragraph' in block ? [block.paragraph] : []));
+}
+
+/**
+ * The letter with the landlord's wording in place of the computed paragraphs, and the edits whose
+ * computed paragraph is no longer in the letter because the numbers changed.
+ */
+export function applyLetterEdits(
+	letter: Letter,
+	edits: ToolLetterEdit[] = []
+): { letter: Letter; stale: ToolLetterEdit[] } {
+	const byOriginal = new Map(edits.map((edit) => [edit.original, edit.text]));
+	const used = new Set<string>();
+	const blocks = blocksOf(letter).flatMap((block): LetterBlock[] => {
+		if (!('paragraph' in block) || !byOriginal.has(block.paragraph)) return [block];
+		used.add(block.paragraph);
+		const text = byOriginal.get(block.paragraph)!.trim();
+		return text ? [{ paragraph: text }] : [];
+	});
+	return {
+		letter: { ...letter, paragraphs: [], blocks },
+		stale: edits.filter((edit) => !used.has(edit.original))
+	};
+}
+
+/** The edits that turn the computed paragraphs into the ones on the sheet. */
+export function letterEditsOf(originals: string[], texts: string[]): ToolLetterEdit[] {
+	// The sheet turns spaces into non-breaking ones and may add a line break at the end.
+	const clean = (text: string) => text.replace(/\u00a0/g, ' ').trim();
+	return originals.flatMap((original, index) => {
+		const text = clean(texts[index] ?? '');
+		return text === clean(original) ? [] : [{ original, text }];
+	});
 }

@@ -1,5 +1,4 @@
-import { statementFilename, statementLetter } from '../lib/domain/statement-letter';
-import type { LeaseStatement } from '../lib/domain/statement';
+import type { Letter } from '../lib/server/pdf';
 
 // What the tool hands the browser: the letters as PDF and the saved state as a file. pdf-lib is
 // the largest part of the tool, so this module is loaded only when a PDF is asked for.
@@ -17,15 +16,14 @@ export function download(bytes: Uint8Array | string, filename: string, type: str
 	setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-/** The letter of one tenant, exactly as the app prints it. */
-export async function downloadLetter(lease: LeaseStatement): Promise<void> {
+/** The letter of one tenant, as the app prints it with the landlord's wording. */
+export async function downloadLetter(letter: Letter, filename: string): Promise<void> {
 	const { renderLetter } = await import('../lib/server/pdf');
-	const bytes = await renderLetter(statementLetter(lease, { prepayments: 'entered' }));
-	download(bytes, statementFilename(lease), 'application/pdf');
+	download(await renderLetter(letter), filename, 'application/pdf');
 }
 
 /** All letters in one PDF, one after the other, for printing them in one go. */
-export async function downloadAll(leases: LeaseStatement[], filename: string): Promise<void> {
+export async function downloadAll(letters: Letter[], filename: string): Promise<void> {
 	const [{ renderLetter }, { PDFDocument }] = await Promise.all([
 		import('../lib/server/pdf'),
 		import('pdf-lib')
@@ -35,11 +33,9 @@ export async function downloadAll(leases: LeaseStatement[], filename: string): P
 	all.setLanguage('de-DE');
 	all.setCreator('mietkartei');
 	all.setProducer('mietkartei');
-	for (const lease of leases) {
-		const letter = await PDFDocument.load(
-			await renderLetter(statementLetter(lease, { prepayments: 'entered' }))
-		);
-		const pages = await all.copyPages(letter, letter.getPageIndices());
+	for (const letter of letters) {
+		const rendered = await PDFDocument.load(await renderLetter(letter));
+		const pages = await all.copyPages(rendered, rendered.getPageIndices());
 		for (const page of pages) all.addPage(page);
 	}
 	download(await all.save(), filename, 'application/pdf');

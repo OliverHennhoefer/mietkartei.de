@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { renderLetter } from '../server/pdf';
 import { statementLetter } from './statement-letter';
 import {
+	applyLetterEdits,
 	computeTool,
+	letterEditsOf,
+	letterParagraphs,
 	formatTyped,
 	itemsTotal,
 	newItem,
@@ -318,6 +321,94 @@ describe('toolFile', () => {
 		expect(parsed.units[0].tenancies[0]).toMatchObject({ start: '', persons: '3' });
 		expect(parsed.items).toHaveLength(1);
 		expect(parsed.items[0]).toMatchObject({ key: 'area', consumptionPercent: 70 });
+		expect(parsed.letterEdits).toEqual({});
 		expect(newItem(2).meter).toBe('cold_water');
+	});
+});
+
+describe('letter edits', () => {
+	function letter(state: ToolState) {
+		return statementLetter(computeTool(state, today).statement!.leases[0], {
+			prepayments: 'entered'
+		});
+	}
+
+	it("puts the landlord's wording in place of the computed paragraphs", () => {
+		const state = house();
+		fill(state, 1, '1000');
+		const computed = letter(state);
+		const paragraphs = letterParagraphs(computed);
+		const texts = [...paragraphs];
+		texts[0] = 'Hallo Herr Alt,';
+		texts[texts.length - 1] = '';
+		const edits = letterEditsOf(paragraphs, texts);
+		expect(edits).toEqual([
+			{ original: paragraphs[0], text: 'Hallo Herr Alt,' },
+			{ original: paragraphs[paragraphs.length - 1], text: '' }
+		]);
+		const applied = applyLetterEdits(computed, edits);
+		expect(applied.stale).toEqual([]);
+		expect(letterParagraphs(applied.letter)).toEqual([
+			'Hallo Herr Alt,',
+			...paragraphs.slice(1, -1)
+		]);
+		// Tables stay where they were.
+		expect(applied.letter.blocks!.filter((block) => 'table' in block)).toHaveLength(
+			computed.blocks!.filter((block) => 'table' in block).length
+		);
+	});
+
+	it('does not print an edit whose computed paragraph changed with new numbers', () => {
+		const state = house();
+		fill(state, 1, '1000');
+		const before = letterParagraphs(letter(state));
+		const result = before.findIndex((text) => text.startsWith('Kosten gesamt'));
+		const edits = [{ original: before[result], text: 'Alte Zahlen' }];
+		fill(state, 1, '1200');
+		const applied = applyLetterEdits(letter(state), edits);
+		expect(applied.stale).toEqual(edits);
+		expect(letterParagraphs(applied.letter)).not.toContain('Alte Zahlen');
+	});
+
+	it('keeps the edits in the saved file and leaves them out of the next period', () => {
+		const state = house();
+		fill(state, 1, '1000');
+		const id = state.units[0].tenancies[0].id;
+		state.letterEdits[id] = [{ original: 'a', text: 'b' }];
+		expect(parseToolFile(toolFile(state), today)!.letterEdits).toEqual({
+			[id]: [{ original: 'a', text: 'b' }]
+		});
+		expect(nextPeriod(state).letterEdits).toEqual({});
+	});
+
+	it('reads only well-formed edits from a file', () => {
+		const parsed = parseToolFile(
+			JSON.stringify({
+				format: 'mietkartei-nebenkostenabrechnung',
+				version: 1,
+				letterEdits: { m: [{ original: 'a', text: 'b' }, { original: 1 }, 'kaputt'], n: 'kaputt' }
+			}),
+			today
+		)!;
+		expect(parsed.letterEdits).toEqual({ m: [{ original: 'a', text: 'b' }], n: [] });
+	});
+
+	it('works on letters made of paragraphs and tables', () => {
+		const table = { columns: [{ label: 'A' }], rows: [['1']] };
+		const plain = {
+			sender: [],
+			recipient: [],
+			date: '',
+			subject: '',
+			paragraphs: ['Eins', 'Zwei'],
+			tables: [table]
+		};
+		expect(letterParagraphs(plain)).toEqual(['Eins', 'Zwei']);
+		expect(applyLetterEdits(plain).letter.blocks).toEqual([
+			{ paragraph: 'Eins' },
+			{ paragraph: 'Zwei' },
+			{ table }
+		]);
+		expect(letterEditsOf(['Eins'], [])).toEqual([{ original: 'Eins', text: '' }]);
 	});
 });

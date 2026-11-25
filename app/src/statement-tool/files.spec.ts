@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { statementFilename, statementLetter } from '../lib/domain/statement-letter';
 import { computeTool, newToolState } from '../lib/domain/statement-tool';
 import { download, downloadAll, downloadLetter } from './files';
 
@@ -58,8 +59,9 @@ describe('files', () => {
 	it('offers the letter of one tenant and all letters in one PDF', async () => {
 		const downloads = fakeDocument();
 		const { leases } = statement();
-		await downloadLetter(leases[0]);
-		await downloadAll(leases, 'alle.pdf');
+		const letters = leases.map((lease) => statementLetter(lease, { prepayments: 'entered' }));
+		await downloadLetter(letters[0], statementFilename(leases[0]));
+		await downloadAll(letters, 'alle.pdf');
 		expect(downloads.map((entry) => entry.name)).toEqual([
 			'Betriebskostenabrechnung 2025 Wohnung 1.pdf',
 			'alle.pdf'
