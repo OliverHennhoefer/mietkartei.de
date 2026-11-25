@@ -104,9 +104,10 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .section-lead a { color: var(--foreground); text-decoration-color: var(--highlight); text-decoration-thickness: 3px; text-underline-offset: 4px; }
 
 .hero { max-width: 900px; margin: 0 auto; padding: clamp(48px, 9vh, 112px) 0 56px; text-align: center; }
-.latest { display: inline-flex; align-items: center; gap: 12px; max-width: 100%; padding: 6px 16px 6px 6px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: var(--text-base); text-decoration: none; transition: border-color 140ms, color 140ms; }
-.latest:hover { border-color: var(--foreground); color: var(--foreground); }
-.latest-tag { flex: none; padding: 3px 10px; border-radius: 999px; background: var(--highlight); color: #000; font-size: var(--text-xs); font-weight: 600; }
+.latest { display: inline-flex; align-items: center; gap: 14px; max-width: 100%; padding: 7px 20px 7px 7px; border: 1px solid color-mix(in srgb, var(--highlight), var(--foreground) 12%); border-radius: 999px; background: color-mix(in srgb, var(--highlight) 12%, var(--background)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--highlight) 18%, transparent), 0 12px 32px -12px color-mix(in srgb, var(--highlight) 70%, transparent); color: var(--foreground); font-size: var(--text-lg); font-weight: 500; text-decoration: none; transition: border-color 140ms, box-shadow 140ms; }
+.latest:hover { border-color: var(--foreground); }
+.latest-tag { flex: none; padding: 4px 12px; border-radius: 999px; background: var(--highlight); color: #000; font-size: var(--text-sm); font-weight: 600; }
+.latest > span[aria-hidden] { font-size: var(--text-xl); font-weight: 400; }
 .latest-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hero h1 { margin: 36px 0 0; font-size: clamp(40px, 5.4vw, 68px); font-weight: 500; line-height: 1.08; letter-spacing: -.045em; text-wrap: balance; }
 .hero-lead { max-width: 660px; margin: 28px auto 0 !important; color: var(--muted); font-size: var(--text-xl); line-height: 1.6; }
@@ -133,6 +134,12 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .facts li + li { border-left: 1px solid var(--line); }
 .facts strong { color: var(--foreground); font-size: var(--text-xl); font-weight: 600; letter-spacing: -.02em; }
 
+/* The free statement tool between the facts and the yearly tasks, on a soft neon haze like the stage. */
+.tool-teaser { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 48px; margin-top: clamp(72px, 10vh, 112px); padding: 40px 48px; overflow: hidden; border: 1px solid var(--line); border-left: 8px solid var(--highlight); border-radius: 20px; background: radial-gradient(60% 140% at 0% 50%, color-mix(in srgb, var(--highlight) 16%, transparent), transparent); }
+.tool-teaser h2 { margin: 14px 0 0; font-size: clamp(24px, 2.4vw, 32px); font-weight: 500; line-height: 1.2; letter-spacing: -.03em; }
+.tool-teaser-copy { max-width: 720px; }
+.tool-teaser-copy p:not(.kicker) { margin: 12px 0 0; color: var(--muted); font-size: var(--text-lg); line-height: 1.6; }
+.tool-teaser .button { flex: none; }
 .features { padding: clamp(72px, 10vh, 112px) 0 0; }
 .feature { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: center; gap: 72px; margin-top: 80px; }
 .feature:nth-of-type(even) .feature-copy { order: 2; }
@@ -141,6 +148,12 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 .feature-more { display: inline-block; margin-top: 12px; color: var(--foreground); font-weight: 500; text-decoration-color: var(--highlight); text-decoration-thickness: 3px; text-underline-offset: 5px; }
 .feature-more:hover { text-decoration-color: currentColor; }
 .feature-more + .feature-more { margin-left: 18px; }
+/* The free statement tool, as a card under the copy of the first task: the neon edge of the logo. */
+.feature-tool { display: flex; align-items: center; gap: 16px; margin-top: 28px; padding: 18px 22px; border: 1px solid var(--line); border-left: 6px solid var(--highlight); border-radius: 12px; text-decoration: none; transition: border-color 140ms; }
+.feature-tool:hover { border-color: var(--foreground); border-left-color: var(--highlight); }
+.feature-tool span:first-child { display: grid; gap: 2px; flex: 1; color: var(--muted); font-size: var(--text-base); line-height: 1.45; }
+.feature-tool strong { color: var(--foreground); font-size: var(--text-lg); font-weight: 600; }
+.feature-tool > span[aria-hidden] { flex: none; font-size: var(--text-xl); }
 .feature-copy p { margin-top: 16px; color: var(--muted); font-size: var(--text-lg); line-height: 1.7; }
 
 .areas { padding: 96px 0 0; }
@@ -182,6 +195,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 
 @media (prefers-color-scheme: dark) {
   .stage-glow { opacity: .22; }
+  .latest { border-color: color-mix(in srgb, var(--highlight) 55%, var(--line)); background: color-mix(in srgb, var(--highlight) 7%, var(--background)); box-shadow: 0 12px 32px -16px color-mix(in srgb, var(--highlight) 50%, transparent); }
   .window { border-color: #3d3f44; box-shadow: 0 40px 80px -24px rgb(0 0 0 / .7); }
   .float { box-shadow: 0 24px 48px -12px #000; }
   .assistant { background: #141518; }
@@ -189,7 +203,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .latest, .button { transition: none; }
+  .latest, .button, .feature-tool { transition: none; }
 }
 
 @media (max-width: 1200px) {
@@ -209,6 +223,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
   .feature, .assistant-inner { grid-template-columns: minmax(0, 1fr); gap: 32px; }
   .feature { margin-top: 64px; }
   .feature:nth-of-type(even) .feature-copy { order: 0; }
+  .tool-teaser { flex-direction: column; align-items: stretch; gap: 24px; }
   .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .facts li:nth-child(3) { border-left: 0; }
   .facts li:nth-child(n + 3) { border-top: 1px solid var(--line); }
@@ -220,8 +235,9 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
   .home { font-size: var(--text-lg); }
   .hero { padding-top: 40px; }
   .hero h1 { font-size: clamp(30px, 8.6vw, 40px); }
-  .latest { font-size: var(--text-xs); border-radius: 20px; text-align: left; }
-  .latest-title { white-space: normal; }
+  .latest { gap: 12px; padding-right: 16px; border-radius: 22px; font-size: var(--text-sm); line-height: 1.35; text-align: left; }
+  .feature-tool { padding: 16px 18px; }
+  .latest-title { white-space: normal; hyphens: auto; }
   .hero-actions { flex-direction: column; }
   .section-lead { font-size: var(--text-lg); }
   .window-bar b { display: none; }
@@ -229,6 +245,7 @@ h1 { margin: 0; font-size: clamp(44px, min(5.8vw, 9.5vh), 80px); font-weight: 50
   .float-surplus { left: 8px; bottom: -28px; padding: 12px 16px; }
   .facts li { padding: 20px 16px; }
   .facts strong { font-size: var(--text-lg); }
+  .tool-teaser { padding: 28px 20px 24px; }
   .features { padding-top: 72px; }
   .assistant { margin-top: 72px; padding: 64px 24px; }
   .promises { padding-top: 64px; }
