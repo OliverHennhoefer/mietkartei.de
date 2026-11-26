@@ -1,7 +1,7 @@
 import Sqlite from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { DATABASE_PATH } from '$app/env/private';
 import type { Database } from './index';
@@ -13,7 +13,17 @@ const keptBackups = 3;
 
 /** Opens the SQLite file once per process and brings its schema up to date. */
 export function openSqlite(): Database {
-	if (!database) database = createSqliteDatabase(DATABASE_PATH);
+	if (!database) {
+		// A container without a persistent volume starts over with an empty database whenever it is
+		// recreated, and the first sign-up then takes over the instance. Say so in the log.
+		if (!existsSync(DATABASE_PATH)) {
+			console.warn(
+				`No database at ${DATABASE_PATH}, starting with an empty one. If data was expected ` +
+					'here, the data directory is not on a persistent volume or host folder.'
+			);
+		}
+		database = createSqliteDatabase(DATABASE_PATH);
+	}
 	return database;
 }
 

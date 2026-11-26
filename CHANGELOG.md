@@ -36,6 +36,7 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ### Geändert
 
+- Selbst hosten mit Docker: Die Anleitung erklärt, wie du mietkartei auf einem NAS wie Unraid, Synology oder QNAP einrichtest, ohne dass Daten verloren gehen. Ohne eingebundenen Ordner `/data` beginnt ein neu angelegter Container mit einer leeren Datenbank; das Protokoll des Containers meldet das jetzt beim Start. Siehe [Selbst hosten](https://docs.mietkartei.de/selbst-hosten/).
 - Anlegen öffnet überall einen Dialog über der Liste, wie das Bearbeiten: Der Knopf „+ … anlegen“ oben auf der Seite öffnet ihn, etwa für Dienstleister, Bankverbindungen, Gegenkonten, Regeln, Kostenarten, Umlageschlüssel, Einheiten, Zähler, Abrechnungskreise, Versicherungen, Hausgeldabrechnungen, Ausgaben, Interessenten, API-Schlüssel und Abrechnungsentwürfe. Zahlungen und Korrekturen im Mietkonto, Kautionsbewegungen sowie Eintritt, Personenstand und Kündigung im Mietvertrag buchst du ebenso im Dialog. Die Formulare unter den Tabellen entfallen.
 - Versehentlich ignorierte Bankumsätze holst du gleich danach mit **Rückgängig** zurück. Beim erneuten Import zeigt die Vorschau ignorierte Zeilen als ignoriert an und sagt, wo du sie wieder öffnest.
 - Klarere Seiten nach einem Durchgang zu Bedienung und Gestaltung:
