@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { baseRateOn, defaultInterest, formatRate, halfYearStart } from './default-interest';
+import { defaultInterest, formatRate, halfYearStart } from './default-interest';
 
 const rates = [
 	{ validFrom: '2025-01-01', rate: 227 },
@@ -10,12 +10,10 @@ const rates = [
 
 const item = (dueDate: string, open: number) => ({ label: 'Miete', dueDate, amount: open, open });
 
-describe('halfYearStart and baseRateOn', () => {
-	it('finds the half-year and its rate', () => {
+describe('halfYearStart', () => {
+	it('finds the start of the half-year', () => {
 		expect(halfYearStart('2026-06-30')).toBe('2026-01-01');
 		expect(halfYearStart('2026-07-01')).toBe('2026-07-01');
-		expect(baseRateOn(rates, '2026-10-24')?.rate).toBe(152);
-		expect(baseRateOn(rates, '2024-12-31')).toBeUndefined();
 	});
 });
 

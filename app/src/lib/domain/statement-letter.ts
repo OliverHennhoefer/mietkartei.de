@@ -3,7 +3,7 @@ import { giroCode, paymentPurpose } from './girocode';
 import { formatDate, formatMonth, today } from '../dates';
 import { formatArea, formatNumber, personName, pluralize } from '../format';
 import { formatCents } from '../money';
-import type { Letter, PdfTable } from '../server/pdf';
+import type { Letter, PdfTable } from './letters';
 import { balanceLabel, changeLabel, DUE_DAYS, periodLabel, type LeaseStatement } from './statement';
 
 // The letter of the operating cost statement for one lease, built from the frozen result alone.

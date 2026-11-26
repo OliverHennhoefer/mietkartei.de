@@ -1,4 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { stringValues } from '#lib/forms/fields.ts';
 import { formatDate, today } from '#lib/dates.ts';
 import { leaseEndDeadlines, proposedEndDate } from '#lib/domain/lease-end.ts';
 import {
@@ -250,9 +251,7 @@ export const actions: Actions = {
 				values: result.values
 			});
 		}
-		const values = Object.fromEntries(
-			[...form].filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-		);
+		const values = stringValues(form);
 		const lease = await getLease(locals.db, context.accountId, params.id);
 		if (!lease) return notFound();
 		// The notice period of § 573c / § 580a BGB; an earlier end needs an agreement.

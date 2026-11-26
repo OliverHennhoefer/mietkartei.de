@@ -1,9 +1,9 @@
 import { addDays, daysInclusive, isIsoDate, monthOf, monthsInRange, type IsoDate } from '../dates';
-import { formatCents, parseCents } from '../money';
+import { parseCents } from '../money';
 import { parseDecimal } from '../format';
 import { meterKindLabels } from '../labels';
 import type { Fuel, MeterKind } from '../server/db/schema';
-import type { Letter, LetterBlock } from '../server/pdf';
+import { blocksOf, type Letter, type LetterBlock } from './letters';
 import { co2KgFromKwh } from './co2';
 import { defaultCategories, defaultKeyNameFor, defaultKeys } from './operating-cost-defaults';
 import { monthlyAmounts } from './rents';
@@ -618,12 +618,6 @@ export function itemsTotal(state: ToolState): number {
 	return filledItems(state).reduce((sum, item) => sum + (amountOf(item.amount) ?? 0), 0);
 }
 
-/** `1234,5` → `1.234,50 €`, empty for what is no amount. */
-export function formatTyped(text: string): string {
-	const cents = amountOf(text);
-	return cents === undefined ? '' : formatCents(cents);
-}
-
 // Next year and files
 
 /**
@@ -791,15 +785,6 @@ export function parseToolFile(content: string, today: IsoDate): ToolState | unde
 			])
 		)
 	};
-}
-
-/** The blocks of a letter, like blocksOf in pdf.ts; a copy, so the form does not load pdf-lib. */
-function blocksOf(letter: Letter): LetterBlock[] {
-	if (letter.blocks) return letter.blocks;
-	return [
-		...letter.paragraphs.map((paragraph) => ({ paragraph })),
-		...(letter.tables ?? []).map((table) => ({ table }))
-	];
 }
 
 /** The paragraph blocks of a letter, in order. */

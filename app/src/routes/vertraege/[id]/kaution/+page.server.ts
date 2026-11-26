@@ -1,4 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { stringValues } from '#lib/forms/fields.ts';
 import { isIsoDate, today } from '#lib/dates.ts';
 import { depositInstalments } from '#lib/domain/deposit.ts';
 import { MAX_DEDUCTIONS } from '#lib/domain/deposit-settlement.ts';
@@ -121,9 +122,7 @@ export const actions: Actions = {
 				settle: true,
 				message: created.message,
 				// The form as sent, so a refusal keeps what was typed.
-				values: Object.fromEntries(
-					[...form].filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-				),
+				values: stringValues(form),
 				arrears: created.arrears
 			});
 		}

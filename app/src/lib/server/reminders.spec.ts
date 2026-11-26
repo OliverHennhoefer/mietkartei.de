@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { formatCents } from '../money';
 import type { Database } from './db';
 import { accounts, auditLog, paymentReminders } from './db/schema';
-import type { LetterBlock } from './pdf';
+import type { LetterBlock } from '../domain/letters';
 import { createPayment } from './ledger';
 import {
 	createReminder,

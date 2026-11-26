@@ -2,7 +2,7 @@ import { formatDate, type IsoDate } from '../dates';
 import { formatNumber } from '../format';
 import { handoverKindLabels, roomConditionLabels } from '../labels';
 import type { HandoverKey, HandoverKind, HandoverReading, HandoverRoom } from '../server/db/schema';
-import type { LetterBlock } from '../server/pdf';
+import type { LetterBlock } from './letters';
 
 // Übergabeprotokoll: rooms with their condition, keys handed over and meter readings on the day
 // the tenant moves in or out. Pure, so the form's defaults and the PDF share one shape. The

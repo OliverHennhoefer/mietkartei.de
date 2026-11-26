@@ -2,7 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import LetterSheet from '#lib/components/LetterSheet.svelte';
-	import type { Letter, LetterBlock } from '#lib/server/pdf.ts';
+	import type { Letter, LetterBlock } from '#lib/domain/letters.ts';
 
 	// A link to a PDF or image that opens it in a dialog over the page instead of on its own,
 	// with a download button. Without JavaScript, with a modifier key, or in a browser that shows

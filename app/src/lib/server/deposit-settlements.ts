@@ -7,7 +7,11 @@ import {
 	settlementText,
 	type SettlementInput
 } from '../domain/deposit-settlement';
-import { letterText as editedLetterText, type LetterTextResult } from '../domain/letters';
+import {
+	letterText as editedLetterText,
+	type Letter,
+	type LetterTextResult
+} from '../domain/letters';
 import { formatCents } from '../money';
 import { addressLines, landlordAddress } from './accounts';
 import { auditEntry, type AuditContext } from './audit';
@@ -17,7 +21,6 @@ import { depositSettlements, depositTransactions, payments } from './db/schema';
 import { depositSummary, listDepositMovements } from './deposits';
 import { getLease } from './leases';
 import { listBalances } from './ledger';
-import type { Letter } from './pdf';
 import { assertQuota } from './quotas';
 import { recipientLines } from './rent-adjustments';
 

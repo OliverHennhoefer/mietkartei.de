@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { giroCodeModules, type GiroCode } from '#lib/domain/girocode.ts';
-	import type { Letter, LetterBlock, PdfTable } from '#lib/server/pdf.ts';
+	import type { Letter, LetterBlock, PdfTable } from '#lib/domain/letters.ts';
 
 	// A letter as an A4 sheet in HTML, laid out like renderLetter draws it (DIN 5008 form B, the
 	// measures of pdf.ts), so its text can be edited where it stands. The paragraphs are editable;

@@ -1,5 +1,7 @@
 import { isActionFailure, isHttpError, isRedirect } from '@sveltejs/kit';
+import Sqlite from 'better-sqlite3';
 import { and, eq, is, sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { getTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { hashPassword, type SessionUser } from './auth';
 import type { Database } from './db';
@@ -7,6 +9,7 @@ import * as schema from './db/schema';
 import { accounts, properties, rentCharges, tenants, units, users, type Theme } from './db/schema';
 import { createSqliteDatabase } from './db/sqlite';
 import type { Storage } from './storage';
+import { leaseInput } from './lease-fixture';
 import { createLease, type LeaseInput } from './leases';
 import {
 	createCostItem,
@@ -20,14 +23,28 @@ import type { TenantInput } from './tenants';
 // `b`), one owner each, and helpers that create the rows most tests need. Everything a test
 // creates in account `b` exists only to prove it does not leak into account `a`.
 
+export { leaseInput };
+
 export const address = { street: 'Lindenstraße 4', postalCode: '10115', city: 'Berlin' };
 
 export const contextA = { accountId: 'a', userId: 'user-a' };
 export const contextB = { accountId: 'b', userId: 'user-b' };
 
-/** A fresh in-memory database with accounts `a` and `b` and one owner each. */
+/** The migrated empty schema, built once per test file and copied for each test database. */
+let migrated: Buffer | undefined;
+
+/**
+ * A fresh in-memory database with accounts `a` and `b` and one owner each. It is a copy of a
+ * database the migrations ran on once, which takes a millisecond instead of running all of them
+ * again for every test.
+ */
 export async function testDatabase(): Promise<Database> {
-	const db = createSqliteDatabase(':memory:');
+	migrated ??= (
+		createSqliteDatabase(':memory:') as unknown as { $client: Sqlite.Database }
+	).$client.serialize();
+	const client = new Sqlite(migrated);
+	client.pragma('foreign_keys = ON');
+	const db: Database = drizzle(client);
 	await db.insert(accounts).values([
 		{ id: 'a', name: 'Konto A' },
 		{ id: 'b', name: 'Konto B' }
@@ -132,36 +149,6 @@ export async function seedTenant(
 		.values({ accountId, ...tenantInput(overrides) })
 		.returning({ id: tenants.id });
 	return tenant.id;
-}
-
-/** A plain residential lease from 2025-01-01 at 600 € + 150 € + 50 €. */
-export function leaseInput(unitId: string, overrides: Partial<LeaseInput> = {}): LeaseInput {
-	return {
-		unitId,
-		extraUnitIds: [],
-		tenantIds: [],
-		startDate: '2025-01-01',
-		endDate: null,
-		kind: 'residential',
-		rentModel: 'fixed',
-		operatingCostModel: 'prepayment',
-		heatingCostModel: 'prepayment',
-		baseRent: 60000,
-		parkingRent: 0,
-		operatingCostPrepayment: 15000,
-		heatingCostPrepayment: 5000,
-		securityDeposit: 180000,
-		persons: 2,
-		rentDueDay: 3,
-		ledgerStart: null,
-		indexBaseMonth: null,
-		indexBaseValue: null,
-		indexBaseYear: '2020',
-		terminatedAt: null,
-		terminatedBy: null,
-		notes: null,
-		...overrides
-	};
 }
 
 /**

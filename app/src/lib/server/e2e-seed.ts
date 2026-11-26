@@ -16,6 +16,7 @@ import {
 	users,
 	type UserRole
 } from './db/schema';
+import { leaseInput } from './lease-fixture';
 import { newLeaseStatements, type LeaseInput } from './leases';
 
 // Seeds data for the end-to-end tests, behind POST /api/e2e/seed (only when E2E is set). A feature's
@@ -109,34 +110,10 @@ async function seedLease(
 		tenantId: crypto.randomUUID(),
 		leaseId: crypto.randomUUID()
 	};
-	// The same plain lease as leaseInput() in testing.ts, which cannot be imported here because
-	// it pulls in the SQLite driver.
-	const input: LeaseInput = {
-		unitId: ids.unitId,
-		extraUnitIds: [],
+	const input = leaseInput(ids.unitId, {
 		tenantIds: [ids.tenantId],
-		startDate: '2025-01-01',
-		endDate: null,
-		kind: 'residential',
-		rentModel: 'fixed',
-		operatingCostModel: 'prepayment',
-		heatingCostModel: 'prepayment',
-		baseRent: 60000,
-		parkingRent: 0,
-		operatingCostPrepayment: 15000,
-		heatingCostPrepayment: 5000,
-		securityDeposit: 180000,
-		persons: 2,
-		rentDueDay: 3,
-		ledgerStart: null,
-		indexBaseMonth: null,
-		indexBaseValue: null,
-		indexBaseYear: '2020',
-		terminatedAt: null,
-		terminatedBy: null,
-		notes: null,
 		...overrides.lease
-	};
+	});
 	// One batch, so a failed insert leaves nothing behind.
 	await runBatch(db, [
 		db.insert(properties).values({

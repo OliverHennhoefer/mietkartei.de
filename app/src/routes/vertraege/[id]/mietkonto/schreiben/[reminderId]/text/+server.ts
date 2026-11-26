@@ -1,5 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import { blocksOf } from '#lib/server/pdf.ts';
+import { blocksOf } from '#lib/domain/letters.ts';
 import { reminderLetter, updateReminderText } from '#lib/server/reminders.ts';
 import { auditContext, requireAccount } from '#lib/server/session.ts';
 import type { RequestHandler } from './$types';

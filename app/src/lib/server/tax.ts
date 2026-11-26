@@ -27,7 +27,8 @@ import {
 	units
 } from './db/schema';
 import { ensureCharges } from './ledger';
-import type { PdfTable, Report } from './pdf';
+import type { PdfTable } from '../domain/letters';
+import type { Report } from './pdf';
 import { assertQuota } from './quotas';
 
 // Loads the rows of the Steuerübersicht of one property and year and hands them to the domain;
