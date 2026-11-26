@@ -1,4 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { stringValues } from '#lib/forms/fields.ts';
 import { formatDate } from '#lib/dates.ts';
 import {
 	depositWarning,
@@ -74,9 +75,7 @@ export const actions: Actions = {
 		const outcome = await updateLease(locals.db, context, lease.id, result.data);
 		if (!outcome.ok) {
 			if (outcome.reason === 'missing') error(404, 'Diesen Mietvertrag gibt es nicht.');
-			const values = Object.fromEntries(
-				[...form].filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-			);
+			const values = stringValues(form);
 			values.tenantIds = form
 				.getAll('tenantIds')
 				.filter((id) => typeof id === 'string')

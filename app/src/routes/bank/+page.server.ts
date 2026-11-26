@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { stringValues } from '#lib/forms/fields.ts';
 import {
 	suggestContraAccount,
 	suggestLease,
@@ -130,13 +131,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 function notFound(): never {
 	error(404, 'Diesen Umsatz gibt es nicht.');
-}
-
-/** The string fields of a form, for re-rendering a row after a refusal. */
-function stringValues(form: FormData): Record<string, string> {
-	const values: Record<string, string> = {};
-	for (const [name, value] of form.entries()) if (typeof value === 'string') values[name] = value;
-	return values;
 }
 
 const assignMessages = {

@@ -1,4 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { stringValues } from '#lib/forms/fields.ts';
 import { today } from '#lib/dates.ts';
 import { MAX_KEYS, MAX_ROOMS, protocolDefaults } from '#lib/domain/handover.ts';
 import { parseHandover } from '#lib/forms/handover.ts';
@@ -77,11 +78,7 @@ export const actions: Actions = {
 		if (!saved) error(404, 'Diesen Mietvertrag gibt es nicht.');
 		if (!saved.ok) {
 			// The form keeps what was typed.
-			const values = Object.fromEntries(
-				[...form.entries()].filter(
-					(entry): entry is [string, string] => typeof entry[1] === 'string'
-				)
-			);
+			const values = stringValues(form);
 			return fail(400, { message: saved.message, values });
 		}
 		redirect(303, `/vertraege/${params.id}/uebergabe`);

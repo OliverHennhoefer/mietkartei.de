@@ -20,6 +20,13 @@ export type FieldErrors<T> = Partial<Record<keyof T, string>>;
 export type ParseResult<T> =
 	{ ok: true; data: T } | { ok: false; errors: FieldErrors<T>; values: Record<string, string> };
 
+/** Every string field of the form as sent, for re-rendering it after a refusal; files are left out. */
+export function stringValues(form: FormData): Record<string, string> {
+	const values: Record<string, string> = {};
+	for (const [name, value] of form.entries()) if (typeof value === 'string') values[name] = value;
+	return values;
+}
+
 /** Collects errors while fields are parsed; `result()` builds the ParseResult. */
 export class FormParser<T> {
 	readonly errors: FieldErrors<T> = {};

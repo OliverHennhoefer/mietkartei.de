@@ -1,4 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { stringValues } from '#lib/forms/fields.ts';
 import { parseLetting } from '#lib/forms/lettings.ts';
 import { formatCentsPlain } from '#lib/money.ts';
 import { listUnitsWithProperty } from '#lib/server/leases.ts';
@@ -46,9 +47,7 @@ export const actions: Actions = {
 		const created = await createLetting(locals.db, auditContext(locals), result.data);
 		if (!created.ok) {
 			return fail(400, {
-				values: Object.fromEntries(
-					[...form].filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-				),
+				values: stringValues(form),
 				errors: {
 					unitId:
 						created.reason === 'open-exists'

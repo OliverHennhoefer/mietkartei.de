@@ -1,4 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { stringValues } from '#lib/forms/fields.ts';
 import { parseContraAccount, type ContraAccountFields } from '#lib/forms/contra-accounts.ts';
 import type { FieldErrors } from '#lib/forms/fields.ts';
 import { today } from '#lib/dates.ts';
@@ -50,12 +51,6 @@ const refusals: Record<ContraAccountRefusal, FieldErrors<ContraAccountFields>> =
 	'unknown-property': { propertyId: 'Dieses Objekt gibt es nicht.' },
 	'duplicate-number': { number: 'Ein Gegenkonto mit dieser Nummer gibt es schon.' }
 };
-
-function stringValues(form: FormData): Record<string, string> {
-	const values: Record<string, string> = {};
-	for (const [name, value] of form.entries()) if (typeof value === 'string') values[name] = value;
-	return values;
-}
 
 export const actions: Actions = {
 	create: async ({ request, locals }) => {

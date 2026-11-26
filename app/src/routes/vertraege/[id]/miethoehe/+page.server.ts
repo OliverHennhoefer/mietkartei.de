@@ -1,4 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { stringValues } from '#lib/forms/fields.ts';
 import { addMonthsToMonth, firstOfMonth, monthOf, today } from '#lib/dates.ts';
 import { comparativeSituation } from '#lib/domain/comparative-rent.ts';
 import { effectiveFrom, indexSituation, nextGraduatedStepAllowed } from '#lib/domain/index-rent.ts';
@@ -87,13 +88,6 @@ async function requireLease(locals: App.Locals, leaseId: string): Promise<LeaseS
 	const lease = await getLease(locals.db, requireAccount(locals), leaseId);
 	if (!lease) error(404, 'Diesen Mietvertrag gibt es nicht.');
 	return lease;
-}
-
-/** The string fields of a form, to re-render it after a refusal. */
-function stringValues(form: FormData): Record<string, string> {
-	const values: Record<string, string> = {};
-	for (const [name, value] of form.entries()) if (typeof value === 'string') values[name] = value;
-	return values;
 }
 
 function changeIdOf(form: FormData): string {
