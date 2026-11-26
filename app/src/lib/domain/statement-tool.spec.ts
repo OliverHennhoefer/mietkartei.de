@@ -6,7 +6,6 @@ import {
 	computeTool,
 	letterEditsOf,
 	letterParagraphs,
-	formatTyped,
 	itemsTotal,
 	newItem,
 	newTenancy,
@@ -265,13 +264,11 @@ describe('computeTool', () => {
 		expect(line.co2).toMatchObject({ co2Kg: 1500 });
 	});
 
-	it('sums the filled amounts and formats what was typed', () => {
+	it('sums the filled amounts', () => {
 		const state = house();
 		fill(state, 1, '1.000,50');
 		fill(state, 2, '99');
 		expect(itemsTotal(state)).toBe(109950);
-		expect(formatTyped('1234,5')).toMatch(/^1\.234,50\s€$/);
-		expect(formatTyped('abc')).toBe('');
 	});
 
 	it('computes nothing for an invalid period', () => {

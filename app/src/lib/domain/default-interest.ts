@@ -17,15 +17,6 @@ export function halfYearStart(date: IsoDate): IsoDate {
 	return `${date.slice(0, 4)}-${date.slice(5, 7) < '07' ? '01' : '07'}-01`;
 }
 
-/** The Basiszinssatz on a day: the rate of the latest half-year starting by then, if known. */
-export function baseRateOn(rates: readonly BaseRate[], date: IsoDate): BaseRate | undefined {
-	let found: BaseRate | undefined;
-	for (const rate of rates) {
-		if (rate.validFrom <= date && (!found || rate.validFrom > found.validFrom)) found = rate;
-	}
-	return found;
-}
-
 export type InterestResult = {
 	/** In cents, half-up, the items added up. */
 	amount: number;

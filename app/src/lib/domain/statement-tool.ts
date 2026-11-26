@@ -1,5 +1,5 @@
 import { addDays, daysInclusive, isIsoDate, monthOf, monthsInRange, type IsoDate } from '../dates';
-import { formatCents, parseCents } from '../money';
+import { parseCents } from '../money';
 import { parseDecimal } from '../format';
 import { meterKindLabels } from '../labels';
 import type { Fuel, MeterKind } from '../server/db/schema';
@@ -616,12 +616,6 @@ export function computeTool(state: ToolState, today: IsoDate): ToolResult {
 /** The sum of the filled items, for the form's footer. */
 export function itemsTotal(state: ToolState): number {
 	return filledItems(state).reduce((sum, item) => sum + (amountOf(item.amount) ?? 0), 0);
-}
-
-/** `1234,5` → `1.234,50 €`, empty for what is no amount. */
-export function formatTyped(text: string): string {
-	const cents = amountOf(text);
-	return cents === undefined ? '' : formatCents(cents);
 }
 
 // Next year and files
