@@ -77,15 +77,30 @@ describe('createSqliteDatabase', () => {
 });
 
 describe('openSqlite', () => {
-	it('warns in the log when it starts with a new, empty database', () => {
+	it('warns once in the log when it starts with a new, empty database', () => {
 		env.databasePath = join(root, 'data', 'mietkartei.db');
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		try {
 			const db = openSqlite();
 			expect(existsSync(env.databasePath)).toBe(true);
+			expect(openSqlite()).toBe(db);
 			expect(warn).toHaveBeenCalledOnce();
 			expect(warn.mock.calls[0][0]).toContain(`No database at ${env.databasePath}`);
 			client(db).close();
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	it('opens an existing database without a warning', async () => {
+		env.databasePath = join(root, 'mietkartei.db');
+		client(createSqliteDatabase(env.databasePath)).close();
+		vi.resetModules();
+		const { openSqlite: openFresh } = await import('./sqlite');
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			client(openFresh()).close();
+			expect(warn).not.toHaveBeenCalled();
 		} finally {
 			warn.mockRestore();
 		}
