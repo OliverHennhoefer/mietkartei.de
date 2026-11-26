@@ -1,5 +1,7 @@
 import { isActionFailure, isHttpError, isRedirect } from '@sveltejs/kit';
+import Sqlite from 'better-sqlite3';
 import { and, eq, is, sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { getTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { hashPassword, type SessionUser } from './auth';
 import type { Database } from './db';
@@ -25,9 +27,21 @@ export const address = { street: 'Lindenstraße 4', postalCode: '10115', city: '
 export const contextA = { accountId: 'a', userId: 'user-a' };
 export const contextB = { accountId: 'b', userId: 'user-b' };
 
-/** A fresh in-memory database with accounts `a` and `b` and one owner each. */
+/** The migrated empty schema, built once per test file and copied for each test database. */
+let migrated: Buffer | undefined;
+
+/**
+ * A fresh in-memory database with accounts `a` and `b` and one owner each. It is a copy of a
+ * database the migrations ran on once, which takes a millisecond instead of running all of them
+ * again for every test.
+ */
 export async function testDatabase(): Promise<Database> {
-	const db = createSqliteDatabase(':memory:');
+	migrated ??= (
+		createSqliteDatabase(':memory:') as unknown as { $client: Sqlite.Database }
+	).$client.serialize();
+	const client = new Sqlite(migrated);
+	client.pragma('foreign_keys = ON');
+	const db: Database = drizzle(client);
 	await db.insert(accounts).values([
 		{ id: 'a', name: 'Konto A' },
 		{ id: 'b', name: 'Konto B' }
