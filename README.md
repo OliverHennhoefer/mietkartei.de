@@ -37,7 +37,7 @@ Open Source, nachvollziehbar gerechnet, ohne Einarbeitung und direkt mit Claude 
 - **Zugänge:** Mitverwalter mit vollen Rechten oder Steuerberater mit Lesezugriff einladen.
 - **KI-Assistenten:** Claude und ChatGPT beantworten Fragen wie „Wer ist im Rückstand?“. (siehe [Anleitung](https://docs.mietkartei.de/anleitungen/ki-assistenten/))
 - **Kein Lock-in:** Offener Code, Datenübernahme per CSV, vollständiger Export und Änderungsprotokoll.
-- **Kein Datengeschäft:** Keine Werbung. Selbst betrieben kostenlos, gehostet 5 € im Monat oder 50 € im Jahr, egal wie viele Wohnungen.
+- **Kein Datengeschäft:** Keine Werbung. Selbst betrieben kostenlos, gehostet 5 € im Monat oder 45 € im Jahr, egal wie viele Wohnungen.
 
 ## Ausprobieren: Demo oder selbst hosten
 
