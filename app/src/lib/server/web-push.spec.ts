@@ -1,9 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { fromBase64Url, toBase64Url } from '../encoding';
 import {
-	base64Url,
 	deviceLabel,
 	encryptPush,
-	fromBase64Url,
 	PushGoneError,
 	sendPush,
 	validPushEndpoint,
@@ -43,7 +42,7 @@ async function browser() {
 	])) as CryptoKeyPair;
 	const auth = crypto.getRandomValues(new Uint8Array(16));
 	const p256dh = new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey));
-	return { pair, keys: { p256dh: base64Url(p256dh), auth: base64Url(auth) } };
+	return { pair, keys: { p256dh: toBase64Url(p256dh), auth: toBase64Url(auth) } };
 }
 
 async function hkdf(
@@ -121,7 +120,7 @@ describe('encryptPush', () => {
 		const receiver = await browser();
 		const one = await encryptPush(encoder.encode('a'), receiver.keys);
 		const two = await encryptPush(encoder.encode('a'), receiver.keys);
-		expect(base64Url(one.slice(0, 86))).not.toBe(base64Url(two.slice(0, 86)));
+		expect(toBase64Url(one.slice(0, 86))).not.toBe(toBase64Url(two.slice(0, 86)));
 	});
 
 	it('refuses a message that does not fit one record', async () => {
@@ -134,9 +133,9 @@ describe('VAPID', () => {
 	it('reads the key with or without line breaks and signs a token the services can check', async () => {
 		const key = await serverKey();
 		const keys = await vapidKeys(key.pem);
-		expect(keys?.publicKey).toBe(base64Url(key.publicRaw));
+		expect(keys?.publicKey).toBe(toBase64Url(key.publicRaw));
 		const flat = key.pem.replace(/\n/g, '');
-		expect((await vapidKeys(flat))?.publicKey).toBe(base64Url(key.publicRaw));
+		expect((await vapidKeys(flat))?.publicKey).toBe(toBase64Url(key.publicRaw));
 		expect(await vapidKeys('')).toBeUndefined();
 
 		const token = await vapidToken(
@@ -169,7 +168,7 @@ describe('VAPID', () => {
 			vapidKeys('-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----')
 		).rejects.toThrow();
 		const key = await serverKey();
-		expect((await vapidKeys(key.pem))?.publicKey).toBe(base64Url(key.publicRaw));
+		expect((await vapidKeys(key.pem))?.publicKey).toBe(toBase64Url(key.publicRaw));
 	});
 });
 
@@ -199,7 +198,7 @@ describe('subscriptions', () => {
 	it('checks the size of the browser keys', async () => {
 		const { keys } = await browser();
 		expect(validSubscriptionKeys(keys)).toBe(true);
-		expect(validSubscriptionKeys({ ...keys, auth: base64Url(new Uint8Array(8)) })).toBe(false);
+		expect(validSubscriptionKeys({ ...keys, auth: toBase64Url(new Uint8Array(8)) })).toBe(false);
 		expect(validSubscriptionKeys({ ...keys, p256dh: 'abc' })).toBe(false);
 		expect(validSubscriptionKeys({ ...keys, p256dh: '***' })).toBe(false);
 	});

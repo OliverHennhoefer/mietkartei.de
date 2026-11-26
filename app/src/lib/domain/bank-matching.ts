@@ -1,5 +1,6 @@
 import { findHeaderRow, parseCsv, toRecords } from '../csv';
 import { parseGermanDate, type IsoDate } from '../dates';
+import { sha256Hex } from '../encoding';
 import { parseCents } from '../money';
 import type { MatchingField } from '../server/db/schema';
 
@@ -382,11 +383,6 @@ export function fingerprintInput(row: BankRow, occurrence: number): string {
 	].join('|');
 }
 
-async function sha256Hex(text: string): Promise<string> {
-	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-	return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
 export type FingerprintedRow = BankRow & { occurrence: number; fingerprint: string };
 
 /**
@@ -407,24 +403,6 @@ export async function fingerprintRows(rows: BankRow[]): Promise<FingerprintedRow
 			};
 		})
 	);
-}
-
-// Base64 for the hidden field that carries the file from the preview to the commit; btoa/atob
-// exist on Node and on Workers, Buffer only on Node.
-
-export function bytesToBase64(bytes: Uint8Array): string {
-	let binary = '';
-	for (let index = 0; index < bytes.length; index += 0x8000) {
-		binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
-	}
-	return btoa(binary);
-}
-
-export function base64ToBytes(base64: string): Uint8Array {
-	const binary = atob(base64);
-	const bytes = new Uint8Array(binary.length);
-	for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-	return bytes;
 }
 
 // Matching

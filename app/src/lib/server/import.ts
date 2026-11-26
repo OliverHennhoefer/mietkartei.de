@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { findHeaderRow } from '../csv';
 import { firstOfMonth, formatDate, monthOf, parseGermanDate, today, type IsoDate } from '../dates';
+import { fromBase64, toBase64 } from '../encoding';
 import { formDataOf } from '../forms/fields';
 import { parseLease, parseOpeningBalance } from '../forms/leases';
 import { parsePayment } from '../forms/ledger';
@@ -1400,20 +1401,13 @@ export async function commitImport(
 
 /** UTF-8 text → base64. */
 export function encodeContent(text: string): string {
-	const bytes = new TextEncoder().encode(text);
-	let binary = '';
-	for (let index = 0; index < bytes.length; index += 0x8000) {
-		binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
-	}
-	return btoa(binary);
+	return toBase64(new TextEncoder().encode(text));
 }
 
 /** base64 → UTF-8 text, or undefined when the field was tampered with. */
 export function decodeContent(encoded: string): string | undefined {
 	try {
-		const binary = atob(encoded);
-		const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-		return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+		return new TextDecoder('utf-8', { fatal: true }).decode(fromBase64(encoded));
 	} catch {
 		return undefined;
 	}

@@ -1,5 +1,6 @@
 import { eq, lt } from 'drizzle-orm';
 import { TRIAL_FINGERPRINT_KEY } from '$app/env/private';
+import { hmacSha256Hex } from '../encoding';
 import { billingEnabled } from './billing';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
@@ -32,25 +33,9 @@ export function canonicalEmail(email: string): string {
 	return `${local}@${domain}`;
 }
 
-const encoder = new TextEncoder();
-
 /** HMAC-SHA-256 of the canonical address under `key`, hex. */
-export async function trialFingerprint(email: string, key: string): Promise<string> {
-	const cryptoKey = await crypto.subtle.importKey(
-		'raw',
-		encoder.encode(key),
-		{ name: 'HMAC', hash: 'SHA-256' },
-		false,
-		['sign']
-	);
-	const signature = await crypto.subtle.sign(
-		'HMAC',
-		cryptoKey,
-		encoder.encode(canonicalEmail(email))
-	);
-	return Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, '0')).join(
-		''
-	);
+export function trialFingerprint(email: string, key: string): Promise<string> {
+	return hmacSha256Hex(key, canonicalEmail(email));
 }
 
 /**

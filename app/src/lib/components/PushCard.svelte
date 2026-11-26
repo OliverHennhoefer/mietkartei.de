@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { onMount, tick } from 'svelte';
+	import { fromBase64Url, toBase64Url } from '#lib/encoding.ts';
 
 	// The Mitteilungen of this browser: asks for the permission, subscribes at the browser's push
 	// service with the server's key and hands the subscription to the form action ?/push, which
@@ -66,18 +67,8 @@
 		status = 'ready';
 	});
 
-	function keyBytes(key: string): Uint8Array<ArrayBuffer> {
-		const base64 = key.replaceAll('-', '+').replaceAll('_', '/');
-		const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
-		return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
-	}
-
 	function encode(buffer: ArrayBuffer | null): string {
-		if (!buffer) return '';
-		return btoa(String.fromCharCode(...new Uint8Array(buffer)))
-			.replaceAll('+', '-')
-			.replaceAll('/', '_')
-			.replace(/=+$/, '');
+		return buffer ? toBase64Url(new Uint8Array(buffer)) : '';
 	}
 
 	/** The promise, or an error once `seconds` have passed without an answer. */
@@ -119,7 +110,7 @@
 			subscription ??= await within(
 				worker.pushManager.subscribe({
 					userVisibleOnly: true,
-					applicationServerKey: keyBytes(publicKey)
+					applicationServerKey: fromBase64Url(publicKey)
 				}),
 				30
 			);

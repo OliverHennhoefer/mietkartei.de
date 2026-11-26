@@ -5,6 +5,7 @@ import {
 } from '$app/env/private';
 import { normalizeIban, normalizeText, type RowResult } from '../../domain/bank-matching';
 import type { IsoDate } from '../../dates';
+import { pkcs8Bytes, toBase64Url } from '../../encoding';
 
 // A minimal client of the Enable Banking API (api.enablebanking.com), which holds the PSD2
 // licence and fetches account statements from the banks: the landlord authorizes the access at
@@ -26,21 +27,8 @@ export class EnableBankingError extends Error {
 	}
 }
 
-function base64Url(bytes: Uint8Array | string): string {
-	const binary =
-		typeof bytes === 'string'
-			? bytes
-			: Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
-	return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-/** The DER bytes of a PKCS#8 PEM key ("-----BEGIN PRIVATE KEY-----"). */
-function pemBytes(pem: string): Uint8Array<ArrayBuffer> {
-	const body = pem
-		.replace(/\\n/g, '\n')
-		.replace(/-----(BEGIN|END) PRIVATE KEY-----/g, '')
-		.replace(/\s+/g, '');
-	return Uint8Array.from(atob(body), (char) => char.charCodeAt(0));
+function jsonBase64Url(value: unknown): string {
+	return toBase64Url(new TextEncoder().encode(JSON.stringify(value)));
 }
 
 let cachedKey: { pem: string; key: Promise<CryptoKey> } | undefined;
@@ -51,7 +39,7 @@ function signingKey(pem: string): Promise<CryptoKey> {
 			pem,
 			key: crypto.subtle.importKey(
 				'pkcs8',
-				pemBytes(pem),
+				pkcs8Bytes(pem),
 				{ name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
 				false,
 				['sign']
@@ -67,22 +55,20 @@ export async function applicationToken(
 	pem: string,
 	nowSeconds = Math.floor(Date.now() / 1000)
 ): Promise<string> {
-	const header = base64Url(JSON.stringify({ typ: 'JWT', alg: 'RS256', kid: appId }));
-	const payload = base64Url(
-		JSON.stringify({
-			iss: 'enablebanking.com',
-			aud: 'api.enablebanking.com',
-			iat: nowSeconds,
-			exp: nowSeconds + 3600
-		})
-	);
+	const header = jsonBase64Url({ typ: 'JWT', alg: 'RS256', kid: appId });
+	const payload = jsonBase64Url({
+		iss: 'enablebanking.com',
+		aud: 'api.enablebanking.com',
+		iat: nowSeconds,
+		exp: nowSeconds + 3600
+	});
 	const input = `${header}.${payload}`;
 	const signature = await crypto.subtle.sign(
 		'RSASSA-PKCS1-v1_5',
 		await signingKey(pem),
 		new TextEncoder().encode(input)
 	);
-	return `${input}.${base64Url(new Uint8Array(signature))}`;
+	return `${input}.${toBase64Url(new Uint8Array(signature))}`;
 }
 
 /** Enable Banking asks the bank while it answers, so its calls take longer than most. */

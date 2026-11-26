@@ -1,11 +1,10 @@
 import { fail } from '@sveltejs/kit';
 import {
-	base64ToBytes,
-	bytesToBase64,
 	GENERIC_PRESET_ID,
 	proposeGenericMapping,
 	type ColumnMapping
 } from '#lib/domain/bank-matching.ts';
+import { fromBase64, toBase64 } from '#lib/encoding.ts';
 import { parseBankUpload, restrictToAccount, type ParsedUpload } from '#lib/domain/camt.ts';
 import {
 	MAX_IMPORT_ROWS,
@@ -42,11 +41,11 @@ type ReadFile = { bytes: Uint8Array; content: string };
 async function readFile(input: ImportInput): Promise<ReadFile | undefined> {
 	if (input.file) {
 		const bytes = new Uint8Array(await input.file.arrayBuffer());
-		return { bytes, content: bytesToBase64(bytes) };
+		return { bytes, content: toBase64(bytes) };
 	}
 	if (input.content) {
 		try {
-			return { bytes: base64ToBytes(input.content), content: input.content };
+			return { bytes: fromBase64(input.content), content: input.content };
 		} catch {
 			return undefined;
 		}

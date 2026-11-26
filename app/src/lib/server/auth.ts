@@ -2,6 +2,7 @@ import { and, count, eq, ne } from 'drizzle-orm';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
+import { fromBase64, sha256Hex, toBase64, toBase64Url } from '../encoding';
 import type { AmountInput } from '../money';
 import {
 	accounts,
@@ -39,18 +40,6 @@ export const SESSION_MAX_AGE = 90 * DAY;
 const PBKDF2_ITERATIONS = 100_000;
 
 const encoder = new TextEncoder();
-
-function toBase64(bytes: Uint8Array): string {
-	return btoa(String.fromCharCode(...bytes));
-}
-
-function fromBase64(value: string): Uint8Array<ArrayBuffer> {
-	return Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
-}
-
-function toBase64Url(bytes: Uint8Array): string {
-	return toBase64(bytes).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
-}
 
 async function pbkdf2(password: string, salt: Uint8Array<ArrayBuffer>, iterations: number) {
 	const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, [
@@ -311,9 +300,8 @@ export function generateToken(): string {
 }
 
 /** The SHA-256 of a token as lower-case hex, the form it is stored in. */
-export async function hashToken(token: string): Promise<string> {
-	const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(token)));
-	return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+export function hashToken(token: string): Promise<string> {
+	return sha256Hex(token);
 }
 
 /**

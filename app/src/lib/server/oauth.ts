@@ -1,4 +1,5 @@
 import { and, eq, lt, notExists } from 'drizzle-orm';
+import { toBase64Url } from '../encoding';
 import { API_KEY_PREFIX } from './api-keys';
 import { auditEntry } from './audit';
 import { generateToken, hashToken, type SessionUser } from './auth';
@@ -282,10 +283,7 @@ export type TokenResponse = {
 /** The base64url SHA-256 of the verifier, which has to match the challenge (RFC 7636). */
 async function challengeOf(verifier: string): Promise<string> {
 	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
-	return btoa(String.fromCharCode(...new Uint8Array(digest)))
-		.replace(/\+/g, '-')
-		.replace(/\//g, '_')
-		.replace(/=+$/, '');
+	return toBase64Url(new Uint8Array(digest));
 }
 
 const scopeLabels: Record<ApiKeyScope, string> = { read: 'Lesen', write: 'Lesen und Schreiben' };

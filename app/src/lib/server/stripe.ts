@@ -1,4 +1,5 @@
 import { STRIPE_API_BASE, STRIPE_SECRET_KEY } from '$app/env/private';
+import { hmacSha256Hex } from '../encoding';
 
 // A minimal Stripe client over fetch: the few calls the subscription needs, form-encoded as
 // Stripe expects, and the webhook signature check. No SDK, so the same code runs on node and on
@@ -242,22 +243,6 @@ export function subscriptionPeriodEnd(subscription: StripeSubscription): Date | 
 // Webhook signatures: the header is `t=<unix seconds>,v1=<hex hmac>[,v1=…]`, the signed payload
 // is `<t>.<raw body>`, the key is the endpoint's signing secret.
 
-const encoder = new TextEncoder();
-
-async function hmacHex(secret: string, message: string): Promise<string> {
-	const key = await crypto.subtle.importKey(
-		'raw',
-		encoder.encode(secret),
-		{ name: 'HMAC', hash: 'SHA-256' },
-		false,
-		['sign']
-	);
-	const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(message));
-	return Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, '0')).join(
-		''
-	);
-}
-
 function constantTimeEqual(a: string, b: string): boolean {
 	if (a.length !== b.length) return false;
 	let difference = 0;
@@ -273,7 +258,7 @@ export async function signWebhookPayload(
 	secret: string,
 	timestamp: number
 ): Promise<string> {
-	return `t=${timestamp},v1=${await hmacHex(secret, `${timestamp}.${payload}`)}`;
+	return `t=${timestamp},v1=${await hmacSha256Hex(secret, `${timestamp}.${payload}`)}`;
 }
 
 /** The tolerance Stripe recommends against replayed deliveries. */
@@ -299,7 +284,7 @@ export async function verifyWebhookSignature(
 	}
 	if (timestamp === undefined || signatures.length === 0) return false;
 	if (Math.abs(now - timestamp) > WEBHOOK_TOLERANCE_SECONDS) return false;
-	const expected = await hmacHex(secret, `${timestamp}.${payload}`);
+	const expected = await hmacSha256Hex(secret, `${timestamp}.${payload}`);
 	// Every candidate is compared, so timing does not reveal which one matched.
 	let valid = false;
 	for (const signature of signatures) {
