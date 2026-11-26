@@ -43,7 +43,7 @@
 	import { exampleToolState } from './example';
 	import LetterEditor from './LetterEditor.svelte';
 	import { statementFilename, statementLetter } from '../lib/domain/statement-letter';
-	import type { Letter } from '../lib/server/pdf';
+	import type { Letter } from '../lib/domain/letters';
 
 	// The whole tool on one page: house and landlord, flats and tenants, the costs with their keys,
 	// the consumption where a key needs it, and the result with a PDF per tenant. The result is

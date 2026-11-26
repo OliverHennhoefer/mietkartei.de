@@ -7,7 +7,7 @@
 		letterParagraphs,
 		type ToolLetterEdit
 	} from '../lib/domain/statement-tool';
-	import type { Letter } from '../lib/server/pdf';
+	import type { Letter } from '../lib/domain/letters';
 
 	// One tenant's letter as a sheet of paper whose paragraphs are edited where they stand, like the
 	// letters in the app. Tables, amounts and addresses come from the computation and stay as they

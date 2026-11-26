@@ -1,5 +1,56 @@
-// The text of a stored letter (Zahlungserinnerung, Mahnung, Mieterhöhung) as edited on its sheet
-// in the preview dialog: paragraphs, stored joined by blank lines like the generated text.
+// Letters: the shape pdf.ts renders and the preview dialog shows, and the text of a stored letter
+// (Zahlungserinnerung, Mahnung, Mieterhöhung) as edited on its sheet in the preview dialog:
+// paragraphs, stored joined by blank lines like the generated text. Kept apart from pdf.ts, so
+// the browser and the statement tool do not load pdf-lib.
+
+import type { GiroCode } from './girocode';
+
+export type PdfColumn = {
+	label: string;
+	/** Right for amounts and other numbers; default left. */
+	align?: 'left' | 'right';
+	/** Fraction of the text width (0–1). Columns without a width share what is left equally. */
+	width?: number;
+};
+
+export type PdfTable = {
+	columns: PdfColumn[];
+	rows: string[][];
+	/** A sum row, bold under a rule. */
+	footer?: string[];
+	/** Bold line above the header row. */
+	title?: string;
+};
+
+export type LetterBlock = { paragraph: string } | { table: PdfTable } | { giroCode: GiroCode };
+
+export type Letter = {
+	/** Name and address of the landlord; the first line is also the small sender line above the window. */
+	sender: string[];
+	recipient: string[];
+	/** Already formatted, e.g. `Berlin, 15.03.2026`. */
+	date: string;
+	subject: string;
+	/** Each may contain line breaks. */
+	paragraphs: string[];
+	/** Rendered after the paragraphs, in order. */
+	tables?: PdfTable[];
+	/** Paragraphs and tables in an explicit order; replaces `paragraphs` and `tables` when given. */
+	blocks?: LetterBlock[];
+	/** E.g. `['Mit freundlichen Grüßen', '', 'Erika Vermieter']`. */
+	closing?: string[];
+	/** An Anlage on a page of its own after the closing, under a bold title. */
+	appendix?: { title: string; blocks: LetterBlock[] };
+};
+
+/** The paragraphs and tables in the order they are rendered: `blocks`, or else the paragraphs, then the tables. */
+export function blocksOf(letter: Letter): LetterBlock[] {
+	if (letter.blocks) return letter.blocks;
+	return [
+		...letter.paragraphs.map((paragraph) => ({ paragraph })),
+		...(letter.tables ?? []).map((table) => ({ table }))
+	];
+}
 
 export const MAX_LETTER_PARAGRAPHS = 30;
 export const MAX_PARAGRAPH_LENGTH = 4000;

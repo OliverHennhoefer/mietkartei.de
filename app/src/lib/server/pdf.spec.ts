@@ -1,14 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { giroCode } from '../domain/girocode';
 import { PDFArray, PDFDocument, PDFRawStream, decodePDFRawStream, type PDFPage } from 'pdf-lib';
-import {
-	pdfResponse,
-	renderLetter,
-	renderReport,
-	toWinAnsi,
-	type Letter,
-	type PdfTable
-} from './pdf';
+import { pdfResponse, renderLetter, renderReport, toWinAnsi } from './pdf';
+import type { Letter, PdfTable } from '../domain/letters';
 
 const letter: Letter = {
 	sender: ['Erika Vermieter', 'Musterstraße 1', '10115 Berlin'],

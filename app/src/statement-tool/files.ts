@@ -1,4 +1,4 @@
-import type { Letter } from '../lib/server/pdf';
+import type { Letter } from '../lib/domain/letters';
 
 // What the tool hands the browser: the letters as PDF and the saved state as a file. pdf-lib is
 // the largest part of the tool, so this module is loaded only when a PDF is asked for.

@@ -11,7 +11,11 @@ import {
 	type OpenItem
 } from '../domain/reminders';
 import { defaultInterest, type InterestResult } from '../domain/default-interest';
-import { letterText as editedLetterText, type LetterTextResult } from '../domain/letters';
+import {
+	letterText as editedLetterText,
+	type Letter,
+	type LetterTextResult
+} from '../domain/letters';
 import { formatCents } from '../money';
 import { addressLines, landlordAddress } from './accounts';
 import { auditEntry, type AuditContext } from './audit';
@@ -21,7 +25,6 @@ import { runBatch } from './db/batch';
 import { payments, paymentReminders, rentCharges, type ReminderLevel } from './db/schema';
 import { getLease } from './leases';
 import { chargeLabel, ensureCharges } from './ledger';
-import type { Letter } from './pdf';
 import { assertQuota } from './quotas';
 import { recipientLines } from './rent-adjustments';
 

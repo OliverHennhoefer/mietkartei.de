@@ -4,45 +4,15 @@
 // so the recipient block shows in the window of a DIN lang envelope.
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+import { contentDisposition } from '../domain/documents';
 import { giroCodeModules, type GiroCode } from '../domain/girocode';
-
-export type PdfColumn = {
-	label: string;
-	/** Right for amounts and other numbers; default left. */
-	align?: 'left' | 'right';
-	/** Fraction of the text width (0–1). Columns without a width share what is left equally. */
-	width?: number;
-};
-
-export type PdfTable = {
-	columns: PdfColumn[];
-	rows: string[][];
-	/** A sum row, bold under a rule. */
-	footer?: string[];
-	/** Bold line above the header row. */
-	title?: string;
-};
-
-export type LetterBlock = { paragraph: string } | { table: PdfTable } | { giroCode: GiroCode };
-
-export type Letter = {
-	/** Name and address of the landlord; the first line is also the small sender line above the window. */
-	sender: string[];
-	recipient: string[];
-	/** Already formatted, e.g. `Berlin, 15.03.2026`. */
-	date: string;
-	subject: string;
-	/** Each may contain line breaks. */
-	paragraphs: string[];
-	/** Rendered after the paragraphs, in order. */
-	tables?: PdfTable[];
-	/** Paragraphs and tables in an explicit order; replaces `paragraphs` and `tables` when given. */
-	blocks?: LetterBlock[];
-	/** E.g. `['Mit freundlichen Grüßen', '', 'Erika Vermieter']`. */
-	closing?: string[];
-	/** An Anlage on a page of its own after the closing, under a bold title. */
-	appendix?: { title: string; blocks: LetterBlock[] };
-};
+import {
+	blocksOf,
+	type Letter,
+	type LetterBlock,
+	type PdfColumn,
+	type PdfTable
+} from '../domain/letters';
 
 // A4 in PDF points (1 pt = 1/72 inch).
 const MM = 72 / 25.4;
@@ -467,15 +437,6 @@ function writeFooters(ctx: Context): void {
 	});
 }
 
-/** The paragraphs and tables in the order they are rendered. */
-export function blocksOf(letter: Letter): LetterBlock[] {
-	if (letter.blocks) return letter.blocks;
-	return [
-		...letter.paragraphs.map((paragraph) => ({ paragraph })),
-		...(letter.tables ?? []).map((table) => ({ table }))
-	];
-}
-
 /** Renders the letter as A4 pages and returns the PDF bytes. */
 export async function renderLetter(
 	letter: Letter,
@@ -544,34 +505,12 @@ export async function renderReport(report: Report): Promise<Uint8Array> {
 	return doc.save();
 }
 
-// German umlauts keep their sound in the ASCII fallback of a file name.
-const TRANSLITERATIONS: Record<string, string> = {
-	ä: 'ae',
-	ö: 'oe',
-	ü: 'ue',
-	Ä: 'Ae',
-	Ö: 'Oe',
-	Ü: 'Ue',
-	ß: 'ss'
-};
-
-/** `Abrechnung Müller 2025.pdf` → `Abrechnung Mueller 2025.pdf`; anything else non-ASCII becomes `_`. */
-export function asciiFilename(filename: string): string {
-	return filename
-		.replace(/[äöüÄÖÜß]/g, (char) => TRANSLITERATIONS[char])
-		.normalize('NFD')
-		.replace(/\p{M}/gu, '')
-		.replace(/[^A-Za-z0-9 ._-]/g, '_');
-}
-
 /** The response of a download route: shown inline by the browser, saved under `filename`. */
 export function pdfResponse(bytes: Uint8Array, filename: string): Response {
-	const fallback = asciiFilename(filename);
-	const encoded = encodeURIComponent(filename);
 	return new Response(bytes as Uint8Array<ArrayBuffer>, {
 		headers: {
 			'Content-Type': 'application/pdf',
-			'Content-Disposition': `inline; filename="${fallback}"; filename*=UTF-8''${encoded}`,
+			'Content-Disposition': contentDisposition(filename, true),
 			'Cache-Control': 'private, no-store',
 			// The app shows it in a frame of its preview dialog (PreviewLink).
 			'X-Frame-Options': 'SAMEORIGIN'

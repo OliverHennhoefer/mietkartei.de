@@ -22,7 +22,11 @@ import {
 	type ComparativeDemand
 } from '../domain/comparative-rent';
 import { addresseeLine } from '../domain/addressee';
-import { letterText as editedLetterText, type LetterTextResult } from '../domain/letters';
+import {
+	letterText as editedLetterText,
+	type Letter,
+	type LetterTextResult
+} from '../domain/letters';
 import { rentOn, total, unitRent, type RentAmounts } from '../domain/rents';
 import { formatCents } from '../money';
 import { addressLines, landlordAddress, type LandlordAddress } from './accounts';
@@ -33,7 +37,6 @@ import { listIndexValues } from './consumer-price-index';
 import { rentChanges } from './db/schema';
 import { getLease, type LeaseSummary } from './leases';
 import { leaseChargeStatements } from './ledger';
-import type { Letter } from './pdf';
 import { laterRows, laterRowsNote, noLaterRows, withLaterRows } from './rent-history';
 import { listRentChanges, type RentChangeRow } from './rents';
 import { assertQuota } from './quotas';
