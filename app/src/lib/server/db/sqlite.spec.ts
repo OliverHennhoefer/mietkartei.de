@@ -5,9 +5,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from './index';
-import { createSqliteDatabase } from './sqlite';
+import { createSqliteDatabase, openSqlite } from './sqlite';
 
-vi.mock('$app/env/private', () => ({ DATABASE_PATH: '' }));
+const env = vi.hoisted(() => ({ databasePath: '' }));
+vi.mock('$app/env/private', () => ({
+	get DATABASE_PATH() {
+		return env.databasePath;
+	}
+}));
 
 let root: string;
 
@@ -68,5 +73,21 @@ describe('createSqliteDatabase', () => {
 			count: migrations - 1
 		});
 		backup.close();
+	});
+});
+
+describe('openSqlite', () => {
+	it('warns in the log when it starts with a new, empty database', () => {
+		env.databasePath = join(root, 'data', 'mietkartei.db');
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			const db = openSqlite();
+			expect(existsSync(env.databasePath)).toBe(true);
+			expect(warn).toHaveBeenCalledOnce();
+			expect(warn.mock.calls[0][0]).toContain(`No database at ${env.databasePath}`);
+			client(db).close();
+		} finally {
+			warn.mockRestore();
+		}
 	});
 });
