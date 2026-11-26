@@ -54,12 +54,24 @@ describe('load', () => {
 
 	it('offers the form on a new instance or with a list of addresses', async () => {
 		expect(await outcome(() => load(routeEvent(db, { user: null })))).toEqual({
-			data: { open: false, restricted: false, setupCode: false, turnstileSiteKey: null }
+			data: {
+				open: false,
+				restricted: false,
+				setupCode: false,
+				turnstileSiteKey: null,
+				empty: false
+			}
 		});
 		env.REGISTRATION_EMAILS = 'neu@example.org';
 		Object.assign(env, { TURNSTILE_SITE_KEY: 'site', TURNSTILE_SECRET_KEY: 'secret' });
 		expect(await outcome(() => load(routeEvent(db, { user: null })))).toEqual({
-			data: { open: true, restricted: true, setupCode: false, turnstileSiteKey: 'site' }
+			data: {
+				open: true,
+				restricted: true,
+				setupCode: false,
+				turnstileSiteKey: 'site',
+				empty: false
+			}
 		});
 	});
 });
@@ -67,6 +79,20 @@ describe('load', () => {
 describe('the first person on a self-hosted instance', () => {
 	beforeEach(async () => {
 		await db.delete(users);
+	});
+
+	it('mentions a lost database on the empty instance, but not on the hosted variant', async () => {
+		expect(await outcome(() => load(routeEvent(db, { user: null })))).toMatchObject({
+			data: { open: true, empty: true }
+		});
+		env.HOSTED = true;
+		try {
+			expect(await outcome(() => load(routeEvent(db, { user: null })))).toMatchObject({
+				data: { empty: false }
+			});
+		} finally {
+			env.HOSTED = false;
+		}
 	});
 
 	it('registers with a password and is signed in', async () => {
@@ -90,7 +116,7 @@ describe('the first person on a self-hosted instance', () => {
 	it('needs the setup code when one is set', async () => {
 		env.SETUP_CODE = 'kanal-tulpe-42';
 		expect(await outcome(() => load(routeEvent(db, { user: null })))).toEqual({
-			data: { open: true, restricted: false, setupCode: true, turnstileSiteKey: null }
+			data: { open: true, restricted: false, setupCode: true, turnstileSiteKey: null, empty: true }
 		});
 		const form = { email: 'erste@example.org', password: 'lang-genug-1234' };
 		expect(await register({ ...form, setupCode: 'geraten' })).toEqual({

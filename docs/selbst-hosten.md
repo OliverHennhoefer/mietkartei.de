@@ -78,6 +78,21 @@ docker run -d --name mietkartei -p 127.0.0.1:3000:3000 \
 
 Öffne danach <http://localhost:3000> und lege ein Konto an. Die erste Person übernimmt die Instanz, danach ist die Registrierung geschlossen. Unter **Einstellungen → Konto → Demodaten anlegen** füllst du ein leeres Konto mit einem Beispielbestand.
 
+!!! warning "Daten dauerhaft speichern"
+
+    mietkartei speichert alles im Ordner `/data` des Containers. Binde diesen Ordner immer an ein benanntes Volume wie oben (`-v mietkartei-data:/data`) oder an einen Ordner auf deinem Rechner. Fehlt die Angabe, legt Docker ein namenloses Volume an, und das gehört nur zu genau diesem Container: Wird der Container neu angelegt, etwa bei einem Update oder nach einer geänderten Einstellung, beginnt mietkartei mit einer leeren Datenbank. Du bist dann abgemeldet, und die Anmeldeseite führt zur Registrierung eines neuen Kontos. Das Protokoll des Containers meldet in diesem Fall beim Start `No database at /data/mietkartei.db`.
+
+### Auf einem NAS (Unraid, Synology, QNAP)
+
+Auf einem NAS legst du mietkartei meist über die Oberfläche an statt mit `docker run`. Wichtig ist dabei dasselbe wie oben:
+
+1. **Image:** `ghcr.io/oliverhennhoefer/mietkartei`, **Port:** Container-Port `3000`.
+2. **Pfad:** Lege einen Ordner an, bei Unraid etwa `/mnt/user/appdata/mietkartei`, und binde ihn als **Container-Pfad `/data`** ein. Genau `/data`, sonst landen die Daten nicht in diesem Ordner.
+3. **Rechte:** mietkartei läuft im Container als Benutzer mit der Nummer 1000. Gib ihm den Ordner einmal in einem Terminal auf dem NAS: `chown 1000:1000 /mnt/user/appdata/mietkartei`. Ohne diese Rechte kann mietkartei nichts speichern, und das Protokoll des Containers meldet `The data directory /data is not writable`.
+4. **Prüfen:** Lege ein Objekt an und starte den Container dann über die Oberfläche neu, bei Unraid auch einmal mit **Bearbeiten → Übernehmen**, denn dabei wird er neu angelegt. Das Objekt muss danach noch da sein, und im Ordner liegt die Datei `mietkartei.db`.
+
+Rufst du mietkartei im eigenen Netz über die Adresse des NAS auf, etwa `http://192.168.1.10:3000`, setze außerdem `ORIGIN` auf genau diese Adresse.
+
 **Aktualisieren:** `docker pull ghcr.io/oliverhennhoefer/mietkartei`, dann den Container löschen und mit demselben Befehl neu starten. Die Daten bleiben im Volume `mietkartei-data`.
 
 **Sichern:** Halte den Container mit `docker stop mietkartei` an und kopiere den Inhalt von `/data`. Unter **Einstellungen → Export** lädst du außerdem jederzeit alle Daten deines Kontos als ZIP-Datei herunter.
@@ -103,7 +118,7 @@ npm run dev
 
 Die Anwendung läuft dann unter <http://localhost:5173>.
 
-Jedes [Release](https://github.com/OliverHennhoefer/mietkartei.de/releases) enthält zusätzlich ein Quellarchiv mit Prüfsumme (`SHA256SUMS`) und einer signierten Herkunftsangabe. Die prüfst du wie beim Image mit `gh attestation verify mietkartei-0.1.0.tar.gz --owner OliverHennhoefer`.
+Jedes [Release](https://github.com/OliverHennhoefer/mietkartei.de/releases) enthält zusätzlich ein Quellarchiv mit Prüfsumme (`SHA256SUMS`) und einer signierten Herkunftsangabe. Die prüfst du wie beim Image mit `gh attestation verify mietkartei-0.2.0.tar.gz --owner OliverHennhoefer`.
 
 ## Bankabruf
 

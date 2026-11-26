@@ -1,13 +1,27 @@
 import Sqlite from 'better-sqlite3';
-import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	chmodSync,
+	cpSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync
+} from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from './index';
-import { createSqliteDatabase } from './sqlite';
+import { assertWritable, createSqliteDatabase, openSqlite } from './sqlite';
 
-vi.mock('$app/env/private', () => ({ DATABASE_PATH: '' }));
+const env = vi.hoisted(() => ({ databasePath: '' }));
+vi.mock('$app/env/private', () => ({
+	get DATABASE_PATH() {
+		return env.databasePath;
+	}
+}));
 
 let root: string;
 
@@ -68,5 +82,67 @@ describe('createSqliteDatabase', () => {
 			count: migrations - 1
 		});
 		backup.close();
+	});
+});
+
+describe('openSqlite', () => {
+	it('warns once in the log when it starts with a new, empty database', () => {
+		env.databasePath = join(root, 'data', 'mietkartei.db');
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			const db = openSqlite();
+			expect(existsSync(env.databasePath)).toBe(true);
+			expect(openSqlite()).toBe(db);
+			expect(warn).toHaveBeenCalledOnce();
+			expect(warn.mock.calls[0][0]).toContain(`No database at ${env.databasePath}`);
+			client(db).close();
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	it('opens an existing database without a warning', async () => {
+		env.databasePath = join(root, 'mietkartei.db');
+		client(createSqliteDatabase(env.databasePath)).close();
+		vi.resetModules();
+		const { openSqlite: openFresh } = await import('./sqlite');
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			client(openFresh()).close();
+			expect(warn).not.toHaveBeenCalled();
+		} finally {
+			warn.mockRestore();
+		}
+	});
+});
+
+// Root may write anywhere, so these only run as an ordinary user, as in CI and in the container.
+describe.skipIf(process.getuid?.() === 0)('assertWritable', () => {
+	it('names the fix when the data directory is not writable', () => {
+		const directory = join(root, 'data');
+		mkdirSync(directory);
+		chmodSync(directory, 0o555);
+		try {
+			expect(() => createSqliteDatabase(join(directory, 'mietkartei.db'))).toThrow(
+				`The data directory ${directory} is not writable. Give user ${process.getuid?.()} write access`
+			);
+		} finally {
+			chmodSync(directory, 0o755);
+		}
+	});
+
+	it('names the fix when the database file is not writable', () => {
+		const path = join(root, 'mietkartei.db');
+		client(createSqliteDatabase(path)).close();
+		chmodSync(path, 0o444);
+		expect(() => assertWritable(path)).toThrow(`The database ${path} is not writable.`);
+	});
+});
+
+describe('assertWritable', () => {
+	it('accepts a writable directory and creates it', () => {
+		const path = join(root, 'new', 'mietkartei.db');
+		assertWritable(path);
+		expect(existsSync(join(root, 'new'))).toBe(true);
 	});
 });

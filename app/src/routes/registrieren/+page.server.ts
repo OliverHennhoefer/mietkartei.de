@@ -1,7 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { ORIGIN } from '$app/env/private';
+import { HOSTED, ORIGIN } from '$app/env/private';
 import { parseEmailForm } from '#lib/forms/auth.ts';
-import { createSession, registerUser } from '#lib/server/auth.ts';
+import { createSession, hasUsers, registerUser } from '#lib/server/auth.ts';
 import { sendMailInBackground } from '#lib/server/mail.ts';
 import { MAIL_LINKS_UNAVAILABLE, mailLinkOrigin } from '#lib/server/mail-links.ts';
 import {
@@ -28,7 +28,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 		open: registrationOffered(rule),
 		restricted: rule.emails.length > 0,
 		setupCode: setupCodeRequired(rule),
-		turnstileSiteKey: turnstileSiteKey()
+		turnstileSiteKey: turnstileSiteKey(),
+		// A Docker instance without accounts is either new or lost its database, typically a
+		// container recreated without a persistent /data. Both look the same, so the page says
+		// once, quietly, where to look.
+		empty: __DEPLOY_TARGET__ === 'node' && !HOSTED && !(await hasUsers(locals.db))
 	};
 };
 
