@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { VAPID_PRIVATE_KEY } from '$app/env/private';
 import { addDays, daysBetween, dayOf, formatDate, weekday, type IsoDate } from '../dates';
+import { hmacSha256Hex } from '../encoding';
 import { auditEntry, type AuditContext } from './audit';
 import { generateToken } from './auth';
 import { arrearsEntries } from './arrears-notices';
@@ -257,18 +258,7 @@ const encoder = new TextEncoder();
 /** The signature header of a webhook: `t=<seconds>,v1=<hex HMAC-SHA256 of "<t>.<body>">`. */
 export async function webhookSignature(secret: string, body: string, now: Date): Promise<string> {
 	const timestamp = Math.floor(now.getTime() / 1000);
-	const key = await crypto.subtle.importKey(
-		'raw',
-		encoder.encode(secret),
-		{ name: 'HMAC', hash: 'SHA-256' },
-		false,
-		['sign']
-	);
-	const mac = new Uint8Array(
-		await crypto.subtle.sign('HMAC', key, encoder.encode(`${timestamp}.${body}`))
-	);
-	const hex = Array.from(mac, (byte) => byte.toString(16).padStart(2, '0')).join('');
-	return `t=${timestamp},v1=${hex}`;
+	return `t=${timestamp},v1=${await hmacSha256Hex(secret, `${timestamp}.${body}`)}`;
 }
 
 /** The longest line of a push; a long task note is cut. */

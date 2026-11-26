@@ -5,21 +5,9 @@
 // anyone else send to the subscription. The VAPID key is the secret VAPID_PRIVATE_KEY; without it
 // the app offers no Mitteilungen.
 
+import { fromBase64Url, pkcs8Bytes, toBase64Url } from '../encoding';
+
 const encoder = new TextEncoder();
-
-export function base64Url(bytes: Uint8Array): string {
-	return btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(''))
-		.replaceAll('+', '-')
-		.replaceAll('/', '_')
-		.replace(/=+$/, '');
-}
-
-export function fromBase64Url(value: string): Uint8Array<ArrayBuffer> {
-	const base64 = value.replaceAll('-', '+').replaceAll('_', '/');
-	return Uint8Array.from(atob(base64 + '='.repeat((4 - (base64.length % 4)) % 4)), (char) =>
-		char.charCodeAt(0)
-	);
-}
 
 function concat(...parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
 	const result = new Uint8Array(parts.reduce((length, part) => length + part.length, 0));
@@ -29,15 +17,6 @@ function concat(...parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
 		offset += part.length;
 	}
 	return result;
-}
-
-/** The DER bytes of a PKCS#8 PEM key ("-----BEGIN PRIVATE KEY-----"). */
-function pemBytes(pem: string): Uint8Array<ArrayBuffer> {
-	const body = pem
-		.replace(/\\n/g, '\n')
-		.replace(/-----(BEGIN|END) PRIVATE KEY-----/g, '')
-		.replace(/\s+/g, '');
-	return Uint8Array.from(atob(body), (char) => char.charCodeAt(0));
 }
 
 export type VapidKeys = {
@@ -51,16 +30,16 @@ let cached: { pem: string; keys: Promise<VapidKeys> } | undefined;
 async function importVapid(pem: string): Promise<VapidKeys> {
 	const algorithm = { name: 'ECDSA', namedCurve: 'P-256' };
 	// Imported once as extractable to read the public point; the signing key is not.
-	const extractable = await crypto.subtle.importKey('pkcs8', pemBytes(pem), algorithm, true, [
+	const extractable = await crypto.subtle.importKey('pkcs8', pkcs8Bytes(pem), algorithm, true, [
 		'sign'
 	]);
 	const jwk = await crypto.subtle.exportKey('jwk', extractable);
 	if (!jwk.x || !jwk.y) throw new Error('VAPID_PRIVATE_KEY has no public point.');
 	const publicKey = concat(new Uint8Array([4]), fromBase64Url(jwk.x), fromBase64Url(jwk.y));
-	const privateKey = await crypto.subtle.importKey('pkcs8', pemBytes(pem), algorithm, false, [
+	const privateKey = await crypto.subtle.importKey('pkcs8', pkcs8Bytes(pem), algorithm, false, [
 		'sign'
 	]);
-	return { publicKey: base64Url(publicKey), privateKey };
+	return { publicKey: toBase64Url(publicKey), privateKey };
 }
 
 /** The keys of VAPID_PRIVATE_KEY (a P-256 key as PKCS#8 PEM), or undefined when it is not set. */
@@ -125,8 +104,8 @@ export async function vapidToken(
 	subject: string,
 	nowSeconds = Math.floor(Date.now() / 1000)
 ): Promise<string> {
-	const header = base64Url(encoder.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
-	const claims = base64Url(
+	const header = toBase64Url(encoder.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
+	const claims = toBase64Url(
 		encoder.encode(
 			JSON.stringify({ aud: new URL(endpoint).origin, exp: nowSeconds + 12 * 3600, sub: subject })
 		)
@@ -138,7 +117,7 @@ export async function vapidToken(
 		keys.privateKey,
 		encoder.encode(input)
 	);
-	return `${input}.${base64Url(new Uint8Array(signature))}`;
+	return `${input}.${toBase64Url(new Uint8Array(signature))}`;
 }
 
 async function hkdf(

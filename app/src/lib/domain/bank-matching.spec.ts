@@ -3,8 +3,6 @@ import { parseCsv, toRecords } from '../csv';
 import {
 	applyRules,
 	suggestContraAccount,
-	base64ToBytes,
-	bytesToBase64,
 	detectPreset,
 	fingerprintInput,
 	fingerprintRows,
@@ -384,19 +382,6 @@ describe('fingerprints', () => {
 		const first = await fingerprintRows([line, line]);
 		const second = await fingerprintRows([line, line]);
 		expect(second.map((row) => row.fingerprint)).toEqual(first.map((row) => row.fingerprint));
-	});
-});
-
-describe('base64', () => {
-	it('round-trips bytes, including a windows-1252 ü', () => {
-		const bytes = new Uint8Array([0x4d, 0xfc, 0x6c, 0x6c, 0x65, 0x72, 0x0a]);
-		expect(bytesToBase64(bytes)).toBe('TfxsbGVyCg==');
-		expect(Array.from(base64ToBytes('TfxsbGVyCg=='))).toEqual(Array.from(bytes));
-	});
-
-	it('handles more than one chunk', () => {
-		const bytes = new Uint8Array(70_000).map((_, index) => index % 251);
-		expect(Array.from(base64ToBytes(bytesToBase64(bytes)))).toEqual(Array.from(bytes));
 	});
 });
 

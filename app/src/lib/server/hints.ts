@@ -1,4 +1,5 @@
 import { and, eq, inArray } from 'drizzle-orm';
+import { sha256Hex } from '../encoding';
 import type { SessionUser } from './auth';
 import type { Database } from './db';
 import { chunk, chunkIds, rowsPerStatement, runBatch, selectInChunks } from './db/batch';
@@ -26,12 +27,8 @@ export function isHintKey(value: unknown): value is string {
 }
 
 /** The key of a Hinweis: the SHA-256 of its place (e.g. "steuer:<property>:2025") and text. */
-export async function hintKey(scope: string, message: string): Promise<string> {
-	const digest = await crypto.subtle.digest(
-		'SHA-256',
-		new TextEncoder().encode(`${scope}\n${message}`)
-	);
-	return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+export function hintKey(scope: string, message: string): Promise<string> {
+	return sha256Hex(`${scope}\n${message}`);
 }
 
 /** Where the Hinweise of a Nebenkostenabrechnung stand: one year of a property, all versions. */

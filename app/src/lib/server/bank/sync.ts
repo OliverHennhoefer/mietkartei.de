@@ -2,6 +2,7 @@ import { and, asc, eq, isNotNull, isNull, lt, or } from 'drizzle-orm';
 import { BANK_SYNC_EMAILS } from '$app/env/private';
 import { formatIban } from '../../domain/bank-matching';
 import { addDays, dayOf } from '../../dates';
+import { toHex } from '../../encoding';
 import { auditEntry, type AuditContext } from '../audit';
 import type { Database } from '../db';
 import { runBatch } from '../db/batch';
@@ -77,8 +78,7 @@ export function connectionActive(connection: BankConnection, now: Date): boolean
 }
 
 function randomState(): string {
-	const bytes = crypto.getRandomValues(new Uint8Array(24));
-	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+	return toHex(crypto.getRandomValues(new Uint8Array(24)));
 }
 
 /**
