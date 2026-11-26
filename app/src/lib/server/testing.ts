@@ -9,6 +9,7 @@ import * as schema from './db/schema';
 import { accounts, properties, rentCharges, tenants, units, users, type Theme } from './db/schema';
 import { createSqliteDatabase } from './db/sqlite';
 import type { Storage } from './storage';
+import { leaseInput } from './lease-fixture';
 import { createLease, type LeaseInput } from './leases';
 import {
 	createCostItem,
@@ -21,6 +22,8 @@ import type { TenantInput } from './tenants';
 // Fixtures for unit tests of server modules: an in-memory database with two accounts (`a` and
 // `b`), one owner each, and helpers that create the rows most tests need. Everything a test
 // creates in account `b` exists only to prove it does not leak into account `a`.
+
+export { leaseInput };
 
 export const address = { street: 'Lindenstraße 4', postalCode: '10115', city: 'Berlin' };
 
@@ -146,36 +149,6 @@ export async function seedTenant(
 		.values({ accountId, ...tenantInput(overrides) })
 		.returning({ id: tenants.id });
 	return tenant.id;
-}
-
-/** A plain residential lease from 2025-01-01 at 600 € + 150 € + 50 €. */
-export function leaseInput(unitId: string, overrides: Partial<LeaseInput> = {}): LeaseInput {
-	return {
-		unitId,
-		extraUnitIds: [],
-		tenantIds: [],
-		startDate: '2025-01-01',
-		endDate: null,
-		kind: 'residential',
-		rentModel: 'fixed',
-		operatingCostModel: 'prepayment',
-		heatingCostModel: 'prepayment',
-		baseRent: 60000,
-		parkingRent: 0,
-		operatingCostPrepayment: 15000,
-		heatingCostPrepayment: 5000,
-		securityDeposit: 180000,
-		persons: 2,
-		rentDueDay: 3,
-		ledgerStart: null,
-		indexBaseMonth: null,
-		indexBaseValue: null,
-		indexBaseYear: '2020',
-		terminatedAt: null,
-		terminatedBy: null,
-		notes: null,
-		...overrides
-	};
 }
 
 /**
