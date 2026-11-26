@@ -10,6 +10,10 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ## [Unveröffentlicht]
 
+### Geändert
+
+- Das Jahresabo der gehosteten Version kostet 45 € statt 50 € im Jahr, also drei Monate gratis gegenüber dem Monatsabo zu 5 €. Laufende Jahresabos behalten ihren bisherigen Preis.
+
 ## [0.2.0] - 2026-11-26
 
 ### Neu
