@@ -1,7 +1,15 @@
 import Sqlite from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import {
+	accessSync,
+	constants,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync
+} from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { DATABASE_PATH } from '$app/env/private';
 import type { Database } from './index';
@@ -16,6 +24,7 @@ export function openSqlite(): Database {
 	if (!database) {
 		// A container without a persistent volume starts over with an empty database whenever it is
 		// recreated, and the first sign-up then takes over the instance. Say so in the log.
+		assertWritable(DATABASE_PATH);
 		if (!existsSync(DATABASE_PATH)) {
 			console.warn(
 				`No database at ${DATABASE_PATH}, starting with an empty one. If data was expected ` +
@@ -27,8 +36,35 @@ export function openSqlite(): Database {
 	return database;
 }
 
+/**
+ * Fails with a message that names the fix when the process cannot write the database file or its
+ * directory, typically a host folder mounted as /data that belongs to root while the container
+ * runs as user 1000. SQLite itself only reports SQLITE_CANTOPEN or "attempt to write a readonly
+ * database". The directory needs write access too, for the -wal and -shm files and the backups.
+ */
+export function assertWritable(path: string) {
+	const directory = dirname(path);
+	const user = process.getuid?.();
+	const fix =
+		user === undefined
+			? 'Give the user that runs mietkartei write access to it.'
+			: `Give user ${user} write access, e.g. on the host: chown -R ${user}:${process.getgid?.() ?? user} <folder mounted as ${directory}>`;
+	try {
+		mkdirSync(directory, { recursive: true });
+		accessSync(directory, constants.W_OK);
+	} catch {
+		throw new Error(`The data directory ${directory} is not writable. ${fix}`);
+	}
+	if (!existsSync(path)) return;
+	try {
+		accessSync(path, constants.R_OK | constants.W_OK);
+	} catch {
+		throw new Error(`The database ${path} is not writable. ${fix}`);
+	}
+}
+
 export function createSqliteDatabase(path: string, migrationsFolder = 'drizzle'): Database {
-	if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
+	if (path !== ':memory:') assertWritable(path);
 	const client = new Sqlite(path);
 	client.pragma('journal_mode = WAL');
 	client.pragma('foreign_keys = ON');

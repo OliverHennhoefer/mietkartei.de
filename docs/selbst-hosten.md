@@ -88,7 +88,7 @@ Auf einem NAS legst du mietkartei meist über die Oberfläche an statt mit `dock
 
 1. **Image:** `ghcr.io/oliverhennhoefer/mietkartei`, **Port:** Container-Port `3000`.
 2. **Pfad:** Lege einen Ordner an, bei Unraid etwa `/mnt/user/appdata/mietkartei`, und binde ihn als **Container-Pfad `/data`** ein. Genau `/data`, sonst landen die Daten nicht in diesem Ordner.
-3. **Rechte:** mietkartei läuft im Container als Benutzer mit der Nummer 1000. Gib ihm den Ordner einmal in einem Terminal auf dem NAS: `chown 1000:1000 /mnt/user/appdata/mietkartei`. Ohne diese Rechte startet der Container nicht.
+3. **Rechte:** mietkartei läuft im Container als Benutzer mit der Nummer 1000. Gib ihm den Ordner einmal in einem Terminal auf dem NAS: `chown 1000:1000 /mnt/user/appdata/mietkartei`. Ohne diese Rechte kann mietkartei nichts speichern, und das Protokoll des Containers meldet `The data directory /data is not writable`.
 4. **Prüfen:** Lege ein Objekt an und starte den Container dann über die Oberfläche neu, bei Unraid auch einmal mit **Bearbeiten → Übernehmen**, denn dabei wird er neu angelegt. Das Objekt muss danach noch da sein, und im Ordner liegt die Datei `mietkartei.db`.
 
 Rufst du mietkartei im eigenen Netz über die Adresse des NAS auf, etwa `http://192.168.1.10:3000`, setze außerdem `ORIGIN` auf genau diese Adresse.

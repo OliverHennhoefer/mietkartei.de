@@ -1,11 +1,20 @@
 import Sqlite from 'better-sqlite3';
-import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	chmodSync,
+	cpSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync
+} from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from './index';
-import { createSqliteDatabase, openSqlite } from './sqlite';
+import { assertWritable, createSqliteDatabase, openSqlite } from './sqlite';
 
 const env = vi.hoisted(() => ({ databasePath: '' }));
 vi.mock('$app/env/private', () => ({
@@ -104,5 +113,36 @@ describe('openSqlite', () => {
 		} finally {
 			warn.mockRestore();
 		}
+	});
+});
+
+// Root may write anywhere, so these only run as an ordinary user, as in CI and in the container.
+describe.skipIf(process.getuid?.() === 0)('assertWritable', () => {
+	it('names the fix when the data directory is not writable', () => {
+		const directory = join(root, 'data');
+		mkdirSync(directory);
+		chmodSync(directory, 0o555);
+		try {
+			expect(() => createSqliteDatabase(join(directory, 'mietkartei.db'))).toThrow(
+				`The data directory ${directory} is not writable. Give user ${process.getuid?.()} write access`
+			);
+		} finally {
+			chmodSync(directory, 0o755);
+		}
+	});
+
+	it('names the fix when the database file is not writable', () => {
+		const path = join(root, 'mietkartei.db');
+		client(createSqliteDatabase(path)).close();
+		chmodSync(path, 0o444);
+		expect(() => assertWritable(path)).toThrow(`The database ${path} is not writable.`);
+	});
+});
+
+describe('assertWritable', () => {
+	it('accepts a writable directory and creates it', () => {
+		const path = join(root, 'new', 'mietkartei.db');
+		assertWritable(path);
+		expect(existsSync(join(root, 'new'))).toBe(true);
 	});
 });

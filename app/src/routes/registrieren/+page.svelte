@@ -128,4 +128,11 @@
 	{/if}
 
 	<p class="muted">Schon registriert? <a href={resolve('/anmelden')}>Anmelden</a></p>
+	{#if data.open && data.empty}
+		<p class="muted">
+			Hattest du hier schon ein Konto? Dann findet mietkartei seine Datenbank nicht mehr, meist weil
+			der Ordner <code>/data</code> des Containers nicht dauerhaft eingebunden ist. Wie das geht,
+			steht unter <a href="https://docs.mietkartei.de/selbst-hosten/#mit-docker">Selbst hosten</a>.
+		</p>
+	{/if}
 </div>
