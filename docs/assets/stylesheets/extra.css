@@ -122,40 +122,6 @@ body[data-md-color-scheme="slate"][data-md-color-primary] {
   border-color: var(--md-default-fg-color);
 }
 
-/* The free statement tool on the website, as in its header. */
-.mk-tool-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 8px;
-  color: var(--md-default-fg-color);
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-  text-underline-offset: 4px;
-}
-
-.mk-tool-link:hover {
-  color: var(--md-default-fg-color);
-  text-decoration: underline;
-}
-
-.mk-tool-link span {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: #f5ff00;
-  color: #000;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-@media (max-width: 720px) {
-  .mk-tool-link {
-    display: none;
-  }
-}
-
 .mk-back {
   padding-top: 48px;
   font-size: 16px;
