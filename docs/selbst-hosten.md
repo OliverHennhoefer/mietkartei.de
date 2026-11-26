@@ -118,7 +118,7 @@ npm run dev
 
 Die Anwendung läuft dann unter <http://localhost:5173>.
 
-Jedes [Release](https://github.com/OliverHennhoefer/mietkartei.de/releases) enthält zusätzlich ein Quellarchiv mit Prüfsumme (`SHA256SUMS`) und einer signierten Herkunftsangabe. Die prüfst du wie beim Image mit `gh attestation verify mietkartei-0.1.0.tar.gz --owner OliverHennhoefer`.
+Jedes [Release](https://github.com/OliverHennhoefer/mietkartei.de/releases) enthält zusätzlich ein Quellarchiv mit Prüfsumme (`SHA256SUMS`) und einer signierten Herkunftsangabe. Die prüfst du wie beim Image mit `gh attestation verify mietkartei-0.2.0.tar.gz --owner OliverHennhoefer`.
 
 ## Bankabruf
 

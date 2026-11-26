@@ -10,6 +10,8 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ## [Unveröffentlicht]
 
+## [0.2.0] - 2026-11-26
+
 ### Neu
 
 - Kostenloser Rechner für die Nebenkostenabrechnung: Unter [mietkartei.de/nebenkostenabrechnung/erstellen](https://mietkartei.de/nebenkostenabrechnung/erstellen/) erstellt jeder ohne Konto eine Abrechnung für ein Haus: Wohnungen und Mieter mit Ein- und Auszug, die Kosten je Kostenart mit Umlageschlüssel, Verbrauch und CO₂-Aufteilung, dann ein PDF je Mieter. Der Rechner rechnet mit demselben Programmcode wie die App und druckt denselben Brief. Er läuft nur im Browser, die Eingaben werden nicht übertragen und lassen sich als Datei speichern und im nächsten Jahr übernehmen. Mit **Mit Beispiel ausprobieren** füllt ein Beispielhaus alle Felder, und unter **Brief ansehen** änderst du den Text jedes Briefs direkt auf dem Blatt; Beträge und Tabellen rechnet der Rechner. Bevor eine Datei Eingaben ersetzt oder ein neuer Zeitraum beginnt, fragt er nach. Die gespeicherte Datei übernimmst du unter **Einstellungen → Datenübernahme** in dein Konto: Haus, Wohnungen, Mieter, Belege und Verbräuche, mit der Abrechnung als Entwurf. Siehe [Nebenkostenabrechnung erstellen](https://docs.mietkartei.de/anleitungen/nebenkostenabrechnung/).
@@ -114,5 +116,6 @@ Erste öffentliche Version. Sie enthält:
 - Betrieb gehostet unter app.mietkartei.de oder selbst als Docker-Container.
 - Selbst betreiben im eigenen Cloudflare-Konto ohne eigene Domain: eingerichtet über „Deploy to Cloudflare“, die erste Registrierung mit einem selbst gewählten Einrichtungscode, Updates per Klick in GitHub.
 
-[Unveröffentlicht]: https://github.com/OliverHennhoefer/mietkartei.de/compare/v0.1.0...HEAD
+[Unveröffentlicht]: https://github.com/OliverHennhoefer/mietkartei.de/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/OliverHennhoefer/mietkartei.de/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/OliverHennhoefer/mietkartei.de/releases/tag/v0.1.0
