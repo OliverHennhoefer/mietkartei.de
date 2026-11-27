@@ -7,7 +7,9 @@ import type { RequestHandler } from './$types';
 const MAX_EXPORT_JSON_BYTES = 256 * 1024 * 1024;
 
 const messages = {
-	invalid: 'Die Datei ist kein Export von mietkartei oder stammt aus einer anderen Version.',
+	invalid: 'Die Datei ist kein Export von mietkartei.',
+	newer:
+		'Der Export stammt von einer neueren Version von mietkartei. Aktualisiere zuerst diese Instanz und spiele ihn dann ein.',
 	'not-empty':
 		'Dein Konto enthält schon Objekte oder Dokumente. Ein Export lässt sich nur in ein leeres Konto einspielen.',
 	quota:
@@ -32,6 +34,17 @@ export const POST: RequestHandler = async ({ locals, request, url }) => {
 		error(400, messages.invalid);
 	}
 	const result = await restoreExport(locals.db, auditContext(locals), data);
-	if (!result.ok) error(result.reason === 'not-empty' ? 409 : 400, messages[result.reason]);
+	if (!result.ok) {
+		if (result.reason === 'unknown') {
+			error(
+				400,
+				'Der Export enthält Angaben, für die diese Version keinen Platz hat, und wurde deshalb nicht eingespielt: ' +
+					result.fields.slice(0, 5).join(', ') +
+					(result.fields.length > 5 ? ' und weitere' : '') +
+					'. Stammt er von einer neueren oder abgewandelten Version von mietkartei, spiele ihn dort oder nach einem Update ein.'
+			);
+		}
+		error(result.reason === 'not-empty' ? 409 : 400, messages[result.reason]);
+	}
 	return json({ rows: result.rows, documents: result.documents });
 };
