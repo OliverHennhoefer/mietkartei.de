@@ -182,9 +182,9 @@
 			Art.
 		</li>
 		<li>
-			Importiere in dieser Reihenfolge: Objekte und Einheiten, dann Mieter, dann Mietverträge,
-			zuletzt Zahlungen. Jede Datei bekommt eine Vorschau mit der Spaltenzuordnung, bevor etwas
-			gespeichert wird.
+			Importiere in dieser Reihenfolge: Objekte und Einheiten, dann Mieter, dann Mietverträge, dann
+			Zahlungen. Ausgaben gehen jederzeit, sobald die Objekte da sind. Jede Datei bekommt eine
+			Vorschau mit der Spaltenzuordnung, bevor etwas gespeichert wird.
 		</li>
 		<li>
 			Beträge mit Komma (650,00), Datumsangaben als 01.01.2025. Ungültige Zeilen werden übersprungen

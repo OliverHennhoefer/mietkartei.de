@@ -46,7 +46,7 @@ describe('datenuebernahme', () => {
 	it('names the fields of every kind', async () => {
 		expect(await outcome(() => load(routeEvent(db)))).toMatchObject({
 			data: {
-				kinds: ['properties', 'tenants', 'leases', 'payments'],
+				kinds: ['properties', 'tenants', 'leases', 'payments', 'expenses'],
 				fields: {
 					tenants: expect.arrayContaining([
 						expect.objectContaining({ name: 'lastName', required: true })

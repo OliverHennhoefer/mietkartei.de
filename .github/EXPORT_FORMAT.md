@@ -9,7 +9,7 @@
 - `export.json`: every table of the account, described below.
 - `documents/<id>-<name>`: every uploaded document as uploaded; `<id>` is its row in `documents`.
 - `FEHLENDE-DOKUMENTE.txt`: only when a document row has no file in storage; lists those documents.
-- `tabellen/*.csv`: `tabellen/objekte-und-einheiten.csv`, `tabellen/mieter.csv`, `tabellen/mietvertraege.csv`, `tabellen/zahlungen.csv`. The main records once more as spreadsheets, with the same columns as the CSV import (**Einstellungen → Datenübernahme**): semicolons, UTF-8 with byte order mark, amounts like `650,00`, dates like `01.01.2025`. They are a convenience copy; `export.json` is complete.
+- `tabellen/*.csv`: `tabellen/objekte-und-einheiten.csv`, `tabellen/mieter.csv`, `tabellen/mietvertraege.csv`, `tabellen/zahlungen.csv`, `tabellen/ausgaben.csv`. The main records once more as spreadsheets, with the same columns as the CSV import (**Einstellungen → Datenübernahme**): semicolons, UTF-8 with byte order mark, amounts like `650,00`, dates like `01.01.2025`. They are a convenience copy; `export.json` is complete.
 
 ## export.json
 

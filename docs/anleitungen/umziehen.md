@@ -13,7 +13,7 @@ Deine Daten gehören dir. Du kannst jederzeit alles herunterladen und mit wenige
 
 - `export.json`: alle Einträge deines Kontos, also Objekte, Einheiten, Mieter, Mietverträge, Mietkonten und Zahlungen, Kautionen, Bankumsätze, Betriebskosten und Abrechnungen, Zähler, Versicherungen, Hausgeldabrechnungen, Aufgaben, Steuerdaten und das Protokoll,
 - den Ordner `documents/` mit allen hochgeladenen Dokumenten im Original.
-- den Ordner `tabellen/` mit Objekten und Einheiten, Mietern, Mietverträgen und Zahlungen als CSV-Dateien. Sie öffnen sich in Excel und haben dieselben Spalten wie die [Datenübernahme](von-excel-umsteigen.md), lassen sich also so, wie sie sind, wieder in mietkartei oder in eine andere Software übernehmen. Mieterhöhungen, Abrechnungen und alles Weitere stehen nur in `export.json`.
+- den Ordner `tabellen/` mit Objekten und Einheiten, Mietern, Mietverträgen, Zahlungen und Ausgaben als CSV-Dateien. Sie öffnen sich in Excel und haben dieselben Spalten wie die [Datenübernahme](von-excel-umsteigen.md), lassen sich also so, wie sie sind, wieder in mietkartei oder in eine andere Software übernehmen. Mieterhöhungen, Abrechnungen und alles Weitere stehen nur in `export.json`.
 - `FEHLENDE-DOKUMENTE.txt`, nur wenn zu einem Dokument die Datei im Speicher fehlt: Die Liste nennt diese Dokumente, damit dir die Lücke gleich auffällt und nicht erst, wenn du das Dokument brauchst. Ihre Angaben stehen trotzdem in `export.json`, und das Protokoll vermerkt beim Export, wie viele es sind.
 
 Passwörter und API-Schlüssel sind nicht enthalten. Den Export darf nur der Vermieter herunterladen, Mitverwalter nicht. Auch ein Konto, das nach der Testphase ohne Abo nur noch lesbar ist, kann jederzeit exportieren.

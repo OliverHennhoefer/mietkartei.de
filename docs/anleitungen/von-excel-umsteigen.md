@@ -1,6 +1,6 @@
 ---
 title: Von Excel umsteigen
-description: "Objekte, Mieter, Mietverträge und Zahlungen aus Excel oder einer anderen Hausverwaltungssoftware per Excel- oder CSV-Datei in mietkartei übernehmen."
+description: "Objekte, Mieter, Mietverträge, Zahlungen und Ausgaben aus Excel oder einer anderen Hausverwaltungssoftware per Excel- oder CSV-Datei in mietkartei übernehmen."
 ---
 
 # Von Excel umsteigen
@@ -19,6 +19,7 @@ Was in welche Datei gehört:
 - **Mieter:** eine Zeile je Mieter mit Anrede, Vorname, Nachname, E-Mail, Telefon und Adresse.
 - **Mietverträge:** eine Zeile je Vertrag mit Objekt, Einheit, Mieter, Beginn, Ende, Kaltmiete, Betriebs- und Heizkostenvorauszahlung, Kaution, Personen, „Mietkonto ab“ und Anfangssaldo. Mehrere Mieter eines Vertrags trennst du mit „;“; der erste ist der Hauptmieter, den die Briefe nennen.
 - **Zahlungen:** eine Zeile je Zahlung mit Objekt, Einheit, Datum, Betrag und Verwendungszweck.
+- **Ausgaben:** eine Zeile je Ausgabe mit Datum, Betrag, Kategorie und Beschreibung, dazu Objekt und Einheit, wenn sie eines betrifft. Kategorien wie Betriebskosten, Hausgeld, Instandhaltung, Darlehenszinsen, Tilgung oder Verwaltung erkennt mietkartei am Namen, alles andere wird Sonstiges. Ein negativer Betrag ist eine Erstattung; sind alle Beträge negativ wie in einem Kontoauszug, zählen sie als Ausgaben.
 
 Die Spaltennamen müssen nicht genau so heißen. Du ordnest sie beim Import zu.
 
@@ -30,6 +31,8 @@ Die Spaltennamen müssen nicht genau so heißen. Du ordnest sie beim Import zu.
 2. Mieter
 3. Mietverträge
 4. Zahlungen
+
+Ausgaben brauchen nur die Objekte und lassen sich jederzeit danach übernehmen.
 
 Die Reihenfolge ist wichtig, weil ein Mietvertrag auf Einheit und Mieter verweist, die es dann schon geben muss.
 

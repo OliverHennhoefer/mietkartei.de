@@ -1,9 +1,11 @@
 import { and, asc, eq } from 'drizzle-orm';
 import { formatDate, type IsoDate } from '../dates';
 import { formatCentsPlain } from '../money';
+import { expenseCategoryLabels } from '../labels';
 import { unitKindLabels } from '../units';
 import type { Database } from './db';
 import {
+	expenses,
 	leaseTenants,
 	leases,
 	payments,
@@ -238,6 +240,31 @@ export const readableTables: readonly ReadableTable[] = [
 					text(payment.note)
 				];
 			});
+		}
+	},
+	{
+		file: 'tabellen/ausgaben.csv',
+		kind: 'expenses',
+		rows: async (db, accountId) => {
+			const rows = await db
+				.select({
+					expense: expenses,
+					propertyName: properties.name,
+					unitName: units.name
+				})
+				.from(expenses)
+				.leftJoin(properties, eq(properties.id, expenses.propertyId))
+				.leftJoin(units, eq(units.id, expenses.unitId))
+				.where(eq(expenses.accountId, accountId))
+				.orderBy(asc(expenses.date));
+			return rows.map(({ expense, propertyName, unitName }) => [
+				text(propertyName),
+				text(unitName),
+				date(expense.date),
+				amount(expense.amount),
+				expenseCategoryLabels[expense.category],
+				expense.description
+			]);
 		}
 	}
 ];
