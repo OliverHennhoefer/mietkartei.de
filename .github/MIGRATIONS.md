@@ -28,6 +28,10 @@ INSERT INTO `meter_readings` SELECT * FROM `__keep_meter_readings`;--> statement
 DROP TABLE `__keep_meter_readings`;
 ```
 
+## Exports from older versions
+
+`export.json` records the last migration of the instance that wrote it (`schema`), and a landlord may restore it into a newer instance months later. A restore runs the upgrades in [`export-upgrades.ts`](../app/src/lib/server/export-upgrades.ts) for every migration the export does not have, so the rows of an old export change the way the migrations changed the databases. A migration that updates, deletes, inserts, renames or drops data therefore needs an entry in `exportUpgrades`: a function that does the same to the rows of an export (keyed by table name, with the schema's property names), or `null` with a comment when the export needs no change, for example because the table is not exported. An upgrade only changes rows that still have the old shape, because exports written before they recorded `schema` get every upgrade since `0056`. [`export-upgrades.spec.ts`](../app/src/lib/server/export-upgrades.spec.ts) fails when such a migration has no entry. What an upgraded export still holds that the schema has no column or table for makes the restore refuse the export and name it, so nothing is dropped silently.
+
 ## What CI checks
 
 [`migrations.spec.ts`](../app/src/lib/server/db/migrations.spec.ts) applies all migrations one after the other to a database that has rows in every table, adding a row to each table before every step. It fails when a migration loses a row or a value in a column that still exists, or leaves a broken foreign key, so the cascade of rule 4 shows up before the merge. It also checks that the journal lists every file in order with increasing timestamps (the node migrator skips an older one) and that every foreign key column leads an index, so deleting a parent row does not scan the whole child table.

@@ -26,7 +26,7 @@ export function parseImportForm(form: FormData): ParseResult<ImportFormInput> {
 	const file = parser.file('file', { maxBytes: IMPORT_MAX_BYTES });
 	const rawContent = form.get('content');
 	const content = typeof rawContent === 'string' && rawContent !== '' ? rawContent : null;
-	if (!file && !content) parser.fail('file', 'Bitte wähle eine CSV-Datei aus.');
+	if (!file && !content) parser.fail('file', 'Bitte wähle eine Excel- oder CSV-Datei aus.');
 	// base64 of the text as UTF-8, which a windows-1252 file can come close to doubling.
 	if (content && content.length > 4 * IMPORT_MAX_BYTES) {
 		parser.fail('file', 'Die Datei ist zu groß (höchstens 2 MB).');

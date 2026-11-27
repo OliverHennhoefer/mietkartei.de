@@ -5,6 +5,7 @@ import { accounts, auditLog, documents, leases, properties, tasks } from './db/s
 import { createDemoData } from './demo';
 import { storeDocument } from './documents';
 import { exportJson, type ExportData } from './export';
+import { currentSchema } from './export-upgrades';
 import { ensureCharges } from './ledger';
 import { canRestore, gunzipText, restoreDocument, restoredTables, restoreExport } from './restore';
 import { storageKey } from './storage';
@@ -153,6 +154,59 @@ describe('restoreExport', () => {
 			rows: 0,
 			documents: 0
 		});
+	});
+
+	it('records its schema and upgrades an older export like the migrations did', async () => {
+		await seedSource();
+		const exported = await collect(source, 'a');
+		expect(exported.schema).toBe(currentSchema);
+		const rules = exported.tables.matching_rules.filter((rule) => rule.leaseId);
+		expect(rules.length).toBeGreaterThan(0);
+		const names = rules.map((rule) => rule.name);
+		// Before 0064 a rule had no name; the migration named the rules of a lease after its unit.
+		exported.schema = '0063_deleted_accounts';
+		for (const rule of exported.tables.matching_rules) delete rule.name;
+		expect(await restoreExport(target, contextA, exported)).toMatchObject({ ok: true });
+		const again = await collect(target, 'a');
+		const units = new Map(again.tables.units.map((unit) => [unit.id, unit.name]));
+		const leases = new Map(again.tables.leases.map((lease) => [lease.id, lease.unitId]));
+		for (const rule of again.tables.matching_rules.filter((row) => row.leaseId)) {
+			expect(rule.name).toBe(`Miete ${String(units.get(leases.get(rule.leaseId)))}`);
+		}
+		expect(names).toHaveLength(rules.length);
+	});
+
+	it('takes an export without a schema as one of November 2026', async () => {
+		await seedSource();
+		const exported = await collect(source, 'a');
+		delete (exported as Partial<ExportData>).schema;
+		expect(await restoreExport(target, contextA, exported)).toMatchObject({ ok: true });
+		const again = await collect(target, 'a');
+		// The rules kept their names: an upgrade only changes rows of the old shape.
+		expect(again.tables.matching_rules).toEqual(exported.tables.matching_rules);
+	});
+
+	it('refuses an export of a newer version instead of dropping what it does not know', async () => {
+		await seedSource();
+		const exported = await collect(source, 'a');
+		expect(await restoreExport(target, contextA, { ...exported, schema: '0999_future' })).toEqual({
+			ok: false,
+			reason: 'newer'
+		});
+		expect(await restoreExport(target, contextA, { ...exported, schema: 66 })).toEqual({
+			ok: false,
+			reason: 'newer'
+		});
+
+		exported.tables.properties[0].heatingSystem = 'Wärmepumpe';
+		(exported.tables as Record<string, unknown[]>).solar_panels = [{ id: 'p1' }];
+		(exported.tables as Record<string, unknown[]>).empty_future_table = [];
+		expect(await restoreExport(target, contextA, exported)).toEqual({
+			ok: false,
+			reason: 'unknown',
+			fields: ['properties.heatingSystem', 'solar_panels']
+		});
+		expect(await canRestore(target, 'a')).toBe(true);
 	});
 
 	it('refuses an account with properties or documents', async () => {

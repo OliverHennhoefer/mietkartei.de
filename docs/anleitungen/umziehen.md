@@ -13,11 +13,12 @@ Deine Daten gehören dir. Du kannst jederzeit alles herunterladen und mit wenige
 
 - `export.json`: alle Einträge deines Kontos, also Objekte, Einheiten, Mieter, Mietverträge, Mietkonten und Zahlungen, Kautionen, Bankumsätze, Betriebskosten und Abrechnungen, Zähler, Versicherungen, Hausgeldabrechnungen, Aufgaben, Steuerdaten und das Protokoll,
 - den Ordner `documents/` mit allen hochgeladenen Dokumenten im Original.
+- den Ordner `tabellen/` mit Objekten und Einheiten, Mietern, Mietverträgen, Zahlungen und Ausgaben als CSV-Dateien. Sie öffnen sich in Excel und haben dieselben Spalten wie die [Datenübernahme](von-excel-umsteigen.md), lassen sich also so, wie sie sind, wieder in mietkartei oder in eine andere Software übernehmen. Mieterhöhungen, Abrechnungen und alles Weitere stehen nur in `export.json`.
 - `FEHLENDE-DOKUMENTE.txt`, nur wenn zu einem Dokument die Datei im Speicher fehlt: Die Liste nennt diese Dokumente, damit dir die Lücke gleich auffällt und nicht erst, wenn du das Dokument brauchst. Ihre Angaben stehen trotzdem in `export.json`, und das Protokoll vermerkt beim Export, wie viele es sind.
 
 Passwörter und API-Schlüssel sind nicht enthalten. Den Export darf nur der Vermieter herunterladen, Mitverwalter nicht. Auch ein Konto, das nach der Testphase ohne Abo nur noch lesbar ist, kann jederzeit exportieren.
 
-`export.json` ist eine gewöhnliche JSON-Datei mit einer Liste je Tabelle. Du kannst sie also auch ohne mietkartei weiterverarbeiten, etwa in einer Tabellenkalkulation oder einem eigenen Skript.
+`export.json` ist eine gewöhnliche JSON-Datei mit einer Liste je Tabelle. Du kannst sie also auch ohne mietkartei weiterverarbeiten, etwa in einem eigenen Skript. Welche Tabelle welche Felder hat, beschreibt die [technische Beschreibung des Exportformats](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/.github/EXPORT_FORMAT.md) (englisch).
 
 ## 2. Neue Instanz vorbereiten
 
@@ -26,6 +27,8 @@ Lege in der neuen Instanz ein Konto an. Wie du mietkartei selbst betreibst, steh
 ## 3. Export einspielen
 
 Öffne in der neuen Instanz **Einstellungen → Export** und wähle unter **Export einspielen** die ZIP-Datei aus. Der Browser liest die Datei und schickt erst die Einträge, dann jedes Dokument einzeln. So spielt das auch große Exporte mit vielen Dokumenten ein. Am Ende siehst du, wie viele Einträge und Dokumente übernommen wurden. Die Seite braucht dafür JavaScript.
+
+Der Export darf von einer älteren Version von mietkartei stammen: Was sich seitdem an der Datenbank geändert hat, holt das Einspielen für die Einträge des Exports nach. Stammt er von einer neueren Version als die Instanz, in die du ihn einspielst, aktualisiere diese zuerst. Kennt die Instanz eine Angabe des Exports nicht, spielt sie nichts ein und nennt die Angabe, statt sie stillschweigend wegzulassen.
 
 Alle Einträge behalten ihre Verknüpfungen: Verträge gehören weiter zu ihren Einheiten und Mietern, Dokumente zu ihren Objekten und Verträgen, und das Protokoll zeigt die bisherigen Änderungen. Was du selbst geändert hast, steht danach unter deinem neuen Zugang.
 

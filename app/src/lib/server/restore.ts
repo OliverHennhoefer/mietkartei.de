@@ -7,6 +7,7 @@ import * as schema from './db/schema';
 import { accounts, documents, leaseTenants, leases, properties, users } from './db/schema';
 import { MAX_ACCOUNT_DOCUMENT_BYTES, MAX_ACCOUNT_DOCUMENTS, MAX_DOCUMENT_BYTES } from './documents';
 import { EXPORT_FORMAT, EXPORT_VERSION, exportTables } from './export';
+import { upgradesFor, type ExportTables } from './export-upgrades';
 import { getStorage, storageKey, type Storage } from './storage';
 
 // Restore (Export einspielen): fills an empty account with the export.json of another account,
@@ -47,10 +48,13 @@ const accountFields = [
 	'operatingCostDefaultsSeeded'
 ] as const;
 
-export type RestoreError = 'not-empty' | 'invalid' | 'quota' | 'rejected';
+export type RestoreError = 'not-empty' | 'invalid' | 'newer' | 'unknown' | 'quota' | 'rejected';
 
 export type RestoreResult =
-	{ ok: true; rows: number; documents: number } | { ok: false; reason: RestoreError };
+	| { ok: true; rows: number; documents: number }
+	| { ok: false; reason: Exclude<RestoreError, 'unknown'> }
+	/** `fields` names what this version has no place for, as `table.field`. */
+	| { ok: false; reason: 'unknown'; fields: string[] };
 
 type Row = Record<string, unknown>;
 
@@ -158,18 +162,42 @@ function isRow(value: unknown): value is Row {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** The tables of an export.json, or undefined when it is not one this version can read. */
-function exportedTables(data: unknown): Record<string, unknown[]> | undefined {
+/** The tables of an export.json, or undefined when it is not an export. */
+function exportedTables(data: unknown): ExportTables | undefined {
 	if (!isRow(data) || data.format !== EXPORT_FORMAT || data.version !== EXPORT_VERSION) {
 		return undefined;
 	}
 	if (!isRow(data.tables)) return undefined;
-	const tables: Record<string, unknown[]> = {};
+	const tables: ExportTables = {};
 	for (const [name, rows] of Object.entries(data.tables)) {
 		if (!Array.isArray(rows) || !rows.every(isRow)) return undefined;
 		tables[name] = rows;
 	}
 	return tables;
+}
+
+/** Tables of the export that are read but not restored, and the one row of the account. */
+const readOnlyTables = new Set([getTableName(accounts), ...[...skippedTables].map(getTableName)]);
+
+/**
+ * What the upgraded export holds that this schema has no place for, as `table.field` (a whole
+ * table as `table`). Restoring it would drop that silently, so the restore refuses instead.
+ */
+function unknownFields(tables: ExportTables): string[] {
+	const known = new Map(restoredTables.map((table) => [getTableName(table), table]));
+	const unknown: string[] = [];
+	for (const [name, rows] of Object.entries(tables)) {
+		if (readOnlyTables.has(name)) continue;
+		const table = known.get(name);
+		if (!table) {
+			if (rows.length > 0) unknown.push(name);
+			continue;
+		}
+		const columns = getTableColumns(table);
+		const keys = new Set(rows.flatMap((row) => Object.keys(row)));
+		for (const key of keys) if (!(key in columns)) unknown.push(`${name}.${key}`);
+	}
+	return unknown;
 }
 
 /** Whether nothing the landlord entered is in the account yet, so a restore loses nothing. */
@@ -200,7 +228,12 @@ export async function restoreExport(
 	const tables = exportedTables(data);
 	const [exportedAccount] = tables?.accounts ?? [];
 	if (!tables || !isRow(exportedAccount)) return { ok: false, reason: 'invalid' };
+	const schema = upgradesFor((data as Row).schema);
+	if (!schema.ok) return { ok: false, reason: 'newer' };
 	if (!(await canRestore(db, accountId))) return { ok: false, reason: 'not-empty' };
+	for (const upgrade of schema.upgrades) upgrade(tables);
+	const unknown = unknownFields(tables);
+	if (unknown.length > 0) return { ok: false, reason: 'unknown', fields: unknown };
 
 	const owners = new Set(
 		(tables.users ?? [])
@@ -229,7 +262,7 @@ export async function restoreExport(
 	const restored = new Map<SQLiteTable, Row[]>();
 	for (const table of restoredTables) {
 		const rows = (tables[getTableName(table)] ?? []).map((row) =>
-			restoredRow(table, row as Row, accountId, mapUser)
+			restoredRow(table, row, accountId, mapUser)
 		);
 		restored.set(table, parentsFirst(table, rows));
 	}

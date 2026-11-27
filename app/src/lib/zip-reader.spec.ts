@@ -51,7 +51,8 @@ describe('readZip', () => {
 		expect(JSON.parse(new TextDecoder().decode(files[0].bytes))).toMatchObject({
 			format: 'mietkartei'
 		});
-		expect(files.slice(1).sort((x, y) => x.path.localeCompare(y.path))).toEqual(
+		const documents = files.filter((file) => file.path.startsWith('documents/'));
+		expect(documents.sort((x, y) => x.path.localeCompare(y.path))).toEqual(
 			stored.sort((x, y) => x.path.localeCompare(y.path))
 		);
 	});

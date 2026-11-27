@@ -9,6 +9,7 @@ import type { Database } from './db';
 import { chunk, rowsPerStatement } from './db/batch';
 import { auditLog, leaseTenants, properties } from './db/schema';
 import { storeDocument } from './documents';
+import { readableTables } from './export-csv';
 import {
 	EXPORT_PAGE_ROWS,
 	MISSING_DOCUMENTS_FILE,
@@ -245,9 +246,15 @@ describe('exportZip', () => {
 				'export.json',
 				'documents/',
 				`documents/${stored.id}-Mietvertrag.pdf`,
-				MISSING_DOCUMENTS_FILE
+				MISSING_DOCUMENTS_FILE,
+				...readableTables.map((table) => table.file)
 			].sort()
 		);
+		// The readable copy: the lease of the account in the columns of the CSV import.
+		const leasesCsv = strFromU8(files['tabellen/mietvertraege.csv']);
+		expect([...files['tabellen/mietvertraege.csv'].subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+		expect(leasesCsv.startsWith('Objekt;Einheit;Mieter;Beginn;')).toBe(true);
+		expect(leasesCsv.split('\r\n')).toHaveLength(3);
 		expect(strFromU8(files[`documents/${stored.id}-Mietvertrag.pdf`])).toBe('%PDF-1.4 test');
 		// The lost file is named in the archive, so the gap shows now and not when it is needed.
 		expect(strFromU8(files[MISSING_DOCUMENTS_FILE])).toContain(`Weg.pdf (${lost.id})`);
@@ -389,7 +396,12 @@ describe('exportZip', () => {
 
 	it('builds a ZIP for an empty account', async () => {
 		const files = unzipSync(await readZip(await exportZip(db, contextB, { storage })));
-		expect(Object.keys(files).sort()).toEqual(['documents/', 'export.json']);
+		expect(Object.keys(files).sort()).toEqual(
+			['documents/', 'export.json', ...readableTables.map((table) => table.file)].sort()
+		);
+		expect(strFromU8(files['tabellen/mieter.csv'])).toBe(
+			'Anrede;Vorname;Nachname;Geburtsdatum;E-Mail;Telefon;Straße;PLZ;Ort;Notizen\r\n'
+		);
 		const data = JSON.parse(strFromU8(files['export.json'])) as ExportData;
 		expect(data.tables.properties).toEqual([]);
 	});

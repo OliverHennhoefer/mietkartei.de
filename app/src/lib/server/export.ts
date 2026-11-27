@@ -12,6 +12,8 @@ import {
 import { SQLiteTable, type SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { Zip, ZipDeflate, ZipPassThrough, strToU8 } from 'fflate';
 import { auditEntry, type AuditContext } from './audit';
+import { readableCsv, readableTables } from './export-csv';
+import { currentSchema } from './export-upgrades';
 import type { Database } from './db';
 import * as schema from './db/schema';
 import { accounts, auditLog, leaseTenants, leases, users } from './db/schema';
@@ -108,6 +110,8 @@ export function accountTables(): AccountTable[] {
 export type ExportData = {
 	format: typeof EXPORT_FORMAT;
 	version: typeof EXPORT_VERSION;
+	/** The last migration of the instance that wrote it, so a newer one can upgrade the rows. */
+	schema: string;
 	exportedAt: string;
 	accountId: string;
 	/** Rows per SQL table name, in dependency order; `accounts` holds the one account row. */
@@ -182,6 +186,7 @@ export async function* exportJson(db: Database, accountId: string): AsyncGenerat
 	const head = {
 		format: EXPORT_FORMAT,
 		version: EXPORT_VERSION,
+		schema: currentSchema,
 		exportedAt: new Date().toISOString(),
 		accountId
 	};
@@ -261,6 +266,7 @@ export async function exportZip(
 	zip.add(json);
 	const pieces = exportJson(db, context.accountId);
 	let writingJson = true;
+	let nextTable = 0;
 
 	let next = 0;
 	const missing: { id: string; name: string }[] = [];
@@ -280,6 +286,14 @@ export async function exportZip(
 			}
 			json.push(new Uint8Array(0), true);
 			writingJson = false;
+			return;
+		}
+		if (nextTable < readableTables.length) {
+			const table = readableTables[nextTable++];
+			const file = new ZipDeflate(table.file, { level: 6 });
+			zip.add(file);
+			file.push(strToU8(await readableCsv(db, context.accountId, table)), true);
+			if (nextTable < readableTables.length) return;
 			const folder = new ZipPassThrough('documents/');
 			zip.add(folder);
 			folder.push(new Uint8Array(0), true);
