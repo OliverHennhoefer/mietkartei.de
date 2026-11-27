@@ -21,6 +21,7 @@ import {
 	decodeContent,
 	emptyImportContext,
 	encodeContent,
+	importFields,
 	loadImportContext,
 	planImport,
 	plannedCount,
@@ -1280,6 +1281,18 @@ describe('planImport: expenses', () => {
 		);
 		expect(result.kind === 'expenses' && result.expenses.map((expense) => expense.amount)).toEqual([
 			1250, 0
+		]);
+	});
+
+	it('keeps the signs of its own ausgaben.csv, where a negative amount is a refund', () => {
+		const header = importFields.expenses.map((field) => field.label).join(';');
+		const result = plan(
+			'expenses',
+			`${header}\n;;03.01.2025;-12,50;Sonstiges;Erstattung`,
+			leaseContext
+		);
+		expect(result.kind === 'expenses' && result.expenses.map((expense) => expense.amount)).toEqual([
+			-1250
 		]);
 	});
 

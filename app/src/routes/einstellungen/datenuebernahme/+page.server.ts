@@ -3,7 +3,12 @@ import { today } from '#lib/dates.ts';
 import { parseToolFile } from '#lib/domain/statement-tool.ts';
 import { decodeCsv, parseCsv } from '#lib/csv.ts';
 import { isXlsx, readXlsx, rowsToCsv, XlsxError } from '#lib/xlsx.ts';
-import { IMPORT_MAX_ROWS, parseImportForm, type ImportFormInput } from '#lib/forms/import.ts';
+import {
+	IMPORT_MAX_BYTES,
+	IMPORT_MAX_ROWS,
+	parseImportForm,
+	type ImportFormInput
+} from '#lib/forms/import.ts';
 import {
 	commitImport,
 	decodeContent,
@@ -110,6 +115,13 @@ async function prepare(locals: App.Locals, form: FormData): Promise<Prepared | F
 	} else if (input.content) text = decodeContent(input.content);
 	if (text === undefined) {
 		return failForm({ file: 'Die Datei konnte nicht gelesen werden.' }, { kind: input.kind });
+	}
+	// Step 2 sends the text back; an Excel file can unpack to more than the form takes there.
+	if (input.file && encodeContent(text).length > 4 * IMPORT_MAX_BYTES) {
+		return failForm(
+			{ file: 'Die Tabelle ist zu groß. Bitte teile sie auf mehrere Dateien auf.' },
+			{ kind: input.kind }
+		);
 	}
 	const rows = parseCsv(text);
 	if (rows.length < 2) {

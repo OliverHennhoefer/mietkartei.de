@@ -1415,7 +1415,11 @@ function expenseKey(expense: {
 	].join('|');
 }
 
-function planExpenses(rows: DataRow[], context: ImportContext): ImportPlan {
+/**
+ * @param ownExport whether the header is exactly that of tabellen/ausgaben.csv, whose signs are
+ * mietkartei's own (negative = refund) and never turned around.
+ */
+function planExpenses(rows: DataRow[], context: ImportContext, ownExport: boolean): ImportPlan {
 	const results: RowResult[] = [];
 	const newExpenses: NewExpense[] = [];
 	const existing = new Set(context.expenses.map(expenseKey));
@@ -1424,7 +1428,10 @@ function planExpenses(rows: DataRow[], context: ImportContext): ImportPlan {
 	const amounts = rows
 		.map(({ values }) => parseCents(values.amount))
 		.filter((cents) => cents !== undefined);
-	const sign = amounts.some((cents) => cents < 0) && amounts.every((cents) => cents <= 0) ? -1 : 1;
+	const sign =
+		!ownExport && amounts.some((cents) => cents < 0) && amounts.every((cents) => cents <= 0)
+			? -1
+			: 1;
 	for (const { row, values } of rows) {
 		const result: RowResult = { row, values };
 		results.push(result);
@@ -1506,7 +1513,12 @@ export function planImport(
 		case 'payments':
 			return planPayments(data, context);
 		case 'expenses':
-			return planExpenses(data, context);
+			return planExpenses(
+				data,
+				context,
+				(rows[headerIndex] ?? []).join(';') ===
+					importFields.expenses.map((field) => field.label).join(';')
+			);
 	}
 }
 

@@ -17,6 +17,12 @@ const MAX_PART_BYTES = 64 * 1024 * 1024;
 
 export class XlsxError extends Error {}
 
+/** Excel's own limits; a cell reference beyond them is no worksheet Excel wrote. */
+const MAX_ROWS = 1_048_576;
+const MAX_COLUMNS = 16_384;
+/** Rows read at most, gaps included: far more than the import takes, far less than memory. */
+const MAX_READ_ROWS = 100_000;
+
 /** Built-in number formats that show a date (ECMA-376 Part 1, 18.8.30). */
 const DATE_FORMAT_IDS = new Set([14, 15, 16, 17, 22, 27, 30, 36, 45, 46, 47, 50, 57]);
 
@@ -35,7 +41,7 @@ function allText(element: XmlElement): string {
 
 /** `AB12` → 27 (0-based column). */
 function columnOf(reference: string): number | undefined {
-	const letters = /^([A-Z]+)\d+$/i.exec(reference)?.[1];
+	const letters = /^([A-Z]{1,3})\d+$/i.exec(reference)?.[1];
 	if (!letters) return undefined;
 	let column = 0;
 	for (const letter of letters.toUpperCase()) column = column * 26 + letter.charCodeAt(0) - 64;
@@ -113,10 +119,16 @@ export function readXlsx(bytes: Uint8Array): string[][] {
 		const rows: string[][] = [];
 		for (const row of children(child(sheet, 'sheetData'), 'row')) {
 			const index = Number(row.attributes.r ?? rows.length + 1) - 1;
+			// The row number decides how many empty rows are filled in, so it is checked first.
+			if (!Number.isInteger(index) || index < rows.length || index >= MAX_ROWS) {
+				throw new XlsxError('Ungültige Zeilennummer');
+			}
+			if (index >= MAX_READ_ROWS) throw new XlsxError('Zu viele Zeilen');
 			while (rows.length < index) rows.push([]);
 			const cells: string[] = [];
 			for (const cell of children(row, 'c')) {
 				const column = columnOf(cell.attributes.r ?? '') ?? cells.length;
+				if (column >= MAX_COLUMNS) throw new XlsxError('Ungültige Spalte');
 				const raw = child(cell, 'v')?.text ?? '';
 				let value: string;
 				switch (cell.attributes.t) {

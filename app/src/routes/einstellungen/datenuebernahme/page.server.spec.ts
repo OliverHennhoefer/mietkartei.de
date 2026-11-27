@@ -1,3 +1,4 @@
+import { strToU8, zipSync } from 'fflate';
 import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { decodeContent } from '#lib/server/import.ts';
@@ -76,6 +77,28 @@ describe('datenuebernahme', () => {
 		expect(await run('preview', { kind: 'leases', file: broken })).toMatchObject({
 			fail: 400,
 			data: { errors: { file: expect.stringContaining('Excel-Datei konnte nicht gelesen') } }
+		});
+	});
+
+	it('refuses an Excel file that unpacks to more than step 2 can send back', async () => {
+		const ns = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"';
+		const long = 'x'.repeat(8000);
+		const rows = Array.from(
+			{ length: 1000 },
+			(_, index) =>
+				`<row r="${index + 1}"><c r="A${index + 1}" t="inlineStr"><is><t>${long}</t></is></c></row>`
+		).join('');
+		const bytes = zipSync({
+			'xl/workbook.xml': strToU8(`<workbook ${ns}><sheets><sheet name="a"/></sheets></workbook>`),
+			'xl/worksheets/sheet1.xml': strToU8(
+				`<worksheet ${ns}><sheetData>${rows}</sheetData></worksheet>`
+			)
+		});
+		expect(bytes.length).toBeLessThan(100_000);
+		const file = new File([bytes], 'gross.xlsx');
+		expect(await run('preview', { kind: 'tenants', file })).toMatchObject({
+			fail: 400,
+			data: { errors: { file: expect.stringContaining('zu groß') } }
 		});
 	});
 

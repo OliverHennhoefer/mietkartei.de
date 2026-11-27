@@ -69,6 +69,19 @@ describe('readXlsx', () => {
 			readXlsx(workbook('', { sheets: '<sheets><sheet name="a" r:id="rId9"/></sheets>' }))
 		).not.toThrow();
 	});
+
+	it('refuses row and column numbers beyond what Excel writes', () => {
+		for (const sheet of [
+			'<row r="1048577"><c r="A1048577"><v>1</v></c></row>',
+			'<row r="200000"><c r="A200000"><v>1</v></c></row>',
+			'<row r="1e9"/>',
+			'<row r="2"/><row r="1"/>',
+			'<row r="1"><c r="XFE1"><v>1</v></c></row>'
+		]) {
+			expect(() => readXlsx(workbook(sheet)), sheet).toThrow(XlsxError);
+		}
+		expect(readXlsx(workbook('<row r="1"><c r="XFD1"><v>1</v></c></row>'))[0]).toHaveLength(16_384);
+	});
 });
 
 describe('rowsToCsv', () => {
