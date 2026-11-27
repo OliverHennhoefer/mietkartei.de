@@ -10,6 +10,10 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ## [Unveröffentlicht]
 
+### Behoben
+
+- Export einspielen: Ein Export einer älteren Version von mietkartei verliert beim Einspielen in eine neuere nichts mehr. Der Export vermerkt jetzt, mit welchem Stand der Datenbank er geschrieben wurde, und das Einspielen holt nach, was sich seitdem geändert hat; Zuordnungsregeln aus einem Export von vor dem 23. November bekommen etwa ihren Namen. Ein Export einer neueren Version wird abgelehnt, statt Angaben wegzulassen, die die Instanz nicht kennt. Siehe [Umziehen und Daten mitnehmen](https://docs.mietkartei.de/anleitungen/umziehen/).
+
 ### Geändert
 
 - Das Jahresabo der gehosteten Version kostet 45 € statt 50 € im Jahr, also drei Monate gratis gegenüber dem Monatsabo zu 5 €. Laufende Jahresabos behalten ihren bisherigen Preis.

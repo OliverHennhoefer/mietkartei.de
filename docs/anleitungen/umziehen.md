@@ -27,6 +27,8 @@ Lege in der neuen Instanz ein Konto an. Wie du mietkartei selbst betreibst, steh
 
 Öffne in der neuen Instanz **Einstellungen → Export** und wähle unter **Export einspielen** die ZIP-Datei aus. Der Browser liest die Datei und schickt erst die Einträge, dann jedes Dokument einzeln. So spielt das auch große Exporte mit vielen Dokumenten ein. Am Ende siehst du, wie viele Einträge und Dokumente übernommen wurden. Die Seite braucht dafür JavaScript.
 
+Der Export darf von einer älteren Version von mietkartei stammen: Was sich seitdem an der Datenbank geändert hat, holt das Einspielen für die Einträge des Exports nach. Stammt er von einer neueren Version als die Instanz, in die du ihn einspielst, aktualisiere diese zuerst. Kennt die Instanz eine Angabe des Exports nicht, spielt sie nichts ein und nennt die Angabe, statt sie stillschweigend wegzulassen.
+
 Alle Einträge behalten ihre Verknüpfungen: Verträge gehören weiter zu ihren Einheiten und Mietern, Dokumente zu ihren Objekten und Verträgen, und das Protokoll zeigt die bisherigen Änderungen. Was du selbst geändert hast, steht danach unter deinem neuen Zugang.
 
 ## Danach neu einrichten
