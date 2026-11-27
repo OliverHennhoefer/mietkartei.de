@@ -31,6 +31,29 @@
 	);
 	const base = $derived(`/mieterportal/${page.params.token}`);
 
+	// All photos go in one request, which the server accepts up to 12 MB; checked here so that a
+	// tenant sees a message instead of an error page. The server checks the same budget.
+	const PHOTO_BUDGET = 10 * 1024 * 1024;
+	function checkPhotos(event: Event & { currentTarget: HTMLInputElement }) {
+		const input = event.currentTarget;
+		const total = [...(input.files ?? [])].reduce((sum, file) => sum + file.size, 0);
+		const count = input.files?.length ?? 0;
+		input.setCustomValidity(
+			count > MAX_DAMAGE_PHOTOS
+				? `Bitte wählen Sie höchstens ${MAX_DAMAGE_PHOTOS} Fotos.`
+				: total > PHOTO_BUDGET
+					? 'Die Fotos sind zusammen zu groß (höchstens 10 MB).'
+					: ''
+		);
+		input.reportValidity();
+	}
+	function checkPhoto(event: Event & { currentTarget: HTMLInputElement }) {
+		const input = event.currentTarget;
+		const size = input.files?.[0]?.size ?? 0;
+		input.setCustomValidity(size > PHOTO_BUDGET ? 'Das Foto ist zu groß (höchstens 10 MB).' : '');
+		input.reportValidity();
+	}
+
 	const balanceText = (balance: number) =>
 		balance > 0 ? 'Nachzahlung' : balance < 0 ? 'Guthaben' : 'ausgeglichen';
 </script>
@@ -140,7 +163,13 @@
 					<input name="value" inputmode="decimal" required defaultValue={meterValues.value ?? ''} />
 				</Field>
 				<Field label="Foto vom Zähler (freiwillig)" error={meterErrors?.photo}>
-					<input name="photo" type="file" accept="image/*" capture="environment" />
+					<input
+						name="photo"
+						type="file"
+						accept="image/*"
+						capture="environment"
+						onchange={checkPhoto}
+					/>
 				</Field>
 				<Field label="Bemerkung (freiwillig)" error={meterErrors?.note}>
 					<input name="note" maxlength="500" defaultValue={meterValues.note ?? ''} />
@@ -223,7 +252,7 @@
 				/>
 			</Field>
 			<Field label="Fotos (freiwillig, bis zu {MAX_DAMAGE_PHOTOS})" error={damageErrors?.photos}>
-				<input name="photos" type="file" accept="image/*" multiple />
+				<input name="photos" type="file" accept="image/*" multiple onchange={checkPhotos} />
 			</Field>
 			<div class="form-actions form-wide">
 				<button type="submit">Schaden melden</button>

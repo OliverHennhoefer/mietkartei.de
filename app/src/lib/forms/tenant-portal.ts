@@ -91,6 +91,9 @@ export async function parseDamageReport(form: FormData): Promise<ParseResult<Dam
 	const chosen = files(form, 'photos');
 	if (chosen.length > MAX_DAMAGE_PHOTOS) {
 		errors.photos = `Bitte wählen Sie höchstens ${MAX_DAMAGE_PHOTOS} Fotos.`;
+	} else if (chosen.reduce((sum, file) => sum + file.size, 0) > MAX_DOCUMENT_BYTES) {
+		// One request carries all photos, and the self-hosted server accepts 12 MB per request.
+		errors.photos = `Die Fotos sind zusammen zu groß (höchstens ${MAX_MEGABYTES} MB).`;
 	}
 	const photos = errors.photos
 		? []

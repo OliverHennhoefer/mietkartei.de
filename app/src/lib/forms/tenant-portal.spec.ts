@@ -114,5 +114,11 @@ describe('parseDamageReport', () => {
 			ok: false,
 			errors: { photos: expect.stringContaining('zu groß') }
 		});
+		const together = formDataOf(fields);
+		for (let index = 0; index < 3; index++) together.append('photos', photo(4 * 1024 * 1024));
+		expect(await parseDamageReport(together)).toMatchObject({
+			ok: false,
+			errors: { photos: 'Die Fotos sind zusammen zu groß (höchstens 10 MB).' }
+		});
 	});
 });
