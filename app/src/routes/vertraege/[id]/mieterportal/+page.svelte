@@ -95,12 +95,12 @@
 	<p class="muted">Keine offenen Meldungen.</p>
 {:else}
 	<div class="table-wrap">
-		<table>
+		<table class="table" aria-label="Gemeldete Zählerstände">
 			<thead>
 				<tr>
 					<th>Zähler</th>
 					<th>Abgelesen am</th>
-					<th class="numeric">Stand</th>
+					<th class="num">Stand</th>
 					<th>Foto</th>
 					<th><span class="visually-hidden">Aktionen</span></th>
 				</tr>
@@ -116,7 +116,7 @@
 							{/if}
 						</td>
 						<td>{formatDate(report.readAt)}</td>
-						<td class="numeric">{formatNumber(report.value)} {report.unit}</td>
+						<td class="num">{formatNumber(report.value)} {report.unit}</td>
 						<td>
 							{#if report.documentId}
 								<PreviewLink
