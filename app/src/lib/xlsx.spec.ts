@@ -61,6 +61,29 @@ describe('readXlsx', () => {
 		expect(readXlsx(file)).toEqual([['01.01.1904']]);
 	});
 
+	it('reads cells without references, phonetic hints, false and missing values', () => {
+		const file = zipSync({
+			'xl/workbook.xml': strToU8(`<workbook ${ns}><sheets><sheet name="a"/></sheets></workbook>`),
+			'xl/sharedStrings.xml': strToU8(
+				`<sst ${ns}><si><t>Tokio</t><rPh><t>とうきょう</t></rPh></si></sst>`
+			),
+			'xl/worksheets/sheet1.xml': strToU8(
+				`<worksheet ${ns}><sheetData><row><c t="s"><v>0</v></c><c t="s"><v>7</v></c>` +
+					'<c t="inlineStr"/><c t="b"><v>0</v></c><c t="e"><v>#DIV/0!</v></c><c><v>x</v></c></row></sheetData></worksheet>'
+			)
+		});
+		expect(readXlsx(file)).toEqual([['Tokio', '', '', 'FALSCH', '#DIV/0!', 'x']]);
+	});
+
+	it('refuses a workbook without its sheet or with broken XML', () => {
+		const sheetless = zipSync({
+			'xl/workbook.xml': strToU8(`<workbook ${ns}><sheets><sheet name="a"/></sheets></workbook>`)
+		});
+		expect(() => readXlsx(sheetless)).toThrow('Kein Tabellenblatt');
+		const broken = zipSync({ 'xl/workbook.xml': strToU8('<workbook><sheets>') });
+		expect(() => readXlsx(broken)).toThrow(XlsxError);
+	});
+
 	it('refuses what is not a workbook', () => {
 		expect(isXlsx(strToU8('Name;Ort\n'))).toBe(false);
 		expect(() => readXlsx(strToU8('Name;Ort\n'))).toThrow(XlsxError);

@@ -1319,5 +1319,27 @@ describe('planImport: expenses', () => {
 			await loadImportContext(db, 'a', 'expenses')
 		);
 		expect(plannedCount(again)).toBe(0);
+		expect(await commitImport(db, contextA, again)).toMatchObject({ count: 0 });
+	});
+
+	it('names blank rows, missing values and a property name that is not unique', () => {
+		const twice: ImportContext = {
+			...leaseContext,
+			properties: [...leaseContext.properties, { ...leaseContext.properties[0], id: 'twin' }]
+		};
+		const name = leaseContext.properties[0].name;
+		const result = plan(
+			'expenses',
+			['Objekt;Datum;Betrag', ';;', 'Villa;;5', 'Villa;01.01.2025;', `${name};01.01.2025;5`].join(
+				'\n'
+			),
+			twice
+		);
+		expect(reasons(result)).toEqual([
+			[2, 'Die Zeile ist leer.'],
+			[3, 'Datum: Bitte gib ein Datum an.'],
+			[4, 'Betrag: Bitte gib einen Betrag an.'],
+			[5, `Das Objekt „${name}“ gibt es mehrmals; benenne die Objekte eindeutig.`]
+		]);
 	});
 });
