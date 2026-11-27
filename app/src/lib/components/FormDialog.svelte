@@ -60,9 +60,11 @@
 	const id = $props.id();
 	let dialog = $state<HTMLDialogElement>();
 	// Opened from the list in this tab: closing goes back, so the back button does not reopen it.
-	let fromList = false;
+	// Decided by the navigation that opened the dialog; a later one inside it, such as choosing a
+	// template, comes from the dialog itself and says nothing about the page before it.
+	let fromList: boolean | undefined;
 	afterNavigate(({ from, to }) => {
-		fromList = from?.url.pathname === to?.url.pathname;
+		fromList ??= from?.url.pathname === to?.url.pathname;
 	});
 
 	// Made modal once the surrounding effects have run: a dialog over a page in the settings dialog
