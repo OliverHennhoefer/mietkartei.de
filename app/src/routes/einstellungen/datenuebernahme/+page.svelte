@@ -159,11 +159,16 @@
 			</select>
 		</Field>
 		<Field
-			label="CSV-Datei"
+			label="Excel- oder CSV-Datei"
 			error={errors?.file}
-			hint="Mit Spaltenüberschriften in der ersten Zeile; Trennzeichen Semikolon, Komma oder Tabulator; höchstens 2 MB."
+			hint="Mit Spaltenüberschriften in der ersten Zeile. Excel (.xlsx): das erste Tabellenblatt. CSV: Trennzeichen Semikolon, Komma oder Tabulator. Höchstens 2 MB."
 		>
-			<input type="file" name="file" accept=".csv,.txt,text/csv,text/plain" required />
+			<input
+				type="file"
+				name="file"
+				accept=".xlsx,.csv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+				required
+			/>
 		</Field>
 		<div class="form-actions">
 			<button type="submit">Vorschau anzeigen</button>
@@ -172,7 +177,10 @@
 
 	<h2>So geht es</h2>
 	<ol class="steps">
-		<li>Exportiere die Daten aus deiner bisherigen Software als CSV-Datei, eine Datei je Art.</li>
+		<li>
+			Exportiere die Daten aus deiner bisherigen Software als Excel- oder CSV-Datei, eine Datei je
+			Art.
+		</li>
 		<li>
 			Importiere in dieser Reihenfolge: Objekte und Einheiten, dann Mieter, dann Mietverträge,
 			zuletzt Zahlungen. Jede Datei bekommt eine Vorschau mit der Spaltenzuordnung, bevor etwas

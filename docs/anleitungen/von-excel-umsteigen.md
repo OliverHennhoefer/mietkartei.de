@@ -1,17 +1,17 @@
 ---
 title: Von Excel umsteigen
-description: "Objekte, Mieter, Mietverträge und Zahlungen aus Excel oder einer anderen Hausverwaltungssoftware per CSV in mietkartei übernehmen."
+description: "Objekte, Mieter, Mietverträge und Zahlungen aus Excel oder einer anderen Hausverwaltungssoftware per Excel- oder CSV-Datei in mietkartei übernehmen."
 ---
 
 # Von Excel umsteigen
 
-Viele Vermieter führen ihre Wohnungen in einer Excel-Tabelle, bis die Nebenkostenabrechnung zu aufwendig wird. Was in der Tabelle steht, übernimmst du per CSV-Datei in mietkartei. Danach rechnet mietkartei Soll und Ist jedes Mietkontos selbst.
+Viele Vermieter führen ihre Wohnungen in einer Excel-Tabelle, bis die Nebenkostenabrechnung zu aufwendig wird. Was in der Tabelle steht, übernimmst du als Excel- oder CSV-Datei in mietkartei. Danach rechnet mietkartei Soll und Ist jedes Mietkontos selbst.
 
 ![Datenübernahme in mietkartei mit Auswahl der Datenart und der CSV-Datei](../assets/screenshots/datenuebernahme.png)
 
-## 1. CSV-Dateien speichern
+## 1. Tabellen vorbereiten
 
-Speichere in Excel jede Tabelle mit **Datei → Speichern unter → CSV UTF-8** oder „CSV (Trennzeichen-getrennt)“. Nötig ist eine Datei je Art von Daten, mit Spaltenüberschriften in der ersten Zeile. Semikolon, Komma und Tabulator als Trennzeichen funktionieren. Beträge schreibst du mit Komma (650,00), Datumsangaben als 01.01.2025.
+Nötig ist eine Datei je Art von Daten, mit Spaltenüberschriften in der ersten Zeile. Eine Excel-Datei (.xlsx) lädst du direkt hoch; mietkartei liest ihr erstes Tabellenblatt, Datumsangaben und Beträge so, wie Excel sie anzeigt. Stehen mehrere Arten in einer Mappe, speichere jedes Blatt als eigene Datei oder schiebe es nach vorn. Eine CSV-Datei geht ebenso, etwa aus **Datei → Speichern unter → CSV UTF-8** oder aus einer anderen Software; Semikolon, Komma und Tabulator als Trennzeichen funktionieren. In einer CSV-Datei schreibst du Beträge mit Komma (650,00) und Datumsangaben als 01.01.2025.
 
 Was in welche Datei gehört:
 

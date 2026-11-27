@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { decodeContent } from '#lib/server/import.ts';
 import type { Database } from '#lib/server/db/index.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import { today } from '#lib/dates.ts';
@@ -51,6 +53,29 @@ describe('datenuebernahme', () => {
 					])
 				}
 			}
+		});
+	});
+
+	it('reads the first sheet of an Excel file like a CSV file', async () => {
+		const bytes = readFileSync('src/lib/xlsx-fixtures/libreoffice.xlsx');
+		const file = new File([bytes], 'vertraege.xlsx');
+		const result = (await run('preview', { kind: 'leases', file })) as { data: Preview };
+		expect(result.data).toMatchObject({ step: 'preview', total: 2 });
+		expect(result.data.mapping).toMatchObject({
+			propertyName: 0,
+			unitName: 1,
+			tenantNames: 2,
+			startDate: 3,
+			baseRent: 4,
+			operatingCostPrepayment: 5
+		});
+		// Step 2 sends the sheet back as CSV text.
+		expect(decodeContent(result.data.content)).toContain('Schulz, Anna;01.04.2021;650,5;180');
+
+		const broken = new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2, 3])], 'kaputt.xlsx');
+		expect(await run('preview', { kind: 'leases', file: broken })).toMatchObject({
+			fail: 400,
+			data: { errors: { file: expect.stringContaining('Excel-Datei konnte nicht gelesen') } }
 		});
 	});
 
