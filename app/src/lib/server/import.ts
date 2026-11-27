@@ -40,6 +40,9 @@ import type { TenantInput } from './tenants';
 // every row, and commits the valid rows. The mapping proposal and the row validation are pure
 // (planImport); only loadImportContext and commitImport touch the database. Rows are validated
 // with the same parsers the forms use, so a tenant from a file is checked like one typed in.
+// The synonyms also hold column names of other software where they are published, such as the
+// Win-CASA CSV layout (ONR, EBEZ, WHFL, BVNAME, BNAME, EINZUG, MIETE, BK, HK), so such a file
+// maps without picking every column by hand.
 
 export const importKinds = ['properties', 'tenants', 'leases', 'payments', 'expenses'] as const;
 export type ImportKind = (typeof importKinds)[number];
@@ -74,16 +77,35 @@ const propertyField: ImportField = {
 		'objektname',
 		'objektbezeichnung',
 		'liegenschaft',
-		'immobilie'
+		'immobilie',
+		// Win-CASA (Objektnummer)
+		'onr'
 	]
 };
 const unitField: ImportField = {
 	name: 'unitName',
 	label: 'Einheit',
 	required: true,
-	synonyms: ['einheit', 'wohnung', 'mieteinheit', 'wohneinheit', 'einheitsbezeichnung', 'lage']
+	synonyms: [
+		'einheit',
+		'wohnung',
+		'mieteinheit',
+		'wohneinheit',
+		'einheitsbezeichnung',
+		'wohnungsnummer',
+		'lage',
+		// Win-CASA (Einheitsbezeichnung)
+		'ebez'
+	]
 };
-const streetSynonyms = ['straße', 'strasse', 'straße und hausnummer', 'adresse', 'anschrift'];
+const streetSynonyms = [
+	'straße',
+	'strasse',
+	'straße und hausnummer',
+	'adresse',
+	'anschrift',
+	'bstrasse'
+];
 const postalCodeSynonyms = ['plz', 'postleitzahl'];
 const citySynonyms = ['ort', 'stadt', 'wohnort'];
 const notesField: ImportField = {
@@ -131,7 +153,7 @@ export const importFields: Record<ImportKind, readonly ImportField[]> = {
 			name: 'unitKind',
 			label: 'Art',
 			required: false,
-			synonyms: ['art', 'typ', 'nutzung', 'nutzungsart', 'einheitsart'],
+			synonyms: ['art', 'typ', 'nutzung', 'nutzungsart', 'einheitsart', 'eart'],
 			hint: 'Wohnung, Gewerbe oder Stellplatz; leer = Wohnung'
 		},
 		{
@@ -146,19 +168,25 @@ export const importFields: Record<ImportKind, readonly ImportField[]> = {
 				'fläche in m²',
 				'qm',
 				'm²',
-				'größe'
+				'größe',
+				'whfl'
 			],
 			hint: 'in m², z. B. 72,5'
 		}
 	],
 	tenants: [
-		{ name: 'salutation', label: 'Anrede', required: false, synonyms: ['anrede'] },
-		{ name: 'firstName', label: 'Vorname', required: true, synonyms: ['vorname', 'vornamen'] },
+		{ name: 'salutation', label: 'Anrede', required: false, synonyms: ['anrede', 'banrede'] },
+		{
+			name: 'firstName',
+			label: 'Vorname',
+			required: true,
+			synonyms: ['vorname', 'vornamen', 'bvname']
+		},
 		{
 			name: 'lastName',
 			label: 'Nachname',
 			required: true,
-			synonyms: ['nachname', 'name', 'familienname', 'nachnamen']
+			synonyms: ['nachname', 'name', 'familienname', 'nachnamen', 'bname']
 		},
 		{
 			name: 'birthDate',
@@ -171,13 +199,23 @@ export const importFields: Record<ImportKind, readonly ImportField[]> = {
 			name: 'email',
 			label: 'E-Mail',
 			required: false,
-			synonyms: ['e-mail', 'email', 'e-mail-adresse', 'mail', 'e-mail adresse']
+			synonyms: ['e-mail', 'email', 'e-mail-adresse', 'mail', 'e-mail adresse', 'bemail']
 		},
 		{
 			name: 'phone',
 			label: 'Telefon',
 			required: false,
-			synonyms: ['telefon', 'telefonnummer', 'tel', 'tel.', 'handy', 'mobil', 'mobilnummer']
+			synonyms: [
+				'telefon',
+				'telefonnummer',
+				'tel',
+				'tel.',
+				'handy',
+				'mobil',
+				'mobilnummer',
+				'btel',
+				'bhandy'
+			]
 		},
 		{ name: 'street', label: 'Straße', required: false, synonyms: streetSynonyms },
 		{ name: 'postalCode', label: 'PLZ', required: false, synonyms: postalCodeSynonyms },
@@ -197,7 +235,8 @@ export const importFields: Record<ImportKind, readonly ImportField[]> = {
 				'name',
 				'nachname',
 				'vertragspartner',
-				'mieter (nachname, vorname)'
+				'mieter (nachname, vorname)',
+				'bname'
 			],
 			hint: '„Nachname, Vorname“ oder E-Mail-Adresse eines angelegten Mieters; mehrere mit „;“ getrennt'
 		},

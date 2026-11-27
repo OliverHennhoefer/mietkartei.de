@@ -21,7 +21,7 @@ Was in welche Datei gehört:
 - **Zahlungen:** eine Zeile je Zahlung mit Objekt, Einheit, Datum, Betrag und Verwendungszweck.
 - **Ausgaben:** eine Zeile je Ausgabe mit Datum, Betrag, Kategorie und Beschreibung, dazu Objekt und Einheit, wenn sie eines betrifft. Kategorien wie Betriebskosten, Hausgeld, Instandhaltung, Darlehenszinsen, Tilgung oder Verwaltung erkennt mietkartei am Namen, alles andere wird Sonstiges. Ein negativer Betrag ist eine Erstattung; sind alle Beträge negativ wie in einem Kontoauszug, zählen sie als Ausgaben.
 
-Die Spaltennamen müssen nicht genau so heißen. Du ordnest sie beim Import zu.
+Die Spaltennamen müssen nicht genau so heißen. Du ordnest sie beim Import zu. Übliche Namen wie „Nettokaltmiete“, „Mietbeginn“ oder „Wohnfläche“ und die Kürzel der Win-CASA-Vorlage (ONR, EBEZ, WHFL, BVNAME, BNAME, EINZUG, MIETE, BK, HK) erkennt mietkartei selbst.
 
 ## 2. In der richtigen Reihenfolge importieren
 

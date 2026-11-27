@@ -47,6 +47,49 @@ function reasons(result: { rows: { row: number; reason?: string }[] }) {
 }
 
 describe('proposeMapping', () => {
+	it('maps the column names of the Win-CASA layout', () => {
+		const tenants = proposeMapping(
+			'tenants',
+			parseCsv(
+				'ONR;EBEZ;BANREDE;BVNAME;BNAME;BSTRASSE;GEBURTSDATUM;BTEL;BEMAIL\n25;EG;Frau;Anna;Schulz;Weg 1;01.02.1980;030;a@example.org\n'
+			)
+		);
+		expect(tenants.mapping).toMatchObject({
+			salutation: 2,
+			firstName: 3,
+			lastName: 4,
+			street: 5,
+			birthDate: 6,
+			phone: 7,
+			email: 8
+		});
+		const leases = proposeMapping(
+			'leases',
+			parseCsv(
+				'ONR;EBEZ;BNAME;EINZUG;MIETE;BK;HK;WHFL\n25;EG;Schulz;01.04.2021;650,00;180,00;90,00;72,5\n'
+			)
+		);
+		expect(leases.mapping).toMatchObject({
+			propertyName: 0,
+			unitName: 1,
+			tenantNames: 2,
+			startDate: 3,
+			baseRent: 4,
+			operatingCostPrepayment: 5,
+			heatingCostPrepayment: 6
+		});
+		const units = proposeMapping(
+			'properties',
+			parseCsv('ONR;ENR;EBEZ;EART;WHFL\n25;1;EG;Wohnung;72,5\n')
+		);
+		expect(units.mapping).toMatchObject({
+			propertyName: 0,
+			unitName: 2,
+			unitKind: 3,
+			floorArea: 4
+		});
+	});
+
 	it('maps German column names onto the fields, exact names first', () => {
 		const rows = parseCsv(
 			'Objekt;Straße;PLZ;Ort;Wohnung;Fläche in m²;Bemerkung\nHaus;Weg 1;10115;Berlin;EG;72,5;x\n'
