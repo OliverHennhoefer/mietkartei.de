@@ -4,7 +4,10 @@ import { addDays, formatDate, today } from '#lib/dates.ts';
 import { createBankAccount } from '#lib/server/bank/accounts.ts';
 import { createLetting } from '#lib/server/lettings.ts';
 import { createServiceProvider } from '#lib/server/service-providers.ts';
-import { applicants, expenses } from '#lib/server/db/schema.ts';
+import { applicants, expenses, units } from '#lib/server/db/schema.ts';
+import { getLease } from '#lib/server/leases.ts';
+import { createMeter } from '#lib/server/operating-costs.ts';
+import { createPortalLink, openPortal, reportMeterReading } from '#lib/server/tenant-portal.ts';
 import { createTask as storeTask, getTask, listTasks } from '#lib/server/tasks.ts';
 import {
 	contextA,
@@ -254,5 +257,44 @@ describe('aufgaben', () => {
 		expect(
 			after.data.reminders.find((reminder) => reminder.id === `letting:${letting.id}`)
 		).toMatchObject({ detail: '1\u00a0Mietinteressent' });
+	});
+
+	it('reminds of meter readings the tenants reported in the Mieterportal', async () => {
+		const bank = await createBankAccount(db, contextA, {
+			name: 'Mietkonto',
+			iban: 'DE02120300000000202051',
+			bic: null,
+			holder: 'Oliver'
+		});
+		if (!bank.ok) throw new Error('setup failed');
+		const [unit] = await db.select().from(units);
+		const meter = await createMeter(db, contextA, propertyId, {
+			unitId: unit.id,
+			kind: 'cold_water',
+			serialNumber: null,
+			unit: 'm³',
+			location: null,
+			installedAt: null
+		});
+		if (!meter.ok) throw new Error('setup failed');
+		const { token } = await createPortalLink(db, contextA, (await getLease(db, 'a', leaseId))!);
+		const access = (await openPortal(db, token))!;
+		await reportMeterReading(db, access, {
+			meterId: meter.id,
+			readAt: today(),
+			value: 12,
+			note: null,
+			photo: null
+		});
+		const { data } = (await run(load)) as { data: { reminders: { kind: string }[] } };
+		expect(data.reminders.filter((reminder) => reminder.kind === 'portal')).toEqual([
+			{
+				id: `portal:${leaseId}`,
+				kind: 'portal',
+				title: 'Gemeldete Zählerstände prüfen: EG links · Haus',
+				detail: '1\u00a0Zählerstand aus dem Mieterportal, EG links · Haus',
+				href: `/vertraege/${leaseId}/mieterportal`
+			}
+		]);
 	});
 });

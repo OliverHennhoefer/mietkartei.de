@@ -1474,7 +1474,16 @@ export const documents = sqliteTable(
 		leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
 		tenantId: text('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
 		costItemId: text('cost_item_id').references(() => costItems.id, { onDelete: 'set null' }),
+		/**
+		 * The Schadensmeldung the tenant sent the photo with. Added to an existing table, so SQLite
+		 * keeps no delete action; deleting a task clears it first.
+		 */
+		taskId: text('task_id').references((): AnySQLiteColumn => tasks.id, {
+			onDelete: 'no action'
+		}),
 		uploadedBy: text('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
+		/** Shown to the tenants of its lease in the Mieterportal. */
+		sharedWithTenant: bool('shared_with_tenant', false),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -1484,7 +1493,8 @@ export const documents = sqliteTable(
 		index('documents_unit_id_idx').on(table.unitId),
 		index('documents_tenant_id_idx').on(table.tenantId),
 		index('documents_cost_item_id_idx').on(table.costItemId),
-		index('documents_uploaded_by_idx').on(table.uploadedBy)
+		index('documents_uploaded_by_idx').on(table.uploadedBy),
+		index('documents_task_id_idx').on(table.taskId)
 	]
 );
 
@@ -1651,6 +1661,8 @@ export const tasks = sqliteTable(
 			onDelete: 'no action'
 		}),
 		note: text('note'),
+		/** A Schadensmeldung the tenant sent through the Mieterportal. */
+		reportedByTenant: bool('reported_by_tenant', false),
 		createdAt: createdAt()
 	},
 	(table) => [
@@ -1864,6 +1876,55 @@ export const calendarFeeds = sqliteTable(
 		createdAt: createdAt()
 	},
 	(table) => [index('calendar_feeds_account_id_idx').on(table.accountId)]
+);
+
+/**
+ * Mieterportal: the secret link through which the tenants of a lease see their statements and
+ * the documents shared with them, and report meter readings and damage, without an account. One
+ * per lease; only the token's hash is stored.
+ */
+export const tenantPortals = sqliteTable(
+	'tenant_portals',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.unique()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		tokenHash: text('token_hash').notNull().unique(),
+		createdAt: createdAt()
+	},
+	(table) => [index('tenant_portals_account_id_idx').on(table.accountId)]
+);
+
+/**
+ * A Zählerstand a tenant reported in the Mieterportal, until the landlord takes it over as a
+ * meter reading or discards it. The photo, if any, is a document of the lease.
+ */
+export const tenantMeterReports = sqliteTable(
+	'tenant_meter_reports',
+	{
+		id: id(),
+		accountId: accountId(),
+		leaseId: text('lease_id')
+			.notNull()
+			.references(() => leases.id, { onDelete: 'cascade' }),
+		meterId: text('meter_id')
+			.notNull()
+			.references(() => meters.id, { onDelete: 'cascade' }),
+		readAt: text('read_at').notNull(),
+		value: real('value').notNull(),
+		note: text('note'),
+		documentId: text('document_id').references(() => documents.id, { onDelete: 'set null' }),
+		createdAt: createdAt()
+	},
+	(table) => [
+		index('tenant_meter_reports_account_id_idx').on(table.accountId),
+		index('tenant_meter_reports_lease_id_idx').on(table.leaseId),
+		index('tenant_meter_reports_meter_id_idx').on(table.meterId),
+		index('tenant_meter_reports_document_id_idx').on(table.documentId)
+	]
 );
 
 export const notificationChannelKinds = ['email', 'push', 'webhook'] as const;

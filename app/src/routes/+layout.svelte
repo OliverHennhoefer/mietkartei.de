@@ -192,9 +192,12 @@
 	const sections = $derived(settingsSections(data.role, data.billingEnabled));
 	// A settings page opened by its address renders the dialog itself (see SettingsFrame).
 	const onSettingsPage = $derived(!!settingsSectionOf(page.url.pathname));
-	// The Selbstauskunft belongs to the landlord, and the applicant is their guest: it stands without
-	// the website's frame and brings its own short footer.
-	const guestPage = $derived(page.url.pathname.startsWith('/selbstauskunft/'));
+	// The Selbstauskunft and the Mieterportal belong to the landlord, and the applicant or tenant is
+	// their guest: they stand without the website's frame and bring their own short footer.
+	const guestPage = $derived(
+		page.url.pathname.startsWith('/selbstauskunft/') ||
+			page.url.pathname.startsWith('/mieterportal/')
+	);
 	const settings = $derived(onSettingsPage ? undefined : page.state.settings);
 	const SettingsView = $derived(settings && settingsViews[settings.href]);
 

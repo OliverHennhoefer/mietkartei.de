@@ -57,6 +57,8 @@ import {
 	sessions,
 	statementResults,
 	tasks,
+	tenantMeterReports,
+	tenantPortals,
 	taxYears,
 	tenants,
 	units,
@@ -151,6 +153,8 @@ function landlordDataDeletes(db: Database, accountId: string) {
 		lettings,
 		// Before the tasks they paid for.
 		expenses,
+		tenantMeterReports,
+		tenantPortals,
 		otherBookings,
 		tasks,
 		serviceProviders,
@@ -186,6 +190,8 @@ function landlordDataDeletes(db: Database, accountId: string) {
 		leaseUnits
 	];
 	return [
+		// A photo of a Schadensmeldung uploaded after the documents went still points at its task.
+		db.update(documents).set({ taskId: null }).where(eq(documents.accountId, accountId)),
 		...scoped.map((table) => db.delete(table).where(eq(table.accountId, accountId))),
 		db.delete(leaseTenants).where(inArray(leaseTenants.leaseId, accountLeases)),
 		db.delete(leases).where(eq(leases.accountId, accountId)),

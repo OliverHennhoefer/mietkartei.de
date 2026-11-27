@@ -146,7 +146,7 @@ export type Landlord = {
 };
 
 /** The landlord on one line, for the notice: "Erika Muster, Lindenstraße 4, 10969 Berlin". */
-function landlordLine(landlord: Landlord): string {
+export function landlordLine(landlord: Landlord): string {
 	const place = [landlord.postalCode, landlord.city].filter(Boolean).join(' ');
 	return [landlord.name, landlord.street, place].filter(Boolean).join(', ');
 }

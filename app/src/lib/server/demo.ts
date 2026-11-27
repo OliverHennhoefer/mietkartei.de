@@ -35,6 +35,7 @@ import type { UnitKind } from '../units';
 import { nthWorkingDay, type GermanState } from '../working-days';
 import { addressLines, landlordAddress } from './accounts';
 import { auditEntry, type AuditContext } from './audit';
+import { generateToken, hashToken } from './auth';
 import { createCo2Split } from './co2';
 import { addressKey } from './geocoding';
 import type { Database } from './db';
@@ -53,6 +54,7 @@ import {
 	costItemUnitAmounts,
 	depositSettlements,
 	depositTransactions,
+	documents,
 	handoverProtocols,
 	expenses,
 	insurancePolicies,
@@ -70,6 +72,8 @@ import {
 	statementResults,
 	tasks,
 	taxYears,
+	tenantMeterReports,
+	tenantPortals,
 	tenants,
 	units,
 	type ContraAccountKind,
@@ -79,13 +83,15 @@ import {
 import { signedDepositAmount } from './deposits';
 import { deleteDocument, storeDocument } from './documents';
 import { newLeaseStatements, type LeaseInput } from './leases';
-import { ensureDefaults, listCategories, listKeys } from './operating-costs';
+import { ensureDefaults, listCategories, listKeys, meterLabel } from './operating-costs';
 import { assertQuota, type QuotaKind } from './quotas';
 import { renderLetter } from './pdf';
 import { postCharge } from './ledger';
 import { createReminder, reminderLetter, updateReminderText } from './reminders';
 import { dismissHints, hintKey, statementHintScope } from './hints';
 import { DUE_DAYS } from '../domain/statement';
+import { damageNote } from '../domain/tenant-portal';
+import { formatNumber } from '../format';
 import { approveStatement, getStatement } from './statements';
 import type { Storage } from './storage';
 import type { TenantInput } from './tenants';
@@ -2671,6 +2677,98 @@ export async function createDemoData(
 		...repairRows
 	];
 
+	// Mieterportal: the three flats of the Lindenstraße got their link two years ago. Their tenants
+	// sent Schadensmeldungen through it since, which became Reparaturen, and Schmidt read his heat
+	// meter this week; the reading waits on the lease's Mieterportal tab to be taken over.
+	const portalLeases: [key: string, unit: string, created: IsoDate][] = [
+		['berger', 'Wohnung 1. OG', at(-2, '02-14')],
+		['schmidt', 'Wohnung EG links', at(-2, '02-14')],
+		['yilmaz', 'Wohnung EG rechts', at(-2, '03-02')]
+	];
+	const lindenName = propertyRows.find((row) => row.id === lindenId)!.name;
+	const portalRows = await Promise.all(
+		portalLeases.map(async ([key, unit, created]) => ({
+			unit,
+			id: crypto.randomUUID(),
+			accountId,
+			leaseId: leaseId(key),
+			// The demo's links are never shown, so nobody knows their tokens.
+			tokenHash: await hashToken(generateToken()),
+			createdAt: new Date(`${soFar(created)}T10:00:00Z`)
+		}))
+	);
+	const reported = (
+		key: string,
+		title: string,
+		description: string,
+		reporter: string,
+		phone: string | null,
+		day: IsoDate,
+		done: boolean
+	) => ({
+		id: crypto.randomUUID(),
+		accountId,
+		title: `Schaden: ${title}`,
+		category: 'repair' as const,
+		dueDate: null,
+		done,
+		doneAt: done ? new Date(`${addDays(day, 6)}T15:00:00Z`) : null,
+		propertyId: lindenId,
+		leaseId: leaseId(key),
+		serviceProviderId: null,
+		note: damageNote({ description, reporter, phone, reportedOn: formatDate(day) }),
+		reportedByTenant: true,
+		createdAt: new Date(`${day}T18:20:00Z`)
+	});
+	const portalDamageRows = [
+		reported(
+			'berger',
+			'Gegensprechanlage ohne Ton',
+			'Man hört an der Gegensprechanlage niemanden, der Türöffner funktioniert aber.',
+			'Lena Berger',
+			'0151 9876543',
+			soFar(at(-2, '06-09')),
+			true
+		),
+		reported(
+			'schmidt',
+			'Spülkasten im Bad läuft nach',
+			'Nach dem Spülen läuft das Wasser minutenlang weiter in die Schüssel.',
+			'Armin Schmidt',
+			'0170 2345678',
+			soFar(at(-1, '01-23')),
+			true
+		),
+		reported(
+			'yilmaz',
+			'Rollladen im Wohnzimmer klemmt',
+			'Der Rollladen am großen Fenster lässt sich nur noch halb hochziehen, der Gurt hakt.',
+			'Murat Yılmaz',
+			null,
+			addDays(date, -3),
+			false
+		)
+	];
+	const schmidtHeat = meterRows.find(
+		(meter) => meter.unitId === unitId('Wohnung EG links') && meter.kind === 'heat'
+	)!;
+	const lastHeat = readingRows
+		.filter((reading) => reading.meterId === schmidtHeat.id)
+		.reduce((last, reading) => (reading.readAt > last.readAt ? reading : last));
+	const meterReportRows = [
+		{
+			id: crypto.randomUUID(),
+			accountId,
+			leaseId: leaseId('schmidt'),
+			meterId: schmidtHeat.id!,
+			readAt: addDays(date, -2),
+			value: lastHeat.value + 3_940,
+			note: 'Abgelesen für die Zwischenabrechnung, wie besprochen.',
+			documentId: null,
+			createdAt: new Date(`${addDays(date, -2)}T19:05:00Z`)
+		}
+	];
+
 	// The audit lines the features' own functions write.
 	const audit = (entity: string, entityId: string, summary: string) => ({
 		id: crypto.randomUUID(),
@@ -2702,6 +2800,28 @@ export async function createDemoData(
 		...taskRows.map((task) =>
 			audit('task', task.id, `Aufgabe „${task.title}“ (bis ${formatDate(task.dueDate)}) angelegt`)
 		),
+		...portalRows.map((row) => ({
+			...audit(
+				'tenant_portal',
+				row.id,
+				`Link zum Mieterportal für ${row.unit} · ${lindenName} erstellt`
+			),
+			at: row.createdAt
+		})),
+		...portalDamageRows.map((task) => ({
+			...audit('task', task.id, `Aufgabe „${task.title}“ über das Mieterportal gemeldet`),
+			userId: null,
+			at: task.createdAt
+		})),
+		...meterReportRows.map((report) => ({
+			...audit(
+				'tenant_meter_report',
+				report.id,
+				`Zählerstand ${formatNumber(report.value)} kWh am ${formatDate(report.readAt)} für Zähler ${meterLabel({ kind: 'heat', serialNumber: schmidtHeat.serialNumber ?? null })} über das Mieterportal gemeldet`
+			),
+			userId: null,
+			at: report.createdAt
+		})),
 		{
 			...audit(
 				'lease',
@@ -2989,7 +3109,7 @@ export async function createDemoData(
 		['contraAccounts', contraRows.length],
 		['otherBookings', otherRows.length],
 		['expenses', expenseRows.length],
-		['tasks', taskRows.length],
+		['tasks', taskRows.length + portalDamageRows.length],
 		['serviceProviders', serviceProviderRows.length],
 		['applicants', applicantRows.length]
 	];
@@ -3046,7 +3166,18 @@ export async function createDemoData(
 			...insert(operatingCostStatements, draftRows),
 			...insert(serviceProviders, serviceProviderRows),
 			// Before the expenses that paid for them.
-			...insert(tasks, taskRows),
+			...insert(tasks, [...taskRows, ...portalDamageRows]),
+			...insert(
+				tenantPortals,
+				portalRows.map((row) => ({
+					id: row.id,
+					accountId: row.accountId,
+					leaseId: row.leaseId,
+					tokenHash: row.tokenHash,
+					createdAt: row.createdAt
+				}))
+			),
+			...insert(tenantMeterReports, meterReportRows),
 			...insert(expenses, expenseRows),
 			...insert(otherBookings, otherRows),
 			...insert(taxYears, taxYearRows),
@@ -3296,6 +3427,11 @@ export async function createDemoData(
 			if (!stored.ok) throw new Error(`Dokument ${file.name}: ${stored.reason}`);
 			documentIds.push(stored.id);
 		}
+		// Berger sees her lease and the Übergabeprotokoll in the Mieterportal.
+		await db
+			.update(documents)
+			.set({ sharedWithTenant: true })
+			.where(and(eq(documents.accountId, accountId), eq(documents.leaseId, leaseId('berger'))));
 	} catch (error) {
 		for (const id of documentIds) await deleteDocument(db, context, id, options);
 		const ids = (rows: { id?: string }[]) => chunkIds(rows.map((row) => row.id!));
@@ -3324,7 +3460,7 @@ export async function createDemoData(
 			db.delete(tasks).where(
 				inArray(
 					tasks.id,
-					taskRows.map((row) => row.id)
+					[...taskRows, ...portalDamageRows].map((row) => row.id)
 				)
 			),
 			db.delete(serviceProviders).where(

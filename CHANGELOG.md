@@ -10,6 +10,10 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ## [Unveröffentlicht]
 
+### Neu
+
+- Mieterportal: Im Reiter **Mieterportal** eines Mietvertrags erstellst du einen geheimen Link für die Mieter und gibst ihn selbst weiter, als QR-Code auf einem Brief, per E-Mail oder Messenger. Darüber sehen die Mieter ohne Konto ihre zugestellten Betriebskostenabrechnungen und die Dokumente, die du freigibst. Sie melden Zählerstände mit Foto, die du nach Prüfung übernimmst, und Schäden mit bis zu drei Fotos, die als Reparatur unter **Aufgaben** ankommen. Der Link gilt bis zwölf Monate nach Vertragsende. Siehe [Mieterportal](https://docs.mietkartei.de/anleitungen/mieterportal/).
+
 ### Geändert
 
 - Das Jahresabo der gehosteten Version kostet 45 € statt 50 € im Jahr, also drei Monate gratis gegenüber dem Monatsabo zu 5 €. Laufende Jahresabos behalten ihren bisherigen Preis.

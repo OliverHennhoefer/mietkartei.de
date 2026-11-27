@@ -28,7 +28,8 @@
 		{ href: `/vertraege/${data.lease.id}/kaution`, label: 'Kaution' },
 		{ href: `/vertraege/${data.lease.id}/uebergabe`, label: 'Übergabe' },
 		{ href: `/vertraege/${data.lease.id}/co2`, label: 'CO₂' },
-		{ href: `/vertraege/${data.lease.id}/dokumente`, label: 'Dokumente' }
+		{ href: `/vertraege/${data.lease.id}/dokumente`, label: 'Dokumente' },
+		{ href: `/vertraege/${data.lease.id}/mieterportal`, label: 'Mieterportal' }
 	]);
 </script>
 

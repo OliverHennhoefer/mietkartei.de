@@ -76,15 +76,16 @@ export const exportTables: AccountTable[] = [
 	schema.statementResults,
 	schema.co2CostSplits,
 	schema.documents,
+	schema.tenantMeterReports,
 	schema.associationStatements,
 	schema.taxYears
 ];
 
 /**
  * Tables with an accountId column that stay out of the export: API keys, the sessions of the
- * Bankabruf and the channels of the Hinweise (with their secrets) are credentials, not the
- * landlord's data, and have no use outside this instance; what the Hinweise told and when goes
- * with them. The Hinweise a user closed belong to that user's view, like the colour scheme.
+ * Bankabruf, the channels of the Hinweise (with their secrets) and the Mieterportal links are
+ * credentials, not the landlord's data, and have no use outside this instance; what the
+ * Hinweise told and when goes with them. The Hinweise a user closed belong to that user's view, like the colour scheme.
  */
 export const unexportedTables: AccountTable[] = [
 	schema.apiKeys,
@@ -92,7 +93,8 @@ export const unexportedTables: AccountTable[] = [
 	schema.notificationChannels,
 	schema.notificationStates,
 	schema.notificationDeliveries,
-	schema.dismissedHints
+	schema.dismissedHints,
+	schema.tenantPortals
 ];
 
 /** The tables of the schema that carry an accountId column, for the completeness check. */

@@ -67,14 +67,16 @@
 		bank: 'bank',
 		bank_import: 'download',
 		vacancy: 'building',
-		letting: 'key'
+		letting: 'key',
+		portal: 'gauge'
 	} as const;
 	const reminderLabels = {
 		arrears: 'Mietkonto',
 		bank: 'Bank',
 		bank_import: 'Bank',
 		vacancy: 'Leerstand',
-		letting: 'Neuvermietung'
+		letting: 'Neuvermietung',
+		portal: 'Mieterportal'
 	} as const;
 	const utc = (date: string) => new Date(`${date}T00:00:00Z`);
 
@@ -243,6 +245,8 @@
 							><strong>{task.title}</strong></a
 						>
 						{#if task.category !== 'other'}<Badge>{taskCategoryLabels[task.category]}</Badge>{/if}
+						{#if task.reportedByTenant}<Badge tone="info" icon={false}>vom Mieter gemeldet</Badge
+							>{/if}
 						{#if task.repeatMonths}<span class="repeat muted"
 								><Icon name="history" size={12} />{repeatLabel(task.repeatMonths)}</span
 							>{/if}

@@ -324,6 +324,8 @@ export const auditEntityLabels: Record<string, string> = {
 	serviceProvider: 'Dienstleister',
 	letting: 'Neuvermietung',
 	applicant: 'Mietinteressent',
+	tenant_portal: 'Mieterportal',
+	tenant_meter_report: 'Gemeldeter Zählerstand',
 	expense: 'Ausgabe',
 	import: 'Datenübernahme'
 };

@@ -109,7 +109,9 @@ describe('documentRow', () => {
 			leaseId: 'l1',
 			tenantId: null,
 			costItemId: null,
+			taskId: null,
 			uploadedBy: 'user-a',
+			sharedWithTenant: false,
 			createdAt
 		};
 		expect(documentRow(document)).toEqual({

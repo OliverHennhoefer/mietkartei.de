@@ -24,6 +24,8 @@ import {
 	rentChanges,
 	tasks,
 	taxYears,
+	tenantMeterReports,
+	tenantPortals,
 	tenants,
 	units
 } from './db/schema';
@@ -154,7 +156,25 @@ describe('createDemoData', () => {
 			)
 		);
 		expect(overlapping).toEqual([]);
-		expect(await rows(tasks)).toHaveLength(16);
+		expect(await rows(tasks)).toHaveLength(19);
+		// The Mieterportal of the Lindenstraße: three links, the Schadensmeldungen of their tenants,
+		// one still open, Schmidt's heat meter reading waiting, and Berger's shared documents.
+		const ofA = <T extends typeof tenantPortals | typeof tenantMeterReports | typeof documents>(
+			table: T
+		) => db.select().from(table).where(eq(table.accountId, 'a'));
+		expect(await ofA(tenantPortals)).toHaveLength(3);
+		const reportedTasks = (await rows(tasks)).filter(
+			(task) => 'reportedByTenant' in task && task.reportedByTenant
+		);
+		expect(reportedTasks).toHaveLength(3);
+		expect(await ofA(tenantMeterReports)).toHaveLength(1);
+		const shared = (await db.select().from(documents).where(eq(documents.sharedWithTenant, true)))
+			.map((document) => document.name)
+			.sort();
+		expect(shared).toEqual([
+			'Mietvertrag Berger (unterschrieben).pdf',
+			'Übergabeprotokoll Einzug Berger.pdf'
+		]);
 		// The Neuvermietung of Wohnung 14 after Nowak's notice: Miriam Krüger got the Zusage and is
 		// the tenant of the lease that follows; the others got the Absage, all of it deleted three
 		// months on. Earlier lettings left only their lines in the Protokoll.
@@ -192,8 +212,9 @@ describe('createDemoData', () => {
 		const repairs = (await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).filter(
 			(row) => row.category === 'repair'
 		);
-		expect(repairs.filter((row) => row.done)).toHaveLength(6);
-		expect(repairs.filter((row) => !row.done)).toHaveLength(2);
+		// With the three the tenants reported in the Mieterportal, two of them done.
+		expect(repairs.filter((row) => row.done)).toHaveLength(8);
+		expect(repairs.filter((row) => !row.done)).toHaveLength(3);
 		const paid = (await db.select().from(expenses).where(eq(expenses.accountId, 'a'))).filter(
 			(row) => row.taskId
 		);
@@ -337,7 +358,7 @@ describe('createDemoData', () => {
 			leases: 11,
 			statementId: expect.any(String)
 		});
-		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(16);
+		expect(await db.select().from(tasks).where(eq(tasks.accountId, 'a'))).toHaveLength(19);
 	});
 
 	it('takes its rows out again when a later step fails, keeping what the account held', async () => {
