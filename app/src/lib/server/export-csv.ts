@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { formatDate, type IsoDate } from '../dates';
 import { formatCentsPlain } from '../money';
 import { unitKindLabels } from '../units';
@@ -45,21 +45,58 @@ const heatingCostModelWords = {
 	tenant_contract: 'Direkt'
 };
 
-/** `Nachname, Vorname` of every party of each lease, the main tenant first. */
+/**
+ * The parties of each lease, with the token the import finds each by: `Nachname, Vorname`, or
+ * the e-mail address when another tenant of the account has the same name and the address is
+ * that tenant's alone.
+ */
 async function partiesOfLeases(db: Database, accountId: string) {
+	const all = await db
+		.select({
+			id: tenants.id,
+			firstName: tenants.firstName,
+			lastName: tenants.lastName,
+			email: tenants.email
+		})
+		.from(tenants)
+		.where(eq(tenants.accountId, accountId));
+	const tally = (keys: string[]) => {
+		const counts = new Map<string, number>();
+		for (const key of keys) counts.set(key, (counts.get(key) ?? 0) + 1);
+		return counts;
+	};
+	const nameOf = (tenant: (typeof all)[number]) =>
+		`${tenant.lastName}, ${tenant.firstName}`.toLowerCase();
+	const emailOf = (tenant: (typeof all)[number]) => tenant.email?.trim().toLowerCase() ?? '';
+	const names = tally(all.map(nameOf));
+	const emails = tally(all.map(emailOf));
+	const tokens = new Map(
+		all.map((tenant) => {
+			const unique = names.get(nameOf(tenant)) === 1;
+			const email = emailOf(tenant);
+			const token =
+				!unique && email && emails.get(email) === 1
+					? tenant.email!.trim()
+					: `${tenant.lastName}, ${tenant.firstName}`;
+			return [tenant.id, token];
+		})
+	);
+
 	const rows = await db
 		.select({
 			leaseId: leaseTenants.leaseId,
 			tenantId: tenants.id,
-			firstName: tenants.firstName,
 			lastName: tenants.lastName
 		})
 		.from(leaseTenants)
 		.innerJoin(tenants, eq(tenants.id, leaseTenants.tenantId))
 		.where(eq(tenants.accountId, accountId))
 		.orderBy(asc(tenants.lastName), asc(tenants.firstName));
-	const parties = new Map<string, typeof rows>();
-	for (const row of rows) parties.set(row.leaseId, [...(parties.get(row.leaseId) ?? []), row]);
+	const parties = new Map<string, ((typeof rows)[number] & { token: string })[]>();
+	for (const row of rows) {
+		const party = { ...row, token: tokens.get(row.tenantId)! };
+		parties.set(row.leaseId, [...(parties.get(row.leaseId) ?? []), party]);
+	}
 	return parties;
 }
 
@@ -152,7 +189,7 @@ export const readableTables: readonly ReadableTable[] = [
 				propertyName,
 				unitName,
 				mainFirst(parties.get(lease.id) ?? [], lease.mainTenantId)
-					.map((party) => `${party.lastName}, ${party.firstName}`)
+					.map((party) => party.token)
 					.join('; '),
 				date(lease.startDate),
 				date(lease.endDate),
@@ -185,15 +222,9 @@ export const readableTables: readonly ReadableTable[] = [
 					note: payments.note
 				})
 				.from(payments)
-				.where(
-					and(
-						eq(payments.accountId, accountId),
-						inArray(
-							payments.leaseId,
-							leaseList.map((row) => row.lease.id)
-						)
-					)
-				)
+				// Every payment belongs to a lease of the account; no list of lease ids is bound,
+				// which D1 would refuse beyond 100 parameters.
+				.where(eq(payments.accountId, accountId))
 				.orderBy(asc(payments.date));
 			return rows.map((payment) => {
 				const lease = byLease.get(payment.leaseId)!;

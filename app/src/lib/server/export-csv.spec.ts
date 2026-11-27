@@ -6,7 +6,7 @@ import { leases, payments, properties, tenants, units } from './db/schema';
 import { createDemoData } from './demo';
 import { readableCsv, readableTables } from './export-csv';
 import { commitImport, loadImportContext, planImport, proposeMapping } from './import';
-import { contextA, memoryStorage, testDatabase } from './testing';
+import { contextA, memoryStorage, seedLease, seedTenant, seedUnit, testDatabase } from './testing';
 
 let source: Database;
 let target: Database;
@@ -36,23 +36,42 @@ async function totals(db: Database) {
 	};
 }
 
+/** Imports the readable tables of the source into the empty target, as a landlord would. */
+async function importAll() {
+	for (const table of readableTables) {
+		const text = await readableCsv(source, 'a', table);
+		expect(text.startsWith('﻿')).toBe(true);
+		const rows = parseCsv(decodeCsv(new TextEncoder().encode(text)));
+		const proposal = proposeMapping(table.kind, rows);
+		// Every column maps onto its field, in order.
+		expect(Object.values(proposal.mapping)).toEqual(rows[0].map((_, index) => index));
+		const context = await loadImportContext(target, 'a', table.kind);
+		const plan = planImport(table.kind, rows, proposal.headerIndex, proposal.mapping, context);
+		const skipped = plan.rows.filter((row) => row.reason !== undefined);
+		expect(skipped, table.file).toEqual([]);
+		await commitImport(target, contextA, plan);
+	}
+}
+
 describe('readable tables', () => {
 	it('writes CSV files with the import columns that import into an empty account again', async () => {
-		for (const table of readableTables) {
-			const text = await readableCsv(source, 'a', table);
-			expect(text.startsWith('﻿')).toBe(true);
-			const rows = parseCsv(decodeCsv(new TextEncoder().encode(text)));
-			const proposal = proposeMapping(table.kind, rows);
-			// Every column maps onto its field, in order.
-			expect(Object.values(proposal.mapping)).toEqual(rows[0].map((_, index) => index));
-			const context = await loadImportContext(target, 'a', table.kind);
-			const plan = planImport(table.kind, rows, proposal.headerIndex, proposal.mapping, context);
-			const skipped = plan.rows.filter((row) => row.reason !== undefined);
-			expect(skipped, table.file).toEqual([]);
-			await commitImport(target, contextA, plan);
-		}
+		await importAll();
 		const before = await totals(source);
 		expect(before.leases).toBeGreaterThan(0);
 		expect(await totals(target)).toEqual(before);
+	});
+
+	it('names a tenant by e-mail where another has the same name', async () => {
+		for (const email of ['max@example.org', 'max.muster@example.org']) {
+			const { unitId } = await seedUnit(source, 'a', { propertyName: `Haus ${email}` });
+			const tenantId = await seedTenant(source, 'a', {
+				firstName: 'Max',
+				lastName: 'Muster',
+				email
+			});
+			await seedLease(source, 'a', unitId, { tenantIds: [tenantId] });
+		}
+		await importAll();
+		expect((await totals(target)).leases).toBe((await totals(source)).leases);
 	});
 });
