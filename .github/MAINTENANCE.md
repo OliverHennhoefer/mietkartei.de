@@ -28,6 +28,7 @@ GitHub uses the issue and pull request templates from the default branch `main`.
 | `DOCUMENTATION.md` | Preview, build and deployment of the documentation |
 | `DEPLOYMENT.md` | Cloudflare access, domains and hosting migration |
 | `MIGRATIONS.md` | Data-preserving database migrations, backups and restore |
+| `EXPORT_FORMAT.md` | The files of the account export and every field of `export.json`, generated from the schema |
 | `SELF_HOSTING.md` | Running the app as a Docker container on a small server |
 | `dependabot.yml` | Weekly dependency update proposals |
 | `release.yml` | Categories for automatically generated release notes |
