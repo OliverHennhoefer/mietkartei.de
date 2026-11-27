@@ -20,6 +20,7 @@ import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { chunkIds, runBatch, selectInChunks } from './db/batch';
 import {
+	documents,
 	serviceProviders,
 	expenses,
 	leases,
@@ -523,6 +524,11 @@ export async function deleteTask(
 			.update(expenses)
 			.set({ taskId: null })
 			.where(and(eq(expenses.accountId, accountId), eq(expenses.taskId, taskId))),
+		// The photos of a Schadensmeldung stay with the lease.
+		db
+			.update(documents)
+			.set({ taskId: null })
+			.where(and(eq(documents.accountId, accountId), eq(documents.taskId, taskId))),
 		db.delete(tasks).where(and(eq(tasks.accountId, accountId), eq(tasks.id, taskId))),
 		auditEntry(db, context, 'task', taskId, 'delete', `Aufgabe ${describe(existing)} gelöscht`)
 	]);

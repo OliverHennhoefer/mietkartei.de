@@ -37,14 +37,16 @@ const publicPrefixes = [
 	// Calendar apps subscribe without a session; the token in the path is the credential.
 	'/api/calendar/',
 	// Mietinteressenten fill in the Selbstauskunft; the token in the path is the credential.
-	'/selbstauskunft/'
+	'/selbstauskunft/',
+	// Tenants open their Mieterportal the same way.
+	'/mieterportal/'
 ];
 
 /**
  * Paths whose posts check a password, hash a new one, create an account or send a reset mail,
  * counted per client address: the forms above, the pages of registration, reset and invitation
- * links, and the account deletion, which asks for the password again. The Selbstauskunft link
- * counts too: anyone who has it may post, without an account.
+ * links, and the account deletion, which asks for the password again. The Selbstauskunft and
+ * Mieterportal links count too: anyone who has one may post, without an account.
  */
 const authPaths = new Set([
 	'/anmelden',
@@ -57,7 +59,8 @@ const authPrefixes = [
 	'/registrieren/',
 	'/passwort-zuruecksetzen/',
 	'/einladung/',
-	'/selbstauskunft/'
+	'/selbstauskunft/',
+	'/mieterportal/'
 ];
 
 function isAuthPath(pathname: string): boolean {

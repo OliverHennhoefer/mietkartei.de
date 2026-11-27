@@ -12,6 +12,7 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ### Neu
 
+- Mieterportal: Im Reiter **Mieterportal** eines Mietvertrags erstellst du einen geheimen Link für die Mieter und gibst ihn selbst weiter, als QR-Code auf einem Brief, per E-Mail oder Messenger. Darüber sehen die Mieter ohne Konto ihre zugestellten Betriebskostenabrechnungen und die Dokumente, die du freigibst. Sie melden Zählerstände mit Foto, die du nach Prüfung übernimmst, und Schäden mit bis zu drei Fotos, die als Reparatur unter **Aufgaben** ankommen. Der Link gilt bis zwölf Monate nach Vertragsende. Siehe [Mieterportal](https://docs.mietkartei.de/anleitungen/mieterportal/).
 - Ausgaben übernehmen: Die Datenübernahme kennt die neue Art **Ausgaben**, etwa aus dem Finanzexport einer anderen Software oder einer Excel-Liste: Datum, Betrag, Kategorie und Beschreibung, dazu Objekt und Einheit. Die Kategorie erkennt sie am Namen, und eine Datei mit nur negativen Beträgen wie im Kontoauszug liest sie als Ausgaben. Doppelte Ausgaben legt sie nicht an.
 - Datenübernahme aus Win-CASA: Die Spaltenkürzel der Win-CASA-Vorlage, etwa ONR, EBEZ, WHFL, BVNAME, BNAME, EINZUG, MIETE, BK und HK, ordnet die Datenübernahme selbst zu.
 - Excel-Dateien übernehmen: **Einstellungen → Datenübernahme** liest jetzt auch Excel-Dateien (.xlsx) direkt, das erste Tabellenblatt mit Datumsangaben und Beträgen so, wie Excel sie anzeigt. Das Speichern als CSV entfällt. Siehe [Von Excel umsteigen](https://docs.mietkartei.de/anleitungen/von-excel-umsteigen/).

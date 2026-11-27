@@ -570,6 +570,7 @@ Aufgabe with an optional due date. Deadlines derived from the data are computed,
 | `leaseId`           | text                                                        |          | References `leases.id`.                                                                                                                                                                  |
 | `serviceProviderId` | text                                                        |          | The Dienstleister who does the job, optional. Added to an existing table, so SQLite keeps no delete action; deleting a Dienstleister clears it first. References `service_providers.id`. |
 | `note`              | text                                                        |          |                                                                                                                                                                                          |
+| `reportedByTenant`  | boolean                                                     |          | A Schadensmeldung the tenant sent through the Mieterportal.                                                                                                                              |
 | `createdAt`         | timestamp (ISO 8601)                                        |          |                                                                                                                                                                                          |
 
 ### `expenses`
@@ -844,21 +845,39 @@ CO₂-Kostenaufteilung for a tenant with their own fuel contract (§ 6 CO2KostAu
 
 An uploaded file, stored via the storage adapter under `<accountId>/<id>`.
 
-| Field        | Type                 | Required | Description                 |
-| ------------ | -------------------- | -------- | --------------------------- |
-| `id`         | text                 |          |                             |
-| `accountId`  | text                 | yes      | References `accounts.id`.   |
-| `name`       | text                 | yes      |                             |
-| `mimeType`   | text                 | yes      |                             |
-| `size`       | integer              | yes      |                             |
-| `storageKey` | text                 | yes      |                             |
-| `propertyId` | text                 |          | References `properties.id`. |
-| `unitId`     | text                 |          | References `units.id`.      |
-| `leaseId`    | text                 |          | References `leases.id`.     |
-| `tenantId`   | text                 |          | References `tenants.id`.    |
-| `costItemId` | text                 |          | References `cost_items.id`. |
-| `uploadedBy` | text                 |          | References `users.id`.      |
-| `createdAt`  | timestamp (ISO 8601) |          |                             |
+| Field              | Type                 | Required | Description                                                                                                                                                               |
+| ------------------ | -------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`               | text                 |          |                                                                                                                                                                           |
+| `accountId`        | text                 | yes      | References `accounts.id`.                                                                                                                                                 |
+| `name`             | text                 | yes      |                                                                                                                                                                           |
+| `mimeType`         | text                 | yes      |                                                                                                                                                                           |
+| `size`             | integer              | yes      |                                                                                                                                                                           |
+| `storageKey`       | text                 | yes      |                                                                                                                                                                           |
+| `propertyId`       | text                 |          | References `properties.id`.                                                                                                                                               |
+| `unitId`           | text                 |          | References `units.id`.                                                                                                                                                    |
+| `leaseId`          | text                 |          | References `leases.id`.                                                                                                                                                   |
+| `tenantId`         | text                 |          | References `tenants.id`.                                                                                                                                                  |
+| `costItemId`       | text                 |          | References `cost_items.id`.                                                                                                                                               |
+| `taskId`           | text                 |          | The Schadensmeldung the tenant sent the photo with. Added to an existing table, so SQLite keeps no delete action; deleting a task clears it first. References `tasks.id`. |
+| `uploadedBy`       | text                 |          | References `users.id`.                                                                                                                                                    |
+| `sharedWithTenant` | boolean              |          | Shown to the tenants of its lease in the Mieterportal.                                                                                                                    |
+| `createdAt`        | timestamp (ISO 8601) |          |                                                                                                                                                                           |
+
+### `tenant_meter_reports`
+
+A Zählerstand a tenant reported in the Mieterportal, until the landlord takes it over as a meter reading or discards it. The photo, if any, is a document of the lease.
+
+| Field        | Type                 | Required | Description                |
+| ------------ | -------------------- | -------- | -------------------------- |
+| `id`         | text                 |          |                            |
+| `accountId`  | text                 | yes      | References `accounts.id`.  |
+| `leaseId`    | text                 | yes      | References `leases.id`.    |
+| `meterId`    | text                 | yes      | References `meters.id`.    |
+| `readAt`     | text                 | yes      |                            |
+| `value`      | number               | yes      |                            |
+| `note`       | text                 |          |                            |
+| `documentId` | text                 |          | References `documents.id`. |
+| `createdAt`  | timestamp (ISO 8601) |          |                            |
 
 ### `association_statements`
 

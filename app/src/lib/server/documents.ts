@@ -4,7 +4,7 @@ import { storedMimeType } from '../domain/documents';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { runBatch } from './db/batch';
-import { costItems, documents, leases, properties, tenants, units } from './db/schema';
+import { costItems, documents, leases, properties, tasks, tenants, units } from './db/schema';
 import { getStorage, storageKey, type Storage } from './storage';
 
 // Documents (Dokumente): uploaded files such as the signed lease, a receipt or a letter. The
@@ -28,6 +28,8 @@ export type DocumentLinks = {
 	leaseId?: string | null;
 	tenantId?: string | null;
 	costItemId?: string | null;
+	/** The Schadensmeldung a photo came with; set by the Mieterportal only. */
+	taskId?: string | null;
 };
 
 export type DocumentFilter = {
@@ -54,7 +56,8 @@ const linkTables: [keyof DocumentLinks, LinkedTable][] = [
 	['unitId', units],
 	['leaseId', leases],
 	['tenantId', tenants],
-	['costItemId', costItems]
+	['costItemId', costItems],
+	['taskId', tasks]
 ];
 
 /**
@@ -144,6 +147,7 @@ export async function storeDocument(
 				leaseId: links.leaseId ?? null,
 				tenantId: links.tenantId ?? null,
 				costItemId: links.costItemId ?? null,
+				taskId: links.taskId ?? null,
 				uploadedBy: context.userId
 			}),
 			auditEntry(db, context, 'document', id, 'upload', `Dokument ${name} hochgeladen`)

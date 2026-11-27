@@ -26,6 +26,7 @@ import {
 import { leaseTenantName } from '#lib/domain/addressee.ts';
 import { pluralize } from '#lib/format.ts';
 import { listTenants } from '#lib/server/tenants.ts';
+import { countMeterReports } from '#lib/server/tenant-portal.ts';
 import { taskTemplates } from '#lib/task-templates.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -53,7 +54,7 @@ export type FirstRun = {
 export type Reminder = {
 	/** Unique within the list: the kind and what it is about. */
 	id: string;
-	kind: 'arrears' | 'bank' | 'bank_import' | 'vacancy' | 'letting';
+	kind: 'arrears' | 'bank' | 'bank_import' | 'vacancy' | 'letting' | 'portal';
 	title: string;
 	detail?: string;
 	/** Cents, for the arrears. */
@@ -139,6 +140,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		lettingSuggestions(locals.db, accountId)
 	]);
 
+	const meterReports = await countMeterReports(locals.db, accountId);
 	// Rückstand is what is overdue today, not this month's rent before its due day.
 	const arrears = balances.filter((balance) => balance.overdue > 0);
 	const occupied = new Set(
@@ -163,6 +165,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// first-run checklist stands in for them.
 	const reminders: Reminder[] = [];
 	if (!settingUp) {
+		// Zählerstände the tenants sent through the Mieterportal wait to be taken over.
+		for (const report of meterReports) {
+			const lease = leases.find((row) => row.id === report.leaseId);
+			if (!lease) continue;
+			reminders.push({
+				id: `portal:${lease.id}`,
+				kind: 'portal',
+				title: `Gemeldete Zählerstände prüfen: ${leaseTenantName(lease.tenants) || leaseLabel(lease)}`,
+				detail: `${pluralize(report.count, 'Zählerstand', 'Zählerstände')} aus dem Mieterportal, ${leaseLabel(lease)}`,
+				href: `/vertraege/${lease.id}/mieterportal`
+			});
+		}
 		if (arrears.length > 0) {
 			reminders.push({
 				id: 'arrears',
