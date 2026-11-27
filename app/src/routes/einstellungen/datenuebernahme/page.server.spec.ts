@@ -1,4 +1,7 @@
+import { strToU8, zipSync } from 'fflate';
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { decodeContent } from '#lib/server/import.ts';
 import type { Database } from '#lib/server/db/index.ts';
 import { listTenants } from '#lib/server/tenants.ts';
 import { today } from '#lib/dates.ts';
@@ -44,13 +47,58 @@ describe('datenuebernahme', () => {
 	it('names the fields of every kind', async () => {
 		expect(await outcome(() => load(routeEvent(db)))).toMatchObject({
 			data: {
-				kinds: ['properties', 'tenants', 'leases', 'payments'],
+				kinds: ['properties', 'tenants', 'leases', 'payments', 'expenses'],
 				fields: {
 					tenants: expect.arrayContaining([
 						expect.objectContaining({ name: 'lastName', required: true })
 					])
 				}
 			}
+		});
+	});
+
+	it('reads the first sheet of an Excel file like a CSV file', async () => {
+		const bytes = readFileSync('src/lib/xlsx-fixtures/libreoffice.xlsx');
+		const file = new File([bytes], 'vertraege.xlsx');
+		const result = (await run('preview', { kind: 'leases', file })) as { data: Preview };
+		expect(result.data).toMatchObject({ step: 'preview', total: 2 });
+		expect(result.data.mapping).toMatchObject({
+			propertyName: 0,
+			unitName: 1,
+			tenantNames: 2,
+			startDate: 3,
+			baseRent: 4,
+			operatingCostPrepayment: 5
+		});
+		// Step 2 sends the sheet back as CSV text.
+		expect(decodeContent(result.data.content)).toContain('Schulz, Anna;01.04.2021;650,5;180');
+
+		const broken = new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2, 3])], 'kaputt.xlsx');
+		expect(await run('preview', { kind: 'leases', file: broken })).toMatchObject({
+			fail: 400,
+			data: { errors: { file: expect.stringContaining('Excel-Datei konnte nicht gelesen') } }
+		});
+	});
+
+	it('refuses an Excel file that unpacks to more than step 2 can send back', async () => {
+		const ns = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"';
+		const long = 'x'.repeat(8000);
+		const rows = Array.from(
+			{ length: 1000 },
+			(_, index) =>
+				`<row r="${index + 1}"><c r="A${index + 1}" t="inlineStr"><is><t>${long}</t></is></c></row>`
+		).join('');
+		const bytes = zipSync({
+			'xl/workbook.xml': strToU8(`<workbook ${ns}><sheets><sheet name="a"/></sheets></workbook>`),
+			'xl/worksheets/sheet1.xml': strToU8(
+				`<worksheet ${ns}><sheetData>${rows}</sheetData></worksheet>`
+			)
+		});
+		expect(bytes.length).toBeLessThan(100_000);
+		const file = new File([bytes], 'gross.xlsx');
+		expect(await run('preview', { kind: 'tenants', file })).toMatchObject({
+			fail: 400,
+			data: { errors: { file: expect.stringContaining('zu groß') } }
 		});
 	});
 

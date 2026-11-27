@@ -2,7 +2,7 @@ import { count, eq, sum } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { decodeCsv, parseCsv } from '../csv';
 import type { Database } from './db';
-import { leases, payments, properties, tenants, units } from './db/schema';
+import { expenses, leases, payments, properties, tenants, units } from './db/schema';
 import { createDemoData } from './demo';
 import { readableCsv, readableTables } from './export-csv';
 import { commitImport, loadImportContext, planImport, proposeMapping } from './import';
@@ -26,7 +26,13 @@ async function totals(db: Database) {
 		.select({ n: count(), total: sum(payments.amount) })
 		.from(payments)
 		.where(eq(payments.accountId, 'a'));
+	const [spent] = await db
+		.select({ n: count(), total: sum(expenses.amount) })
+		.from(expenses)
+		.where(eq(expenses.accountId, 'a'));
 	return {
+		expenses: spent.n,
+		spent: Number(spent.total),
 		properties: await counted(properties),
 		units: await counted(units),
 		tenants: await counted(tenants),

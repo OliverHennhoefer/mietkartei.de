@@ -7,6 +7,7 @@ import { formatCents } from '../money';
 import type { Database } from './db';
 import {
 	auditLog,
+	expenses,
 	leaseTenants,
 	leases,
 	payments,
@@ -20,6 +21,7 @@ import {
 	decodeContent,
 	emptyImportContext,
 	encodeContent,
+	importFields,
 	loadImportContext,
 	planImport,
 	plannedCount,
@@ -46,6 +48,49 @@ function reasons(result: { rows: { row: number; reason?: string }[] }) {
 }
 
 describe('proposeMapping', () => {
+	it('maps the column names of the Win-CASA layout', () => {
+		const tenants = proposeMapping(
+			'tenants',
+			parseCsv(
+				'ONR;EBEZ;BANREDE;BVNAME;BNAME;BSTRASSE;GEBURTSDATUM;BTEL;BEMAIL\n25;EG;Frau;Anna;Schulz;Weg 1;01.02.1980;030;a@example.org\n'
+			)
+		);
+		expect(tenants.mapping).toMatchObject({
+			salutation: 2,
+			firstName: 3,
+			lastName: 4,
+			street: 5,
+			birthDate: 6,
+			phone: 7,
+			email: 8
+		});
+		const leases = proposeMapping(
+			'leases',
+			parseCsv(
+				'ONR;EBEZ;BNAME;EINZUG;MIETE;BK;HK;WHFL\n25;EG;Schulz;01.04.2021;650,00;180,00;90,00;72,5\n'
+			)
+		);
+		expect(leases.mapping).toMatchObject({
+			propertyName: 0,
+			unitName: 1,
+			tenantNames: 2,
+			startDate: 3,
+			baseRent: 4,
+			operatingCostPrepayment: 5,
+			heatingCostPrepayment: 6
+		});
+		const units = proposeMapping(
+			'properties',
+			parseCsv('ONR;ENR;EBEZ;EART;WHFL\n25;1;EG;Wohnung;72,5\n')
+		);
+		expect(units.mapping).toMatchObject({
+			propertyName: 0,
+			unitName: 2,
+			unitKind: 3,
+			floorArea: 4
+		});
+	});
+
 	it('maps German column names onto the fields, exact names first', () => {
 		const rows = parseCsv(
 			'Objekt;Straße;PLZ;Ort;Wohnung;Fläche in m²;Bemerkung\nHaus;Weg 1;10115;Berlin;EG;72,5;x\n'
@@ -401,7 +446,16 @@ const leaseContext: ImportContext = {
 			extraUnitIds: []
 		}
 	],
-	payments: [{ leaseId: 'l2', date: '2025-01-03', amount: 85000, note: 'Miete Januar' }]
+	payments: [{ leaseId: 'l2', date: '2025-01-03', amount: 85000, note: 'Miete Januar' }],
+	expenses: [
+		{
+			propertyId: 'p1',
+			unitId: null,
+			date: '2025-02-15',
+			amount: 41250,
+			description: 'Grundsteuer'
+		}
+	]
 };
 
 describe('planImport: leases', () => {
@@ -1136,5 +1190,156 @@ describe('commitImport without rows to create', () => {
 		);
 		expect(payments).toMatchObject({ kind: 'payments', count: 0 });
 		expect(await db.select().from(auditLog).where(eq(auditLog.accountId, 'a'))).toEqual([]);
+	});
+});
+
+describe('planImport: expenses', () => {
+	it('places expenses on the portfolio, a property or a unit, with a category from its German name', () => {
+		const result = plan(
+			'expenses',
+			[
+				'Objekt;Einheit;Rechnungsdatum;Bruttobetrag;Kostenart;Lieferant',
+				';;03.01.2025;12,50;Bankgebühren;Kontoführung Januar',
+				'Haus;;15.02.2025;412,50;Betriebskosten;Grundsteuer',
+				'Haus;;15.03.2025;412,50;Betriebskosten;Grundsteuer',
+				'Haus;EG links;20.03.2025;249,90;Reparatur;Heizungsnotdienst',
+				'Villa;;01.04.2025;1.200,00;Darlehenszinsen;',
+				'Villa;;02.04.2025;50;Blumen;Garten',
+				'Schloss;;02.04.2025;50;;x',
+				'Haus;Dach;02.04.2025;50;;x',
+				'Haus;;31.02.2025;50;;x',
+				'Haus;;01.04.2025;zehn;;x',
+				'Haus;;02.04.2025;-80,00;Betriebskosten;Guthaben Gas'
+			].join('\n'),
+			leaseContext
+		);
+		expect(result.kind).toBe('expenses');
+		expect(result.kind === 'expenses' && result.expenses).toEqual([
+			{
+				propertyId: null,
+				unitId: null,
+				date: '2025-01-03',
+				amount: 1250,
+				category: 'management',
+				description: 'Kontoführung Januar'
+			},
+			{
+				propertyId: 'p1',
+				unitId: null,
+				date: '2025-03-15',
+				amount: 41250,
+				category: 'operating_costs',
+				description: 'Grundsteuer'
+			},
+			{
+				propertyId: 'p1',
+				unitId: 'u1',
+				date: '2025-03-20',
+				amount: 24990,
+				category: 'maintenance',
+				description: 'Heizungsnotdienst'
+			},
+			{
+				propertyId: 'p2',
+				unitId: null,
+				date: '2025-04-01',
+				amount: 120000,
+				category: 'loan_interest',
+				description: 'Darlehenszinsen'
+			},
+			{
+				propertyId: 'p2',
+				unitId: null,
+				date: '2025-04-02',
+				amount: 5000,
+				category: 'other',
+				description: 'Garten'
+			},
+			{
+				propertyId: 'p1',
+				unitId: null,
+				date: '2025-04-02',
+				amount: -8000,
+				category: 'operating_costs',
+				description: 'Guthaben Gas'
+			}
+		]);
+		expect(reasons(result)).toEqual([
+			[3, `Die Ausgabe über ${formatCents(41250)} vom 15.02.2025 gibt es schon.`],
+			[8, 'Das Objekt „Schloss“ gibt es nicht.'],
+			[9, 'Die Einheit „Dach“ gibt es in „Haus“ nicht.'],
+			[10, 'Datum: Bitte gib ein gültiges Datum an, z. B. 15.03.2025.'],
+			[11, 'Betrag: Bitte gib einen gültigen Betrag an, z. B. 249,90.']
+		]);
+	});
+
+	it('takes a file of negative amounts only as costs, as a bank statement shows them', () => {
+		const result = plan(
+			'expenses',
+			'Datum;Betrag;Text\n03.01.2025;-12,50;Gebühr\n04.01.2025;0;Nullbuchung',
+			leaseContext
+		);
+		expect(result.kind === 'expenses' && result.expenses.map((expense) => expense.amount)).toEqual([
+			1250, 0
+		]);
+	});
+
+	it('keeps the signs of its own ausgaben.csv, where a negative amount is a refund', () => {
+		const header = importFields.expenses.map((field) => field.label).join(';');
+		const result = plan(
+			'expenses',
+			`${header}\n;;03.01.2025;-12,50;Sonstiges;Erstattung`,
+			leaseContext
+		);
+		expect(result.kind === 'expenses' && result.expenses.map((expense) => expense.amount)).toEqual([
+			-1250
+		]);
+	});
+
+	it('commits the expenses of the plan with one audit line', async () => {
+		const db = await testDatabase();
+		const { propertyId } = await seedUnit(db, 'a', { propertyName: 'Haus' });
+		const context = await loadImportContext(db, 'a', 'expenses');
+		const planned = plan(
+			'expenses',
+			'Objekt;Datum;Betrag\nHaus;01.03.2025;99,00\n;02.03.2025;5',
+			context
+		);
+		const summary = await commitImport(db, contextA, planned);
+		expect(summary).toMatchObject({ kind: 'expenses', count: 2, created: '2 Ausgaben angelegt' });
+		const rows = await db.select().from(expenses).where(eq(expenses.accountId, 'a'));
+		expect(rows.map((row) => [row.propertyId, row.amount, row.category, row.description])).toEqual([
+			[propertyId, 9900, 'other', 'Sonstiges'],
+			[null, 500, 'other', 'Sonstiges']
+		]);
+		// Importing the same file again finds every row.
+		const again = plan(
+			'expenses',
+			'Objekt;Datum;Betrag\nHaus;01.03.2025;99,00',
+			await loadImportContext(db, 'a', 'expenses')
+		);
+		expect(plannedCount(again)).toBe(0);
+		expect(await commitImport(db, contextA, again)).toMatchObject({ count: 0 });
+	});
+
+	it('names blank rows, missing values and a property name that is not unique', () => {
+		const twice: ImportContext = {
+			...leaseContext,
+			properties: [...leaseContext.properties, { ...leaseContext.properties[0], id: 'twin' }]
+		};
+		const name = leaseContext.properties[0].name;
+		const result = plan(
+			'expenses',
+			['Objekt;Datum;Betrag', ';;', 'Villa;;5', 'Villa;01.01.2025;', `${name};01.01.2025;5`].join(
+				'\n'
+			),
+			twice
+		);
+		expect(reasons(result)).toEqual([
+			[2, 'Die Zeile ist leer.'],
+			[3, 'Datum: Bitte gib ein Datum an.'],
+			[4, 'Betrag: Bitte gib einen Betrag an.'],
+			[5, `Das Objekt „${name}“ gibt es mehrmals; benenne die Objekte eindeutig.`]
+		]);
 	});
 });

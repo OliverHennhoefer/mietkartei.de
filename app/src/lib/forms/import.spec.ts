@@ -41,7 +41,7 @@ describe('parseImportForm', () => {
 		const result = parseImportForm(formDataOf({ kind: 'payments' }));
 		expect(result).toMatchObject({
 			ok: false,
-			errors: { file: 'Bitte wähle eine CSV-Datei aus.' }
+			errors: { file: 'Bitte wähle eine Excel- oder CSV-Datei aus.' }
 		});
 	});
 

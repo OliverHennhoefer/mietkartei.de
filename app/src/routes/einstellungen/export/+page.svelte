@@ -116,9 +116,9 @@
 	<p>
 		Der Export ist eine ZIP-Datei mit allen Daten deines Kontos als JSON (<code>export.json</code>)
 		und allen hochgeladenen Dokumenten im Ordner <code>documents/</code>. Objekte, Mieter,
-		Mietverträge und Zahlungen liegen zusätzlich als CSV-Tabellen im Ordner <code>tabellen/</code>,
-		zum Öffnen in Excel oder zum Übernehmen in eine andere Software. Passwörter sind nicht
-		enthalten. Der Export wird im Protokoll vermerkt.
+		Mietverträge, Zahlungen und Ausgaben liegen zusätzlich als CSV-Tabellen im Ordner
+		<code>tabellen/</code>, zum Öffnen in Excel oder zum Übernehmen in eine andere Software.
+		Passwörter sind nicht enthalten. Der Export wird im Protokoll vermerkt.
 	</p>
 
 	<!-- A download cannot come out of a POST action, so the button is a GET to the download route. -->

@@ -12,7 +12,11 @@ Die Abschnitte je Version heißen Neu, Geändert, Behoben, Sicherheit, Entfernt 
 
 ### Neu
 
-- Export als Tabellen: Der Export unter **Einstellungen → Export** enthält jetzt auch Objekte und Einheiten, Mieter, Mietverträge und Zahlungen als CSV-Dateien im Ordner `tabellen/`. Sie öffnen sich in Excel und haben die Spalten der Datenübernahme, lassen sich also unverändert wieder in mietkartei oder in eine andere Software übernehmen. Welche Felder `export.json` enthält, beschreibt die neue [technische Beschreibung des Exportformats](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/.github/EXPORT_FORMAT.md).
+- Ausgaben übernehmen: Die Datenübernahme kennt die neue Art **Ausgaben**, etwa aus dem Finanzexport einer anderen Software oder einer Excel-Liste: Datum, Betrag, Kategorie und Beschreibung, dazu Objekt und Einheit. Die Kategorie erkennt sie am Namen, und eine Datei mit nur negativen Beträgen wie im Kontoauszug liest sie als Ausgaben. Doppelte Ausgaben legt sie nicht an.
+- Datenübernahme aus Win-CASA: Die Spaltenkürzel der Win-CASA-Vorlage, etwa ONR, EBEZ, WHFL, BVNAME, BNAME, EINZUG, MIETE, BK und HK, ordnet die Datenübernahme selbst zu.
+- Excel-Dateien übernehmen: **Einstellungen → Datenübernahme** liest jetzt auch Excel-Dateien (.xlsx) direkt, das erste Tabellenblatt mit Datumsangaben und Beträgen so, wie Excel sie anzeigt. Das Speichern als CSV entfällt. Siehe [Von Excel umsteigen](https://docs.mietkartei.de/anleitungen/von-excel-umsteigen/).
+
+- Export als Tabellen: Der Export unter **Einstellungen → Export** enthält jetzt auch Objekte und Einheiten, Mieter, Mietverträge, Zahlungen und Ausgaben als CSV-Dateien im Ordner `tabellen/`. Sie öffnen sich in Excel und haben die Spalten der Datenübernahme, lassen sich also unverändert wieder in mietkartei oder in eine andere Software übernehmen. Welche Felder `export.json` enthält, beschreibt die neue [technische Beschreibung des Exportformats](https://github.com/OliverHennhoefer/mietkartei.de/blob/main/.github/EXPORT_FORMAT.md).
 
 ### Behoben
 

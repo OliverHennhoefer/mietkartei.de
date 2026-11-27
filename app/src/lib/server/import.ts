@@ -7,13 +7,16 @@ import { parseLease, parseOpeningBalance } from '../forms/leases';
 import { parsePayment } from '../forms/ledger';
 import { parseTenant } from '../forms/tenants';
 import { normalizePostalCode, streetKey } from '../domain/address';
-import { formatCents } from '../money';
+import { formatCents, parseCents } from '../money';
+import { expenseCategoryLabels } from '../labels';
 import type { UnitKind } from '../units';
 import { parseProperty, parseUnit, type PropertyInput, type UnitInput } from '../validation';
 import { auditEntry, type AuditContext } from './audit';
 import type { Database } from './db';
 import { chunk, rowsPerStatement, runBatch } from './db/batch';
 import {
+	expenseCategories,
+	expenses,
 	leaseTenants,
 	leaseUnits,
 	leases,
@@ -22,6 +25,7 @@ import {
 	rentCharges,
 	tenants,
 	units,
+	type ExpenseCategory,
 	type HeatingCostModel,
 	type LeaseKind,
 	type OperatingCostModel
@@ -36,15 +40,19 @@ import type { TenantInput } from './tenants';
 // every row, and commits the valid rows. The mapping proposal and the row validation are pure
 // (planImport); only loadImportContext and commitImport touch the database. Rows are validated
 // with the same parsers the forms use, so a tenant from a file is checked like one typed in.
+// The synonyms also hold column names of other software where they are published, such as the
+// Win-CASA CSV layout (ONR, EBEZ, WHFL, BVNAME, BNAME, EINZUG, MIETE, BK, HK), so such a file
+// maps without picking every column by hand.
 
-export const importKinds = ['properties', 'tenants', 'leases', 'payments'] as const;
+export const importKinds = ['properties', 'tenants', 'leases', 'payments', 'expenses'] as const;
 export type ImportKind = (typeof importKinds)[number];
 
 export const importKindLabels: Record<ImportKind, string> = {
 	properties: 'Objekte und Einheiten',
 	tenants: 'Mieter',
 	leases: 'Mietverträge',
-	payments: 'Zahlungen'
+	payments: 'Zahlungen',
+	expenses: 'Ausgaben'
 };
 
 export type ImportField = {
@@ -69,16 +77,35 @@ const propertyField: ImportField = {
 		'objektname',
 		'objektbezeichnung',
 		'liegenschaft',
-		'immobilie'
+		'immobilie',
+		// Win-CASA (Objektnummer)
+		'onr'
 	]
 };
 const unitField: ImportField = {
 	name: 'unitName',
 	label: 'Einheit',
 	required: true,
-	synonyms: ['einheit', 'wohnung', 'mieteinheit', 'wohneinheit', 'einheitsbezeichnung', 'lage']
+	synonyms: [
+		'einheit',
+		'wohnung',
+		'mieteinheit',
+		'wohneinheit',
+		'einheitsbezeichnung',
+		'wohnungsnummer',
+		'lage',
+		// Win-CASA (Einheitsbezeichnung)
+		'ebez'
+	]
 };
-const streetSynonyms = ['straße', 'strasse', 'straße und hausnummer', 'adresse', 'anschrift'];
+const streetSynonyms = [
+	'straße',
+	'strasse',
+	'straße und hausnummer',
+	'adresse',
+	'anschrift',
+	'bstrasse'
+];
 const postalCodeSynonyms = ['plz', 'postleitzahl'];
 const citySynonyms = ['ort', 'stadt', 'wohnort'];
 const notesField: ImportField = {
@@ -126,7 +153,7 @@ export const importFields: Record<ImportKind, readonly ImportField[]> = {
 			name: 'unitKind',
 			label: 'Art',
 			required: false,
-			synonyms: ['art', 'typ', 'nutzung', 'nutzungsart', 'einheitsart'],
+			synonyms: ['art', 'typ', 'nutzung', 'nutzungsart', 'einheitsart', 'eart'],
 			hint: 'Wohnung, Gewerbe oder Stellplatz; leer = Wohnung'
 		},
 		{
@@ -141,19 +168,25 @@ export const importFields: Record<ImportKind, readonly ImportField[]> = {
 				'fläche in m²',
 				'qm',
 				'm²',
-				'größe'
+				'größe',
+				'whfl'
 			],
 			hint: 'in m², z. B. 72,5'
 		}
 	],
 	tenants: [
-		{ name: 'salutation', label: 'Anrede', required: false, synonyms: ['anrede'] },
-		{ name: 'firstName', label: 'Vorname', required: true, synonyms: ['vorname', 'vornamen'] },
+		{ name: 'salutation', label: 'Anrede', required: false, synonyms: ['anrede', 'banrede'] },
+		{
+			name: 'firstName',
+			label: 'Vorname',
+			required: true,
+			synonyms: ['vorname', 'vornamen', 'bvname']
+		},
 		{
 			name: 'lastName',
 			label: 'Nachname',
 			required: true,
-			synonyms: ['nachname', 'name', 'familienname', 'nachnamen']
+			synonyms: ['nachname', 'name', 'familienname', 'nachnamen', 'bname']
 		},
 		{
 			name: 'birthDate',
@@ -166,13 +199,23 @@ export const importFields: Record<ImportKind, readonly ImportField[]> = {
 			name: 'email',
 			label: 'E-Mail',
 			required: false,
-			synonyms: ['e-mail', 'email', 'e-mail-adresse', 'mail', 'e-mail adresse']
+			synonyms: ['e-mail', 'email', 'e-mail-adresse', 'mail', 'e-mail adresse', 'bemail']
 		},
 		{
 			name: 'phone',
 			label: 'Telefon',
 			required: false,
-			synonyms: ['telefon', 'telefonnummer', 'tel', 'tel.', 'handy', 'mobil', 'mobilnummer']
+			synonyms: [
+				'telefon',
+				'telefonnummer',
+				'tel',
+				'tel.',
+				'handy',
+				'mobil',
+				'mobilnummer',
+				'btel',
+				'bhandy'
+			]
 		},
 		{ name: 'street', label: 'Straße', required: false, synonyms: streetSynonyms },
 		{ name: 'postalCode', label: 'PLZ', required: false, synonyms: postalCodeSynonyms },
@@ -192,7 +235,8 @@ export const importFields: Record<ImportKind, readonly ImportField[]> = {
 				'name',
 				'nachname',
 				'vertragspartner',
-				'mieter (nachname, vorname)'
+				'mieter (nachname, vorname)',
+				'bname'
 			],
 			hint: '„Nachname, Vorname“ oder E-Mail-Adresse eines angelegten Mieters; mehrere mit „;“ getrennt'
 		},
@@ -363,6 +407,70 @@ export const importFields: Record<ImportKind, readonly ImportField[]> = {
 				'betreff'
 			]
 		}
+	],
+	expenses: [
+		{ ...propertyField, required: false, hint: 'leer = der ganze Bestand' },
+		{ ...unitField, required: false, hint: 'nur, wenn die Ausgabe eine Einheit betrifft' },
+		{
+			name: 'date',
+			label: 'Datum',
+			required: true,
+			synonyms: [
+				'datum',
+				'belegdatum',
+				'rechnungsdatum',
+				'zahlungsdatum',
+				'buchungsdatum',
+				'buchungstag',
+				'bezahlt am',
+				'valuta',
+				'wertstellung'
+			],
+			hint: 'z. B. 15.03.2025'
+		},
+		{
+			name: 'amount',
+			label: 'Betrag',
+			required: true,
+			synonyms: [
+				'betrag',
+				'summe',
+				'bruttobetrag',
+				'brutto',
+				'rechnungsbetrag',
+				'gesamtbetrag',
+				'ausgabe',
+				'kosten',
+				'betrag (eur)',
+				'betrag in eur'
+			],
+			hint: 'z. B. 249,90; negativ für eine Erstattung. Sind alle Beträge negativ wie im Kontoauszug, zählen sie als Ausgaben.'
+		},
+		{
+			name: 'category',
+			label: 'Kategorie',
+			required: false,
+			synonyms: ['kategorie', 'kostenkategorie', 'kostenart', 'art', 'konto', 'ausgabenart'],
+			hint: 'z. B. Betriebskosten, Hausgeld, Instandhaltung, Darlehenszinsen; leer oder unbekannt = Sonstiges'
+		},
+		{
+			name: 'description',
+			label: 'Beschreibung',
+			required: false,
+			synonyms: [
+				'beschreibung',
+				'bezeichnung',
+				'verwendungszweck',
+				'buchungstext',
+				'text',
+				'empfänger',
+				'zahlungsempfänger',
+				'lieferant',
+				'notiz',
+				'bemerkung'
+			],
+			hint: 'leer = die Kategorie'
+		}
 	]
 };
 
@@ -467,7 +575,17 @@ export type ImportPlan =
 	| { kind: 'properties'; rows: RowResult[]; properties: NewProperty[]; units: NewUnit[] }
 	| { kind: 'tenants'; rows: RowResult[]; tenants: TenantInput[] }
 	| { kind: 'leases'; rows: RowResult[]; leases: NewLease[] }
-	| { kind: 'payments'; rows: RowResult[]; payments: PaymentInput[] };
+	| { kind: 'payments'; rows: RowResult[]; payments: PaymentInput[] }
+	| { kind: 'expenses'; rows: RowResult[]; expenses: NewExpense[] };
+
+export type NewExpense = {
+	propertyId: string | null;
+	unitId: string | null;
+	date: IsoDate;
+	amount: number;
+	category: ExpenseCategory;
+	description: string;
+};
 
 /** What tells two tenants of the same name apart: the e-mail address, else the postal address. */
 type TenantIdentity = {
@@ -494,6 +612,13 @@ export type ImportContext = {
 		extraUnitIds: string[];
 	}[];
 	payments: { leaseId: string; date: IsoDate; amount: number; note: string | null }[];
+	expenses: {
+		propertyId: string | null;
+		unitId: string | null;
+		date: string;
+		amount: number;
+		description: string;
+	}[];
 };
 
 export const emptyImportContext: ImportContext = {
@@ -501,7 +626,8 @@ export const emptyImportContext: ImportContext = {
 	units: [],
 	tenants: [],
 	leases: [],
-	payments: []
+	payments: [],
+	expenses: []
 };
 
 /** Loads only what the kind needs, in a fixed number of queries, all filtered by the account. */
@@ -511,9 +637,10 @@ export async function loadImportContext(
 	kind: ImportKind
 ): Promise<ImportContext> {
 	const wantsProperties = kind !== 'tenants';
-	const wantsTenants = kind !== 'properties';
+	const wantsTenants = kind !== 'properties' && kind !== 'expenses';
 	const wantsLeases = kind === 'leases' || kind === 'payments';
 	const wantsPayments = kind === 'payments';
+	const wantsExpenses = kind === 'expenses';
 	const [
 		propertyRows,
 		unitRows,
@@ -521,7 +648,8 @@ export async function loadImportContext(
 		leaseRows,
 		extraUnitRows,
 		leaseTenantRows,
-		paymentRows
+		paymentRows,
+		expenseRows
 	] = await Promise.all([
 		wantsProperties
 			? db
@@ -594,6 +722,18 @@ export async function loadImportContext(
 					})
 					.from(payments)
 					.where(eq(payments.accountId, accountId))
+			: [],
+		wantsExpenses
+			? db
+					.select({
+						propertyId: expenses.propertyId,
+						unitId: expenses.unitId,
+						date: expenses.date,
+						amount: expenses.amount,
+						description: expenses.description
+					})
+					.from(expenses)
+					.where(eq(expenses.accountId, accountId))
 			: []
 	]);
 	return {
@@ -607,7 +747,8 @@ export async function loadImportContext(
 				.map((row) => row.tenantId),
 			extraUnitIds: extraUnitRows.filter((row) => row.leaseId === lease.id).map((row) => row.unitId)
 		})),
-		payments: paymentRows
+		payments: paymentRows,
+		expenses: expenseRows
 	};
 }
 
@@ -1210,6 +1351,145 @@ function planPayments(rows: DataRow[], context: ImportContext): ImportPlan {
 	return { kind: 'payments', rows: results, payments: newPayments };
 }
 
+/** German words for the expense categories: the labels, their first words and common names. */
+const expenseCategoryWords: Record<string, ExpenseCategory> = {
+	...Object.fromEntries(
+		expenseCategories.flatMap((category) => {
+			const label = norm(expenseCategoryLabels[category]);
+			return [
+				[label, category],
+				[label.split(/[ (,]/)[0], category]
+			];
+		})
+	),
+	betriebskosten: 'operating_costs',
+	nebenkosten: 'operating_costs',
+	'umlagefähige kosten': 'operating_costs',
+	hausgeld: 'association_fee',
+	wohngeld: 'association_fee',
+	sonderumlage: 'special_levy',
+	rücklage: 'special_levy_reserve',
+	erhaltungsrücklage: 'special_levy_reserve',
+	instandhaltung: 'maintenance',
+	instandsetzung: 'maintenance',
+	reparatur: 'maintenance',
+	reparaturen: 'maintenance',
+	erhaltungsaufwand: 'maintenance',
+	handwerker: 'maintenance',
+	darlehensrate: 'loan_payment',
+	kreditrate: 'loan_payment',
+	finanzierung: 'loan_payment',
+	zinsen: 'loan_interest',
+	zins: 'loan_interest',
+	schuldzinsen: 'loan_interest',
+	darlehenszinsen: 'loan_interest',
+	tilgung: 'loan_repayment',
+	verwaltung: 'management',
+	verwaltungskosten: 'management',
+	gebühren: 'management',
+	bankgebühren: 'management',
+	kontoführung: 'management',
+	steuerberatung: 'management',
+	beratung: 'management',
+	modernisierung: 'modernization',
+	anschaffung: 'modernization',
+	anschaffungen: 'modernization',
+	sonstiges: 'other',
+	sonstige: 'other'
+};
+
+/** Expenses compare by place, date, amount and description. */
+function expenseKey(expense: {
+	propertyId: string | null;
+	unitId: string | null;
+	date: string;
+	amount: number;
+	description: string;
+}): string {
+	return [
+		expense.propertyId,
+		expense.unitId,
+		expense.date,
+		expense.amount,
+		norm(expense.description)
+	].join('|');
+}
+
+/**
+ * @param ownExport whether the header is exactly that of tabellen/ausgaben.csv, whose signs are
+ * mietkartei's own (negative = refund) and never turned around.
+ */
+function planExpenses(rows: DataRow[], context: ImportContext, ownExport: boolean): ImportPlan {
+	const results: RowResult[] = [];
+	const newExpenses: NewExpense[] = [];
+	const existing = new Set(context.expenses.map(expenseKey));
+	// A file with outgoing amounts only, all negative as on a bank statement, gives them as costs;
+	// otherwise a negative amount is a refund, such as the credit of a yearly gas bill.
+	const amounts = rows
+		.map(({ values }) => parseCents(values.amount))
+		.filter((cents) => cents !== undefined);
+	const sign =
+		!ownExport && amounts.some((cents) => cents < 0) && amounts.every((cents) => cents <= 0)
+			? -1
+			: 1;
+	for (const { row, values } of rows) {
+		const result: RowResult = { row, values };
+		results.push(result);
+		if (isBlank(values)) {
+			result.reason = 'Die Zeile ist leer.';
+			continue;
+		}
+		let propertyId: string | null = null;
+		let unitId: string | null = null;
+		if (values.unitName) {
+			const located = locateUnit(context, values.propertyName, values.unitName);
+			if (typeof located === 'string') {
+				result.reason = located;
+				continue;
+			}
+			propertyId = located.property.id;
+			unitId = located.unit.id;
+		} else if (values.propertyName) {
+			const named = context.properties.filter(
+				(property) => norm(property.name) === norm(values.propertyName)
+			);
+			if (named.length !== 1) {
+				result.reason =
+					named.length === 0
+						? `Das Objekt „${values.propertyName}“ gibt es nicht.`
+						: `Das Objekt „${values.propertyName}“ gibt es mehrmals; benenne die Objekte eindeutig.`;
+				continue;
+			}
+			propertyId = named[0].id;
+		}
+		const date = values.date ? parseGermanDate(values.date) : undefined;
+		if (!date) {
+			result.reason = values.date
+				? 'Datum: Bitte gib ein gültiges Datum an, z. B. 15.03.2025.'
+				: 'Datum: Bitte gib ein Datum an.';
+			continue;
+		}
+		const cents = parseCents(values.amount);
+		if (cents === undefined) {
+			result.reason = values.amount
+				? 'Betrag: Bitte gib einen gültigen Betrag an, z. B. 249,90.'
+				: 'Betrag: Bitte gib einen Betrag an.';
+			continue;
+		}
+		const category = expenseCategoryWords[norm(values.category)] ?? 'other';
+		const description = (values.description || expenseCategoryLabels[category]).slice(0, 200);
+		const expense = { propertyId, unitId, date, amount: sign * cents || 0, category, description };
+		const key = expenseKey(expense);
+		if (existing.has(key)) {
+			result.reason = `Die Ausgabe über ${formatCents(expense.amount)} vom ${formatDate(date)} gibt es schon.`;
+			continue;
+		}
+		existing.add(key);
+		newExpenses.push(expense);
+	}
+	return { kind: 'expenses', rows: results, expenses: newExpenses };
+}
+
 /**
  * Validates every row after the header against the mapping and the account's data and says what
  * the commit will create. Pure: the preview and the commit call it with the same input and get
@@ -1232,6 +1512,13 @@ export function planImport(
 			return planLeases(data, context);
 		case 'payments':
 			return planPayments(data, context);
+		case 'expenses':
+			return planExpenses(
+				data,
+				context,
+				(rows[headerIndex] ?? []).join(';') ===
+					importFields.expenses.map((field) => field.label).join(';')
+			);
 	}
 }
 
@@ -1246,6 +1533,8 @@ export function plannedCount(plan: ImportPlan): number {
 			return plan.leases.length;
 		case 'payments':
 			return plan.payments.length;
+		case 'expenses':
+			return plan.expenses.length;
 	}
 }
 
@@ -1392,6 +1681,23 @@ export async function commitImport(
 				auditEntry(db, context, 'import', importId, 'import', auditSummary(created, skipped.length))
 			]);
 			return { kind: plan.kind, count: plan.payments.length, created, skipped };
+		}
+		case 'expenses': {
+			const created = `${countOf(plan.expenses.length, 'Ausgabe', 'Ausgaben')} angelegt`;
+			if (plan.expenses.length === 0) return { kind: plan.kind, count: 0, created, skipped };
+			await assertQuota(db, accountId, 'expenses', plan.expenses.length);
+			const rows = plan.expenses.map((expense) => ({
+				id: crypto.randomUUID(),
+				accountId,
+				...expense
+			}));
+			await runBatch(db, [
+				...chunk(rows, rowsPerStatement(expenses)).map((group) =>
+					db.insert(expenses).values(group)
+				),
+				auditEntry(db, context, 'import', importId, 'import', auditSummary(created, skipped.length))
+			]);
+			return { kind: plan.kind, count: plan.expenses.length, created, skipped };
 		}
 	}
 }
