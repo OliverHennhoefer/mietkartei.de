@@ -152,6 +152,24 @@ test('fills a repeating task from a template and brings it back when done', asyn
 	await expect(openTask(page, title)).toContainText(`bis ${formatDate(addMonths(today(), 12))}`);
 });
 
+test('names the created task when the dialog was opened by a link from elsewhere', async ({
+	page
+}) => {
+	// Opened by its own address, not from the list: closing it must not go back to the page before.
+	const title = `Schornstein fegen ${suffix}`;
+	await page.goto('/aufgaben?neu');
+	await page.waitForLoadState('networkidle');
+	const dialog = page.getByRole('dialog', { name: 'Aufgabe anlegen' });
+	await dialog.getByRole('link', { name: 'Heizung warten lassen' }).click();
+	await expect(dialog.getByLabel('Art')).toHaveValue('maintenance');
+	await dialog.getByLabel('Aufgabe', { exact: true }).fill(title);
+	await dialog.getByLabel('Fällig am (optional)').fill(today());
+	await dialog.getByRole('button', { name: 'Aufgabe anlegen' }).click();
+	await expect(page).toHaveURL(/\/aufgaben$/);
+	await expect(page.getByRole('status')).toContainText(`„${title}“ wurde angelegt.`);
+	await expect(openTask(page, title)).toHaveCount(1);
+});
+
 test('shows validation errors next to the fields', async ({ page }) => {
 	await page.goto('/aufgaben');
 	// Hydration sets the note's textarea to its (empty) value; typing before it would be lost.
